@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FoodControlTab, type FoodControlTabFormRequest, type FoodControlTabState } from '@/components/FoodControlTab';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { ModalPortal } from '@/components/ModalPortal';
@@ -137,6 +137,25 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
 
   const hasFood  = hasFoodConfigured;
   const estEnd   = endISO(foodState.daysLeft);
+
+  const handleFoodControlStateChange = useCallback((nextState: FoodControlTabState) => {
+    setFoodState((previous) => {
+      if (
+        previous.showForm === nextState.showForm &&
+        previous.commerceStatus === nextState.commerceStatus &&
+        previous.foodBrand === nextState.foodBrand &&
+        previous.daysLeft === nextState.daysLeft &&
+        previous.restockDate === nextState.restockDate &&
+        previous.packageSizeKg === nextState.packageSizeKg &&
+        previous.dailyConsumptionG === nextState.dailyConsumptionG &&
+        previous.startDate === nextState.startDate
+      ) {
+        return previous;
+      }
+      return nextState;
+    });
+    setFoodBrand((previous) => (previous === nextState.foodBrand ? previous : nextState.foodBrand));
+  }, []);
 
   const clearSuccessMessageTimer = () => {
     if (successMessageTimerRef.current) {
@@ -582,7 +601,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
                   embedded
                   hideInternalHeader
                   onRequestBack={handleEditBackToView}
-                  onStateChange={(s) => { setFoodState(s); setFoodBrand(s.foodBrand); }}
+                  onStateChange={handleFoodControlStateChange}
                   onSaved={async () => {
                     onSaved?.();
                     await refreshFoodPlan();
