@@ -276,12 +276,22 @@ export function HealthModal({
     const nextDate = p.collar_expiry_date || p.next_due_date;
     return nextDate ? new Date(nextDate).getTime() < now : false;
   }).length;
+  const overdueGroomingCount = groomingDueAlerts.length;
+  const healthTabs = [
+    { id: 'vaccines', label: t('health.vaccines'), icon: '💉', urgent: overdueVaccines > 0 },
+    { id: 'parasites', label: t('health.parasite_control'), icon: '🛡️', urgent: overdueParasites > 0 },
+    { id: 'medication', label: 'Medicação', icon: '💊', urgent: false },
+    ...(healthModalMode === 'full' ? [
+      { id: 'grooming', label: t('health.grooming'), icon: '🛁', urgent: overdueGroomingCount > 0 },
+      { id: 'food', label: t('health.food'), icon: '🥣', urgent: false },
+    ] : []),
+  ].sort((a, b) => Number(b.urgent) - Number(a.urgent));
 
   return (
     <ModalPortal>
     <>
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center sm:p-4 z-50 animate-fadeIn">
-          <div className="bg-slate-50 rounded-[32px] shadow-premium w-full max-w-4xl max-h-[100dvh] sm:max-h-[94dvh] overflow-hidden flex flex-col animate-scaleIn border border-slate-200/50">
+        <div className="fixed inset-0 bg-slate-900/55 backdrop-blur-md flex items-center justify-center sm:p-4 z-50 animate-fadeIn">
+          <div className="bg-slate-50 rounded-[28px] shadow-premium w-full max-w-3xl max-h-[100dvh] sm:max-h-[92dvh] overflow-hidden flex flex-col animate-scaleIn border border-slate-200/50">
             {/* Header do Modal - Design Clean e Elegante */}
             <div className="sticky top-0 z-50 shadow-sm bg-white/90 backdrop-blur-xl border-b border-slate-100">
               {/* Borda Colorida Superior - dinâmica por modo */}
@@ -296,7 +306,7 @@ export function HealthModal({
               {/* Conteúdo do Header */}
               <div className="relative">
                 {/* Barra Superior Minimalista */}
-                <div className="flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-5">
+                <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-4">
                   {/* Esquerda: Voltar (health mode) + Info do Pet */}
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                     {healthModalMode === 'health' && (
@@ -313,16 +323,16 @@ export function HealthModal({
                     {/* Avatar Grande do Pet */}
                     <div className="relative group flex-shrink-0 cursor-pointer">
                       <div className="absolute -inset-0.5 bg-gray-200/50 rounded-3xl blur-md group-hover:bg-gray-300/60 transition-all duration-300"></div>
-                      <div className="relative rounded-2xl p-0.5 sm:p-1 overflow-hidden w-10 h-10 sm:w-16 sm:h-16 md:w-20 md:h-20 group-hover:shadow-xl transition-all duration-300 bg-white shadow-sm ring-1 ring-slate-100/50">
+                      <div className="relative rounded-2xl p-0.5 overflow-hidden w-10 h-10 sm:w-14 sm:h-14 group-hover:shadow-lg transition-all duration-300 bg-white shadow-sm ring-1 ring-slate-100/50">
                         {currentPet?.photo ? (
                           <div className="relative w-full h-full rounded-xl overflow-hidden">
                             <img
                               src={getPhotoUrl(currentPet.photo, currentPet.pet_id, photoTimestamps) || ''}
                               alt={currentPet.pet_name}
-                              className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-110"
+                              className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
                               style={{
                                 objectPosition: 'center 30%',
-                                transform: 'scale(1.15)',
+                                transform: 'scale(1.08)',
                               }}
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
@@ -332,14 +342,14 @@ export function HealthModal({
                               }}
                             />
                             <div className="hidden w-full h-full items-center justify-center">
-                              <span className="text-4xl sm:text-5xl drop-shadow-sm">
+                              <span className="text-3xl sm:text-4xl drop-shadow-sm">
                                 {currentPet?.species === 'dog' ? '🐕' : currentPet?.species === 'cat' ? '🐈' : '🐾'}
                               </span>
                             </div>
                           </div>
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <span className="text-4xl sm:text-5xl drop-shadow-sm group-hover:scale-110 transition-transform duration-300">
+                            <span className="text-3xl sm:text-4xl drop-shadow-sm group-hover:scale-105 transition-transform duration-300">
                               {currentPet?.species === 'dog' ? '🐕' : currentPet?.species === 'cat' ? '🐈' : '🐾'}
                             </span>
                           </div>
@@ -348,7 +358,7 @@ export function HealthModal({
                     </div>
                     {/* Nome do Pet */}
                     <div className="min-w-0 flex-1">
-                      <h2 className="text-base sm:text-2xl md:text-3xl font-black text-gray-900 truncate mb-0.5 sm:mb-1">
+                      <h2 className="text-base sm:text-xl font-black text-gray-900 truncate mb-0.5 sm:mb-1">
                         {currentPet?.pet_name}
                       </h2>
                       <p className="text-gray-600 text-xs sm:text-base font-medium">
@@ -391,15 +401,7 @@ export function HealthModal({
                 {healthModalMode === 'full' && (
                 <div className="px-3 sm:px-6 pb-2.5 sm:pb-4 pt-1">
                   <div className="flex gap-1.5 sm:gap-2.5 overflow-x-auto scrollbar-hide pb-2">
-                    {[
-                      { id: 'vaccines', label: t('health.vaccines'), icon: '💉' },
-                      { id: 'parasites', label: t('health.parasite_control'), icon: '🛡️' },
-                      { id: 'medication', label: 'Medicação', icon: '💊' },
-                      ...(healthModalMode === 'full' ? [
-                        { id: 'grooming', label: t('health.grooming'), icon: '🛁' },
-                        { id: 'food', label: t('health.food'), icon: '🥣' },
-                      ] : []),
-                    ].map(tab => (
+                    {healthTabs.map(tab => (
                       <button
                         key={tab.id}
                         onClick={() => onSelectHealthTab(tab.id)}
@@ -424,6 +426,9 @@ export function HealthModal({
                         }`}>
                           {tab.label}
                         </span>
+                        {tab.urgent && (
+                          <span className="relative h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
+                        )}
                       </button>
                     ))}
                   </div>
@@ -462,8 +467,8 @@ export function HealthModal({
                 <div className="space-y-4">
                   <ConversionHint
                     count={overdueVaccines}
-                    singular="1 vacina está vencida · Atualize o histórico"
-                    plural="{n} vacinas estão vencidas · Atualize o histórico"
+                    singular="1 vacina precisa de revisão hoje"
+                    plural="{n} vacinas precisam de revisão"
                     action="Ver vacinas"
                     onAction={onOpenVaccineCenter}
                   />
@@ -482,8 +487,8 @@ export function HealthModal({
                 <div className="space-y-4">
                   <ConversionHint
                     count={overdueParasites}
-                    singular="1 preventivo está vencido · Lembre-se de reaplicar"
-                    plural="{n} preventivos estão vencidos · Lembre-se de reaplicar"
+                    singular="1 preventivo precisa de atenção"
+                    plural="{n} preventivos precisam de atenção"
                     // TODO P2: action="Comprar novamente" onAction={() => openCommerce('antiparasitario')}
                   />
                   {offerParasiteRestore && (
@@ -518,8 +523,8 @@ export function HealthModal({
                   {groomingDueAlerts.length > 0 && (
                     <ConversionHint
                       count={groomingDueAlerts.length}
-                      singular={`${groomingDueAlerts[0]?.type ?? 'Serviço'} de ${groomingDueAlerts[0]?.petName ?? 'seu pet'} está atrasado · Agende agora`}
-                      plural="{n} serviços de higiene estão atrasados"
+                      singular={`${groomingDueAlerts[0]?.type ?? 'Serviço'} de ${groomingDueAlerts[0]?.petName ?? 'seu pet'} precisa de atenção`}
+                      plural="{n} serviços de higiene precisam de atenção"
                       // TODO P2: action="Agendar" onAction={() => openCommerce('grooming')}
                     />
                   )}

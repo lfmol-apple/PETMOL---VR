@@ -58,10 +58,10 @@ const FREQ_DEFAULTS: Record<GroomingType, number> = {
 function computeStatus(nextDate?: string | null) {
   const diff = diffDays(nextDate);
   if (diff === null) return { label: 'Sem agendamento', bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400' };
-  if (diff < 0)      return { label: `Atrasado ${Math.abs(diff)} dia${Math.abs(diff) !== 1 ? 's' : ''}`, bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' };
-  if (diff === 0)    return { label: 'Hoje!', bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' };
-  if (diff <= 7)     return { label: `Em ${diff} dias`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' };
-  return { label: `Em ${diff} dias`, bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' };
+  if (diff < 0)      return { label: `Precisa de atenção · atrasado há ${Math.abs(diff)} dia${Math.abs(diff) !== 1 ? 's' : ''}`, bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500' };
+  if (diff === 0)    return { label: 'hoje', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
+  if (diff <= 7)     return { label: `em ${diff} dia${diff !== 1 ? 's' : ''}`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' };
+  return { label: `em ${diff} dias`, bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' };
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -313,7 +313,7 @@ export function GroomingItemSheet({
       >
 
         {/* Header */}
-        <div className="px-5 pt-4 pb-4 bg-emerald-50 border-b border-emerald-100 flex-shrink-0">
+        <div className="px-5 pt-4 pb-4 bg-white border-b border-emerald-100 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-3xl flex-shrink-0">
               {petPhotoSrc ? (
@@ -326,8 +326,8 @@ export function GroomingItemSheet({
               <h2 className="text-[17px] font-bold text-gray-900 leading-tight">Higiene e Petshop</h2>
               {petName && (
                 <p className="mt-1.5">
-                  <span className="inline-flex max-w-full items-center px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black tracking-[0.04em] whitespace-normal break-all leading-tight">
-                    Pet: {petName}
+                  <span className="inline-flex max-w-full items-center px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-black tracking-[0.04em] whitespace-normal break-all leading-tight border border-emerald-100">
+                    {petName}
                   </span>
                 </p>
               )}
@@ -360,8 +360,8 @@ export function GroomingItemSheet({
 
           {/* Status badge */}
           <div className={`mt-3 inline-flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm font-semibold ${status.bg} ${status.text}`}>
-            {status.dot === 'bg-red-500' ? (
-              <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold animate-pulse shadow-sm border border-white/50 flex-shrink-0">
+            {status.dot === 'bg-rose-500' ? (
+              <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm border border-white/50 flex-shrink-0">
                 !
               </div>
             ) : (
@@ -421,7 +421,7 @@ export function GroomingItemSheet({
                               rel="noopener noreferrer"
                               className="text-[11px] font-bold text-sky-600 underline whitespace-nowrap flex-shrink-0"
                             >
-                              Recomprar
+                              Ver produto
                             </a>
                           </div>
                         )}
@@ -442,27 +442,27 @@ export function GroomingItemSheet({
 
               {/* Main CTA */}
               {last ? (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setMode('add')}
+                    className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-[15px] font-bold shadow-md shadow-emerald-500/20 transition-colors"
+                  >
+                    Registrar banho/tosa
+                  </button>
                   <button
                     onClick={() => nextEditableRecord && startEdit(nextEditableRecord)}
                     disabled={!nextEditableRecord}
-                    className="w-full py-3 rounded-2xl bg-white border border-gray-200 text-gray-700 text-sm font-semibold shadow-sm hover:bg-gray-50 active:scale-95 transition-all"
+                    className="w-full py-3 rounded-2xl bg-white border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 active:scale-95 transition-all"
                   >
-                    ✏️ Editar próximo
-                  </button>
-                  <button
-                    onClick={() => setMode('add')}
-                    className="w-full py-3 rounded-2xl bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-sm font-bold shadow-md transition-colors"
-                  >
-                    🛁 Fiz hoje
+                    Editar próximo
                   </button>
                 </div>
               ) : (
                 <button
                   onClick={() => setMode('add')}
-                  className="w-full py-4 rounded-2xl bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-[15px] font-bold shadow-md transition-colors"
+                  className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-[15px] font-bold shadow-md transition-colors"
                 >
-                  🛁 Registrar serviço
+                  Registrar banho/tosa
                 </button>
               )}
 
@@ -486,7 +486,7 @@ export function GroomingItemSheet({
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-semibold text-gray-800">{TYPE_LABELS[rec.type]}</p>
                             {!isHistory && diffDays(rec.next_recommended_date) !== null && diffDays(rec.next_recommended_date)! < 0 && (
-                              <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold animate-pulse shadow-sm border border-white/50 flex-shrink-0">
+                              <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm border border-white/50 flex-shrink-0">
                                 !
                               </div>
                             )}

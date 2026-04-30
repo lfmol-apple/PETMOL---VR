@@ -44,19 +44,15 @@ function shouldShowAlert(tone?: ControlTone, fallbackAlert?: boolean) {
 function AlertBadge({ tone = 'critical' }: { tone?: ControlTone }) {
   if (tone === 'warning') {
     return (
-      <span className="absolute right-2 bottom-2 z-10 flex items-center justify-center w-6 h-6 animate-pulse">
-        <span
-          className="absolute inset-0 bg-amber-400 shadow-md ring-2 ring-white"
-          style={{ clipPath: 'polygon(50% 0%, 100% 92%, 0% 92%)' }}
-        />
-        <span className="relative mt-1 text-amber-950 font-black leading-none" style={{ fontSize: '11px' }}>!</span>
+      <span className="absolute right-2 bottom-2 z-10 rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 shadow-sm ring-2 ring-white/80">
+        Atenção
       </span>
     );
   }
 
   return (
-    <span className="absolute right-2 bottom-2 z-10 flex items-center justify-center w-5 h-5 rounded-full bg-red-500 shadow-md ring-2 ring-white animate-pulse">
-      <span className="text-white font-black leading-none" style={{ fontSize: '10px' }}>!</span>
+    <span className="absolute right-2 bottom-2 z-10 rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700 shadow-sm ring-2 ring-white/80">
+      Agora
     </span>
   );
 }
@@ -95,21 +91,21 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onAlimentacaoClick}
-            className="group relative overflow-hidden rounded-xl border-2 border-amber-300 bg-gradient-to-br from-amber-100 to-orange-200 p-3 min-h-[80px] shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg active:scale-95"
+            className="group relative overflow-hidden rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-100 p-3 min-h-[82px] shadow-sm shadow-amber-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
             {shouldShowAlert(colorFood, alertFood) && <AlertBadge tone={colorFood} />}
-            <span className="absolute right-2 top-2 opacity-95 pointer-events-none transition-transform group-hover:scale-110">
-              <span className="text-2xl">🥣</span>
+            <span className="absolute right-2.5 top-2.5 opacity-85 pointer-events-none transition-transform group-hover:scale-105">
+              <span className="text-[22px]">🥣</span>
             </span>
-            <div className="flex h-full flex-col justify-center pr-8 pt-3 text-left">
-              <h3 className="truncate text-[14px] sm:text-base font-bold leading-tight text-amber-950">{foodTitle || t('home.food.title')}</h3>
-              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-amber-800">
+            <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
+              <h3 className="line-clamp-2 text-[13px] sm:text-base font-bold leading-tight text-amber-950">{foodTitle || t('home.food.title')}</h3>
+              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-amber-800/85">
                 {hasFoodData
                   ? (foodHeadline || t('home.food.desc'))
                   : (foodHeadline || 'Toque para escanear a ração')}
               </p>
               {foodSubline && (
-                <p className="mt-1 line-clamp-1 text-[10px] sm:text-xs font-bold leading-[1.15] text-blue-700">
+                <p className="mt-1 line-clamp-1 text-[10px] sm:text-xs font-bold leading-[1.15] text-amber-900">
                   {foodSubline}
                 </p>
               )}
@@ -120,15 +116,15 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onHealthClick}
-            className="group relative overflow-hidden rounded-xl border border-blue-400 bg-gradient-to-br from-sky-100 via-blue-100 to-blue-200 p-3 min-h-[80px] shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg active:scale-95"
+            className="group relative overflow-hidden rounded-2xl border border-sky-200/80 bg-gradient-to-br from-sky-50 via-blue-50 to-blue-100 p-3 min-h-[82px] shadow-sm shadow-blue-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
             {shouldShowAlert(colorHealth, alertHealth) && <AlertBadge tone={colorHealth} />}
-            <span className="absolute right-2 top-2 text-xl opacity-90 pointer-events-none transition-transform group-hover:scale-110">🏥</span>
+            <span className="absolute right-2.5 top-2.5 text-[22px] opacity-85 pointer-events-none transition-transform group-hover:scale-105">🏥</span>
             <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
               <h3 className="truncate text-[14px] sm:text-base font-semibold leading-tight text-blue-950">
                 {t('home.health.title')}
               </h3>
-              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-blue-900 opacity-100">{t('home.health.vaccines')}</p>
+              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-blue-900/80">{t('home.health.vaccines')}</p>
             </div>
           </button>
 
@@ -136,15 +132,15 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onBanhoTosaClick}
-            className="group relative overflow-hidden rounded-xl border border-green-400 bg-gradient-to-br from-emerald-100 via-green-100 to-lime-100 p-3 min-h-[74px] transition-all duration-200 hover:-translate-y-1 hover:shadow-lg active:scale-95"
+            className="group relative overflow-hidden rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50 via-green-50 to-lime-100 p-3 min-h-[76px] shadow-sm shadow-emerald-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
             {shouldShowAlert(colorGrooming, alertGrooming) && <AlertBadge tone={colorGrooming} />}
-            <span className="absolute right-2 top-2 text-xl opacity-90 pointer-events-none transition-transform group-hover:scale-110">🛁</span>
+            <span className="absolute right-2.5 top-2.5 text-[22px] opacity-85 pointer-events-none transition-transform group-hover:scale-105">🛁</span>
             <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
               <h3 className="truncate text-[14px] sm:text-base font-semibold leading-tight text-green-950">
                 {t('home.hygiene')}
               </h3>
-              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-green-900 opacity-100">{t('home.hygiene.desc')}</p>
+              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-green-900/80">{t('home.hygiene.desc')}</p>
             </div>
           </button>
 
@@ -152,13 +148,13 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={() => setShowShoppingSheet(true)}
-            className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#2563eb] via-[#1e6fd9] to-[#7c3aed] p-3 min-h-[74px] transition-all duration-200 hover:-translate-y-1 hover:shadow-lg active:scale-95 hover:from-[#1d4ed8] hover:to-[#6d28d9]"
+            className="group relative overflow-hidden rounded-2xl border border-indigo-200/70 bg-gradient-to-br from-blue-100 via-indigo-100 to-violet-100 p-3 min-h-[76px] shadow-sm shadow-indigo-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
             {alertShopping && <AlertBadge tone="critical" />}
-            <span className="absolute right-2 top-2 text-xl pointer-events-none transition-transform group-hover:scale-110" style={{ filter: 'brightness(0) invert(1)' }}>🛒</span>
+            <span className="absolute right-2.5 top-2.5 text-[22px] opacity-85 pointer-events-none transition-transform group-hover:scale-105">🛒</span>
             <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
-              <h3 className="truncate text-[14px] sm:text-base font-bold leading-tight text-white drop-shadow-sm">{t('home.shopping.title')}</h3>
-              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-white/80">{t('home.shopping.desc')}</p>
+              <h3 className="truncate text-[14px] sm:text-base font-bold leading-tight text-indigo-950">{t('home.shopping.title')}</h3>
+              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-indigo-900/75">{t('home.shopping.desc')}</p>
             </div>
           </button>
 
@@ -166,17 +162,17 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onDocumentosClick}
-            className="group col-span-2 relative overflow-hidden rounded-xl border border-slate-600/50 bg-gradient-to-r from-slate-700 to-slate-800 p-3 min-h-[56px] transition-all duration-300 hover:shadow-xl active:scale-[0.98]"
+            className="group col-span-2 relative overflow-hidden rounded-2xl border border-slate-200 bg-white/80 p-3 min-h-[56px] shadow-sm shadow-slate-900/5 transition-all duration-300 hover:shadow-md active:scale-[0.98]"
           >
             <div className="flex h-full items-center gap-2.5 text-left">
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white/10 backdrop-blur-sm transition-transform group-hover:scale-110">
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 transition-transform group-hover:scale-105">
                 <span className="pointer-events-none text-lg">📁</span>
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="truncate text-[14px] sm:text-base font-bold leading-tight text-white">Histórico</h3>
-                <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs font-semibold leading-[1.15] text-slate-300 opacity-80">Leve o histórico do pet para cada consulta</p>
+                <h3 className="truncate text-[14px] sm:text-base font-bold leading-tight text-slate-800">Histórico</h3>
+                <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs font-semibold leading-[1.15] text-slate-500">Leve o histórico do pet para cada consulta</p>
               </div>
-              <span className="text-lg text-white/30 transition-transform group-hover:translate-x-1">›</span>
+              <span className="text-lg text-slate-300 transition-transform group-hover:translate-x-1">›</span>
             </div>
           </button>
         </div>

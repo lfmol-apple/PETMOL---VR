@@ -34,7 +34,7 @@ import { openHomeContextualCommerce, resolvePushActionSheetCommerceIntent } from
 // resolveAlertAction / navigateToPetHealthTab removidos — handleTopAttentionSelect abre sheets diretamente
 import { useHomeItemSheetActions } from '@/features/interactions/useHomeItemSheetActions';
 import { useHomeHistoryActions } from '@/features/interactions/useHomeHistoryActions';
-import { resolveHomeDeepLinkDestination, resolvePushActionSheetFullDestination, resolveScannedProductDestination, resolveTopAttentionDestination, type HomeSurfaceResolution } from '@/features/interactions/homeModalRouting';
+import { resolveHomeDeepLinkDestination, resolveScannedProductDestination, resolveTopAttentionDestination, type HomeSurfaceResolution } from '@/features/interactions/homeModalRouting';
 import { useHomeModalUtilityActions } from '@/features/interactions/useHomeModalUtilityActions';
 import { useHomeSurfaceActions } from '@/features/interactions/useHomeSurfaceActions';
 import { useHomeInteractionCenter } from '@/features/interactions/useHomeInteractionCenter';
@@ -348,6 +348,9 @@ export default function HomePage() {
   const [showMedicationSheet, setShowMedicationSheet] = useState(false);
   const [showFoodSheet, setShowFoodSheet] = useState(false);
   const [foodSheetInitialMode, setFoodSheetInitialMode] = useState<'view' | 'buy'>('view');
+  const [vaccineSheetInitialMode, setVaccineSheetInitialMode] = useState<'view' | 'buy'>('view');
+  const [medicationSheetInitialMode, setMedicationSheetInitialMode] = useState<'view' | 'buy'>('view');
+  const [parasiteSheetInitialMode, setParasiteSheetInitialMode] = useState<'view' | 'buy'>('view');
 
   // Estado para simulação de chegada em estabelecimento
   const [showArrivalAlert, setShowArrivalAlert] = useState(false);
@@ -1185,19 +1188,60 @@ export default function HomePage() {
     const itemName = params.get('itemName') || undefined;
     const pushFoodAction = params.get('push_food_action') || params.get('push_action');
     const mode = params.get('mode');
+    const wantsBuyMode = params.get('action') === 'buy' || params.get('buy') === '1' || mode === 'buy';
+    const forcePushChoice =
+      params.get('choice') === '1' ||
+      params.get('push_sheet') === '1' ||
+      modal === 'push' ||
+      modal === 'push-action' ||
+      modal === 'push_action';
+    const legacyPushType = params.get('type') as ActionSheetType | null;
+    const parasiteSubtype = params.get('subtype') || params.get('category') || params.get('type');
+    const explicitPushActionType = (() => {
+      if (!forcePushChoice) return null;
+      if (legacyPushType && ['food', 'medication', 'vaccines', 'parasites', 'grooming'].includes(legacyPushType)) {
+        return legacyPushType;
+      }
+      if (modal === 'food') return 'food';
+      if (modal === 'medication') return 'medication';
+      if (modal === 'vaccines' || modal === 'vaccine-sheet') return 'vaccines';
+      if (modal === 'parasites' || modal === 'vermifugo' || modal === 'antipulgas' || modal === 'coleira') return 'parasites';
+      if (modal === 'grooming' || modal === 'banho') return 'grooming';
+      return null;
+    })();
 
-    if (modal === 'food' && (params.get('action') === 'buy' || mode === 'buy')) {
-      setFoodSheetInitialMode('buy');
+    if (wantsBuyMode) {
+      if (modal === 'food') setFoodSheetInitialMode('buy');
+      if (modal === 'vaccines' || modal === 'vaccine-sheet') setVaccineSheetInitialMode('buy');
+      if (modal === 'medication') setMedicationSheetInitialMode('buy');
+      if (modal === 'parasites' || modal === 'vermifugo' || modal === 'antipulgas' || modal === 'coleira') setParasiteSheetInitialMode('buy');
     }
 
-    const destination = resolveHomeDeepLinkDestination(modal, params.get('tab'));
+    const legacyPushDestination = explicitPushActionType
+      ? { kind: 'push-action-sheet' as const, actionSheetType: explicitPushActionType }
+      : null;
+    const destination = legacyPushDestination ?? resolveHomeDeepLinkDestination(modal, params.get('tab'), parasiteSubtype);
     if (destination?.kind === 'push-action-sheet' && resolvedPetId) {
-      setPushActionSheet({
-        type: destination.actionSheetType as ActionSheetType,
-        petId: resolvedPetId,
-        eventId,
-        itemName,
-      });
+      if (forcePushChoice) {
+        setPushActionSheet({
+          type: destination.actionSheetType as ActionSheetType,
+          petId: resolvedPetId,
+          eventId,
+          itemName,
+        });
+      } else {
+        if (wantsBuyMode && destination.actionSheetType === 'food') setFoodSheetInitialMode('buy');
+        if (wantsBuyMode && destination.actionSheetType === 'vaccines') setVaccineSheetInitialMode('buy');
+        if (wantsBuyMode && destination.actionSheetType === 'medication') setMedicationSheetInitialMode('buy');
+        if (wantsBuyMode && destination.actionSheetType === 'parasites') setParasiteSheetInitialMode('buy');
+        const directDestination: HomeSurfaceResolution =
+          destination.actionSheetType === 'food' ? { kind: 'sheet', sheet: 'food' } :
+          destination.actionSheetType === 'vaccines' ? { kind: 'sheet', sheet: 'vaccines' } :
+          destination.actionSheetType === 'medication' ? { kind: 'sheet', sheet: 'medication' } :
+          destination.actionSheetType === 'grooming' ? { kind: 'sheet', sheet: 'grooming' } :
+          { kind: 'sheet', sheet: 'vermifugo' };
+        applyHomeSurfaceResolution(directDestination);
+      }
     } else if (destination) {
       applyHomeSurfaceResolution(destination);
     }
@@ -1311,53 +1355,6 @@ export default function HomePage() {
         {/* Pet Management - if pets exist */}
         {pets.length > 0 ? (
           <div className="mx-auto max-w-xl space-y-4 rounded-3xl border border-slate-200 bg-gradient-to-b from-[#F0F4F8] to-[#E2E8F0] p-3 shadow-2xl sm:p-4">
-            {/* Atenção agora — banner inteligente: grade com todos os alertas ou banner simples */}
-            {(() => {
-              if (!selectedPetPrimaryAlert) return null;
-              const currentPetName = selectedPetPrimaryAlert.pet_name || pets.find(p => p.pet_id === selectedPetId)?.pet_name || 'seu pet';
-              const overdueAlerts = _selectedPetActiveAlerts.filter(
-                a => a.status === 'overdue' || a.status === 'today'
-              ).sort((a, b) => ((b.priority || 0) - (a.priority || 0)) || ((b.days_overdue || 0) - (a.days_overdue || 0)));
-              const hasMany = overdueAlerts.length > 1;
-
-              // Grade expandida
-              if (showOverdueGrid && hasMany) {
-                return (
-                  <OverdueAlertsGrid
-                    alerts={overdueAlerts}
-                    petName={currentPetName}
-                    onAlertClick={handleOverdueAlertClick}
-                    onClose={() => setShowOverdueGrid(false)}
-                  />
-                );
-              }
-
-              // Banner compacto
-              const typeLabel = selectedPetPrimaryAlert.type_label || 'um cuidado';
-              const label = selectedPetPrimaryAlert.status === 'today'
-                ? `${currentPetName} precisa de atenção hoje em ${typeLabel}`
-                : `${currentPetName} está com ${typeLabel} em atraso`;
-
-              return (
-                <div className="mb-3 flex items-center gap-3 rounded-2xl bg-red-50 border border-red-200 px-4 py-3">
-                  <span className="text-xl flex-shrink-0">🚨</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-red-900 leading-snug truncate">{label}</p>
-                    {hasMany && (
-                      <p className="text-[11px] text-red-600 mt-0.5">
-                        +{overdueAlerts.length - 1} outro{overdueAlerts.length - 1 > 1 ? 's' : ''} em atraso
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    onClick={hasMany ? () => setShowOverdueGrid(true) : handleSelectedPetPrimaryAlertOpen}
-                    className="flex-shrink-0 text-sm font-semibold text-red-700 bg-red-100 px-3 py-1.5 rounded-lg active:scale-95 transition-transform whitespace-nowrap"
-                  >
-                    {hasMany ? `Ver ${overdueAlerts.length}` : 'Ver agora'}
-                  </button>
-                </div>
-              );
-            })()}
             {checkupBanner && (
               <div className="mb-3 flex items-center gap-3 rounded-2xl bg-blue-50 border border-blue-100 px-4 py-3">
                 <div className="flex-1 min-w-0">
@@ -1388,6 +1385,77 @@ export default function HomePage() {
               
               return (
                 <div className="space-y-4">
+                  {(() => {
+                    const currentPetName = currentPet.pet_name || 'seu pet';
+                    const attentionAlerts = _selectedPetActiveAlerts
+                      .filter((a) => a.status === 'overdue' || a.status === 'today')
+                      .sort((a, b) => ((b.priority || 0) - (a.priority || 0)) || ((b.days_overdue || 0) - (a.days_overdue || 0)));
+                    const hasAttention = attentionAlerts.length > 0 && Boolean(selectedPetPrimaryAlert);
+                    const hasOverdueAttention = attentionAlerts.some((a) => a.status === 'overdue');
+                    const hasMany = attentionAlerts.length > 1;
+                    const attentionTone = hasOverdueAttention ? 'overdue' : hasAttention ? 'today' : 'ok';
+
+                    if (showOverdueGrid && hasMany) {
+                      return (
+                        <OverdueAlertsGrid
+                          alerts={attentionAlerts}
+                          petName={currentPetName}
+                          onAlertClick={handleOverdueAlertClick}
+                          onClose={() => setShowOverdueGrid(false)}
+                        />
+                      );
+                    }
+
+                    return (
+                      <section
+                        className={`rounded-[24px] border px-4 py-3 shadow-lg shadow-slate-900/5 ${
+                          attentionTone === 'overdue'
+                            ? 'border-rose-200 bg-gradient-to-br from-rose-50 via-white to-amber-50'
+                            : attentionTone === 'today'
+                              ? 'border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50'
+                              : 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-sky-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl text-xl ${
+                              attentionTone === 'overdue'
+                                ? 'bg-rose-100 text-rose-800'
+                                : attentionTone === 'today'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-emerald-100 text-emerald-800'
+                            }`}
+                          >
+                            {hasAttention ? '🧭' : '✓'}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h2 className="text-[17px] font-black leading-tight tracking-tight text-slate-900">
+                              {hasAttention ? `${currentPetName} precisa de atenção hoje` : `${currentPetName} está em dia hoje`}
+                            </h2>
+                            <p className="mt-0.5 text-[12px] font-medium leading-snug text-slate-600">
+                              {hasAttention
+                                ? `${attentionAlerts.length} ${attentionAlerts.length === 1 ? 'pendência para revisar' : 'pendências para revisar'}`
+                                : 'Veja o que vem pela frente'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={hasAttention ? (hasMany ? () => setShowOverdueGrid(true) : handleSelectedPetPrimaryAlertOpen) : handleOpenEvents}
+                            className={`flex-shrink-0 rounded-xl px-3 py-2 text-[12px] font-bold transition-transform active:scale-95 ${
+                              attentionTone === 'overdue'
+                                ? 'bg-rose-100 text-rose-800 hover:bg-rose-200'
+                                : attentionTone === 'today'
+                                  ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                                  : 'bg-white/80 text-blue-700 hover:bg-blue-50'
+                            }`}
+                          >
+                            {hasAttention ? 'Ver pendências' : 'Ver próximos'}
+                          </button>
+                        </div>
+                      </section>
+                    );
+                  })()}
+
                   <PetTabs
                     pets={pets.map(p => ({
                       id: p.pet_id,
@@ -1735,7 +1803,13 @@ export default function HomePage() {
               setSelectedPetId(pushActionSheet.petId);
             }
             setPushActionSheet(null);
-            applyHomeSurfaceResolution(resolvePushActionSheetFullDestination(pushActionSheet.type));
+            const directDestination: HomeSurfaceResolution =
+              pushActionSheet.type === 'food' ? { kind: 'sheet', sheet: 'food' } :
+              pushActionSheet.type === 'vaccines' ? { kind: 'sheet', sheet: 'vaccines' } :
+              pushActionSheet.type === 'medication' ? { kind: 'sheet', sheet: 'medication' } :
+              pushActionSheet.type === 'grooming' ? { kind: 'sheet', sheet: 'grooming' } :
+              { kind: 'sheet', sheet: 'vermifugo' };
+            applyHomeSurfaceResolution(directDestination);
           }}
         />
         );
@@ -1750,7 +1824,8 @@ export default function HomePage() {
           petSpecies={currentPet?.species}
           petPhotoUrl={currentPet?.photo}
           parasiteControls={parasiteControls.filter(p => p.type === 'dewormer' || p.type === 'heartworm' || p.type === 'leishmaniasis')}
-          onClose={closeVermifugoSheet}
+          initialMode={parasiteSheetInitialMode}
+          onClose={() => { setParasiteSheetInitialMode('view'); closeVermifugoSheet(); }}
           onRefresh={loadParasiteControls}
         />
       )}
@@ -1763,7 +1838,8 @@ export default function HomePage() {
           petSpecies={currentPet?.species}
           petPhotoUrl={currentPet?.photo}
           parasiteControls={parasiteControls.filter(p => p.type === 'flea_tick')}
-          onClose={closeAntipulgasSheet}
+          initialMode={parasiteSheetInitialMode}
+          onClose={() => { setParasiteSheetInitialMode('view'); closeAntipulgasSheet(); }}
           onRefresh={loadParasiteControls}
         />
       )}
@@ -1776,7 +1852,8 @@ export default function HomePage() {
           petSpecies={currentPet?.species}
           petPhotoUrl={currentPet?.photo}
           parasiteControls={parasiteControls.filter(p => p.type === 'collar')}
-          onClose={closeColeiraSheet}
+          initialMode={parasiteSheetInitialMode}
+          onClose={() => { setParasiteSheetInitialMode('view'); closeColeiraSheet(); }}
           onRefresh={loadParasiteControls}
         />
       )}
@@ -1797,7 +1874,8 @@ export default function HomePage() {
           petSpecies={currentPet?.species}
           petPhotoUrl={currentPet?.photo}
           vaccines={vaccines}
-          onClose={closeVaccineSheet}
+          initialMode={vaccineSheetInitialMode}
+          onClose={() => { setVaccineSheetInitialMode('view'); closeVaccineSheet(); }}
           onQuickAdd={handleVaccineQuickAdd}
           onFullFormVaccine={handleVaccineFullForm}
           onEditVaccine={handleVaccineEdit}
@@ -1821,7 +1899,8 @@ export default function HomePage() {
           petSpecies={currentPet?.species}
           petPhotoUrl={currentPet?.photo}
           petEvents={petEvents}
-          onClose={closeMedicationSheet}
+          initialMode={medicationSheetInitialMode}
+          onClose={() => { setMedicationSheetInitialMode('view'); closeMedicationSheet(); }}
           onRefresh={refreshMedicationHistory}
         />
       )}

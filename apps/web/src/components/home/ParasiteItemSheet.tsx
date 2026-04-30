@@ -100,11 +100,11 @@ function hasLaterParasiteRecord(records: ParasiteControl[], record: ParasiteCont
 function computeStatus(nextDate?: string | null) {
   const diff = diffDays(nextDate);
   if (diff === null) return { label: 'Sem dados', bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400' };
-  if (diff < 0)      return { label: `Vencido há ${Math.abs(diff)} dia${Math.abs(diff) !== 1 ? 's' : ''}`, bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' };
-  if (diff === 0)    return { label: 'Vence hoje!', bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' };
-  if (diff <= 7)     return { label: `Vence em ${diff} dias`, bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' };
-  if (diff <= 14)    return { label: `Em ${diff} dias`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' };
-  return { label: `Em ${diff} dias`, bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' };
+  if (diff < 0)      return { label: `Precisa de atenção · atrasado há ${Math.abs(diff)} dia${Math.abs(diff) !== 1 ? 's' : ''}`, bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500' };
+  if (diff === 0)    return { label: 'Está na hora de cuidar', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
+  if (diff <= 7)     return { label: `em ${diff} dia${diff !== 1 ? 's' : ''}`, bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
+  if (diff <= 14)    return { label: `em ${diff} dias`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' };
+  return { label: `em ${diff} dias`, bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' };
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -118,6 +118,7 @@ interface ParasiteItemSheetProps {
   parasiteControls: ParasiteControl[];
   onClose: () => void;
   onRefresh: () => Promise<void>;
+  initialMode?: 'view' | 'buy';
 }
 
 type ViewMode = 'view' | 'apply' | 'edit' | 'buy';
@@ -132,10 +133,11 @@ export function ParasiteItemSheet({
   parasiteControls,
   onClose,
   onRefresh,
+  initialMode,
 }: ParasiteItemSheetProps) {
   const cfg = CONFIG[type];
   const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
-  const [mode, setMode] = useState<ViewMode>('view');
+  const [mode, setMode] = useState<ViewMode>(initialMode === 'buy' ? 'buy' : 'view');
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -418,16 +420,16 @@ export function ParasiteItemSheet({
 
       {/* Sheet */}
       <div
-        className="relative w-full max-w-lg bg-white/80 backdrop-blur-3xl rounded-t-[40px] sm:rounded-[40px] shadow-[0_-8px_40px_rgba(0,0,0,0.12)] border-t border-x border-white/80 sm:border flex flex-col overflow-hidden animate-slideUp sm:animate-scaleIn h-[90vh] sm:h-auto sm:max-h-[90dvh]"
+        className="relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-[28px] shadow-2xl border-t border-x sm:border border-gray-200/70 flex flex-col overflow-hidden animate-slideUp sm:animate-scaleIn h-[90vh] sm:h-auto sm:max-h-[90dvh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Prime Handle Bar (Desktop/Mobile) */}
         <div className="sheet-handle my-3 opacity-40" />
 
         {/* Header */}
-        <div className={`px-6 pt-1 pb-5 ${cfg.colorLight} border-b border-gray-100 flex-shrink-0 relative overflow-hidden animate-prime-shine`}>
+        <div className={`px-5 pt-2 pb-4 ${cfg.colorLight} border-b border-gray-100 flex-shrink-0 relative overflow-hidden`}>
           <div className="flex items-center gap-4 relative z-10">
-            <div className="w-14 h-14 rounded-full overflow-hidden bg-white shadow-xl shadow-gray-200/50 flex items-center justify-center text-3xl flex-shrink-0 ring-1 ring-black/5">
+            <div className="w-12 h-12 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-2xl flex-shrink-0 ring-1 ring-black/5">
               {petPhotoSrc ? (
                 <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
               ) : (
@@ -440,14 +442,14 @@ export function ParasiteItemSheet({
               </div>
               {petName && (
                 <p className="mt-1.5">
-                  <span className="inline-flex max-w-full items-center px-2.5 py-1 rounded-full bg-white text-gray-800 text-xs font-black tracking-[0.04em] shadow-sm border border-white/90 whitespace-normal break-all leading-tight">
-                    Pet: {petName}
+                <span className="inline-flex max-w-full items-center px-2.5 py-1 rounded-full bg-white text-gray-800 text-xs font-bold shadow-sm border border-white/90 whitespace-normal break-all leading-tight">
+                    {petName}
                   </span>
                 </p>
               )}
               <div className="flex items-center gap-2 mt-1 min-w-0">
-                <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 animate-pulse ${status.dot} ring-2 ring-white`} />
-                <span className={`text-[13px] font-black uppercase tracking-wider ${status.text} truncate`}>{status.label}</span>
+                <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${status.dot} ring-2 ring-white`} />
+                <span className={`text-[13px] font-semibold ${status.text} truncate`}>{status.label}</span>
               </div>
             </div>
             {mode !== 'view' ? (
@@ -487,13 +489,13 @@ export function ParasiteItemSheet({
               {/* Active product card */}
               {current && (() => {
                 const urgentBorder =
-                  status.dot === 'bg-red-500' ? 'border-red-300 bg-red-50' :
-                  status.dot === 'bg-orange-500' ? 'border-orange-300 bg-orange-50' :
+                  status.dot === 'bg-rose-500' ? 'border-rose-200 bg-rose-50' :
+                  status.dot === 'bg-amber-500' ? 'border-amber-200 bg-amber-50' :
                   status.dot === 'bg-yellow-500' ? 'border-yellow-200 bg-yellow-50' :
                   `${cfg.colorBorder} ${cfg.colorLight}`;
                 const statusPill =
-                  status.dot === 'bg-red-500' ? 'bg-red-100 text-red-700' :
-                  status.dot === 'bg-orange-500' ? 'bg-orange-100 text-orange-700' :
+                  status.dot === 'bg-rose-500' ? 'bg-rose-100 text-rose-700' :
+                  status.dot === 'bg-amber-500' ? 'bg-amber-100 text-amber-700' :
                   status.dot === 'bg-yellow-500' ? 'bg-yellow-100 text-yellow-700' :
                   'bg-emerald-100 text-emerald-700';
                 return (
@@ -503,7 +505,7 @@ export function ParasiteItemSheet({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Produto atual</p>
-                      <p className={`text-[13px] font-bold ${cfg.colorAccent} truncate`}>{current.product_name}</p>
+                      <p className={`text-[13px] font-bold ${cfg.colorAccent} leading-tight break-words`}>{current.product_name}</p>
                       <p className="text-[11px] text-gray-500 leading-tight">
                         Aplicado {fmtDate(current.date_applied)}
                       </p>
@@ -525,11 +527,11 @@ export function ParasiteItemSheet({
                 </div>
               )}
 
-              {/* PRIMARY CTA — buy */}
+              {/* Primary CTA */}
               {current && (
                 <button
                   onClick={() => setMode('buy')}
-                  className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] transition-all text-white text-[16px] font-black shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2.5"
+                  className="w-full py-4 rounded-2xl bg-sky-600 hover:bg-sky-700 active:scale-[0.98] transition-all text-white text-[16px] font-black shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2.5"
                 >
                   <span className="text-xl">🛒</span>
                   Comprar novamente
@@ -541,22 +543,32 @@ export function ParasiteItemSheet({
                 </p>
               )}
 
-              {/* Secondary actions */}
-              <div className="flex gap-2">
+              {!current && (
                 <button
                   onClick={() => setMode('apply')}
-                  className={`flex-1 py-3 rounded-2xl text-sm font-semibold shadow-sm active:opacity-70 ${cfg.colorBtn}`}
+                  className={`w-full py-4 rounded-2xl text-[15px] font-bold shadow-sm active:opacity-80 ${cfg.colorBtn}`}
                 >
-                  <span className="mr-1.5">{cfg.icon}</span>
-                  {cfg.ctaLabel}
+                  Registrar aplicação
+                </button>
+              )}
+
+              {/* Secondary actions */}
+              {current && (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setMode('apply')}
+                  className={`py-3 rounded-2xl text-sm font-semibold active:opacity-70 ${cfg.colorLight} ${cfg.colorAccent} border ${cfg.colorBorder}`}
+                >
+                  Registrar aplicação
                 </button>
                 <button
                   onClick={() => current ? startEdit(current) : setMode('apply')}
-                  className={`flex-1 py-3 rounded-2xl text-sm font-semibold active:opacity-70 ${cfg.colorLight} ${cfg.colorAccent} border ${cfg.colorBorder}`}
+                  className="py-3 rounded-2xl text-sm font-semibold active:opacity-70 bg-white text-gray-600 border border-gray-200"
                 >
-                  ✏️ Editar
+                  Editar
                 </button>
               </div>
+              )}
 
               {/* History — collapsed accordion */}
               {sorted.length > 0 && (
@@ -589,7 +601,7 @@ export function ParasiteItemSheet({
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-semibold text-gray-800 truncate">{rec.product_name}</p>
                               {!isHistory && diffDays(getNextDate(rec)) !== null && diffDays(getNextDate(rec))! < 0 && (
-                                <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold animate-pulse shadow-sm border border-white/50 flex-shrink-0">
+                                <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm border border-white/50 flex-shrink-0">
                                   !
                                 </div>
                               )}

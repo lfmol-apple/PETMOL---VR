@@ -93,6 +93,7 @@ export interface MedicationItemSheetProps {
   petEvents: PetEventRecord[];
   onClose: () => void;
   onRefresh: () => Promise<void>;
+  initialMode?: 'view' | 'buy';
 }
 
 type Mode = 'view' | 'add' | 'edit' | 'buy';
@@ -110,9 +111,10 @@ export function MedicationItemSheet({
   petEvents,
   onClose,
   onRefresh,
+  initialMode,
 }: MedicationItemSheetProps) {
   const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
-  const [mode, setMode] = useState<Mode>('view');
+  const [mode, setMode] = useState<Mode>(initialMode === 'buy' ? 'buy' : 'view');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<MedForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -409,7 +411,8 @@ export function MedicationItemSheet({
   const statusCls = active.length > 0
     ? 'bg-purple-100 text-purple-700 border-purple-200'
     : 'bg-gray-100 text-gray-600 border-gray-200';
-  const dotCls = active.length > 0 ? 'bg-purple-500 animate-pulse' : 'bg-gray-400';
+  const dotCls = active.length > 0 ? 'bg-purple-500' : 'bg-gray-400';
+  const nextActive = active[0] ?? null;
 
   return (
     <ModalPortal>
@@ -426,7 +429,7 @@ export function MedicationItemSheet({
 
 
         {/* Header */}
-        <div className="px-5 pt-4 pb-3 bg-purple-50 border-b border-gray-100 flex-shrink-0">
+        <div className="px-5 pt-4 pb-3 bg-white border-b border-purple-100 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-3xl flex-shrink-0">
               {petPhotoSrc ? (
@@ -442,7 +445,7 @@ export function MedicationItemSheet({
               {petName && (
                 <p className="mt-1">
                   <span className="inline-flex max-w-full items-center px-2.5 py-1 rounded-full bg-white text-purple-800 text-xs font-black tracking-[0.04em] shadow-sm border border-purple-100 whitespace-normal break-all leading-tight">
-                    Pet: {petName}
+                    {petName}
                   </span>
                 </p>
               )}
@@ -498,13 +501,31 @@ export function MedicationItemSheet({
                 </div>
               )}
 
-              {/* CTA */}
-              <button
-                onClick={openAdd}
-                className="w-full py-4 rounded-2xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-[15px] font-bold shadow-md transition-colors"
-              >
-                💊 Registrar nova medicação
-              </button>
+              {/* Primary CTA */}
+              {nextActive ? (
+                <div className="rounded-3xl border border-purple-100 bg-purple-50/70 p-4 space-y-3">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-purple-700">Cuidado de hoje</p>
+                    <p className="mt-1 text-lg font-black text-gray-900 break-words">{nextActive.title}</p>
+                    <p className="mt-0.5 text-sm text-purple-800/70">Registre a dose para manter o tratamento em dia.</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={saving && applyingId === nextActive.id}
+                    onClick={() => handleApplyDose(nextActive.id, 'apply', localTodayISO())}
+                    className="w-full py-4 rounded-2xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-[15px] font-bold shadow-md shadow-purple-500/20 disabled:opacity-50 transition-colors"
+                  >
+                    {saving && applyingId === nextActive.id ? 'Registrando...' : 'Registrar dose'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={openAdd}
+                  className="w-full py-4 rounded-2xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-[15px] font-bold shadow-md shadow-purple-500/20 transition-colors"
+                >
+                  Registrar medicação
+                </button>
+              )}
 
               {/* Empty state */}
               {medications.length === 0 && (
@@ -517,10 +538,10 @@ export function MedicationItemSheet({
 
               {/* Daily application section */}
               {active.length > 0 && (
-                <div className="rounded-2xl border border-purple-300 bg-purple-50 overflow-hidden">
+                <div className="rounded-2xl border border-purple-200 bg-purple-50/70 overflow-hidden">
                   <div className="px-4 py-3 border-b border-purple-100">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-purple-700">
-                      💊 Aplicação diária · {active.length} em tratamento
+                      Tratamentos em andamento · {active.length}
                     </p>
                   </div>
                   {active.map(ev => {
@@ -604,9 +625,9 @@ export function MedicationItemSheet({
                                   type="button"
                                   disabled={isBusy}
                                   onClick={() => handleApplyDose(ev.id, 'apply', todayStr)}
-                                  className="flex-1 rounded-xl bg-purple-600 py-2.5 text-sm font-bold text-white shadow-sm active:scale-95 transition-all disabled:opacity-40"
+                                  className="flex-1 rounded-xl border border-purple-200 bg-white py-2.5 text-sm font-semibold text-purple-700 active:scale-95 transition-all disabled:opacity-40"
                                 >
-                                  {isBusy ? '...' : '✓ Aplicar dose de hoje'}
+                                  {isBusy ? '...' : 'Registrar dose'}
                                 </button>
                                 <button
                                   type="button"
@@ -691,7 +712,7 @@ export function MedicationItemSheet({
                                   disabled={isBusy}
                                   onClick={() => handleApplyDose(ev.id, 'apply', selectedDate)}
                                   className="w-full text-[15px] font-bold py-3.5 rounded-2xl bg-purple-500 text-white shadow-md active:scale-95 transition-all disabled:opacity-40"
-                                >{isBusy ? '...' : '✓ Administrado hoje'}</button>
+                                >{isBusy ? '...' : 'Registrar dose'}</button>
                                 <div className="flex gap-2">
                                   <button
                                     disabled={isBusy || selectedDate > todayStr}
@@ -736,22 +757,22 @@ export function MedicationItemSheet({
                 </div>
               )}
 
-              {/* Buy button at the end */}
-              <button
-                onClick={() => setMode('buy')}
-                className="w-full flex items-center justify-between p-4 bg-blue-300 border border-blue-400/30 rounded-2xl hover:bg-blue-400/40 transition-all active:scale-[0.98] mt-1 shadow-sm"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-xl shadow-sm">
-                    🛒
-                  </div>
-                  <div className="text-left">
-                    <p className="text-[14px] font-bold text-blue-900">Preciso comprar</p>
-                    <p className="text-[12px] text-blue-700/70">Ver onde encontrar medicamentos</p>
-                  </div>
-                </div>
-                <span className="text-blue-400 text-lg font-bold">›</span>
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                {nextActive && (
+                  <button
+                    onClick={openAdd}
+                    className="w-full py-3 rounded-2xl border border-purple-200 bg-white text-sm font-semibold text-purple-700 hover:bg-purple-50 active:scale-95 transition-all"
+                  >
+                    Nova medicação
+                  </button>
+                )}
+                <button
+                  onClick={() => setMode('buy')}
+                  className={`${nextActive ? '' : 'col-span-2'} w-full py-3 rounded-2xl border border-blue-200 bg-white text-sm font-semibold text-blue-700 hover:bg-blue-50 active:scale-95 transition-all`}
+                >
+                  Comprar medicamento
+                </button>
+              </div>
             </div>
           )}
 

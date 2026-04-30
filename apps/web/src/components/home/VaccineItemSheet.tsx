@@ -28,18 +28,26 @@ function fmtDate(s?: string | null): string {
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
+function fmtRelativeDays(diff: number | null): string {
+  if (diff === null) return '';
+  if (diff < 0) return `atrasado há ${Math.abs(diff)} dia${Math.abs(diff) !== 1 ? 's' : ''}`;
+  if (diff === 0) return 'hoje';
+  if (diff === 1) return 'amanhã';
+  return `em ${diff} dias`;
+}
+
 function computeStatus(overdue: number, nextDiff: number | null) {
   if (overdue > 0)
     return {
       label: `Pode estar na hora de revisar ${overdue} registro${overdue !== 1 ? 's' : ''}`,
-      bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500',
+      bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500',
     };
   if (nextDiff === null)
     return { label: 'Sem data de revisão definida', bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400' };
   if (nextDiff === 0)
-    return { label: 'Dose hoje!', bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' };
+    return { label: 'Dose hoje', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
   if (nextDiff <= 7)
-    return { label: `Próxima dose em ${nextDiff} dias`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' };
+    return { label: `Próxima dose em ${nextDiff} dia${nextDiff !== 1 ? 's' : ''}`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' };
   return {
     label: `Próxima dose em ${nextDiff} dias`,
     bg: 'bg-sky-50', text: 'text-sky-700', dot: 'bg-sky-500',
@@ -66,6 +74,7 @@ export interface VaccineItemSheetProps {
   setAiImageLimit: Dispatch<SetStateAction<number>>;
   handleFilesSelectedAppend: (event: ChangeEvent<HTMLInputElement>) => void;
   handleProcessCards: (selected: File[]) => Promise<void>;
+  initialMode?: 'view' | 'buy';
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -88,9 +97,10 @@ export function VaccineItemSheet({
   setAiImageLimit,
   handleFilesSelectedAppend,
   handleProcessCards,
+  initialMode,
 }: VaccineItemSheetProps) {
   const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
-  const [mode, setMode] = useState<'view' | 'buy'>('view');
+  const [mode, setMode] = useState<'view' | 'buy'>(initialMode === 'buy' ? 'buy' : 'view');
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [historyShowAll, setHistoryShowAll] = useState(false);
@@ -200,7 +210,7 @@ export function VaccineItemSheet({
       >
 
         {/* Header */}
-        <div className="px-5 pt-4 pb-3 bg-sky-50 border-b border-gray-100 flex-shrink-0">
+        <div className="px-5 pt-4 pb-3 bg-white border-b border-sky-100 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-3xl flex-shrink-0">
               {petPhotoSrc ? (
@@ -216,13 +226,13 @@ export function VaccineItemSheet({
               {petName && (
                 <p className="mt-1">
                   <span className="inline-flex max-w-full items-center px-2.5 py-1 rounded-full bg-white text-sky-800 text-xs font-black tracking-[0.04em] shadow-sm border border-sky-100 whitespace-normal break-all leading-tight">
-                    Pet: {petName}
+                    {petName}
                   </span>
                 </p>
               )}
               <div className="flex items-center gap-2 mt-0.5">
-                {status.dot === 'bg-red-500' ? (
-                  <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold animate-pulse shadow-sm border border-white/50 flex-shrink-0">
+                {status.dot === 'bg-rose-500' ? (
+                  <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm border border-white/50 flex-shrink-0">
                     !
                   </div>
                 ) : (
@@ -273,31 +283,31 @@ export function VaccineItemSheet({
 
             {/* ── PRIMARY CTA ───────────────────────────────────────────── */}
             <button
-              onClick={onQuickAdd}
-              className="w-full py-4 rounded-2xl bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-[15px] font-bold shadow-md transition-opacity"
+              onClick={() => onFullFormVaccine({ date_administered: today, frequency_days: 365 })}
+              className="w-full py-4 rounded-2xl bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-[15px] font-bold shadow-md shadow-sky-500/20 transition-opacity"
             >
-              ➕ Registro rápido
+              Registrar vacina
             </button>
 
             {/* ── Secondary CTAs ─────────────────────────────────────────── */}
             <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => setShowImportModal(true)}
-                className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-white border border-gray-200 shadow-sm hover:bg-gray-50 active:scale-95 transition-all text-sm font-semibold text-gray-700"
+                className="flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-white border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all text-xs font-semibold text-gray-600"
               >
-                📸 Carteirinha (opcional)
+                Carteirinha
               </button>
               <button
-                onClick={() => onFullFormVaccine({ date_administered: today, frequency_days: 365 })}
-                className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-emerald-50 border border-emerald-200 shadow-sm hover:bg-emerald-100 active:scale-95 transition-all text-sm font-semibold text-emerald-700"
+                onClick={onQuickAdd}
+                className="flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-white border border-sky-200 hover:bg-sky-50 active:scale-95 transition-all text-xs font-semibold text-sky-700"
               >
-                ✍️ Formulário
+                Registro rápido
               </button>
               <button
                 onClick={onRefreshVaccines}
-                className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-sky-50 border border-sky-200 shadow-sm hover:bg-sky-100 active:scale-95 transition-all text-sm font-semibold text-sky-700"
+                className="flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-white border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all text-xs font-semibold text-gray-600"
               >
-                🔄 Atualizar
+                Atualizar
               </button>
             </div>
 
@@ -311,7 +321,7 @@ export function VaccineItemSheet({
                   onClick={onQuickAdd}
                   className="mt-3 inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
                 >
-                  Registrar agora
+                  Registrar vacina
                 </button>
               </div>
             )}
@@ -326,8 +336,8 @@ export function VaccineItemSheet({
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Detalhes</span>
                     {overdue.length > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
-                        ⚠️ {overdue.length} para revisar
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700">
+                        {overdue.length} para revisar
                       </span>
                     )}
                     {overdue.length === 0 && upcoming.length > 0 && (
@@ -347,18 +357,18 @@ export function VaccineItemSheet({
                       <div>
                         <button
                           onClick={() => setOverdueExpanded(o => !o)}
-                          className="w-full flex items-center gap-3 px-4 py-3 bg-red-50 text-left"
+                          className="w-full flex items-center gap-3 px-4 py-3 bg-rose-50 text-left"
                         >
-                          <span className="text-sm flex-shrink-0">⚠️</span>
-                          <p className="flex-1 text-sm font-bold text-red-700 truncate">
+                          <span className="text-sm flex-shrink-0">•</span>
+                          <p className="flex-1 text-sm font-bold text-rose-700 truncate">
                             {overdue.length === 1
                               ? `${overdue[0].vaccine_name}: vale revisar`
                               : `${overdue.length} vacinas para revisar`}
                           </p>
-                          <span className="text-red-400 text-xs">{overdueExpanded ? '▲' : '▼'}</span>
+                          <span className="text-rose-400 text-xs">{overdueExpanded ? '▲' : '▼'}</span>
                         </button>
                         {overdueExpanded && (
-                          <div className="divide-y divide-red-100 bg-red-50">
+                          <div className="divide-y divide-rose-100 bg-rose-50">
                             {(overdueShowAll ? overdue : overdue.slice(0, 2)).map(v => (
                               <VaccineRow
                                 key={v.id}
@@ -367,12 +377,12 @@ export function VaccineItemSheet({
                                 confirmDeleteId={confirmDeleteId}
                                 onEdit={onEditVaccine}
                                 onDeleteClick={handleDeleteClick}
-                                borderColor="border-l-red-500"
-                                statusBadge={<span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">🔎 Revisar</span>}
+                                borderColor="border-l-rose-500"
+                                statusBadge={<span className="text-[10px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-semibold">Revisar</span>}
                               />
                             ))}
                             {overdue.length > 2 && (
-                              <button onClick={() => setOverdueShowAll(s => !s)} className="w-full py-2 text-xs font-semibold text-red-600 bg-red-50/80">
+                              <button onClick={() => setOverdueShowAll(s => !s)} className="w-full py-2 text-xs font-semibold text-rose-600 bg-rose-50/80">
                                 {overdueShowAll ? 'Mostrar menos' : `Ver mais ${overdue.length - 2}`}
                               </button>
                             )}
@@ -392,7 +402,7 @@ export function VaccineItemSheet({
                           <p className="flex-1 text-sm font-bold text-sky-700 truncate">
                             {upcoming[0].vaccine_name}
                             {diffDays(upcoming[0].next_dose_date) !== null && (
-                              <span className="font-normal text-sky-600 ml-1">· em {diffDays(upcoming[0].next_dose_date)}d</span>
+                              <span className="font-normal text-sky-600 ml-1">· {fmtRelativeDays(diffDays(upcoming[0].next_dose_date))}</span>
                             )}
                           </p>
                           <span className="text-sky-400 text-xs">{upcomingExpanded ? '▲' : '▼'}</span>
@@ -508,7 +518,7 @@ export function VaccineItemSheet({
                       </div>
                       <div className="rounded-2xl bg-red-50 border border-red-200 px-3 py-2.5 text-center">
                         <p className="text-xl font-black text-red-600">{overdue.length}</p>
-                        <p className="text-[10px] text-red-500 font-medium mt-0.5">Revisar</p>
+                        <p className="text-[10px] text-red-500 font-medium mt-0.5">Atrasadas</p>
                       </div>
                     </div>
 
@@ -541,8 +551,8 @@ export function VaccineItemSheet({
                     🛒
                   </div>
                   <div className="text-left">
-                    <p className="text-[14px] font-bold text-blue-900">Preciso comprar</p>
-                    <p className="text-[12px] text-blue-700/70">Ver onde encontrar vacinas</p>
+                    <p className="text-[14px] font-bold text-blue-900">Agendar ou comprar</p>
+                    <p className="text-[12px] text-blue-700/70">Opções de vacinas e serviços</p>
                   </div>
                 </div>
                 <span className="text-blue-400 text-lg font-bold">›</span>
@@ -581,7 +591,7 @@ export function VaccineItemSheet({
                   <span className="text-2xl">{store.emoji}</span>
                   <div className="flex-1">
                     <p className="font-bold text-gray-900 text-sm">{store.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Comprar / Agendar Vacinas</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Agendar ou comprar</p>
                   </div>
                   <span className="text-gray-400 text-lg">›</span>
                 </button>
@@ -617,7 +627,7 @@ export function VaccineItemSheet({
             </div>
 
             <div className="space-y-4">
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+              <div className="bg-sky-50 rounded-xl p-4 border border-sky-100">
                 <p className="font-semibold text-gray-800 mb-2">✨ O sistema vai:</p>
                 <ul className="space-y-1.5 text-sm text-gray-700">
                   <li className="flex items-start gap-2"><span className="text-green-600 mt-0.5">✓</span><span>Identificar vacinas automaticamente</span></li>
@@ -719,10 +729,10 @@ export function VaccineItemSheet({
               )}
 
               {importingCard && (
-                <div className="bg-gradient-to-r from-purple-600 to-sky-700 text-white rounded-xl p-4 text-center">
-                  <div className="animate-spin w-8 h-8 border-4 border-white border-t-transparent rounded-full mx-auto mb-2" />
+                <div className="bg-sky-50 border border-sky-100 text-sky-900 rounded-xl p-4 text-center">
+                  <div className="animate-spin w-8 h-8 border-4 border-sky-200 border-t-sky-700 rounded-full mx-auto mb-2" />
                   <div className="font-semibold mb-1">Analisando cartão(ões)...</div>
-                  <div className="text-sm text-purple-100">Aguarde o processamento</div>
+                  <div className="text-sm text-sky-700">Aguarde o processamento</div>
                 </div>
               )}
 
@@ -805,7 +815,7 @@ function VaccineRow({
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-bold text-gray-900 truncate">{v.vaccine_name}</p>
             {diff !== null && diff < 0 && (
-              <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold animate-pulse shadow-sm border border-white/50 flex-shrink-0">
+              <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm border border-white/50 flex-shrink-0">
                 !
               </div>
             )}
@@ -822,9 +832,9 @@ function VaccineRow({
                 {' · '}próxima {fmtDate(v.next_dose_date)}
                 {diff !== null && (
                   <span className={`ml-1 font-medium ${
-                    diff < 0 ? 'text-red-500' : diff <= 7 ? 'text-yellow-600' : ''
+                    diff < 0 ? 'text-rose-600' : diff <= 7 ? 'text-amber-600' : ''
                   }`}>
-                    ({diff < 0 ? `${Math.abs(diff)}d atrás` : diff === 0 ? 'hoje' : `em ${diff}d`})
+                    ({fmtRelativeDays(diff)})
                   </span>
                 )}
               </>

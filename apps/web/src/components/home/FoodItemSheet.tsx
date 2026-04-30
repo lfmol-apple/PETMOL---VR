@@ -486,7 +486,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
 
   const PhotoBubble = ({ size }: { size: number }) => (
     <div
-      className="rounded-full overflow-hidden bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center flex-shrink-0 shadow ring-2 ring-white"
+      className="rounded-full overflow-hidden bg-amber-100 flex items-center justify-center flex-shrink-0 shadow-sm ring-2 ring-white"
       style={{ width: size, height: size, fontSize: size * 0.45 }}
     >
       {petPhotoSrc && !photoLoadFailed ? (
@@ -731,20 +731,29 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
                       {subMode === 'main' && (
                         <>
                           {/* 1. Status principal */}
-                          <div className="pt-1">
+                          <div className="rounded-3xl border border-amber-100 bg-amber-50/70 p-4">
                             {foodState.daysLeft !== null ? (
                               <>
-                                <p className="text-[56px] font-black text-gray-900 leading-none tracking-tight">
-                                  {Math.max(0, foodState.daysLeft)}
-                                </p>
-                                <p className="text-[17px] font-semibold text-gray-500 mt-1">
-                                  {foodState.daysLeft <= 0 ? 'Ração esgotada' : 'dias restantes'}
-                                </p>
-                                {estEnd && (
-                                  <p className="text-[13px] text-gray-400 mt-0.5">
-                                    Previsão de acabar: <span className="font-semibold text-gray-700">{fmtDate(estEnd)}</span>
+                                <div className="flex items-end gap-3">
+                                  <p className="text-[52px] font-black text-gray-900 leading-none tracking-tight">
+                                    {Math.max(0, foodState.daysLeft)}
                                   </p>
-                                )}
+                                  <div className="pb-1">
+                                    <p className="text-[16px] font-bold text-gray-800">
+                                      {foodState.daysLeft <= 0 ? 'Ração acabou' : 'dias restantes'}
+                                    </p>
+                                    {estEnd && (
+                                      <p className="text-[13px] text-amber-900/70">
+                                        Previsão: <span className="font-semibold text-gray-800">{fmtDate(estEnd)}</span>
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <p className="mt-3 text-[13px] text-amber-950/70 leading-snug">
+                                  {foodState.daysLeft <= 0
+                                    ? 'Está na hora de repor a ração e registrar o novo ciclo.'
+                                    : 'Acompanhe a previsão e compre com calma antes de acabar.'}
+                                </p>
                               </>
                             ) : (
                               <p className="text-[15px] text-gray-400 py-2">Complete o plano para ver a previsão.</p>
@@ -778,7 +787,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
                               trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
                               setMode('buy');
                             }}
-                            className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] transition-all text-white text-[16px] font-black shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2.5"
+                            className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.98] transition-all text-white text-[16px] font-black shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2.5"
                           >
                             <span className="text-xl">🛒</span>
                             Comprar novamente
@@ -789,14 +798,14 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
                             <button type="button"
                               onClick={() => { setSubMode('adjustDuration'); setShowDatePicker(false); setFeedback(null); }}
                               disabled={busy}
-                              className="py-3 min-h-[44px] rounded-2xl bg-gray-50 border border-gray-200 text-[12px] font-bold text-gray-600 active:scale-95 transition-all disabled:opacity-50">
-                              📦 Ainda vai durar
+                              className="py-3 min-h-[44px] rounded-2xl bg-white border border-gray-200 text-[12px] font-semibold text-gray-600 active:scale-95 transition-all disabled:opacity-50">
+                              Ainda vai durar
                             </button>
                             <button type="button"
                               onClick={() => { setSubMode('finished'); setShowDatePicker(false); setFeedback(null); }}
                               disabled={busy}
-                              className="py-3 min-h-[44px] rounded-2xl bg-orange-50 border border-orange-200 text-[12px] font-bold text-orange-700 active:scale-95 transition-all disabled:opacity-50">
-                              ⚠️ Acabou
+                              className="py-3 min-h-[44px] rounded-2xl bg-white border border-orange-200 text-[12px] font-semibold text-orange-700 active:scale-95 transition-all disabled:opacity-50">
+                              Acabou
                             </button>
                           </div>
 
@@ -832,7 +841,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
                           <div className="pt-1 pb-1">
                             <button type="button"
                               onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
-                              className="w-full py-3 min-h-[44px] rounded-xl border border-gray-200 bg-gray-50 text-sm font-semibold text-gray-600 hover:bg-gray-100 active:scale-95 transition-all"
+                              className="w-full py-3 min-h-[44px] rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-500 hover:bg-gray-50 active:scale-95 transition-all"
                             >
                               Editar plano
                             </button>
@@ -948,7 +957,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
                       {subMode === 'restockConfirm' && (
                         <div className="space-y-4 pt-1">
                           <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Comprei</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Novo ciclo</p>
                             <h3 className="text-[20px] font-black text-gray-900 leading-tight mt-1">Você comprou novamente?</h3>
                           </div>
 

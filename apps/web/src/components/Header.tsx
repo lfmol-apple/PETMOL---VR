@@ -74,7 +74,7 @@ export function Header() {
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="inline-flex items-center h-10 px-4 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 text-sm font-bold hover:bg-rose-100 shadow-sm transition-all active:scale-95"
+                  className="inline-flex items-center h-10 px-3 rounded-xl bg-white text-slate-500 border border-slate-200 text-xs font-semibold hover:bg-slate-50 hover:text-slate-700 transition-all active:scale-95"
                 >
                   {t('common.logout')}
                 </button>
@@ -113,7 +113,7 @@ export function Header() {
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="inline-flex items-center h-10 px-3 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 text-xs font-bold hover:bg-rose-100 shadow-sm transition-all active:scale-95"
+                  className="inline-flex items-center h-10 px-2.5 rounded-xl bg-white text-slate-500 border border-slate-200 text-[11px] font-semibold hover:bg-slate-50 hover:text-slate-700 transition-all active:scale-95"
                 >
                   Sair
                 </button>

@@ -24,9 +24,13 @@ function formatReminderDate(dateStr: string): string {
 }
 
 function formatReminderBadge(diff: number): string {
-  if (diff === 0) return 'Hoje';
-  if (diff === 1) return 'Amanhã';
-  return `em ${diff}d`;
+  if (diff < 0) {
+    const days = Math.abs(diff);
+    return days === 1 ? 'atrasado desde ontem' : `atrasado há ${days} dias`;
+  }
+  if (diff === 0) return 'hoje';
+  if (diff === 1) return 'amanhã';
+  return `em ${diff} dias`;
 }
 
 function diffDaysFromIso(isoDate: string): number | null {
@@ -41,8 +45,9 @@ function diffDaysFromIso(isoDate: string): number | null {
 }
 
 function getReminderTone(diff: number): string {
-  if (diff === 0) return 'border-amber-300 bg-amber-50 text-amber-900 shadow-[0_0_12px_rgba(251,191,36,0.2)]';
-  if (diff <= 3) return 'border-orange-200 bg-orange-50 text-orange-800';
+  if (diff < 0) return 'border-rose-200 bg-rose-50 text-rose-800 shadow-[0_0_12px_rgba(244,63,94,0.12)]';
+  if (diff === 0) return 'border-amber-300 bg-amber-50 text-amber-900 shadow-[0_0_12px_rgba(251,191,36,0.16)]';
+  if (diff <= 3) return 'border-amber-200 bg-amber-50 text-amber-800';
   if (diff <= 7) return 'border-sky-200 bg-sky-50 text-sky-800';
   return 'border-slate-200 bg-white text-slate-600';
 }
@@ -167,12 +172,16 @@ export function HomePetDashboard({
 
     return reminders
       .filter((reminder) => {
-        if (reminder.diff < 0) return false;
         // Alimentação só aparece quando está próxima (≤ 14 dias)
         if (reminder.domain === 'food' && reminder.diff > 14) return false;
         return true;
       })
-      .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+      .sort((a, b) => {
+        const urgencyA = a.diff < 0 ? 0 : a.diff === 0 ? 1 : 2;
+        const urgencyB = b.diff < 0 ? 0 : b.diff === 0 ? 1 : 2;
+        if (urgencyA !== urgencyB) return urgencyA - urgencyB;
+        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      })
       .map((reminder) => ({
         ...reminder,
         action: resolveCareCTA(reminder.action_target, careHandlers),
@@ -228,35 +237,14 @@ export function HomePetDashboard({
 
   return (
     <div className="relative px-2 pt-2 pb-6 space-y-4">
-      <AppleControlButtons
-        onHealthClick={onOpenHealth}
-        onDocumentosClick={onOpenDocuments}
-        onAlimentacaoClick={onOpenFood}
-        onBanhoTosaClick={onOpenGrooming}
-        onMedicacaoClick={onOpenMedication}
-        onFamilyClick={onOpenFamily}
-        hasFoodData={hasFoodData}
-        foodTitle={foodTitle}
-        foodHeadline={foodHeadline ?? undefined}
-        foodSubline={foodSubline ?? undefined}
-        alertHealth={alertHealth}
-        alertGrooming={alertGrooming}
-        alertFood={alertFood}
-        alertMedicacao={alertMedicacao}
-        colorHealth={colorHealth}
-        colorGrooming={colorGrooming}
-        colorFood={colorFood}
-        colorMedicacao={colorMedicacao}
-      />
-
       {upcomingReminders.length > 0 && (
-        <section className="rounded-3xl border border-white/40 bg-white/40 px-3 py-4 shadow-xl backdrop-blur-xl ring-1 ring-black/5">
+        <section className="rounded-[24px] border border-white/70 bg-white/75 px-3 py-4 shadow-lg shadow-slate-900/5 backdrop-blur-xl ring-1 ring-black/5">
           <div className="mb-4 flex items-center justify-between px-1">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Próximos lembretes</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Cuidados</p>
               <p className="text-sm font-bold text-slate-800 tracking-tight">O que vem pela frente para {currentPet.pet_name}</p>
             </div>
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white shadow-lg ring-4 ring-white/10">
+            <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-800 px-2 text-[10px] font-bold text-white shadow-lg ring-4 ring-white/10">
               {upcomingReminders.length}
             </span>
           </div>
@@ -280,19 +268,19 @@ export function HomePetDashboard({
                 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="block truncate text-[14px] font-bold leading-tight text-slate-900 tracking-tight">
+                    <span className="block text-[14px] font-bold leading-tight text-slate-900 tracking-tight">
                       {reminder.label}
                     </span>
                   </div>
-                  <span className="mt-0.5 block truncate text-[11px] font-medium leading-tight text-slate-400 uppercase tracking-wide">
+                  <span className="mt-0.5 block text-[11px] font-medium leading-tight text-slate-500">
                     {reminder.sublabel || 'Toque para abrir'}
                   </span>
                 </div>
 
                 <div className="flex flex-col items-end gap-1.5 pr-1">
-                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{formatReminderDate(reminder.due_date)}</span>
-                  <span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${getReminderTone(reminder.diff)}`}>
-                    {formatReminderBadge(reminder.diff).toUpperCase()}
+                  <span className="text-[10px] font-semibold text-slate-400">{formatReminderDate(reminder.due_date)}</span>
+                  <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${getReminderTone(reminder.diff)}`}>
+                    {formatReminderBadge(reminder.diff)}
                   </span>
                 </div>
               </button>
@@ -300,6 +288,27 @@ export function HomePetDashboard({
           </div>
         </section>
       )}
+
+      <AppleControlButtons
+        onHealthClick={onOpenHealth}
+        onDocumentosClick={onOpenDocuments}
+        onAlimentacaoClick={onOpenFood}
+        onBanhoTosaClick={onOpenGrooming}
+        onMedicacaoClick={onOpenMedication}
+        onFamilyClick={onOpenFamily}
+        hasFoodData={hasFoodData}
+        foodTitle={foodTitle}
+        foodHeadline={foodHeadline ?? undefined}
+        foodSubline={foodSubline ?? undefined}
+        alertHealth={alertHealth}
+        alertGrooming={alertGrooming}
+        alertFood={alertFood}
+        alertMedicacao={alertMedicacao}
+        colorHealth={colorHealth}
+        colorGrooming={colorGrooming}
+        colorFood={colorFood}
+        colorMedicacao={colorMedicacao}
+      />
     </div>
   );
 }

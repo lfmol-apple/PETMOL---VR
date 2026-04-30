@@ -151,12 +151,13 @@ export function HomePetHeader({
   ].filter(Boolean).join(' · ');
 
   const currentPetPhotoUrl = getPhotoUrl(currentPet.photo, currentPet.pet_id, photoTimestamps);
+  const hasVisibleAttention = selectedPetNeedsAttention && topAttentionPetCount > 0;
 
   return (
     <>    <div className="px-4 pt-4 space-y-3">
       {/* Container da Foto + Navegação Estilo Apple */}
       <div 
-        className="relative group rounded-[32px] overflow-hidden shadow-2xl shadow-blue-500/10 border border-white/40 ring-1 ring-black/5 bg-gradient-to-br from-blue-400 to-purple-500 h-64 sm:h-72"
+        className="relative group rounded-[28px] overflow-hidden shadow-xl shadow-blue-500/10 border border-white/50 ring-1 ring-black/5 bg-gradient-to-br from-blue-400 to-purple-500 h-44 sm:h-56"
         style={{ 
           backfaceVisibility: 'hidden', 
           WebkitBackfaceVisibility: 'hidden', 
@@ -168,7 +169,7 @@ export function HomePetHeader({
         
         {/* Emoji de Fundo para Pets sem Foto */}
         <div className="w-full h-full flex items-center justify-center opacity-40">
-          <span className="text-white text-6xl sm:text-7xl md:text-8xl transition-transform duration-500 sm:group-hover:scale-110">
+          <span className="text-white text-5xl sm:text-7xl transition-transform duration-500 sm:group-hover:scale-110">
             {currentPet.species === 'dog' ? '🐕' : currentPet.species === 'cat' ? '🐱' : '🐾'}
           </span>
         </div>
@@ -194,7 +195,7 @@ export function HomePetHeader({
         )}
 
         {/* Overlay premium gradient na parte inferior da foto */}
-        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
 
         {pets.length > 1 && (
           <>
@@ -225,7 +226,7 @@ export function HomePetHeader({
         
 
         {/* Botões de Ação Rápida no Canto Superior Direito */}
-        <div className="absolute top-4 right-4 flex gap-2 z-20">
+        <div className="absolute top-3 right-3 flex gap-2 z-20">
           <button
             onClick={onOpenAddPetModal}
             className="flex items-center justify-center w-9 h-9 bg-white/20 backdrop-blur-md text-white rounded-full transition-all border border-white/40 hover:bg-white/40 active:scale-90 shadow-lg"
@@ -251,13 +252,13 @@ export function HomePetHeader({
       <div className="px-1.5 pb-2">
         <div className="flex flex-col">
           {/* Nome do Pet e Badge de Status (Alinhados na mesma linha) */}
-          <div className="flex items-center justify-between w-full pr-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 w-full pr-1">
             <button
               ref={nameButtonRef}
               onClick={onTogglePetSelector}
-              className="group flex items-center gap-2 -ml-1 pl-1.5 pr-3 py-1.5 rounded-2xl hover:bg-slate-100/50 transition-all active:scale-95 text-left"
+              className="group min-w-0 flex items-center gap-2 -ml-1 pl-1.5 pr-3 py-1.5 rounded-2xl hover:bg-slate-100/50 transition-all active:scale-95 text-left"
             >
-              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tighter leading-none group-hover:text-blue-600 transition-colors">
+              <h2 className="min-w-0 break-words text-2xl sm:text-3xl font-black text-slate-900 tracking-tighter leading-none group-hover:text-blue-600 transition-colors">
                 {currentPet.pet_name}
               </h2>
               <div className={`w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center transition-transform duration-300 ${showPetSelector ? 'rotate-180 bg-blue-100 text-blue-600' : 'text-slate-400'}`}>
@@ -269,31 +270,31 @@ export function HomePetHeader({
 
             {/* Badge de atenção — alinhado à direita com o nome */}
             <div
-              onClick={topAttentionPetCount > 0 ? onOpenTopAttentionModal : undefined}
+              onClick={hasVisibleAttention ? onOpenTopAttentionModal : undefined}
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border shadow-sm transition-all ${
-                selectedPetNeedsAttention
+                hasVisibleAttention
                   ? 'bg-rose-50 border-rose-200 text-rose-700 cursor-pointer hover:bg-rose-100 active:scale-95'
                   : 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default'
               }`}
             >
-              <div className={`w-1.5 h-1.5 rounded-full ${selectedPetNeedsAttention ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
-              <span className="text-[10px] font-bold uppercase tracking-wider">
-                {selectedPetNeedsAttention
-                  ? `${topAttentionPetCount} ${topAttentionPetCount === 1 ? 'pet' : 'pets'} · Atenção`
-                  : 'Tudo OK'}
+              <div className={`w-1.5 h-1.5 rounded-full ${hasVisibleAttention ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
+              <span className="text-[10px] font-bold tracking-wide">
+                {hasVisibleAttention
+                  ? `${topAttentionPetCount} ${topAttentionPetCount === 1 ? 'pet' : 'pets'} com atenção`
+                  : 'Em dia'}
               </span>
             </div>
           </div>
           
           {/* Metadados em Linha (Raça · Idade · Peso · Sexo) */}
-          <div className="mt-1.5 ml-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-            <span className="text-[11.5px] font-bold text-slate-700 tracking-tight uppercase whitespace-nowrap">
+          <div className="mt-1.5 ml-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+            <span className="text-[11.5px] font-bold text-slate-700 tracking-tight">
               {currentPet.breed}
             </span>
             {petMeta.split(' · ').slice(1).join(' · ') && (
               <>
-                <span className="opacity-40 text-slate-500 font-black tracking-tighter whitespace-nowrap">·</span>
-                <span className="text-[11.5px] font-bold text-slate-600 tracking-tight uppercase whitespace-nowrap">
+                <span className="opacity-40 text-slate-500 font-black tracking-tighter">·</span>
+                <span className="text-[11.5px] font-bold text-slate-600 tracking-tight">
                   {petMeta.split(' · ').slice(1).join(' · ')}
                 </span>
               </>

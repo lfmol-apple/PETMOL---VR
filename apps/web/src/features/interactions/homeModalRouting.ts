@@ -68,8 +68,10 @@ export type HomeSurfaceResolution =
 export function resolveHomeDeepLinkDestination(
   modal: string | null,
   tabParam: string | null,
+  subtypeParam?: string | null,
 ): HomeSurfaceResolution | null {
   if (!modal) return null;
+  const subtype = String(subtypeParam || '').trim().toLowerCase();
 
   if (modal === 'food-setup') {
     return { kind: 'edit-pet', initialSection: 'food' };
@@ -114,7 +116,17 @@ export function resolveHomeDeepLinkDestination(
     return { kind: 'sheet', sheet: 'vaccines' };
   }
 
-  if (modal === 'parasites' || modal === 'vermifugo') {
+  if (modal === 'parasites') {
+    if (subtype === 'antipulgas' || subtype === 'flea_tick' || subtype === 'flea-tick' || subtype === 'antiparasite') {
+      return { kind: 'sheet', sheet: 'antipulgas' };
+    }
+    if (subtype === 'coleira' || subtype === 'collar') {
+      return { kind: 'sheet', sheet: 'coleira' };
+    }
+    return { kind: 'sheet', sheet: 'vermifugo' };
+  }
+
+  if (modal === 'vermifugo') {
     return { kind: 'sheet', sheet: 'vermifugo' };
   }
 
@@ -147,7 +159,7 @@ export function resolveHomeDeepLinkDestination(
 
 export function resolvePushActionSheetFullDestination(type: HomePushActionType): HomeSurfaceResolution {
   if (type === 'food') {
-    return { kind: 'edit-pet', initialSection: 'food' };
+    return { kind: 'sheet', sheet: 'food' };
   }
 
   if (type === 'grooming') {
