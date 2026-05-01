@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence, PanInfo, useReducedMotion, type Variants } from 'framer-motion';
+import { motion, PanInfo, useReducedMotion } from 'framer-motion';
 
 interface Pet {
   id: number | string;
@@ -78,70 +78,24 @@ export function PetTabs({ pets, selectedPetId, onPetChange, children }: PetTabsP
     }
   };
 
-  const mobileSafeTransition = prefersReducedMotion || isMobileViewport;
-  const springTransition = { type: 'spring' as const, stiffness: 450, damping: 45 };
-
-  const variants = useMemo<Variants>(() => {
-    if (mobileSafeTransition) {
-      return {
-        enter: { x: 0, opacity: 0 },
-        center: {
-          x: 0,
-          opacity: 1,
-          transition: { opacity: { duration: 0.18 } },
-        },
-        exit: {
-          x: 0,
-          opacity: 0,
-          transition: { opacity: { duration: 0.12 } },
-        },
-      };
+  const contentTransition = useMemo(() => {
+    if (prefersReducedMotion || isMobileViewport) {
+      return { duration: 0.16 };
     }
-
-    return {
-      enter: (dir: number) => ({
-        x: dir > 0 ? '100%' : dir < 0 ? '-100%' : 0,
-        opacity: 0,
-      }),
-      center: {
-        x: 0,
-        opacity: 1,
-        transition: {
-          x: springTransition,
-          opacity: { duration: 0.25 },
-        },
-      },
-      exit: (dir: number) => ({
-        x: dir > 0 ? '-100%' : dir < 0 ? '100%' : 0,
-        opacity: 0,
-        transition: {
-          x: springTransition,
-          opacity: { duration: 0.25 },
-        },
-      }),
-    };
-  }, [mobileSafeTransition]);
+    return { type: 'spring' as const, stiffness: 420, damping: 42 };
+  }, [isMobileViewport, prefersReducedMotion]);
 
   return (
     <div className="w-full relative overflow-x-hidden">
-      {/* O Grid garante que ambos os componentes (antigo e novo) ocupem o mesmo espaço sem salto de altura */}
-      <div className="grid grid-cols-1 grid-rows-1 items-start">
-        <AnimatePresence initial={false} custom={direction} mode={mobileSafeTransition ? 'wait' : 'sync'}>
-          <motion.div
-            key={selectedPetId}
-            custom={direction}
-            variants={variants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            onPanEnd={handlePanEnd}
-            className="w-full touch-pan-y"
-            style={{ gridColumn: 1, gridRow: 1 }}
-          >
-            {children}
-          </motion.div>
-        </AnimatePresence>
-      </div>
+      <motion.div
+        onPanEnd={handlePanEnd}
+        className="w-full touch-pan-y"
+        animate={{ opacity: 1, x: 0 }}
+        transition={contentTransition}
+        data-pet-direction={direction}
+      >
+        {children}
+      </motion.div>
     </div>
   );
 }

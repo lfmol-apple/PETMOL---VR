@@ -225,8 +225,8 @@ export function HomePetHeader({
         {/* Badge de Status de Saúde (PRESERVADO) */}
         
 
-        {/* Botões de Ação Rápida no Canto Superior Direito */}
-        <div className="absolute top-3 right-3 flex gap-2 z-20">
+        {/* Botões de ação no canto inferior direito */}
+        <div className="absolute bottom-3 right-3 flex gap-2 z-20">
           <button
             onClick={onOpenAddPetModal}
             className="flex items-center justify-center w-9 h-9 bg-white/20 backdrop-blur-md text-white rounded-full transition-all border border-white/40 hover:bg-white/40 active:scale-90 shadow-lg"
