@@ -16,6 +16,7 @@ def calculate_food_stock_estimates(
     safety_buffer_days: int,
     enabled: bool,
     no_consumption_control: bool,
+    duration_days: Optional[int] = None,
 ) -> Tuple[Optional[date], Optional[date], int]:
     """
     Calculate food stock end date and reminder date.
@@ -53,8 +54,20 @@ def calculate_food_stock_estimates(
         >>> # reminder ≈ 2026-03-20 (3 days before end)
         >>> # days = 50
     """
-    # Rule 1: If control disabled or manual mode, don't calculate
-    if not enabled or no_consumption_control:
+    # Rule 1: If control disabled, don't calculate
+    if not enabled:
+        return None, None, 0
+
+    if duration_days and duration_days > 0 and last_refill_date:
+        buffer_days = safety_buffer_days if safety_buffer_days is not None else 3
+        estimated_end_date = last_refill_date + timedelta(days=duration_days)
+        next_reminder_date = estimated_end_date - timedelta(days=buffer_days)
+        if next_reminder_date < last_refill_date:
+            next_reminder_date = last_refill_date
+        return estimated_end_date, next_reminder_date, duration_days
+
+    # Manual mode without an explicit duration has no stock estimate.
+    if no_consumption_control:
         return None, None, 0
     
     # Rule 2: Validate required data

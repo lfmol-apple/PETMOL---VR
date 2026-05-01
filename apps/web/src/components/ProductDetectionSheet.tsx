@@ -225,6 +225,31 @@ function buildFoodDecisionName(fields: StructuredFoodFields, fallbackName?: stri
   return finalName || fallbackName;
 }
 
+function isFoodSpeciesIncompatible(species?: string): boolean {
+  if (!species) return false;
+  const normalized = species.trim().toLowerCase();
+  return !['dog', 'cat', 'cão', 'cao', 'gato', 'feline', 'canine'].includes(normalized);
+}
+
+function shouldAssistFoodConfirmation(outcome: PhotoIdentifyOutcome, product: ScannedProduct): boolean {
+  return Boolean(
+    outcome.confidence?.level === 'low' ||
+    (outcome.termConflicts?.length ?? 0) > 0 ||
+    !product.brand?.trim() ||
+    !product.name?.trim() ||
+    product.category !== 'food' ||
+    isFoodSpeciesIncompatible(outcome.species),
+  );
+}
+
+function clearPendingScannedProduct(): void {
+  try {
+    sessionStorage.removeItem('petmol_pending_scanned_product');
+  } catch {
+    // non-blocking
+  }
+}
+
 async function normalizeFoodPackageImage(file: File): Promise<File> {
   if (!file.type.startsWith('image/')) return file;
   try {
@@ -439,6 +464,7 @@ export function ProductDetectionSheetGold({
   const scanHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scannerBootingRef = useRef(false);
   const photoEntryTriggeredRef = useRef(false);
+  const rejectedBarcodesRef = useRef<Set<string>>(new Set());
 
   const initialStep: Step = defaultMode === 'scan'
     ? 'scanning'
@@ -1058,6 +1084,16 @@ export function ProductDetectionSheetGold({
       setStep('manual');
     }, 6000);
 
+    if (rejectedBarcodesRef.current.has(barcode)) {
+      clearResolveTimeout();
+      setConfirmed({ barcode, name: '', category: hint ?? 'other', found: false });
+      setScannerError(null);
+      setStep('manual');
+      decisionScoreRef.current = 0.2;
+      decisionResultTypeRef.current = 'fallback';
+      return;
+    }
+
     const product = await identifyProductByBarcode(barcode);
     if (activeResolveRef.current !== resolveId) return;
 
@@ -1277,8 +1313,14 @@ export function ProductDetectionSheetGold({
     setScannerError(null);
     setStep('photo-processing');
 
-    // Pipeline único: usa a mesma lógica para ração e demais controles
-    const identifiedFromPhoto = await identifyProductFromPhoto(file, undefined);
+    // Usar pipeline específico para ração, genérico para outros
+    let identifiedFromPhoto: PhotoIdentifyOutcome;
+    if (hint === 'food') {
+      const foodOutcome = await identifyFoodByPackageImage(file);
+      identifiedFromPhoto = foodOutcome;
+    } else {
+      identifiedFromPhoto = await identifyProductFromPhoto(file, undefined);
+    }
     if (identifiedFromPhoto.product) {
       const photoProduct = identifiedFromPhoto.product;
       // Verificar se há correção prévia para o nome sugerido pela IA
@@ -1454,12 +1496,15 @@ export function ProductDetectionSheetGold({
     }
 
     if (step === 'not-found') {
+      clearPendingScannedProduct();
       setConfirmed(null);
       setStep(allowScanning ? 'entry' : 'photo-capture');
       return;
     }
 
     if (step === 'confirm') {
+      if (confirmed?.barcode) rejectedBarcodesRef.current.add(confirmed.barcode);
+      clearPendingScannedProduct();
       setConfirmed(null);
       setFromHistory(false);
       setStep('manual');
@@ -1468,6 +1513,7 @@ export function ProductDetectionSheetGold({
     }
 
     if (defaultMode === 'photo' && !allowScanning && step === 'photo-capture') {
+      clearPendingScannedProduct();
       onClose();
       return;
     }
@@ -1582,7 +1628,10 @@ export function ProductDetectionSheetGold({
         </button>
         <button
           type="button"
-          onClick={onClose}
+          onClick={() => {
+            clearPendingScannedProduct();
+            onClose();
+          }}
           className="flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-xl text-white backdrop-blur"
           aria-label="Fechar"
         >
@@ -1672,7 +1721,10 @@ export function ProductDetectionSheetGold({
       <div className="absolute inset-x-0 top-0 z-10 flex justify-end px-4 pt-[max(env(safe-area-inset-top),16px)]">
         <button
           type="button"
-          onClick={onClose}
+          onClick={() => {
+            clearPendingScannedProduct();
+            onClose();
+          }}
           className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-xl text-white backdrop-blur"
           aria-label="Fechar"
         >
@@ -2134,6 +2186,8 @@ export function ProductDetectionSheetGold({
         <button
           type="button"
           onClick={() => {
+            if (confirmed?.barcode) rejectedBarcodesRef.current.add(confirmed.barcode);
+            clearPendingScannedProduct();
             setConfirmed(null);
             setFromHistory(false);
             setStep('manual');
@@ -2175,7 +2229,10 @@ export function ProductDetectionSheetGold({
       />
 
       <div className="fixed inset-0 z-[200] flex flex-col items-end justify-end sm:items-center sm:justify-center">
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => {
+          clearPendingScannedProduct();
+          onClose();
+        }} />
 
         <div
           className={immersiveMode
@@ -2202,7 +2259,10 @@ export function ProductDetectionSheetGold({
               </div>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => {
+                  clearPendingScannedProduct();
+                  onClose();
+                }}
                 className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-all hover:bg-gray-200 active:scale-95"
                 aria-label="Fechar"
               >

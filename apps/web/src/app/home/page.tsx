@@ -20,6 +20,7 @@ import { HomePetHeader } from '@/components/home/HomePetHeader';
 import { HomeEmergencySheet } from '@/components/home/HomeEmergencySheet';
 import { PetTabs } from '@/components/PetTabs';
 import { PushActionSheet, type ActionSheetType } from '@/components/PushActionSheet';
+import { HealthQuickActionSheet, type QuickActionContext } from '@/components/home/HealthQuickActionSheet';
 
 import { HomePetDashboard } from '@/components/home/HomePetDashboard';
 import { OverdueAlertsGrid } from '@/components/home/OverdueAlertsGrid';
@@ -168,6 +169,7 @@ export default function HomePage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editPetInitialSection, setEditPetInitialSection] = useState<'food' | 'grooming' | undefined>(undefined);
   const [pushActionSheet, setPushActionSheet] = useState<{ type: ActionSheetType; petId: string; itemName?: string; eventId?: string } | null>(null);
+  const [healthQuickAction, setHealthQuickAction] = useState<QuickActionContext | null>(null);
   const pushActionSheetWasOpenRef = useRef(false);
   const editModalWasOpenRef = useRef(false);
   const vaccineSheetWasOpenRef = useRef(false);
@@ -814,31 +816,75 @@ export default function HomePage() {
     setHealthActiveTab,
   });
 
+  // Targets que abrem o mini sheet de ação rápida em vez do sheet completo
+  const QUICK_ACTION_TARGETS = new Set([
+    'health/vaccines',
+    'health/medication',
+    'health/parasites/dewormer',
+    'health/parasites/flea_tick',
+    'health/parasites/collar',
+    'health/parasites',
+  ]);
+
   const handleTopAttentionSelect = useCallback((interaction: PetInteractionItem) => {
     if (interaction.pet_id) setSelectedPetId(interaction.pet_id);
     setShowTopAttentionModal(false);
-    const destination = resolveTopAttentionDestination(interaction.action_target);
-    if (destination) {
-      applyHomeSurfaceResolution(destination);
+    if (QUICK_ACTION_TARGETS.has(interaction.action_target)) {
+      setHealthQuickAction({
+        action_target: interaction.action_target,
+        label: interaction.type_label,
+        pet_id: interaction.pet_id,
+        pet_name: interaction.pet_name,
+        status: interaction.status,
+        days_overdue: interaction.days_overdue,
+      });
+      return;
     }
-  }, [applyHomeSurfaceResolution, setSelectedPetId]);
+    const destination = resolveTopAttentionDestination(interaction.action_target);
+    if (destination) applyHomeSurfaceResolution(destination);
+  }, [applyHomeSurfaceResolution, setSelectedPetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelectedPetPrimaryAlertOpen = useCallback(() => {
     if (!selectedPetPrimaryAlert) return;
-
-    const destination = resolveTopAttentionDestination(selectedPetPrimaryAlert.action_target);
-    if (destination) {
-      applyHomeSurfaceResolution(destination);
+    if (QUICK_ACTION_TARGETS.has(selectedPetPrimaryAlert.action_target)) {
+      setHealthQuickAction({
+        action_target: selectedPetPrimaryAlert.action_target,
+        label: selectedPetPrimaryAlert.type_label,
+        pet_id: selectedPetPrimaryAlert.pet_id,
+        pet_name: selectedPetPrimaryAlert.pet_name,
+        status: selectedPetPrimaryAlert.status,
+        days_overdue: selectedPetPrimaryAlert.days_overdue,
+      });
+      return;
     }
-  }, [applyHomeSurfaceResolution, selectedPetPrimaryAlert]);
+    const destination = resolveTopAttentionDestination(selectedPetPrimaryAlert.action_target);
+    if (destination) applyHomeSurfaceResolution(destination);
+  }, [applyHomeSurfaceResolution, selectedPetPrimaryAlert]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleOverdueAlertClick = useCallback((alert: PetInteractionItem) => {
     setShowOverdueGrid(false);
-    const destination = resolveTopAttentionDestination(alert.action_target);
-    if (destination) {
-      applyHomeSurfaceResolution(destination);
+    if (QUICK_ACTION_TARGETS.has(alert.action_target)) {
+      setHealthQuickAction({
+        action_target: alert.action_target,
+        label: alert.type_label,
+        pet_id: alert.pet_id,
+        pet_name: alert.pet_name,
+        status: alert.status,
+        days_overdue: alert.days_overdue,
+      });
+      return;
     }
-  }, [applyHomeSurfaceResolution]);
+    const destination = resolveTopAttentionDestination(alert.action_target);
+    if (destination) applyHomeSurfaceResolution(destination);
+  }, [applyHomeSurfaceResolution]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Callback do mini sheet: abre o sheet completo correspondente ao item
+  const handleHealthQuickOpenDetails = useCallback(() => {
+    if (!healthQuickAction) return;
+    const destination = resolveTopAttentionDestination(healthQuickAction.action_target as Parameters<typeof resolveTopAttentionDestination>[0]);
+    setHealthQuickAction(null);
+    if (destination) applyHomeSurfaceResolution(destination);
+  }, [applyHomeSurfaceResolution, healthQuickAction]);
 
   const {
     closeVermifugoSheet,
@@ -1352,6 +1398,7 @@ export default function HomePage() {
         </div>
       </div>
       <div className="max-w-2xl mx-auto px-4 py-4">
+
         {/* Pet Management - if pets exist */}
         {pets.length > 0 ? (
           <div className="mx-auto max-w-xl space-y-4 rounded-3xl border border-slate-200 bg-gradient-to-b from-[#F0F4F8] to-[#E2E8F0] p-3 shadow-2xl sm:p-4">
@@ -1538,6 +1585,7 @@ export default function HomePage() {
                     onOpenFood={handleOpenFood}
                     onOpenEvents={handleOpenEvents}
                     onOpenFamily={togglePetSelector}
+                    onHealthItemClick={setHealthQuickAction}
                   />
                 </PetTabs>
               </div>
@@ -1768,7 +1816,6 @@ export default function HomePage() {
         onOpenAntipulgas={handleOpenAntipulgas}
         onOpenColeira={handleOpenColeira}
         onOpenMedication={handleOpenMedication}
-        onOpenEmergency={() => setShowEmergencySheet(true)}
       />
 
       {/* Add Pet Modal */}
@@ -1779,6 +1826,19 @@ export default function HomePage() {
         />
       )}
   {/* Sistema automático removido — sem geolocalização */}
+
+      {/* ── HealthQuickActionSheet — mini sheet de ação rápida para itens de saúde ── */}
+      {healthQuickAction && (
+        <HealthQuickActionSheet
+          item={healthQuickAction}
+          petEvents={petEvents}
+          onClose={() => setHealthQuickAction(null)}
+          onOpenDetails={handleHealthQuickOpenDetails}
+          onApplied={() => {
+            if (selectedPetId) fetchPetEvents(selectedPetId);
+          }}
+        />
+      )}
 
       {/* ── PushActionSheet — tela curta de decisão (push → ação rápida) ── */}
       {pushActionSheet && (() => {
@@ -1877,6 +1937,7 @@ export default function HomePage() {
           initialMode={vaccineSheetInitialMode}
           onClose={() => { setVaccineSheetInitialMode('view'); closeVaccineSheet(); }}
           onQuickAdd={handleVaccineQuickAdd}
+          onDirectSaveVaccine={handleQuickAddVaccine}
           onFullFormVaccine={handleVaccineFullForm}
           onEditVaccine={handleVaccineEdit}
           onDeleteVaccine={(v) => { handleDeleteVaccine(v); }}

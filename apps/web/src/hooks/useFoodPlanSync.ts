@@ -14,6 +14,7 @@ function normalizeFoodItems(raw: unknown): FeedingPlanItemEntry[] {
       food_brand: typeof item.food_brand === 'string' ? item.food_brand : null,
       package_size_kg: typeof item.package_size_kg === 'number' ? item.package_size_kg : null,
       daily_amount_g: typeof item.daily_amount_g === 'number' ? item.daily_amount_g : null,
+      duration_days: typeof item.duration_days === 'number' ? item.duration_days : null,
       last_refill_date: typeof item.last_refill_date === 'string' ? item.last_refill_date : null,
       mode: typeof item.mode === 'string' ? item.mode : null,
       barcode: typeof item.barcode === 'string' ? item.barcode : null,
@@ -49,6 +50,10 @@ function flattenFeedingPlan(raw: Record<string, unknown>): FeedingPlanEntry {
       (typeof raw.daily_amount_g === 'number' ? raw.daily_amount_g : null) ??
       primary?.daily_amount_g ??
       null,
+    duration_days:
+      (typeof raw.duration_days === 'number' ? raw.duration_days : null) ??
+      primary?.duration_days ??
+      null,
     last_refill_date:
       (typeof raw.last_refill_date === 'string' ? raw.last_refill_date : null) ??
       primary?.last_refill_date ??
@@ -64,6 +69,7 @@ function flattenFeedingPlan(raw: Record<string, unknown>): FeedingPlanEntry {
       (typeof raw.manual_reminder_days_before === 'number' ? raw.manual_reminder_days_before : null) ??
       (typeof raw.manualDaysBefore === 'number' ? raw.manualDaysBefore : null) ??
       null,
+    reminder_time: typeof raw.reminder_time === 'string' ? raw.reminder_time : null,
   };
 }
 
@@ -166,10 +172,13 @@ export function useFoodPlanSync({ selectedPetId }: { selectedPetId: string | nul
             next_reminder_date: flat.next_reminder_date ?? local.next_reminder_date,
             estimated_end_date: flat.estimated_end_date ?? local.estimated_end_date,
             estimated_days_left: flat.estimated_days_left ?? local.estimated_days_left ?? null,
+            duration_days: flat.duration_days ?? local.duration_days ?? null,
+            last_refill_date: flat.last_refill_date ?? local.last_refill_date ?? null,
             manual_reminder_days_before:
               (flat.manual_reminder_days_before as number | null | undefined) ??
               local.manual_reminder_days_before ??
               local.manualDaysBefore,
+            reminder_time: flat.reminder_time ?? local.reminder_time ?? '09:00',
             food_brand: flat.food_brand ?? local.food_brand ?? local.brand,
             brand: flat.brand ?? local.brand ?? local.food_brand,
           };

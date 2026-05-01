@@ -47,6 +47,7 @@ class FeedingPlan(Base):
     food_brand: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     package_size_kg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     daily_amount_g: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    duration_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     last_refill_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     
     # Configuration
@@ -62,6 +63,7 @@ class FeedingPlan(Base):
     # Manual mode fields (when no_consumption_control=true)
     next_purchase_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     manual_reminder_days_before: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    reminder_time: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
     
     # Calculated fields (populated by service layer)
     estimated_end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { AppleControlButtons } from '@/components/AppleControlButtons';
 import { buildPetCareReminders, resolveCareCTA } from '@/lib/petCareDomain';
 import type { PetEventRecord } from '@/lib/petEvents';
@@ -12,6 +12,12 @@ type CardTone = 'neutral' | 'ok' | 'warning' | 'critical';
 
 const reminderMonths = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
+const HEALTH_QUICK_TARGETS = new Set([
+  'health/vaccines', 'health/medication',
+  'health/parasites/dewormer', 'health/parasites/flea_tick',
+  'health/parasites/collar', 'health/parasites',
+]);
+
 function createLocalDate(dateStr: string): Date {
   if (!dateStr) return new Date();
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -21,6 +27,11 @@ function createLocalDate(dateStr: string): Date {
 function formatReminderDate(dateStr: string): string {
   const date = createLocalDate(dateStr);
   return `${date.getDate()} ${reminderMonths[date.getMonth()]}`;
+}
+
+function formatFoodDateShort(dateStr: string): string {
+  const date = createLocalDate(dateStr);
+  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
 function formatReminderBadge(diff: number): string {
@@ -42,6 +53,14 @@ function diffDaysFromIso(isoDate: string): number | null {
   const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const startTarget = new Date(target.getFullYear(), target.getMonth(), target.getDate());
   return Math.round((startTarget.getTime() - startToday.getTime()) / 86400000);
+}
+
+function addDaysIso(startIso: string | null | undefined, days: number | null | undefined): string | null {
+  if (!startIso || !days || days <= 0) return null;
+  const [y, m, d] = startIso.split('T')[0].split('-').map(Number);
+  if (!y || !m || !d) return null;
+  const date = new Date(y, m - 1, d + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 function getReminderTone(diff: number): string {
@@ -98,6 +117,15 @@ interface HomePetDashboardProps {
   onOpenFood: () => void;
   onOpenEvents: () => void;
   onOpenFamily?: () => void;
+  onHealthItemClick?: (ctx: {
+    action_target: string;
+    label: string;
+    pet_id: string;
+    pet_name: string;
+    status: 'overdue' | 'today' | 'upcoming';
+    days_overdue?: number;
+    source_record_id?: string;
+  }) => void;
 }
 
 export function HomePetDashboard({
@@ -133,9 +161,10 @@ export function HomePetDashboard({
   onOpenFood,
   onOpenEvents,
   onOpenFamily,
+  onHealthItemClick,
 }: HomePetDashboardProps) {
 
-  const healthTones = [colorVacinas, colorVermifugo, colorAntipulgas, colorColeira, colorMedicacao];
+  const healthTones = [colorVacinas, colorVermifugo, colorAntipulgas, colorColeira];
   const colorHealth: CardTone = healthTones.includes('critical')
     ? 'critical'
     : healthTones.includes('warning')
@@ -143,7 +172,7 @@ export function HomePetDashboard({
       : healthTones.includes('ok')
         ? 'ok'
         : 'neutral';
-  const alertHealth = colorHealth === 'warning' || colorHealth === 'critical' || alertVacinas || alertVermifugo || alertAntipulgas || alertColeira || alertMedicacao;
+  const alertHealth = colorHealth === 'warning' || colorHealth === 'critical' || alertVacinas || alertVermifugo || alertAntipulgas || alertColeira;
   const upcomingReminders = useMemo(() => {
     if (!currentPet?.pet_id) return [];
 
@@ -172,16 +201,13 @@ export function HomePetDashboard({
 
     return reminders
       .filter((reminder) => {
-        // Alimentação só aparece quando está próxima (≤ 14 dias)
+        if (reminder.diff < 0) return false; // exclude overdue — go to "Precisa de atenção"
+        if (reminder.diff === 0 && reminder.domain !== 'medication' && reminder.action_target !== 'health/medication') return false;
+        if (reminder.domain === 'grooming') return false;
         if (reminder.domain === 'food' && reminder.diff > 14) return false;
         return true;
       })
-      .sort((a, b) => {
-        const urgencyA = a.diff < 0 ? 0 : a.diff === 0 ? 1 : 2;
-        const urgencyB = b.diff < 0 ? 0 : b.diff === 0 ? 1 : 2;
-        if (urgencyA !== urgencyB) return urgencyA - urgencyB;
-        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
-      })
+      .sort((a, b) => a.diff - b.diff)
       .map((reminder) => ({
         ...reminder,
         action: resolveCareCTA(reminder.action_target, careHandlers),
@@ -211,80 +237,72 @@ export function HomePetDashboard({
       plan.items?.length ||
       plan.food_brand ||
       plan.brand ||
+      typeof plan.duration_days === 'number' ||
       plan.estimated_end_date ||
       typeof plan.estimated_days_left === 'number',
     );
   })();
   const foodPlan = feedingPlan[currentPet.pet_id] ?? null;
+  const durationEndDate = addDaysIso(foodPlan?.last_refill_date, typeof foodPlan?.duration_days === 'number' ? foodPlan.duration_days : null);
+  const resolvedFoodEndDate = foodPlan?.estimated_end_date ?? durationEndDate ?? foodPlan?.next_purchase_date ?? null;
   const foodDaysLeft = typeof foodPlan?.estimated_days_left === 'number'
     ? foodPlan.estimated_days_left
-    : (foodPlan?.estimated_end_date ? diffDaysFromIso(foodPlan.estimated_end_date) : null);
-  const foodTitle = !hasFoodData ? `Ração do ${currentPet.pet_name}` : undefined;
+    : (resolvedFoodEndDate ? diffDaysFromIso(resolvedFoodEndDate) : null);
+  const foodTitle = `Ração do ${currentPet.pet_name}`;
   const foodHeadline = !hasFoodData
     ? 'Cadastre a ração para o PETMOL avisar antes de acabar.'
-    : foodDaysLeft == null
-      ? 'Plano de alimentação ativo'
-      : foodDaysLeft < 0
-        ? 'Pode estar sem ração'
-        : foodDaysLeft <= 3
-          ? `Acabando em ${foodDaysLeft} dia${foodDaysLeft === 1 ? '' : 's'}`
-          : `${foodDaysLeft} dias restantes`;
+    : foodDaysLeft != null
+      ? foodDaysLeft < 0
+        ? 'Pode estar sem ração!'
+        : foodDaysLeft === 0
+          ? 'Acaba hoje!'
+          : `${foodDaysLeft} dias restantes`
+      : 'Toque para atualizar o estoque';
   const foodSubline = !hasFoodData
     ? 'Adicionar ração'
-    : foodPlan?.estimated_end_date
-      ? `Acaba em ${formatReminderDate(foodPlan.estimated_end_date)}`
+    : resolvedFoodEndDate
+      ? `Previsão: ${formatFoodDateShort(resolvedFoodEndDate)}`
       : null;
 
   return (
     <div className="relative px-2 pt-2 pb-6 space-y-4">
       {upcomingReminders.length > 0 && (
-        <section className="rounded-[24px] border border-white/70 bg-white/75 px-3 py-4 shadow-lg shadow-slate-900/5 backdrop-blur-xl ring-1 ring-black/5">
-          <div className="mb-4 flex items-center justify-between px-1">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Cuidados</p>
-              <p className="text-sm font-bold text-slate-800 tracking-tight">O que vem pela frente para {currentPet.pet_name}</p>
-            </div>
-            <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-800 px-2 text-[10px] font-bold text-white shadow-lg ring-4 ring-white/10">
-              {upcomingReminders.length}
-            </span>
-          </div>
-
-          <div className="space-y-2.5">
-            {upcomingReminders.map((reminder) => (
-              <button
-                key={reminder.key}
-                onClick={reminder.action}
-                className="group relative flex w-full items-center gap-3 rounded-[20px] border border-white/60 bg-white/80 p-2.5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:bg-white active:scale-[0.98] shadow-sm"
-              >
-                <div className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-white text-2xl shadow-md ring-1 ring-black/5 transition-transform group-hover:scale-110">
-                  {reminder.icon}
-                  {reminder.diff === 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500 border-2 border-white"></span>
-                    </span>
-                  )}
-                </div>
-                
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="block text-[14px] font-bold leading-tight text-slate-900 tracking-tight">
-                      {reminder.label}
-                    </span>
-                  </div>
-                  <span className="mt-0.5 block text-[11px] font-medium leading-tight text-slate-500">
-                    {reminder.sublabel || 'Toque para abrir'}
+        <section className="rounded-[20px] border border-white/70 bg-white/75 px-3 py-2.5 shadow-md shadow-slate-900/5 backdrop-blur-xl ring-1 ring-black/5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-1 mb-1.5">
+            O que vem pela frente
+          </p>
+          <div className="divide-y divide-slate-100/60">
+            {upcomingReminders.map((reminder) => {
+              const handleClick = () => {
+                if (onHealthItemClick && HEALTH_QUICK_TARGETS.has(reminder.action_target)) {
+                  onHealthItemClick({
+                    action_target: reminder.action_target,
+                    label: reminder.label,
+                    pet_id: currentPet.pet_id,
+                    pet_name: currentPet.pet_name,
+                    status: 'upcoming',
+                    source_record_id: reminder.source_record_id,
+                  });
+                } else {
+                  reminder.action();
+                }
+              };
+              return (
+                <button
+                  key={reminder.key}
+                  onClick={handleClick}
+                  className="flex w-full items-center gap-2.5 py-2 px-1 text-left active:bg-slate-50 rounded-xl transition-colors"
+                >
+                  <span className="text-[18px] flex-shrink-0 leading-none">{reminder.icon}</span>
+                  <span className="flex-1 text-[13px] font-semibold text-slate-800 truncate leading-tight">
+                    {reminder.label}
                   </span>
-                </div>
-
-                <div className="flex flex-col items-end gap-1.5 pr-1">
-                  <span className="text-[10px] font-semibold text-slate-400">{formatReminderDate(reminder.due_date)}</span>
-                  <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${getReminderTone(reminder.diff)}`}>
-                    {formatReminderBadge(reminder.diff)}
+                  <span className="text-[11px] font-medium text-slate-400 flex-shrink-0 tabular-nums">
+                    {reminder.diff === 0 ? 'ainda dá tempo' : `em ${reminder.diff} dia${reminder.diff !== 1 ? 's' : ''}`}
                   </span>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </section>
       )}

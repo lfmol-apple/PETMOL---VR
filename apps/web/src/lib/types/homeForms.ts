@@ -10,6 +10,12 @@ export interface FeedingPlanEntry {
   next_reminder_date?: string | null;
   estimated_end_date?: string | null;
   estimated_days_left?: number | null;
+  package_size_kg?: number | null;
+  daily_amount_g?: number | null;
+  duration_days?: number | null;
+  last_refill_date?: string | null;
+  manual_reminder_days_before?: number | null;
+  reminder_time?: string | null;
   [key: string]: unknown;
 }
 
@@ -19,6 +25,7 @@ export interface FeedingPlanItemEntry {
   food_brand?: string | null;
   package_size_kg?: number | null;
   daily_amount_g?: number | null;
+  duration_days?: number | null;
   last_refill_date?: string | null;
   mode?: string | null;
   barcode?: string | null;

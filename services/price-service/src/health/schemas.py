@@ -90,6 +90,8 @@ class FeedingSnapshot(BaseModel):
     low_stock: bool = False
     recommended_alert_date: Optional[str] = None
     food_brand: Optional[str] = None
+    duration_days: Optional[int] = None
+    reminder_time: Optional[str] = None
     mode: str = "kibble"
     enabled: bool = True
     items: List["FeedingPlanItemData"] = Field(default_factory=list)
@@ -101,6 +103,7 @@ class FeedingPlanItemPayload(BaseModel):
     food_brand: Optional[str] = None
     package_size_kg: Optional[float] = Field(None, ge=0.1, le=100)
     daily_amount_g: Optional[float] = Field(None, ge=1, le=10000)
+    duration_days: Optional[int] = Field(None, ge=1, le=3650)
     last_refill_date: Optional[str] = None
     mode: str = Field("kibble", pattern="^(kibble|wet|mixed|homemade|prescribed)$")
     barcode: Optional[str] = None
@@ -115,6 +118,7 @@ class FeedingPlanItemData(BaseModel):
     food_brand: Optional[str] = None
     package_size_kg: Optional[float] = None
     daily_amount_g: Optional[float] = None
+    duration_days: Optional[int] = None
     last_refill_date: Optional[str] = None
     mode: str = "kibble"
     barcode: Optional[str] = None
@@ -138,6 +142,7 @@ class FeedingPlanCreateRequest(BaseModel):
     food_brand: Optional[str] = None
     package_size_kg: Optional[float] = Field(None, ge=0.1, le=100)
     daily_amount_g: Optional[float] = Field(None, ge=1, le=10000)
+    duration_days: Optional[int] = Field(None, ge=1, le=3650)
     last_refill_date: Optional[str] = None  # date string "YYYY-MM-DD"
     
     # Configuration
@@ -153,6 +158,7 @@ class FeedingPlanCreateRequest(BaseModel):
     # Manual mode fields (when no_consumption_control=true)
     next_purchase_date: Optional[str] = None  # date string "YYYY-MM-DD"
     manual_reminder_days_before: Optional[int] = Field(None, ge=0, le=60)
+    reminder_time: Optional[str] = Field(None, max_length=5)
     items: Optional[List[FeedingPlanItemPayload]] = None
 
 
@@ -173,6 +179,7 @@ class FeedingPlanData(BaseModel):
     food_brand: Optional[str] = None
     package_size_kg: Optional[float] = None
     daily_amount_g: Optional[float] = None
+    duration_days: Optional[int] = None
     last_refill_date: Optional[str] = None
     
     safety_buffer_days: int
@@ -186,6 +193,7 @@ class FeedingPlanData(BaseModel):
     # Manual mode fields
     next_purchase_date: Optional[str] = None
     manual_reminder_days_before: Optional[int] = None
+    reminder_time: Optional[str] = None
     items: List[FeedingPlanItemData] = Field(default_factory=list)
     
     created_at: str

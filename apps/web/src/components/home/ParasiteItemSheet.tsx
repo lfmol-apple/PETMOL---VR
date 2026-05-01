@@ -527,47 +527,33 @@ export function ParasiteItemSheet({
                 </div>
               )}
 
-              {/* Primary CTA */}
+              {/* Ação principal — Registrar aplicação (Resolver) */}
+              <button
+                onClick={() => setMode('apply')}
+                className={`w-full py-4 rounded-2xl text-[16px] font-black shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 ${cfg.colorBtn}`}
+              >
+                Registrar aplicação
+              </button>
+
+              {/* Ação secundária — Comprar novamente (menor peso visual) */}
               {current && (
                 <button
                   onClick={() => setMode('buy')}
-                  className="w-full py-4 rounded-2xl bg-sky-600 hover:bg-sky-700 active:scale-[0.98] transition-all text-white text-[16px] font-black shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2.5"
+                  className="w-full py-3 rounded-2xl bg-white border border-sky-200 text-sky-700 text-[13px] font-semibold active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                 >
-                  <span className="text-xl">🛒</span>
+                  <span>🛒</span>
                   Comprar novamente
                 </button>
               )}
-              {current && (
-                <p className="text-center text-[10px] text-gray-400 -mt-1">
-                  Petz · Cobasi · Amazon · Petlove e mais
-                </p>
-              )}
 
-              {!current && (
-                <button
-                  onClick={() => setMode('apply')}
-                  className={`w-full py-4 rounded-2xl text-[15px] font-bold shadow-sm active:opacity-80 ${cfg.colorBtn}`}
-                >
-                  Registrar aplicação
-                </button>
-              )}
-
-              {/* Secondary actions */}
+              {/* Ação terciária — Editar (mínimo peso visual) */}
               {current && (
-              <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => setMode('apply')}
-                  className={`py-3 rounded-2xl text-sm font-semibold active:opacity-70 ${cfg.colorLight} ${cfg.colorAccent} border ${cfg.colorBorder}`}
+                  onClick={() => startEdit(current)}
+                  className="w-full py-2 text-[11px] font-medium text-gray-400 hover:text-gray-600 transition-colors text-center"
                 >
-                  Registrar aplicação
+                  Editar registro
                 </button>
-                <button
-                  onClick={() => current ? startEdit(current) : setMode('apply')}
-                  className="py-3 rounded-2xl text-sm font-semibold active:opacity-70 bg-white text-gray-600 border border-gray-200"
-                >
-                  Editar
-                </button>
-              </div>
               )}
 
               {/* History — collapsed accordion */}

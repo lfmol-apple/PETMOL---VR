@@ -44,6 +44,7 @@ type FeedingPlanApiResponse = {
     food_brand?: string | null;
     package_size_kg?: number | null;
     daily_amount_g?: number | null;
+    duration_days?: number | null;
     last_refill_date?: string | null;
     safety_buffer_days?: number | null;
     manual_reminder_days_before?: number | null;
@@ -53,6 +54,7 @@ type FeedingPlanApiResponse = {
       food_brand?: string | null;
       package_size_kg?: number | null;
       daily_amount_g?: number | null;
+      duration_days?: number | null;
       last_refill_date?: string | null;
       is_primary?: boolean;
     }>;
@@ -78,8 +80,31 @@ function fmtDate(iso: string | null | undefined): string {
   return `${d} ${['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][m - 1]}`;
 }
 
-function endISO(daysLeft: number | null): string | null {
-  return daysLeft === null ? null : isoPlus(daysLeft);
+function fmtDateShort(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const [, m, d] = iso.split('-').map(Number);
+  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+}
+
+function parseLocalDate(iso: string | null | undefined): Date | null {
+  if (!iso) return null;
+  const [y, m, d] = iso.split('T')[0].split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+function addDaysLocal(iso: string, days: number): string {
+  const start = parseLocalDate(iso);
+  if (!start) return iso;
+  start.setDate(start.getDate() + days);
+  return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+}
+
+function diffFromLocalToday(iso: string): number | null {
+  const target = parseLocalDate(iso);
+  const today = parseLocalDate(localTodayISO());
+  if (!target || !today) return null;
+  return Math.round((target.getTime() - today.getTime()) / 86400000);
 }
 
 function normalizeFoodName(raw: string): string {
@@ -96,6 +121,14 @@ function normalizeFoodName(raw: string): string {
   return value;
 }
 
+function clearPendingScannedProduct(): void {
+  try {
+    sessionStorage.removeItem('petmol_pending_scanned_product');
+  } catch {
+    // non-blocking
+  }
+}
+
 // ── component ─────────────────────────────────────────────────────────────────
 
 export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl }: FoodItemSheetProps) {
@@ -108,7 +141,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
   const [foodState, setFoodState] = useState<FoodControlTabState>({
     showForm: false, commerceStatus: null, foodBrand: '',
     daysLeft: null, restockDate: null, packageSizeKg: null,
-    dailyConsumptionG: null, startDate: null,
+    dailyConsumptionG: null, durationDays: null, startDate: null,
   });
 
   // Partner / commerce
@@ -140,7 +173,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
   const petPhotoSrc = resolvePetPhotoUrl(photoSource);
 
   const hasFood  = hasFoodConfigured;
-  const estEnd   = endISO(foodState.daysLeft);
+  const estEnd   = foodState.restockDate;
 
   const handleFoodControlStateChange = useCallback((nextState: FoodControlTabState) => {
     setFoodState((previous) => {
@@ -152,6 +185,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
         previous.restockDate === nextState.restockDate &&
         previous.packageSizeKg === nextState.packageSizeKg &&
         previous.dailyConsumptionG === nextState.dailyConsumptionG &&
+        previous.durationDays === nextState.durationDays &&
         previous.startDate === nextState.startDate
       ) {
         return previous;
@@ -187,6 +221,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
   };
 
   const handleEditBackToView = () => {
+    clearPendingScannedProduct();
     clearSuccessMessageTimer();
     setFormRequest(null);
     setFeedback(null);
@@ -196,6 +231,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
   };
 
   const handleSubModeBackToMain = () => {
+    clearPendingScannedProduct();
     setSubMode('main');
     setShowDatePicker(false);
     setFeedback(null);
@@ -227,6 +263,11 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
     setMode('edit');
   };
 
+  const handleClose = useCallback(() => {
+    clearPendingScannedProduct();
+    onClose();
+  }, [onClose]);
+
   const refreshFoodPlan = async () => {
     try {
       const response = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan`, {
@@ -248,6 +289,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
           restockDate: null,
           packageSizeKg: null,
           dailyConsumptionG: null,
+          durationDays: null,
           startDate: null,
         });
         return;
@@ -264,13 +306,17 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
       const brand = normalizeFoodName((primary?.food_brand ?? plan?.food_brand ?? '').trim());
       const packageSizeKg = primary?.package_size_kg ?? plan?.package_size_kg ?? null;
       const dailyConsumptionG = primary?.daily_amount_g ?? plan?.daily_amount_g ?? null;
+      const durationDays = primary?.duration_days ?? plan?.duration_days ?? null;
       const startDate = (primary?.last_refill_date ?? plan?.last_refill_date ?? null);
-      const estimatedEndDate = estimate?.estimated_end_date ?? null;
-      const daysLeft = estimate?.estimated_days_left ?? null;
-      const nextReminder = estimate?.recommended_alert_date ?? null;
       const manualReminderDays = plan?.manual_reminder_days_before ?? null;
       const safetyBufferDays = plan?.safety_buffer_days ?? null;
       const resolvedReminderDays = manualReminderDays ?? safetyBufferDays;
+      const startDateOnly = startDate ? startDate.split('T')[0] : null;
+      const durationEndDate = startDateOnly && durationDays ? addDaysLocal(startDateOnly, durationDays) : null;
+      const estimatedEndDate = estimate?.estimated_end_date ?? durationEndDate ?? plan?.next_purchase_date ?? null;
+      const daysLeft = estimate?.estimated_days_left ?? (estimatedEndDate ? diffFromLocalToday(estimatedEndDate) : null);
+      const nextReminder = estimate?.recommended_alert_date
+        ?? (estimatedEndDate && resolvedReminderDays != null ? addDaysLocal(estimatedEndDate, -resolvedReminderDays) : null);
       const hasPersistedPlan = Boolean(plan && plan.enabled !== false);
 
       const hasConfiguredData = Boolean(
@@ -278,9 +324,10 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
         brand ||
         packageSizeKg != null ||
         dailyConsumptionG != null ||
+        durationDays != null ||
         startDate ||
         plan?.next_purchase_date ||
-        items.some((item) => Boolean(item?.food_brand || item?.package_size_kg != null || item?.daily_amount_g != null || item?.last_refill_date)),
+        items.some((item) => Boolean(item?.food_brand || item?.package_size_kg != null || item?.daily_amount_g != null || item?.duration_days != null || item?.last_refill_date)),
       );
 
       const commerce = resolveFoodCommerceSnapshot({
@@ -303,7 +350,8 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
         restockDate: estimatedEndDate,
         packageSizeKg: packageSizeKg ?? null,
         dailyConsumptionG: dailyConsumptionG ?? null,
-        startDate: startDate ? startDate.split('T')[0] : null,
+        durationDays: durationDays ?? null,
+        startDate: startDateOnly,
       });
     } catch {
       // Preserve current view state on transient failures
@@ -461,10 +509,10 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
   // ── Effects ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [onClose]);
+  }, [handleClose]);
 
   useEffect(() => {
     void refreshFoodPlan();
@@ -561,9 +609,9 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
     <ModalPortal>
       <div ref={overlayRef}
         className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-        onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+        onClick={(e) => { if (e.target === overlayRef.current) handleClose(); }}
       >
-        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
+        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={handleClose} />
 
         <div
           className="relative w-full max-w-md bg-white rounded-t-[32px] sm:rounded-[28px] shadow-2xl border-t border-x sm:border border-gray-200/60 flex flex-col overflow-hidden animate-slideUp sm:animate-scaleIn touch-manipulation"
@@ -690,7 +738,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
                     <span className="leading-none">Voltar</span>
                   </button>
                 ) : (
-                  <button type="button" onClick={onClose}
+                  <button type="button" onClick={handleClose}
                     className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 active:scale-90 transition-all flex-shrink-0"
                     aria-label="Fechar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
@@ -741,7 +789,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
 
                         <button
                           type="button"
-                          onClick={onClose}
+                          onClick={handleClose}
                           className="w-full py-2 text-[12px] font-medium text-gray-400 hover:text-gray-600 transition-colors"
                         >
                           Fazer depois
@@ -770,7 +818,12 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
                                     </p>
                                     {estEnd && (
                                       <p className="text-[13px] text-amber-900/70">
-                                        Previsão: <span className="font-semibold text-gray-800">{fmtDate(estEnd)}</span>
+                                        Previsão: <span className="font-semibold text-gray-800">{fmtDateShort(estEnd)}</span>
+                                      </p>
+                                    )}
+                                    {nextReminderDate && (
+                                      <p className="text-[13px] text-amber-900/70">
+                                        Próximo alerta: <span className="font-semibold text-gray-800">{fmtDateShort(nextReminderDate)} às {reminderTime ?? '09:00'}</span>
                                       </p>
                                     )}
                                   </div>
@@ -807,30 +860,30 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
                           {/* Feedback banner */}
                           <FeedbackBanner />
 
-                          {/* 3. CTA principal */}
+                          {/* 3. CTA principal — ação dominante */}
                           <button type="button"
                             onClick={() => {
                               trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
                               setMode('buy');
                             }}
-                            className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.98] transition-all text-white text-[16px] font-black shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2.5"
+                            className="w-full py-5 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.97] transition-all text-white text-[17px] font-black shadow-xl shadow-amber-500/30 flex items-center justify-center gap-3"
                           >
-                            <span className="text-xl">🛒</span>
+                            <span className="text-2xl">🛒</span>
                             Comprar novamente
                           </button>
 
-                          {/* 4. Ações secundárias */}
+                          {/* 4. Ações secundárias — peso reduzido */}
                           <div className="grid grid-cols-2 gap-2">
                             <button type="button"
                               onClick={() => { setSubMode('adjustDuration'); setShowDatePicker(false); setFeedback(null); }}
                               disabled={busy}
-                              className="py-3 min-h-[44px] rounded-2xl bg-white border border-gray-200 text-[12px] font-semibold text-gray-600 active:scale-95 transition-all disabled:opacity-50">
+                              className="py-2.5 min-h-[44px] rounded-2xl bg-white border border-gray-200 text-[11px] font-medium text-gray-500 active:scale-95 transition-all disabled:opacity-50">
                               Ainda vai durar
                             </button>
                             <button type="button"
                               onClick={() => { setSubMode('finished'); setShowDatePicker(false); setFeedback(null); }}
                               disabled={busy}
-                              className="py-3 min-h-[44px] rounded-2xl bg-white border border-orange-200 text-[12px] font-semibold text-orange-700 active:scale-95 transition-all disabled:opacity-50">
+                              className="py-2.5 min-h-[44px] rounded-2xl bg-white border border-gray-200 text-[11px] font-medium text-gray-500 active:scale-95 transition-all disabled:opacity-50">
                               Acabou
                             </button>
                           </div>
@@ -844,17 +897,27 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
 
                           {showDetails && (
                             <div className="rounded-2xl border border-gray-100 bg-gray-50 divide-y divide-gray-100 overflow-hidden -mt-2">
-                              {[
-                                ['Produto', foodBrand || '—'],
-                                ['Pacote', foodState.packageSizeKg != null ? `${foodState.packageSizeKg % 1 === 0 ? foodState.packageSizeKg : foodState.packageSizeKg.toFixed(1)} kg` : '—'],
-                                ['Consumo estimado', foodState.dailyConsumptionG != null ? `${Math.round(foodState.dailyConsumptionG)} g/dia` : '—'],
-                                ['Início do ciclo', fmtDate(foodState.startDate)],
-                                ['Previsão de término', fmtDate(estEnd)],
-                                ['Dias restantes', foodState.daysLeft !== null ? `${Math.max(0, foodState.daysLeft)} dias` : '—'],
-                                ['Dias antes do alerta', alertDaysBefore != null ? `${alertDaysBefore} dias` : '—'],
-                                ['Próximo alerta', fmtDate(nextReminderDate)],
-                                ['Horário do alerta', reminderTime ?? '—'],
-                              ].map(([label, value]) => (
+                              {(foodState.durationDays != null
+                                ? [
+                                    ['Produto', foodBrand || 'Ração'],
+                                    ['Pacote', foodState.packageSizeKg != null ? `${foodState.packageSizeKg % 1 === 0 ? foodState.packageSizeKg : foodState.packageSizeKg.toFixed(1)} kg` : 'Não informado'],
+                                    ['Início do ciclo', fmtDateShort(foodState.startDate)],
+                                    ['Duração informada', `${foodState.durationDays} dias`],
+                                    ['Previsão de término', fmtDateShort(estEnd)],
+                                    ['Dias restantes', foodState.daysLeft !== null ? `${Math.max(0, foodState.daysLeft)} dias` : 'Calculando'],
+                                    ['Alerta', `${alertDaysBefore ?? 3} dias antes às ${reminderTime ?? '09:00'}`],
+                                    ['Próximo alerta', nextReminderDate ? `${fmtDateShort(nextReminderDate)} às ${reminderTime ?? '09:00'}` : 'Calculando'],
+                                  ]
+                                : [
+                                    ['Produto', foodBrand || '—'],
+                                    ['Pacote', foodState.packageSizeKg != null ? `${foodState.packageSizeKg % 1 === 0 ? foodState.packageSizeKg : foodState.packageSizeKg.toFixed(1)} kg` : '—'],
+                                    ['Consumo estimado', foodState.dailyConsumptionG != null ? `${Math.round(foodState.dailyConsumptionG)} g/dia` : '—'],
+                                    ['Início do ciclo', fmtDate(foodState.startDate)],
+                                    ['Previsão de término', fmtDate(estEnd)],
+                                    ['Dias restantes', foodState.daysLeft !== null ? `${Math.max(0, foodState.daysLeft)} dias` : '—'],
+                                    ['Dias antes do alerta', alertDaysBefore != null ? `${alertDaysBefore} dias` : '—'],
+                                    ['Próximo alerta', nextReminderDate ? `${fmtDate(nextReminderDate)} às ${reminderTime ?? '09:00'}` : '—'],
+                                  ]).map(([label, value]) => (
                                 <div key={label} className="flex items-center justify-between px-4 py-2.5">
                                   <span className="text-[12px] text-gray-500">{label}</span>
                                   <span className="text-[12px] font-semibold text-gray-800">{value}</span>
@@ -1065,6 +1128,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
           allowScanning={false}
           onProductConfirmed={handleFoodProductConfirmed}
           onClose={() => {
+            clearPendingScannedProduct();
             setShowFoodPhotoFlow(false);
             setFoodPhotoEntry(null);
           }}

@@ -109,6 +109,20 @@ def _parse_feeding_date(value: Optional[str], field_name: str) -> Optional[date]
         ) from exc
 
 
+def _coerce_duration_days(value: Any) -> Optional[int]:
+    try:
+        duration = int(value)
+    except (TypeError, ValueError):
+        return None
+    return duration if duration > 0 else None
+
+
+def _derive_duration_days(start: Optional[date], end: Optional[date]) -> Optional[int]:
+    if not start or not end or end <= start:
+        return None
+    return (end - start).days
+
+
 def _normalize_feeding_items_from_request(request: FeedingPlanCreateRequest) -> List[Dict[str, Any]]:
     raw_items = request.items or []
     normalized: List[Dict[str, Any]] = []
@@ -122,6 +136,7 @@ def _normalize_feeding_items_from_request(request: FeedingPlanCreateRequest) -> 
             "food_brand": brand,
             "package_size_kg": item.package_size_kg,
             "daily_amount_g": item.daily_amount_g,
+            "duration_days": _coerce_duration_days(item.duration_days),
             "last_refill_date": item.last_refill_date,
             "mode": item.mode or request.mode,
             "barcode": (item.barcode or "").strip() or None,
@@ -139,6 +154,7 @@ def _normalize_feeding_items_from_request(request: FeedingPlanCreateRequest) -> 
             "food_brand": brand,
             "package_size_kg": request.package_size_kg,
             "daily_amount_g": request.daily_amount_g,
+            "duration_days": _coerce_duration_days(request.duration_days),
             "last_refill_date": request.last_refill_date,
             "mode": request.mode,
             "barcode": None,
@@ -161,6 +177,7 @@ def _fallback_feeding_item_from_plan(plan: FeedingPlan) -> Dict[str, Any]:
         "food_brand": plan.food_brand,
         "package_size_kg": plan.package_size_kg,
         "daily_amount_g": plan.daily_amount_g,
+        "duration_days": plan.duration_days,
         "last_refill_date": plan.last_refill_date.isoformat() if plan.last_refill_date else None,
         "mode": plan.mode,
         "barcode": None,
@@ -186,6 +203,7 @@ def _parse_feeding_items_from_plan(plan: FeedingPlan) -> List[Dict[str, Any]]:
                         "food_brand": brand,
                         "package_size_kg": raw_item.get("package_size_kg"),
                         "daily_amount_g": raw_item.get("daily_amount_g"),
+                        "duration_days": _coerce_duration_days(raw_item.get("duration_days")),
                         "last_refill_date": raw_item.get("last_refill_date"),
                         "mode": str(raw_item.get("mode") or plan.mode or "kibble"),
                         "barcode": str(raw_item.get("barcode") or "").strip() or None,
@@ -270,6 +288,7 @@ def _build_feeding_item_data(items: List[Dict[str, Any]]) -> List[FeedingPlanIte
             food_brand=item.get("food_brand"),
             package_size_kg=item.get("package_size_kg"),
             daily_amount_g=item.get("daily_amount_g"),
+            duration_days=item.get("duration_days"),
             last_refill_date=item.get("last_refill_date"),
             mode=str(item.get("mode") or "kibble"),
             barcode=item.get("barcode"),
@@ -289,6 +308,7 @@ def _build_feeding_plan_data(plan: FeedingPlan, items: List[Dict[str, Any]]) -> 
         food_brand=plan.food_brand,
         package_size_kg=plan.package_size_kg,
         daily_amount_g=plan.daily_amount_g,
+        duration_days=plan.duration_days,
         last_refill_date=plan.last_refill_date.isoformat() if plan.last_refill_date else None,
         safety_buffer_days=plan.safety_buffer_days,
         meals_per_day=plan.meals_per_day,
@@ -298,6 +318,7 @@ def _build_feeding_plan_data(plan: FeedingPlan, items: List[Dict[str, Any]]) -> 
         no_consumption_control=plan.no_consumption_control,
         next_purchase_date=plan.next_purchase_date.isoformat() if plan.next_purchase_date else None,
         manual_reminder_days_before=plan.manual_reminder_days_before,
+        reminder_time=plan.reminder_time,
         items=_build_feeding_item_data(items),
         created_at=plan.created_at.isoformat(),
         updated_at=plan.updated_at.isoformat(),
@@ -662,24 +683,27 @@ async def get_health_snapshot(
     if feeding_plan:
         feeding_items = _parse_feeding_items_from_plan(feeding_plan)
         # Calculate estimates
-        estimated_end, _, days_total = calculate_food_stock_estimates(
+        estimated_end, next_reminder, days_total = calculate_food_stock_estimates(
             package_size_kg=feeding_plan.package_size_kg,
             daily_amount_g=feeding_plan.daily_amount_g,
             last_refill_date=feeding_plan.last_refill_date,
             safety_buffer_days=feeding_plan.safety_buffer_days,
             enabled=feeding_plan.enabled,
             no_consumption_control=feeding_plan.no_consumption_control,
+            duration_days=feeding_plan.duration_days,
         )
         
         days_left = calculate_days_until_out(estimated_end, today) if estimated_end else None
-        low_stock = is_food_stock_low(estimated_end, feeding_plan.next_reminder_date, today)
+        low_stock = is_food_stock_low(estimated_end, next_reminder, today)
         
         feeding_snapshot = FeedingSnapshot(
             estimated_end_date=estimated_end.isoformat() if estimated_end else None,
             estimated_days_left=days_left,
             low_stock=low_stock,
-            recommended_alert_date=feeding_plan.next_reminder_date.isoformat() if feeding_plan.next_reminder_date else None,
+            recommended_alert_date=next_reminder.isoformat() if next_reminder else None,
             food_brand=feeding_plan.food_brand,
+            duration_days=feeding_plan.duration_days,
+            reminder_time=feeding_plan.reminder_time,
             mode=feeding_plan.mode,
             enabled=feeding_plan.enabled,
             items=_build_feeding_item_data(feeding_items),
@@ -724,6 +748,12 @@ async def create_or_update_feeding_plan(
 
     # Parse next_purchase_date if provided (manual mode)
     next_purchase_date_obj = _parse_feeding_date(request.next_purchase_date, "next_purchase_date") if request.next_purchase_date else None
+    duration_days = (
+        _coerce_duration_days(primary_item.get("duration_days"))
+        or _coerce_duration_days(request.duration_days)
+        or _derive_duration_days(last_refill_date_obj, next_purchase_date_obj)
+    )
+    primary_item["duration_days"] = duration_days
     
     # Calculate estimates if possible
     estimated_end, next_reminder, _ = calculate_food_stock_estimates(
@@ -733,7 +763,10 @@ async def create_or_update_feeding_plan(
         safety_buffer_days=request.safety_buffer_days,
         enabled=request.enabled,
         no_consumption_control=request.no_consumption_control,
+        duration_days=duration_days,
     )
+    if duration_days and last_refill_date_obj:
+        next_purchase_date_obj = estimated_end
     
     # Check if plan already exists
     active_plans = _list_active_feeding_plans(db, pet_id)
@@ -747,6 +780,7 @@ async def create_or_update_feeding_plan(
         existing_plan.food_brand = primary_item.get("food_brand")
         existing_plan.package_size_kg = primary_item.get("package_size_kg")
         existing_plan.daily_amount_g = primary_item.get("daily_amount_g")
+        existing_plan.duration_days = duration_days
         existing_plan.last_refill_date = last_refill_date_obj
         existing_plan.safety_buffer_days = request.safety_buffer_days
         existing_plan.meals_per_day = request.meals_per_day
@@ -758,6 +792,7 @@ async def create_or_update_feeding_plan(
         existing_plan.next_reminder_date = next_reminder
         existing_plan.next_purchase_date = next_purchase_date_obj
         existing_plan.manual_reminder_days_before = request.manual_reminder_days_before
+        existing_plan.reminder_time = request.reminder_time or "09:00"
         existing_plan.items_json = _serialize_feeding_items(items_payload)
         
         plan = existing_plan
@@ -771,6 +806,7 @@ async def create_or_update_feeding_plan(
             food_brand=primary_item.get("food_brand"),
             package_size_kg=primary_item.get("package_size_kg"),
             daily_amount_g=primary_item.get("daily_amount_g"),
+            duration_days=duration_days,
             last_refill_date=last_refill_date_obj,
             safety_buffer_days=request.safety_buffer_days,
             meals_per_day=request.meals_per_day,
@@ -782,6 +818,7 @@ async def create_or_update_feeding_plan(
             next_reminder_date=next_reminder,
             next_purchase_date=next_purchase_date_obj,
             manual_reminder_days_before=request.manual_reminder_days_before,
+            reminder_time=request.reminder_time or "09:00",
             items_json=_serialize_feeding_items(items_payload),
         )
         db.add(plan)
@@ -795,9 +832,9 @@ async def create_or_update_feeding_plan(
     plan_items = _parse_feeding_items_from_plan(plan)
     plan_data = _build_feeding_plan_data(plan, plan_items)
     
-    # Build estimate (only if enabled and not manual mode)
+    # Build estimate whenever a complete plan can be calculated.
     estimate = None
-    if plan.enabled and not plan.no_consumption_control and estimated_end:
+    if plan.enabled and estimated_end:
         days_left = calculate_days_until_out(estimated_end, date.today())
         estimate = FeedingEstimate(
             estimated_end_date=estimated_end.isoformat(),
@@ -865,10 +902,11 @@ async def get_feeding_plan(
             safety_buffer_days=plan.safety_buffer_days,
             enabled=plan.enabled,
             no_consumption_control=plan.no_consumption_control,
+            duration_days=plan.duration_days,
         )
         
         estimate = None
-        if plan.enabled and not plan.no_consumption_control and estimated_end:
+        if plan.enabled and estimated_end:
             days_left = calculate_days_until_out(estimated_end, today)
             estimate = FeedingEstimate(
                 estimated_end_date=estimated_end.isoformat(),
@@ -972,6 +1010,7 @@ async def restock_feeding_plan(
         safety_buffer_days=plan.safety_buffer_days,
         enabled=plan.enabled,
         no_consumption_control=plan.no_consumption_control,
+        duration_days=plan.duration_days,
     )
 
     plan.estimated_end_date = estimated_end
@@ -1136,7 +1175,10 @@ async def adjust_feeding_cycle(
         if start and plan.package_size_kg and start < target:
             days_real = (target - start).days
             if days_real > 0:
+                plan.duration_days = days_real
                 plan.daily_amount_g = round((plan.package_size_kg * 1000) / days_real, 1)
+        elif start and start < target:
+            plan.duration_days = (target - start).days
 
     plan.updated_at = datetime.utcnow()
     db.commit()
@@ -1184,6 +1226,7 @@ async def get_feeding_estimate(
         safety_buffer_days=plan.safety_buffer_days,
         enabled=plan.enabled,
         no_consumption_control=plan.no_consumption_control,
+        duration_days=plan.duration_days,
     )
     
     if not estimated_end:

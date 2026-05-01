@@ -34,6 +34,7 @@ interface PersistedFoodItem {
   tracking_method?: 'weight' | 'duration' | null;
   package_size_kg?: number | null;
   daily_amount_g?: number | null;
+  duration_days?: number | null;
   last_refill_date?: string | null;
   mode?: string | null;
   barcode?: string | null;
@@ -50,6 +51,7 @@ export interface FoodControlTabState {
   restockDate: string | null;
   packageSizeKg: number | null;
   dailyConsumptionG: number | null;
+  durationDays: number | null;
   startDate: string | null;
 }
 
@@ -138,6 +140,23 @@ function getPrimaryItem(items: SimpleFoodData[]): SimpleFoodData {
   return normalized.find((item) => item.isPrimary) ?? normalized[0];
 }
 
+function normalizeScannedFoodName(product: ScannedProduct): string {
+  const brand = product.brand?.trim().replace(/\s+/g, ' ') ?? '';
+  const name = product.name?.trim().replace(/\s+/g, ' ') ?? '';
+  if (!brand) return name;
+  if (!name) return brand;
+
+  const normalize = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const normalizedBrand = normalize(brand);
+  const normalizedName = normalize(name);
+  const combined = normalizedName.startsWith(`${normalizedBrand} `) || normalizedName === normalizedBrand
+    ? name
+    : `${brand} ${name}`;
+
+  const brandPrefix = new RegExp(`^(${brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s+){2,}`, 'i');
+  return combined.replace(brandPrefix, `${brand} `).replace(/\s+/g, ' ').trim();
+}
+
 function getResolvedDailyConsumption(item: SimpleFoodData): number | null {
   if (item.trackingMethod === 'duration') return null;
   const dailyConsumption = parseFloat(item.dailyConsumptionG);
@@ -181,7 +200,7 @@ function getItemMetrics(item: SimpleFoodData): {
       : (Number.isFinite(manualDays) && manualDays > 0 ? manualDays : null);
   const localEndDate = item.startDate && days ? addDays(item.startDate, days) : null;
   const localDaysLeft = localEndDate
-    ? Math.round((new Date(`${localEndDate}T00:00:00`).getTime() - Date.now()) / 86400000)
+    ? Math.round((new Date(`${localEndDate}T00:00:00`).getTime() - new Date(`${localTodayISO()}T00:00:00`).getTime()) / 86400000)
     : null;
   return {
     packageSizeKg: parsedPackageSizeKg,
@@ -203,7 +222,9 @@ function normalizeLoadedItems(source: unknown): SimpleFoodData[] {
     trackingMethod: getTrackingMethod(item.tracking_method, item.is_primary ? primaryFallbackTracking : 'weight'),
     packageSizeKg: item.package_size_kg != null ? String(item.package_size_kg) : '',
     durationDays:
-      item.package_size_kg && item.daily_amount_g
+      item.duration_days != null
+        ? String(item.duration_days)
+        : item.package_size_kg && item.daily_amount_g
         ? String(Math.round((item.package_size_kg * 1000) / item.daily_amount_g))
         : (item.is_primary ? getDurationDaysFromDates((item.last_refill_date ?? localTodayISO()).split('T')[0], typeof record.next_purchase_date === 'string' ? record.next_purchase_date : null) : ''),
     startDate: (item.last_refill_date ?? localTodayISO()).split('T')[0],
@@ -226,14 +247,16 @@ function normalizeLoadedItems(source: unknown): SimpleFoodData[] {
         ? String(record.package_size_kg)
         : (typeof record.packageSizeKg === 'string' ? record.packageSizeKg : ''),
     durationDays:
-      typeof record.durationDays === 'string'
-        ? record.durationDays
-        : getDurationDaysFromDates(
+      typeof record.duration_days === 'number'
+        ? String(record.duration_days)
+        : typeof record.durationDays === 'string'
+          ? record.durationDays
+          : getDurationDaysFromDates(
             typeof record.last_refill_date === 'string'
               ? record.last_refill_date.split('T')[0]
               : (typeof record.startDate === 'string' ? record.startDate.split('T')[0] : localTodayISO()),
             typeof record.next_purchase_date === 'string' ? record.next_purchase_date : null,
-          ),
+            ),
     startDate:
       typeof record.last_refill_date === 'string'
         ? record.last_refill_date.split('T')[0]
@@ -258,6 +281,7 @@ function buildItemsPayload(items: SimpleFoodData[]): PersistedFoodItem[] {
     tracking_method: item.trackingMethod,
     package_size_kg: getItemMetrics(item).packageSizeKg,
     daily_amount_g: getItemMetrics(item).dailyConsumptionG,
+    duration_days: getItemMetrics(item).days,
     last_refill_date: item.startDate || null,
     mode: 'kibble',
     barcode: item.barcode ?? null,
@@ -334,16 +358,22 @@ export function FoodControlTab({
       }
       return {
         ...item,
-        brand: [product.brand, product.name].filter(Boolean).join(' ').trim() || item.brand,
+        brand: normalizeScannedFoodName(product) || item.brand,
         packageSizeKg: resolvedPackageKg,
         barcode: product.barcode,
         category: product.category,
       };
     })));
+    try {
+      sessionStorage.removeItem('petmol_pending_scanned_product');
+    } catch { /* silent */ }
     if (!product.found) setApiError('Não encontramos os dados. Preencha manualmente.');
   };
 
   const updateItem = (itemId: string, updater: (item: SimpleFoodData) => SimpleFoodData) => {
+    try {
+      sessionStorage.removeItem('petmol_pending_scanned_product');
+    } catch { /* silent */ }
     setItems((current) => ensurePrimaryItem(current.map((item) => (item.id === itemId ? updater(item) : item))));
   };
 
@@ -445,7 +475,7 @@ export function FoodControlTab({
     const nextPurchaseDate = isDurationMode && primarySourceMetrics.days && primarySourceItem.startDate
       ? addDays(primarySourceItem.startDate, primarySourceMetrics.days)
       : null;
-    const packageSizeKg = isDurationMode ? null : (primaryRequestItem?.package_size_kg ?? null);
+    const packageSizeKg = primaryRequestItem?.package_size_kg ?? null;
     const dailyAmountG = isDurationMode ? null : (primaryRequestItem?.daily_amount_g ?? null);
 
     return {
@@ -462,6 +492,7 @@ export function FoodControlTab({
         brand: primaryRequestItem?.food_brand ?? '',
         package_size_kg: packageSizeKg,
         daily_amount_g: dailyAmountG,
+        duration_days: primarySourceMetrics.days,
         last_refill_date: primaryRequestItem?.last_refill_date ?? null,
         next_purchase_date: nextPurchaseDate,
         no_consumption_control: isDurationMode,
@@ -477,6 +508,7 @@ export function FoodControlTab({
         food_brand: primaryRequestItem?.food_brand ?? '',
         package_size_kg: packageSizeKg,
         daily_amount_g: dailyAmountG,
+        duration_days: primarySourceMetrics.days,
         last_refill_date: primaryRequestItem?.last_refill_date ?? null,
         safety_buffer_days: parseInt(reminderDays, 10) || 3,
         mode: 'kibble',
@@ -683,6 +715,7 @@ export function FoodControlTab({
       restockDate: displayEndDate ?? null,
       packageSizeKg: primaryMetrics.packageSizeKg ?? null,
       dailyConsumptionG: primaryMetrics.dailyConsumptionG ?? null,
+      durationDays: primaryMetrics.days ?? null,
       startDate: primaryItem.startDate || null,
     });
   }, [
@@ -693,6 +726,7 @@ export function FoodControlTab({
     primaryItem.brand,
     primaryItem.startDate,
     primaryMetrics.dailyConsumptionG,
+    primaryMetrics.days,
     primaryMetrics.packageSizeKg,
     showForm,
   ]);

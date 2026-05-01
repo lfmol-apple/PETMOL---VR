@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
-import type { VaccineRecord } from '@/lib/petHealth';
+import type { VaccineRecord, VaccineType } from '@/lib/petHealth';
 import type { VaccineFormData } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
 import { ModalPortal } from '@/components/ModalPortal';
@@ -63,6 +63,7 @@ export interface VaccineItemSheetProps {
   onClose: () => void;
   onQuickAdd: () => void;
   onFullFormVaccine: (prefill: Partial<VaccineFormData>) => void;
+  onDirectSaveVaccine?: (vaccine: { type: VaccineType; name: string; icon: string; code: string }, when: 'today' | 'this_month' | 'unknown') => Promise<void>;
   onEditVaccine: (v: VaccineRecord) => void;
   onDeleteVaccine: (v: VaccineRecord) => void;
   onDeleteAllVaccines: () => void;
@@ -86,6 +87,7 @@ export function VaccineItemSheet({
   onClose,
   onQuickAdd,
   onFullFormVaccine,
+  onDirectSaveVaccine,
   onEditVaccine,
   onDeleteVaccine,
   onDeleteAllVaccines,
@@ -112,6 +114,8 @@ export function VaccineItemSheet({
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [savingChip, setSavingChip] = useState<string | null>(null);
+  const [savedChip, setSavedChip] = useState<string | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -137,21 +141,20 @@ export function VaccineItemSheet({
   const status = computeStatus(overdue.length, nextDiff);
 
   // Quick-entry chip data
-  type ChipDef = { label: string; type: string; name: string; notes: string; disabled?: boolean };
+  type ChipDef = { label: string; type: string; name: string; icon: string; code: string; notes: string; disabled?: boolean; isOther?: boolean };
   const dogChips: ChipDef[] = [
-    { label: 'V10', type: 'multiple', name: 'V10 (Múltipla)', notes: 'Cinomose, Parvovirose, Hepatite, Coronavirose, Leptospirose, Adenovirose, Parainfluenza, Gripe' },
-    { label: 'V8', type: 'multiple', name: 'V8 (Múltipla)', notes: 'Cinomose, Parvovirose, Hepatite, Coronavirose, Leptospirose, Adenovirose, Parainfluenza' },
-    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', notes: '' },
-    { label: 'Gripe Canina', type: 'kennel_cough', name: 'Gripe Canina (Tosse dos Canis)', notes: 'Bordetella bronchiseptica' },
-    { label: 'Giárdia', type: 'giardia', name: 'Giárdia', notes: '' },
-    { label: 'Leishmaniose', type: 'leishmaniasis', name: 'Leishmaniose', notes: '', disabled: true },
+    { label: 'Polivalente (V8 / V10)', type: 'multiple', name: 'Polivalente (V10/V8)', icon: '💉', code: 'multiple', notes: 'Cinomose, Parvovirose, Hepatite, Coronavirose, Leptospirose, Adenovirose, Parainfluenza' },
+    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', icon: '🦠', code: 'rabies', notes: '' },
+    { label: 'Tosse dos canis', type: 'kennel_cough', name: 'Gripe Canina (Tosse dos Canis)', icon: '🫁', code: 'kennel_cough', notes: 'Bordetella bronchiseptica' },
+    { label: 'Giárdia', type: 'giardia', name: 'Giárdia', icon: '🧪', code: 'giardia', notes: '' },
+    { label: 'Leishmaniose', type: 'leishmaniasis', name: 'Leishmaniose', icon: '🛡️', code: 'leishmaniasis', notes: '', disabled: true },
+    { label: 'Outro', type: 'other', name: 'Outra Vacina', icon: '➕', code: 'other', notes: '', isOther: true },
   ];
   const catChips: ChipDef[] = [
-    { label: 'V5', type: 'multiple', name: 'V5 (Quíntupla)', notes: 'Rinotraqueíte, Calicivirose, Panleucopenia, Clamidiose, Leucemia Felina' },
-    { label: 'V4', type: 'multiple', name: 'V4 (Quádrupla)', notes: 'Rinotraqueíte, Calicivirose, Panleucopenia, Clamidiose' },
-    { label: 'V3', type: 'multiple', name: 'V3 (Tríplice)', notes: 'Rinotraqueíte, Calicivirose, Panleucopenia' },
-    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', notes: '' },
-    { label: 'FeLV', type: 'feline_leukemia', name: 'FeLV (Leucemia Felina)', notes: '' },
+    { label: 'Polivalente (V5 / V4 / V3)', type: 'multiple', name: 'Polivalente (V5/V4/V3)', icon: '💉', code: 'multiple', notes: 'Rinotraqueíte, Calicivirose, Panleucopenia, Clamidiose' },
+    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', icon: '🦠', code: 'rabies', notes: '' },
+    { label: 'FeLV', type: 'feline_leukemia', name: 'FeLV (Leucemia Felina)', icon: '🐱', code: 'feline_leukemia', notes: '' },
+    { label: 'Outro', type: 'other', name: 'Outra Vacina', icon: '➕', code: 'other', notes: '', isOther: true },
   ];
   const chips = (petSpecies === 'cat' || petSpecies === 'cats') ? catChips : dogChips;
 
@@ -160,9 +163,25 @@ export function VaccineItemSheet({
     setTimeout(() => setToast(null), 3000);
   }
 
-  function handleChipClick(chip: ChipDef) {
+  async function handleChipClick(chip: ChipDef) {
     if (chip.disabled) {
-      showToast('A vacina de Leishmaniose requer receita veterinária.');
+      showToast('A vacina de Leishmaniose requer receita veterinária especial.');
+      return;
+    }
+    if (chip.isOther) {
+      onQuickAdd();
+      return;
+    }
+    if (onDirectSaveVaccine && savingChip === null) {
+      setSavingChip(chip.code);
+      try {
+        await onDirectSaveVaccine({ type: chip.type as VaccineType, name: chip.name, icon: chip.icon, code: chip.code }, 'today');
+        setSavedChip(chip.code);
+        setTimeout(() => { setSavedChip(null); setSavingChip(null); onClose(); }, 1500);
+      } catch {
+        setSavingChip(null);
+        showToast('Erro ao registrar. Tente novamente.');
+      }
       return;
     }
     onFullFormVaccine({
@@ -281,50 +300,54 @@ export function VaccineItemSheet({
           {mode === 'view' && (
             <div className="p-5 space-y-3 pb-8">
 
-            {/* ── PRIMARY CTA ───────────────────────────────────────────── */}
-            <button
-              onClick={() => onFullFormVaccine({ date_administered: today, frequency_days: 365 })}
-              className="w-full py-4 rounded-2xl bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-[15px] font-bold shadow-md shadow-sky-500/20 transition-opacity"
-            >
-              Registrar vacina
-            </button>
-
-            {/* ── Secondary CTAs ─────────────────────────────────────────── */}
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => setShowImportModal(true)}
-                className="flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-white border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all text-xs font-semibold text-gray-600"
-              >
-                Carteirinha
-              </button>
-              <button
-                onClick={onQuickAdd}
-                className="flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-white border border-sky-200 hover:bg-sky-50 active:scale-95 transition-all text-xs font-semibold text-sky-700"
-              >
-                Registro rápido
-              </button>
-              <button
-                onClick={onRefreshVaccines}
-                className="flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-white border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all text-xs font-semibold text-gray-600"
-              >
-                Atualizar
-              </button>
+            {/* ── QUICK REGISTER ────────────────────────────────────────── */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-base">⚡</span>
+                <div>
+                  <p className="text-[13px] font-black text-slate-800">Registro rápido</p>
+                  <p className="text-[11px] text-slate-500">Toque na vacina aplicada</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {chips.map((chip) => {
+                  const isSaving = savingChip === chip.code;
+                  const isSaved = savedChip === chip.code;
+                  return (
+                    <button
+                      key={chip.code}
+                      type="button"
+                      onClick={() => handleChipClick(chip)}
+                      disabled={savingChip !== null && !isSaving}
+                      className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border text-left transition-all active:scale-[0.98] ${
+                        chip.disabled
+                          ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed'
+                          : isSaved
+                            ? 'bg-emerald-50 border-emerald-300'
+                            : chip.isOther
+                              ? 'bg-white border-dashed border-gray-200 hover:bg-gray-50'
+                              : 'bg-white border-gray-200 hover:bg-sky-50 hover:border-sky-200 shadow-sm'
+                      }`}
+                    >
+                      <span className="text-2xl flex-shrink-0">{isSaved ? '✅' : chip.icon}</span>
+                      <span className={`flex-1 text-[14px] font-bold ${chip.disabled ? 'text-gray-400' : chip.isOther ? 'text-gray-500' : 'text-slate-800'}`}>
+                        {isSaved ? 'Registrado!' : isSaving ? 'Registrando...' : chip.label}
+                      </span>
+                      {chip.disabled && <span className="text-[10px] font-semibold text-gray-400">Receita</span>}
+                      {!chip.disabled && !isSaved && !isSaving && <span className="text-gray-300 text-lg">›</span>}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* ── Empty state (only when no data) ──────────────────────── */}
-            {vaccines.length === 0 && (
-              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-8 text-center">
-                <p className="text-4xl mb-3">💉</p>
-                <p className="text-sm font-semibold text-gray-600">Nenhuma vacina registrada ainda</p>
-                <p className="text-xs text-gray-400 mt-1">Leva menos de 1 minuto para começar</p>
-                <button
-                  onClick={onQuickAdd}
-                  className="mt-3 inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
-                >
-                  Registrar vacina
-                </button>
-              </div>
-            )}
+            {/* ── Não sei o histórico ────────────────────────────────────── */}
+            <button
+              onClick={onQuickAdd}
+              className="w-full py-2.5 rounded-2xl border border-dashed border-gray-200 text-[12px] font-semibold text-gray-400 hover:text-gray-600 hover:border-gray-300 transition-all"
+            >
+              Não sei o histórico — começar daqui
+            </button>
 
             {/* ── DETALHES — single collapsed accordion for everything else */}
             {vaccines.length > 0 && (
@@ -439,12 +462,6 @@ export function VaccineItemSheet({
                             </p>
                             <span className="text-gray-400 text-sm">{historyExpanded ? '▲' : '▼'}</span>
                           </button>
-                          <button
-                            onClick={onRefreshVaccines}
-                            className="ml-3 text-xs font-semibold text-sky-600 hover:text-sky-700"
-                          >
-                            🔄 Atualizar
-                          </button>
                         </div>
                         {historyExpanded && (
                           <div className="divide-y divide-gray-100 border-t border-gray-100">
@@ -472,39 +489,6 @@ export function VaccineItemSheet({
                         )}
                       </div>
                     )}
-
-                    {/* Quick chips */}
-                    <div>
-                      <button
-                        className="w-full flex items-center justify-between px-4 py-3 text-left"
-                        onClick={() => setChipsExpanded(c => !c)}
-                      >
-                        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                          💡 Registro rápido por vacina
-                        </p>
-                        <span className="text-gray-400 text-sm">{chipsExpanded ? '▲' : '▼'}</span>
-                      </button>
-                      {chipsExpanded && (
-                        <div className="px-3 pb-3 pt-2 flex flex-wrap gap-2 border-t border-gray-100">
-                          {chips.map(chip => (
-                            <button
-                              key={chip.name}
-                              onClick={() => handleChipClick(chip)}
-                              disabled={chip.disabled}
-                              className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold border transition-all active:scale-95 ${
-                                chip.disabled
-                                  ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                                  : 'bg-white border-sky-200 text-sky-700 hover:bg-sky-50 shadow-sm'
-                              }`}
-                              title={chip.disabled ? 'Requer receita veterinária especial' : `Registrar ${chip.name}`}
-                            >
-                              {chip.label}
-                              {chip.disabled && <span className="ml-1 text-[10px] text-gray-400">(restrita)</span>}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
 
                     {/* Stats */}
                     <div className="px-4 py-3 grid grid-cols-3 gap-2">
@@ -540,23 +524,25 @@ export function VaccineItemSheet({
               </div>
             )}
 
-            {/* Buy button at the end */}
-            {mode === 'view' && vaccines.length > 0 && (
-              <button
-                onClick={() => setMode('buy')}
-                className="w-full flex items-center justify-between p-4 bg-blue-300 border border-blue-400/30 rounded-2xl hover:bg-blue-400/40 transition-all active:scale-[0.98] mt-1 shadow-sm"
+            {/* Find a place to vaccinate */}
+            {mode === 'view' && (
+              <a
+                href="https://www.google.com/maps/search/clínica+veterinária+vacina+perto+de+mim"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-between p-4 bg-sky-50 border border-sky-200 rounded-2xl hover:bg-sky-100 transition-all active:scale-[0.98] mt-1 shadow-sm"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-xl shadow-sm">
-                    🛒
+                  <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center text-xl shadow-sm">
+                    📍
                   </div>
                   <div className="text-left">
-                    <p className="text-[14px] font-bold text-blue-900">Agendar ou comprar</p>
-                    <p className="text-[12px] text-blue-700/70">Opções de vacinas e serviços</p>
+                    <p className="text-[14px] font-bold text-sky-900">Procurar lugar para vacinar</p>
+                    <p className="text-[12px] text-sky-700/70">Clínicas e hospitais próximos</p>
                   </div>
                 </div>
-                <span className="text-blue-400 text-lg font-bold">›</span>
-              </button>
+                <span className="text-sky-400 text-lg font-bold">›</span>
+              </a>
             )}
 
           </div>

@@ -43,3 +43,4 @@ uploads/
 **/uploads_pet_documents_*
 **/pet_documents/
 **/prod_docs_snapshot*
+*.tsbuildinfo
