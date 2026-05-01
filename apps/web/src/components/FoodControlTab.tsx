@@ -125,6 +125,10 @@ function hasUsefulFoodItem(item: SimpleFoodData): boolean {
   );
 }
 
+function hasPersistedFoodPlan(plan: { enabled?: boolean | null; pet_id?: string | null } | null | undefined): boolean {
+  return Boolean(plan && plan.enabled !== false);
+}
+
 function orderPrimaryFirst(items: SimpleFoodData[]): SimpleFoodData[] {
   return [...items].sort((left, right) => Number(right.isPrimary) - Number(left.isPrimary));
 }
@@ -367,7 +371,7 @@ export function FoodControlTab({
         if (res.ok) {
           const json = await res.json();
           const plan = json.plan;
-          if (plan?.enabled) {
+          if (hasPersistedFoodPlan(plan)) {
             const loadedItems = normalizeLoadedItems(plan);
             setReminderDays(String(plan.manual_reminder_days_before ?? 3));
             setReminderTime(plan.reminder_time ?? '09:00');
@@ -377,7 +381,7 @@ export function FoodControlTab({
               estimated_end_date: json.estimate?.estimated_end_date ?? null,
               estimated_days_left: json.estimate?.estimated_days_left ?? null,
             });
-            setHasExisting(loadedItems.some(hasUsefulFoodItem));
+            setHasExisting(true);
             setLoadedExisting(true);
             return;
           }
@@ -540,7 +544,7 @@ export function FoodControlTab({
         estimated_end_date: json?.estimate?.estimated_end_date ?? null,
         estimated_days_left: json?.estimate?.estimated_days_left ?? null,
       });
-      setHasExisting(loadedItems.some(hasUsefulFoodItem));
+      setHasExisting(hasPersistedFoodPlan(plan) || loadedItems.some(hasUsefulFoodItem));
       setFormOpen(false);
 
       try {

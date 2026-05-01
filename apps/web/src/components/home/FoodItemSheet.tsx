@@ -38,6 +38,9 @@ type FeedingPlanApiResponse = {
   status: string;
   pet_id: string;
   plan: {
+    pet_id?: string | null;
+    enabled?: boolean | null;
+    no_consumption_control?: boolean | null;
     food_brand?: string | null;
     package_size_kg?: number | null;
     daily_amount_g?: number | null;
@@ -45,6 +48,7 @@ type FeedingPlanApiResponse = {
     safety_buffer_days?: number | null;
     manual_reminder_days_before?: number | null;
     reminder_time?: string | null;
+    next_purchase_date?: string | null;
     items?: Array<{
       food_brand?: string | null;
       package_size_kg?: number | null;
@@ -267,12 +271,15 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
       const manualReminderDays = plan?.manual_reminder_days_before ?? null;
       const safetyBufferDays = plan?.safety_buffer_days ?? null;
       const resolvedReminderDays = manualReminderDays ?? safetyBufferDays;
+      const hasPersistedPlan = Boolean(plan && plan.enabled !== false);
 
       const hasConfiguredData = Boolean(
+        hasPersistedPlan ||
         brand ||
         packageSizeKg != null ||
         dailyConsumptionG != null ||
         startDate ||
+        plan?.next_purchase_date ||
         items.some((item) => Boolean(item?.food_brand || item?.package_size_kg != null || item?.daily_amount_g != null || item?.last_refill_date)),
       );
 
