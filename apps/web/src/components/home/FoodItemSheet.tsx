@@ -608,13 +608,13 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
   return (
     <ModalPortal>
       <div ref={overlayRef}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overscroll-x-none touch-pan-y p-4"
         onClick={(e) => { if (e.target === overlayRef.current) handleClose(); }}
       >
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={handleClose} />
 
         <div
-          className="relative w-full max-w-md bg-white rounded-[28px] shadow-2xl border border-gray-200/60 flex flex-col overflow-hidden animate-scaleIn touch-manipulation"
+          className="relative w-full max-w-md bg-white rounded-[28px] shadow-2xl border border-gray-200/60 flex flex-col overflow-x-hidden overflow-y-hidden animate-scaleIn touch-manipulation"
           style={{ maxHeight: 'min(92dvh, 760px)' }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -675,7 +675,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
               <div className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 flex-shrink-0">
                 <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-xl flex-shrink-0">🛒</div>
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-base font-bold text-gray-900">{foodBrand ? `Comprar ${foodBrand}` : 'Comprar ração'}</h2>
+                  <h2 className="text-base font-bold text-gray-900 truncate">{foodBrand ? `Comprar ${foodBrand}` : 'Comprar ração'}</h2>
                   <p className="text-xs text-gray-400">{pet.pet_name}</p>
                 </div>
                 <BackBtn onClick={() => setMode('view')} />
@@ -701,7 +701,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
                           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                         />
                         <div className="min-w-0 flex-1">
-                          <p className="font-bold text-gray-900 text-[15px] leading-tight">{partner.name}</p>
+                          <p className="font-bold text-gray-900 text-[15px] leading-tight truncate">{partner.name}</p>
                           <p className="text-[12px] text-gray-500">{partner.description}</p>
                         </div>
                         <span className="text-sm font-bold text-blue-700">Abrir</span>

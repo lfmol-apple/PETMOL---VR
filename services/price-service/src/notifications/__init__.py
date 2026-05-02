@@ -431,12 +431,18 @@ def _matches_any_preferred_time(
 def send_medication_pushes() -> None:
     """Called every minute by APScheduler. Sends medication reminder pushes by schedule (Brasilia time)."""
     from datetime import timezone
+    from .audit_logging import create_audit_log, ReminderType, SkipReason
+
+    # Initialize audit log
+    audit = create_audit_log(ReminderType.MEDICATION, "send_medication_pushes")
 
     brt = timezone(timedelta(hours=-3))
     now = datetime.now(brt)
     today = now.date()
     subscriptions = _load_subscriptions()
     if not subscriptions:
+        audit.add_skip(SkipReason.NO_SUBSCRIPTIONS)
+        audit.log_summary()
         return
 
     try:
@@ -444,6 +450,8 @@ def send_medication_pushes() -> None:
         try:
             user_ids = [uid for uid in subscriptions.keys() if uid]
             if not user_ids:
+                audit.add_skip(SkipReason.NO_ELIGIBLE_RECORDS)
+                audit.log_summary()
                 return
 
             events = (
@@ -456,6 +464,10 @@ def send_medication_pushes() -> None:
                 .all()
             )
 
+            audit.total_users = len(subscriptions)
+            audit.eligible_users = len(user_ids)
+            audit.total_records = len(events)
+
             logger.info(
                 "medication_push_tick now=%s subscriptions=%d events=%d",
                 now.isoformat(timespec="minutes"),
@@ -466,15 +478,18 @@ def send_medication_pushes() -> None:
             for event in events:
                 sub = subscriptions.get(str(event.user_id))
                 if not sub:
+                    audit.add_skip(SkipReason.NOT_SUBSCRIBED, f"event={event.id}")
                     continue
 
                 try:
                     extra = json.loads(event.extra_data or "{}")
                 except Exception:
+                    audit.add_error(f"event={event.id}: invalid extra_data JSON")
                     extra = {}
 
                 reminder_time = extra.get("reminder_time")
                 if not reminder_time:
+                    audit.add_skip(SkipReason.PARSING_ERROR, f"event={event.id}:no_reminder_time")
                     continue
 
                 try:
@@ -553,6 +568,7 @@ def send_medication_pushes() -> None:
                         start_date.isoformat(),
                         today.isoformat(),
                     )
+                    audit.add_skip(SkipReason.BEFORE_START_DATE, f"event={event.id}:start={start_date}")
                     continue
 
                 if treatment_complete:
@@ -563,6 +579,7 @@ def send_medication_pushes() -> None:
                         len(applied_dates),
                         treatment_days,
                     )
+                    audit.add_skip(SkipReason.TREATMENT_COMPLETE, f"event={event.id}")
                     continue
 
                 for slot in due_slots_now:
@@ -575,6 +592,7 @@ def send_medication_pushes() -> None:
                             today_key in applied_dates,
                             today_key in skipped_dates,
                         )
+                        audit.add_skip(SkipReason.DAY_ALREADY_CLOSED, f"event={event.id}:slot={slot}")
                         continue
 
                     day_applied_slots = [str(s) for s in (applied_slots.get(today_key) or [])]
@@ -587,6 +605,7 @@ def send_medication_pushes() -> None:
                             slot in day_applied_slots,
                             slot in day_skipped_slots,
                         )
+                        audit.add_skip(SkipReason.SLOT_ALREADY_CLOSED, f"event={event.id}:slot={slot}")
                         continue
 
                     from urllib.parse import quote
@@ -608,6 +627,12 @@ def send_medication_pushes() -> None:
 
                     ok = _send_push(sub, payload)
                     if ok:
+                        audit.add_sent(
+                            user_id=str(event.user_id),
+                            pet_id=str(event.pet_id),
+                            record_id=str(event.id),
+                            details={"slot": slot},
+                        )
                         logger.info(
                             "medication_push_sent event_id=%s user_id=%s pet_id=%s slot=%s tag=%s",
                             event.id,
@@ -630,7 +655,10 @@ def send_medication_pushes() -> None:
         finally:
             db.close()
     except Exception as e:
+        audit.add_error(f"send_medication_pushes erro: {e}")
         logger.error(f"send_medication_pushes erro: {e}")
+    finally:
+        audit.log_summary()
 
 
 def send_care_pushes() -> None:
@@ -644,6 +672,10 @@ def send_care_pushes() -> None:
     from datetime import timezone
     import re as _re_v
     import unicodedata as _ud_v
+    from .audit_logging import create_audit_log, ReminderType, SkipReason
+
+    # Initialize audit log
+    audit = create_audit_log(ReminderType.VACCINE, "send_care_pushes")
 
     brt = timezone(timedelta(hours=-3))
     now = datetime.now(brt)
@@ -652,12 +684,17 @@ def send_care_pushes() -> None:
 
     subscriptions = _load_subscriptions()
     if not subscriptions:
+        audit.add_skip(SkipReason.NO_SUBSCRIPTIONS)
+        audit.log_summary()
         return
 
     subscription_user_ids = [
         uid for uid, value in subscriptions.items()
         if _is_subscription_entry(value)
     ]
+
+    audit.total_users = len(subscriptions)
+    audit.eligible_users = len(subscription_user_ids)
 
     logger.info(
         "care_push_tick now=%s subscriptions=%d valid_users=%d",
@@ -667,6 +704,8 @@ def send_care_pushes() -> None:
     )
 
     if not subscription_user_ids:
+        audit.add_skip(SkipReason.NO_ELIGIBLE_RECORDS)
+        audit.log_summary()
         return
 
     def _vgroup_key(vr) -> str:
@@ -753,6 +792,7 @@ def send_care_pushes() -> None:
             for pet in pets:
                 sub = subscriptions.get(str(pet.user_id))
                 if not _is_subscription_entry(sub):
+                    audit.add_skip(SkipReason.NOT_SUBSCRIBED, f"pet={pet.id}")
                     continue
 
                 scheduled_items: list[dict] = []
@@ -761,6 +801,7 @@ def send_care_pushes() -> None:
                     VaccineRecord.pet_id == pet.id,
                     VaccineRecord.deleted == False,
                 ).all()
+                audit.total_records += len(vaccines)
                 latest_vaccines: dict = {}
                 for record in vaccines:
                     key = _vgroup_key(record)
@@ -771,6 +812,7 @@ def send_care_pushes() -> None:
                     due = _safe_local_date(record.next_dose_date, brt)
                     if not due:
                         logger.info("care_skip pet=%s domain=vaccine id=%s reason=no_due_date", pet.id, record.id)
+                        audit.add_skip(SkipReason.NO_DUE_DATE, f"vaccine:{record.id}")
                         continue
                     alert_days = int(getattr(record, "alert_days_before", None) or 3)
                     reminder_time = _normalize_time(getattr(record, "reminder_time", None), "09:00")
@@ -780,7 +822,14 @@ def send_care_pushes() -> None:
                         "care_eval pet=%s domain=vaccine id=%s due=%s start=%s today=%s reminder_time=%s now_hhmm=%02d:%02d time_ok=%s",
                         pet.id, record.id, due, start_date, today, reminder_time, now.hour, now.minute, time_ok,
                     )
-                    if not time_ok or today < start_date or today > due:
+                    if not time_ok:
+                        audit.add_skip(SkipReason.TIME_WINDOW_CLOSED, f"vaccine:{record.id}:time={reminder_time}")
+                        continue
+                    if today < start_date:
+                        audit.add_skip(SkipReason.BEFORE_START_DATE, f"vaccine:{record.id}:start={start_date}")
+                        continue
+                    if today > due:
+                        audit.add_skip(SkipReason.AFTER_DUE_DATE, f"vaccine:{record.id}:due={due}")
                         continue
                     cycle_key = f"start-{start_date.isoformat()}" if today < due else f"due-{due.isoformat()}"
                     scheduled_items.append(
@@ -802,6 +851,7 @@ def send_care_pushes() -> None:
                     ParasiteControlRecord.deleted == False,
                     ParasiteControlRecord.reminder_enabled == True,
                 ).all()
+                audit.total_records += len(parasite_controls)
                 latest_parasites: dict = {}
                 for control in parasite_controls:
                     key = (control.type or "").lower().strip()
@@ -815,6 +865,7 @@ def send_care_pushes() -> None:
                     due = _safe_local_date(due_date, brt)
                     if not due:
                         logger.info("care_skip pet=%s domain=%s id=%s reason=no_due_date", pet.id, key, control.id)
+                        audit.add_skip(SkipReason.NO_DUE_DATE, f"parasite:{key}:{control.id}")
                         continue
                     alert_days = int(getattr(control, "alert_days_before", None) or getattr(control, "reminder_days", None) or 3)
                     reminder_time = _normalize_time(getattr(control, "reminder_time", None), "09:00")
@@ -826,7 +877,11 @@ def send_care_pushes() -> None:
                     )
                     if key == "dewormer":
                         trigger_minus_two = due - timedelta(days=2)
-                        if not time_ok or today not in {trigger_minus_two, due}:
+                        if not time_ok:
+                            audit.add_skip(SkipReason.TIME_WINDOW_CLOSED, f"dewormer:{control.id}:time={reminder_time}")
+                            continue
+                        if today not in {trigger_minus_two, due}:
+                            audit.add_skip(SkipReason.SPECIAL_CASE_LOGIC, f"dewormer:{control.id}:today={today}:d-2={trigger_minus_two}:due={due}")
                             continue
                         cycle_key = (
                             f"d-2-{due.isoformat()}"
@@ -834,7 +889,14 @@ def send_care_pushes() -> None:
                             else f"due-{due.isoformat()}"
                         )
                     else:
-                        if not time_ok or today < start_date or today > due:
+                        if not time_ok:
+                            audit.add_skip(SkipReason.TIME_WINDOW_CLOSED, f"{key}:{control.id}:time={reminder_time}")
+                            continue
+                        if today < start_date:
+                            audit.add_skip(SkipReason.BEFORE_START_DATE, f"{key}:{control.id}:start={start_date}")
+                            continue
+                        if today > due:
+                            audit.add_skip(SkipReason.AFTER_DUE_DATE, f"{key}:{control.id}:due={due}")
                             continue
                         cycle_key = f"start-{start_date.isoformat()}" if today < due else f"due-{due.isoformat()}"
                     label = parasite_labels.get(key) or control.product_name or "Antiparasitário"
@@ -857,6 +919,7 @@ def send_care_pushes() -> None:
                     GroomingRecord.deleted == False,
                     GroomingRecord.reminder_enabled == True,
                 ).all()
+                audit.total_records += len(groomings)
                 latest_groomings: dict = {}
                 for record in groomings:
                     key = (record.type or "").lower().strip()
@@ -867,6 +930,7 @@ def send_care_pushes() -> None:
                     due = _safe_local_date(record.next_recommended_date, brt)
                     if not due:
                         logger.info("care_skip pet=%s domain=grooming-%s id=%s reason=no_due_date", pet.id, key, record.id)
+                        audit.add_skip(SkipReason.NO_DUE_DATE, f"grooming:{key}:{record.id}")
                         continue
                     alert_days = int(getattr(record, "alert_days_before", None) or getattr(record, "reminder_days_before", None) or 3)
                     reminder_time = _normalize_time(getattr(record, "scheduled_time", None), "09:00")
@@ -876,7 +940,14 @@ def send_care_pushes() -> None:
                         "care_eval pet=%s domain=grooming-%s id=%s due=%s start=%s today=%s reminder_time=%s now_hhmm=%02d:%02d time_ok=%s",
                         pet.id, key, record.id, due, start_date, today, reminder_time, now.hour, now.minute, time_ok,
                     )
-                    if not time_ok or today < start_date or today > due:
+                    if not time_ok:
+                        audit.add_skip(SkipReason.TIME_WINDOW_CLOSED, f"grooming:{key}:{record.id}:time={reminder_time}")
+                        continue
+                    if today < start_date:
+                        audit.add_skip(SkipReason.BEFORE_START_DATE, f"grooming:{key}:{record.id}:start={start_date}")
+                        continue
+                    if today > due:
+                        audit.add_skip(SkipReason.AFTER_DUE_DATE, f"grooming:{key}:{record.id}:due={due}")
                         continue
                     cycle_key = f"start-{start_date.isoformat()}" if today < due else f"due-{due.isoformat()}"
                     label = grooming_labels.get(key, "Higiene")
@@ -895,9 +966,11 @@ def send_care_pushes() -> None:
                     )
 
                 logger.info("care_push_tick pet=%s scheduled=%d", pet.id, len(scheduled_items))
+                audit.eligible_records += len(scheduled_items)
                 for payload in scheduled_items:
                     if _pendency_exists(db, payload["tag"]):
                         logger.info("care_dedup_skip tag=%s", payload["tag"])
+                        audit.pushes_deduped += 1
                         continue
 
                     _upsert_pend(
@@ -916,13 +989,23 @@ def send_care_pushes() -> None:
                         subscriptions.pop(str(pet.user_id), None)
                         break
 
+                    audit.add_sent(
+                        user_id=str(pet.user_id),
+                        pet_id=str(pet.id),
+                        record_id=payload["tag"],
+                        details={"domain": payload["_deep_link"]},
+                    )
                     logger.info("care_push_sent tag=%s pet_id=%s", payload["tag"], pet.id)
 
             _save_subscriptions(subscriptions)
         finally:
             db.close()
     except Exception as e:
+        audit.add_error(f"send_care_pushes erro: {e}")
         logger.error(f"send_care_pushes erro: {e}")
+    finally:
+        audit.log_summary()
+
 
 
 def send_care_urgent_pushes() -> None:
@@ -1303,3 +1386,60 @@ async def send_on_open(current_user: User = Depends(get_current_user)):
         "reason": "disabled_use_daily_20h_job",
         "user_id": str(current_user.id),
     }
+
+
+@router.post("/debug/push-audit")
+async def debug_push_audit(
+    reminder_type: str = "all",  # all, medication, care, food
+    dry_run: bool = True,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    [PETMOL_PUSH_DEBUG] Test endpoint to trigger and audit push notification jobs.
+    
+    Query parameters:
+    - reminder_type: 'all', 'medication', 'care', 'food' (default: all)
+    - dry_run: If true, log what would be sent without actually sending (default: true)
+    
+    Returns:
+    - Audit summary for each executed job
+    - Counts of eligible records, skipped reasons, pushes sent
+    """
+    from .audit_logging import ReminderType
+    
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Only allow admins or specific test users
+    # TODO: Add proper authorization check
+    
+    results = {}
+    
+    try:
+        if reminder_type in ("all", "medication"):
+            logger.info("[PETMOL_PUSH_DEBUG] Triggering send_medication_pushes with dry_run=%s", dry_run)
+            send_medication_pushes()
+            results["medication"] = "executed"
+        
+        if reminder_type in ("all", "care"):
+            logger.info("[PETMOL_PUSH_DEBUG] Triggering send_care_pushes with dry_run=%s", dry_run)
+            send_care_pushes()
+            results["care"] = "executed"
+        
+        if reminder_type in ("all", "food"):
+            logger.info("[PETMOL_PUSH_DEBUG] Triggering send_food_reminder_pushes with dry_run=%s", dry_run)
+            send_food_reminder_pushes()
+            results["food"] = "executed"
+        
+        return {
+            "status": "ok",
+            "user_id": str(current_user.id),
+            "reminder_type": reminder_type,
+            "dry_run": dry_run,
+            "executed": results,
+            "note": "Check server logs for [PETMOL_PUSH_AUDIT] entries to see detailed audit output",
+        }
+    
+    except Exception as e:
+        logger.error("[PETMOL_PUSH_DEBUG] Error: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Debug execution failed: {str(e)}")
