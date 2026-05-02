@@ -120,7 +120,7 @@ const getPhotoUrl = (photoPath: string | undefined | null, version?: string): st
 
 interface EditPetModalProps {
   pet: PetHealthProfile & { id?: string; name?: string; weight?: number; is_neutered?: boolean; insurance_provider?: string };
-  photoVersion?: number;
+  photoVersion?: string | number;
   onClose: () => void;
   onSave: (updatedPet: Partial<PetHealthProfile> & {
     pet_id: string;

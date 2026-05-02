@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { PremiumScreenShell } from '@/components/premium';
 import { API_BASE_URL } from '@/lib/api';
+import { requestUserConfirmation, showBlockingNotice } from '@/features/interactions/userPromptChannel';
 
 interface Establishment {
   id: string;
@@ -47,7 +48,7 @@ export default function AdminEstablishmentsPage() {
         const data = await response.json();
         setEstablishments(data);
       } else if (response.status === 403) {
-        alert('❌ Acesso negado. Apenas admins podem acessar.');
+        showBlockingNotice('Acesso negado. Apenas admins podem acessar.', { tone: 'danger' });
         router.push('/');
       }
     } catch (error) {
@@ -58,7 +59,11 @@ export default function AdminEstablishmentsPage() {
   };
 
   const handleApprove = async (id: string, partnerLevel: number = 1) => {
-    if (!confirm('Aprovar este estabelecimento?')) return;
+    const accepted = await requestUserConfirmation('Aprovar este estabelecimento?', {
+      title: 'Aprovar estabelecimento',
+      confirmLabel: 'Aprovar',
+    });
+    if (!accepted) return;
 
     try {
       const token = getToken();
@@ -75,10 +80,10 @@ export default function AdminEstablishmentsPage() {
       });
 
       if (response.ok) {
-        alert('✅ Estabelecimento aprovado!');
+        showBlockingNotice('Estabelecimento aprovado!', { tone: 'success' });
         loadEstablishments();
       } else {
-        alert('❌ Erro ao aprovar');
+        showBlockingNotice('Erro ao aprovar', { tone: 'danger' });
       }
     } catch (error) {
       console.error('Erro:', error);
@@ -104,10 +109,10 @@ export default function AdminEstablishmentsPage() {
       });
 
       if (response.ok) {
-        alert('✅ Estabelecimento rejeitado');
+        showBlockingNotice('Estabelecimento rejeitado', { tone: 'success' });
         loadEstablishments();
       } else {
-        alert('❌ Erro ao rejeitar');
+        showBlockingNotice('Erro ao rejeitar', { tone: 'danger' });
       }
     } catch (error) {
       console.error('Erro:', error);

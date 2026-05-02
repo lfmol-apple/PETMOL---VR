@@ -17,6 +17,7 @@ export function Header() {
   const userLabel = tutor?.name || tutor?.email?.split('@')[0] || null;
   const homeHref = userLabel ? '/home' : '/';
   const profileHref = '/profile';
+  const helpHref = `https://wa.me/?text=${encodeURIComponent('Olá, preciso de ajuda com o PETMOL.')}`;
   const brandCaption = userLabel ? (pathname === '/home' ? 'você está na home' : 'voltar à home') : 'início';
   const profileCaption = pathname === '/profile' ? 'configurações abertas' : 'abrir perfil';
 
@@ -72,6 +73,14 @@ export function Header() {
                     <span className="text-[10px] font-black uppercase tracking-[0.22em] text-white/70">{profileCaption}</span>
                   </span>
                 </Link>
+                <a
+                  href={helpHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center h-10 px-3 rounded-xl bg-white text-slate-600 border border-slate-200 text-xs font-bold hover:bg-slate-50 transition-all active:scale-95"
+                >
+                  Ajuda
+                </a>
                 <button
                   onClick={handleLogout}
                   className="inline-flex items-center h-10 px-3 rounded-xl bg-white text-slate-500 border border-slate-200 text-xs font-semibold hover:bg-slate-50 hover:text-slate-700 transition-all active:scale-95"
@@ -111,6 +120,14 @@ export function Header() {
                     <span className="text-[9px] font-black uppercase tracking-[0.18em] text-white/80">{profileCaption}</span>
                   </span>
                 </Link>
+                <a
+                  href={helpHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center h-10 px-2.5 rounded-xl bg-white text-slate-600 border border-slate-200 text-[11px] font-bold hover:bg-slate-50 transition-all active:scale-95"
+                >
+                  Ajuda
+                </a>
                 <button
                   onClick={handleLogout}
                   className="inline-flex items-center h-10 px-2.5 rounded-xl bg-white text-slate-500 border border-slate-200 text-[11px] font-semibold hover:bg-slate-50 hover:text-slate-700 transition-all active:scale-95"

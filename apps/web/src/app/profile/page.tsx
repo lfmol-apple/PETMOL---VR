@@ -18,6 +18,7 @@ const DEFAULT_CHECKIN_DAY = 1;
 const DEFAULT_CHECKIN_HOUR = 20;
 const DEFAULT_CHECKIN_MINUTE = 0;
 const PROFILE_PUSH_SEEN_KEY = 'petmol-profile-push-seen-v1';
+const NOTIFICATION_CONSENTS_KEY = 'petmol_notification_consents_v1';
 
 interface TutorData {
   id: string;
@@ -69,6 +70,7 @@ export default function ProfilePage() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [pushLoading, setPushLoading] = useState<"activate" | "deactivate" | "test" | null>(null);
   const [pushFeedback, setPushFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [notificationConsents, setNotificationConsents] = useState({ health: true, operational: true, offers: false });
   const [checkinSaving, setCheckinSaving] = useState(false);
   const [checkinSaved, setCheckinSaved] = useState(false);
 
@@ -85,7 +87,22 @@ export default function ProfilePage() {
       setNotifsOpen(true);
       window.localStorage.setItem(PROFILE_PUSH_SEEN_KEY, '1');
     }
+
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(NOTIFICATION_CONSENTS_KEY) || '{}');
+      setNotificationConsents((prev) => ({ ...prev, ...saved }));
+    } catch {
+      // Local preference fallback only.
+    }
   }, []);
+
+  const updateNotificationConsent = (key: keyof typeof notificationConsents, value: boolean) => {
+    setNotificationConsents((prev) => {
+      const next = { ...prev, [key]: value };
+      window.localStorage.setItem(NOTIFICATION_CONSENTS_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.hash === '#checkin') {
@@ -577,6 +594,26 @@ export default function ProfilePage() {
                       <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${permission === 'granted' ? 'bg-blue-50 text-blue-700' : permission === 'denied' ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-500'}`}>
                         {pushPermissionLabel[permission]}
                       </span>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+                      <p className="text-sm font-black text-slate-900">Quais notificações deseja receber?</p>
+                      <div className="mt-3 grid gap-2">
+                        {[
+                          { key: 'health', label: 'Saúde' },
+                          { key: 'operational', label: 'Operacional (ração)' },
+                          { key: 'offers', label: 'Ofertas' },
+                        ].map((item) => (
+                          <label key={item.key} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
+                            <span className="text-sm font-semibold text-slate-700">{item.label}</span>
+                            <input
+                              type="checkbox"
+                              checked={notificationConsents[item.key as keyof typeof notificationConsents]}
+                              onChange={(e) => updateNotificationConsent(item.key as keyof typeof notificationConsents, e.target.checked)}
+                            />
+                          </label>
+                        ))}
+                      </div>
                     </div>
 
                     {pushFeedback && (

@@ -51,6 +51,7 @@ import { useVaccineManagement } from '@/hooks/useVaccineManagement';
 import { useGroomingManagement } from '@/hooks/useGroomingManagement';
 import { useFoodPlanSync } from '@/hooks/useFoodPlanSync';
 import { useQuickMark } from '@/hooks/useQuickMark';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { vaccineInfo, commonVaccines } from '@/data/vaccineInfo';
 
 import { hasCompletedOnboarding } from '@/lib/ownerProfile';
@@ -100,7 +101,7 @@ const resolvePhotosBase = (): string => {
   return '';
 };
 
-const getPhotoUrl = (photoPath: string | undefined | null, petId?: string, photoTimestamps?: Record<string, number>): string | null => {
+const getPhotoUrl = (photoPath: string | undefined | null, petId?: string, photoVersions?: Record<string, string | number>): string | null => {
   if (!photoPath) return null;
   if (photoPath.startsWith('data:')) return photoPath;
   // URLs http externas: proxy para evitar CORS em dev
@@ -110,10 +111,10 @@ const getPhotoUrl = (photoPath: string | undefined | null, petId?: string, photo
   }
   // Caminho relativo — normaliza formatos: pets/*, uploads/*, /uploads/*
   const photosBase = resolvePhotosBase();
-  const timestamp = petId && photoTimestamps?.[petId] ? `?t=${photoTimestamps[petId]}` : '';
+  const version = petId && photoVersions?.[petId] ? `?v=${encodeURIComponent(String(photoVersions[petId]))}` : '';
   const normalized = photoPath.replace(/^\/+/, '');
   const path = normalized.startsWith('uploads/') ? `/${normalized}` : `/uploads/${normalized}`;
-  return `${photosBase}${path}${timestamp}`;
+  return `${photosBase}${path}${version}`;
 };
 
 export default function HomePage() {
@@ -165,6 +166,11 @@ export default function HomePage() {
     tutorCheckinMinute, setTutorCheckinMinute,
     photoTimestamps, setPhotoTimestamps,
   } = usePetBootstrap();
+  const photoVersions = useMemo(
+    () => Object.fromEntries(pets.map((pet) => [pet.pet_id, pet.updated_at || photoTimestamps[pet.pet_id]])),
+    [pets, photoTimestamps],
+  );
+  const [homePossiblyStale, setHomePossiblyStale] = useState(false);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editPetInitialSection, setEditPetInitialSection] = useState<'food' | 'grooming' | undefined>(undefined);
@@ -555,47 +561,15 @@ export default function HomePage() {
     };
   }); // sem array de deps: roda sempre
 
-  // Resincroniza dados quando o app volta ao foco (celular saiu e voltou, ou troca de aba)
-  // Resolve o problema de dados desatualizados no mobile após salvar no desktop
-  // Usa refreshAllRef.current() → nunca fica com closure stale mesmo com deps []
+  const { syncStatus, possiblyStale, setPossiblyStale } = useRealtimeSync({
+    enabled: Boolean(selectedPetId),
+    debounceMs: 5_000,
+    pollingMs: 60_000,
+    onSync: () => refreshAllRef.current(),
+  });
   useEffect(() => {
-    let lastRefresh = 0;
-
-    const handler = () => {
-      if (document.visibilityState !== 'visible') return;
-      const now = Date.now();
-      if (now - lastRefresh < 2_000) return;
-      lastRefresh = now;
-      refreshAllRef.current();
-    };
-
-    // iOS Safari usa pageshow ao voltar do histórico (bfcache)
-    const handlePageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) {
-        const now = Date.now();
-        if (now - lastRefresh < 2_000) return;
-        lastRefresh = now;
-        refreshAllRef.current();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handler);
-    window.addEventListener('pageshow', handlePageShow);
-
-    // Polling passivo: recarrega dados a cada 30s enquanto a aba está visível.
-    // Garante sincronização just-in-time: alteração feita em outro dispositivo (celular ↔ desktop)
-    // aparece automaticamente sem o usuário precisar dar refresh.
-    const pollInterval = setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
-      refreshAllRef.current();
-    }, 30_000);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handler);
-      window.removeEventListener('pageshow', handlePageShow);
-      clearInterval(pollInterval);
-    };
-  }, []); // deps vazio: listener criado 1x, freshness garantida pelo ref
+    if (syncStatus === 'synced' && !possiblyStale) setHomePossiblyStale(false);
+  }, [syncStatus, possiblyStale]);
 
   useEffect(() => {
     const onFoodPlanUpdated = (event: Event) => {
@@ -624,7 +598,11 @@ export default function HomePage() {
       })
         .then(r => r.ok ? r.json() : [])
         .then(data => setVetHistoryDocs(Array.isArray(data) ? data : []))
-        .catch(() => {});
+        .catch(() => {
+          setPossiblyStale(true);
+          setHomePossiblyStale(true);
+          showAppToast('Erro ao sincronizar', { tone: 'warning' });
+        });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [healthActiveTab, selectedPetId]);
@@ -1315,7 +1293,11 @@ export default function HomePage() {
     })
       .then((r) => r.ok ? r.json() : [])
       .then((data) => setVetHistoryDocs(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .catch(() => {
+        setPossiblyStale(true);
+        setHomePossiblyStale(true);
+        showAppToast('Erro ao sincronizar', { tone: 'warning' });
+      });
     // Refrescar vacinas ao abrir o histórico
     loadVaccines();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1365,6 +1347,7 @@ export default function HomePage() {
           try {
             await new Promise<void>((resolve) => {
               refreshAllRef.current();
+              setHomePossiblyStale(false);
               setTimeout(resolve, 800);
             });
           } finally {
@@ -1398,6 +1381,30 @@ export default function HomePage() {
         </div>
       </div>
       <div className="max-w-2xl mx-auto px-4 py-4">
+        {pets.length > 0 && (
+          <div className="mb-3 flex justify-center">
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-sm ${
+              syncStatus === 'offline'
+                ? 'border-rose-200 bg-rose-50 text-rose-700'
+                : syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale
+                  ? 'border-amber-200 bg-amber-50 text-amber-800'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+            }`}>
+              <span className={`h-2 w-2 rounded-full ${
+                syncStatus === 'offline'
+                  ? 'bg-rose-500'
+                  : syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-500'
+              }`} />
+              {syncStatus === 'offline'
+                ? 'Sem conexão'
+                : syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale
+                  ? 'Tentando reconectar'
+                  : 'Sincronizado agora'}
+            </div>
+          </div>
+        )}
 
         {/* Pet Management - if pets exist */}
         {pets.length > 0 ? (
@@ -1518,7 +1525,7 @@ export default function HomePage() {
                       pets={pets}
                       selectedPetId={selectedPetId}
                       setSelectedPetId={setSelectedPetId}
-                      photoTimestamps={photoTimestamps}
+                      photoTimestamps={photoVersions}
                       getPhotoUrl={getPhotoUrl}
                       switchPetByOffset={switchPetByOffset}
                       onOpenAddPetModal={openAddPetModal}
@@ -1593,13 +1600,22 @@ export default function HomePage() {
             })()}
           </div>
         ) : (
-          /* No Pets - Show Simple Message */
-          <div className="space-y-3">
-            <div className="text-center py-12 text-gray-500">
-              <div className="text-4xl sm:text-5xl md:text-6xl mb-4">🐾</div>
-              <p className="text-lg">{t('common.welcome')}</p>
-              <p className="text-sm">{t('common.tagline')}</p>
+          <div className="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white px-5 py-8 text-center shadow-xl">
+            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-[28px] bg-slate-50 ring-1 ring-slate-200">
+              <svg viewBox="0 0 96 96" className="h-14 w-14 text-slate-400" aria-hidden="true">
+                <path fill="currentColor" d="M46 22c-10 0-18 8-18 18v11c0 13 9 23 20 23s20-10 20-23V40c0-10-8-18-18-18h-4Zm-9 18c0-5 4-9 9-9h4c5 0 9 4 9 9v11c0 8-5 14-11 14s-11-6-11-14V40Z" />
+                <path fill="currentColor" d="M25 42c-5 0-9 5-9 11s4 11 9 11 9-5 9-11-4-11-9-11Zm46 0c-5 0-9 5-9 11s4 11 9 11 9-5 9-11-4-11-9-11ZM31 21c-4 0-8 4-8 9s4 9 8 9 8-4 8-9-4-9-8-9Zm34 0c-4 0-8 4-8 9s4 9 8 9 8-4 8-9-4-9-8-9Z" />
+              </svg>
             </div>
+            <h1 className="text-2xl font-black text-slate-900">Quem é o seu pet?</h1>
+            <p className="mt-2 text-sm font-medium text-slate-500">Cadastre o primeiro pet para começar os cuidados.</p>
+            <button
+              type="button"
+              onClick={openAddPetModal}
+              className="mt-6 w-full rounded-2xl bg-[#0056D2] px-5 py-4 text-base font-black text-white shadow-lg active:scale-[0.99]"
+            >
+              Adicionar pet
+            </button>
           </div>
         )}
       </div>
@@ -1609,7 +1625,7 @@ export default function HomePage() {
         <HealthModal
           currentPet={currentPet}
           selectedPetId={selectedPetId}
-          photoTimestamps={photoTimestamps}
+          photoTimestamps={photoVersions}
           healthModalMode={healthModalMode}
           healthActiveTab={healthActiveTab}
           eventTypeLocked={eventTypeLocked}
@@ -1724,7 +1740,7 @@ export default function HomePage() {
       {showEditModal && currentPet && (
         <EditPetModal
           pet={currentPet}
-          photoVersion={selectedPetId ? photoTimestamps[selectedPetId] : undefined}
+          photoVersion={currentPet?.updated_at || (selectedPetId ? photoTimestamps[selectedPetId] : undefined)}
           onClose={closeEditPetModal}
           onSave={handleSavePet}
           onDelete={handleDeletePet}

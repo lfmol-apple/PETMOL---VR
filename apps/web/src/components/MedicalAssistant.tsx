@@ -258,6 +258,9 @@ export function MedicalAssistant({
               {clinicName && (
                 <p className="text-xs text-slate-500 mt-1">📍 {clinicName}</p>
               )}
+              <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+                Os intervalos são recomendações gerais. Consulte um veterinário.
+              </p>
             </div>
             {onCancel && (
               <button

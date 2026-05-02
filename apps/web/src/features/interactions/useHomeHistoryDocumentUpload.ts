@@ -6,7 +6,7 @@ import { getToken } from '@/lib/auth-token';
 import type { VetHistoryDocument } from '@/lib/types/homeForms';
 import type { PetWithHealth } from '@/features/pets/types';
 import { trackV1Metric } from '@/lib/v1Metrics';
-import { showBlockingNotice } from './userPromptChannel';
+import { showAppToast, showBlockingNotice } from './userPromptChannel';
 
 type HistoryTab = 'resumo' | 'detalhado';
 
@@ -105,7 +105,7 @@ export function useHomeHistoryDocumentUpload({
         .then((data) => {
           if (Array.isArray(data)) setVetHistoryDocs(data);
         })
-        .catch(() => {});
+        .catch(() => showAppToast('Erro ao sincronizar', { tone: 'warning' }));
 
       setShowDocUploadInHistorico(false);
       setHistoricoTab('detalhado');

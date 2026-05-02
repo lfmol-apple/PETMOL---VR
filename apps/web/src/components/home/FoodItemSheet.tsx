@@ -682,6 +682,9 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <div className="p-5 pb-8 space-y-4">
+                  <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">
+                    Petmol pode receber comissão. Preço não muda para você.
+                  </p>
                   <div className="grid grid-cols-1 gap-3">
                     {HOME_SHOPPING_PARTNERS.map((partner) => (
                       <button

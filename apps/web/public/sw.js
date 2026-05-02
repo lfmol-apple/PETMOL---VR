@@ -1,6 +1,6 @@
 /**
- * PETMOL Service Worker — Web Push
- * v2026.04.09c
+ * PETMOL Service Worker — Web Push + offline shell
+ * v2026.05.02
  *
  * Recebe eventos push, exibe notificação e ao clicar abre a URL do payload.
  * Payload esperado (JSON):
@@ -16,6 +16,14 @@
  *   autoCloseMs: number,
  * }
  */
+
+const CACHE_NAME = 'petmol-shell-v2026-05-02';
+const SHELL_URLS = [
+  '/',
+  '/home',
+  '/manifest.webmanifest',
+  '/icons/icon-192x192.png',
+];
 
 self.addEventListener('push', (event) => {
   if (!event.data) return;
@@ -147,8 +155,24 @@ function normalizeNotificationClickUrl(rawUrl) {
   }
 }
 
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (event) => event.waitUntil(clients.claim()));
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.addAll(SHELL_URLS))
+      .catch(() => undefined)
+      .then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then(() => clients.claim())
+  );
+});
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
@@ -158,7 +182,21 @@ self.addEventListener('fetch', (event) => {
     (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html'))
   ) {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => undefined);
+          return response;
+        })
+        .catch(() =>
+          caches.match(event.request)
+            .then((cached) => cached || caches.match('/home'))
+            .then((cached) => cached || caches.match('/'))
+            .then((cached) => cached || new Response('PETMOL offline', {
+              status: 200,
+              headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+            }))
+        )
     );
   }
 });

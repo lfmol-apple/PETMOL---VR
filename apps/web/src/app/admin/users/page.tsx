@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PremiumScreenShell } from '@/components/premium';
+import { requestUserConfirmation } from '@/features/interactions/userPromptChannel';
 
 interface User {
   id: string;
@@ -175,7 +176,12 @@ export default function AdminUsersPage() {
   };
 
   const handleDeleteUser = async (user: User) => {
-    if (!confirm(`Tem certeza que deseja excluir o usuário ${user.email}?`)) return;
+    const accepted = await requestUserConfirmation(`Tem certeza que deseja excluir o usuário ${user.email}?`, {
+      title: 'Excluir usuário',
+      tone: 'danger',
+      confirmLabel: 'Excluir',
+    });
+    if (!accepted) return;
 
     try {
       await deleteUser(user.id);

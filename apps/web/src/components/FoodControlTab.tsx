@@ -97,7 +97,7 @@ function createEmptyFoodItem(isPrimary = false): SimpleFoodData {
   return {
     id: makeItemId(),
     brand: '',
-    trackingMethod: 'weight',
+    trackingMethod: 'duration',
     packageSizeKg: '',
     durationDays: '',
     startDate: localTodayISO(),
@@ -333,6 +333,7 @@ export function FoodControlTab({
   const [loadedExisting, setLoadedExisting] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<'add' | 'edit' | 'quick_setup'>('edit');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [deleteFeedback, setDeleteFeedback] = useState<string | null>(null);
   const [apiEstimate, setApiEstimate] = useState<{ estimated_end_date: string | null; estimated_days_left: number | null } | null>(null);
 
@@ -544,6 +545,14 @@ export function FoodControlTab({
             dailyConsumptionG: '',
           },
         ])
+      : !showAdvanced
+        ? ensurePrimaryItem(normalizedItems.map((item) => ({
+            ...item,
+            trackingMethod: 'duration',
+            startDate: item.startDate || localTodayISO(),
+            durationDays: item.durationDays || '30',
+            dailyConsumptionG: '',
+          })))
       : normalizedItems;
     const { requestItems, primaryRequestItem, requestBody } = buildPlanPayload(sourceItems);
 
@@ -596,6 +605,7 @@ export function FoodControlTab({
           package_size_kg: primaryRequestItem?.package_size_kg ?? null,
         });
       }
+      localStorage.setItem('petmol_activation_control_active_v1', '1');
 
       try {
         const usageKey = `petmol_product_usage_${petId}`;
@@ -687,6 +697,7 @@ export function FoodControlTab({
     setApiError(null);
     setDeleteFeedback(null);
     setSavedOk(false);
+    setShowAdvanced(false);
     setFormMode('edit');
     setFormOpen(true);
   };
@@ -695,6 +706,7 @@ export function FoodControlTab({
     setApiError(null);
     setDeleteFeedback(null);
     setSavedOk(false);
+    setShowAdvanced(false);
     setItems((current) => ensurePrimaryItem([...current, createEmptyFoodItem(false)]));
     setFormMode('add');
     setFormOpen(true);
@@ -734,6 +746,7 @@ export function FoodControlTab({
     setApiError(null);
     setDeleteFeedback(null);
     setSavedOk(false);
+    setShowAdvanced(false);
     if (formRequest.mode === 'add') {
       setItems((current) => ensurePrimaryItem([...current, createEmptyFoodItem(false)]));
     }
@@ -942,7 +955,7 @@ export function FoodControlTab({
                     )}
                   </div>
 
-                  {!isQuickSetup && (
+                  {!isQuickSetup && showAdvanced && (
                     <div className="space-y-2">
                       <div className="grid grid-cols-2 gap-2">
                         <button
@@ -954,7 +967,7 @@ export function FoodControlTab({
                               : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                           }`}
                         >
-                          ⚖️ Por peso
+                          Por peso
                         </button>
                         <button
                           type="button"
@@ -965,7 +978,7 @@ export function FoodControlTab({
                               : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                           }`}
                         >
-                          ⏳ Por duração
+                          Por duração
                         </button>
                       </div>
                     </div>
@@ -982,66 +995,30 @@ export function FoodControlTab({
                     />
                   </div>
 
-                  {isQuickSetup ? (
-                    <>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1">Pacote (kg)</label>
-                          <input
-                            type="number"
-                            min={0.1}
-                            step={0.5}
-                            value={item.packageSizeKg}
-                            onChange={e => updateItem(item.id, (current) => ({ ...current, packageSizeKg: e.target.value }))}
-                            placeholder="Ex: 7.5"
-                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1">Data início</label>
-                          <input
-                            type="date"
-                            value={item.startDate}
-                            onChange={e => updateItem(item.id, (current) => ({ ...current, startDate: e.target.value }))}
-                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
-                          />
-                        </div>
+                  {isQuickSetup || !showAdvanced ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Data início</label>
+                        <input
+                          type="date"
+                          value={item.startDate}
+                          onChange={e => updateItem(item.id, (current) => ({ ...current, trackingMethod: 'duration', startDate: e.target.value, dailyConsumptionG: '' }))}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+                        />
                       </div>
-                      <div className="space-y-2">
-                        <label className="block text-xs font-semibold text-gray-600">Esse pacote costuma durar quantos dias?</label>
-                        <div className="grid grid-cols-4 gap-2">
-                          {[15, 30, 45, 60].map((days) => {
-                            const active = String(days) === item.durationDays;
-                            return (
-                              <button
-                                key={days}
-                                type="button"
-                                onClick={() => updateItem(item.id, (current) => ({ ...current, durationDays: String(days) }))}
-                                className={`min-h-[44px] rounded-xl border px-2 py-2 text-sm font-semibold transition-all ${
-                                  active
-                                    ? 'border-amber-300 bg-amber-50 text-amber-900'
-                                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                                }`}
-                              >
-                                {days}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1">Informar outro (dias)</label>
-                          <input
-                            type="number"
-                            min={1}
-                            step={1}
-                            value={item.durationDays}
-                            onChange={e => updateItem(item.id, (current) => ({ ...current, durationDays: e.target.value }))}
-                            placeholder="Ex: 25"
-                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
-                          />
-                        </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Duração (dias)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={item.durationDays}
+                          onChange={e => updateItem(item.id, (current) => ({ ...current, trackingMethod: 'duration', durationDays: e.target.value, dailyConsumptionG: '' }))}
+                          placeholder="Ex: 30"
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+                        />
                       </div>
-                    </>
+                    </div>
                   ) : item.trackingMethod === 'weight' ? (
                     <>
                       <div className="grid grid-cols-2 gap-2">
@@ -1128,6 +1105,16 @@ export function FoodControlTab({
                     <div className="text-xs text-slate-500">
                       Previsão local deste item: cerca de {itemMetrics.days} dias.
                     </div>
+                  )}
+
+                  {!isQuickSetup && !showAdvanced && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvanced(true)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50"
+                    >
+                      Mostrar opções avançadas
+                    </button>
                   )}
                 </div>
               );

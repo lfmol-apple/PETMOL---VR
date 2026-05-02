@@ -545,7 +545,9 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
         if (me.city)         setCity(me.city);
         if (me.state)        setStateUf(me.state);
         if (me.country)      setCountry(me.country);
-      } catch (_) {}
+      } catch {
+        showToast('Erro ao sincronizar');
+      }
     };
     prefill();
   }, []);
@@ -554,6 +556,8 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
   const [emailError, setEmailError] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [medicalDisclaimerAccepted, setMedicalDisclaimerAccepted] = useState(false);
+  const [firstValuePetName, setFirstValuePetName] = useState<string | null>(null);
 
   function showToast(msg: string) {
     setToastMsg(msg);
@@ -728,6 +732,7 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
         console.error('Failed to persist tutor profile:', error);
       });
     });
+    localStorage.setItem('petmol_medical_disclaimer_v1', 'true');
     
     // Save pet profile - BOTH localStorage AND API
     const parsedWeight = petWeight ? Number(petWeight.replace(',', '.')) : undefined;
@@ -797,7 +802,8 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
     
     // Mark as completed
     localStorage.setItem('petmol_onboarding_complete', 'true');
-    onComplete();
+    localStorage.setItem('petmol_activation_pet_created_v1', '1');
+    setFirstValuePetName(petName || 'seu pet');
   };
 
   const handlePetFormComplete = async (data: {
@@ -855,6 +861,7 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
           console.error('Failed to persist tutor profile:', error);
         });
       });
+      localStorage.setItem('petmol_medical_disclaimer_v1', 'true');
     }
 
     const token = getToken();
@@ -888,6 +895,7 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
       if (!response.ok) {
         throw new Error('Erro ao salvar pet');
       }
+      await response.json().catch(() => null);
     } catch (error) {
       console.error('Failed to save pet to API:', error);
       showToast('Erro ao salvar pet. Tente novamente.');
@@ -895,8 +903,39 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
     }
 
     localStorage.setItem('petmol_onboarding_complete', 'true');
-    onComplete();
+    localStorage.setItem('petmol_activation_pet_created_v1', '1');
+    setFirstValuePetName(data.name || 'seu pet');
   };
+
+  if (firstValuePetName) {
+    return (
+      <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-3xl z-[200] overflow-y-auto w-full h-full">
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <div className="bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium max-w-md w-full p-8 border border-white/60">
+            <h2 className="text-2xl font-black text-slate-900">Hoje com {firstValuePetName}</h2>
+            <p className="mt-1 text-sm font-medium text-slate-500">Primeiros cuidados para revisar agora.</p>
+            <div className="mt-5 grid gap-3">
+              {['Vacina anual', 'Vermífugo', 'Ração'].map((label) => (
+                <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-bold text-slate-800">
+                  {label}
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">
+              Os intervalos são recomendações gerais. Consulte um veterinário.
+            </p>
+            <button
+              type="button"
+              onClick={onComplete}
+              className="mt-5 w-full py-4 bg-gradient-to-r from-primary-500 to-blue-500 text-white font-semibold rounded-xl"
+            >
+              Entrar no PETMOL
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-3xl z-[200] overflow-y-auto w-full h-full">
@@ -1192,10 +1231,22 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
                   </div>
                 )}
 
+                <label className={`flex items-start gap-3 rounded-xl border-2 px-4 py-3 ${medicalDisclaimerAccepted ? 'border-primary-200 bg-primary-50' : 'border-slate-200 bg-white'}`}>
+                  <input
+                    type="checkbox"
+                    checked={medicalDisclaimerAccepted}
+                    onChange={(e) => setMedicalDisclaimerAccepted(e.target.checked)}
+                    className="mt-1 h-4 w-4"
+                  />
+                  <span className="text-sm font-semibold text-slate-700">
+                    Os intervalos são recomendações gerais. Consulte um veterinário.
+                  </span>
+                </label>
+
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  disabled={!ownerName || !ownerPhone || !!phoneError || (!!ownerEmail && !!emailError)}
+                  disabled={!ownerName || !ownerPhone || !!phoneError || (!!ownerEmail && !!emailError) || !medicalDisclaimerAccepted}
                   className="w-full py-4 bg-gradient-to-r from-primary-500 to-blue-500 text-white font-semibold rounded-xl hover:shadow-xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   {t('onboarding.actions.continue')}

@@ -4,6 +4,7 @@ import { useState, type Dispatch, type SetStateAction } from 'react';
 import { PetShareExportPanel } from '@/components/PetShareExportPanel';
 import { PetDocumentVault } from '@/components/PetDocumentVault';
 import { API_BASE_URL } from '@/lib/api';
+import { showAppToast } from '@/features/interactions/userPromptChannel';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import type { VetHistoryDocument } from '@/lib/types/homeForms';
 import { ModalPortal } from '@/components/ModalPortal';
@@ -33,7 +34,7 @@ export function MedicalVaultModal({
     })
       .then((response) => (response.ok ? response.json() : []))
       .then((data) => setVetHistoryDocs(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .catch(() => showAppToast('Erro ao sincronizar', { tone: 'warning' }));
   };
 
   return (
@@ -46,7 +47,7 @@ export function MedicalVaultModal({
               <span className="text-2xl">📂</span>
               <div>
                 <h2 className="text-lg sm:text-2xl font-bold leading-tight">Documentos — {currentPet.pet_name}</h2>
-                <p className="text-slate-500 text-xs hidden sm:block">Exames, receitas, laudos, comprovantes e fotos</p>
+                <p className="text-slate-500 text-xs hidden sm:block">Arquivos privados e protegidos</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -92,7 +93,7 @@ export function MedicalVaultModal({
           >
             ✓ Fechar
           </button>
-          <div className="text-xs text-gray-400 ml-auto">🔒 Dados seguros</div>
+          <div className="text-xs text-gray-500 ml-auto">Arquivos privados e protegidos</div>
         </div>
       </div>
     </div>

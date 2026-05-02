@@ -134,6 +134,21 @@ export function PushActionSheet({
       pet_id: petId,
       item_name: itemName ?? null,
     });
+    try {
+      localStorage.setItem('petmol_activation_push_received_v1', '1');
+      const activated = localStorage.getItem('petmol_activated_v1') === '1';
+      const petCreated = localStorage.getItem('petmol_activation_pet_created_v1') === '1';
+      const controlActive = localStorage.getItem('petmol_activation_control_active_v1') === '1';
+      if (!activated && petCreated && controlActive) {
+        localStorage.setItem('petmol_activated_v1', '1');
+        trackV1Metric('petmol_activated_v1', {
+          pet_id: petId,
+          sheet_type: type,
+        });
+      }
+    } catch {
+      // metric state is best effort
+    }
   }, [type, petId, itemName]);
 
   // -- Generic API call for confirm/apply-dose --

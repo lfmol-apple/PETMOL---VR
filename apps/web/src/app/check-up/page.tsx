@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { FoodItemSheet } from '@/components/home/FoodItemSheet';
+import { showAppToast } from '@/features/interactions/userPromptChannel';
 import type { PetHealthProfile } from '@/lib/petHealth';
 
 type StepStatus = 'pending' | 'visiting' | 'none' | 'done' | 'skipped';
@@ -75,7 +76,7 @@ export default function CheckupPage() {
           updated_at: new Date().toISOString(),
         });
       })
-      .catch(() => {});
+      .catch(() => showAppToast('Erro ao sincronizar', { tone: 'warning' }));
   }, [loaded]);
 
   const goHome = useCallback((foodDone?: boolean) => {

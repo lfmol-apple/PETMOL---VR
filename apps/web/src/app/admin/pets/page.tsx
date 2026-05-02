@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PremiumScreenShell } from '@/components/premium';
+import { requestUserConfirmation } from '@/features/interactions/userPromptChannel';
 
 interface Pet {
   id: string;
@@ -209,7 +210,12 @@ export default function AdminPetsPage() {
   };
 
   const handleDeletePet = async (pet: Pet) => {
-    if (!confirm(`Tem certeza que deseja excluir o pet ${pet.name}?`)) return;
+    const accepted = await requestUserConfirmation(`Tem certeza que deseja excluir o pet ${pet.name}?`, {
+      title: 'Excluir pet',
+      tone: 'danger',
+      confirmLabel: 'Excluir',
+    });
+    if (!accepted) return;
 
     try {
       await deletePet(pet.id);

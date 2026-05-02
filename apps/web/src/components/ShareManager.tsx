@@ -24,6 +24,7 @@ import {
 } from '@/lib/shares/shareStorage';
 import { useI18n } from '@/lib/I18nContext';
 import { trackShareEvent } from '@/lib/analytics/storage';
+import { requestUserConfirmation } from '@/features/interactions/userPromptChannel';
 
 interface ShareManagerProps {
   petId: string;
@@ -115,7 +116,12 @@ export function ShareManager({ petId, petName, petSpecies, ownerPhone }: ShareMa
 
   // Revoke
   const handleRevoke = async (type: 'emergency' | 'vet', id: string) => {
-    if (!confirm(t('share_manager.alerts.revoke_confirm'))) return;
+    const accepted = await requestUserConfirmation(t('share_manager.alerts.revoke_confirm'), {
+      title: 'Revogar acesso',
+      tone: 'danger',
+      confirmLabel: 'Revogar',
+    });
+    if (!accepted) return;
 
     try {
       if (type === 'emergency') {

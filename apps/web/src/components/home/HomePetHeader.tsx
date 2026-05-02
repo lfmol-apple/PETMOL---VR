@@ -7,13 +7,22 @@ import { HomeAttentionOverlays } from '@/components/home/HomeAttentionOverlays';
 import type { PetInteractionItem } from '@/features/interactions/types';
 import type { PetHealthProfile } from '@/lib/petHealth';
 
+function PetSilhouette({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 96 96" className={className} aria-hidden="true">
+      <path fill="currentColor" d="M46 20c-11 0-20 9-20 20v12c0 14 10 24 22 24s22-10 22-24V40c0-11-9-20-20-20h-4Zm-10 20c0-5 4-10 10-10h4c6 0 10 5 10 10v12c0 8-5 14-12 14s-12-6-12-14V40Z" />
+      <path fill="currentColor" d="M24 43c-5 0-9 5-9 11s4 11 9 11 9-5 9-11-4-11-9-11Zm48 0c-5 0-9 5-9 11s4 11 9 11 9-5 9-11-4-11-9-11ZM31 20c-4 0-8 4-8 9s4 9 8 9 8-4 8-9-4-9-8-9Zm34 0c-4 0-8 4-8 9s4 9 8 9 8-4 8-9-4-9-8-9Z" />
+    </svg>
+  );
+}
+
 interface HomePetHeaderProps {
   currentPet: PetHealthProfile;
   pets: PetHealthProfile[];
   selectedPetId: string | null;
   setSelectedPetId: (value: string) => void;
-  photoTimestamps: Record<string, number>;
-  getPhotoUrl: (photoPath: string | undefined | null, petId?: string, photoTimestamps?: Record<string, number>) => string | null;
+  photoTimestamps: Record<string, string | number>;
+  getPhotoUrl: (photoPath: string | undefined | null, petId?: string, photoTimestamps?: Record<string, string | number>) => string | null;
   switchPetByOffset: (offset: number) => void;
   onOpenAddPetModal: () => void;
   onOpenEditPetModal: () => void;
@@ -105,8 +114,8 @@ export function HomePetHeader({
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-xl">
-                      {pet.species === 'dog' ? '🐕' : '🐱'}
+                    <div className="w-full h-full flex items-center justify-center text-white/80">
+                      <PetSilhouette className="h-7 w-7" />
                     </div>
                   )}
                 </div>
@@ -130,24 +139,22 @@ export function HomePetHeader({
     );
   };
 
+  const petAge = currentPet.birth_date && (() => {
+    const birth = new Date(currentPet.birth_date);
+    const now = new Date();
+    let years = now.getFullYear() - birth.getFullYear();
+    let months = now.getMonth() - birth.getMonth();
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+    if (years === 0) return `${months}m`;
+    if (months === 0) return `${years} ${years === 1 ? t('common.age.year') : t('common.age.years')}`;
+    return `${years}a ${months}m`;
+  })();
   const petMeta = [
     currentPet.breed,
-    currentPet.birth_date && (() => {
-      const birth = new Date(currentPet.birth_date);
-      const now = new Date();
-      let years = now.getFullYear() - birth.getFullYear();
-      let months = now.getMonth() - birth.getMonth();
-      if (months < 0) {
-        years--;
-        months += 12;
-      }
-      if (years === 0) return `${months}m`;
-      if (months === 0) return `${years} ${years === 1 ? t('common.age.year') : t('common.age.years')}`;
-      return `${years}a ${months}m`;
-    })(),
-    currentPet.weight_history?.length ? `${currentPet.weight_history[0].weight} kg` : null,
-    currentPet.sex ? (currentPet.sex === 'male' ? t('pet.sex.male') : t('pet.sex.female')) : null,
-    currentPet.neutered !== undefined ? (currentPet.neutered ? t('pet.neutered.yes') : t('pet.neutered.no')) : null,
+    petAge,
   ].filter(Boolean).join(' · ');
 
   const currentPetPhotoUrl = getPhotoUrl(currentPet.photo, currentPet.pet_id, photoTimestamps);
@@ -167,11 +174,8 @@ export function HomePetHeader({
         }}
       >
         
-        {/* Emoji de Fundo para Pets sem Foto */}
-        <div className="w-full h-full flex items-center justify-center opacity-40">
-          <span className="text-white text-5xl sm:text-7xl transition-transform duration-500 sm:group-hover:scale-110">
-            {currentPet.species === 'dog' ? '🐕' : currentPet.species === 'cat' ? '🐱' : '🐾'}
-          </span>
+        <div className="w-full h-full flex items-center justify-center text-white/45">
+          <PetSilhouette className="h-24 w-24 transition-transform duration-500 sm:h-32 sm:w-32 sm:group-hover:scale-110" />
         </div>
 
         {/* Foto Real do Pet (Se houver) */}
@@ -293,19 +297,11 @@ export function HomePetHeader({
             </div>
           </div>
           
-          {/* Metadados em Linha (Raça · Idade · Peso · Sexo) */}
+          {/* Metadados em Linha (Raça · Idade) */}
           <div className="mt-1.5 ml-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
             <span className="text-[11.5px] font-bold text-slate-700 tracking-tight">
-              {currentPet.breed}
+              {petMeta || (currentPet.species === 'cat' ? 'Gato' : 'Cachorro')}
             </span>
-            {petMeta.split(' · ').slice(1).join(' · ') && (
-              <>
-                <span className="opacity-40 text-slate-500 font-black tracking-tighter">·</span>
-                <span className="text-[11.5px] font-bold text-slate-600 tracking-tight">
-                  {petMeta.split(' · ').slice(1).join(' · ')}
-                </span>
-              </>
-            )}
           </div>
 
         </div>

@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
+import { showAppToast } from '@/features/interactions/userPromptChannel';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -202,7 +203,7 @@ export function useNotificationPermissionController() {
         setSubscription(sub);
 
         if (Notification.permission !== 'granted') {
-          await postSubscription(sub).catch(() => {});
+          await postSubscription(sub).catch(() => showAppToast('Erro ao sincronizar', { tone: 'warning' }));
           return;
         }
 
@@ -218,7 +219,7 @@ export function useNotificationPermissionController() {
           setSubscription(refreshed);
           setIsSubscribed(true);
         } catch {
-          await postSubscription(sub).catch(() => {});
+          await postSubscription(sub).catch(() => showAppToast('Erro ao sincronizar', { tone: 'warning' }));
         }
       })
       .catch(() => { /* silently ignore */ });

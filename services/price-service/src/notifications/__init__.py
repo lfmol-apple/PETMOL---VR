@@ -1257,6 +1257,35 @@ async def send_test_notification(current_user: User = Depends(get_current_user))
     return {"success": True, "message": "Notificacao de teste enviada"}
 
 
+@router.post("/sentinel")
+async def send_push_sentinel(current_user: User = Depends(get_current_user)):
+    """Send a low-noise sentinel push and log an internal alert if delivery fails."""
+    subscriptions = _load_subscriptions()
+    sub = subscriptions.get(str(current_user.id))
+    if not sub:
+        logger.error("push_sentinel_failed user_id=%s reason=no_subscription", current_user.id)
+        raise HTTPException(status_code=404, detail="Nenhuma subscription encontrada")
+
+    payload = {
+        "title": "PETMOL",
+        "body": "Verificacao de notificacao concluida.",
+        "icon": "/icons/icon-192x192.png",
+        "badge": "/icons/badge-mono.png",
+        "tag": "petmol-push-sentinel",
+        "data": {"url": "/home"},
+        "requireInteraction": False,
+        "autoCloseMs": 2500,
+    }
+    ok = _send_push(sub, payload)
+    if not ok:
+        subscriptions.pop(str(current_user.id), None)
+        _save_subscriptions(subscriptions)
+        logger.error("push_sentinel_failed user_id=%s reason=expired_subscription", current_user.id)
+        raise HTTPException(status_code=410, detail="Subscription expirada")
+    logger.info("push_sentinel_ok user_id=%s", current_user.id)
+    return {"success": True, "message": "Sentinela enviada"}
+
+
 @router.post("/send")
 async def send_notification(
     request: SendNotificationRequest,

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
+import { requestUserConfirmation } from '@/features/interactions/userPromptChannel';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -130,7 +131,12 @@ export function FamilyManager() {
   };
 
   const removeMember = async (userId: string) => {
-    if (!confirm('Remover este familiar? Ele perderá o acesso aos pets.')) return;
+    const accepted = await requestUserConfirmation('Remover este familiar? Ele perderá o acesso aos pets.', {
+      title: 'Remover familiar',
+      tone: 'danger',
+      confirmLabel: 'Remover',
+    });
+    if (!accepted) return;
     setRemoving(userId);
     try {
       await apiFetch(`/family/members/${userId}`, { method: 'DELETE' });

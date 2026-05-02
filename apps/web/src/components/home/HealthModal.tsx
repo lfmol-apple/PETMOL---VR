@@ -37,7 +37,7 @@ const isOwnHost_hm = (url: string): boolean => {
   try { const { hostname } = new URL(url); return OWN_PHOTO_HOSTS_HM.some((h) => hostname === h || hostname.endsWith(`.${h}`)); }
   catch { return false; }
 };
-const getPhotoUrl = (photoPath: string | undefined | null, petId?: string, photoTimestamps?: Record<string, number>): string | null => {
+const getPhotoUrl = (photoPath: string | undefined | null, petId?: string, photoTimestamps?: Record<string, string | number>): string | null => {
   if (!photoPath) return null;
   if (photoPath.startsWith('data:')) return photoPath;
   if (photoPath.startsWith('http')) {
@@ -98,7 +98,7 @@ function DraftRestoreBanner({ onRestore, onDiscard }: { onRestore: () => void; o
 // Props
 interface HealthModalProps {
   currentPet: PetHealthProfile | null; selectedPetId: string | null;
-  photoTimestamps: Record<string, number>;
+  photoTimestamps: Record<string, string | number>;
   healthModalMode: 'full' | 'health' | 'grooming' | 'food';
   healthActiveTab: string;
   eventTypeLocked: boolean;

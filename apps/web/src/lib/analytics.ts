@@ -52,6 +52,7 @@ type EventName =
   | 'push_action_buy'
   | 'push_action_purchase_confirmed'
   | 'push_opened'
+  | 'petmol_activated_v1'
   | 'reminder_action_completed'
   | 'partner_clicked'
   | 'document_uploaded';

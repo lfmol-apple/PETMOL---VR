@@ -7,6 +7,7 @@ import { API_BASE_URL } from '@/lib/api';
 import { PetPhotoPicker } from '@/components/PetPhotoPicker';
 import { localTodayISO } from '@/lib/localDate';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
+import { trackV1Metric } from '@/lib/v1Metrics';
 
 type PetFieldKey = 'name' | 'species' | 'size';
 
@@ -32,6 +33,9 @@ export default function RegisterPetPage() {
   const [photoProcessing, setPhotoProcessing] = useState(false);
   const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [medicalAccepted, setMedicalAccepted] = useState(false);
+  const [pushConsents, setPushConsents] = useState({ health: true, operational: true, offers: false });
+  const [firstValuePetId, setFirstValuePetId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<PetFieldKey, string>>({ name: '', species: '', size: '' });
   const [currentField, setCurrentField] = useState<PetFieldKey>('name');
 
@@ -52,7 +56,7 @@ export default function RegisterPetPage() {
 
   const hasApproxWeight = Number.isFinite(parseFloat(weightValue.replace(',', '.'))) && parseFloat(weightValue.replace(',', '.')) > 0;
   const hasSizeSignal = Boolean(sizeProfile || hasApproxWeight);
-  const canContinue = name.trim().length > 0 && Boolean(species) && hasSizeSignal;
+  const canContinue = name.trim().length > 0 && Boolean(species) && hasSizeSignal && medicalAccepted;
 
   const fieldClass = (field: PetFieldKey) =>
     `w-full px-4 py-3 rounded-2xl border text-[15px] outline-none transition-all bg-white ${
@@ -165,7 +169,25 @@ export default function RegisterPetPage() {
         }
       }
 
-      router.push(`/food?pet_id=${encodeURIComponent(savedPetId)}&mode=main&source=onboarding`);
+      localStorage.setItem('petmol_medical_disclaimer_v1', 'true');
+      localStorage.setItem('petmol_activation_pet_created_v1', '1');
+      localStorage.setItem('petmol_notification_consents_v1', JSON.stringify(pushConsents));
+      localStorage.setItem('petmol_checkup_v1', JSON.stringify({
+        petId: savedPetId,
+        petName: name.trim(),
+        vaccines: 'pending',
+        vermifugo: 'pending',
+        antipulgas: 'pending',
+        coleira: 'pending',
+        food: 'pending',
+      }));
+      trackV1Metric('pet_created', {
+        pet_id: savedPetId,
+        species,
+        source: 'register_pet',
+        has_photo: Boolean(petPhotoDataUrl),
+      });
+      setFirstValuePetId(savedPetId);
     } catch (err: unknown) {
       setFieldError('name', err instanceof Error ? err.message : 'Erro ao salvar o pet.');
       focusError('name');
@@ -173,6 +195,52 @@ export default function RegisterPetPage() {
       setLoading(false);
     }
   };
+
+  if (firstValuePetId) {
+    const petLabel = name.trim() || 'seu pet';
+    return (
+      <BrandBackground showLogo={false}>
+        <div className="min-h-[calc(100dvh-40px)] w-full px-4 py-8 flex items-center justify-center">
+          <div className="w-full max-w-md bg-white/95 backdrop-blur-xl rounded-[32px] border border-white/60 shadow-premium p-6">
+            <div className="flex justify-center mb-5">
+              <PetmolTextLogo className="text-5xl drop-shadow-sm" color="#2563EB" />
+            </div>
+            <h1 className="text-2xl font-black text-slate-900">Hoje com {petLabel}</h1>
+            <p className="mt-1 text-sm font-medium text-slate-500">O PETMOL já separou os primeiros cuidados para revisar.</p>
+            <div className="mt-5 grid gap-3">
+              {[
+                { title: 'Vacina anual', body: 'Confira se a carteirinha está em dia.' },
+                { title: 'Vermífugo', body: 'Acompanhe o próximo reforço com lembrete.' },
+                { title: 'Ração', body: 'Cadastre a duração para evitar faltar.' },
+              ].map((item) => (
+                <div key={item.title} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="font-black text-slate-900">{item.title}</p>
+                  <p className="mt-0.5 text-sm text-slate-500">{item.body}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">
+              Os intervalos são recomendações gerais. Consulte um veterinário.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push(`/food?pet_id=${encodeURIComponent(firstValuePetId)}&mode=main&source=onboarding`)}
+              className="mt-5 w-full rounded-2xl bg-[#0056D2] px-5 py-4 text-base font-black text-white shadow-lg active:scale-[0.99]"
+            >
+              Cadastrar ração
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/home')}
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-600"
+            >
+              Ir para home
+            </button>
+          </div>
+        </div>
+      </BrandBackground>
+    );
+  }
 
   return (
     <BrandBackground showLogo={false}>
@@ -303,6 +371,38 @@ export default function RegisterPetPage() {
                   </label>
                 </div>
               )}
+            </div>
+
+            <label className={`flex items-start gap-3 rounded-2xl border px-3 py-3 ${medicalAccepted ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+              <input
+                type="checkbox"
+                checked={medicalAccepted}
+                onChange={(e) => setMedicalAccepted(e.target.checked)}
+                className="mt-1 h-4 w-4"
+              />
+              <span className="text-sm font-semibold text-slate-700">
+                Os intervalos são recomendações gerais. Consulte um veterinário.
+              </span>
+            </label>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-3">
+              <p className="text-sm font-black text-slate-900">Quais notificações deseja receber?</p>
+              <div className="mt-3 grid gap-2">
+                {[
+                  { key: 'health', label: 'Saúde' },
+                  { key: 'operational', label: 'Operacional (ração)' },
+                  { key: 'offers', label: 'Ofertas' },
+                ].map((item) => (
+                  <label key={item.key} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
+                    <span className="text-sm font-semibold text-slate-700">{item.label}</span>
+                    <input
+                      type="checkbox"
+                      checked={pushConsents[item.key as keyof typeof pushConsents]}
+                      onChange={(e) => setPushConsents((prev) => ({ ...prev, [item.key]: e.target.checked }))}
+                    />
+                  </label>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2 pt-1">
