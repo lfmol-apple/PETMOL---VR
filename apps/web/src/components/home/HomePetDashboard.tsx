@@ -37,6 +37,7 @@ function formatFoodDateShort(dateStr: string): string {
 function formatReminderBadge(diff: number): string {
   if (diff < 0) {
     const days = Math.abs(diff);
+    if (days > 90) return 'revisão recomendada';
     return days === 1 ? 'atrasado desde ontem' : `atrasado há ${days} dias`;
   }
   if (diff === 0) return 'hoje';
@@ -269,7 +270,7 @@ export function HomePetDashboard({
       {upcomingReminders.length > 0 && (
         <section className="rounded-[20px] border border-white/70 bg-white/75 px-3 py-2.5 shadow-md shadow-slate-900/5 backdrop-blur-xl ring-1 ring-black/5">
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-1 mb-1.5">
-            O que vem pela frente
+            Próximos 30 dias
           </p>
           <div className="divide-y divide-slate-100/60">
             {upcomingReminders.map((reminder) => {

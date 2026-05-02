@@ -17,6 +17,7 @@ const ALERT_ICONS: Record<string, string> = {
 function badgeText(alert: PetInteractionItem): string {
   if (alert.status === 'today') return 'HOJE';
   if (alert.days_overdue != null && alert.days_overdue > 0) {
+    if (alert.days_overdue > 90) return 'REVISÃO RECOMENDADA';
     return `ATRASADO ${alert.days_overdue} dia${alert.days_overdue === 1 ? '' : 's'}`;
   }
   return 'EM BREVE';

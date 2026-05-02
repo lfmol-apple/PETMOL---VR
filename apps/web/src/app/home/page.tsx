@@ -1484,11 +1484,13 @@ export default function HomePage() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <h2 className="text-[17px] font-black leading-tight tracking-tight text-slate-900">
-                              {hasAttention ? `${currentPetName} precisa de atenção hoje` : `${currentPetName} está em dia hoje`}
+                              {hasAttention
+                                ? `${currentPetName} tem ${attentionAlerts.length} ${attentionAlerts.length === 1 ? 'cuidado em aberto' : 'cuidados em aberto'}`
+                                : `${currentPetName} está em dia`}
                             </h2>
                             <p className="mt-0.5 text-[12px] font-medium leading-snug text-slate-600">
                               {hasAttention
-                                ? `${attentionAlerts.length} ${attentionAlerts.length === 1 ? 'cuidado para revisar' : 'cuidados para revisar'}`
+                                ? 'Vamos colocar em dia juntos'
                                 : 'Veja o que vem pela frente'}
                             </p>
                           </div>
@@ -1503,7 +1505,7 @@ export default function HomePage() {
                                   : 'bg-white/80 text-blue-700 hover:bg-blue-50'
                             }`}
                           >
-                            {hasAttention ? 'Ver cuidados' : 'Ver próximos'}
+                            {hasAttention ? 'Ver lista' : 'Ver próximos'}
                           </button>
                         </div>
                       </section>

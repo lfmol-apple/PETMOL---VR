@@ -65,7 +65,9 @@ export function HealthQuickActionSheet({
     item.status === 'today'
       ? 'HOJE'
       : item.days_overdue != null && item.days_overdue > 0
-        ? `ATRASADO ${item.days_overdue} dia${item.days_overdue !== 1 ? 's' : ''}`
+        ? item.days_overdue > 90
+          ? 'REVISÃO RECOMENDADA'
+          : `ATRASADO ${item.days_overdue} dia${item.days_overdue !== 1 ? 's' : ''}`
         : 'EM BREVE';
 
   const statusCls =
