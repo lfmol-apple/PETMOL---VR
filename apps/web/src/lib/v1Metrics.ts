@@ -37,7 +37,8 @@ export type V1MetricEvent =
   | 'petmol_activated_v1'
   | 'reminder_action_completed'
   | 'partner_clicked'
-  | 'document_uploaded';
+  | 'document_uploaded'
+  | 'push_sync_degraded';
 
 export function trackV1Metric(name: V1MetricEvent, properties: Record<string, unknown> = {}): void {
   track(name, properties);

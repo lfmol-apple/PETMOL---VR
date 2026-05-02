@@ -58,6 +58,7 @@ export interface PetCareReminder {
   key: string;
 
   pet_id: string;
+  pet_name: string;
   domain: CareReminderDomain;
 
   /** Label principal (nome do produto, vacina, tipo de serviço) */
@@ -168,6 +169,7 @@ function processVaccines(p: PetCareDomainParams): PetCareReminder[] {
     byCanonicalGroup.set(gKey, {
       key: makeKey(p.pet_id, 'vaccine', gKey, 'latest', dateToLocalISO(nextDate)),
       pet_id: p.pet_id,
+      pet_name: p.pet_name,
       domain: 'vaccine',
       label: v.vaccine_name,
       sublabel: vTypeLabels[v.vaccine_type ?? ''],
@@ -243,6 +245,7 @@ function processParasites(p: PetCareDomainParams): PetCareReminder[] {
     result.push({
       key: makeKey(p.pet_id, 'parasite', normalizedType, c.id, dateToLocalISO(nextDate)),
       pet_id: p.pet_id,
+      pet_name: p.pet_name,
       domain: 'parasite',
       label: c.product_name || typeLabels[normalizedType] || normalizedType,
       sublabel: typeLabels[normalizedType],
@@ -296,6 +299,7 @@ function processGrooming(p: PetCareDomainParams): PetCareReminder[] {
     result.push({
       key: makeKey(p.pet_id, 'grooming', r.type, r.id, dateToLocalISO(nextDate)),
       pet_id: p.pet_id,
+      pet_name: p.pet_name,
       domain: 'grooming',
       label: typeLabels[r.type] || r.type,
       icon: '🛁',
@@ -369,6 +373,7 @@ function processFood(p: PetCareDomainParams): PetCareReminder[] {
   return [{
     key: makeKey(p.pet_id, 'food', 'purchase', 'active-plan', dateToLocalISO(nextDate)),
     pet_id: p.pet_id,
+    pet_name: p.pet_name,
     domain: 'food',
     label: 'Compra de ração',
     sublabel: brand,
@@ -446,6 +451,7 @@ function processEvents(p: PetCareDomainParams): PetCareReminder[] {
       result.push({
         key: makeKey(p.pet_id, 'medication', 'medicacao', ev.id, treatDueStr),
         pet_id: p.pet_id,
+        pet_name: p.pet_name,
         domain: 'medication',
         label: ev.title,
         sublabel: extra.dosage ? String(extra.dosage) : eventLabels[ev.type],
@@ -482,6 +488,7 @@ function processEvents(p: PetCareDomainParams): PetCareReminder[] {
         dueStr,
       ),
       pet_id: p.pet_id,
+      pet_name: p.pet_name,
       domain: ev.type === 'medicacao' ? 'medication' : 'event',
       label: ev.title,
       sublabel,
