@@ -80,49 +80,50 @@ export function HomePetHeader({
       <>
         <div className="fixed inset-0 z-[200]" onClick={onClosePetSelector} />
         <div
-          className="fixed z-[201] w-[280px] bg-white/95 backdrop-blur-xl rounded-[28px] shadow-2xl border border-white/60 overflow-hidden py-2 animate-in fade-in zoom-in duration-200 origin-top-left ring-1 ring-black/5"
-          style={{ top: dropdownPos.top, left: dropdownPos.left }}
+          className="fixed left-1/2 top-1/2 z-[201] max-h-[72vh] w-[calc(100vw-32px)] max-w-[360px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[28px] border border-white/60 bg-white/95 py-2 shadow-2xl ring-1 ring-black/5 backdrop-blur-xl animate-in fade-in zoom-in duration-200"
         >
-          <div className="px-5 py-2 border-b border-slate-100 mb-1">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('nav.select_pet')}</span>
+          <div className="px-5 py-3 border-b border-slate-100 mb-1">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Trocar pet</span>
           </div>
-          {pets.map((pet) => (
-            <button
-              key={pet.pet_id}
-              onClick={() => {
-                setSelectedPetId(pet.pet_id);
-                onClosePetSelector();
-              }}
-              className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors ${
-                pet.pet_id === selectedPetId ? 'bg-blue-50/50' : ''
-              }`}
-            >
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-400 to-purple-500 overflow-hidden flex-shrink-0 border-2 border-white shadow-sm ring-1 ring-black/5">
-                {getPhotoUrl(pet.photo, pet.pet_id, photoTimestamps) ? (
-                  <img
-                    src={getPhotoUrl(pet.photo, pet.pet_id, photoTimestamps)!}
-                    alt={pet.pet_name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xl">
-                    {pet.species === 'dog' ? '🐕' : '🐱'}
-                  </div>
+          <div className="max-h-[calc(72vh-52px)] overflow-y-auto py-1">
+            {pets.map((pet) => (
+              <button
+                key={pet.pet_id}
+                onClick={() => {
+                  setSelectedPetId(pet.pet_id);
+                  onClosePetSelector();
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors ${
+                  pet.pet_id === selectedPetId ? 'bg-blue-50/50' : ''
+                }`}
+              >
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-400 to-purple-500 overflow-hidden flex-shrink-0 border-2 border-white shadow-sm ring-1 ring-black/5">
+                  {getPhotoUrl(pet.photo, pet.pet_id, photoTimestamps) ? (
+                    <img
+                      src={getPhotoUrl(pet.photo, pet.pet_id, photoTimestamps)!}
+                      alt={pet.pet_name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-xl">
+                      {pet.species === 'dog' ? '🐕' : '🐱'}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 text-left min-w-0">
+                  <p className={`font-black truncate text-sm tracking-tight ${pet.pet_id === selectedPetId ? 'text-blue-600' : 'text-slate-800'}`}>
+                    {pet.pet_name}
+                  </p>
+                  <p className="text-[10px] text-slate-400 truncate uppercase tracking-wider font-bold">
+                    {pet.breed}
+                  </p>
+                </div>
+                {pet.pet_id === selectedPetId && (
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.6)]" />
                 )}
-              </div>
-              <div className="flex-1 text-left min-w-0">
-                <p className={`font-black truncate text-sm tracking-tight ${pet.pet_id === selectedPetId ? 'text-blue-600' : 'text-slate-800'}`}>
-                  {pet.pet_name}
-                </p>
-                <p className="text-[10px] text-slate-400 truncate uppercase tracking-wider font-bold">
-                  {pet.breed}
-                </p>
-              </div>
-              {pet.pet_id === selectedPetId && (
-                <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.6)]" />
-              )}
-            </button>
-          ))}
+              </button>
+            ))}
+          </div>
         </div>
       </>,
       document.body
