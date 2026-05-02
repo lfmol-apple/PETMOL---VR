@@ -14,6 +14,10 @@
 import { useEffect } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
+import { trackV1Metric } from '@/lib/v1Metrics';
+
+const PUSH_HEALTH_FAIL_KEY = 'petmol_push_sync_failed_v1';
+const PUSH_HEALTH_FAIL_THRESHOLD = 3; // falhas consecutivas antes de alertar
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -108,12 +112,37 @@ export function PushAutoRefresh() {
 
         if (!response.ok) {
           console.warn('[push] PushAutoRefresh nao conseguiu sincronizar a subscription', response.status);
+          recordPushSyncFailure();
+        } else {
+          clearPushSyncFailures();
         }
       })
       .catch((error) => {
         console.warn('[push] PushAutoRefresh falhou', error);
+        recordPushSyncFailure();
       });
   }, []); // roda uma vez por mount (= uma vez por navegação full-page)
 
   return null;
+}
+
+function recordPushSyncFailure() {
+  try {
+    const count = parseInt(localStorage.getItem(PUSH_HEALTH_FAIL_KEY) ?? '0', 10) + 1;
+    localStorage.setItem(PUSH_HEALTH_FAIL_KEY, String(count));
+    if (count >= PUSH_HEALTH_FAIL_THRESHOLD) {
+      trackV1Metric('push_sync_degraded', { consecutive_failures: count });
+      console.error(`[push] Sentinel: ${count} falhas consecutivas na sync de push.`);
+    }
+  } catch {
+    // best effort
+  }
+}
+
+function clearPushSyncFailures() {
+  try {
+    localStorage.removeItem(PUSH_HEALTH_FAIL_KEY);
+  } catch {
+    // best effort
+  }
 }
