@@ -19,7 +19,6 @@ import type {
 } from '@/features/documents/types';
 import { fmtBytes, fmtDate } from '@/features/documents/utils';
 import { loadImageElement, buildPdfFromJpeg, convertImageFileToPdf } from '@/features/documents/fileProcessing';
-import { requestUserDecision } from '@/features/interactions/userPromptChannel';
 
 
 // ── Establishment Input (local suggestions — sem API externa) ──────────────
@@ -152,7 +151,6 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
   const [viewerZoom, setViewerZoom] = useState(1);
   const [viewerDocIndex, setViewerDocIndex] = useState<number>(-1);
   const [viewerEditOpen, setViewerEditOpen] = useState(false);
-  const [viewerDeleteOpen, setViewerDeleteOpen] = useState(false);
   const [viewerChromeVisible, setViewerChromeVisible] = useState(true);
   // docId → blob URL; lifecycle managed by evictDistantCache + closeViewer
   const viewerBlobCache = useRef<Map<string, string>>(new Map());
@@ -348,7 +346,6 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
     setViewerLoading(false);
     setViewerZoom(1);
     setViewerEditOpen(false);
-    setViewerDeleteOpen(false);
   };
 
   // Add-link state
@@ -752,26 +749,6 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
     }
   };
 
-  const handleDeleteAll = async () => {
-    const accepted = await requestUserDecision(`Excluir TODOS os ${docs.length} documentos? Esta ação não pode ser desfeita.`, {
-      title: 'Excluir todos os documentos',
-      tone: 'danger',
-      confirmLabel: 'Excluir tudo',
-    });
-    if (!accepted) return;
-    const token = getToken();
-    if (!token) return;
-    const res = await fetch(`${API_BASE_URL}/pets/${petId}/documents`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setDocs([]);
-      showVaultToast(`${data.deleted} documento(s) removido(s).`);
-    }
-  };
-
   // ── View ──────────────────────────────────────────────────────────────
 
   const handleView = async (doc: PetDocument) => {
@@ -1076,7 +1053,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
               )}
             </div>
 
-            {/* Col 3 — Actions (download / edit / delete) or placeholder */}
+            {/* Col 3 — Safe actions only. Delete stays out of the document preview. */}
             {viewerUrl ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {/* Download */}
@@ -1114,21 +1091,6 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
                   title="Editar"
                 >
                   ✏️
-                </button>
-                {/* Delete */}
-                <button
-                  onClick={() => setViewerDeleteOpen(true)}
-                  style={{
-                    width: 44, height: 44, borderRadius: 14, flexShrink: 0,
-                    background: 'rgba(220,38,38,0.22)', border: 'none',
-                    color: '#fca5a5', fontSize: 16,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
-                  } as React.CSSProperties}
-                  aria-label="Excluir documento"
-                  title="Excluir"
-                >
-                  🗑️
                 </button>
               </div>
             ) : (
@@ -1185,53 +1147,6 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
               </div>
             </>
           )}
-
-          {/* ── Delete confirmation sheet ── */}
-          {viewerDeleteOpen && (() => {
-            const doc = navigableDocs[viewerDocIndex];
-            return (
-              <>
-                <div onClick={() => setViewerDeleteOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.5)', animation: 'vaultFadeIn 0.2s ease' }} />
-                <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 51, background: '#fff', borderRadius: '24px 24px 0 0', boxShadow: '0 -2px 24px rgba(0,0,0,0.14)', paddingBottom: 'env(safe-area-inset-bottom)', display: 'flex', flexDirection: 'column', animation: 'vaultSlideUp 0.24s cubic-bezier(0.32,0.72,0,1)' }}>
-                  {/* Handle */}
-                  <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 8 }}>
-                    <div style={{ width: 40, height: 4, borderRadius: 4, background: '#dedede' }} />
-                  </div>
-                  {/* Body */}
-                  <div style={{ padding: '16px 24px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ width: 56, height: 56, borderRadius: 18, background: '#fff0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, marginBottom: 2 }}>🗑️</div>
-                    <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#111', letterSpacing: -0.3 }}>Excluir documento?</p>
-                    <p style={{ margin: 0, fontSize: 14, color: '#666', lineHeight: 1.6 }}>
-                      <strong style={{ color: '#333' }}>&ldquo;{doc?.title || 'Documento'}&rdquo;</strong> será removido permanentemente. Esta ação não pode ser desfeita.
-                    </p>
-                  </div>
-                  {/* Footer */}
-                  <div style={{ display: 'flex', gap: 10, padding: '14px 20px', borderTop: '1px solid #f0f0f0' }}>
-                    <button onClick={() => setViewerDeleteOpen(false)} style={{ flex: 1, height: 52, borderRadius: 16, background: '#f2f2f2', border: 'none', fontSize: 15, fontWeight: 600, color: '#666', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}>Cancelar</button>
-                    <button
-                      onClick={async () => {
-                        const docId = navigableDocs[viewerDocIndex]?.id;
-                        if (!docId) return;
-                        const token = getToken();
-                        if (!token) return;
-                        const res = await fetch(
-                          `${API_BASE_URL}/pets/${petId}/documents/${docId}`,
-                          { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
-                        );
-                        if (res.ok || res.status === 204) {
-                          setDocs((prev) => prev.filter((d) => d.id !== docId));
-                          closeViewer();
-                        }
-                      }}
-                      style={{ flex: 1, height: 52, borderRadius: 16, background: '#dc2626', border: 'none', fontSize: 15, fontWeight: 700, color: '#fff', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
-                    >
-                      Excluir
-                    </button>
-                  </div>
-                </div>
-              </>
-            );
-          })()}
 
           {/* ── Content area ── */}
           <div style={{ position: 'absolute', inset: 0, backgroundColor: '#000', overflow: 'hidden' }}>
@@ -1818,14 +1733,6 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
         <span style={{ fontSize: 11, fontWeight: 700, color: '#c0c0c8', letterSpacing: 0.6, textTransform: 'uppercase' }}>
           {searchFiltered.length} {searchFiltered.length !== 1 ? 'Documentos' : 'Documento'}
         </span>
-        {docs.length > 0 && (
-          <button
-            onClick={handleDeleteAll}
-            style={{ fontSize: 12, fontWeight: 500, color: '#f87171', background: 'none', border: 'none', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', padding: '4px 0' } as React.CSSProperties}
-          >
-            Excluir tudo
-          </button>
-        )}
       </div>
 
       {loading && (
