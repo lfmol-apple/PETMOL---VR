@@ -30,7 +30,11 @@ function fmtDate(s?: string | null): string {
 
 function fmtRelativeDays(diff: number | null): string {
   if (diff === null) return '';
-  if (diff < 0) return `atrasado há ${Math.abs(diff)} dia${Math.abs(diff) !== 1 ? 's' : ''}`;
+  if (diff < 0) {
+    const days = Math.abs(diff);
+    if (days > 90) return 'revisão recomendada';
+    return `atrasado há ${days} dia${days !== 1 ? 's' : ''}`;
+  }
   if (diff === 0) return 'hoje';
   if (diff === 1) return 'amanhã';
   return `em ${diff} dias`;
@@ -333,7 +337,7 @@ export function VaccineItemSheet({
                       <span className={`flex-1 text-[14px] font-bold ${chip.disabled ? 'text-gray-400' : chip.isOther ? 'text-gray-500' : 'text-slate-800'}`}>
                         {isSaved ? 'Registrado!' : isSaving ? 'Registrando...' : chip.label}
                       </span>
-                      {chip.disabled && <span className="text-[10px] font-semibold text-gray-400">Receita</span>}
+                      {chip.disabled && <span className="text-[10px] font-semibold text-gray-400">Prescrição veterinária</span>}
                       {!chip.disabled && !isSaved && !isSaving && <span className="text-gray-300 text-lg">›</span>}
                     </button>
                   );
