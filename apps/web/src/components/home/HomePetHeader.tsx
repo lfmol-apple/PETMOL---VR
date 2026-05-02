@@ -1,7 +1,6 @@
 'use client';
 import { useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { PetTabs } from '@/components/PetTabs';
 
 import { useI18n } from '@/lib/I18nContext';
 import { HomeAttentionOverlays } from '@/components/home/HomeAttentionOverlays';
@@ -59,7 +58,6 @@ export function HomePetHeader({
 }: HomePetHeaderProps) {
   const { t } = useI18n();
   const nameButtonRef = useRef<HTMLButtonElement>(null);
-  const activePetChipRef = useRef<HTMLButtonElement | null>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
 
   const [mounted, setMounted] = useState(false);
@@ -74,15 +72,7 @@ export function HomePetHeader({
     }
   }, [showPetSelector]);
 
-  useEffect(() => {
-    activePetChipRef.current?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'nearest',
-      inline: 'nearest',
-    });
-  }, [selectedPetId]);
-
-  // Dropdown de Seleção de Pets via Portal (escapa overflow-hidden do PetTabs)
+  // Dropdown de Seleção de Pets via Portal
   const renderSelector = () => {
     if (!mounted || !showPetSelector || !dropdownPos) return null;
     
@@ -164,66 +154,6 @@ export function HomePetHeader({
 
   return (
     <>    <div className="px-4 pt-4 space-y-3">
-      {pets.length > 1 && (
-        <div className="-mx-1 h-[66px] overflow-hidden">
-          <div
-            className="flex h-[62px] flex-nowrap items-start gap-2 overflow-x-auto overflow-y-hidden px-1 pb-1 scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            data-no-swipe="true"
-          >
-            {pets.map((pet) => {
-              const active = pet.pet_id === selectedPetId;
-              const petPhotoUrl = getPhotoUrl(pet.photo, pet.pet_id, photoTimestamps);
-              return (
-                <button
-                  key={pet.pet_id}
-                  ref={active ? activePetChipRef : undefined}
-                  type="button"
-                  onClick={() => setSelectedPetId(pet.pet_id)}
-                  className={`flex h-14 w-[132px] flex-shrink-0 items-center gap-2 rounded-2xl border px-2.5 py-2 transition-all active:scale-[0.98] ${
-                    active
-                      ? 'scale-[1.02] border-blue-200 bg-blue-50 text-blue-800 shadow-md shadow-blue-500/15'
-                      : 'border-slate-200 bg-white/85 text-slate-600 shadow-sm hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
-                  }`}
-                  aria-pressed={active}
-                >
-                  <span
-                    className={`flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border-2 ${
-                      active ? 'border-blue-500 bg-blue-100' : 'border-white bg-slate-100'
-                    }`}
-                  >
-                    {petPhotoUrl ? (
-                      <img
-                        src={petPhotoUrl}
-                        alt=""
-                        className="h-full w-full object-cover"
-                        draggable={false}
-                      />
-                    ) : (
-                      <span className="text-xl">
-                        {pet.species === 'dog' ? '🐕' : pet.species === 'cat' ? '🐱' : '🐾'}
-                      </span>
-                    )}
-                  </span>
-                  <span className="max-w-[86px] truncate pr-1 text-sm font-black">
-                    {pet.pet_name}
-                  </span>
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={onOpenAddPetModal}
-              aria-label="Adicionar pet"
-              className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-white/85 text-blue-700 shadow-sm transition-all hover:bg-blue-50 active:scale-[0.98]"
-            >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Container da Foto + Navegação Estilo Apple */}
       <div 
         className="relative group rounded-[28px] overflow-hidden shadow-xl shadow-blue-500/10 border border-white/50 ring-1 ring-black/5 bg-gradient-to-br from-blue-400 to-purple-500 h-44 sm:h-56"
