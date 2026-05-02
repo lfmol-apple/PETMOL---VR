@@ -124,6 +124,8 @@ export function MedicationItemSheet({
   const [expandedTreatmentId, setExpandedTreatmentId] = useState<string | null>(null);
   const [actionDate, setActionDate] = useState(localTodayISO());
   const [actionNotes, setActionNotes] = useState('');
+  const [confirmingDoseId, setConfirmingDoseId] = useState<string | null>(null);
+  const [confirmingEarlier, setConfirmingEarlier] = useState(false);
 
   useEffect(() => {
     void onRefresh();
@@ -509,14 +511,65 @@ export function MedicationItemSheet({
                     <p className="mt-1 text-lg font-black text-gray-900 break-words">{nextActive.title}</p>
                     <p className="mt-0.5 text-sm text-purple-800/70">Registre a dose para manter o tratamento em dia.</p>
                   </div>
-                  <button
-                    type="button"
-                    disabled={saving && applyingId === nextActive.id}
-                    onClick={() => handleApplyDose(nextActive.id, 'apply', localTodayISO())}
-                    className="w-full py-4 rounded-2xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-[15px] font-bold shadow-md shadow-purple-500/20 disabled:opacity-50 transition-colors"
-                  >
-                    {saving && applyingId === nextActive.id ? 'Registrando...' : 'Registrar dose'}
-                  </button>
+                  {confirmingDoseId === nextActive.id ? (
+                    <div className="space-y-2">
+                      <p className="text-[13px] font-semibold text-purple-900 text-center">
+                        Você deu a dose de <span className="font-black">{nextActive.title}</span>?
+                      </p>
+                      {confirmingEarlier && (
+                        <input
+                          type="date"
+                          className="w-full border border-purple-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+                          value={actionDate}
+                          max={localTodayISO()}
+                          onChange={e => setActionDate(e.target.value)}
+                        />
+                      )}
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => { handleApplyDose(nextActive.id, 'apply', confirmingEarlier ? actionDate : localTodayISO()); setConfirmingDoseId(null); setConfirmingEarlier(false); }}
+                          className="py-3 rounded-xl bg-purple-600 text-white text-[13px] font-bold disabled:opacity-50"
+                        >
+                          {confirmingEarlier ? 'Registrar' : 'Sim, agora'}
+                        </button>
+                        {!confirmingEarlier ? (
+                          <button
+                            type="button"
+                            onClick={() => { setConfirmingEarlier(true); setActionDate(localTodayISO()); }}
+                            className="py-3 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 text-[13px] font-semibold"
+                          >
+                            Foi mais cedo
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmingEarlier(false)}
+                            className="py-3 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 text-[13px] font-semibold"
+                          >
+                            Voltar
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setConfirmingDoseId(null); setConfirmingEarlier(false); }}
+                        className="w-full text-center text-[12px] text-gray-400 py-1"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={saving && applyingId === nextActive.id}
+                      onClick={() => setConfirmingDoseId(nextActive.id)}
+                      className="w-full py-4 rounded-2xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-[15px] font-bold shadow-md shadow-purple-500/20 disabled:opacity-50 transition-colors"
+                    >
+                      {saving && applyingId === nextActive.id ? 'Registrando...' : 'Registrar dose'}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <button
@@ -589,7 +642,7 @@ export function MedicationItemSheet({
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
                               appliedDates.includes(todayStr) ? 'bg-green-100 text-green-700' : 'bg-purple-200 text-purple-700'
                             }`}>
-                              {appliedDates.length}/{totalDays}
+                              Dia {appliedDates.length} de {totalDays}
                             </span>
                           )}
                           <span className="text-gray-300 text-xs ml-1">{isOpen ? '▲' : '▼'}</span>
@@ -601,7 +654,10 @@ export function MedicationItemSheet({
                             <div className="h-1.5 bg-purple-200 rounded-full overflow-hidden">
                               <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                             </div>
-                            <p className="text-[10px] text-gray-400 mt-0.5">{pct}% concluído</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              Dia {appliedDates.length} de {totalDays}
+                              {totalDays > appliedDates.length ? ` · Faltam ${totalDays - appliedDates.length} dias` : ' · Concluído'}
+                            </p>
                           </div>
                         )}
 
