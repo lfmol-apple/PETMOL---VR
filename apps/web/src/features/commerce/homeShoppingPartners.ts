@@ -16,7 +16,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   {
     id: 'cobasi',
     name: 'Cobasi',
-    description: 'Tudo para o seu pet',
+    description: 'Compare preço e entrega para ração e cuidados',
     logoSrc: '/partner-logos/cobasi.png',
     logoAlt: 'Cobasi',
     fallbackUrl: 'https://www.cobasi.com.br',
@@ -24,7 +24,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   {
     id: 'petz',
     name: 'Petz',
-    description: 'Pet shop completo',
+    description: 'Compare preço e entrega para produtos pet',
     logoSrc: '/partner-logos/petz.png',
     logoAlt: 'Petz',
     fallbackUrl: 'https://www.petz.com.br',
@@ -32,7 +32,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   {
     id: 'amazon',
     name: 'Amazon',
-    description: 'Racao, brinquedos e mais',
+    description: 'Compare preço e entrega em pet shop online',
     logoSrc: '/partner-logos/amazon.svg',
     logoAlt: 'Amazon',
     fallbackUrl: 'https://www.amazon.com.br/s?k=pet+shop',
@@ -40,7 +40,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   {
     id: 'petlove',
     name: 'Petlove',
-    description: 'Farmacia, racao e acessorios',
+    description: 'Compare preço e entrega em saúde e ração',
     logoSrc: '/partner-logos/petlove.png',
     logoAlt: 'Petlove',
     fallbackUrl: 'https://www.petlove.com.br',
@@ -48,7 +48,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   {
     id: 'doglife',
     name: 'DogLife',
-    description: 'Planos e produtos pet',
+    description: 'Compare preço e entrega em planos e produtos pet',
     logoSrc: '/partner-logos/doglife.svg',
     logoAlt: 'DogLife',
     fallbackUrl: 'https://www.doglife.com.br',

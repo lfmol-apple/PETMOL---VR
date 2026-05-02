@@ -52,7 +52,7 @@ function AlertBadge({ tone = 'critical' }: { tone?: ControlTone }) {
 
   return (
     <span className="absolute right-2 bottom-2 z-10 rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700 shadow-sm ring-2 ring-white/80">
-      Agora
+      Atenção
     </span>
   );
 }
@@ -183,8 +183,8 @@ export function AppleControlButtons({
               <span className="pointer-events-none text-lg">🚨</span>
             </div>
             <div className="min-w-0 flex-1 text-left">
-              <h3 className="truncate text-[14px] sm:text-base font-bold leading-tight text-red-800">Socorro Agora</h3>
-              <p className="mt-0.5 text-[10px] sm:text-xs font-semibold leading-[1.15] text-red-600/80">Clínicas e hospitais veterinários próximos</p>
+              <h3 className="truncate text-[14px] sm:text-base font-bold leading-tight text-red-800">Emergência veterinária</h3>
+              <p className="mt-0.5 text-[10px] sm:text-xs font-semibold leading-[1.15] text-red-600/80">Encontre atendimento aberto ou ligue agora</p>
             </div>
             <span className="text-lg text-red-300 transition-transform group-hover:translate-x-1">›</span>
           </button>
@@ -228,7 +228,7 @@ export function AppleControlButtons({
                 </div>
                 <div className="flex-1">
                   <p className="font-black text-white text-[15px]">Clínicas abertas agora</p>
-                  <p className="text-[11px] text-red-100 mt-0.5">Consultas e urgências próximas</p>
+                  <p className="text-[11px] text-red-100 mt-0.5">Atendimento urgente próximo de você</p>
                 </div>
                 <span className="text-white/60 text-lg">›</span>
               </a>
@@ -244,7 +244,7 @@ export function AppleControlButtons({
                 </div>
                 <div className="flex-1">
                   <p className="font-bold text-red-900 text-[14px]">Hospitais veterinários 24h</p>
-                  <p className="text-[11px] text-red-600/70 mt-0.5">Internação e cirurgia</p>
+                  <p className="text-[11px] text-red-600/70 mt-0.5">Internação e atendimento emergencial</p>
                 </div>
                 <span className="text-red-300 text-lg">›</span>
               </a>

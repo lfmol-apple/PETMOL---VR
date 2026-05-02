@@ -15,11 +15,11 @@ const ALERT_ICONS: Record<string, string> = {
 };
 
 function badgeText(alert: PetInteractionItem): string {
-  if (alert.status === 'today') return 'hoje';
+  if (alert.status === 'today') return 'HOJE';
   if (alert.days_overdue != null && alert.days_overdue > 0) {
-    return `atrasado há ${alert.days_overdue} dia${alert.days_overdue === 1 ? '' : 's'}`;
+    return `ATRASADO ${alert.days_overdue} dia${alert.days_overdue === 1 ? '' : 's'}`;
   }
-  return 'Atenção';
+  return 'EM BREVE';
 }
 
 interface OverdueAlertsGridProps {
@@ -67,7 +67,9 @@ export function OverdueAlertsGrid({ alerts, petName, onAlertClick, onClose }: Ov
                 <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
                   isToday
                     ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                    : 'bg-rose-100 text-rose-800 border border-rose-200'
+                    : alert.days_overdue != null && alert.days_overdue > 0
+                      ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                      : 'bg-amber-100 text-amber-800 border border-amber-200'
                 }`}>
                   {badge}
                 </span>

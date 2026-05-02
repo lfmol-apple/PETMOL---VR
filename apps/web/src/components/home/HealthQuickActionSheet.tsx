@@ -63,17 +63,17 @@ export function HealthQuickActionSheet({
 
   const statusLabel =
     item.status === 'today'
-      ? 'Para hoje'
+      ? 'HOJE'
       : item.days_overdue != null && item.days_overdue > 0
-        ? `Atrasado há ${item.days_overdue} dia${item.days_overdue !== 1 ? 's' : ''}`
-        : 'Atenção';
+        ? `ATRASADO ${item.days_overdue} dia${item.days_overdue !== 1 ? 's' : ''}`
+        : 'EM BREVE';
 
   const statusCls =
     item.status === 'today'
       ? 'bg-amber-100 text-amber-800 border-amber-200'
       : item.days_overdue != null && item.days_overdue > 0
         ? 'bg-rose-100 text-rose-800 border-rose-200'
-        : 'bg-gray-100 text-gray-700 border-gray-200';
+        : 'bg-amber-100 text-amber-800 border-amber-200';
 
   // Finds the active medication event matching source_record_id or falls back to first active
   const findMedicationEvent = (): PetEventRecord | null => {

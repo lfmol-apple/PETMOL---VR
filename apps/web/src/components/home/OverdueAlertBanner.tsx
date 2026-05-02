@@ -73,7 +73,7 @@ export function OverdueAlertBanner({
               {/* Content */}
               <div className="flex-1 min-w-0">
                 <p className="text-[15px] font-black text-white tracking-tight leading-tight">
-                  <span className="text-white">{current.pet_id}</span> precisa de atenção {current.status === 'today' ? 'hoje' : ''} em <span className="text-blue-400">{current.label}</span>
+                  <span className="text-white">{current.pet_name}</span> precisa revisar <span className="text-blue-400">{current.label}</span>{current.status === 'today' ? ' hoje' : ''}
                 </p>
                 
                 {overdueReminders.length > 1 && (
@@ -87,7 +87,7 @@ export function OverdueAlertBanner({
                     onClick={handleResolve}
                     className="text-red-500 text-[13px] font-black uppercase tracking-[0.2em] flex items-center gap-1.5 active:scale-95 transition-all group"
                   >
-                    Ver {overdueReminders.length}
+                    Ver cuidados
                     <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                   </button>
                   
@@ -95,7 +95,7 @@ export function OverdueAlertBanner({
                     onClick={() => setIsDismissed(true)}
                     className="text-slate-600 text-[11px] font-black uppercase tracking-widest hover:text-slate-400 transition-colors ml-auto"
                   >
-                    Ignorar
+                    Fechar
                   </button>
                 </div>
               </div>

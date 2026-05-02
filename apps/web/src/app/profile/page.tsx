@@ -572,7 +572,7 @@ export default function ProfilePage() {
                       <div>
                         <p className="text-sm font-bold text-slate-800 tracking-tight">Notificações no celular</p>
                         <p className="mt-1 text-xs text-slate-500 font-medium leading-relaxed">
-                          Vacinas, medicação e cuidados chegam mesmo com o app fechado.
+                          Receba lembretes discretos para vacinas, medicação e cuidados do pet.
                         </p>
                       </div>
                       <PreferenceSwitch

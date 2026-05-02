@@ -68,8 +68,12 @@ export function HomeAttentionOverlays({
                             {alert.pet_name} <span className="text-gray-400">·</span>{' '}
                             <span className="font-medium text-gray-700">{alert.type_label}</span>
                           </p>
-                          <p className={`text-xs font-bold mt-0.5 ${alert.status === 'today' ? 'text-amber-700' : 'text-rose-600'}`}>
-                            {alert.status === 'today' ? 'hoje' : `atrasado há ${alert.days_overdue || 0} dia${(alert.days_overdue || 0) === 1 ? '' : 's'}`}
+                          <p className={`text-xs font-bold mt-0.5 ${alert.status === 'today' ? 'text-amber-700' : alert.days_overdue != null && alert.days_overdue > 0 ? 'text-rose-600' : 'text-amber-700'}`}>
+                            {alert.status === 'today'
+                              ? 'HOJE'
+                              : alert.days_overdue != null && alert.days_overdue > 0
+                                ? `ATRASADO ${alert.days_overdue} dia${alert.days_overdue === 1 ? '' : 's'}`
+                                : 'EM BREVE'}
                           </p>
                         </div>
                         <span className="text-gray-300 text-sm">›</span>

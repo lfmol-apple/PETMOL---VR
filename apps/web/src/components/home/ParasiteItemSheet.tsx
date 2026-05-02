@@ -100,11 +100,11 @@ function hasLaterParasiteRecord(records: ParasiteControl[], record: ParasiteCont
 function computeStatus(nextDate?: string | null) {
   const diff = diffDays(nextDate);
   if (diff === null) return { label: 'Sem dados', bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400' };
-  if (diff < 0)      return { label: `Precisa de atenção · atrasado há ${Math.abs(diff)} dia${Math.abs(diff) !== 1 ? 's' : ''}`, bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500' };
-  if (diff === 0)    return { label: 'Está na hora de cuidar', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
-  if (diff <= 7)     return { label: `em ${diff} dia${diff !== 1 ? 's' : ''}`, bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
-  if (diff <= 14)    return { label: `em ${diff} dias`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' };
-  return { label: `em ${diff} dias`, bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' };
+  if (diff < 0)      return { label: `ATRASADO ${Math.abs(diff)} dia${Math.abs(diff) !== 1 ? 's' : ''}`, bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500' };
+  if (diff === 0)    return { label: 'HOJE', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
+  if (diff <= 7)     return { label: 'EM BREVE', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
+  if (diff <= 14)    return { label: `Em ${diff} dias`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' };
+  return { label: `Em ${diff} dias`, bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' };
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────

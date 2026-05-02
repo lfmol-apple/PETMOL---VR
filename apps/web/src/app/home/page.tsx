@@ -1488,7 +1488,7 @@ export default function HomePage() {
                             </h2>
                             <p className="mt-0.5 text-[12px] font-medium leading-snug text-slate-600">
                               {hasAttention
-                                ? `${attentionAlerts.length} ${attentionAlerts.length === 1 ? 'pendência para revisar' : 'pendências para revisar'}`
+                                ? `${attentionAlerts.length} ${attentionAlerts.length === 1 ? 'cuidado para revisar' : 'cuidados para revisar'}`
                                 : 'Veja o que vem pela frente'}
                             </p>
                           </div>
@@ -1503,7 +1503,7 @@ export default function HomePage() {
                                   : 'bg-white/80 text-blue-700 hover:bg-blue-50'
                             }`}
                           >
-                            {hasAttention ? 'Ver pendências' : 'Ver próximos'}
+                            {hasAttention ? 'Ver cuidados' : 'Ver próximos'}
                           </button>
                         </div>
                       </section>
