@@ -608,18 +608,16 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
   return (
     <ModalPortal>
       <div ref={overlayRef}
-        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
         onClick={(e) => { if (e.target === overlayRef.current) handleClose(); }}
       >
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={handleClose} />
 
         <div
-          className="relative w-full max-w-md bg-white rounded-t-[32px] sm:rounded-[28px] shadow-2xl border-t border-x sm:border border-gray-200/60 flex flex-col overflow-hidden animate-slideUp sm:animate-scaleIn touch-manipulation"
-          style={{ maxHeight: '92dvh' }}
+          className="relative w-full max-w-md bg-white rounded-[28px] shadow-2xl border border-gray-200/60 flex flex-col overflow-hidden animate-scaleIn touch-manipulation"
+          style={{ maxHeight: 'min(92dvh, 760px)' }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="sheet-handle my-3 opacity-40 sm:hidden" />
-
           {/* ═══════════════════════════════════════════════════════════════
               EDIT / REPLACE MODE
           ═══════════════════════════════════════════════════════════════ */}
@@ -860,19 +858,32 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
                           {/* Feedback banner */}
                           <FeedbackBanner />
 
-                          {/* 3. CTA principal — ação dominante */}
+                          {/* 3. Ações principais */}
+                          <div className="rounded-3xl border border-blue-100 bg-blue-50/70 p-3 space-y-2">
+                            <button type="button"
+                              onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
+                              className="w-full py-4 min-h-[52px] rounded-2xl bg-blue-600 text-white text-[16px] font-black shadow-lg shadow-blue-500/25 hover:bg-blue-700 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                            >
+                              <span className="text-xl">✏️</span>
+                              Editar plano de alimentação
+                            </button>
+                            <p className="px-1 text-[12px] leading-snug text-blue-900/70">
+                              Ajuste ração, pacote, consumo e alerta. Este é o controle que mantém a previsão confiável.
+                            </p>
+                          </div>
+
                           <button type="button"
                             onClick={() => {
                               trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
                               setMode('buy');
                             }}
-                            className="w-full py-5 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.97] transition-all text-white text-[17px] font-black shadow-xl shadow-amber-500/30 flex items-center justify-center gap-3"
+                            className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.97] transition-all text-white text-[16px] font-black shadow-lg shadow-amber-500/25 flex items-center justify-center gap-3"
                           >
-                            <span className="text-2xl">🛒</span>
+                            <span className="text-xl">🛒</span>
                             Comprar novamente
                           </button>
 
-                          {/* 4. Ações secundárias — peso reduzido */}
+                          {/* 4. Ajustes rápidos */}
                           <div className="grid grid-cols-2 gap-2">
                             <button type="button"
                               onClick={() => { setSubMode('adjustDuration'); setShowDatePicker(false); setFeedback(null); }}
@@ -926,15 +937,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
                             </div>
                           )}
 
-                          {/* 6. Rodapé administrativo */}
-                          <div className="pt-1 pb-1">
-                            <button type="button"
-                              onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
-                              className="w-full py-3 min-h-[44px] rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-500 hover:bg-gray-50 active:scale-95 transition-all"
-                            >
-                              Editar plano
-                            </button>
-                          </div>
                         </>
                       )}
 

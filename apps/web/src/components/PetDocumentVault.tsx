@@ -743,6 +743,9 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
       });
       if (res.ok || res.status === 204) {
         setDocs((prev) => prev.filter((d) => d.id !== docId));
+        if (viewerOpen && navigableDocs[viewerDocIndex]?.id === docId) {
+          closeViewer();
+        }
       }
     } finally {
       setCardDeleteDocId(null);
@@ -941,6 +944,18 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>🏥 Estabelecimento</label>
                 <EstablishmentInput value={editingDoc.establishment} onChange={(v) => setEditingDoc((p) => p ? { ...p, establishment: v } : p)} historyNames={(docs.map((d) => d.establishment_name).filter((v, i, a) => !!v && a.indexOf(v) === i) as string[])} className="" placeholder="Ex: Clínica VetCenter" />
               </div>
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 16 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCardDeleteDocId(editingDoc.id);
+                    setViewerEditOpen(false);
+                  }}
+                  style={{ width: '100%', height: 46, borderRadius: 14, border: '1px solid #fecaca', background: '#fff7f7', color: '#b91c1c', fontSize: 14, fontWeight: 700, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
+                >
+                  Excluir documento
+                </button>
+              </div>
             </div>
             {/* Footer */}
             <div style={{ flexShrink: 0, display: 'flex', gap: 10, padding: '14px 20px', borderTop: '1px solid #f0f0f0' }}>
@@ -1135,6 +1150,18 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
                   <div>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>🏥 Estabelecimento</label>
                     <EstablishmentInput value={editingDoc.establishment} onChange={(v) => setEditingDoc((p) => p ? { ...p, establishment: v } : p)} historyNames={(docs.map((d) => d.establishment_name).filter((v, i, a) => !!v && a.indexOf(v) === i) as string[])} className="" placeholder="Ex: Clínica VetCenter" />
+                  </div>
+                  <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 16 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCardDeleteDocId(editingDoc.id);
+                        setViewerEditOpen(false);
+                      }}
+                      style={{ width: '100%', height: 46, borderRadius: 14, border: '1px solid #fecaca', background: '#fff7f7', color: '#b91c1c', fontSize: 14, fontWeight: 700, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
+                    >
+                      Excluir documento
+                    </button>
                   </div>
                 </div>
                 {/* Footer */}
@@ -1824,7 +1851,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
                       </p>
                     </div>
 
-                    {/* Subtle action buttons */}
+                    {/* Edit is the only inline document action; delete lives inside edit. */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0 }}>
                       <button
                         onClick={(e) => { e.stopPropagation(); startEdit(doc); setViewerEditOpen(true); }}
@@ -1832,13 +1859,6 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
                         aria-label="Editar"
                       >
                         ✏️
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setCardDeleteDocId(doc.id); }}
-                        style={{ width: 36, height: 36, borderRadius: 10, background: 'none', border: 'none', fontSize: 15, color: '#d1d5db', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
-                        aria-label="Excluir"
-                      >
-                        🗑️
                       </button>
                     </div>
                   </div>
