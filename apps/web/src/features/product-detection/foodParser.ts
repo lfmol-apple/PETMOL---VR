@@ -357,9 +357,31 @@ export function extractFoodFields(rawInput: string | StructuredFoodInput): FoodF
     ],
   });
 
-  const brandMatch = input.brand?.trim()
-    ? { brand: normalizeWhitespace(input.brand), mode: 'exact' as const }
-    : fuzzyMatchBrandDetails(sanitized);
+  // Scan ONLY the raw OCR blobs for brand detection — do NOT include input.brand,
+  // input.reason or input.productName since those are AI-generated and may contain
+  // the wrong brand name (e.g. "Hill's" or "Premier"), causing self-confirmation.
+  // visibleText is safe: it is built on the backend as a join of raw_text_blobs.
+  const pureOcrText = normalizeWhitespace(
+    [
+      ...(input.rawTextBlobs ?? []),
+      input.visibleText,
+    ]
+      .filter((s): s is string => Boolean(s?.trim()))
+      .map(applyOcr)
+      .join(' '),
+  );
+  const ocrBrandMatch = pureOcrText ? fuzzyMatchBrandDetails(pureOcrText) : undefined;
+  const brandMatch = (() => {
+    if (!input.brand?.trim()) return ocrBrandMatch ?? fuzzyMatchBrandDetails(sanitized);
+    if (ocrBrandMatch?.mode === 'exact') {
+      const aiBrandNorm = norm(input.brand);
+      const ocrBrandNorm = norm(ocrBrandMatch.brand);
+      if (!ocrBrandNorm.includes(aiBrandNorm) && !aiBrandNorm.includes(ocrBrandNorm)) {
+        return ocrBrandMatch; // OCR brand overrides AI hallucination
+      }
+    }
+    return { brand: normalizeWhitespace(input.brand), mode: 'exact' as const };
+  })();
   const brand = brandMatch?.brand;
   const productName = compactParts([input.productName, input.probableName])[0];
   const line = input.line?.trim()
@@ -484,7 +506,8 @@ export function buildPartialFoodName(
     };
   const extracted = extractFoodFields(structuredInput);
   const normalizedWeight = normalizeFoodWeight(structuredInput.weight) ?? buildStructuredWeight(structuredInput.weightValue, structuredInput.weightUnit) ?? extracted.weight;
-  const resolvedBrand = structuredInput.brand?.trim() || extracted.brand;
+  // Prefer OCR-extracted brand (which applies conflict detection) over raw AI input
+  const resolvedBrand = extracted.brand || structuredInput.brand?.trim();
   const resolvedProductName = structuredInput.productName?.trim() || structuredInput.probableName?.trim() || extracted.productName;
   const resolvedSpecies = structuredInput.species?.trim() || extracted.species;
   const resolvedLifeStage = structuredInput.lifeStage?.trim() || extracted.lifeStage;

@@ -304,8 +304,14 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
 
   const brand = normalizeText(payload.brand)?.toLowerCase();
   const candidateBrand = normalizeText(candidate.brand)?.toLowerCase();
-  if (brand && candidateBrand && (candidateBrand.includes(brand) || brand.includes(candidateBrand))) {
-    score += 0.28;
+  if (brand && candidateBrand) {
+    if (candidateBrand.includes(brand) || brand.includes(candidateBrand)) {
+      score += 0.28;
+    } else {
+      // Different known brands — strong penalty to prevent cross-brand contamination
+      // (e.g. "Hill's Science Diet Puppy" scoring high in a "royal canin" search)
+      score -= 0.5;
+    }
   }
 
   const species = normalizeSpeciesToken(payload.species);
@@ -402,7 +408,7 @@ export async function resolvePhotoProductCandidate(
   if (!hasUsefulVisionPayload(payload)) return null;
 
   const category = normalizeCategory(payload.category, options?.hint);
-  const brand = normalizeText(payload.brand);
+  let brand = normalizeText(payload.brand);
   const productName = normalizeText(payload.product_name);
   const probableName = normalizeText(payload.probable_name);
   const visibleText = normalizeText(payload.visible_text);
@@ -425,6 +431,10 @@ export async function resolvePhotoProductCandidate(
     if (!parsed) return null;
     fuzzyBrand = parsed.brandMatchMode === 'fuzzy';
     weight = weight ?? parsed.weight;
+    // If parser's OCR found a different known brand than what AI reported, override.
+    if (parsed.brand && parsed.brand !== brand) {
+      brand = parsed.brand;
+    }
 
     // Guard: if the AI's product_name / full name contradicts what the scan actually shows,
     // strip the conflicting part so we build a name from the real scan evidence only.
@@ -480,9 +490,11 @@ export async function resolvePhotoProductCandidate(
       name = buildPartialFoodName(structuredFoodInput) ?? name;
     }
 
-    const queries = buildFoodSearchQueries(safeInput);
+    const correctedSafeInput = brand !== normalizeText(payload.brand) ? { ...safeInput, brand } : safeInput;
+    const queries = buildFoodSearchQueries(correctedSafeInput);
     if (queries.length > 0) {
-      const catalogMatch = await searchInternalCatalogCandidate(payload, category, queries, parsed.dominantTerms);
+      const catalogPayload = brand !== normalizeText(payload.brand) ? { ...payload, brand } : payload;
+      const catalogMatch = await searchInternalCatalogCandidate(catalogPayload, category, queries, parsed.dominantTerms);
       if (catalogMatch) {
         const hasStrongCompatibility = !hasStrongDominantTerms(parsed.dominantTerms) || catalogMatch.strongTermMatches.length > 0;
         const isTherapeutic = parsed.dominantTerms.functionalTerms.length > 0;

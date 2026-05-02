@@ -156,6 +156,38 @@ class VisionService:
                 return numeric, unit
         return None, None
 
+    _KNOWN_BRANDS_ORDERED = [
+        "hill's science diet", "hills science diet", "hill's",
+        "royal canin",
+        "pro plan", "purina pro plan",
+        "premier pet", "premier",
+        "farmina n&d", "farmina",
+        "golden special", "golden",
+        "guabi natural", "guabi",
+        "formula natural",
+        "quatree", "special dog", "special cat",
+        "pedigree", "whiskas", "friskies",
+        "purina", "eukanuba", "iams",
+        "orijen", "acana",
+        "biofresh", "naturalys", "magnus",
+        "taste of the wild", "blue buffalo", "wellness",
+    ]
+
+    @staticmethod
+    def _ocr_brand_override(ai_brand: Optional[str], blobs: List[str]) -> Optional[str]:
+        """Return OCR-detected brand if blobs contain a known brand that differs from ai_brand."""
+        if not blobs:
+            return ai_brand
+        blob_text = " ".join(blobs).lower()
+        for known in VisionService._KNOWN_BRANDS_ORDERED:
+            if known in blob_text:
+                ai_norm = (ai_brand or "").lower()
+                if known not in ai_norm and ai_norm not in known:
+                    logger.info("[OCR Brand Override] AI said %r but OCR blobs have %r — using OCR brand", ai_brand, known)
+                    return known
+                break
+        return ai_brand
+
     @staticmethod
     def _normalize_text_blobs(value: Any) -> List[str]:
         if value is None:
@@ -287,7 +319,7 @@ Regras:
 4. Para ração, `product_name` deve refletir apenas o nome principal visível do produto; `line`, `variant`, `flavor`, `species`, `life_stage` e peso devem ir separados.
 5. A categoria deve ser uma destas: food, medication, antiparasite, dewormer, collar, hygiene, other.
 6. Extraia o peso separadamente em `weight_value` e `weight_unit`.
-7. `raw_text_blobs` deve ser uma lista de blocos curtos de texto visível relevantes, em qualquer ordem.
+7. `raw_text_blobs` deve listar LITERALMENTE todos os blocos de texto legíveis na embalagem — em especial o nome da marca EXATAMENTE como impresso no rótulo. NUNCA omita texto visível por achar que é redundante com `brand` ou `product_name`. O objetivo é registrar o que está ESCRITO na embalagem, não o que você interpreta. Se você lê "ROYAL CANIN" na embalagem, "ROYAL CANIN" DEVE aparecer em raw_text_blobs, mesmo que você tenha colocado outra marca em `brand`.
 8. Se a categoria esperada estiver informada, use isso para priorizar candidatos e evitar cair em other.
 9. Para medication: retorne nome comercial OU princípio ativo + concentração se legível.
 10. Só retorne found=false e todos os campos relevantes null/vazios quando a imagem estiver realmente ilegível ou sem embalagem.
@@ -365,6 +397,7 @@ Se a imagem for realmente ilegível:
             if visible_text and visible_text not in raw_text_blobs:
                 raw_text_blobs.append(visible_text)
             raw_text_blobs = raw_text_blobs[:12]
+            brand = self._ocr_brand_override(brand, raw_text_blobs)
 
             species = self._normalize_species(result.get("species"))
             life_stage = self._normalize_life_stage(result.get("life_stage"))

@@ -565,7 +565,7 @@ export function ProductDetectionSheetGold({
       const assistedConfirmation = shouldOpenAssistedConfirmation(payload);
       const detectedWeight = getDetectedWeight(payload);
       const rawTextBlobs = (payload.raw_text_blobs ?? []).filter((value): value is string => Boolean(value?.trim()));
-      const fallbackTerms = extractFoodFields({
+      const fallbackFields = extractFoodFields({
         brand: payload.brand,
         productName: payload.product_name,
         probableName: payload.probable_name,
@@ -581,7 +581,10 @@ export function ProductDetectionSheetGold({
         visibleText: payload.visible_text,
         reason: payload.reason,
         rawTextBlobs,
-      }).dominantTerms;
+      });
+      const fallbackTerms = fallbackFields.dominantTerms;
+      // OCR-corrected brand: extractFoodFields already applies override when OCR conflicts with AI
+      const resolvedBrand = fallbackFields.brand || payload.brand?.trim();
 
       if (!resolved) {
         if (!hasUsefulProductPartial(payload)) {
@@ -605,7 +608,7 @@ export function ProductDetectionSheetGold({
           reason: payload.reason,
           rawTextBlobs,
         }) || [
-          payload.brand?.trim(),
+          resolvedBrand,
           payload.product_name?.trim(),
           payload.line?.trim(),
           payload.variant?.trim(),
@@ -623,9 +626,9 @@ export function ProductDetectionSheetGold({
           product: {
             barcode: barcodeFromPhoto ?? '',
             name: partialName,
-            brand: payload.brand?.trim() || undefined,
+            brand: resolvedBrand || undefined,
             weight: detectedWeight,
-            manufacturer: payload.manufacturer?.trim() || payload.brand?.trim() || undefined,
+            manufacturer: payload.manufacturer?.trim() || resolvedBrand || undefined,
             presentation: payload.presentation?.trim() || detectedWeight || undefined,
             category: fallbackCategory,
             found: true,
@@ -641,7 +644,7 @@ export function ProductDetectionSheetGold({
           species: payload.species?.trim() || undefined,
           lifeStage: payload.life_stage?.trim() || undefined,
           detectedWeight,
-          detectedBrand: payload.brand?.trim() || undefined,
+          detectedBrand: resolvedBrand || undefined,
           assistedConfirmation: assistedConfirmation || fallbackTerms.strongTerms.length > 0,
           strongTerms: fallbackTerms.strongTerms,
           mediumTerms: fallbackTerms.mediumTerms,
@@ -672,7 +675,7 @@ export function ProductDetectionSheetGold({
         species: payload.species?.trim() || undefined,
         lifeStage: payload.life_stage?.trim() || undefined,
         detectedWeight: detectedWeight ?? resolved.product.weight,
-        detectedBrand: payload.brand?.trim() || resolved.product.brand,
+        detectedBrand: resolved.product.brand || payload.brand?.trim(),
         assistedConfirmation: assistedConfirmation || resolved.assistedConfirmation,
         strongTerms: resolved.dominantTerms?.strongTerms,
         mediumTerms: resolved.dominantTerms?.mediumTerms,
@@ -751,7 +754,7 @@ export function ProductDetectionSheetGold({
       });
 
       const structuredFields: StructuredFoodFields = {
-        marca: payload.brand?.trim() || parsedFood.brand,
+        marca: parsedFood.brand || payload.brand?.trim(),
         linha: payload.line?.trim() || parsedFood.line || payload.product_name?.trim() || parsedFood.productName,
         especie: normalizeFoodSpecies(payload.species?.trim() || parsedFood.species),
         fase: normalizeFoodLifeStage(payload.life_stage?.trim() || parsedFood.lifeStage),
@@ -1313,14 +1316,8 @@ export function ProductDetectionSheetGold({
     setScannerError(null);
     setStep('photo-processing');
 
-    // Usar pipeline específico para ração, genérico para outros
-    let identifiedFromPhoto: PhotoIdentifyOutcome;
-    if (hint === 'food') {
-      const foodOutcome = await identifyFoodByPackageImage(file);
-      identifiedFromPhoto = foodOutcome;
-    } else {
-      identifiedFromPhoto = await identifyProductFromPhoto(file, undefined);
-    }
+    // Pipeline único para todos os tipos (consistência com versão estável)
+    const identifiedFromPhoto = await identifyProductFromPhoto(file, undefined);
     if (identifiedFromPhoto.product) {
       const photoProduct = identifiedFromPhoto.product;
       // Verificar se há correção prévia para o nome sugerido pela IA
