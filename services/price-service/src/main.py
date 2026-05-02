@@ -320,8 +320,16 @@ def start_push_scheduler():
         scheduler.add_job(send_medication_pushes, "interval", minutes=1, id="medication_pushes")
         # Lembretes de cuidado baseados no cadastro do tutor (vacina/parasita/grooming)
         scheduler.add_job(send_care_pushes, "interval", minutes=1, id="care_pushes")
-        # Camadas 1/2 (ração): prioridade crítica quando acabou e urgente quando está acabando
-        scheduler.add_job(send_food_reminder_pushes, "interval", minutes=1, id="food_reminder_pushes")
+        # Camadas 1/2 (ração): cron 11:00 BRT garante disparo mesmo após restart
+        scheduler.add_job(
+            send_food_reminder_pushes,
+            "cron",
+            hour=11,
+            minute=0,
+            timezone="America/Sao_Paulo",
+            id="food_reminder_pushes",
+            misfire_grace_time=300,
+        )
         scheduler.start()
         logger = __import__("logging").getLogger(__name__)
         logger.info("[PETMOL] Push scheduler iniciado (verifica a cada minuto)")

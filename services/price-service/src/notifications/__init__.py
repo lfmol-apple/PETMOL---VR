@@ -983,11 +983,6 @@ def send_food_reminder_pushes() -> None:
 
     brt = _tz(_td(hours=-3))
     now = datetime.now(brt)
-
-    # Only fire at 11:00 BRT
-    if now.hour != 11 or now.minute != 0:
-        return
-
     today = now.date()
 
     subscriptions = _load_subscriptions()
@@ -1003,8 +998,8 @@ def send_food_reminder_pushes() -> None:
             plans = db.query(FeedingPlan).filter(
                 FeedingPlan.next_reminder_date <= today,
                 FeedingPlan.enabled.is_(True),
-                FeedingPlan.no_consumption_control.is_(False),
                 FeedingPlan.deleted_at.is_(None),
+                FeedingPlan.estimated_end_date.isnot(None),
             ).all()
 
             expired_ids: list[str] = []
