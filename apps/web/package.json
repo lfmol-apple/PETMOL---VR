@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "predev": "node -e \"const fs=require('fs');const p='.next/build-manifest.json';try{if(fs.existsSync(p))JSON.parse(fs.readFileSync(p,'utf8'));}catch{console.log('[predev] Cache corrompido — limpando .next');fs.rmSync('.next',{recursive:true,force:true});}\"",
     "dev": "next dev",
     "dev:clean": "rm -rf .next && next dev",
     "build": "next build",

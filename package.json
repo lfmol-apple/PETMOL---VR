@@ -10,6 +10,7 @@
     "mobile": "cd apps/mobile && npm start",
     "mobile:ios": "cd apps/mobile && npm run ios",
     "mobile:android": "cd apps/mobile && npm run android",
+    "dev": "npm run api & cd apps/web && npm run dev",
     "web": "cd apps/web && npm run dev",
     "web:build": "cd apps/web && npm run build",
     "web:start": "cd apps/web && npm run start",
