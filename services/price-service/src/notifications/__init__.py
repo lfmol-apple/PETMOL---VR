@@ -353,16 +353,16 @@ def _has_active_blocker(
     min_priority: int,
     pet_id: Optional[str] = None,
 ) -> bool:
-    """Return True when there is an active pendency at/above min_priority.
-
-    If pet_id is provided, matches pet-specific rows and also user-wide rows (pet_id is null).
-    """
+    """Return True when there is a non-expired active pendency at/above min_priority."""
+    from datetime import timezone as _tz
     from .pendencies import NotificationPendency
 
+    _now = datetime.now(_tz.utc)
     query = db.query(NotificationPendency).filter(
         NotificationPendency.user_id == str(user_id),
         NotificationPendency.status == "active",
         NotificationPendency.priority >= int(min_priority),
+        (NotificationPendency.expires_at.is_(None)) | (NotificationPendency.expires_at > _now),
     )
     if pet_id is not None:
         query = query.filter(
@@ -379,12 +379,15 @@ def _has_active_type(
     type_prefix: str,
     pet_id: Optional[str] = None,
 ) -> bool:
+    from datetime import timezone as _tz
     from .pendencies import NotificationPendency
 
+    _now = datetime.now(_tz.utc)
     query = db.query(NotificationPendency).filter(
         NotificationPendency.user_id == str(user_id),
         NotificationPendency.status == "active",
         NotificationPendency.type.like(f"{type_prefix}%"),
+        (NotificationPendency.expires_at.is_(None)) | (NotificationPendency.expires_at > _now),
     )
     if pet_id is not None:
         query = query.filter(NotificationPendency.pet_id == str(pet_id))
@@ -829,9 +832,14 @@ def send_care_pushes() -> None:
                         audit.add_skip(SkipReason.BEFORE_START_DATE, f"vaccine:{record.id}:start={start_date}")
                         continue
                     if today > due:
-                        audit.add_skip(SkipReason.AFTER_DUE_DATE, f"vaccine:{record.id}:due={due}")
-                        continue
-                    cycle_key = f"start-{start_date.isoformat()}" if today < due else f"due-{due.isoformat()}"
+                        overdue_days = (today - due).days
+                        if overdue_days > 90:
+                            audit.add_skip(SkipReason.AFTER_DUE_DATE, f"vaccine:{record.id}:due={due}:overdue={overdue_days}d")
+                            continue
+                        iso_week = today.isocalendar()[1]
+                        cycle_key = f"overdue-{due.isoformat()}-w{iso_week}"
+                    else:
+                        cycle_key = f"start-{start_date.isoformat()}" if today < due else f"due-{due.isoformat()}"
                     scheduled_items.append(
                         _build_care_payload(
                             pet_name=pet.name,
@@ -880,14 +888,22 @@ def send_care_pushes() -> None:
                         if not time_ok:
                             audit.add_skip(SkipReason.TIME_WINDOW_CLOSED, f"dewormer:{control.id}:time={reminder_time}")
                             continue
-                        if today not in {trigger_minus_two, due}:
+                        if today > due:
+                            overdue_days = (today - due).days
+                            if overdue_days > 90:
+                                audit.add_skip(SkipReason.AFTER_DUE_DATE, f"dewormer:{control.id}:due={due}:overdue={overdue_days}d")
+                                continue
+                            iso_week = today.isocalendar()[1]
+                            cycle_key = f"overdue-{due.isoformat()}-w{iso_week}"
+                        elif today not in {trigger_minus_two, due}:
                             audit.add_skip(SkipReason.SPECIAL_CASE_LOGIC, f"dewormer:{control.id}:today={today}:d-2={trigger_minus_two}:due={due}")
                             continue
-                        cycle_key = (
-                            f"d-2-{due.isoformat()}"
-                            if today == trigger_minus_two
-                            else f"due-{due.isoformat()}"
-                        )
+                        else:
+                            cycle_key = (
+                                f"d-2-{due.isoformat()}"
+                                if today == trigger_minus_two
+                                else f"due-{due.isoformat()}"
+                            )
                     else:
                         if not time_ok:
                             audit.add_skip(SkipReason.TIME_WINDOW_CLOSED, f"{key}:{control.id}:time={reminder_time}")
@@ -896,9 +912,14 @@ def send_care_pushes() -> None:
                             audit.add_skip(SkipReason.BEFORE_START_DATE, f"{key}:{control.id}:start={start_date}")
                             continue
                         if today > due:
-                            audit.add_skip(SkipReason.AFTER_DUE_DATE, f"{key}:{control.id}:due={due}")
-                            continue
-                        cycle_key = f"start-{start_date.isoformat()}" if today < due else f"due-{due.isoformat()}"
+                            overdue_days = (today - due).days
+                            if overdue_days > 90:
+                                audit.add_skip(SkipReason.AFTER_DUE_DATE, f"{key}:{control.id}:due={due}:overdue={overdue_days}d")
+                                continue
+                            iso_week = today.isocalendar()[1]
+                            cycle_key = f"overdue-{due.isoformat()}-w{iso_week}"
+                        else:
+                            cycle_key = f"start-{start_date.isoformat()}" if today < due else f"due-{due.isoformat()}"
                     label = parasite_labels.get(key) or control.product_name or "Antiparasitário"
                     scheduled_items.append(
                         _build_care_payload(
@@ -947,9 +968,14 @@ def send_care_pushes() -> None:
                         audit.add_skip(SkipReason.BEFORE_START_DATE, f"grooming:{key}:{record.id}:start={start_date}")
                         continue
                     if today > due:
-                        audit.add_skip(SkipReason.AFTER_DUE_DATE, f"grooming:{key}:{record.id}:due={due}")
-                        continue
-                    cycle_key = f"start-{start_date.isoformat()}" if today < due else f"due-{due.isoformat()}"
+                        overdue_days = (today - due).days
+                        if overdue_days > 90:
+                            audit.add_skip(SkipReason.AFTER_DUE_DATE, f"grooming:{key}:{record.id}:due={due}:overdue={overdue_days}d")
+                            continue
+                        iso_week = today.isocalendar()[1]
+                        cycle_key = f"overdue-{due.isoformat()}-w{iso_week}"
+                    else:
+                        cycle_key = f"start-{start_date.isoformat()}" if today < due else f"due-{due.isoformat()}"
                     label = grooming_labels.get(key, "Higiene")
                     scheduled_items.append(
                         _build_care_payload(
