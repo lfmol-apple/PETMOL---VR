@@ -117,6 +117,12 @@ export function Header() {
                   <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white/20 text-sm">👤</span>
                   <span className="truncate max-w-[120px] font-bold">{userLabel}</span>
                 </Link>
+                <button
+                  onClick={handleLogout}
+                  className="inline-flex items-center h-10 px-2.5 rounded-xl bg-white text-slate-500 border border-slate-200 text-[11px] font-semibold hover:bg-slate-50 hover:text-slate-700 transition-all active:scale-95"
+                >
+                  Sair
+                </button>
               </div>
             ) : (
               !isLandingPage && (
