@@ -32,13 +32,17 @@ class FakeQuery:
     def all(self):
         return list(self._rows)
 
+    def first(self):
+        return self._rows[0] if self._rows else None
+
 
 class FakeSession:
     def __init__(self, mapping):
         self._mapping = mapping
 
     def query(self, model):
-        return FakeQuery(self._mapping.get(model.__name__, []))
+        name = model.__name__ if isinstance(model, type) else model.class_.__name__
+        return FakeQuery(self._mapping.get(name, []))
 
     def close(self):
         return None
@@ -73,7 +77,7 @@ def test_send_care_pushes_uses_vaccine_tutor_time_and_advance(monkeypatch):
     send_care_pushes()
 
     assert len(sent_payloads) == 1
-    assert sent_payloads[0]["tag"] == "petmol-care-vaccine-pet-1-DOG_RABIES-2026-04-17"
+    assert sent_payloads[0]["tag"] == "petmol-care-vaccine-vac-1-start-2026-04-17"
 
 
 def test_send_care_pushes_uses_parasite_reminder_time(monkeypatch):
@@ -106,7 +110,7 @@ def test_send_care_pushes_uses_parasite_reminder_time(monkeypatch):
     send_care_pushes()
 
     assert len(sent_payloads) == 1
-    assert sent_payloads[0]["tag"] == "petmol-care-parasite-pet-1-dewormer-2026-04-17"
+    assert sent_payloads[0]["tag"] == "petmol-care-dewormer-par-1-due-2026-04-17"
 
 
 def test_send_care_pushes_uses_grooming_scheduled_time(monkeypatch):
@@ -139,4 +143,4 @@ def test_send_care_pushes_uses_grooming_scheduled_time(monkeypatch):
     send_care_pushes()
 
     assert len(sent_payloads) == 1
-    assert sent_payloads[0]["tag"] == "petmol-care-grooming-pet-1-bath-2026-04-17"
+    assert sent_payloads[0]["tag"] == "petmol-care-grooming-bath-gro-1-start-2026-04-17"

@@ -416,7 +416,7 @@ def _has_dismissed_prefix(
 
 def _pendency_exists(db, pend_id: str) -> bool:
     from .pendencies import NotificationPendency
-    return db.query(NotificationPendency.id).filter(NotificationPendency.id == str(pend_id)).first() is not None
+    return db.query(NotificationPendency).filter(NotificationPendency.id == str(pend_id)).first() is not None
 
 
 def _matches_any_preferred_time(
