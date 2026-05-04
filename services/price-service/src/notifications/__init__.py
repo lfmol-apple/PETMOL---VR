@@ -1089,6 +1089,9 @@ def send_food_reminder_pushes() -> None:
     Frequency guard: food push only in key cycle windows (D-1, D, D+1).
     """
     from datetime import timezone as _tz, timedelta as _td
+    from .audit_logging import create_audit_log, ReminderType, SkipReason
+
+    audit = create_audit_log(ReminderType.FOOD, "send_food_reminder_pushes")
 
     brt = _tz(_td(hours=-3))
     now = datetime.now(brt)
@@ -1096,7 +1099,11 @@ def send_food_reminder_pushes() -> None:
 
     subscriptions = _load_subscriptions()
     if not subscriptions:
+        audit.add_skip(SkipReason.NO_SUBSCRIPTIONS)
+        audit.log_summary()
         return
+
+    audit.total_users = len(subscriptions)
 
     try:
         db = SessionLocal()
@@ -1111,19 +1118,25 @@ def send_food_reminder_pushes() -> None:
                 FeedingPlan.estimated_end_date.isnot(None),
             ).all()
 
+            audit.total_records = len(plans)
+            audit.eligible_users = len({str(p.pet_id) for p in plans})
+
             expired_ids: list[str] = []
 
             for plan in plans:
                 # Persistent dedup: skip if already pushed today
                 if plan.last_food_push_date == today:
+                    audit.add_skip(SkipReason.DEDUP_ACTIVE, f"plan={plan.id}:already_today")
                     continue
 
                 pet = db.query(Pet).filter(Pet.id == plan.pet_id).first()
                 if not pet:
+                    audit.add_skip(SkipReason.UNKNOWN, f"plan={plan.id}:pet_not_found")
                     continue
 
                 sub = subscriptions.get(str(pet.user_id))
                 if not sub:
+                    audit.add_skip(SkipReason.NOT_SUBSCRIBED, f"pet={pet.id}")
                     continue
 
                 days_left = (
@@ -1134,6 +1147,8 @@ def send_food_reminder_pushes() -> None:
                 # Smart cadence: avoid noisy daily pushes without a concrete moment.
                 # Keep only D-1, D and D+1.
                 if days_left not in {1, 0, -1}:
+                    reason = SkipReason.BEFORE_START_DATE if days_left > 1 else SkipReason.AFTER_DUE_DATE
+                    audit.add_skip(reason, f"plan={plan.id}:days_left={days_left}")
                     continue
                 priority = 80 if days_left <= 0 else 60
                 if priority < 75 and _has_active_blocker(
@@ -1142,7 +1157,10 @@ def send_food_reminder_pushes() -> None:
                     pet_id=pet.id,
                     min_priority=75,
                 ):
+                    audit.add_skip(SkipReason.DEDUP_ACTIVE, f"plan={plan.id}:blocker_active")
                     continue
+
+                audit.eligible_records += 1
                 brand = plan.food_brand or "Ração"
                 pend_id = (
                     f"petmol-food-{plan.pet_id}-"
@@ -1196,7 +1214,9 @@ def send_food_reminder_pushes() -> None:
                 ok = _send_push(sub, payload)
                 if not ok:
                     expired_ids.append(str(pet.user_id))
+                    audit.add_error(f"push_failed:plan={plan.id}:user={pet.user_id}")
                 else:
+                    audit.add_sent(str(pet.user_id), str(pet.id), str(plan.id), {"days_left": days_left, "priority": priority})
                     # Persist dedup date so restart cannot double-send today
                     plan.last_food_push_date = today
                     try:
@@ -1228,9 +1248,13 @@ def send_food_reminder_pushes() -> None:
                     subscriptions.pop(uid, None)
                 _save_subscriptions(subscriptions)
 
+            audit.log_summary()
+
         finally:
             db.close()
     except Exception as e:
+        audit.add_error(str(e))
+        audit.log_summary()
         logger.error(f"send_food_reminder_pushes erro: {e}")
 
 
