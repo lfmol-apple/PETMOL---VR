@@ -16,7 +16,7 @@ import src.notifications as notifications  # noqa: E402
 class FrozenDateTime(datetime):
     @classmethod
     def now(cls, tz=None):
-        base = cls(2026, 4, 17, 8, 0, tzinfo=timezone.utc)
+        base = cls(2026, 4, 17, 12, 0, tzinfo=timezone.utc)  # 09:00 BRT — outside quiet hours
         return base.astimezone(tz) if tz is not None else base
 
 
@@ -29,6 +29,12 @@ class FakeQuery:
 
     def all(self):
         return list(self._events)
+
+    def first(self):
+        return self._events[0] if self._events else None
+
+    def count(self):
+        return len(self._events)
 
 
 class FakeSession:
@@ -52,7 +58,7 @@ def test_send_medication_pushes_sends_due_active_treatment(monkeypatch):
         status="active",
         next_due_date=None,
         scheduled_at=datetime(2026, 4, 17, 0, 0, tzinfo=timezone.utc),
-        extra_data='{"reminder_time":"05:00","reminder_times":["05:00"],"treatment_days":7,"applied_dates":[],"skipped_dates":[]}',
+        extra_data='{"reminder_time":"09:00","reminder_times":["09:00"],"treatment_days":7,"applied_dates":[],"skipped_dates":[]}',
     )
 
     monkeypatch.setattr(notifications, "datetime", FrozenDateTime)
@@ -73,7 +79,7 @@ def test_send_medication_pushes_sends_due_active_treatment(monkeypatch):
     assert len(sent_payloads) == 1
     _subscription, payload = sent_payloads[0]
     assert payload["title"] == "💊 Antibiótico"
-    assert payload["body"] == "Hora de aplicar (05:00)"
+    assert payload["body"] == "Hora de aplicar (09:00)"
     assert payload["data"]["url"].startswith("/home?modal=medication&petId=pet-1&eventId=event-1")
 
 
@@ -87,7 +93,7 @@ def test_send_medication_pushes_skips_completed_treatment(monkeypatch):
         status="completed",
         next_due_date=None,
         scheduled_at=datetime(2026, 4, 17, 0, 0, tzinfo=timezone.utc),
-        extra_data='{"reminder_time":"05:00","reminder_times":["05:00"],"treatment_days":7,"applied_dates":[],"skipped_dates":[]}',
+        extra_data='{"reminder_time":"09:00","reminder_times":["09:00"],"treatment_days":7,"applied_dates":[],"skipped_dates":[]}',
     )
 
     class FilteringQuery(FakeQuery):

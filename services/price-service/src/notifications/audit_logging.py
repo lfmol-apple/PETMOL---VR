@@ -58,6 +58,7 @@ class SkipReason(Enum):
     TREATMENT_COMPLETE = "treatment_complete"
     DAY_ALREADY_CLOSED = "day_already_closed"
     SLOT_ALREADY_CLOSED = "slot_already_closed"
+    WEEKLY_CAP_REACHED = "weekly_cap_reached"
     SPECIAL_CASE_LOGIC = "special_case_logic"
     PARSING_ERROR = "parsing_error"
     DATABASE_ERROR = "database_error"

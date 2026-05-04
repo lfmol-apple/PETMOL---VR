@@ -259,11 +259,6 @@ def _parasite_modal_for_type(type_key: str) -> str:
     return "vermifugo"
 
 
-def send_checkin_pushes() -> None:
-    """Deprecated in 4-layer model: monthly review is handled by send_monthly_docs_reminder."""
-    return
-
-
 def _parse_hhmm(value: str) -> Optional[Tuple[int, int]]:
     try:
         if value is None:
@@ -431,8 +426,47 @@ def _matches_any_preferred_time(
     return _matches_reminder_time(now, default_time, default_time)
 
 
+WEEKLY_PUSH_CAP = 14  # max scheduled pushes per user per ISO week
+
+
+def _is_quiet_hours() -> bool:
+    """Return True during 22:00–08:00 BRT — no scheduled pushes should fire in this window."""
+    from datetime import timezone as _tz
+    brt = _tz(timedelta(hours=-3))
+    hour = datetime.now(brt).hour
+    return hour >= 22 or hour < 8
+
+
+def _weekly_push_count(db, user_id: str) -> int:
+    """Count pendencies created for user in the current ISO week (BRT)."""
+    from .pendencies import NotificationPendency
+    from datetime import timezone as _tz
+    brt = _tz(timedelta(hours=-3))
+    now = datetime.now(brt)
+    week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    return db.query(NotificationPendency).filter(
+        NotificationPendency.user_id == str(user_id),
+        NotificationPendency.created_at >= week_start,
+    ).count()
+
+
+def _is_commercial_blocked(db, user_id: str) -> bool:
+    """Return True if user is within the 28-day commercial-free onboarding window."""
+    from ..user_auth.models import User as _User
+    user = db.query(_User).filter(_User.id == str(user_id)).first()
+    if not user or not getattr(user, "created_at", None):
+        return False
+    from datetime import timezone as _tz
+    brt = _tz(timedelta(hours=-3))
+    age_days = (datetime.now(brt) - user.created_at.astimezone(brt)).days
+    return age_days < 28
+
+
 def send_medication_pushes() -> None:
     """Called every minute by APScheduler. Sends medication reminder pushes by schedule (Brasilia time)."""
+    if _is_quiet_hours():
+        return
+
     from datetime import timezone
     from .audit_logging import create_audit_log, ReminderType, SkipReason
 
@@ -461,7 +495,7 @@ def send_medication_pushes() -> None:
                 db.query(Event)
                 .filter(
                     Event.user_id.in_(user_ids),
-                    Event.type.in_(["medicacao", "medication"]),
+                    Event.type == "medication",
                     Event.status.in_(["active", "pending", "rescheduled"]),
                 )
                 .all()
@@ -623,10 +657,14 @@ def send_medication_pushes() -> None:
 
                         "image": "/brand/notification-banner.png",
                         "tag": f"petmol-med-{event.id}-{today.isoformat()}-{slot}",
-                        "data": {"url": f"/home?modal=medication&petId={event.pet_id}&eventId={event.id}&itemName={item_name_encoded}"},
+                        "data": {"url": f"/home?modal=medication&petId={event.pet_id}&eventId={event.id}&itemName={item_name_encoded}", "tag_category": "medicação"},
                         "requireInteraction": True,
                         "autoCloseMs": 0,
                     }
+
+                    if _weekly_push_count(db, str(event.user_id)) >= WEEKLY_PUSH_CAP:
+                        audit.add_skip(SkipReason.WEEKLY_CAP_REACHED, f"event={event.id}")
+                        continue
 
                     ok = _send_push(sub, payload)
                     if ok:
@@ -665,13 +703,16 @@ def send_medication_pushes() -> None:
 
 
 def send_care_pushes() -> None:
-    """Simple medication-like scheduler for vaccines/parasites/grooming.
+    """Simple medication-like scheduler for vaccines and parasites.
 
     Runs every minute and sends when local time matches each record's configured reminder
     time. Every control behaves as a scheduled reminder with a daily cadence:
     - first fire at (due_date - alert_days_before) on reminder time
     - if still pending after due date, keep firing once/day on same time
     """
+    if _is_quiet_hours():
+        return
+
     from datetime import timezone
     import re as _re_v
     import unicodedata as _ud_v
@@ -760,7 +801,7 @@ def send_care_pushes() -> None:
             "icon": "/icons/icon-192x192.png",
             "badge": "/icons/badge-mono.png",
             "tag": tag,
-            "data": {"url": deep_link},
+            "data": {"url": deep_link, "tag_category": "saúde"},
             "requireInteraction": True,
             "autoCloseMs": 0,
             "_deep_link": deep_link,
@@ -774,7 +815,6 @@ def send_care_pushes() -> None:
             from ..pets.models import Pet
             from ..pets.vaccine_models import VaccineRecord
             from ..pets.parasite_models import ParasiteControlRecord
-            from ..pets.grooming_models import GroomingRecord
 
             pets = db.query(Pet).filter(Pet.user_id.in_(subscription_user_ids)).all()
 
@@ -785,13 +825,6 @@ def send_care_pushes() -> None:
                 "heartworm": "Antiparasitário cardíaco",
                 "leishmaniasis": "Leishmaniose",
             }
-            grooming_labels = {
-                "bath": "Banho",
-                "grooming": "Tosa",
-                "bath_grooming": "Banho e Tosa",
-                "hygiene": "Higiene",
-            }
-
             for pet in pets:
                 sub = subscriptions.get(str(pet.user_id))
                 if not _is_subscription_entry(sub):
@@ -935,68 +968,16 @@ def send_care_pushes() -> None:
                         )
                     )
 
-                groomings = db.query(GroomingRecord).filter(
-                    GroomingRecord.pet_id == pet.id,
-                    GroomingRecord.deleted == False,
-                    GroomingRecord.reminder_enabled == True,
-                ).all()
-                audit.total_records += len(groomings)
-                latest_groomings: dict = {}
-                for record in groomings:
-                    key = (record.type or "").lower().strip()
-                    prev = latest_groomings.get(key)
-                    if not prev or record.date > prev.date:
-                        latest_groomings[key] = record
-                for key, record in latest_groomings.items():
-                    due = _safe_local_date(record.next_recommended_date, brt)
-                    if not due:
-                        logger.info("care_skip pet=%s domain=grooming-%s id=%s reason=no_due_date", pet.id, key, record.id)
-                        audit.add_skip(SkipReason.NO_DUE_DATE, f"grooming:{key}:{record.id}")
-                        continue
-                    alert_days = int(getattr(record, "alert_days_before", None) or getattr(record, "reminder_days_before", None) or 3)
-                    reminder_time = _normalize_time(getattr(record, "scheduled_time", None), "09:00")
-                    start_date = due - timedelta(days=max(0, alert_days))
-                    time_ok = _care_time_reached(now, reminder_time, brt)
-                    logger.info(
-                        "care_eval pet=%s domain=grooming-%s id=%s due=%s start=%s today=%s reminder_time=%s now_hhmm=%02d:%02d time_ok=%s",
-                        pet.id, key, record.id, due, start_date, today, reminder_time, now.hour, now.minute, time_ok,
-                    )
-                    if not time_ok:
-                        audit.add_skip(SkipReason.TIME_WINDOW_CLOSED, f"grooming:{key}:{record.id}:time={reminder_time}")
-                        continue
-                    if today < start_date:
-                        audit.add_skip(SkipReason.BEFORE_START_DATE, f"grooming:{key}:{record.id}:start={start_date}")
-                        continue
-                    if today > due:
-                        overdue_days = (today - due).days
-                        if overdue_days > 90:
-                            audit.add_skip(SkipReason.AFTER_DUE_DATE, f"grooming:{key}:{record.id}:due={due}:overdue={overdue_days}d")
-                            continue
-                        iso_week = today.isocalendar()[1]
-                        cycle_key = f"overdue-{due.isoformat()}-w{iso_week}"
-                    else:
-                        cycle_key = f"start-{start_date.isoformat()}" if today < due else f"due-{due.isoformat()}"
-                    label = grooming_labels.get(key, "Higiene")
-                    scheduled_items.append(
-                        _build_care_payload(
-                            pet_name=pet.name,
-                            pet_id=pet.id,
-                            domain=f"grooming-{key or 'default'}",
-                            record_id=str(record.id),
-                            label=label,
-                            due_date=due,
-                            reminder_time=reminder_time,
-                            deep_link=f"/home?modal=grooming&petId={pet.id}",
-                            cycle_key=cycle_key,
-                        )
-                    )
-
                 logger.info("care_push_tick pet=%s scheduled=%d", pet.id, len(scheduled_items))
                 audit.eligible_records += len(scheduled_items)
                 for payload in scheduled_items:
                     if _pendency_exists(db, payload["tag"]):
                         logger.info("care_dedup_skip tag=%s", payload["tag"])
                         audit.pushes_deduped += 1
+                        continue
+
+                    if _weekly_push_count(db, str(pet.user_id)) >= WEEKLY_PUSH_CAP:
+                        audit.add_skip(SkipReason.WEEKLY_CAP_REACHED, f"tag={payload['tag']}")
                         continue
 
                     _upsert_pend(
@@ -1088,6 +1069,9 @@ def send_food_reminder_pushes() -> None:
     One push per pet per calendar day.
     Frequency guard: food push only in key cycle windows (D-1, D, D+1).
     """
+    if _is_quiet_hours():
+        return
+
     from datetime import timezone as _tz, timedelta as _td
     from .audit_logging import create_audit_log, ReminderType, SkipReason
 
@@ -1201,6 +1185,7 @@ def send_food_reminder_pushes() -> None:
                         "type": "food",
                         "item_name": brand,
                         "action_urls": action_urls,
+                        "tag_category": "estoque/ração",
                     },
                     "actions": [
                         {"action": "buy", "title": "Comprar"},
@@ -1211,6 +1196,11 @@ def send_food_reminder_pushes() -> None:
                     "requireInteraction": True,
                     "autoCloseMs": 0,
                 }
+
+                if _weekly_push_count(db, str(pet.user_id)) >= WEEKLY_PUSH_CAP:
+                    audit.add_skip(SkipReason.WEEKLY_CAP_REACHED, f"plan={plan.id}")
+                    continue
+
                 ok = _send_push(sub, payload)
                 if not ok:
                     expired_ids.append(str(pet.user_id))

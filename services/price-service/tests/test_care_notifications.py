@@ -35,6 +35,9 @@ class FakeQuery:
     def first(self):
         return self._rows[0] if self._rows else None
 
+    def count(self):
+        return len(self._rows)
+
 
 class FakeSession:
     def __init__(self, mapping):
@@ -91,12 +94,12 @@ def test_send_care_pushes_uses_parasite_reminder_time(monkeypatch):
         next_due_date=datetime(2026, 4, 17, 12, 0, tzinfo=timezone.utc),
         alert_days_before=5,
         reminder_days=5,
-        reminder_time="06:45",
+        reminder_time="10:45",
         deleted=False,
     )
     sent_payloads = []
 
-    monkeypatch.setattr(notifications, "datetime", _frozen_datetime(datetime(2026, 4, 17, 9, 45, tzinfo=timezone.utc)))
+    monkeypatch.setattr(notifications, "datetime", _frozen_datetime(datetime(2026, 4, 17, 13, 45, tzinfo=timezone.utc)))
     monkeypatch.setattr(notifications, "_load_subscriptions", lambda: {"user-1": {"endpoint": "https://example.test/push", "p256dh": "k", "auth": "a"}})
     monkeypatch.setattr(notifications, "SessionLocal", lambda: FakeSession({
         "Pet": [pet],
@@ -113,34 +116,3 @@ def test_send_care_pushes_uses_parasite_reminder_time(monkeypatch):
     assert sent_payloads[0]["tag"] == "petmol-care-dewormer-par-1-due-2026-04-17"
 
 
-def test_send_care_pushes_uses_grooming_scheduled_time(monkeypatch):
-    pet = SimpleNamespace(id="pet-1", name="Nina", user_id="user-1")
-    grooming = SimpleNamespace(
-        id="gro-1",
-        pet_id="pet-1",
-        type="bath",
-        date=datetime(2026, 4, 10, 12, 0, tzinfo=timezone.utc),
-        next_recommended_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
-        reminder_enabled=True,
-        alert_days_before=2,
-        reminder_days_before=2,
-        scheduled_time="11:10",
-        deleted=False,
-    )
-    sent_payloads = []
-
-    monkeypatch.setattr(notifications, "datetime", _frozen_datetime(datetime(2026, 4, 17, 14, 10, tzinfo=timezone.utc)))
-    monkeypatch.setattr(notifications, "_load_subscriptions", lambda: {"user-1": {"endpoint": "https://example.test/push", "p256dh": "k", "auth": "a"}})
-    monkeypatch.setattr(notifications, "SessionLocal", lambda: FakeSession({
-        "Pet": [pet],
-        "VaccineRecord": [],
-        "ParasiteControlRecord": [],
-        "GroomingRecord": [grooming],
-    }))
-    monkeypatch.setattr(notifications, "_send_push", lambda subscription, payload: sent_payloads.append(payload) or True)
-    monkeypatch.setattr(notifications, "_upsert_pend", lambda **_kwargs: None)
-
-    send_care_pushes()
-
-    assert len(sent_payloads) == 1
-    assert sent_payloads[0]["tag"] == "petmol-care-grooming-bath-gro-1-start-2026-04-17"
