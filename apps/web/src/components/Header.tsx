@@ -14,7 +14,7 @@ export function Header() {
   const [showLogo, setShowLogo] = useState(false);
   const pathname = usePathname();
 
-  const userLabel = tutor?.name || tutor?.email?.split('@')[0] || null;
+  const userLabel = tutor?.name?.split(' ')[0] || tutor?.email?.split('@')[0] || null;
   const homeHref = userLabel ? '/home' : '/';
   const profileHref = '/profile';
   const helpHref = `https://wa.me/?text=${encodeURIComponent('Olá, preciso de ajuda com o PETMOL.')}`;
@@ -111,29 +111,12 @@ export function Header() {
                 <Link
                   href={profileHref}
                   title="Abrir configurações do perfil"
-                  className="inline-flex items-center gap-2 h-10 px-3 rounded-xl bg-[#0056D2] text-white text-sm font-bold hover:bg-[#0047ad] shadow-md transition-all active:scale-95 max-w-[170px]"
+                  className="inline-flex items-center gap-2 h-10 px-3 rounded-xl bg-[#0056D2] text-white text-sm font-bold hover:bg-[#0047ad] shadow-md transition-all active:scale-95"
                   aria-label="Perfil"
                 >
                   <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white/20 text-sm">👤</span>
-                  <span className="flex min-w-0 flex-col items-start leading-none">
-                    <span className="truncate max-w-[100px]">{userLabel}</span>
-                    <span className="text-[9px] font-black uppercase tracking-[0.18em] text-white/80">{profileCaption}</span>
-                  </span>
+                  <span className="truncate max-w-[120px] font-bold">{userLabel}</span>
                 </Link>
-                <a
-                  href={helpHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center h-10 px-2.5 rounded-xl bg-white text-slate-600 border border-slate-200 text-[11px] font-bold hover:bg-slate-50 transition-all active:scale-95"
-                >
-                  Ajuda
-                </a>
-                <button
-                  onClick={handleLogout}
-                  className="inline-flex items-center h-10 px-2.5 rounded-xl bg-white text-slate-500 border border-slate-200 text-[11px] font-semibold hover:bg-slate-50 hover:text-slate-700 transition-all active:scale-95"
-                >
-                  Sair
-                </button>
               </div>
             ) : (
               !isLandingPage && (
