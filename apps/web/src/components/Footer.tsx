@@ -11,11 +11,11 @@ export function Footer() {
       <div className="flex items-center justify-center gap-2 text-xs text-slate-400 whitespace-nowrap overflow-hidden px-4">
         <span>© 2026 PETMOL</span>
         <span className="text-slate-300">•</span>
-        <Link href="/privacy" className="hover:text-slate-600 transition-colors truncate">
+        <Link href="/legal/privacy" className="hover:text-slate-600 transition-colors truncate">
           {t('footer.privacy')}
         </Link>
         <span className="text-slate-300">•</span>
-        <Link href="/terms" className="hover:text-slate-600 transition-colors truncate">
+        <Link href="/legal/terms" className="hover:text-slate-600 transition-colors truncate">
           {t('footer.terms')}
         </Link>
 

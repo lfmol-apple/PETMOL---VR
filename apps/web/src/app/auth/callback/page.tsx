@@ -7,7 +7,7 @@ export default function AuthCallbackPage() {
   const { t } = useI18n();
 
   useEffect(() => {
-    window.location.href = '/auth/login';
+    window.location.href = '/login';
   }, []);
 
   return (

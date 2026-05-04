@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 // Rotas que NÃO devem mostrar o header/footer global
-const AUTH_ROUTES = ['/login', '/register', '/register-pet', '/check-up', '/auth/login', '/auth/signup'];
+const AUTH_ROUTES = ['/login', '/register', '/register-pet', '/check-up', '/auth/callback'];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
