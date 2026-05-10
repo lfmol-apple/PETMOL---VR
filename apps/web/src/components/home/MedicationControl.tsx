@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { ModalPortal } from '@/components/ModalPortal';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
@@ -247,6 +248,7 @@ export function MedicationControl({ petName, petEvents, onRefreshEvents, onOpenF
 
       {/* Full medication panel */}
       {showPanel && (
+        <ModalPortal>
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4">
           {/* Backdrop */}
           <div
@@ -616,6 +618,7 @@ export function MedicationControl({ petName, petEvents, onRefreshEvents, onOpenF
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </>
   );

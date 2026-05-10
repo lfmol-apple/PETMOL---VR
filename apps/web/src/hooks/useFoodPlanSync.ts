@@ -3,6 +3,8 @@ import { API_BACKEND_BASE } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import type { FeedingPlanEntry, FeedingPlanItemEntry } from '@/lib/types/homeForms';
 
+const __dev = process.env.NODE_ENV !== 'production';
+
 function normalizeFoodItems(raw: unknown): FeedingPlanItemEntry[] {
   if (!Array.isArray(raw)) return [];
   const parsed = raw
@@ -131,7 +133,7 @@ export function useFoodPlanSync({ selectedPetId }: { selectedPetId: string | nul
         
         // Validar que data.plan existe e tem campos
         if (!data.plan || (typeof data.plan === 'object' && Object.keys(data.plan).length === 0)) {
-          console.warn(`[FoodPlanSync] Plano vazio para pet ${petId}, tentativa ${attempt}/${maxRetries}`);
+          __dev && console.warn(`[FoodPlanSync] Plano vazio para pet ${petId}, tentativa ${attempt}/${maxRetries}`);
           // Se é a primeira tentativa, tentar novamente
           if (attempt < maxRetries) {
             await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Backoff exponencial
@@ -152,7 +154,7 @@ export function useFoodPlanSync({ selectedPetId }: { selectedPetId: string | nul
 
         // Validar plano achatado antes de sincronizar
         if (!isValidFeedingPlan(flat)) {
-          console.warn(`[FoodPlanSync] Plano inválido após flattenFeedingPlan para pet ${petId}`);
+          __dev && console.warn(`[FoodPlanSync] Plano inválido após flattenFeedingPlan para pet ${petId}`);
           const fallback = readLocalFoodPlan();
           syncFoodPlan(fallback);
           return;
@@ -187,39 +189,39 @@ export function useFoodPlanSync({ selectedPetId }: { selectedPetId: string | nul
             localStorage.setItem(`petmol_food_control_${petId}`, JSON.stringify(merged));
           }
         } catch (storageError) {
-          console.error(`[FoodPlanSync] Erro ao salvar localStorage para ${petId}:`, storageError);
+          __dev && console.error(`[FoodPlanSync] Erro ao salvar localStorage para ${petId}:`, storageError);
         }
         return;
       }
 
       // Status não 200 OK
       if (res.status === 404) {
-        console.info(`[FoodPlanSync] Plano não encontrado para pet ${petId} (404)`);
+        __dev && console.info(`[FoodPlanSync] Plano não encontrado para pet ${petId} (404)`);
         syncFoodPlan(null);
         return;
       }
 
       // Erro 5xx ou outro erro — tentar novamente
       if (attempt < maxRetries && res.status >= 500) {
-        console.warn(`[FoodPlanSync] Erro ${res.status} para pet ${petId}, tentativa ${attempt}/${maxRetries}`);
+        __dev && console.warn(`[FoodPlanSync] Erro ${res.status} para pet ${petId}, tentativa ${attempt}/${maxRetries}`);
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Backoff exponencial
         return fetchFeedingPlan(petId, attempt + 1);
       }
 
       // Erro final — usar fallback local
-      console.error(`[FoodPlanSync] Erro ${res.status} ao carregar plano para ${petId}`);
+      __dev && console.error(`[FoodPlanSync] Erro ${res.status} ao carregar plano para ${petId}`);
       const fallback = readLocalFoodPlan();
       syncFoodPlan(fallback);
     } catch (e) {
       // Timeout ou erro de rede
       if (e instanceof Error && e.name === 'AbortError') {
-        console.warn(`[FoodPlanSync] Timeout ao carregar plano para pet ${petId}, tentativa ${attempt}/${maxRetries}`);
+        __dev && console.warn(`[FoodPlanSync] Timeout ao carregar plano para pet ${petId}, tentativa ${attempt}/${maxRetries}`);
         if (attempt < maxRetries) {
           await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Backoff exponencial
           return fetchFeedingPlan(petId, attempt + 1);
         }
       } else {
-        console.error(`[FoodPlanSync] Erro ao carregar plano alimentar para ${petId}:`, e);
+        __dev && console.error(`[FoodPlanSync] Erro ao carregar plano alimentar para ${petId}:`, e);
       }
       
       // Usar fallback local em caso de erro

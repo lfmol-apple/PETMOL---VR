@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import { ModalPortal } from '@/components/ModalPortal';
 import { VaccineCardUpload } from '@/components/VaccineCardUpload';
 import { useI18n } from '@/lib/I18nContext';
 import { API_BASE_URL } from '@/lib/api';
@@ -110,7 +111,7 @@ export function VaccineWorkflowModals({
   }
 
   return (
-    <>
+    <ModalPortal>
       {/* Toast */}
       {toast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 rounded-2xl bg-amber-50 border border-amber-200 shadow-lg text-sm font-semibold text-amber-800 max-w-sm w-full flex items-center gap-2">
@@ -374,8 +375,6 @@ export function VaccineWorkflowModals({
             <VaccineCardUpload
               petId={selectedPetId || pets[0]?.pet_id || ''}
               onExtracted={(vaccines) => {
-                console.log('Vacinas extraídas:', vaccines);
-
                 if (vaccines.length > 0) {
                   const firstVaccine = vaccines[0];
 
@@ -405,7 +404,7 @@ export function VaccineWorkflowModals({
                     notes: firstVaccine.notes ? `Extraído por IA. ${firstVaccine.notes}` : 'Extraído por IA - Revisar dados',
                   });
 
-                  if (vaccines.length > 1) {
+                  if (vaccines.length > 1 && process.env.NODE_ENV !== 'production') {
                     console.log('⚠️ Múltiplas vacinas detectadas:', vaccines.length, '- Apenas a primeira será preenchida');
                   }
 
@@ -845,6 +844,6 @@ export function VaccineWorkflowModals({
           </div>
         </div>
       )}
-    </>
+    </ModalPortal>
   );
 }

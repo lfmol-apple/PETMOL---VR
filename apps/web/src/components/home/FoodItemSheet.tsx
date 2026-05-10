@@ -845,7 +845,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
                             <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 flex items-center gap-3">
                               <span className="text-2xl flex-shrink-0">🥣</span>
                               <div className="flex-1 min-w-0">
-                                <p className="text-[15px] font-bold text-gray-900 break-words leading-tight">{foodBrand}</p>
+                                <p className="text-[15px] font-bold text-gray-900 line-clamp-2 break-words leading-tight">{foodBrand}</p>
                                 <p className="text-[12px] text-gray-400">
                                   {[
                                     foodState.packageSizeKg != null
@@ -862,29 +862,54 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
                           <FeedbackBanner />
 
                           {/* 3. Ações principais */}
-                          <div className="rounded-3xl border border-blue-100 bg-blue-50/70 p-3 space-y-2">
-                            <button type="button"
-                              onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
-                              className="w-full py-4 min-h-[52px] rounded-2xl bg-blue-600 text-white text-[16px] font-black shadow-lg shadow-blue-500/25 hover:bg-blue-700 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
-                            >
-                              <span className="text-xl">✏️</span>
-                              Editar plano de alimentação
-                            </button>
-                            <p className="px-1 text-[12px] leading-snug text-blue-900/70">
-                              Ajuste ração, pacote, consumo e alerta. Este é o controle que mantém a previsão confiável.
-                            </p>
-                          </div>
+                          {foodState.daysLeft !== null && foodState.daysLeft <= 5 ? (
+                            <>
+                              <button type="button"
+                                onClick={() => {
+                                  trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
+                                  setMode('buy');
+                                }}
+                                className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.97] transition-all text-white text-[16px] font-black shadow-lg shadow-amber-500/25 flex items-center justify-center gap-3"
+                              >
+                                <span className="text-xl">🛒</span>
+                                Comprar novamente
+                              </button>
 
-                          <button type="button"
-                            onClick={() => {
-                              trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
-                              setMode('buy');
-                            }}
-                            className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.97] transition-all text-white text-[16px] font-black shadow-lg shadow-amber-500/25 flex items-center justify-center gap-3"
-                          >
-                            <span className="text-xl">🛒</span>
-                            Comprar novamente
-                          </button>
+                              <button type="button"
+                                onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
+                                className="w-full py-4 min-h-[52px] rounded-2xl bg-white border border-gray-200 text-[16px] font-bold text-gray-600 hover:bg-gray-50 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                              >
+                                <span className="text-xl">✏️</span>
+                                Editar plano
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <div className="rounded-3xl border border-blue-100 bg-blue-50/70 p-3 space-y-2">
+                                <button type="button"
+                                  onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
+                                  className="w-full py-4 min-h-[52px] rounded-2xl bg-blue-600 text-white text-[16px] font-black shadow-lg shadow-blue-500/25 hover:bg-blue-700 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                                >
+                                  <span className="text-xl">✏️</span>
+                                  Editar plano de alimentação
+                                </button>
+                                <p className="px-1 text-[12px] leading-snug text-blue-900/70">
+                                  Ajuste ração, pacote, consumo e alerta. Este é o controle que mantém a previsão confiável.
+                                </p>
+                              </div>
+
+                              <button type="button"
+                                onClick={() => {
+                                  trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
+                                  setMode('buy');
+                                }}
+                                className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.97] transition-all text-white text-[16px] font-black shadow-lg shadow-amber-500/25 flex items-center justify-center gap-3"
+                              >
+                                <span className="text-xl">🛒</span>
+                                Comprar novamente
+                              </button>
+                            </>
+                          )}
 
                           {/* 4. Ajustes rápidos */}
                           <div className="grid grid-cols-2 gap-2">

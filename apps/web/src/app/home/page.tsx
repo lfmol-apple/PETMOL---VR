@@ -207,11 +207,24 @@ export default function HomePage() {
   const [eventTypeLocked, setEventTypeLocked] = useState(false);
   const [showPetSelector, setShowPetSelector] = useState(false);
 
-  
   const [showTopAttentionModal, setShowTopAttentionModal] = useState(false);
   const [showCheckinPicker, setShowCheckinPicker] = useState(false);
   const [checkinDayDraft, setCheckinDayDraft] = useState<number>(5);
   const [checkinPickerSaving, setCheckinPickerSaving] = useState(false);
+
+  // Fecha modais transitórios antes de abrir outro via push/deep link.
+  // Impede sobreposição de overlay quando uma notificação chega com modal aberto.
+  const closeAllTransientModals = useCallback(() => {
+    setShowHealthModal(false);
+    setShowEmergencySheet(false);
+    setShowVetHistoryModal(false);
+    setShowVetOptionsModal(false);
+    setShowServiceTypeModal(false);
+    setShowHealthOptionsModal(false);
+    setShowEventTypeModal(false);
+    setPushActionSheet(null);
+    setHealthQuickAction(null);
+  }, []);
   const {
     petEvents,
     eventsLoading,
@@ -1107,6 +1120,7 @@ export default function HomePage() {
   const applyFoodPushAction = useCallback(async (petId: string, action: string) => {
     const normalizedAction = action.trim().toLowerCase();
     if (!normalizedAction) return;
+    closeAllTransientModals();
 
     if (normalizedAction === 'buy') {
       trackV1Metric('push_action_buy', { source: 'push_notification', pet_id: petId, action: normalizedAction });
@@ -1196,6 +1210,7 @@ export default function HomePage() {
     const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
     const modal = params.get('modal');
     if (!modal) return;
+    closeAllTransientModals();
 
     const requestedPetId = params.get('petId');
     const resolvedPetId = requestedPetId && pets.some((pet) => pet.pet_id === requestedPetId)
