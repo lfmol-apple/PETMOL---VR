@@ -320,11 +320,11 @@ def start_push_scheduler():
         scheduler.add_job(send_medication_pushes, "interval", minutes=1, id="medication_pushes")
         # Lembretes de cuidado baseados no cadastro do tutor (vacina/parasita/grooming)
         scheduler.add_job(send_care_pushes, "interval", minutes=1, id="care_pushes")
-        # Camadas 1/2 (ração): cron 11:00 BRT garante disparo mesmo após restart
+        # Camadas 1/2 (ração): cron 19:00 BRT — horário de maior engajamento pós-trabalho
         scheduler.add_job(
             send_food_reminder_pushes,
             "cron",
-            hour=11,
+            hour=19,
             minute=0,
             timezone="America/Sao_Paulo",
             id="food_reminder_pushes",

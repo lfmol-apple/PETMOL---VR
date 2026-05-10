@@ -6,6 +6,7 @@ import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { FoodItemSheet } from '@/components/home/FoodItemSheet';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
+import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 import type { PetHealthProfile } from '@/lib/petHealth';
 
 type StepStatus = 'pending' | 'visiting' | 'none' | 'done' | 'skipped';
@@ -116,71 +117,77 @@ export default function CheckupPage() {
   const foodDone = state.food === 'done';
 
   return (
-    <div className="min-h-dvh bg-white flex flex-col">
-      {/* Header */}
-      <div className="w-full max-w-sm mx-auto px-6 pt-14 pb-4 text-center">
-        <p className="text-5xl mb-5">🐾</p>
-        <h1 className="text-2xl font-bold text-gray-900 leading-tight">
-          Vamos cuidar de {petName}
-        </h1>
-        <p className="text-sm text-gray-500 mt-2.5 leading-relaxed">
-          Cadastre a ração e o PETMOL calcula<br />quando vai acabar e te avisa antes.
-        </p>
-      </div>
+    <BrandBackground showLogo={false}>
+      <div className="min-h-[calc(100dvh-40px)] w-full px-4 py-8 flex items-center justify-center">
+        <div className="w-full max-w-md bg-white/95 backdrop-blur-xl rounded-3xl border border-white/60 shadow-xl p-6 overflow-hidden">
 
-      {/* Main content */}
-      <div className="w-full max-w-sm mx-auto px-6 flex-1 flex flex-col gap-3 pt-4">
-        {foodDone ? (
-          <>
-            <div className="rounded-2xl border border-green-200 bg-green-50 px-5 py-6 text-center">
-              <p className="text-4xl mb-3">✅</p>
-              <p className="text-base font-bold text-green-800">Alimentação configurada!</p>
-              <p className="text-sm text-green-600 mt-1.5 leading-snug">
-                O PETMOL já está monitorando.<br />Você vai receber alertas antes de acabar.
-              </p>
-            </div>
+          <div className="flex justify-center mb-5">
+            <PetmolTextLogo className="text-5xl" color="#2563EB" />
+          </div>
 
-            <button
-              onClick={() => goHome(false)}
-              className="w-full py-4 bg-gray-900 text-white text-sm font-semibold rounded-2xl active:scale-[0.98] transition-transform"
-            >
-              Entrar no app →
-            </button>
-          </>
-        ) : (
-          <>
-            {/* Light suggestion - not blocking */}
-            <div className="rounded-2xl bg-blue-50 border-2 border-blue-200 px-5 py-4 text-left">
-              <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">💡 Próximo passo (opcional)</p>
-              <p className="text-base font-bold text-blue-950 mt-1">Cadastre a ração do {petName}</p>
-              <p className="text-sm text-blue-700 mt-1 leading-snug">
-                Assim o PETMOL avisa antes de acabar. Leva menos de 1 minuto.
-              </p>
+          <div className="mb-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-blue-500">Configuração inicial</p>
+            <p className="mt-2 text-2xl font-extrabold text-slate-900 leading-tight">
+              Vamos cuidar de {petName}
+            </p>
+            <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+              Cadastre a ração e o PETMOL calcula quando vai acabar e te avisa antes.
+            </p>
+          </div>
+
+          {foodDone ? (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5 text-center">
+                <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <p className="text-base font-semibold text-slate-900">Alimentação configurada!</p>
+                <p className="text-sm text-slate-500 mt-1.5 leading-snug">
+                  O PETMOL já está monitorando.<br />Você vai receber alertas antes de acabar.
+                </p>
+              </div>
+
               <button
-                onClick={() => { if (pet) setOpenFood(true); }}
-                disabled={!pet}
-                className="w-full mt-3 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold active:scale-[0.98] transition-all disabled:opacity-50"
+                onClick={() => goHome(false)}
+                className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-sm font-bold tracking-wide active:scale-[0.99] transition-transform"
               >
-                Adicionar ração
+                Entrar no app
               </button>
             </div>
+          ) : (
+            <div className="space-y-3">
+              <button
+                onClick={() => goHome(false)}
+                className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-sm font-bold tracking-wide active:scale-[0.99] transition-transform"
+              >
+                Entrar no app
+              </button>
 
-            {/* Primary action - enter home */}
-            <button
-              onClick={() => goHome(false)}
-              className="w-full py-4 bg-gray-900 text-white text-sm font-semibold rounded-2xl active:scale-[0.98] transition-transform"
-            >
-              Entrar no app →
-            </button>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[11px] font-semibold text-blue-500 uppercase tracking-[0.08em] mb-1">Opcional</p>
+                <p className="text-sm font-semibold text-slate-800">Cadastre a ração do {petName}</p>
+                <p className="text-xs text-slate-500 mt-1 leading-snug">
+                  Assim o PETMOL avisa antes de acabar. Leva menos de 1 minuto.
+                </p>
+                <button
+                  onClick={() => { if (pet) setOpenFood(true); }}
+                  disabled={!pet}
+                  className="w-full mt-3 py-2.5 rounded-xl border border-blue-200 bg-white text-blue-700 text-sm font-semibold active:scale-[0.98] transition-all disabled:opacity-50"
+                >
+                  Adicionar ração
+                </button>
+              </div>
 
-            <p className="text-center text-xs text-gray-400 pb-2">
-              Você pode adicionar a ração a qualquer momento na Home.
-            </p>
-          </>
-        )}
+              <p className="text-center text-xs text-slate-400 pb-1">
+                Você pode adicionar a ração a qualquer momento na Home.
+              </p>
+            </div>
+          )}
+
+        </div>
       </div>
-
-      <div className="pb-10" />
 
       {openFood && pet && (
         <FoodItemSheet
@@ -189,6 +196,6 @@ export default function CheckupPage() {
           onSaved={handleFoodSaved}
         />
       )}
-    </div>
+    </BrandBackground>
   );
 }

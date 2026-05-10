@@ -91,8 +91,13 @@ export default function AdminEstablishmentsPage() {
   };
 
   const handleReject = async (id: string) => {
-    const reason = prompt('Motivo da rejeição (opcional):');
-    if (reason === null) return; // Cancelou
+    const accepted = await requestUserConfirmation('Confirmar rejeição deste estabelecimento?', {
+      title: 'Rejeitar estabelecimento',
+      tone: 'danger',
+      confirmLabel: 'Rejeitar',
+      cancelLabel: 'Cancelar',
+    });
+    if (!accepted) return;
 
     try {
       const token = getToken();
@@ -104,7 +109,6 @@ export default function AdminEstablishmentsPage() {
         },
         body: JSON.stringify({
           action: 'reject',
-          reason: reason || undefined
         })
       });
 
