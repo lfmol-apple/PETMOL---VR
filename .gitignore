@@ -24,9 +24,26 @@ coverage
 
 # Python
 __pycache__/
+**/__pycache__/
 *.pyc
+*.pyo
+.venv/
+.venv-*/
+.pytest_cache/
 
-# 🔴 CRÍTICO — dados e análises
+# Scripts temporários
+scripts_temp*.py
+test_gem*.py
+
+# Mac / Editor
+.DS_Store
+**/.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Dados e análises locais
 analysis/
 uploads/
 *.csv
@@ -35,13 +52,27 @@ uploads/
 *.sqlite
 *.db
 
-# ✅ Exceções — arquivos JSON versionados explicitamente
+# Exceções — arquivos JSON versionados explicitamente
 !services/price-service/data/base_mestre_pet.json
 !shared/**/*.json
+!package.json
+!package-lock.json
+!**/tsconfig.json
+!**/*.config.js
+!**/*.config.ts
 
-# 🔴 uploads de documentos
+# Uploads de documentos
 **/uploads_pet_documents_*
 **/pet_documents/
 **/prod_docs_snapshot*
+
+# Builds e cache
 *.tsbuildinfo
 *.zip
+build.log
+deploy.log
+
+# Imagens soltas (screenshots, fotos pessoais)
+Captura de Tela*.png
+IMG_*.jpeg
+IMG_*.jpg
