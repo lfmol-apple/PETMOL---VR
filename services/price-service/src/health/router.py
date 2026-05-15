@@ -774,6 +774,9 @@ async def create_or_update_feeding_plan(
     
     if existing_plan:
         # Update existing plan
+        new_reminder_time = request.reminder_time or "09:00"
+        reminder_time_changed = existing_plan.reminder_time != new_reminder_time
+
         existing_plan.deleted_at = None
         existing_plan.species = request.species
         existing_plan.country_code = request.country_code
@@ -792,8 +795,13 @@ async def create_or_update_feeding_plan(
         existing_plan.next_reminder_date = next_reminder
         existing_plan.next_purchase_date = next_purchase_date_obj
         existing_plan.manual_reminder_days_before = request.manual_reminder_days_before
-        existing_plan.reminder_time = request.reminder_time or "09:00"
+        existing_plan.reminder_time = new_reminder_time
         existing_plan.items_json = _serialize_feeding_items(items_payload)
+
+        # Se o tutor mudou o horário, liberar o dedup do dia atual para o push
+        # disparar no novo horário ainda hoje (em vez de só amanhã).
+        if reminder_time_changed:
+            existing_plan.last_food_push_date = None
         
         plan = existing_plan
     else:
