@@ -850,8 +850,14 @@ def send_care_pushes() -> None:
                         logger.info("care_skip pet=%s domain=vaccine id=%s reason=no_due_date", pet.id, record.id)
                         audit.add_skip(SkipReason.NO_DUE_DATE, f"vaccine:{record.id}")
                         continue
-                    alert_days = int(getattr(record, "alert_days_before", None) or 3)
-                    reminder_time = _normalize_time(getattr(record, "reminder_time", None), "09:00")
+                    # Só dispara se o tutor configurou ao menos um campo de lembrete
+                    raw_alert = getattr(record, "alert_days_before", None)
+                    raw_time = getattr(record, "reminder_time", None)
+                    if raw_alert is None and raw_time is None:
+                        audit.add_skip(SkipReason.SPECIAL_CASE_LOGIC, f"vaccine:{record.id}:tutor_not_configured")
+                        continue
+                    alert_days = int(raw_alert or 3)
+                    reminder_time = _normalize_time(raw_time, "09:00")
                     start_date = due - timedelta(days=max(0, alert_days))
                     time_ok = _care_time_reached(now, reminder_time, brt)
                     logger.info(
@@ -870,7 +876,7 @@ def send_care_pushes() -> None:
                             audit.add_skip(SkipReason.AFTER_DUE_DATE, f"vaccine:{record.id}:due={due}:overdue={overdue_days}d")
                             continue
                         iso_week = today.isocalendar()[1]
-                        cycle_key = f"overdue-{due.isoformat()}-w{iso_week}"
+                        cycle_key = f"overdue-{due.isoformat()}-bw{iso_week // 2}"
                     else:
                         cycle_key = f"start-{start_date.isoformat()}" if today < due else f"due-{due.isoformat()}"
                     scheduled_items.append(
@@ -1058,15 +1064,11 @@ def _food_cycle_bucket(days_left: int) -> str:
 
 
 def send_food_reminder_pushes() -> None:
-    """Daily job at 11:00 BRT.
+    """Runs every minute. Fires when now matches each plan's reminder_time and next_reminder_date <= today.
 
-    For each feeding plan where next_reminder_date <= today:
-      - enabled=true, no_consumption_control=false, deleted_at IS NULL
-    Creates pendency and sends push.
-    - days_left <= 0 => critical priority (80)
-    - days_left > 0  => urgent priority (60), skipped when critical is active
-    Dedup: plan.last_food_push_date persisted in DB — survives service restarts.
-    One push per pet per calendar day.
+    Mirrors medication scheduler: tutor's configured time is respected exactly.
+    Falls back to 19:00 when reminder_time is not set.
+    Dedup: plan.last_food_push_date persisted in DB — one push per pet per day.
     Frequency guard: food push only in key cycle windows (D-1, D, D+1).
     """
     if _is_quiet_hours():
@@ -1111,6 +1113,12 @@ def send_food_reminder_pushes() -> None:
                 # Persistent dedup: skip if already pushed today
                 if plan.last_food_push_date == today:
                     audit.add_skip(SkipReason.DEDUP_ACTIVE, f"plan={plan.id}:already_today")
+                    continue
+
+                # Respeitar o horário configurado pelo tutor (fallback: 19:00)
+                plan_reminder_time = getattr(plan, "reminder_time", None) or "19:00"
+                if not _matches_reminder_time(now, plan_reminder_time, "19:00"):
+                    audit.add_skip(SkipReason.TIME_WINDOW_CLOSED, f"plan={plan.id}:time={plan_reminder_time}")
                     continue
 
                 pet = db.query(Pet).filter(Pet.id == plan.pet_id).first()
@@ -1223,7 +1231,7 @@ def send_food_reminder_pushes() -> None:
                                 "cycle_bucket": _food_cycle_bucket(days_left),
                                 "next_reminder_date": plan.next_reminder_date.isoformat() if plan.next_reminder_date else None,
                                 "estimated_end_date": plan.estimated_end_date.isoformat() if plan.estimated_end_date else None,
-                                "scheduled_hour_brt": 11,
+                                "scheduled_hour_brt": now.hour,
                             }, ensure_ascii=False)[:500],
                         )
                         db.add(event)

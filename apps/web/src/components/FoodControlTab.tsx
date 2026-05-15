@@ -331,9 +331,9 @@ export function FoodControlTab({
   const [reminderDays, setReminderDays] = useState('3');
   const [reminderTime, setReminderTime] = useState('09:00');
   const [loadedExisting, setLoadedExisting] = useState(false);
-  const [formOpen, setFormOpen] = useState(false);
-  const [formMode, setFormMode] = useState<'add' | 'edit' | 'quick_setup'>('edit');
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [formOpen, setFormOpen] = useState(() => !!formRequest);
+  const [formMode, setFormMode] = useState<'add' | 'edit' | 'quick_setup'>(() => formRequest?.mode ?? 'edit');
+  const [showAdvanced, setShowAdvanced] = useState(() => formRequest?.mode === 'edit');
   const [deleteFeedback, setDeleteFeedback] = useState<string | null>(null);
   const [apiEstimate, setApiEstimate] = useState<{ estimated_end_date: string | null; estimated_days_left: number | null } | null>(null);
 
@@ -746,7 +746,7 @@ export function FoodControlTab({
     setApiError(null);
     setDeleteFeedback(null);
     setSavedOk(false);
-    setShowAdvanced(false);
+    setShowAdvanced(formRequest.mode === 'edit');
     if (formRequest.mode === 'add') {
       setItems((current) => ensurePrimaryItem([...current, createEmptyFoodItem(false)]));
     }
