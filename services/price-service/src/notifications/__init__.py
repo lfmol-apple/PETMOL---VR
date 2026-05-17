@@ -1141,7 +1141,7 @@ def send_care_pushes_v2() -> None:
                     continue
 
                 reminder_time = f"{reminder_hm[0]:02d}:{reminder_hm[1]:02d}"
-                if today != reminder_date:
+                if today < reminder_date:
                     _log_v2("care", "waiting_time", type="vaccine", record_id=record.id, date=reminder_date, time=reminder_time)
                     continue
                 if not _matches_reminder_time(now, reminder_time, reminder_time):
@@ -1225,7 +1225,7 @@ def send_care_pushes_v2() -> None:
                     continue
 
                 reminder_time = f"{reminder_hm[0]:02d}:{reminder_hm[1]:02d}"
-                if today != reminder_date:
+                if today < reminder_date:
                     _log_v2("care", "waiting_time", type=type_key, record_id=record.id, date=reminder_date, time=reminder_time)
                     continue
                 if not _matches_reminder_time(now, reminder_time, reminder_time):
@@ -1366,7 +1366,7 @@ def send_food_reminder_pushes_v2() -> None:
 
                 reminder_time = f"{reminder_hm[0]:02d}:{reminder_hm[1]:02d}"
                 plan_reminder_date = plan.next_reminder_date.date() if hasattr(plan.next_reminder_date, 'date') else plan.next_reminder_date
-                if today != plan_reminder_date:
+                if today < plan_reminder_date:
                     _log_v2("food", "waiting_time", record_id=plan.id, date=plan.next_reminder_date, time=reminder_time)
                     continue
                 if not _matches_reminder_time(now, reminder_time, reminder_time):
