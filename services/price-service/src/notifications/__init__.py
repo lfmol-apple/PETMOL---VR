@@ -779,15 +779,8 @@ def send_medication_pushes() -> None:
 
 
 def send_care_pushes() -> None:
-    """Simple medication-like scheduler for vaccines and parasites.
-
-    Runs every minute and sends when local time matches each record's configured reminder
-    time. Every control behaves as a scheduled reminder with a daily cadence:
-    - first fire at (due_date - alert_days_before) on reminder time
-    - if still pending after due date, keep firing once/day on same time
-    """
-    if _is_quiet_hours():
-        return
+    """Desativado — substituído por send_care_pushes_v2 (exact-minute match + dedup via push_delivery_logs)."""
+    return
 
     from datetime import timezone
     import re as _re_v
@@ -1437,15 +1430,8 @@ def send_food_reminder_pushes_v2() -> None:
 
 
 def send_food_reminder_pushes() -> None:
-    """Runs every minute. Fires when now matches each plan's reminder_time and next_reminder_date <= today.
-
-    Mirrors medication scheduler: tutor's configured time is respected exactly.
-    Falls back to 19:00 when reminder_time is not set.
-    Dedup: plan.last_food_push_date persisted in DB — one push per pet per day.
-    Frequency guard: food push only in key cycle windows (D-1, D, D+1).
-    """
-    if _is_quiet_hours():
-        return
+    """Desativado — substituído por send_food_reminder_pushes_v2 (exact-minute match + reminder_source=manual)."""
+    return
 
     from datetime import timezone as _tz, timedelta as _td
     from .audit_logging import create_audit_log, ReminderType, SkipReason
