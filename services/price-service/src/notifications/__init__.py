@@ -201,7 +201,8 @@ def _normalize_push_payload(payload: dict) -> dict:
     raw_url = str(raw_data.get("url") or payload.get("url") or "/home").strip() or "/home"
 
     title = raw_title or "PETMOL"
-    if not title.startswith("🐾"):
+    _known_prefixes = ("🐾", "💊", "💉", "🍖")
+    if not any(title.startswith(e) for e in _known_prefixes):
         title = f"🐾 {title}"
 
     body = raw_body
@@ -571,6 +572,9 @@ def send_medication_pushes() -> None:
                 .all()
             )
 
+            from ..pets.models import Pet as _MedPet
+            med_pets_by_id = {str(p.id): p for p in db.query(_MedPet).all()}
+
             audit.total_users = len(subscriptions)
             audit.eligible_users = len(user_ids)
             audit.total_records = len(events)
@@ -717,10 +721,12 @@ def send_medication_pushes() -> None:
 
                     from urllib.parse import quote
                     item_name_encoded = quote(event.title or "")
+                    _med_pet = med_pets_by_id.get(str(event.pet_id))
+                    _med_pet_name = _med_pet.name if _med_pet else "seu pet"
                     payload = {
-                        "title": f"💊 {event.title}",
+                        "title": f"💊 {event.title} — {_med_pet_name}",
                         "body": (
-                            f"{offset_min} min para aplicar em {slot}" if offset_min > 0 else f"Hora de aplicar ({slot})"
+                            f"{offset_min} min para dar para {_med_pet_name} ({slot})" if offset_min > 0 else f"Hora de dar para {_med_pet_name} ({slot})"
                         ),
                         "icon": "/icons/icon-192x192.png",
                         "badge": "/icons/badge-mono.png",
@@ -1163,8 +1169,8 @@ def send_care_pushes_v2() -> None:
                     continue
 
                 payload = {
-                    "title": f"Vacina: {record.vaccine_name}",
-                    "body": f"Lembrete configurado para {pet.name}.",
+                    "title": f"💉 {record.vaccine_name} — {pet.name}",
+                    "body": f"Hora de registrar a dose para {pet.name}.",
                     "icon": "/icons/icon-192x192.png",
                     "badge": "/icons/badge-mono.png",
                     "tag": delivery_id,
@@ -1246,9 +1252,10 @@ def send_care_pushes_v2() -> None:
                     _log_v2("care", "already_sent", type=type_key, record_id=record.id, delivery_id=delivery_id)
                     continue
 
+                _para_product = getattr(record, "product_name", None) or parasite_labels[type_key]
                 payload = {
-                    "title": parasite_labels[type_key],
-                    "body": f"Lembrete configurado para {pet.name}.",
+                    "title": f"🐾 {pet.name} — {parasite_labels[type_key]}",
+                    "body": f"Hora de aplicar {_para_product} em {pet.name}.",
                     "icon": "/icons/icon-192x192.png",
                     "badge": "/icons/badge-mono.png",
                     "tag": delivery_id,
@@ -1390,8 +1397,8 @@ def send_food_reminder_pushes_v2() -> None:
                 brand = plan.food_brand or "Ração"
                 deep_link = f"/food?pet_id={pet.id}&mode=buy&source=push"
                 payload = {
-                    "title": "Ração",
-                    "body": f"Lembrete configurado para {pet.name}: {brand}.",
+                    "title": f"🍖 {pet.name} — Ração",
+                    "body": f"Hora de comprar {brand} para {pet.name}.",
                     "icon": "/icons/icon-192x192.png",
                     "badge": "/icons/badge-mono.png",
                     "image": "/brand/notification-banner.png",
