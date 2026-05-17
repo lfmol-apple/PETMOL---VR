@@ -1120,18 +1120,24 @@ def send_care_pushes_v2() -> None:
                     _log_v2("care", "erro", type="vaccine", record_id=record.id, reason="pet_not_found")
                     continue
 
-                if (
-                    not getattr(record, "reminder_enabled", False)
-                    or not getattr(record, "reminder_date", None)
-                    or not getattr(record, "reminder_time", None)
-                ):
+                if not getattr(record, "reminder_enabled", False):
                     _log_v2("care", "no_user_schedule", type="vaccine", record_id=record.id)
                     continue
 
-                reminder_hm = _parse_hhmm(record.reminder_time)
                 reminder_date = getattr(record, "reminder_date", None)
-                if not reminder_hm or not reminder_date:
-                    _log_v2("care", "no_user_schedule", type="vaccine", record_id=record.id)
+                if reminder_date is None:
+                    next_due = getattr(record, "next_dose_date", None)
+                    days_before = getattr(record, "alert_days_before", None) or 0
+                    if next_due:
+                        reminder_date = (next_due - timedelta(days=days_before)).date()
+                    else:
+                        _log_v2("care", "no_user_schedule", type="vaccine", record_id=record.id, reason="no_due_date")
+                        continue
+
+                reminder_time_str = getattr(record, "reminder_time", None) or "09:00"
+                reminder_hm = _parse_hhmm(reminder_time_str)
+                if not reminder_hm:
+                    _log_v2("care", "no_user_schedule", type="vaccine", record_id=record.id, reason="invalid_time")
                     continue
 
                 reminder_time = f"{reminder_hm[0]:02d}:{reminder_hm[1]:02d}"
@@ -1196,18 +1202,24 @@ def send_care_pushes_v2() -> None:
                     _log_v2("care", "erro", type=type_key, record_id=record.id, reason="pet_not_found")
                     continue
 
-                if (
-                    not getattr(record, "reminder_enabled", False)
-                    or not getattr(record, "reminder_date", None)
-                    or not getattr(record, "reminder_time", None)
-                ):
+                if not getattr(record, "reminder_enabled", False):
                     _log_v2("care", "no_user_schedule", type=type_key, record_id=record.id)
                     continue
 
-                reminder_hm = _parse_hhmm(record.reminder_time)
                 reminder_date = getattr(record, "reminder_date", None)
-                if not reminder_hm or not reminder_date:
-                    _log_v2("care", "no_user_schedule", type=type_key, record_id=record.id)
+                if reminder_date is None:
+                    next_due = getattr(record, "next_due_date", None)
+                    days_before = getattr(record, "alert_days_before", None) or 0
+                    if next_due:
+                        reminder_date = (next_due - timedelta(days=days_before)).date()
+                    else:
+                        _log_v2("care", "no_user_schedule", type=type_key, record_id=record.id, reason="no_due_date")
+                        continue
+
+                reminder_time_str = getattr(record, "reminder_time", None) or "09:00"
+                reminder_hm = _parse_hhmm(reminder_time_str)
+                if not reminder_hm:
+                    _log_v2("care", "no_user_schedule", type=type_key, record_id=record.id, reason="invalid_time")
                     continue
 
                 reminder_time = f"{reminder_hm[0]:02d}:{reminder_hm[1]:02d}"
