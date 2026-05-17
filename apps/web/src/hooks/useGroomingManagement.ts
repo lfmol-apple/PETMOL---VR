@@ -119,40 +119,8 @@ export function useGroomingManagement({
         prevPets.map((p) => (p.pet_id === pet.pet_id ? { ...p, grooming_records: sorted } : p)),
       );
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const typeLabel: Record<string, string> = {
-        bath: 'Banho',
-        grooming: 'Tosa',
-        bath_grooming: 'Banho & Tosa',
-      };
-      const alerts: { petName: string; type: string; daysOverdue: number }[] = [];
-      const latestByType = new Map<string, GroomingRecord>();
-      sorted.forEach((r: GroomingRecord) => {
-        const key = String(r.type || '').toLowerCase();
-        if (!key) return;
-        const prev = latestByType.get(key);
-        if (!prev) {
-          latestByType.set(key, r);
-          return;
-        }
-        const currentDate = createLocalDate(r.date).getTime();
-        const prevDate = createLocalDate(prev.date).getTime();
-        if (!Number.isNaN(currentDate) && (Number.isNaN(prevDate) || currentDate > prevDate)) {
-          latestByType.set(key, r);
-        }
-      });
-
-      Array.from(latestByType.values()).forEach((r: GroomingRecord) => {
-        if (!r.reminder_enabled || !r.next_recommended_date) return;
-        const alertDate = createLocalDate(r.next_recommended_date);
-        alertDate.setDate(alertDate.getDate() - (r.alert_days_before || 3));
-        const daysOverdue = Math.floor((today.getTime() - alertDate.getTime()) / 86400000);
-        if (daysOverdue >= 0) {
-          alerts.push({ petName: pet.pet_name, type: typeLabel[r.type] || r.type, daysOverdue });
-        }
-      });
-      setGroomingDueAlerts(alerts.length > 0 ? alerts : []);
+      // Banho/tosa fica como histórico/serviço, sem alerta ou cobrança de controle ativo.
+      setGroomingDueAlerts([]);
     } catch {}
   };
 

@@ -24,7 +24,7 @@ class PendingEvent(BaseModel):
     id: str
     pet_id: str
     pet_name: str
-    event_type: str  # 'vaccine', 'grooming', 'parasite_control', 'medication'
+    event_type: str  # 'vaccine', 'parasite_control', 'medication'
     event_subtype: Optional[str] = None  # tipo específico (ex: 'bath', 'dewormer')
     title: str
     description: str
@@ -308,7 +308,7 @@ async def get_pending_events(
 ):
     """
     Retorna todos eventos pendentes de confirmação para os pets do usuário.
-    Inclui: vacinas, banho/tosa, controle parasitário e medicamentos.
+    Inclui: vacinas, controle parasitário e medicamentos.
     """
     try:
         # Buscar pets do usuário
@@ -319,7 +319,6 @@ async def get_pending_events(
         for pet in pets:
             # Coletar eventos de cada tipo
             all_events.extend(get_pending_vaccines(pet))
-            all_events.extend(get_pending_grooming(pet))
             all_events.extend(get_pending_parasite_control(pet))
             all_events.extend(get_pending_medications(pet))
         

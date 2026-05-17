@@ -16,7 +16,9 @@
  *  - saude/[petId] (resumo e detalhe)
  *
  * DOMÍNIOS COBERTOS:
- *  vaccine | parasite (dewormer/flea_tick/collar) | grooming | food | medication | event
+ *  vaccine | parasite (dewormer/flea_tick/collar) | food | medication | event
+ *
+ * Grooming/banho/tosa permanece como histórico/serviço, mas não é controle ativo.
  */
 
 import type { VaccineRecord } from '@/lib/petHealth';
@@ -261,57 +263,10 @@ function processParasites(p: PetCareDomainParams): PetCareReminder[] {
   return result;
 }
 
-function processGrooming(p: PetCareDomainParams): PetCareReminder[] {
-  if (!p.groomingRecords.length) return [];
-
-  // Apenas o mais recente por tipo COM reminder_enabled E next_recommended_date
-  const latestByType = new Map<string, GroomingRecord>();
-
-  // Passe 1: encontrar o registro mais recente por tipo, sem filtro de reminder
-  const absoluteLatestByType = new Map<string, GroomingRecord>();
-  for (const r of p.groomingRecords) {
-    const key = r.type;
-    const prev = absoluteLatestByType.get(key);
-    if (!prev) { absoluteLatestByType.set(key, r); continue; }
-    const dt = parseLocalDate(r.date)?.getTime() ?? 0;
-    const prevDt = parseLocalDate(prev.date)?.getTime() ?? 0;
-    if (dt > prevDt) absoluteLatestByType.set(key, r);
-  }
-
-  // Passe 2: se o registro mais recente tem reminder configurado, usa-o; senão ignora o tipo inteiro
-  for (const [type, r] of absoluteLatestByType) {
-    if (r.reminder_enabled && r.next_recommended_date) {
-      latestByType.set(type, r);
-    }
-  }
-
-  const typeLabels: Record<string, string> = {
-    bath: 'Banho',
-    grooming: 'Tosa',
-    bath_grooming: 'Banho + Tosa',
-  };
-
-  const result: PetCareReminder[] = [];
-  for (const r of Array.from(latestByType.values())) {
-    const nextDate = parseLocalDate(r.next_recommended_date!);
-    if (!nextDate) continue;
-    const diff = diffFromToday(nextDate);
-    result.push({
-      key: makeKey(p.pet_id, 'grooming', r.type, r.id, dateToLocalISO(nextDate)),
-      pet_id: p.pet_id,
-      pet_name: p.pet_name,
-      domain: 'grooming',
-      label: typeLabels[r.type] || r.type,
-      icon: '🛁',
-      due_date: dateToLocalISO(nextDate),
-      diff,
-      status: toStatus(diff),
-      action_target: 'health/grooming',
-      source_record_id: r.id,
-      is_derived: r.frequency_days != null,
-    });
-  }
-  return result;
+function processGrooming(_p: PetCareDomainParams): PetCareReminder[] {
+  // Push Engine V2 reset: banho/tosa não participa de pendências, alertas,
+  // score de cuidados ou superfícies de cobrança ativa da Home.
+  return [];
 }
 
 function processFood(p: PetCareDomainParams): PetCareReminder[] {

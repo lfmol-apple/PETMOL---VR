@@ -22,6 +22,7 @@ class ParasiteControlBase(BaseModel):
     purchase_location: Optional[str] = Field(None, max_length=200)
     collar_expiry_date: OptionalUtcInstant = None
     reminder_enabled: bool = True
+    reminder_date: Optional[str] = None
     reminder_days: int = Field(7, ge=0)
     alert_days_before: Optional[int] = None
     reminder_time: Optional[str] = Field(None, max_length=5)
@@ -49,6 +50,7 @@ class ParasiteControlUpdate(BaseModel):
     purchase_location: Optional[str] = None
     collar_expiry_date: OptionalUtcInstant = None
     reminder_enabled: Optional[bool] = None
+    reminder_date: Optional[str] = None
     reminder_days: Optional[int] = None
     alert_days_before: Optional[int] = None
     reminder_time: Optional[str] = None

@@ -1,7 +1,7 @@
 """CRUD router for parasite control records."""
 import json
 from uuid import uuid4
-from datetime import datetime
+from datetime import date, datetime
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -14,6 +14,14 @@ from .parasite_models import ParasiteControlRecord
 from .parasite_schemas import ParasiteControlCreate, ParasiteControlUpdate, ParasiteControlOut
 
 router = APIRouter(prefix="/pets/{pet_id}/parasites", tags=["Parasite Controls"])
+
+
+def _parse_optional_date(value):
+    if not value:
+        return None
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    return date.fromisoformat(str(value))
 
 
 def _get_pet_owned(db: Session, pet_id: str, user: User) -> Pet:
@@ -53,10 +61,12 @@ def create_parasite_control(
     existing = db.query(ParasiteControlRecord).filter(ParasiteControlRecord.id == record_id).first()
     if existing:
         return existing
+    data = payload.model_dump(exclude={"id"})
+    data["reminder_date"] = _parse_optional_date(data.get("reminder_date"))
     record = ParasiteControlRecord(
         id=record_id,
         pet_id=pet_id,
-        **{k: v for k, v in payload.model_dump(exclude={"id"}).items()},
+        **data,
     )
     db.add(record)
     db.commit()
@@ -82,6 +92,8 @@ def update_parasite_control(
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro não encontrado")
     for field, value in payload.model_dump(exclude_unset=True).items():
+        if field == "reminder_date":
+            value = _parse_optional_date(value)
         setattr(record, field, value)
     db.commit()
     db.refresh(record)

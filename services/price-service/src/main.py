@@ -298,36 +298,35 @@ def init_db():
 
 @app.on_event("startup")
 def start_push_scheduler():
-    """Start APScheduler for PETMOL notification jobs (4-layer model)."""
+    """Start Push Engine V2 jobs for explicitly configured reminders only."""
     from .config import get_settings
     settings = get_settings()
+    push_logger = __import__("logging").getLogger(__name__)
     
     if not settings.feature_reminders_push:
-        logger = __import__("logging").getLogger(__name__)
-        logger.info("[PETMOL] Push scheduler desativado via FEATURE_REMINDERS_PUSH")
+        push_logger.info("[PETMOL] Push scheduler desativado via FEATURE_REMINDERS_PUSH")
+        return
+
+    if not settings.feature_push_engine_v2:
+        push_logger.info("[PETMOL_PUSH] engine automático desativado: FEATURE_PUSH_ENGINE_V2=false")
         return
 
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
         from .notifications import (
             send_medication_pushes,
-            send_care_pushes,
-            send_food_reminder_pushes,
+            send_care_pushes_v2,
+            send_food_reminder_pushes_v2,
         )
 
         scheduler = BackgroundScheduler()
-        # Camada 1 (crítico): medicação continua no horário exato configurado
         scheduler.add_job(send_medication_pushes, "interval", minutes=1, id="medication_pushes")
-        # Lembretes de cuidado baseados no cadastro do tutor (vacina/parasita/grooming)
-        scheduler.add_job(send_care_pushes, "interval", minutes=1, id="care_pushes")
-        # Ração: verifica a cada minuto e dispara no reminder_time configurado pelo tutor
-        scheduler.add_job(send_food_reminder_pushes, "interval", minutes=1, id="food_reminder_pushes")
+        scheduler.add_job(send_care_pushes_v2, "interval", minutes=1, id="care_pushes_v2")
+        scheduler.add_job(send_food_reminder_pushes_v2, "interval", minutes=1, id="food_reminder_pushes_v2")
         scheduler.start()
-        logger = __import__("logging").getLogger(__name__)
-        logger.info("[PETMOL] Push scheduler iniciado (verifica a cada minuto)")
+        push_logger.info("[PETMOL_PUSH] Push Engine V2 iniciado: medicação legacy + lembretes explícitos de cuidados/ração")
     except Exception as e:
-        logger = __import__("logging").getLogger(__name__)
-        logger.error(f"[PETMOL] Push scheduler nao iniciado: {e}")
+        push_logger.error(f"[PETMOL_PUSH] Push Engine V2 nao iniciado: {e}")
 
 
 # Include autocomplete router

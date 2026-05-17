@@ -18,6 +18,7 @@ export function HomeAttentionOverlays({
   topAttentionAlerts,
   onAlertSelect,
 }: HomeAttentionOverlaysProps) {
+  const visibleAlerts = topAttentionAlerts.filter((alert) => alert.category !== 'grooming');
 
   return (
     <ModalPortal>
@@ -42,7 +43,7 @@ export function HomeAttentionOverlays({
             </div>
 
             <div className="max-h-[58vh] overflow-y-auto divide-y divide-gray-100">
-              {[...topAttentionAlerts]
+              {[...visibleAlerts]
                 .sort((a, b) => (b.days_overdue || 0) - (a.days_overdue || 0))
                 .map((alert) => {
                   const icon = alert.category === 'vaccine'
@@ -51,9 +52,7 @@ export function HomeAttentionOverlays({
                       ? '🛡️'
                       : alert.category === 'medication'
                         ? '💊'
-                        : alert.category === 'grooming'
-                          ? '🛁'
-                          : '⚠️';
+                        : '⚠️';
 
                   return (
                     <button

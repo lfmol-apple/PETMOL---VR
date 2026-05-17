@@ -43,6 +43,7 @@ export function isEventVisibleOnHome(
   event: CanonicalPetEvent,
   rules: MasterInteractionRules = DEFAULT_MASTER_INTERACTION_RULES,
 ): boolean {
+  if (event.domain === 'grooming') return false;
   const policy = getCarePolicyForEvent(event, rules);
   if (!policy?.enabled) return false;
   if (policy.showOnHome === false) return false;
@@ -96,6 +97,8 @@ export function canonicalEventsToPetInteractions(
   rules: MasterInteractionRules = DEFAULT_MASTER_INTERACTION_RULES,
 ): PetInteractionItem[] {
   return events.flatMap((event) => {
+    if (event.domain === 'grooming') return [];
+
     const careKey = resolveCarePolicyKeyFromEvent(event);
     const policy = rules.carePolicies[careKey];
 

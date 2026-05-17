@@ -31,7 +31,8 @@ interface OverdueAlertsGridProps {
 }
 
 export function OverdueAlertsGrid({ alerts, petName, onAlertClick, onClose }: OverdueAlertsGridProps) {
-  if (alerts.length === 0) return null;
+  const visibleAlerts = alerts.filter((alert) => alert.category !== 'grooming');
+  if (visibleAlerts.length === 0) return null;
 
   return (
     <div className="mb-3 rounded-2xl border border-rose-200 bg-rose-50 overflow-hidden shadow-sm">
@@ -39,7 +40,7 @@ export function OverdueAlertsGrid({ alerts, petName, onAlertClick, onClose }: Ov
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-rose-200/70 bg-rose-100/60">
         <span className="text-base">●</span>
         <p className="flex-1 text-[13px] font-bold text-rose-900 leading-snug">
-          {petName} precisa de atenção em {alerts.length} {alerts.length === 1 ? 'item' : 'itens'}
+          {petName} precisa de atenção em {visibleAlerts.length} {visibleAlerts.length === 1 ? 'item' : 'itens'}
         </p>
         <button
           onClick={onClose}
@@ -52,7 +53,7 @@ export function OverdueAlertsGrid({ alerts, petName, onAlertClick, onClose }: Ov
 
       {/* Grid de alertas */}
       <div className="grid grid-cols-2 gap-1.5 p-2.5">
-        {alerts.map((alert) => {
+        {visibleAlerts.map((alert) => {
           const icon = ALERT_ICONS[alert.action_target] ?? '⚠️';
           const badge = badgeText(alert);
           const isToday = alert.status === 'today';

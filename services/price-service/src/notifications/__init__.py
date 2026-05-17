@@ -10,8 +10,9 @@ import os
 import secrets
 from datetime import datetime, timedelta, time
 from pywebpush import webpush, WebPushException
+from sqlalchemy import Column, DateTime, String
 
-from ..db import SessionLocal
+from ..db import Base, SessionLocal
 from urllib.parse import quote
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
@@ -21,6 +22,19 @@ from ..utils.logging_utils import setup_logger
 
 logger = setup_logger(__name__, "INFO")
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
+
+
+class PushDeliveryLog(Base):
+    """Persistent ledger for one-shot push deduplication by configured reminder cycle."""
+
+    __tablename__ = "push_delivery_logs"
+
+    id = Column(String(255), primary_key=True)
+    user_id = Column(String(36), nullable=False, index=True)
+    pet_id = Column(String(36), nullable=True, index=True)
+    reminder_type = Column(String(50), nullable=False, index=True)
+    record_id = Column(String(100), nullable=False, index=True)
+    sent_at = Column(DateTime(timezone=True), nullable=False)
 
 # ── Helper: write a pendency alongside every care push ────────────────────────
 
@@ -412,6 +426,62 @@ def _has_dismissed_prefix(
 def _pendency_exists(db, pend_id: str) -> bool:
     from .pendencies import NotificationPendency
     return db.query(NotificationPendency).filter(NotificationPendency.id == str(pend_id)).first() is not None
+
+
+def _delivery_key(
+    *,
+    reminder_type: str,
+    record_id: str,
+    reminder_date,
+    reminder_time: str,
+) -> str:
+    return f"push-v2:{reminder_type}:{record_id}:{reminder_date.isoformat()}:{reminder_time}"
+
+
+def _delivery_sent(db, delivery_id: str) -> bool:
+    return db.get(PushDeliveryLog, delivery_id) is not None
+
+
+def _mark_delivery_sent(
+    db,
+    *,
+    delivery_id: str,
+    user_id: str,
+    pet_id: Optional[str],
+    reminder_type: str,
+    record_id: str,
+    sent_at: datetime,
+) -> None:
+    db.add(PushDeliveryLog(
+        id=delivery_id,
+        user_id=str(user_id),
+        pet_id=str(pet_id) if pet_id is not None else None,
+        reminder_type=reminder_type,
+        record_id=str(record_id),
+        sent_at=sent_at,
+    ))
+
+
+def _same_local_date(value, target_date, tzinfo) -> bool:
+    local_date = _safe_local_date(value, tzinfo)
+    return local_date == target_date
+
+
+def _log_v2(kind: str, status: str, **fields) -> None:
+    suffix = " ".join(f"{key}={value}" for key, value in fields.items() if value is not None)
+    logger.info("[PETMOL_PUSH_V2] %s %s%s%s", kind, status, " " if suffix else "", suffix)
+
+
+def _reminder_datetime_reached(now: datetime, reminder_date, reminder_hm: Tuple[int, int], tzinfo) -> bool:
+    reminder_dt = datetime(
+        reminder_date.year,
+        reminder_date.month,
+        reminder_date.day,
+        reminder_hm[0],
+        reminder_hm[1],
+        tzinfo=tzinfo,
+    )
+    return now >= reminder_dt
 
 
 def _matches_any_preferred_time(
@@ -812,6 +882,7 @@ def send_care_pushes() -> None:
     try:
         db = SessionLocal()
         try:
+            from ..health.models import FeedingPlan as _FeedingPlan  # noqa: F401
             from ..pets.models import Pet
             from ..pets.vaccine_models import VaccineRecord
             from ..pets.parasite_models import ParasiteControlRecord
@@ -1020,6 +1091,179 @@ def send_care_pushes() -> None:
         audit.log_summary()
 
 
+def send_care_pushes_v2() -> None:
+    """Push Engine V2: sends only tutor-configured care reminders at exact date/time."""
+    from datetime import timezone
+
+    brt = timezone(timedelta(hours=-3))
+    now = datetime.now(brt)
+    today = now.date()
+    subscriptions = _load_subscriptions()
+
+    try:
+        db = SessionLocal()
+        try:
+            from ..health.models import FeedingPlan  # noqa: F401
+            from ..pets.document_models import PetDocument  # noqa: F401
+            from ..pets.models import Pet
+            from ..pets.vaccine_models import VaccineRecord
+            from ..pets.parasite_models import ParasiteControlRecord
+
+            pets_by_id = {str(pet.id): pet for pet in db.query(Pet).all()}
+            vaccine_records = db.query(VaccineRecord).filter(VaccineRecord.deleted == False).all()
+            parasite_records = db.query(ParasiteControlRecord).filter(ParasiteControlRecord.deleted == False).all()
+
+            for record in vaccine_records:
+                pet = pets_by_id.get(str(record.pet_id))
+                _log_v2("care", "eligible", type="vaccine", record_id=record.id, pet_id=record.pet_id)
+                if not pet:
+                    _log_v2("care", "erro", type="vaccine", record_id=record.id, reason="pet_not_found")
+                    continue
+
+                if (
+                    not getattr(record, "reminder_enabled", False)
+                    or not getattr(record, "reminder_date", None)
+                    or not getattr(record, "reminder_time", None)
+                ):
+                    _log_v2("care", "no_user_schedule", type="vaccine", record_id=record.id)
+                    continue
+
+                reminder_hm = _parse_hhmm(record.reminder_time)
+                reminder_date = getattr(record, "reminder_date", None)
+                if not reminder_hm or not reminder_date:
+                    _log_v2("care", "no_user_schedule", type="vaccine", record_id=record.id)
+                    continue
+
+                reminder_time = f"{reminder_hm[0]:02d}:{reminder_hm[1]:02d}"
+                if not _reminder_datetime_reached(now, reminder_date, reminder_hm, brt):
+                    _log_v2("care", "waiting_time", type="vaccine", record_id=record.id, date=reminder_date, time=reminder_time)
+                    continue
+
+                sub = subscriptions.get(str(pet.user_id))
+                if not _is_subscription_entry(sub):
+                    _log_v2("care", "erro", type="vaccine", record_id=record.id, reason="not_subscribed")
+                    continue
+
+                delivery_id = _delivery_key(
+                    reminder_type="vaccine",
+                    record_id=str(record.id),
+                    reminder_date=reminder_date,
+                    reminder_time=reminder_time,
+                )
+                if _delivery_sent(db, delivery_id):
+                    _log_v2("care", "already_sent", type="vaccine", record_id=record.id, delivery_id=delivery_id)
+                    continue
+
+                payload = {
+                    "title": f"Vacina: {record.vaccine_name}",
+                    "body": f"Lembrete configurado para {pet.name}.",
+                    "icon": "/icons/icon-192x192.png",
+                    "badge": "/icons/badge-mono.png",
+                    "tag": delivery_id,
+                    "data": {"url": f"/home?modal=vaccines&petId={pet.id}", "type": "vaccine", "pet_id": str(pet.id)},
+                    "requireInteraction": True,
+                    "autoCloseMs": 0,
+                }
+                ok = _send_push(sub, payload)
+                if not ok:
+                    subscriptions.pop(str(pet.user_id), None)
+                    _save_subscriptions(subscriptions)
+                    _log_v2("care", "erro", type="vaccine", record_id=record.id, reason="expired_subscription")
+                    continue
+
+                _mark_delivery_sent(
+                    db,
+                    delivery_id=delivery_id,
+                    user_id=str(pet.user_id),
+                    pet_id=str(pet.id),
+                    reminder_type="vaccine",
+                    record_id=str(record.id),
+                    sent_at=now,
+                )
+                db.commit()
+                _log_v2("care", "sent", type="vaccine", record_id=record.id, delivery_id=delivery_id)
+
+            allowed_parasite_types = {"dewormer", "flea_tick", "collar"}
+            parasite_labels = {"dewormer": "Vermífugo", "flea_tick": "Antipulgas", "collar": "Coleira"}
+            for record in parasite_records:
+                type_key = (record.type or "").lower().strip()
+                if type_key not in allowed_parasite_types:
+                    continue
+
+                pet = pets_by_id.get(str(record.pet_id))
+                _log_v2("care", "eligible", type=type_key, record_id=record.id, pet_id=record.pet_id)
+                if not pet:
+                    _log_v2("care", "erro", type=type_key, record_id=record.id, reason="pet_not_found")
+                    continue
+
+                if (
+                    not getattr(record, "reminder_enabled", False)
+                    or not getattr(record, "reminder_date", None)
+                    or not getattr(record, "reminder_time", None)
+                ):
+                    _log_v2("care", "no_user_schedule", type=type_key, record_id=record.id)
+                    continue
+
+                reminder_hm = _parse_hhmm(record.reminder_time)
+                reminder_date = getattr(record, "reminder_date", None)
+                if not reminder_hm or not reminder_date:
+                    _log_v2("care", "no_user_schedule", type=type_key, record_id=record.id)
+                    continue
+
+                reminder_time = f"{reminder_hm[0]:02d}:{reminder_hm[1]:02d}"
+                if not _reminder_datetime_reached(now, reminder_date, reminder_hm, brt):
+                    _log_v2("care", "waiting_time", type=type_key, record_id=record.id, date=reminder_date, time=reminder_time)
+                    continue
+
+                sub = subscriptions.get(str(pet.user_id))
+                if not _is_subscription_entry(sub):
+                    _log_v2("care", "erro", type=type_key, record_id=record.id, reason="not_subscribed")
+                    continue
+
+                delivery_id = _delivery_key(
+                    reminder_type=type_key,
+                    record_id=str(record.id),
+                    reminder_date=reminder_date,
+                    reminder_time=reminder_time,
+                )
+                if _delivery_sent(db, delivery_id):
+                    _log_v2("care", "already_sent", type=type_key, record_id=record.id, delivery_id=delivery_id)
+                    continue
+
+                payload = {
+                    "title": parasite_labels[type_key],
+                    "body": f"Lembrete configurado para {pet.name}.",
+                    "icon": "/icons/icon-192x192.png",
+                    "badge": "/icons/badge-mono.png",
+                    "tag": delivery_id,
+                    "data": {"url": f"/home?modal={_parasite_modal_for_type(type_key)}&petId={pet.id}", "type": type_key, "pet_id": str(pet.id)},
+                    "requireInteraction": True,
+                    "autoCloseMs": 0,
+                }
+                ok = _send_push(sub, payload)
+                if not ok:
+                    subscriptions.pop(str(pet.user_id), None)
+                    _save_subscriptions(subscriptions)
+                    _log_v2("care", "erro", type=type_key, record_id=record.id, reason="expired_subscription")
+                    continue
+
+                _mark_delivery_sent(
+                    db,
+                    delivery_id=delivery_id,
+                    user_id=str(pet.user_id),
+                    pet_id=str(pet.id),
+                    reminder_type=type_key,
+                    record_id=str(record.id),
+                    sent_at=now,
+                )
+                db.commit()
+                _log_v2("care", "sent", type=type_key, record_id=record.id, delivery_id=delivery_id)
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error("[PETMOL_PUSH_V2] care erro error=%s", e, exc_info=True)
+
+
 
 def send_care_urgent_pushes() -> None:
     """Temporariamente desativado: controles seguem fluxo simples de send_care_pushes."""
@@ -1061,6 +1305,109 @@ def _food_cycle_bucket(days_left: int) -> str:
     if days_left == 1:
         return "D-1"
     return "D-3"
+
+
+def send_food_reminder_pushes_v2() -> None:
+    """Push Engine V2: sends only explicitly configured food reminders at exact date/time."""
+    from datetime import timezone as _tz, timedelta as _td
+
+    brt = _tz(_td(hours=-3))
+    now = datetime.now(brt)
+    today = now.date()
+    subscriptions = _load_subscriptions()
+
+    try:
+        db = SessionLocal()
+        try:
+            from ..pets.document_models import PetDocument  # noqa: F401
+            from ..health.models import FeedingPlan
+            from ..pets.models import Pet
+
+            plans = db.query(FeedingPlan).filter(
+                FeedingPlan.enabled.is_(True),
+                FeedingPlan.deleted_at.is_(None),
+            ).all()
+
+            for plan in plans:
+                _log_v2("food", "eligible", record_id=plan.id, pet_id=plan.pet_id)
+                pet = db.query(Pet).filter(Pet.id == plan.pet_id).first()
+                if not pet:
+                    _log_v2("food", "erro", record_id=plan.id, reason="pet_not_found")
+                    continue
+
+                if (
+                    not plan.next_reminder_date
+                    or not plan.reminder_time
+                    or getattr(plan, "reminder_source", "calculated") != "manual"
+                ):
+                    _log_v2("food", "no_user_schedule", record_id=plan.id)
+                    continue
+
+                reminder_hm = _parse_hhmm(plan.reminder_time)
+                if not reminder_hm:
+                    _log_v2("food", "no_user_schedule", record_id=plan.id, reason="invalid_time")
+                    continue
+
+                reminder_time = f"{reminder_hm[0]:02d}:{reminder_hm[1]:02d}"
+                if not _reminder_datetime_reached(now, plan.next_reminder_date, reminder_hm, brt):
+                    _log_v2("food", "waiting_time", record_id=plan.id, date=plan.next_reminder_date, time=reminder_time)
+                    continue
+
+                sub = subscriptions.get(str(pet.user_id))
+                if not _is_subscription_entry(sub):
+                    _log_v2("food", "erro", record_id=plan.id, reason="not_subscribed")
+                    continue
+
+                delivery_id = _delivery_key(
+                    reminder_type="food",
+                    record_id=str(plan.id),
+                    reminder_date=plan.next_reminder_date,
+                    reminder_time=reminder_time,
+                )
+                if _delivery_sent(db, delivery_id):
+                    _log_v2("food", "already_sent", record_id=plan.id, delivery_id=delivery_id)
+                    continue
+
+                brand = plan.food_brand or "Ração"
+                deep_link = f"/food?pet_id={pet.id}&mode=buy&source=push"
+                payload = {
+                    "title": "Ração",
+                    "body": f"Lembrete configurado para {pet.name}: {brand}.",
+                    "icon": "/icons/icon-192x192.png",
+                    "badge": "/icons/badge-mono.png",
+                    "image": "/brand/notification-banner.png",
+                    "tag": delivery_id,
+                    "data": {
+                        "url": deep_link,
+                        "pet_id": str(pet.id),
+                        "type": "food",
+                        "item_name": brand,
+                    },
+                    "requireInteraction": True,
+                    "autoCloseMs": 0,
+                }
+                ok = _send_push(sub, payload)
+                if not ok:
+                    subscriptions.pop(str(pet.user_id), None)
+                    _save_subscriptions(subscriptions)
+                    _log_v2("food", "erro", record_id=plan.id, reason="expired_subscription")
+                    continue
+
+                _mark_delivery_sent(
+                    db,
+                    delivery_id=delivery_id,
+                    user_id=str(pet.user_id),
+                    pet_id=str(pet.id),
+                    reminder_type="food",
+                    record_id=str(plan.id),
+                    sent_at=now,
+                )
+                db.commit()
+                _log_v2("food", "sent", record_id=plan.id, delivery_id=delivery_id)
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error("[PETMOL_PUSH_V2] food erro error=%s", e, exc_info=True)
 
 
 def send_food_reminder_pushes() -> None:
@@ -1440,6 +1787,7 @@ async def send_on_open(current_user: User = Depends(get_current_user)):
 async def debug_push_audit(
     reminder_type: str = "all",  # all, medication, care, food
     dry_run: bool = True,
+    legacy: bool = False,
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -1453,30 +1801,73 @@ async def debug_push_audit(
     - Audit summary for each executed job
     - Counts of eligible records, skipped reasons, pushes sent
     """
-    from .audit_logging import ReminderType
-    
     if not current_user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+
+    settings = get_settings()
+    if not settings.feature_push_engine_v2:
+        raise HTTPException(
+            status_code=403,
+            detail="Push Engine V2 disabled. Debug jobs are unavailable while FEATURE_PUSH_ENGINE_V2=false.",
+        )
+    if settings.env.lower() in {"prod", "production"}:
+        raise HTTPException(
+            status_code=403,
+            detail="Push audit debug endpoint is disabled in production.",
+        )
+    if legacy:
+        raise HTTPException(
+            status_code=403,
+            detail="Legacy push jobs are disabled. Use Push Engine V2 jobs only.",
+        )
+    if reminder_type not in {"all", "medication", "care", "food"}:
+        raise HTTPException(
+            status_code=400,
+            detail="reminder_type must be one of: all, medication, care, food",
+        )
     
     # Only allow admins or specific test users
     # TODO: Add proper authorization check
     
     results = {}
+    requested_jobs = []
+    if reminder_type in ("all", "medication"):
+        requested_jobs.append("send_medication_pushes")
+    if reminder_type in ("all", "care"):
+        requested_jobs.append("send_care_pushes_v2")
+    if reminder_type in ("all", "food"):
+        requested_jobs.append("send_food_reminder_pushes_v2")
+
+    if dry_run:
+        logger.info(
+            "[PETMOL_PUSH_DEBUG] dry_run=true; no push jobs executed. would_execute=%s",
+            requested_jobs,
+        )
+        return {
+            "status": "dry_run",
+            "user_id": str(current_user.id),
+            "reminder_type": reminder_type,
+            "dry_run": True,
+            "legacy": legacy,
+            "would_execute": requested_jobs,
+            "executed": {},
+            "note": "dry_run=true does not execute jobs or send pushes",
+        }
     
     try:
         if reminder_type in ("all", "medication"):
-            logger.info("[PETMOL_PUSH_DEBUG] Triggering send_medication_pushes with dry_run=%s", dry_run)
+            logger.info("[PETMOL_PUSH_DEBUG] Triggering send_medication_pushes")
             send_medication_pushes()
             results["medication"] = "executed"
         
         if reminder_type in ("all", "care"):
-            logger.info("[PETMOL_PUSH_DEBUG] Triggering send_care_pushes with dry_run=%s", dry_run)
-            send_care_pushes()
+            logger.info("[PETMOL_PUSH_DEBUG] Triggering send_care_pushes_v2")
+            send_care_pushes_v2()
             results["care"] = "executed"
         
         if reminder_type in ("all", "food"):
-            logger.info("[PETMOL_PUSH_DEBUG] Triggering send_food_reminder_pushes with dry_run=%s", dry_run)
-            send_food_reminder_pushes()
+            logger.info("[PETMOL_PUSH_DEBUG] Triggering send_food_reminder_pushes_v2")
+            send_food_reminder_pushes_v2()
             results["food"] = "executed"
         
         return {
@@ -1484,6 +1875,7 @@ async def debug_push_audit(
             "user_id": str(current_user.id),
             "reminder_type": reminder_type,
             "dry_run": dry_run,
+            "legacy": legacy,
             "executed": results,
             "note": "Check server logs for [PETMOL_PUSH_AUDIT] entries to see detailed audit output",
         }

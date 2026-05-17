@@ -28,7 +28,9 @@ class VaccinePayload(BaseModel):
     clinic_name: Optional[str] = None
     veterinarian: Optional[str] = None
     alert_days_before: Optional[int] = Field(None, ge=0, le=60)
+    reminder_date: Optional[str] = None
     reminder_time: Optional[str] = Field(None, max_length=5)
+    reminder_enabled: bool = False
 
 
 class BulkConfirmRequest(BaseModel):
@@ -58,7 +60,9 @@ class VaccineResponse(BaseModel):
     confirmed_by_user: bool
     record_type: str = "confirmed_application"
     alert_days_before: Optional[int] = None
+    reminder_date: Optional[str] = None
     reminder_time: Optional[str] = None
+    reminder_enabled: bool = False
 
 
 class AlertsSummary(BaseModel):
@@ -194,6 +198,7 @@ class FeedingPlanData(BaseModel):
     next_purchase_date: Optional[str] = None
     manual_reminder_days_before: Optional[int] = None
     reminder_time: Optional[str] = None
+    reminder_source: str = "calculated"
     items: List[FeedingPlanItemData] = Field(default_factory=list)
     
     created_at: str

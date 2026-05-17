@@ -1,7 +1,7 @@
 """API routes for pets."""
 from typing import Optional, List
 import json
-from datetime import datetime
+from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session, selectinload
 
@@ -18,6 +18,14 @@ from .vaccine_schemas import VaccineRecordCreate, VaccineRecordOut, VaccineRecor
 import uuid
 
 router = APIRouter(tags=["Pets"])
+
+
+def _parse_optional_date(value):
+    if not value:
+        return None
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    return date.fromisoformat(str(value))
 
 
 def _get_accessible_owner_ids(user_id: str, db: Session) -> List[str]:
@@ -221,7 +229,9 @@ def create_vaccine(
         applied_date=payload.applied_date,
         next_dose_date=payload.next_dose_date,
         alert_days_before=payload.alert_days_before,
+        reminder_date=_parse_optional_date(payload.reminder_date),
         reminder_time=payload.reminder_time,
+        reminder_enabled=payload.reminder_enabled,
         notes=payload.notes,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
@@ -304,6 +314,8 @@ def update_vaccine(
     
     # Atualizar campos
     for field, value in payload.model_dump(exclude_unset=True).items():
+        if field == "reminder_date":
+            value = _parse_optional_date(value)
         setattr(vaccine, field, value)
     
     vaccine.updated_at = datetime.utcnow()

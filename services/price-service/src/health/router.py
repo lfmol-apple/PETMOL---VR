@@ -93,7 +93,9 @@ def _vaccine_record_to_response(record: VaccineRecord) -> VaccineResponse:
         confirmed_by_user=True,
         record_type=record.record_type or "confirmed_application",
         alert_days_before=record.alert_days_before,
+        reminder_date=record.reminder_date.isoformat() if getattr(record, "reminder_date", None) else None,
         reminder_time=record.reminder_time,
+        reminder_enabled=getattr(record, "reminder_enabled", False),
     )
 
 
@@ -107,6 +109,12 @@ def _parse_feeding_date(value: Optional[str], field_name: str) -> Optional[date]
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid date format for {field_name}. Use YYYY-MM-DD",
         ) from exc
+
+
+def _parse_optional_local_date(value: Optional[str]) -> Optional[date]:
+    if not value:
+        return None
+    return datetime.strptime(value, "%Y-%m-%d").date()
 
 
 def _coerce_duration_days(value: Any) -> Optional[int]:
@@ -319,6 +327,7 @@ def _build_feeding_plan_data(plan: FeedingPlan, items: List[Dict[str, Any]]) -> 
         next_purchase_date=plan.next_purchase_date.isoformat() if plan.next_purchase_date else None,
         manual_reminder_days_before=plan.manual_reminder_days_before,
         reminder_time=plan.reminder_time,
+        reminder_source=getattr(plan, "reminder_source", "calculated"),
         items=_build_feeding_item_data(items),
         created_at=plan.created_at.isoformat(),
         updated_at=plan.updated_at.isoformat(),
@@ -593,7 +602,9 @@ async def bulk_confirm_vaccines(
             next_due_source=next_due_source,
             record_type=vac.record_type,
             alert_days_before=vac.alert_days_before,
+            reminder_date=_parse_optional_local_date(vac.reminder_date),
             reminder_time=vac.reminder_time,
+            reminder_enabled=vac.reminder_enabled,
         )
 
         db.add(vaccine_record)
@@ -774,8 +785,9 @@ async def create_or_update_feeding_plan(
     
     if existing_plan:
         # Update existing plan
-        new_reminder_time = request.reminder_time or "09:00"
+        new_reminder_time = request.reminder_time
         reminder_time_changed = existing_plan.reminder_time != new_reminder_time
+        reminder_source = "manual" if request.next_purchase_date else "calculated"
 
         existing_plan.deleted_at = None
         existing_plan.species = request.species
@@ -796,6 +808,7 @@ async def create_or_update_feeding_plan(
         existing_plan.next_purchase_date = next_purchase_date_obj
         existing_plan.manual_reminder_days_before = request.manual_reminder_days_before
         existing_plan.reminder_time = new_reminder_time
+        existing_plan.reminder_source = reminder_source
         existing_plan.items_json = _serialize_feeding_items(items_payload)
 
         # Se o tutor mudou o horário, liberar o dedup do dia atual para o push
@@ -826,7 +839,8 @@ async def create_or_update_feeding_plan(
             next_reminder_date=next_reminder,
             next_purchase_date=next_purchase_date_obj,
             manual_reminder_days_before=request.manual_reminder_days_before,
-            reminder_time=request.reminder_time or "09:00",
+            reminder_time=request.reminder_time,
+            reminder_source="manual" if request.next_purchase_date else "calculated",
             items_json=_serialize_feeding_items(items_payload),
         )
         db.add(plan)
@@ -1023,6 +1037,7 @@ async def restock_feeding_plan(
 
     plan.estimated_end_date = estimated_end
     plan.next_reminder_date = next_reminder
+    plan.reminder_source = "manual"
     plan.updated_at = datetime.utcnow()
     db.commit()
 
@@ -1105,12 +1120,14 @@ async def set_feeding_reminder_date(
         )
 
     plan.next_reminder_date = next_reminder
+    plan.reminder_source = "manual"
     plan.updated_at = datetime.utcnow()
     db.commit()
 
     return {
         "status": "ok",
         "next_reminder_date": next_reminder.isoformat(),
+        "reminder_source": plan.reminder_source,
     }
 
 

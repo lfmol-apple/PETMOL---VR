@@ -49,7 +49,7 @@ export function useHomeInteractionCenter(
   return useMemo(() => {
     const rules = loadMasterInteractionRules();
     const visibleInteractions = interactions.filter(
-      (interaction) => interaction.show_on_home !== false,
+      (interaction) => interaction.show_on_home !== false && interaction.category !== 'grooming',
     );
 
     const topAttentionAlerts = visibleInteractions.filter(
@@ -60,7 +60,11 @@ export function useHomeInteractionCenter(
     // selectedPet* são computados diretamente dos canonicalEvents (sem o cap maxItemsPerPet
     // do loop multipet), garantindo que TODOS os itens em atraso do pet selecionado apareçam.
     const selectedPetEvents = selectedPetId
-      ? canonicalEvents.filter((event) => event.pet_id === selectedPetId && isEventVisibleOnHome(event, rules))
+      ? canonicalEvents.filter((event) => (
+          event.pet_id === selectedPetId
+          && event.domain !== 'grooming'
+          && isEventVisibleOnHome(event, rules)
+        ))
       : [];
 
     const selectedPetAllAlerts: PetInteractionItem[] = canonicalEventsToPetInteractions(selectedPetEvents, rules);
@@ -72,7 +76,6 @@ export function useHomeInteractionCenter(
     const dewormerEvents = selectedPetEvents.filter((event) => event.action_target === 'health/parasites/dewormer');
     const fleaTickEvents = selectedPetEvents.filter((event) => event.action_target === 'health/parasites/flea_tick');
     const collarEvents = selectedPetEvents.filter((event) => event.action_target === 'health/parasites/collar');
-    const groomingEvents = selectedPetEvents.filter((event) => event.domain === 'grooming');
     const foodEvents = selectedPetEvents.filter((event) => event.domain === 'food');
 
     return {
@@ -85,7 +88,7 @@ export function useHomeInteractionCenter(
         vermifugo: shouldAlert(dewormerEvents),
         antipulgas: shouldAlert(fleaTickEvents),
         coleira: shouldAlert(collarEvents),
-        grooming: shouldAlert(groomingEvents),
+        grooming: false,
         food: shouldAlert(foodEvents),
       },
       selectedPetCardColors: {
@@ -93,7 +96,7 @@ export function useHomeInteractionCenter(
         vermifugo: resolveTone(dewormerEvents),
         antipulgas: resolveTone(fleaTickEvents),
         coleira: resolveTone(collarEvents),
-        grooming: resolveTone(groomingEvents),
+        grooming: 'neutral',
         food: resolveTone(foodEvents),
       },
     };

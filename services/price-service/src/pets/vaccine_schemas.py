@@ -46,7 +46,9 @@ class VaccineRecordBase(BaseModel):
         examples=["Lote J217L | Dr. Silva | Clínica PetCenter | R$ 80,00"]
     )
     alert_days_before: Optional[int] = Field(None, ge=0, le=60)
+    reminder_date: Optional[str] = None
     reminder_time: Optional[str] = Field(None, max_length=5)
+    reminder_enabled: bool = False
     
     @field_validator('next_dose_date')
     @classmethod
@@ -77,7 +79,9 @@ class VaccineRecordUpdate(BaseModel):
     clinic_name: Optional[str] = None
     veterinarian_name: Optional[str] = None
     alert_days_before: Optional[int] = Field(None, ge=0, le=60)
+    reminder_date: Optional[str] = None
     reminder_time: Optional[str] = Field(None, max_length=5)
+    reminder_enabled: Optional[bool] = None
     
     @field_validator('next_dose_date')
     @classmethod
@@ -110,7 +114,9 @@ class VaccineRecordOut(VaccineRecordBase):
     veterinarian_name: Optional[str] = None
     batch_number: Optional[str] = None
     alert_days_before: Optional[int] = None
+    reminder_date: Optional[str] = None
     reminder_time: Optional[str] = None
+    reminder_enabled: bool = False
 
     class Config:
         from_attributes = True
@@ -137,7 +143,9 @@ class VaccineRecordSync(BaseModel):
     veterinarian_name: Optional[str] = None
     batch_number: Optional[str] = None
     alert_days_before: Optional[int] = None
+    reminder_date: Optional[str] = None
     reminder_time: Optional[str] = None
+    reminder_enabled: bool = False
 
 
 class VaccineSyncRequest(BaseModel):

@@ -35,8 +35,8 @@ export function computeCareBreakdown(
   petEvents: unknown[],
   vaccines: VaccineRecord[] | null | undefined,
   parasiteControls: ParasiteControl[] | null | undefined,
-  groomingRecords: GroomingRecord[] | null | undefined,
-  selectedPetAllAlerts: PetInteractionItem[],
+  _groomingRecords: GroomingRecord[] | null | undefined,
+  _selectedPetAllAlerts: PetInteractionItem[],
 ): CareBreakdown {
   const todayRef = new Date();
   todayRef.setHours(0, 0, 0, 0);
@@ -46,7 +46,6 @@ export function computeCareBreakdown(
 
   const vaccinesData: ExtendedVaccineRecord[] = vaccines || [];
   const petCareCollections = getPetCareCollections(currentPet);
-  const groomingData: GroomingRecord[] = groomingRecords?.length ? groomingRecords : petCareCollections.groomingRecords;
   const parasiteData: ParasiteControl[] = parasiteControls?.length ? parasiteControls : petCareCollections.parasiteControls;
 
   const currentVaccineRecords = vaccinesData.filter((v) => {
@@ -67,16 +66,7 @@ export function computeCareBreakdown(
     return !Number.isNaN(dueDate.getTime()) && dueDate.getTime() < todayRef.getTime();
   });
 
-  const hasGroomingOverdue = selectedPetAllAlerts.some(
-    (a) => a.category === 'grooming' && (a.status === 'overdue' || a.status === 'today'),
-  );
-
   items.push({ key: 'vaccine', compliant: currentVaccineRecords.length > 0 && !hasVaccineOverdue, label: 'Vacina' });
-
-  const groomingEligible = groomingData.length > 0 || selectedPetAllAlerts.some((a) => a.category === 'grooming');
-  if (groomingEligible) {
-    items.push({ key: 'grooming', compliant: !hasGroomingOverdue, label: 'Higiene' });
-  }
 
   const parasiteTypes: Array<'dewormer' | 'flea_tick' | 'collar'> = ['dewormer', 'flea_tick', 'collar'];
   parasiteTypes.forEach((type) => {

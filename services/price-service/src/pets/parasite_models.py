@@ -1,9 +1,9 @@
 """SQLAlchemy models for parasite control records."""
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional, TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..db import Base
@@ -50,6 +50,7 @@ class ParasiteControlRecord(Base):
 
     # Lembretes
     reminder_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    reminder_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     reminder_days: Mapped[int] = mapped_column(Integer, default=7, nullable=False)
     alert_days_before: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     reminder_time: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)

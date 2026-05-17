@@ -1,9 +1,9 @@
 """SQLAlchemy models for vaccine records."""
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..db import Base
@@ -37,7 +37,9 @@ class VaccineRecord(Base):
     veterinarian_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)  # DEPRECATED: consolida em notes
     batch_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # DEPRECATED: consolida em notes
     alert_days_before: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    reminder_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     reminder_time: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
+    reminder_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     
     # Sincronização (Last-Write-Wins)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -62,7 +62,10 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "vaccine_records", "deleted_at", "TIMESTAMPTZ")
         _pg_add_column_if_missing(conn, "vaccine_records", "record_type", "TEXT DEFAULT 'confirmed_application'")
         _pg_add_column_if_missing(conn, "vaccine_records", "alert_days_before", "INTEGER")
+        _pg_add_column_if_missing(conn, "vaccine_records", "reminder_date", "DATE")
         _pg_add_column_if_missing(conn, "vaccine_records", "reminder_time", "TEXT")
+        _pg_add_column_if_missing(conn, "vaccine_records", "reminder_enabled", "BOOLEAN DEFAULT FALSE")
+        _pg_add_column_if_missing(conn, "parasite_control_records", "reminder_date", "DATE")
         _pg_add_column_if_missing(conn, "parasite_control_records", "reminder_time", "TEXT")
         _pg_add_column_if_missing(conn, "events", "deleted_at", "TIMESTAMPTZ")
         _pg_add_column_if_missing(conn, "pet_documents", "deleted_at", "TIMESTAMPTZ")
@@ -71,6 +74,7 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "feeding_plans", "last_food_push_date", "DATE")
         _pg_add_column_if_missing(conn, "feeding_plans", "duration_days", "INTEGER")
         _pg_add_column_if_missing(conn, "feeding_plans", "reminder_time", "TEXT")
+        _pg_add_column_if_missing(conn, "feeding_plans", "reminder_source", "TEXT DEFAULT 'calculated'")
 
         # users: terms / monthly-checkin
         _pg_add_column_if_missing(conn, "users", "terms_accepted", "BOOLEAN DEFAULT FALSE")
@@ -237,7 +241,10 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "deleted_at", "DATETIME")
         changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "record_type", "TEXT DEFAULT 'confirmed_application'")
         changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "alert_days_before", "INTEGER")
+        changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "reminder_date", "DATE")
         changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "reminder_time", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "reminder_enabled", "BOOLEAN DEFAULT FALSE")
+        changed |= _sqlite_add_column_if_missing(conn, "parasite_control_records", "reminder_date", "DATE")
         changed |= _sqlite_add_column_if_missing(conn, "parasite_control_records", "reminder_time", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "events", "deleted_at", "DATETIME")
         changed |= _sqlite_add_column_if_missing(conn, "pet_documents", "deleted_at", "DATETIME")
@@ -246,6 +253,7 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "feeding_plans", "last_food_push_date", "DATE")
         changed |= _sqlite_add_column_if_missing(conn, "feeding_plans", "duration_days", "INTEGER")
         changed |= _sqlite_add_column_if_missing(conn, "feeding_plans", "reminder_time", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "feeding_plans", "reminder_source", "TEXT DEFAULT 'calculated'")
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_vaccine_records_code ON vaccine_records (vaccine_code)"))
 
         # ── World-health architecture (Mar 2026) ────────────────────────────
