@@ -566,7 +566,7 @@ def send_medication_pushes() -> None:
                 db.query(Event)
                 .filter(
                     Event.user_id.in_(user_ids),
-                    Event.type == "medication",
+                    Event.type.in_(["medication", "medicacao"]),
                     Event.status.in_(["active", "pending", "rescheduled"]),
                 )
                 .all()
