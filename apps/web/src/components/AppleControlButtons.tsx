@@ -41,19 +41,14 @@ function shouldShowAlert(tone?: ControlTone, fallbackAlert?: boolean) {
   return fallbackAlert === true;
 }
 
-function AlertBadge({ tone = 'critical' }: { tone?: ControlTone }) {
+function AlertDot({ tone = 'critical' }: { tone?: ControlTone }) {
   if (tone === 'warning') {
     return (
-      <span className="absolute right-2 bottom-2 z-10 rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 shadow-sm ring-2 ring-white/80">
-        Atenção
-      </span>
+      <span className="absolute left-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-amber-400 ring-2 ring-amber-300/60 ring-offset-1" />
     );
   }
-
   return (
-    <span className="absolute right-2 bottom-2 z-10 rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700 shadow-sm ring-2 ring-white/80">
-      Atenção
-    </span>
+    <span className="absolute left-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-rose-500 ring-2 ring-rose-400/60 ring-offset-1" />
   );
 }
 
@@ -97,7 +92,7 @@ export function AppleControlButtons({
             onClick={onAlimentacaoClick}
             className="group relative overflow-hidden rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-100 p-3 min-h-[82px] shadow-sm shadow-amber-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
-            {shouldShowAlert(colorFood, alertFood) && <AlertBadge tone={colorFood} />}
+            {shouldShowAlert(colorFood, alertFood) && <AlertDot tone={colorFood} />}
             <span className="absolute right-2.5 top-2.5 opacity-85 pointer-events-none transition-transform group-hover:scale-105">
               <span className="text-[22px]">🥣</span>
             </span>
@@ -120,7 +115,7 @@ export function AppleControlButtons({
             onClick={onHealthClick}
             className="group relative overflow-hidden rounded-2xl border border-indigo-200/70 bg-gradient-to-br from-indigo-50 via-violet-50 to-violet-100 p-3 min-h-[82px] shadow-sm shadow-indigo-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
-            {shouldShowAlert(colorHealth, alertHealth) && <AlertBadge tone={colorHealth} />}
+            {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
             <span className="absolute right-2.5 top-2.5 text-[22px] opacity-85 pointer-events-none transition-transform group-hover:scale-105">🏥</span>
             <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
               <h3 className="truncate text-[14px] sm:text-base font-semibold leading-tight text-indigo-950">Saúde</h3>
@@ -134,7 +129,7 @@ export function AppleControlButtons({
             onClick={onMedicacaoClick}
             className="group relative overflow-hidden rounded-2xl border border-purple-200/80 bg-gradient-to-br from-purple-50 via-violet-50 to-purple-100 p-3 min-h-[82px] shadow-sm shadow-purple-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
-            {shouldShowAlert(colorMedicacao, alertMedicacao) && <AlertBadge tone={colorMedicacao} />}
+            {shouldShowAlert(colorMedicacao, alertMedicacao) && <AlertDot tone={colorMedicacao} />}
             <span className="absolute right-2.5 top-2.5 text-[22px] opacity-85 pointer-events-none transition-transform group-hover:scale-105">💊</span>
             <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
               <h3 className="truncate text-[14px] sm:text-base font-semibold leading-tight text-purple-950">Medicação</h3>
