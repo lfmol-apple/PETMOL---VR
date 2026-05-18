@@ -189,6 +189,14 @@ export function usePetEventManagement({
       if (nextDueDate) {
         reminderEnabled = true;
         reminderDate = nextDueDate;
+      } else {
+        // Restore reminder state from extra_data even when next_due_date is absent.
+        try {
+          const extraCheck = parsePetEventExtraData(event.extra_data);
+          if (extraCheck.reminder_time || (Array.isArray(extraCheck.reminder_times) && (extraCheck.reminder_times as string[]).length > 0)) {
+            reminderEnabled = true;
+          }
+        } catch {}
       }
     }
 

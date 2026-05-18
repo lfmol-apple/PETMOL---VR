@@ -168,7 +168,7 @@ export function useHomeMedicationActions({
             });
           }
         }
-        _resetForm(false);
+        _resetForm(true);
         fetchPetEvents(selectedPetId);
       } else {
         const err = await res.json().catch(() => ({}));
