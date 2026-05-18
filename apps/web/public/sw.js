@@ -1,6 +1,6 @@
 /**
  * PETMOL Service Worker — Web Push + offline shell
- * v2026.05.02
+ * v2026.05.18
  *
  * Recebe eventos push, exibe notificação e ao clicar abre a URL do payload.
  * Payload esperado (JSON):
@@ -17,7 +17,7 @@
  * }
  */
 
-const CACHE_NAME = 'petmol-shell-v2026-05-02';
+const CACHE_NAME = 'petmol-shell-v2026-05-18';
 const SHELL_URLS = [
   '/',
   '/home',
