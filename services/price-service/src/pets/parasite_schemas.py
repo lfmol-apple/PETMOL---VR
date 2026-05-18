@@ -1,6 +1,7 @@
 """Pydantic schemas for parasite control records."""
 from typing import Optional
-from pydantic import BaseModel, Field
+from datetime import date
+from pydantic import BaseModel, Field, field_validator
 
 from ..serialization.utc_instant import OptionalUtcInstant, UtcInstant
 
@@ -64,6 +65,13 @@ class ParasiteControlOut(ParasiteControlBase):
     deleted: bool = False
     created_at: UtcInstant
     updated_at: UtcInstant
+
+    @field_validator('reminder_date', mode='before')
+    @classmethod
+    def coerce_reminder_date(cls, v):
+        if isinstance(v, date):
+            return v.isoformat()
+        return v
 
     class Config:
         from_attributes = True

@@ -1,5 +1,6 @@
 """Pydantic schemas for vaccine records."""
 from typing import Optional
+from datetime import date
 from pydantic import BaseModel, Field, field_validator
 
 from ..serialization.utc_instant import OptionalUtcInstant, UtcInstant
@@ -102,7 +103,7 @@ class VaccineRecordOut(VaccineRecordBase):
     deleted: bool = False
     deleted_at: OptionalUtcInstant = None
     record_type: str = "confirmed_application"
-    
+
     # Campos de catálogo (Fev 2026)
     vaccine_code: Optional[str] = None
     country_code: Optional[str] = None
@@ -117,6 +118,13 @@ class VaccineRecordOut(VaccineRecordBase):
     reminder_date: Optional[str] = None
     reminder_time: Optional[str] = None
     reminder_enabled: bool = False
+
+    @field_validator('reminder_date', mode='before')
+    @classmethod
+    def coerce_reminder_date(cls, v):
+        if isinstance(v, date):
+            return v.isoformat()
+        return v
 
     class Config:
         from_attributes = True
