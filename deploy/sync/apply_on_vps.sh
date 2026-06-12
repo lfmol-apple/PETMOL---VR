@@ -10,6 +10,8 @@ REMOTE_DIR="/opt/petmol"
 APP_DIR="$REMOTE_DIR/app"
 ZIP_PATH="$REMOTE_DIR/PETMOL.zip"
 TEMP_DIR="$REMOTE_DIR/PETMOL_new"
+DEPLOY_SHA="${PETMOL_DEPLOY_SHA:-unknown}"
+DEPLOY_BRANCH="${PETMOL_DEPLOY_BRANCH:-unknown}"
 
 # Colors
 GREEN='\033[0;32m'
@@ -212,6 +214,14 @@ cp -r "$APP_DIR/apps/web/.next/static" "$STANDALONE/.next/" 2>/dev/null || true
 
 # Fix permissions again after install
 chown -R petmol:petmol "$APP_DIR" 2>/dev/null || true
+
+# Record exactly which Git revision this production tree came from.
+cat > "$APP_DIR/REVISION" <<EOF
+sha=$DEPLOY_SHA
+branch=$DEPLOY_BRANCH
+deployed_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+EOF
+chown petmol:petmol "$APP_DIR/REVISION" 2>/dev/null || true
 
 # ============================================
 # Step 5: Restart services

@@ -10,6 +10,8 @@ VPS_IP="${PETMOL_VPS_IP:-147.93.33.24}"
 VPS_USER="${PETMOL_VPS_USER:-root}"
 REMOTE_DIR="${PETMOL_REMOTE_DIR:-/opt/petmol}"
 DOMAIN="${PETMOL_DOMAIN:-petmol.com.br}"
+ALLOW_DIRTY="${PETMOL_ALLOW_DIRTY:-false}"
+ALLOW_UNPUSHED="${PETMOL_ALLOW_UNPUSHED:-false}"
 
 # Colors
 GREEN='\033[0;32m'
@@ -32,10 +34,51 @@ log "PETMOL Publish: $PROJECT_DIR → $VPS_USER@$VPS_IP"
 log "============================================"
 
 # ============================================
+# Preflight: Git is the source of truth
+# ============================================
+cd "$PROJECT_DIR"
+
+if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+    GIT_SHA="$(git rev-parse HEAD)"
+    GIT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+    GIT_STATUS="$(git status --porcelain)"
+
+    if [ -n "$GIT_STATUS" ] && [ "$ALLOW_DIRTY" != "true" ]; then
+        git status --short
+        error "Working tree is dirty. Commit or stash changes before deploy, or set PETMOL_ALLOW_DIRTY=true."
+    fi
+
+    if git rev-parse --abbrev-ref --symbolic-full-name @{u} > /dev/null 2>&1; then
+        log "Checking upstream sync..."
+        git fetch --quiet
+        LOCAL_REV="$(git rev-parse @)"
+        UPSTREAM_REV="$(git rev-parse @{u})"
+        BASE_REV="$(git merge-base @ @{u})"
+
+        if [ "$LOCAL_REV" != "$UPSTREAM_REV" ] && [ "$ALLOW_UNPUSHED" != "true" ]; then
+            if [ "$LOCAL_REV" = "$BASE_REV" ]; then
+                error "Local branch is behind upstream. Run git pull before deploy."
+            elif [ "$UPSTREAM_REV" = "$BASE_REV" ]; then
+                error "Local branch has unpushed commits. Push first, or set PETMOL_ALLOW_UNPUSHED=true."
+            else
+                error "Local branch and upstream diverged. Reconcile Git before deploy."
+            fi
+        fi
+    else
+        warn "No upstream configured for $GIT_BRANCH; cannot verify GitHub sync."
+    fi
+
+    log "Deploying commit $GIT_SHA ($GIT_BRANCH)"
+else
+    GIT_SHA="unknown"
+    GIT_BRANCH="unknown"
+    warn "Not inside a Git worktree; deploy revision will be unknown."
+fi
+
+# ============================================
 # Step 1: Create ZIP (excluding node_modules, caches, etc)
 # ============================================
 log "Creating deployment package..."
-cd "$PROJECT_DIR"
 
 rm -f "$ZIP_PATH"
 zip -r "$ZIP_PATH" . \
@@ -84,7 +127,9 @@ scp "$ZIP_PATH" "$VPS_USER@$VPS_IP:$REMOTE_DIR/"
 # Step 3: Run apply script on VPS
 # ============================================
 log "Applying on VPS..."
-ssh "$VPS_USER@$VPS_IP" "bash -s" < "$SCRIPT_DIR/apply_on_vps.sh"
+ssh "$VPS_USER@$VPS_IP" \
+    "PETMOL_DEPLOY_SHA='$GIT_SHA' PETMOL_DEPLOY_BRANCH='$GIT_BRANCH' bash -s" \
+    < "$SCRIPT_DIR/apply_on_vps.sh"
 
 # ============================================
 # Step 4: Sync uploads (fotos + documentos)
