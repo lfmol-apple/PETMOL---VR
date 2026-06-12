@@ -71,7 +71,7 @@ RSYNC_DIFF="$(rsync -anic --delete \
     --exclude 'apps/web/tsconfig.tsbuildinfo' \
     "$VPS_USER@$VPS_IP:$REMOTE_DIR/app/" ./)"
 
-MEANINGFUL_DIFF="$(printf '%s\n' "$RSYNC_DIFF" | awk '$0 !~ /^\.d\.\.t/ && NF {print}')"
+MEANINGFUL_DIFF="$(printf '%s\n' "$RSYNC_DIFF" | awk '$0 !~ /^\.d\.\.t/ && $0 !~ /^\.f\.\.t/ && NF {print}')"
 if [ -n "$MEANINGFUL_DIFF" ]; then
     printf '%s\n' "$MEANINGFUL_DIFF"
     fail "Production files differ from local checkout."
