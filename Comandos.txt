@@ -1,0 +1,46 @@
+COMANDOS PARA MANTER LOCAL, GITHUB E PRODUCAO SINCRONIZADOS
+
+Use este comando para pedir ao ChatGPT/Codex ou ao Claude:
+
+Sincronize local, GitHub e producao: confira o status, rode os testes/build, faca commit das alteracoes, de push para origin/main, rode bash deploy/sync/publish.sh e confirme com bash deploy/sync/check_sync.sh.
+
+
+Versao curta:
+
+Faca o deploy seguro e confirme que local, GitHub e producao ficaram sincronizados.
+
+
+Para apenas conferir, sem alterar nada:
+
+Confira se local, GitHub e producao estao sincronizados, sem fazer deploy.
+
+
+Fluxo manual recomendado:
+
+1. Conferir se os tres estao iguais:
+bash deploy/sync/check_sync.sh
+
+2. Rodar build/teste do frontend:
+npm run web:build
+
+3. Rodar validacao simples do backend:
+cd services/price-service && .venv/bin/python -m compileall -q src && cd ../..
+
+4. Salvar alteracoes no Git:
+git add -A
+git commit -m "descricao da alteracao"
+
+5. Enviar para GitHub:
+git push origin HEAD:main
+
+6. Publicar em producao:
+bash deploy/sync/publish.sh
+
+7. Confirmar alinhamento final:
+bash deploy/sync/check_sync.sh
+
+
+Regra principal:
+
+Nunca editar producao manualmente. O caminho correto e sempre:
+local -> GitHub -> deploy -> producao
