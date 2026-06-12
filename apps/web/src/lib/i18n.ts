@@ -1954,7 +1954,7 @@ export const translations: Record<string, TranslationEntry> = {
     'fr': 'Vaccins · Antiparasitaires', 'it': 'Vaccini · Antiparassitari'
   },
   'home.shopping.desc': {
-    'pt-BR': 'Produtos', 'en': 'Products', 'es': 'Productos',
+    'pt-BR': 'Produtos com desconto', 'en': 'Products', 'es': 'Productos',
     'fr': 'Produits', 'it': 'Prodotti'
   },
   'home.services.clinics': {
@@ -9216,6 +9216,10 @@ export const translations: Record<string, TranslationEntry> = {
     'pt-BR': 'Todos', 'en': 'All', 'es': 'Todos',
     'fr': 'Tous', 'it': 'Tutti'
   },
+  'doc.cat.health': {
+    'pt-BR': 'Saúde', 'en': 'Health', 'es': 'Salud',
+    'fr': 'Santé', 'it': 'Salute'
+  },
   'doc.cat.exams': {
     'pt-BR': 'Exames', 'en': 'Exams', 'es': 'Exámenes',
     'fr': 'Examens', 'it': 'Esami'
@@ -9227,6 +9231,10 @@ export const translations: Record<string, TranslationEntry> = {
   'doc.cat.reports': {
     'pt-BR': 'Laudos', 'en': 'Reports', 'es': 'Informes',
     'fr': 'Rapports', 'it': 'Referti'
+  },
+  'doc.cat.vouchers': {
+    'pt-BR': 'Comprovantes', 'en': 'Receipts', 'es': 'Comprobantes',
+    'fr': 'Justificatifs', 'it': 'Ricevute'
   },
   'doc.cat.photos': {
     'pt-BR': 'Fotos', 'en': 'Photos', 'es': 'Fotos',
@@ -9241,6 +9249,10 @@ export const translations: Record<string, TranslationEntry> = {
   'upload.type_report': {
     'pt-BR': 'Laudo', 'en': 'Report', 'es': 'Informe',
     'fr': 'Rapport', 'it': 'Referto'
+  },
+  'upload.type_comprovante': {
+    'pt-BR': 'Comprovante', 'en': 'Receipt', 'es': 'Comprobante',
+    'fr': 'Justificatif', 'it': 'Ricevuta'
   },
   'upload.type_photo': {
     'pt-BR': 'Foto', 'en': 'Photo', 'es': 'Foto',

@@ -212,10 +212,6 @@ export function ArrivalAlert({
                 if (onNavigateToSaude) {
                   onNavigateToSaude('banho');
                 }
-                setTimeout(() => {
-                  const formattedDate = new Date().toLocaleDateString(locale);
-                  alert(`${t('alert.arrival_grooming_registered')}\n\n📍 ${t('health.location_label')}: ${arrivalPlace.name}\n📅 ${t('health.date_label')}: ${formattedDate}\n\n${t('alert.arrival_fill_service_type')}`);
-                }, 500);
               }}
               className="w-full bg-gradient-to-r from-sky-500 to-blue-500 text-white p-2 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all flex items-center justify-between group text-xs"
             >

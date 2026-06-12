@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "predev": "node -e \"const fs=require('fs');const p='.next/build-manifest.json';try{if(fs.existsSync(p))JSON.parse(fs.readFileSync(p,'utf8'));}catch{console.log('[predev] Cache corrompido — limpando .next');fs.rmSync('.next',{recursive:true,force:true});}\"",
     "dev": "next dev",
     "dev:clean": "rm -rf .next && next dev",
-    "build": "next build",
+    "build": "next build && cp -r public .next/standalone/apps/web/public && cp -r .next/static .next/standalone/apps/web/.next/static",
     "build:clean": "rm -rf .next && npm run build",
     "start": "next start",
     "lint": "next lint"
@@ -16,8 +17,10 @@
     "@tanstack/react-query-devtools": "^5.91.3",
     "@types/leaflet": "^1.9.21",
     "@types/qrcode": "^1.5.6",
+    "@zxing/browser": "^0.1.5",
     "browser-image-compression": "^2.0.2",
     "framer-motion": "^12.29.2",
+    "html5-qrcode": "^2.3.8",
     "idb": "^8.0.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.563.0",

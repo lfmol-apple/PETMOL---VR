@@ -1,5 +1,6 @@
 /**
- * PETMOL Service Worker — Web Push
+ * PETMOL Service Worker — Web Push + offline shell
+ * v2026.05.18
  *
  * Recebe eventos push, exibe notificação e ao clicar abre a URL do payload.
  * Payload esperado (JSON):
@@ -10,10 +11,19 @@
  *   badge:   string,
  *   tag:     string,
  *   data:    { url: string },
+ *   actions: [{ action: string, title: string, icon?: string }],
  *   requireInteraction: boolean,
  *   autoCloseMs: number,
  * }
  */
+
+const CACHE_NAME = 'petmol-shell-v2026-05-18';
+const SHELL_URLS = [
+  '/',
+  '/home',
+  '/manifest.webmanifest',
+  '/icons/icon-192x192.png',
+];
 
 self.addEventListener('push', (event) => {
   if (!event.data) return;
@@ -25,26 +35,29 @@ self.addEventListener('push', (event) => {
     payload = { title: 'PETMOL', body: event.data.text() };
   }
 
-  const title = payload.title || 'PETMOL';
+  const normalized = normalizePushPayload(payload);
+  const title = normalized.title;
   const options = {
-    body: payload.body || '',
-    icon: payload.icon || '/icons/icon-192x192.png',
-    badge: payload.badge || '/icons/icon-96x96.png',
-    tag: payload.tag || 'petmol',
-    data: payload.data || { url: '/home' },
-    requireInteraction: payload.requireInteraction === true,
+    body: normalized.body,
+    icon: normalized.icon,
+    badge: normalized.badge,
+    image: normalized.image,
+    tag: normalized.tag,
+    data: normalized.data,
+    actions: normalized.actions,
+    requireInteraction: normalized.requireInteraction === true,
+    renotify: normalized.renotify === true,
   };
 
   const notifPromise = self.registration.showNotification(title, options);
 
-  // Auto-close if configured
-  if (payload.autoCloseMs && payload.autoCloseMs > 0 && !payload.requireInteraction) {
+  if (normalized.autoCloseMs && normalized.autoCloseMs > 0 && !normalized.requireInteraction) {
     event.waitUntil(
       notifPromise.then(() =>
-        new Promise((resolve) => setTimeout(resolve, payload.autoCloseMs))
+        new Promise((resolve) => setTimeout(resolve, normalized.autoCloseMs))
           .then(() =>
             self.registration.getNotifications({ tag: options.tag }).then((notifs) => {
-              notifs.forEach((n) => n.close());
+              notifs.forEach((notification) => notification.close());
             })
           )
       )
@@ -54,31 +67,136 @@ self.addEventListener('push', (event) => {
   }
 });
 
+function normalizePushPayload(payload) {
+  const source = payload && typeof payload === 'object' ? payload : {};
+  const sourceData = source.data && typeof source.data === 'object' ? source.data : {};
+  const rawTitle = String(source.title || '').trim();
+  const rawBody = String(source.body || '').trim();
+  const url = String(sourceData.url || source.url || '/home').trim() || '/home';
+  const actionUrls = sourceData.action_urls && typeof sourceData.action_urls === 'object'
+    ? sourceData.action_urls
+    : {};
+  const actions = Array.isArray(source.actions)
+    ? source.actions
+      .slice(0, 4)
+      .map((candidate) => {
+        if (!candidate || typeof candidate !== 'object') return null;
+        const action = String(candidate.action || '').trim();
+        const title = String(candidate.title || '').trim();
+        if (!action || !title) return null;
+        const icon = String(candidate.icon || '').trim();
+        return icon ? { action, title, icon } : { action, title };
+      })
+      .filter(Boolean)
+    : [];
+
+  const titleBase = rawTitle || 'PETMOL';
+  const title = titleBase.startsWith('🐾') ? titleBase : `🐾 ${titleBase}`;
+
+  let autoCloseMs = Number(source.autoCloseMs || 0);
+  if (!Number.isFinite(autoCloseMs) || autoCloseMs < 0) autoCloseMs = 0;
+
+  const requireInteraction = source.requireInteraction === true;
+  if (requireInteraction) autoCloseMs = 0;
+
+  return {
+    title,
+    body: rawBody,
+    icon: String(source.icon || '/icons/icon-192x192.png'),
+    badge: String(source.badge || '/icons/badge-mono.png'),
+    image: String(source.image || '/brand/notification-banner.png'),
+    tag: String(source.tag || 'petmol'),
+    data: { url, action_urls: actionUrls },
+    actions,
+    requireInteraction,
+    autoCloseMs,
+    renotify: source.renotify === true,
+  };
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const url = event.notification.data?.url || '/home';
+  const action = String(event.action || '').trim();
+  const actionUrls = event.notification.data?.action_urls;
+  const actionUrl =
+    action &&
+    actionUrls &&
+    typeof actionUrls === 'object' &&
+    typeof actionUrls[action] === 'string'
+      ? actionUrls[action]
+      : null;
+  const rawUrl = actionUrl || event.notification.data?.url || '/home';
+  const targetUrl = normalizeNotificationClickUrl(rawUrl);
 
   event.waitUntil(
     clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // Se já há uma aba do app aberta, focar e navegar
         for (const client of clientList) {
-          if (client.url.includes(self.location.origin) && 'focus' in client) {
-            client.focus();
-            client.navigate(url);
-            return;
+          if (client.url.includes(self.location.origin) && 'focus' in client && 'navigate' in client) {
+            return client.focus().then(() => client.navigate(targetUrl));
           }
         }
-        // Senão, abre nova aba
         if (clients.openWindow) {
-          return clients.openWindow(url);
+          return clients.openWindow(targetUrl);
         }
       })
   );
 });
 
-// Ativa o SW imediatamente sem esperar recarregar a página
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (event) => event.waitUntil(clients.claim()));
+function normalizeNotificationClickUrl(rawUrl) {
+  try {
+    const normalized = new URL(String(rawUrl || '/home'), self.location.origin);
+    if (normalized.origin !== self.location.origin) return `${self.location.origin}/home`;
+    return normalized.toString();
+  } catch {
+    return `${self.location.origin}/home`;
+  }
+}
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.addAll(SHELL_URLS))
+      .catch(() => undefined)
+      .then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then(() => clients.claim())
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  if (
+    url.origin === self.location.origin &&
+    !url.pathname.startsWith('/_next/') &&
+    (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html'))
+  ) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => undefined);
+          return response;
+        })
+        .catch(() =>
+          caches.match(event.request)
+            .then((cached) => cached || caches.match('/home'))
+            .then((cached) => cached || caches.match('/'))
+            .then((cached) => cached || new Response('PETMOL offline', {
+              status: 200,
+              headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+            }))
+        )
+    );
+  }
+});

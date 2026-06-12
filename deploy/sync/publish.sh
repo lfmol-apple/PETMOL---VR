@@ -1,6 +1,6 @@
 #!/bin/bash
 # PETMOL Publish Script - Mac → VPS
-# Usage: PETMOL_VPS_IP=147.93.33.24 PETMOL_DOMAIN=petshopbh.com bash deploy/sync/publish.sh
+# Usage: PETMOL_VPS_IP=147.93.33.24 PETMOL_DOMAIN=petmol.com.br bash deploy/sync/publish.sh
 set -e
 
 # ============================================
@@ -9,7 +9,7 @@ set -e
 VPS_IP="${PETMOL_VPS_IP:-147.93.33.24}"
 VPS_USER="${PETMOL_VPS_USER:-root}"
 REMOTE_DIR="${PETMOL_REMOTE_DIR:-/opt/petmol}"
-DOMAIN="${PETMOL_DOMAIN:-petshopbh.com}"
+DOMAIN="${PETMOL_DOMAIN:-petmol.com.br}"
 
 # Colors
 GREEN='\033[0;32m'
@@ -50,15 +50,23 @@ zip -r "$ZIP_PATH" . \
     -x ".git/*" \
     -x ".expo/*" \
     -x "*/.expo/*" \
+    -x ".gemini/*" \
+    -x "*/.gemini/*" \
+    -x ".pytest_cache/*" \
+    -x "*/.pytest_cache/*" \
     -x "*.pyc" \
     -x ".DS_Store" \
     -x "*/.DS_Store" \
     -x "._*" \
+    -x "Captura de Tela*.png" \
+    -x "Pata 2.avif" \
+    -x "pata.png" \
     -x "*.zip" \
     -x ".env" \
     -x ".env.local" \
     -x ".secrets/*" \
     -x "*/.secrets/*" \
+    -x "services/price-service/push_subscriptions.json" \
     -x "*/.env" \
     -x "*/.env.local" \
     > /dev/null

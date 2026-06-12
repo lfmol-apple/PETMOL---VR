@@ -5,13 +5,30 @@ PRODUCTION: All settings via ENV. No hardcoded domains.
 """
 import os
 import re
+from urllib.parse import urlsplit, urlunsplit
 from functools import lru_cache
-from typing import Optional, List, Set
-from pydantic_settings import BaseSettings
+from pathlib import Path
+from typing import List, Optional, Set
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+_CONFIG_DIR = Path(__file__).resolve().parent.parent
+_ENV_FILES = (
+    str(_CONFIG_DIR / ".secrets" / ".env"),
+    str(_CONFIG_DIR / ".env"),
+)
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
+
+    model_config = SettingsConfigDict(
+        env_file=_ENV_FILES,
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
     
     # Environment
     env: str = "dev"  # "dev" or "prod"
@@ -20,6 +37,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
+    frontend_url: str = "https://petmol.com.br"
     
     # CORS - Via ENV, no hardcoded domains
     cors_origins: str = "http://localhost:3000,http://localhost:8081"
@@ -44,6 +62,8 @@ class Settings(BaseSettings):
     
     # Feature flags - countries with price comparison enabled
     prices_enabled_countries: str = "BR,AR,MX,CO,CL"
+    feature_reminders_push: bool = True
+    feature_push_engine_v2: bool = False
 
     # Database - usa caminho relativo que funciona local e produção
     database_url: str = f"sqlite:///{os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'petmol.db'))}"
@@ -74,6 +94,20 @@ class Settings(BaseSettings):
     # Gemini
     gemini_api_key: Optional[str] = None
 
+    # Cosmos Bluesoft API - backend only.
+    cosmos_api_base_url: str = "https://api.cosmos.bluesoft.com.br"
+    cosmos_api_token: Optional[str] = None
+
+    # RSC GTIN API - preencha usuário/senha apenas no .env/.secrets do backend.
+    gtin_api_base_url: str = "https://gtin.rscsistemas.com.br"
+    gtin_api_username: Optional[str] = None
+    gtin_api_password: Optional[str] = None
+
+    # Open Food Facts read-only API.
+    off_api_base_url: str = "https://world.openfoodfacts.org"
+    off_user_agent: Optional[str] = None
+    opf_api_base_url: str = "https://world.openproductsfacts.org"
+
     # ── Web Push Notifications (VAPID) ────────────────────────────────────
     vapid_public_key: Optional[str] = None
     vapid_private_key: Optional[str] = None
@@ -85,16 +119,50 @@ class Settings(BaseSettings):
     cobasi_affiliate_url: Optional[str] = None
     petlove_dog_life_url: Optional[str] = None
 
-    class Config:
-        # Prefer storing secrets in .secrets/.env (kept out of git) and fall back to .env.
-        env_file = (".secrets/.env", ".env")
-        env_file_encoding = "utf-8"
-        extra = "ignore"  # Ignore extra env vars like LOG_LEVEL
+    @field_validator("debug", "feature_reminders_push", "feature_push_engine_v2", mode="before")
+    @classmethod
+    def _coerce_bool_like(cls, value):
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return False
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "y", "on", "enabled", "debug", "dev", "development"}:
+                return True
+            if normalized in {"0", "false", "no", "n", "off", "disabled", "release", "prod", "production", ""}:
+                return False
+        return value
     
     @property
     def cors_origins_list(self) -> List[str]:
         """Parse CORS origins from comma-separated string."""
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        origins = [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        expanded: List[str] = []
+
+        for origin in origins:
+            if origin not in expanded:
+                expanded.append(origin)
+
+            try:
+                parts = urlsplit(origin)
+            except Exception:
+                continue
+
+            hostname = parts.hostname
+            if hostname not in {"localhost", "127.0.0.1"}:
+                continue
+
+            alternate_host = "127.0.0.1" if hostname == "localhost" else "localhost"
+            netloc = alternate_host
+            if parts.port is not None:
+                netloc = f"{alternate_host}:{parts.port}"
+
+            alternate_origin = urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+            if alternate_origin not in expanded:
+                expanded.append(alternate_origin)
+
+        return expanded
     
     @property
     def prices_enabled_countries_set(self) -> Set[str]:

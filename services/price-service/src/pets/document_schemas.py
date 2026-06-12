@@ -3,7 +3,7 @@ from datetime import date
 from typing import Optional
 from pydantic import BaseModel, field_validator
 
-from ..serialization.utc_instant import UtcInstant
+from ..serialization.utc_instant import OptionalUtcInstant, UtcInstant
 
 
 CATEGORY_ICONS = {
@@ -11,6 +11,7 @@ CATEGORY_ICONS = {
     "vaccine": "💉",
     "prescription": "📋",
     "report": "📄",
+    "comprovante": "🧾",
     "photo": "📸",
     "other": "📁",
 }
@@ -33,6 +34,7 @@ class PetDocumentOut(BaseModel):
     size_bytes: Optional[int] = None
     event_id: Optional[str] = None   # linked timeline event
     created_at: UtcInstant
+    deleted_at: OptionalUtcInstant = None
     icon: str = "📁"
 
     @field_validator("icon", mode="before")

@@ -518,6 +518,7 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
   const [city, setCity] = useState('');
   const [stateUf, setStateUf] = useState('');
   const [country, setCountry] = useState('Brasil');
+  const [showAddress, setShowAddress] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
   const [cepError, setCepError] = useState('');
 
@@ -544,7 +545,9 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
         if (me.city)         setCity(me.city);
         if (me.state)        setStateUf(me.state);
         if (me.country)      setCountry(me.country);
-      } catch (_) {}
+      } catch {
+        showToast('Erro ao sincronizar');
+      }
     };
     prefill();
   }, []);
@@ -552,6 +555,14 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
   // Validation states
   const [emailError, setEmailError] = useState('');
   const [phoneError, setPhoneError] = useState('');
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [medicalDisclaimerAccepted, setMedicalDisclaimerAccepted] = useState(false);
+  const [firstValuePetName, setFirstValuePetName] = useState<string | null>(null);
+
+  function showToast(msg: string) {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3500);
+  }
   
   // Pet data
   const [petName, setPetName] = useState('');
@@ -572,7 +583,7 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
     
     // Limit to 5MB
     if (file.size > 5 * 1024 * 1024) {
-      alert(t('onboarding.validation.photo_too_large'));
+      showToast(t('onboarding.validation.photo_too_large'));
       return;
     }
     
@@ -617,7 +628,7 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
         
         // Base64 não deve ultrapassar ~100KB
         if (compressedBase64.length > 150000) {
-          alert(`Imagem muito grande: ${(compressedBase64.length / 1024).toFixed(0)}KB.\nTente uma foto menor (máximo ~100KB).`);
+          showToast(`Imagem muito grande: ${(compressedBase64.length / 1024).toFixed(0)}KB. Tente uma foto menor.`);
           return;
         }
         
@@ -656,6 +667,7 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
       setCity(data.localidade || '');
       setStateUf(data.uf || '');
       setCountry('Brasil');
+      setShowAddress(true);
     } catch (error) {
       console.error('CEP lookup failed:', error);
       setCepError(t('onboarding.owner.cep_error'));
@@ -678,14 +690,6 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
       return;
     }
 
-    if (countryCode === '+55') {
-      const normalizedCep = cep.replace(/\D/g, '');
-      if (normalizedCep.length !== 8) {
-        setCepError(t('onboarding.owner.cep_invalid'));
-        return;
-      }
-    }
-    
     // Save owner profile
     const ownerProfile: OwnerProfile = {
       owner_id: `owner_${Date.now()}`,
@@ -728,6 +732,7 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
         console.error('Failed to persist tutor profile:', error);
       });
     });
+    localStorage.setItem('petmol_medical_disclaimer_v1', 'true');
     
     // Save pet profile - BOTH localStorage AND API
     const parsedWeight = petWeight ? Number(petWeight.replace(',', '.')) : undefined;
@@ -735,7 +740,7 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
     // Salvar SOMENTE no backend
     const token = getToken();
     if (!token) {
-      alert('Erro: você precisa estar logado!');
+      showToast('Sessão expirada. Faça login novamente.');
       return;
     }
 
@@ -791,13 +796,14 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
       }
     } catch (error) {
       console.error('Failed to save pet to API:', error);
-      alert('Erro ao salvar pet. Tente novamente.');
+      showToast('Erro ao salvar pet. Tente novamente.');
       return;
     }
     
     // Mark as completed
     localStorage.setItem('petmol_onboarding_complete', 'true');
-    onComplete();
+    localStorage.setItem('petmol_activation_pet_created_v1', '1');
+    setFirstValuePetName(petName || 'seu pet');
   };
 
   const handlePetFormComplete = async (data: {
@@ -855,11 +861,12 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
           console.error('Failed to persist tutor profile:', error);
         });
       });
+      localStorage.setItem('petmol_medical_disclaimer_v1', 'true');
     }
 
     const token = getToken();
     if (!token) {
-      alert('Erro: você precisa estar logado!');
+      showToast('Sessão expirada. Faça login novamente.');
       return;
     }
 
@@ -888,18 +895,58 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
       if (!response.ok) {
         throw new Error('Erro ao salvar pet');
       }
+      await response.json().catch(() => null);
     } catch (error) {
       console.error('Failed to save pet to API:', error);
-      alert('Erro ao salvar pet. Tente novamente.');
+      showToast('Erro ao salvar pet. Tente novamente.');
       return;
     }
 
     localStorage.setItem('petmol_onboarding_complete', 'true');
-    onComplete();
+    localStorage.setItem('petmol_activation_pet_created_v1', '1');
+    setFirstValuePetName(data.name || 'seu pet');
   };
+
+  if (firstValuePetName) {
+    return (
+      <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-3xl z-[200] overflow-y-auto w-full h-full">
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <div className="bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium max-w-md w-full p-8 border border-white/60">
+            <h2 className="text-2xl font-black text-slate-900">Hoje com {firstValuePetName}</h2>
+            <p className="mt-1 text-sm font-medium text-slate-500">Primeiros cuidados para revisar agora.</p>
+            <div className="mt-5 grid gap-3">
+              {['Vacina anual', 'Vermífugo', 'Ração'].map((label) => (
+                <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-bold text-slate-800">
+                  {label}
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">
+              Os intervalos são recomendações gerais. Consulte um veterinário.
+            </p>
+            <button
+              type="button"
+              onClick={onComplete}
+              className="mt-5 w-full py-4 bg-gradient-to-r from-primary-500 to-blue-500 text-white font-semibold rounded-xl"
+            >
+              Entrar no PETMOL
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-3xl z-[200] overflow-y-auto w-full h-full">
+      {/* Toast */}
+      {toastMsg && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[250] px-5 py-3 rounded-2xl bg-rose-50 border border-rose-200 shadow-lg text-sm font-semibold text-rose-800 max-w-sm w-[calc(100%-2rem)] flex items-center gap-2">
+          <span>⚠️</span>
+          <span className="flex-1">{toastMsg}</span>
+          <button onClick={() => setToastMsg(null)} className="text-[11px] font-bold text-rose-600 underline">OK</button>
+        </div>
+      )}
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium max-w-2xl w-full p-8 md:p-10 border border-white/60 overflow-hidden">
           {/* Progress */}
@@ -1038,138 +1085,175 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
                   )}
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    {t('onboarding.owner.cep_label')}
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={cep}
-                      onChange={(e) => {
-                        setCep(e.target.value);
-                        setCepError('');
-                      }}
-                      onBlur={handleCepLookup}
-                      className={`flex-1 px-4 py-3 border-2 rounded-xl focus:ring-2 outline-none transition-all ${
-                        cepError ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-slate-200 focus:border-primary-500 focus:ring-primary-200'
-                      }`}
-                      placeholder={t('onboarding.owner.cep_placeholder')}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleCepLookup}
-                      disabled={cepLoading}
-                      className="px-4 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold disabled:opacity-60"
-                    >
-                      {cepLoading ? t('onboarding.owner.cep_loading') : t('onboarding.owner.cep_lookup')}
-                    </button>
-                  </div>
-                  {cepError && <p className="text-xs text-red-600 mt-1">⚠️ {cepError}</p>}
-                </div>
+                {/* Endereço — colapsável, opcional */}
+                <button
+                  type="button"
+                  onClick={() => setShowAddress((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 border-dashed border-slate-200 text-sm font-medium text-slate-500 hover:border-primary-400 hover:text-slate-700 transition-all"
+                >
+                  <span>
+                    📍 {showAddress ? 'Ocultar endereço' : 'Adicionar endereço'}
+                    <span className="ml-1 font-normal text-slate-400">(opcional)</span>
+                  </span>
+                  <svg
+                    className={`w-4 h-4 transition-transform ${showAddress ? 'rotate-180' : ''}`}
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      {t('onboarding.owner.street_label')}
-                    </label>
-                    <input
-                      type="text"
-                      value={street}
-                      onChange={(e) => setStreet(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
-                      placeholder={t('onboarding.owner.street_placeholder')}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      {t('onboarding.owner.number_label')}
-                    </label>
-                    <input
-                      type="text"
-                      value={number}
-                      onChange={(e) => setNumber(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
-                      placeholder={t('onboarding.owner.number_placeholder')}
-                    />
-                  </div>
-                </div>
+                {showAddress && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        {t('onboarding.owner.cep_label')}
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={cep}
+                          onChange={(e) => {
+                            setCep(e.target.value);
+                            setCepError('');
+                          }}
+                          onBlur={handleCepLookup}
+                          className={`flex-1 px-4 py-3 border-2 rounded-xl focus:ring-2 outline-none transition-all ${
+                            cepError ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : 'border-slate-200 focus:border-primary-500 focus:ring-primary-200'
+                          }`}
+                          placeholder={t('onboarding.owner.cep_placeholder')}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleCepLookup}
+                          disabled={cepLoading}
+                          className="px-4 py-3 rounded-xl bg-slate-900 text-white text-sm font-semibold disabled:opacity-60"
+                        >
+                          {cepLoading ? t('onboarding.owner.cep_loading') : t('onboarding.owner.cep_lookup')}
+                        </button>
+                      </div>
+                      {cepError && <p className="text-xs text-red-600 mt-1">⚠️ {cepError}</p>}
+                    </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      {t('onboarding.owner.complement_label')}
-                    </label>
-                    <input
-                      type="text"
-                      value={complement}
-                      onChange={(e) => setComplement(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
-                      placeholder={t('onboarding.owner.complement_placeholder')}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      {t('onboarding.owner.neighborhood_label')}
-                    </label>
-                    <input
-                      type="text"
-                      value={neighborhood}
-                      onChange={(e) => setNeighborhood(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
-                      placeholder={t('onboarding.owner.neighborhood_placeholder')}
-                    />
-                  </div>
-                </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          {t('onboarding.owner.street_label')}
+                        </label>
+                        <input
+                          type="text"
+                          value={street}
+                          onChange={(e) => setStreet(e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
+                          placeholder={t('onboarding.owner.street_placeholder')}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          {t('onboarding.owner.number_label')}
+                        </label>
+                        <input
+                          type="text"
+                          value={number}
+                          onChange={(e) => setNumber(e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
+                          placeholder={t('onboarding.owner.number_placeholder')}
+                        />
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      {t('onboarding.owner.city_label')}
-                    </label>
-                    <input
-                      type="text"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
-                      placeholder={t('onboarding.owner.city_placeholder')}
-                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          {t('onboarding.owner.complement_label')}
+                        </label>
+                        <input
+                          type="text"
+                          value={complement}
+                          onChange={(e) => setComplement(e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
+                          placeholder={t('onboarding.owner.complement_placeholder')}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          {t('onboarding.owner.neighborhood_label')}
+                        </label>
+                        <input
+                          type="text"
+                          value={neighborhood}
+                          onChange={(e) => setNeighborhood(e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
+                          placeholder={t('onboarding.owner.neighborhood_placeholder')}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          {t('onboarding.owner.city_label')}
+                        </label>
+                        <input
+                          type="text"
+                          value={city}
+                          onChange={(e) => setCity(e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
+                          placeholder={t('onboarding.owner.city_placeholder')}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          {t('onboarding.owner.state_label')}
+                        </label>
+                        <input
+                          type="text"
+                          value={stateUf}
+                          onChange={(e) => setStateUf(e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
+                          placeholder={t('onboarding.owner.state_placeholder')}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          {t('onboarding.owner.country_label')}
+                        </label>
+                        <input
+                          type="text"
+                          value={country}
+                          onChange={(e) => setCountry(e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
+                          placeholder={t('onboarding.owner.country_placeholder')}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      {t('onboarding.owner.state_label')}
-                    </label>
-                    <input
-                      type="text"
-                      value={stateUf}
-                      onChange={(e) => setStateUf(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
-                      placeholder={t('onboarding.owner.state_placeholder')}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      {t('onboarding.owner.country_label')}
-                    </label>
-                    <input
-                      type="text"
-                      value={country}
-                      onChange={(e) => setCountry(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
-                      placeholder={t('onboarding.owner.country_placeholder')}
-                    />
-                  </div>
-                </div>
+                )}
+
+                <label className={`flex items-start gap-3 rounded-xl border-2 px-4 py-3 ${medicalDisclaimerAccepted ? 'border-primary-200 bg-primary-50' : 'border-slate-200 bg-white'}`}>
+                  <input
+                    type="checkbox"
+                    checked={medicalDisclaimerAccepted}
+                    onChange={(e) => setMedicalDisclaimerAccepted(e.target.checked)}
+                    className="mt-1 h-4 w-4"
+                  />
+                  <span className="text-sm font-semibold text-slate-700">
+                    Os intervalos são recomendações gerais. Consulte um veterinário.
+                  </span>
+                </label>
 
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  disabled={!ownerName || !ownerPhone || !!phoneError || (!!ownerEmail && !!emailError)}
+                  disabled={!ownerName || !ownerPhone || !!phoneError || (!!ownerEmail && !!emailError) || !medicalDisclaimerAccepted}
                   className="w-full py-4 bg-gradient-to-r from-primary-500 to-blue-500 text-white font-semibold rounded-xl hover:shadow-xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   {t('onboarding.actions.continue')}
                 </button>
+                <p className="text-center text-xs text-slate-400 mt-2">
+                  Você pode completar seu perfil depois, no próprio app.
+                </p>
               </div>
             )}
 

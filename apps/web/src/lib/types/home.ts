@@ -23,6 +23,7 @@ export interface ParasiteControl {
   reminder_days: number;
   collar_expiry_date?: string; // Para coleiras (Seresto, Scalibor)
   alert_days_before?: number; // Dias de antecedência para alertar sobre compra
+  reminder_time?: string;
   purchase_location?: string; // Onde foi comprado (Petz, Cobasi, internet, etc)
   reminder_enabled?: boolean; // Se o lembrete está ativo
 }

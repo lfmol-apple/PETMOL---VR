@@ -16,7 +16,9 @@
  *  - saude/[petId] (resumo e detalhe)
  *
  * DOMÍNIOS COBERTOS:
- *  vaccine | parasite (dewormer/flea_tick/collar) | grooming | food | medication | event
+ *  vaccine | parasite (dewormer/flea_tick/collar) | food | medication | event
+ *
+ * Grooming/banho/tosa permanece como histórico/serviço, mas não é controle ativo.
  */
 
 import type { VaccineRecord } from '@/lib/petHealth';
@@ -58,6 +60,7 @@ export interface PetCareReminder {
   key: string;
 
   pet_id: string;
+  pet_name: string;
   domain: CareReminderDomain;
 
   /** Label principal (nome do produto, vacina, tipo de serviço) */
@@ -168,6 +171,7 @@ function processVaccines(p: PetCareDomainParams): PetCareReminder[] {
     byCanonicalGroup.set(gKey, {
       key: makeKey(p.pet_id, 'vaccine', gKey, 'latest', dateToLocalISO(nextDate)),
       pet_id: p.pet_id,
+      pet_name: p.pet_name,
       domain: 'vaccine',
       label: v.vaccine_name,
       sublabel: vTypeLabels[v.vaccine_type ?? ''],
@@ -243,6 +247,7 @@ function processParasites(p: PetCareDomainParams): PetCareReminder[] {
     result.push({
       key: makeKey(p.pet_id, 'parasite', normalizedType, c.id, dateToLocalISO(nextDate)),
       pet_id: p.pet_id,
+      pet_name: p.pet_name,
       domain: 'parasite',
       label: c.product_name || typeLabels[normalizedType] || normalizedType,
       sublabel: typeLabels[normalizedType],
@@ -258,52 +263,18 @@ function processParasites(p: PetCareDomainParams): PetCareReminder[] {
   return result;
 }
 
-function processGrooming(p: PetCareDomainParams): PetCareReminder[] {
-  if (!p.groomingRecords.length) return [];
-
-  // Apenas o mais recente por tipo COM reminder_enabled E next_recommended_date
-  const latestByType = new Map<string, GroomingRecord>();
-  for (const r of p.groomingRecords) {
-    if (!r.reminder_enabled || !r.next_recommended_date) continue;
-    const key = r.type;
-    const prev = latestByType.get(key);
-    if (!prev) { latestByType.set(key, r); continue; }
-    const dt = parseLocalDate(r.date)?.getTime() ?? 0;
-    const prevDt = parseLocalDate(prev.date)?.getTime() ?? 0;
-    if (dt > prevDt) latestByType.set(key, r);
-  }
-
-  const typeLabels: Record<string, string> = {
-    bath: 'Banho',
-    grooming: 'Tosa',
-    bath_grooming: 'Banho + Tosa',
-  };
-
-  const result: PetCareReminder[] = [];
-  for (const r of Array.from(latestByType.values())) {
-    const nextDate = parseLocalDate(r.next_recommended_date!);
-    if (!nextDate) continue;
-    const diff = diffFromToday(nextDate);
-    result.push({
-      key: makeKey(p.pet_id, 'grooming', r.type, r.id, dateToLocalISO(nextDate)),
-      pet_id: p.pet_id,
-      domain: 'grooming',
-      label: typeLabels[r.type] || r.type,
-      icon: '🛁',
-      due_date: dateToLocalISO(nextDate),
-      diff,
-      status: toStatus(diff),
-      action_target: 'health/grooming',
-      source_record_id: r.id,
-      is_derived: r.frequency_days != null,
-    });
-  }
-  return result;
+function processGrooming(_p: PetCareDomainParams): PetCareReminder[] {
+  // Push Engine V2 reset: banho/tosa não participa de pendências, alertas,
+  // score de cuidados ou superfícies de cobrança ativa da Home.
+  return [];
 }
 
 function processFood(p: PetCareDomainParams): PetCareReminder[] {
   const plan = p.feedingPlan;
   if (!plan) return [];
+  const primaryItem = Array.isArray(plan.items)
+    ? plan.items.find((item) => Boolean(item?.is_primary)) ?? plan.items[0]
+    : null;
 
   const manualPurchaseDate = parseLocalDate(plan.next_purchase_date);
   const manualReminderOffsetRaw = Number(
@@ -323,11 +294,28 @@ function processFood(p: PetCareDomainParams): PetCareReminder[] {
   // 2. derivedManualReminder → data derivada de next_purchase_date - manual_reminder_days_before
   // 3. next_purchase_date    → data manual explícita de compra
   // 4. estimated_end_date    → fallback bruto de término do estoque
-  const reminderDateStr =
+  // 5. cálculo local         → package_size_kg + daily_amount_g + last_refill_date
+  let reminderDateStr: string =
     (plan.next_reminder_date ?? '') ||
     (derivedManualReminderDate ?? '') ||
     (plan.next_purchase_date ?? '') ||
     (plan.estimated_end_date ?? '');
+
+  if (!reminderDateStr) {
+    const pkgKg = Number(plan.package_size_kg ?? primaryItem?.package_size_kg ?? 0);
+    const dailyG = Number(plan.daily_amount_g ?? primaryItem?.daily_amount_g ?? 0);
+    const refillStr = (plan.last_refill_date ?? primaryItem?.last_refill_date ?? '') as string;
+    if (pkgKg > 0 && dailyG > 0 && refillStr) {
+      const refillDate = parseLocalDate(refillStr);
+      if (refillDate) {
+        const totalDays = Math.round((pkgKg * 1000) / dailyG);
+        const warningBefore = hasManualReminderOffset ? manualReminderOffsetRaw : 5;
+        const alertDate = new Date(refillDate);
+        alertDate.setDate(alertDate.getDate() + totalDays - warningBefore);
+        reminderDateStr = dateToLocalISO(alertDate);
+      }
+    }
+  }
 
   if (!reminderDateStr) return [];
 
@@ -335,11 +323,12 @@ function processFood(p: PetCareDomainParams): PetCareReminder[] {
   if (!nextDate) return [];
 
   const diff = diffFromToday(nextDate);
-  const brand = (plan.food_brand || plan.brand || '').trim() || undefined;
+  const brand = (plan.food_brand || plan.brand || primaryItem?.food_brand || '').trim() || undefined;
 
   return [{
     key: makeKey(p.pet_id, 'food', 'purchase', 'active-plan', dateToLocalISO(nextDate)),
     pet_id: p.pet_id,
+    pet_name: p.pet_name,
     domain: 'food',
     label: 'Compra de ração',
     sublabel: brand,
@@ -387,9 +376,50 @@ function processEvents(p: PetCareDomainParams): PetCareReminder[] {
 
     const extra = parsePetEventExtraData(ev.extra_data);
 
-    // Medicações com treatment_days são tratadas pelo tracker de tratamento da RemindersSection
-    // Não as duplicamos nos chips simples
-    if (ev.type === 'medicacao' && extra.treatment_days) continue;
+    // Medicações com treatment_days: incluir nos lembretes se o tratamento está ativo e a dose de hoje ainda está pendente
+    if (ev.type === 'medicacao' && extra.treatment_days) {
+      const totalDoses = parseInt(String(extra.treatment_days), 10);
+      if (isNaN(totalDoses) || totalDoses <= 0) continue;
+      const today = todayMidnight();
+      const todayIso = dateToLocalISO(today);
+      const startDate = parseLocalDate((ev.scheduled_at || '').split('T')[0]);
+      if (!startDate) continue;
+      const appliedDates: string[] = Array.isArray(extra.applied_dates) ? extra.applied_dates : [];
+      const skippedDates: string[] = Array.isArray(extra.skipped_dates) ? extra.skipped_dates : [];
+      // Tratamento já completo por contagem de doses?
+      if (appliedDates.length >= totalDoses) continue;
+      // Calcular data de término com dias perdidos
+      const daysSinceStart = Math.max(0, Math.floor((today.getTime() - startDate.getTime()) / 86400000));
+      const appliedBefore = appliedDates.filter(d => d < todayIso).length;
+      const skippedBefore = skippedDates.filter(d => d < todayIso).length;
+      const missedDays = Math.max(0, daysSinceStart - (appliedBefore + skippedBefore));
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + totalDoses - 1 + missedDays);
+      // Período de tratamento já encerrado?
+      if (endDate < today) continue;
+      // Dose de hoje já aplicada?
+      if (appliedDates.includes(todayIso)) continue;
+      // Dose de hoje ainda pendente — exibir como 'hoje' (ou futuro se não iniciado)
+      const effectiveDue = startDate > today ? startDate : today;
+      const treatDiff = Math.round((effectiveDue.getTime() - today.getTime()) / 86400000);
+      const treatDueStr = dateToLocalISO(effectiveDue);
+      result.push({
+        key: makeKey(p.pet_id, 'medication', 'medicacao', ev.id, treatDueStr),
+        pet_id: p.pet_id,
+        pet_name: p.pet_name,
+        domain: 'medication',
+        label: ev.title,
+        sublabel: extra.dosage ? String(extra.dosage) : eventLabels[ev.type],
+        icon: '💊',
+        due_date: treatDueStr,
+        diff: treatDiff,
+        status: toStatus(treatDiff),
+        action_target: 'health/medication',
+        source_record_id: ev.id,
+        is_derived: false,
+      });
+      continue;
+    }
 
     const nextDate = parseLocalDate(ev.next_due_date);
     if (!nextDate) continue;
@@ -413,6 +443,7 @@ function processEvents(p: PetCareDomainParams): PetCareReminder[] {
         dueStr,
       ),
       pet_id: p.pet_id,
+      pet_name: p.pet_name,
       domain: ev.type === 'medicacao' ? 'medication' : 'event',
       label: ev.title,
       sublabel,

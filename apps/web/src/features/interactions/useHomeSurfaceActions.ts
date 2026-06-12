@@ -5,6 +5,7 @@ import type { HomeSurfaceResolution } from '@/features/interactions/homeModalRou
 
 interface UseHomeSurfaceActionsInput {
   setShowVaccineSheet: (value: boolean) => void;
+  setShowQuickAddVaccine: (value: boolean) => void;
   setShowVermifugoSheet: (value: boolean) => void;
   setShowAntipulgasSheet: (value: boolean) => void;
   setShowColeiraSheet: (value: boolean) => void;
@@ -22,6 +23,7 @@ interface UseHomeSurfaceActionsInput {
 
 export function useHomeSurfaceActions({
   setShowVaccineSheet,
+  setShowQuickAddVaccine,
   setShowVermifugoSheet,
   setShowAntipulgasSheet,
   setShowColeiraSheet,
@@ -68,11 +70,11 @@ export function useHomeSurfaceActions({
     setShowFoodSheet(true);
   }, [setShowFoodSheet]);
 
-  // SILENCIADO: aba eventos removida da UI — handler mantido para compatibilidade de tipos
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const openEvents = useCallback(() => {
-    // no-op: bloco legado de Consultas/Exames removido
-  }, []);
+    setHealthActiveTab('eventos');
+    setHealthModalMode('full');
+    setShowHealthModal(true);
+  }, [setHealthActiveTab, setHealthModalMode, setShowHealthModal]);
 
   const applyHomeSurfaceResolution = useCallback((resolution: HomeSurfaceResolution) => {
     if (resolution.kind === 'health-modal') {
@@ -94,12 +96,16 @@ export function useHomeSurfaceActions({
         setShowFoodSheet(true);
       } else if (resolution.sheet === 'vaccines') {
         setShowVaccineSheet(true);
+      } else if (resolution.sheet === 'vaccines_quick') {
+        setShowQuickAddVaccine(true);
       } else if (resolution.sheet === 'vermifugo') {
         setShowVermifugoSheet(true);
       } else if (resolution.sheet === 'antipulgas') {
         setShowAntipulgasSheet(true);
       } else if (resolution.sheet === 'coleira') {
         setShowColeiraSheet(true);
+      } else if (resolution.sheet === 'medication') {
+        setShowMedicationSheet(true);
       }
       return;
     }
@@ -107,6 +113,10 @@ export function useHomeSurfaceActions({
     if (resolution.kind === 'edit-pet') {
       setEditPetInitialSection(resolution.initialSection);
       setShowEditModal(true);
+    }
+
+    if (resolution.kind === 'documents') {
+      setShowMedicalVault(true);
     }
   }, [
     setEditPetInitialSection,
@@ -119,9 +129,16 @@ export function useHomeSurfaceActions({
     setShowFoodSheet,
     setShowHealthModal,
     setShowHealthOptionsModal,
+    setShowMedicalVault,
+    setShowMedicationSheet,
+    setShowQuickAddVaccine,
     setShowVaccineSheet,
     setShowVermifugoSheet,
   ]);
+
+  const openHealth = useCallback(() => {
+    setShowHealthOptionsModal(true);
+  }, [setShowHealthOptionsModal]);
 
   return {
     applyHomeSurfaceResolution,
@@ -134,5 +151,6 @@ export function useHomeSurfaceActions({
     openMedication,
     openFood,
     openEvents,
+    openHealth,
   };
 }

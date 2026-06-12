@@ -55,6 +55,11 @@ export interface VaccineRecord {
   vaccine_code?: string;      // e.g. "DOG_RABIES", "CAT_POLYVALENT"
   country_code?: string;      // e.g. "BR", "US"
   next_due_source?: string;   // "protocol" | "manual" | "unknown"
+  record_type?: 'confirmed_application' | 'estimated_control_start';
+  alert_days_before?: number;
+  reminder_time?: string;
+  reminder_enabled?: boolean;
+  deleted_at?: string;
 }
 
 export interface MedicalExam {

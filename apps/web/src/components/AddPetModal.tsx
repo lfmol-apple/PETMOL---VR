@@ -158,13 +158,8 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
         <PetPhotoPicker initialSrc={petPhoto || null} onConfirm={handlePhotoPickerConfirm} onCancel={() => setShowPhotoPicker(false)} />
       )}
 
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 backdrop-blur-md backdrop-blur-sm sm:items-center sm:p-4 animate-fadeIn">
-        <div className="flex max-h-[96dvh] w-full flex-col bg-slate-50 native-bottom-sheet sm:max-w-sm rounded-[32px] animate-slideUp overflow-hidden">
-          
-          {/* Drag Handle for iOS feel */}
-          <div className="w-full flex justify-center pt-3 pb-1 bg-white sm:hidden rounded-t-[24px]">
-            <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
-          </div>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-fadeIn">
+        <div className="flex max-h-[96dvh] w-full flex-col bg-slate-50 sm:max-w-sm rounded-[32px] animate-scaleIn overflow-hidden shadow-2xl">
 
           {/* Header */}
           <div className="flex items-center justify-between px-5 pt-2 pb-4 bg-white border-b border-slate-100/60 sticky top-0 z-10">

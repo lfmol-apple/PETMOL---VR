@@ -19,6 +19,13 @@ export const API_BASE_URL = resolveApiBaseUrl();
 // Alias for backwards compatibility
 export const API_URL = API_BASE_URL;
 
+// Normalized base for backend routes that are prefixed with /api.
+// - Production web proxy usually exposes API_BASE_URL="/api"
+// - Local/dev commonly uses API_BASE_URL="http://localhost:8000"
+export const API_BACKEND_BASE = API_BASE_URL.endsWith('/api')
+  ? API_BASE_URL
+  : `${API_BASE_URL}/api`;
+
 // ========================================
 // Types
 // ========================================

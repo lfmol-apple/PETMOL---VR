@@ -334,6 +334,7 @@ export function PetFormFluido({ onComplete, onCancel, initialData }: PetFormFlui
   const [vetClinic, setVetClinic] = useState('');
   const [vetPhone, setVetPhone]   = useState('');
   const [loading, setLoading]     = useState(false);
+  const [cropError, setCropError]  = useState<string | null>(null);
 
   // Photo crop
   const fileInputRef   = useRef<HTMLInputElement>(null);
@@ -389,7 +390,7 @@ export function PetFormFluido({ onComplete, onCancel, initialData }: PetFormFlui
       setCrop({ x: 0, y: 0 });
       setZoom(1);
     } catch {
-      alert('Erro ao recortar imagem. Tente novamente.');
+      setCropError('Erro ao recortar imagem. Tente novamente.');
     }
   };
 
@@ -705,6 +706,13 @@ export function PetFormFluido({ onComplete, onCancel, initialData }: PetFormFlui
               </div>
 
               {/* Botões */}
+              {cropError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-sm font-semibold text-rose-700 flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span className="flex-1">{cropError}</span>
+                  <button type="button" onClick={() => setCropError(null)} className="text-xs font-bold text-rose-600 underline">OK</button>
+                </div>
+              )}
               <div className="flex gap-3">
                 <button
                   type="button"

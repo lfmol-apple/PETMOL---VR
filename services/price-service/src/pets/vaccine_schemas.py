@@ -1,5 +1,6 @@
 """Pydantic schemas for vaccine records."""
 from typing import Optional
+from datetime import date
 from pydantic import BaseModel, Field, field_validator
 
 from ..serialization.utc_instant import OptionalUtcInstant, UtcInstant
@@ -45,6 +46,10 @@ class VaccineRecordBase(BaseModel):
         description="Observações adicionais (lote, veterinário, clínica, custo, etc)",
         examples=["Lote J217L | Dr. Silva | Clínica PetCenter | R$ 80,00"]
     )
+    alert_days_before: Optional[int] = Field(None, ge=0, le=60)
+    reminder_date: Optional[str] = None
+    reminder_time: Optional[str] = Field(None, max_length=5)
+    reminder_enabled: bool = False
     
     @field_validator('next_dose_date')
     @classmethod
@@ -70,6 +75,14 @@ class VaccineRecordUpdate(BaseModel):
     dose_number: Optional[int] = Field(None, ge=1)
     notes: Optional[str] = None
     deleted: Optional[bool] = None
+    record_type: Optional[str] = None
+    vaccine_type: Optional[str] = None
+    clinic_name: Optional[str] = None
+    veterinarian_name: Optional[str] = None
+    alert_days_before: Optional[int] = Field(None, ge=0, le=60)
+    reminder_date: Optional[str] = None
+    reminder_time: Optional[str] = Field(None, max_length=5)
+    reminder_enabled: Optional[bool] = None
     
     @field_validator('next_dose_date')
     @classmethod
@@ -88,7 +101,9 @@ class VaccineRecordOut(VaccineRecordBase):
     created_at: UtcInstant
     updated_at: UtcInstant
     deleted: bool = False
-    
+    deleted_at: OptionalUtcInstant = None
+    record_type: str = "confirmed_application"
+
     # Campos de catálogo (Fev 2026)
     vaccine_code: Optional[str] = None
     country_code: Optional[str] = None
@@ -99,6 +114,17 @@ class VaccineRecordOut(VaccineRecordBase):
     clinic_name: Optional[str] = None
     veterinarian_name: Optional[str] = None
     batch_number: Optional[str] = None
+    alert_days_before: Optional[int] = None
+    reminder_date: Optional[str] = None
+    reminder_time: Optional[str] = None
+    reminder_enabled: bool = False
+
+    @field_validator('reminder_date', mode='before')
+    @classmethod
+    def coerce_reminder_date(cls, v):
+        if isinstance(v, date):
+            return v.isoformat()
+        return v
 
     class Config:
         from_attributes = True
@@ -116,12 +142,18 @@ class VaccineRecordSync(BaseModel):
     created_at: UtcInstant
     updated_at: UtcInstant
     deleted: bool = False
+    deleted_at: OptionalUtcInstant = None
+    record_type: str = "confirmed_application"
     
     # Legacy fields (deprecated, mantidos para compatibilidade)
     vaccine_type: Optional[str] = None
     clinic_name: Optional[str] = None
     veterinarian_name: Optional[str] = None
     batch_number: Optional[str] = None
+    alert_days_before: Optional[int] = None
+    reminder_date: Optional[str] = None
+    reminder_time: Optional[str] = None
+    reminder_enabled: bool = False
 
 
 class VaccineSyncRequest(BaseModel):

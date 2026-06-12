@@ -11,6 +11,26 @@ interface HealthVaccinesPanelProps {
   onOpenVaccineCenter: () => void;
 }
 
+function WarningTriangle() {
+  return (
+    <div className="absolute -top-1 -right-1 w-6 h-6 flex items-center justify-center animate-pulse z-10">
+      <span
+        className="absolute inset-0 bg-amber-400 shadow-sm ring-2 ring-white"
+        style={{ clipPath: 'polygon(50% 0%, 100% 92%, 0% 92%)' }}
+      />
+      <span className="relative mt-1 text-[11px] font-black text-amber-950 leading-none">!</span>
+    </div>
+  );
+}
+
+function CriticalBadge() {
+  return (
+    <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold animate-pulse shadow-sm border border-white/50 z-10">
+      !
+    </div>
+  );
+}
+
 export function HealthVaccinesPanel({
   petName,
   vaccines,
@@ -25,6 +45,14 @@ export function HealthVaccinesPanel({
     if (Number.isNaN(nextDose.getTime())) return false;
     const diffDays = Math.ceil((nextDose.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     return diffDays > 0 && diffDays <= 60;
+  }).length;
+
+  const dueSoonCount = currentVaccines.filter(v => {
+    if (!v.next_dose_date) return false;
+    const nextDose = new Date(v.next_dose_date);
+    if (Number.isNaN(nextDose.getTime())) return false;
+    const diffDays = Math.ceil((nextDose.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    return diffDays > 0 && diffDays <= 7;
   }).length;
 
   const overdueCount = currentVaccines.filter(v => {
@@ -53,11 +81,13 @@ export function HealthVaccinesPanel({
             <div className="text-emerald-500 font-bold text-2xl sm:text-3xl drop-shadow-sm">{vaccines.length}</div>
             <div className="text-[11px] sm:text-xs font-semibold text-slate-500 mt-1 uppercase tracking-wider">{t('health.total_vaccines')}</div>
           </div>
-          <div className="bg-white p-3 sm:p-4 rounded-2xl text-center shadow-premium border border-slate-100">
+          <div className="relative bg-white p-3 sm:p-4 rounded-2xl text-center shadow-premium border border-slate-100">
+            {dueSoonCount > 0 && overdueCount === 0 && <WarningTriangle />}
             <div className="text-brand-DEFAULT font-bold text-2xl sm:text-3xl drop-shadow-sm">{upcomingCount}</div>
             <div className="text-[11px] sm:text-xs font-semibold text-slate-500 mt-1 uppercase tracking-wider">{t('health.upcoming')}</div>
           </div>
-          <div className="bg-white p-3 sm:p-4 rounded-2xl text-center shadow-premium border border-slate-100">
+          <div className="relative bg-white p-3 sm:p-4 rounded-2xl text-center shadow-premium border border-slate-100">
+            {overdueCount > 0 && <CriticalBadge />}
             <div className="text-rose-500 font-bold text-2xl sm:text-3xl drop-shadow-sm">{overdueCount}</div>
             <div className="text-[11px] sm:text-xs font-semibold text-slate-500 mt-1 uppercase tracking-wider">{t('health.overdue')}</div>
           </div>

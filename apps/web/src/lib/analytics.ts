@@ -4,6 +4,7 @@
  * PETMOL V1 product metrics should go through '@/lib/v1Metrics'.
  * This file remains a thin storage/transport layer.
  */
+import { API_BASE_URL } from '@/lib/api';
 
 type EventName =
   | 'view_emergency'
@@ -34,10 +35,28 @@ type EventName =
   | 'vaccine_record_created'
   | 'food_cycle_created'
   | 'food_restock_confirmed'
+  | 'food_alert_sent'
+  | 'food_alert_opened'
+  | 'food_buy_clicked'
+  | 'food_partner_selected'
+  | 'food_purchase_confirmed'
+  | 'food_still_has_food'
+  | 'food_finished_early'
+  | 'food_remind_earlier'
+  | 'food_remind_later'
+  | 'food_forecast_confirmed'
+  | 'food_duration_adjusted'
+  | 'purchase_channel_selected'
+  | 'push_action_still_has_food'
+  | 'push_action_finished'
+  | 'push_action_buy'
+  | 'push_action_purchase_confirmed'
   | 'push_opened'
+  | 'petmol_activated_v1'
   | 'reminder_action_completed'
   | 'partner_clicked'
-  | 'document_uploaded';
+  | 'document_uploaded'
+  | 'push_sync_degraded';
 
 interface TrackEvent {
   name: EventName;
@@ -74,11 +93,39 @@ export function track(name: EventName, properties: Record<string, unknown> = {})
       console.log('[Track]', name, properties);
     }
 
-    // Send critical revenue events with sendBeacon
-    const revenueEvents: EventName[] = ['open_offer', 'click_call', 'click_directions', 'partner_clicked'];
-    if (revenueEvents.includes(name) && navigator.sendBeacon) {
-      const blob = new Blob([JSON.stringify(event)], { type: 'application/json' });
-      navigator.sendBeacon('/api/analytics/track', blob);
+    // Best-effort server-side ingestion for product analytics metrics.
+    // Keeps existing localStorage tracking as source of truth on the client.
+    try {
+      const target =
+        typeof properties.partner === 'string' ? properties.partner :
+        typeof properties.store === 'string' ? properties.store :
+        typeof properties.channel === 'string' ? properties.channel :
+        undefined;
+      const payload = {
+        source: typeof properties.source === 'string' ? properties.source : 'home_v1',
+        cta_type: name,
+        target,
+        pet_id: typeof properties.pet_id === 'string' ? properties.pet_id : undefined,
+        metadata: {
+          ...properties,
+          client_timestamp: event.timestamp,
+        },
+      };
+      const endpoint = `${API_BASE_URL}/analytics/click`;
+
+      if (navigator.sendBeacon) {
+        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        navigator.sendBeacon(endpoint, blob);
+      } else {
+        void fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          keepalive: true,
+        }).catch(() => undefined);
+      }
+    } catch {
+      // analytics must never break UX
     }
   } catch (error) {
     console.error('Failed to track event:', error);

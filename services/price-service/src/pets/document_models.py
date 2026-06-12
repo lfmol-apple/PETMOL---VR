@@ -20,7 +20,7 @@ class PetDocument(Base):
     )
 
     kind: Mapped[str] = mapped_column(String(10), nullable=False, default="file")  # 'file' | 'link'
-    category: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)     # 'exam','vaccine','prescription','report','photo','other'
+    category: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)     # 'exam','vaccine','prescription','report','comprovante','photo','other'
     title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     document_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -44,6 +44,7 @@ class PetDocument(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
 
     pet: Mapped["Pet"] = relationship("Pet", back_populates="documents")
 

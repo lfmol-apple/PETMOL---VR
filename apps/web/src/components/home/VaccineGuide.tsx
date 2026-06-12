@@ -116,7 +116,7 @@ export function VaccineGuide({ vaccineInfo, setShowAllVaccinesGuide }: VaccineGu
             <p className="text-sm text-yellow-900 font-medium flex items-start gap-2">
               <span className="text-xl">⚠️</span>
               <span>
-                <strong>Importante:</strong> Este guia é informativo. Sempre consulte seu veterinário para definir o protocolo de vacinação ideal para seu pet, considerando idade, região, estilo de vida e condições de saúde.
+                <strong>Importante:</strong> Os intervalos são recomendações gerais. Consulte um veterinário.
               </span>
             </p>
           </div>

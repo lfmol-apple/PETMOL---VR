@@ -10,11 +10,15 @@
     "mobile": "cd apps/mobile && npm start",
     "mobile:ios": "cd apps/mobile && npm run ios",
     "mobile:android": "cd apps/mobile && npm run android",
+    "dev": "npm run api & cd apps/web && npm run dev",
     "web": "cd apps/web && npm run dev",
     "web:build": "cd apps/web && npm run build",
     "web:start": "cd apps/web && npm run start",
     "api": "cd services/price-service && PYTHONPATH=. .venv/bin/uvicorn src.main:app --reload --host 0.0.0.0 --port 8000",
-    "api:dev": "cd services/price-service && PYTHONPATH=. .venv/bin/uvicorn src.main:app --reload --host 0.0.0.0 --port 8000"
+    "api:dev": "cd services/price-service && PYTHONPATH=. .venv/bin/uvicorn src.main:app --reload --host 0.0.0.0 --port 8000",
+    "notifications:audit-prod": "bash ./scripts/notifications/audit-prod-reminders.sh",
+    "backup:run": "./scripts/backup/create-backup.sh",
+    "backup:install-cron": "./scripts/backup/install-cron.sh"
   },
   "dependencies": {
     "react": "^18.3.1",

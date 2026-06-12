@@ -14,7 +14,6 @@ from ..db import get_db
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
 from ..pets.models import Pet
-from ..family.utils import send_family_push
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/health", tags=["Health"])
@@ -25,7 +24,7 @@ class PendingEvent(BaseModel):
     id: str
     pet_id: str
     pet_name: str
-    event_type: str  # 'vaccine', 'grooming', 'parasite_control', 'medication'
+    event_type: str  # 'vaccine', 'parasite_control', 'medication'
     event_subtype: Optional[str] = None  # tipo específico (ex: 'bath', 'dewormer')
     title: str
     description: str
@@ -309,7 +308,7 @@ async def get_pending_events(
 ):
     """
     Retorna todos eventos pendentes de confirmação para os pets do usuário.
-    Inclui: vacinas, banho/tosa, controle parasitário e medicamentos.
+    Inclui: vacinas, controle parasitário e medicamentos.
     """
     try:
         # Buscar pets do usuário
@@ -320,7 +319,6 @@ async def get_pending_events(
         for pet in pets:
             # Coletar eventos de cada tipo
             all_events.extend(get_pending_vaccines(pet))
-            all_events.extend(get_pending_grooming(pet))
             all_events.extend(get_pending_parasite_control(pet))
             all_events.extend(get_pending_medications(pet))
         
@@ -606,24 +604,7 @@ async def confirm_event(
         
         logger.info(f"[Health] ✅ Evento {request.event_type} confirmado/reagendado para pet {request.pet_id}: {message}")
         
-        # Notificar família se o evento foi confirmado
-        if request.confirmed:
-            event_icons = {'vaccine': '💉', 'grooming': '🛁', 'parasite_control': '🦟', 'medication': '💊'}
-            icon = event_icons.get(request.event_type, '✅')
-            actor_name = (current_user.name or current_user.email).split()[0]
-            try:
-                send_family_push(request.pet_id, current_user.id, {
-                    "title": f"{icon} {pet.name} — cuidado registrado",
-                    "body": f"{actor_name}: {message}",
-                    "icon": "/icons/icon-192x192.png",
-                    "badge": "/icons/icon-96x96.png",
-                    "tag": f"health-{request.event_type}-{request.pet_id}",
-                    "data": {"url": f"/home?modal={request.event_type}&petId={request.pet_id}"},
-                    "requireInteraction": False,
-                    "autoCloseMs": 4000,
-                }, db)
-            except Exception as push_err:
-                logger.warning(f"[Health] Erro ao enviar push família: {push_err}")
+        # Push família por confirmação desativado: fluxo oficial é centralizado no scheduler de 4 camadas.
         
         return ConfirmEventResponse(
             success=True,

@@ -25,6 +25,40 @@ autocomplete_cache = TTLCache(maxsize=1000, ttl=300)
 # Simple in-memory query history (top 100 most recent)
 query_history: Counter = Counter()
 
+# Static BR pet product catalog for offline-first suggestions
+_BR_PET_BRANDS = [
+    # Rações
+    'Fórmula Natural', 'Premier Pet', 'Royal Canin', 'Hills Science Diet',
+    'Purina Pro Plan', 'Guabi Natural', 'Magnus Natural', 'Pedigree',
+    'Farmina N&D', 'Equilibrio', 'Biofresh', 'Total Alimentos', 'Rações Primor',
+    # Antiparasitários
+    'Bravecto', 'Nexgard', 'Simparica', 'Frontline Plus', 'Advantage',
+    'Advantix', 'Revolution', 'Comfortis', 'Credelio', 'Seresto',
+    # Higiene e acessórios
+    'Sanol Dog', 'Pet Society', 'Petgroom', 'Pet Clean', 'Tapete Higiênico',
+    'Areia Higiênica', 'Areia Sanitária', 'Caixa de areia',
+    # Varejistas BR
+    'Cobasi', 'PetLove', 'Petz', 'Agro Oeste', 'Casas da Água',
+    # Petiscos
+    'Petiscos naturais', 'Osso natural', 'Snacks para cães', 'Bifinho',
+]
+
+
+def get_br_brand_suggestions(query: str, limit: int = 4) -> list[str]:
+    """Return matching BR pet brand/product names for the given query."""
+    q_lower = query.lower().strip()
+    import unicodedata
+    def normalize(s: str) -> str:
+        return ''.join(
+            c for c in unicodedata.normalize('NFD', s.lower())
+            if unicodedata.category(c) != 'Mn'
+        )
+    q_norm = normalize(q_lower)
+    return [
+        brand for brand in _BR_PET_BRANDS
+        if q_norm in normalize(brand)
+    ][:limit]
+
 
 def get_local_suggestions(query: str, locale: str, limit: int = 5) -> List[str]:
     """Get suggestions from query history."""
@@ -154,8 +188,11 @@ async def autocomplete(
     # Add local suggestions
     local_suggestions = get_local_suggestions(q, locale, limit=3)
     
-    # Combine (local first for better relevance)
-    combined = local_suggestions + raw_suggestions
+    # Add BR brand catalog (only for BR locale/country)
+    br_suggestions = get_br_brand_suggestions(q, limit=4) if country.upper() == 'BR' or locale.startswith('pt') else []
+
+    # Combine: history → BR brands → Google
+    combined = local_suggestions + br_suggestions + raw_suggestions
     
     # Filter ALL through pet guard
     pet_suggestions = []

@@ -16,7 +16,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   {
     id: 'cobasi',
     name: 'Cobasi',
-    description: 'Tudo para o seu pet',
+    description: 'Compare preço e entrega para ração e cuidados',
     logoSrc: '/partner-logos/cobasi.png',
     logoAlt: 'Cobasi',
     fallbackUrl: 'https://www.cobasi.com.br',
@@ -24,7 +24,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   {
     id: 'petz',
     name: 'Petz',
-    description: 'Pet shop completo',
+    description: 'Compare preço e entrega para produtos pet',
     logoSrc: '/partner-logos/petz.png',
     logoAlt: 'Petz',
     fallbackUrl: 'https://www.petz.com.br',
@@ -32,15 +32,15 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   {
     id: 'amazon',
     name: 'Amazon',
-    description: 'Racao, brinquedos e mais',
+    description: 'Compare preço e entrega em pet shop online',
     logoSrc: '/partner-logos/amazon.svg',
     logoAlt: 'Amazon',
-    directUrl: 'https://www.amazon.com.br/s?k=pet+shop&rh=n%3A16209062011',
+    fallbackUrl: 'https://www.amazon.com.br/s?k=pet+shop',
   },
   {
     id: 'petlove',
     name: 'Petlove',
-    description: 'Farmacia, racao e acessorios',
+    description: 'Compare preço e entrega em saúde e ração',
     logoSrc: '/partner-logos/petlove.png',
     logoAlt: 'Petlove',
     fallbackUrl: 'https://www.petlove.com.br',
@@ -48,7 +48,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   {
     id: 'doglife',
     name: 'DogLife',
-    description: 'Planos e produtos pet',
+    description: 'Compare preço e entrega em planos e produtos pet',
     logoSrc: '/partner-logos/doglife.svg',
     logoAlt: 'DogLife',
     fallbackUrl: 'https://www.doglife.com.br',
@@ -76,4 +76,29 @@ export async function openHomeShoppingPartner(partnerId: HomeShoppingPartnerId):
 
   const url = buildPartnerHandoffUrl(partner, leadId);
   window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+/**
+ * Builds a contextual handoff URL for food/ração purchase.
+ * Passes the brand as q= so the partner can pre-fill search.
+ * Uses /api/handoff/shopping proxy for affiliate tracking.
+ */
+export function buildFoodHandoffUrl(
+  brand: string,
+  petId: string,
+  partnerId: HomeShoppingPartnerId,
+): string {
+  const partner = HOME_SHOPPING_PARTNERS.find((p) => p.id === partnerId);
+  if (!partner) return '#';
+
+  const searchQuery = [brand.trim(), 'ração'].filter(Boolean).join(' ');
+  const q = encodeURIComponent(searchQuery);
+  const leadId = `food-${petId}-${Date.now()}`;
+  const fallback = encodeURIComponent(
+    partner.fallbackUrl
+      ? `${partner.fallbackUrl}/search?q=${encodeURIComponent(searchQuery)}`
+      : `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(searchQuery)}`,
+  );
+
+  return `/api/handoff/shopping?partner=${partnerId}&q=${q}&lead_id=${encodeURIComponent(leadId)}&fallback=${fallback}`;
 }

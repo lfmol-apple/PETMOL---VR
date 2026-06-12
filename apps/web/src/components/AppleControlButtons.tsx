@@ -1,248 +1,255 @@
 'use client';
 
 import { useState } from 'react';
+import { useI18n } from '@/lib/I18nContext';
 import { HomeShoppingSheet } from '@/features/commerce/HomeShoppingSheet';
-import { HomeEmergencySheet } from '@/components/home/HomeEmergencySheet';
 import { type HomeInactiveEligibleControlId } from '@/lib/homeControlPreferences';
 
-// ── Props ─────────────────────────────────────────────────────────────────────
+// ── Props H1 logic preserved ──────────────────────────────────────────────────
 interface AppleControlButtonsProps {
-  onVacinasClick: () => void;
-  onVermifugoClick: () => void;
-  onAntipulgasClick: () => void;
-  onColeiraClick: () => void;
+  onHealthClick: () => void;
   onDocumentosClick: () => void;
-  // Operational domain callbacks
   onAlimentacaoClick?: () => void;
   onBanhoTosaClick?: () => void;
   onMedicacaoClick?: () => void;
-  // Alert overrides from engine
-  alertVacinas?: boolean;
-  colorVacinas?: 'neutral' | 'ok' | 'warning' | 'critical';
-  alertVermifugo?: boolean;
-  colorVermifugo?: 'neutral' | 'ok' | 'warning' | 'critical';
-  alertAntipulgas?: boolean;
-  colorAntipulgas?: 'neutral' | 'ok' | 'warning' | 'critical';
-  alertColeira?: boolean;
-  colorColeira?: 'neutral' | 'ok' | 'warning' | 'critical';
+  onFamilyClick?: () => void;
+  hasFoodData?: boolean;
+  foodTitle?: string;
+  foodHeadline?: string;
+  foodSubline?: string;
+
+  // Alert overrides from engine H1
+  alertHealth?: boolean;
   alertGrooming?: boolean;
-  colorGrooming?: 'neutral' | 'ok' | 'warning' | 'critical';
   alertFood?: boolean;
-  colorFood?: 'neutral' | 'ok' | 'warning' | 'critical';
   alertMedicacao?: boolean;
+  alertShopping?: boolean;
+  
+  colorHealth?: 'neutral' | 'ok' | 'warning' | 'critical';
+  colorGrooming?: 'neutral' | 'ok' | 'warning' | 'critical';
+  colorFood?: 'neutral' | 'ok' | 'warning' | 'critical';
   colorMedicacao?: 'neutral' | 'ok' | 'warning' | 'critical';
+  
   inactiveControls?: HomeInactiveEligibleControlId[];
   onDeactivateControl?: (controlId: HomeInactiveEligibleControlId) => void;
 }
 
+type ControlTone = 'neutral' | 'ok' | 'warning' | 'critical';
+
+function shouldShowAlert(tone?: ControlTone, fallbackAlert?: boolean) {
+  if (tone) return tone === 'warning' || tone === 'critical';
+  return fallbackAlert === true;
+}
+
+function AlertDot({ tone = 'critical' }: { tone?: ControlTone }) {
+  if (tone === 'warning') {
+    return (
+      <span className="absolute left-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-amber-400 ring-2 ring-amber-300/60 ring-offset-1" />
+    );
+  }
+  return (
+    <span className="absolute left-2.5 top-2.5 z-10 h-2 w-2 animate-pulse rounded-full bg-rose-500 ring-2 ring-rose-400/60 ring-offset-1" />
+  );
+}
+
 export function AppleControlButtons({
-  onVacinasClick,
-  onVermifugoClick,
-  onAntipulgasClick,
-  onColeiraClick,
+  onHealthClick,
   onDocumentosClick,
   onAlimentacaoClick,
-  onBanhoTosaClick,
   onMedicacaoClick,
-  alertVacinas,
-  colorVacinas,
-  alertVermifugo,
-  colorVermifugo,
-  alertAntipulgas,
-  colorAntipulgas,
-  alertColeira,
-  colorColeira,
-  alertGrooming,
-  colorGrooming,
+  hasFoodData,
+  foodTitle,
+  foodHeadline,
+  foodSubline,
+  alertHealth,
   alertFood,
-  colorFood,
   alertMedicacao,
+  colorHealth,
+  colorFood,
   colorMedicacao,
-  inactiveControls = [],
-  onDeactivateControl,
 }: AppleControlButtonsProps) {
-
+  const { t } = useI18n();
   const [showShoppingSheet, setShowShoppingSheet] = useState(false);
-  const [showEmergencySheet, setShowEmergencySheet] = useState(false);
+  const [showEmergencyChoice, setShowEmergencyChoice] = useState(false);
 
-  const cardBaseClass = 'group relative overflow-hidden rounded-2xl px-3.5 py-2.5 h-[76px] border transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.99] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30';
-  const iconWrapClass = 'absolute top-2 right-2 w-8 h-8 rounded-xl bg-white/95 ring-1 ring-slate-200/80 shadow-sm flex items-center justify-center pointer-events-none';
-  const emojiIconClass = 'text-[18px] leading-none';
-  const titleClass = 'text-[14px] font-bold font-outfit text-slate-900 leading-tight tracking-tight truncate';
-  const descBaseClass = 'text-[12px] truncate mt-0.5 leading-tight font-medium';
-  const alertCardClass = 'bg-gradient-to-br from-rose-100 via-red-50 to-white border-red-300 border-l-4 border-l-red-600 shadow-[0_6px_16px_rgba(220,38,38,0.15)]';
-  const okCardClass = 'bg-emerald-50/50 border-emerald-200 border-l-4 border-l-emerald-500 shadow-sm hover:shadow-md hover:border-emerald-300';
-  const warningCardClass = 'bg-amber-50/60 border-amber-200 border-l-4 border-l-amber-500 shadow-sm hover:shadow-md hover:border-amber-300';
-  const neutralCardClass = 'bg-white border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 hover:bg-slate-50/40';
-  const inactiveSet = new Set<HomeInactiveEligibleControlId>(inactiveControls);
-  const isEmptyCard = (color: typeof colorVacinas) => !color || color === 'neutral';
-
-  const toneByStatus = (status: 'neutral' | 'ok' | 'warning' | 'critical' | undefined) => {
-    if (status === 'critical') return alertCardClass;
-    if (status === 'warning') return warningCardClass;
-    if (status === 'ok') return okCardClass;
-    return neutralCardClass;
-  };
-
-  const renderAlertBadge = (show?: boolean) => show ? (
-    <span className="absolute left-2.5 top-2.5 z-[1] flex h-4 w-4 items-center justify-center">
-      <span className="absolute inset-0 rounded-full bg-red-500/55 animate-ping motion-reduce:hidden" />
-      <span className="relative flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[9px] font-black text-white shadow-[0_3px_8px_rgba(220,38,38,0.28)] ring-1 ring-white animate-pulse motion-reduce:animate-none">
-        !
-      </span>
-    </span>
-  ) : null;
-
-  const dockableCards = [
-    {
-      id: 'vaccines' as const,
-      title: 'Vacinas',
-      description: isEmptyCard(colorVacinas) ? 'Sem registros — toque para iniciar' : 'Carteira e lembretes',
-      isEmpty: isEmptyCard(colorVacinas),
-      icon: '💉',
-      onClick: onVacinasClick,
-      alert: alertVacinas,
-      toneClass: toneByStatus(colorVacinas),
-    },
-    {
-      id: 'dewormer' as const,
-      title: 'Vermífugo',
-      description: isEmptyCard(colorVermifugo) ? 'Sem controle — registrar agora' : 'Controle de vermes',
-      isEmpty: isEmptyCard(colorVermifugo),
-      icon: '🪱',
-      onClick: onVermifugoClick,
-      alert: alertVermifugo,
-      toneClass: toneByStatus(colorVermifugo),
-    },
-    {
-      id: 'flea_tick' as const,
-      title: 'Antipulgas',
-      description: isEmptyCard(colorAntipulgas) ? 'Sem controle — registrar agora' : 'Pulgas e carrapatos',
-      isEmpty: isEmptyCard(colorAntipulgas),
-      icon: '🛡️',
-      onClick: onAntipulgasClick,
-      alert: alertAntipulgas,
-      toneClass: toneByStatus(colorAntipulgas),
-    },
-    {
-      id: 'collar' as const,
-      title: 'Coleira',
-      description: isEmptyCard(colorColeira) ? 'Sem registro — adicionar agora' : 'Antiparasitária',
-      isEmpty: isEmptyCard(colorColeira),
-      icon: '📿',
-      onClick: onColeiraClick,
-      alert: alertColeira,
-      toneClass: toneByStatus(colorColeira),
-    },
-    {
-      id: 'food' as const,
-      title: 'Alimentação',
-      description: isEmptyCard(colorFood) ? 'Sem plano — configurar agora' : 'Ração e recompra',
-      isEmpty: isEmptyCard(colorFood),
-      icon: '🥣',
-      onClick: onAlimentacaoClick ?? (() => {}),
-      alert: alertFood,
-      toneClass: toneByStatus(colorFood),
-    },
-    // V-L: Banho/Tosa removido da superfície de lançamento (V1)
-    // V-L: Medicação movida para posição estática (abaixo de Documentos), Shopping assume posição V-line
-  ];
-
-  const activeDockableCards = dockableCards.filter((card) => !inactiveSet.has(card.id));
-
-  const renderDockableCard = (card: typeof dockableCards[number]) => (
-    <button
-      key={card.id}
-      onClick={() => {
-        card.onClick?.();
-      }}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        onDeactivateControl?.(card.id);
-      }}
-      onDoubleClick={() => {
-        onDeactivateControl?.(card.id);
-      }}
-      className={`${cardBaseClass} ${card.toneClass}`}
-    >
-      {renderAlertBadge(card.alert)}
-      <span className={iconWrapClass}><span className={emojiIconClass}>{card.icon}</span></span>
-      <div className={`flex flex-col justify-center h-full pr-9 text-left ${card.alert ? 'pt-3' : ''}`}>
-        <h3 className={titleClass}>{card.title}</h3>
-        <p className={`${descBaseClass} ${card.alert ? 'text-red-700' : card.isEmpty ? 'text-slate-400' : 'text-slate-500'}`}>{card.description}</p>
-      </div>
-    </button>
-  );
+  const medicacaoStatusText = colorMedicacao === 'critical'
+    ? 'Dose atrasada'
+    : colorMedicacao === 'warning'
+      ? 'Dose para hoje'
+      : colorMedicacao === 'ok'
+        ? 'Em dia'
+        : 'Gerenciar medicação';
 
   return (
     <>
-      {/* Grade 2 colunas */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        {activeDockableCards.map(renderDockableCard)}
+      {/* Grid 2×2: Alimentação | Medicação / Saúde | Shopping */}
+      <div className="relative">
+        <div className="grid grid-cols-2 gap-2.5">
 
-        {/* SHOPPING — posição anterior de Medicação, estilo neutro */}
-        <button
-          onClick={() => setShowShoppingSheet(true)}
-          className={`${cardBaseClass} ${neutralCardClass}`}
-        >
-          <span className={iconWrapClass}><span className={emojiIconClass}>🛒</span></span>
-          <div className="flex flex-col justify-center h-full pr-9 text-left">
-            <h3 className={titleClass}>Shopping</h3>
-            <p className={`${descBaseClass} text-slate-500`}>Cobasi · Petz · Petlove</p>
-          </div>
-        </button>
-
-        {/* DOCUMENTOS */}
-        <button
-          onClick={onDocumentosClick}
-          className={`${cardBaseClass} ${neutralCardClass}`}
-        >
-          <span className={iconWrapClass}><span className={emojiIconClass}>📄</span></span>
-          <div className="flex flex-col justify-center h-full pr-9 text-left">
-            <h3 className={titleClass}>Documentos</h3>
-            <p className={`${descBaseClass} text-slate-500`}>Guardar arquivos</p>
-          </div>
-        </button>
-
-        {/* MEDICAÇÃO — posição anterior de Shopping, com alerta e desativação */}
-        {!inactiveSet.has('medication') && (
+          {/* 1. ALIMENTAÇÃO */}
           <button
-            onClick={onMedicacaoClick ?? (() => {})}
-            onContextMenu={(e) => { e.preventDefault(); onDeactivateControl?.('medication'); }}
-            onDoubleClick={() => onDeactivateControl?.('medication')}
-            className={`${cardBaseClass} ${toneByStatus(colorMedicacao)}`}
+            type="button"
+            onClick={onAlimentacaoClick}
+            className="group relative overflow-hidden rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-100 p-3 min-h-[82px] shadow-sm shadow-amber-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
-            {renderAlertBadge(alertMedicacao)}
-            <span className={iconWrapClass}><span className={emojiIconClass}>💊</span></span>
-            <div className={`flex flex-col justify-center h-full pr-9 text-left ${alertMedicacao ? 'pt-3' : ''}`}>
-              <h3 className={titleClass}>Medicação</h3>
-              <p className={`${descBaseClass} ${alertMedicacao ? 'text-red-700' : isEmptyCard(colorMedicacao) ? 'text-slate-400' : 'text-slate-500'}`}>
-                {isEmptyCard(colorMedicacao) ? 'Sem tratamentos ativos' : colorMedicacao === 'ok' ? 'Em dia hoje ✓' : 'Doses pendentes hoje'}
+            {shouldShowAlert(colorFood, alertFood) && <AlertDot tone={colorFood} />}
+            <span className="absolute right-2.5 top-2.5 opacity-85 pointer-events-none transition-transform group-hover:scale-105">
+              <span className="text-[22px]">🥣</span>
+            </span>
+            <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
+              <h3 className="line-clamp-2 text-[13px] sm:text-base font-bold leading-tight text-amber-950">{foodTitle || t('home.food.title')}</h3>
+              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-amber-800/85">
+                {hasFoodData ? (foodHeadline || t('home.food.desc')) : (foodHeadline || 'Toque para cadastrar')}
               </p>
+              {foodSubline && (
+                <p className="mt-1 line-clamp-1 text-[10px] sm:text-xs font-bold leading-[1.15] text-amber-900">
+                  {foodSubline}
+                </p>
+              )}
             </div>
           </button>
-        )}
+
+          {/* 2. SAÚDE */}
+          <button
+            type="button"
+            onClick={onHealthClick}
+            className="group relative overflow-hidden rounded-2xl border border-indigo-200/70 bg-gradient-to-br from-indigo-50 via-violet-50 to-violet-100 p-3 min-h-[82px] shadow-sm shadow-indigo-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+          >
+            {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
+            <span className="absolute right-2.5 top-2.5 text-[22px] opacity-85 pointer-events-none transition-transform group-hover:scale-105">🏥</span>
+            <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
+              <h3 className="truncate text-[14px] sm:text-base font-semibold leading-tight text-indigo-950">Saúde</h3>
+              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-indigo-900/80">Vacinas, parasitas e coleira</p>
+            </div>
+          </button>
+
+          {/* 3. MEDICAÇÃO */}
+          <button
+            type="button"
+            onClick={onMedicacaoClick}
+            className="group relative overflow-hidden rounded-2xl border border-purple-200/80 bg-gradient-to-br from-purple-50 via-violet-50 to-purple-100 p-3 min-h-[82px] shadow-sm shadow-purple-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+          >
+            {shouldShowAlert(colorMedicacao, alertMedicacao) && <AlertDot tone={colorMedicacao} />}
+            <span className="absolute right-2.5 top-2.5 text-[22px] opacity-85 pointer-events-none transition-transform group-hover:scale-105">💊</span>
+            <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
+              <h3 className="truncate text-[14px] sm:text-base font-semibold leading-tight text-purple-950">Medicação</h3>
+              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-purple-900/80">{medicacaoStatusText}</p>
+            </div>
+          </button>
+
+          {/* 4. SHOPPING */}
+          <button
+            type="button"
+            onClick={() => setShowShoppingSheet(true)}
+            className="group relative overflow-hidden rounded-2xl border border-sky-200/80 bg-gradient-to-br from-sky-50 via-blue-50 to-blue-100 p-3 min-h-[82px] shadow-sm shadow-sky-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+          >
+            <span className="absolute right-2.5 top-2.5 text-[22px] opacity-85 pointer-events-none transition-transform group-hover:scale-105">🛒</span>
+            <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
+              <h3 className="truncate text-[14px] sm:text-base font-semibold leading-tight text-sky-950">{t('home.shopping.title')}</h3>
+              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-sky-900/75">Produtos com desconto</p>
+            </div>
+          </button>
+
+        </div>
+
+        {/* Abaixo do grid: Histórico + Socorro */}
+        <div className="mt-2.5 space-y-2">
+          <button
+            type="button"
+            onClick={onDocumentosClick}
+            className="group w-full relative overflow-hidden rounded-2xl border border-slate-200 bg-white/80 p-3 min-h-[52px] shadow-sm shadow-slate-900/5 transition-all duration-300 hover:shadow-md active:scale-[0.98] flex items-center gap-2.5"
+          >
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 transition-transform group-hover:scale-105">
+              <span className="pointer-events-none text-lg">📁</span>
+            </div>
+            <div className="min-w-0 flex-1 text-left">
+              <h3 className="truncate text-[14px] sm:text-base font-bold leading-tight text-slate-800">Histórico</h3>
+              <p className="mt-0.5 text-[10px] sm:text-xs font-semibold leading-[1.15] text-slate-500">Leve o histórico do pet para cada consulta</p>
+            </div>
+            <span className="text-lg text-slate-300 transition-transform group-hover:translate-x-1">›</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowEmergencyChoice(true)}
+            className="group w-full relative overflow-hidden rounded-2xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 p-3 min-h-[52px] shadow-sm shadow-red-900/5 transition-all duration-300 hover:shadow-md active:scale-[0.98] flex items-center gap-2.5"
+          >
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-100 transition-transform group-hover:scale-105">
+              <span className="pointer-events-none text-lg">🚨</span>
+            </div>
+            <div className="min-w-0 flex-1 text-left">
+              <h3 className="truncate text-[14px] sm:text-base font-bold leading-tight text-red-800">Emergência veterinária</h3>
+              <p className="mt-0.5 text-[10px] sm:text-xs font-semibold leading-[1.15] text-red-600/80">Encontre atendimento aberto ou ligue agora</p>
+            </div>
+            <span className="text-lg text-red-300 transition-transform group-hover:translate-x-1">›</span>
+          </button>
+        </div>
       </div>
 
-      {/* ── Emergência Vet ── */}
-      <button
-        onClick={() => setShowEmergencySheet(true)}
-        className="w-full flex items-center gap-3 px-3 py-2.5 h-[56px] rounded-2xl border border-red-200/80 bg-gradient-to-r from-red-50 to-rose-50/60 hover:from-red-100/70 hover:to-rose-100/60 active:scale-[0.99] transition-all duration-200 shadow-sm hover:shadow-md text-left mb-3"
-      >
-        <div className="w-8 h-8 rounded-xl bg-white/95 ring-1 ring-red-200 shadow-sm flex items-center justify-center flex-shrink-0">
-          <span className="text-[18px] leading-none">🚨</span>
+      {/* Mini-choice: Socorro Agora */}
+      {showEmergencyChoice && (
+        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center" onClick={() => setShowEmergencyChoice(false)}>
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
+          <div
+            className="relative w-full max-w-sm bg-white rounded-t-[32px] sm:rounded-[28px] shadow-2xl border border-gray-200 overflow-hidden animate-slideUp sm:animate-scaleIn"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sheet-handle my-3 opacity-40 sm:hidden" />
+            <div className="px-5 pt-4 pb-2 border-b border-gray-100 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <span className="text-xl">🚨</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-[15px] font-black text-red-900">O que você precisa agora?</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEmergencyChoice(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 active:scale-90 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-5 py-4 pb-8 space-y-2.5">
+              <a
+                href="https://www.google.com/maps/search/clínica+veterinária+aberta+agora+perto+de+mim"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShowEmergencyChoice(false)}
+                className="flex items-center gap-4 p-4 bg-red-500 rounded-2xl active:scale-[0.98] transition-all shadow-lg shadow-red-500/25"
+              >
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-xl flex-shrink-0">
+                  🏥
+                </div>
+                <div className="flex-1">
+                  <p className="font-black text-white text-[15px]">Clínicas abertas agora</p>
+                  <p className="text-[11px] text-red-100 mt-0.5">Atendimento urgente próximo de você</p>
+                </div>
+                <span className="text-white/60 text-lg">›</span>
+              </a>
+              <a
+                href="https://www.google.com/maps/search/hospital+veterinário+24+horas+perto+de+mim"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShowEmergencyChoice(false)}
+                className="flex items-center gap-4 p-4 bg-white border border-red-200 rounded-2xl active:scale-[0.98] transition-all"
+              >
+                <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-xl flex-shrink-0">
+                  🏨
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-red-900 text-[14px]">Hospitais veterinários 24h</p>
+                  <p className="text-[11px] text-red-600/70 mt-0.5">Internação e atendimento emergencial</p>
+                </div>
+                <span className="text-red-300 text-lg">›</span>
+              </a>
+            </div>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[14px] font-semibold text-red-900 leading-tight tracking-[-0.01em]">Emergência Vet</p>
-          <p className="text-[12px] text-red-500 font-medium mt-0.5 leading-tight">Clínicas/Hosp 24h</p>
-        </div>
-        <svg className="w-4 h-4 text-red-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
+      )}
 
       <HomeShoppingSheet open={showShoppingSheet} onClose={() => setShowShoppingSheet(false)} />
-      <HomeEmergencySheet open={showEmergencySheet} onClose={() => setShowEmergencySheet(false)} />
+      
     </>
   );
 }

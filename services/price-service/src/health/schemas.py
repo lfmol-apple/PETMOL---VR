@@ -24,6 +24,13 @@ class VaccinePayload(BaseModel):
     source: str = "ocr"  # ocr | manual | vet
     confirmed_by_user: bool = True
     notes: Optional[str] = None
+    record_type: str = "confirmed_application"  # confirmed_application | estimated_control_start
+    clinic_name: Optional[str] = None
+    veterinarian: Optional[str] = None
+    alert_days_before: Optional[int] = Field(None, ge=0, le=60)
+    reminder_date: Optional[str] = None
+    reminder_time: Optional[str] = Field(None, max_length=5)
+    reminder_enabled: bool = False
 
 
 class BulkConfirmRequest(BaseModel):
@@ -51,6 +58,11 @@ class VaccineResponse(BaseModel):
     notes: Optional[str] = None
     source: str
     confirmed_by_user: bool
+    record_type: str = "confirmed_application"
+    alert_days_before: Optional[int] = None
+    reminder_date: Optional[str] = None
+    reminder_time: Optional[str] = None
+    reminder_enabled: bool = False
 
 
 class AlertsSummary(BaseModel):
@@ -82,8 +94,41 @@ class FeedingSnapshot(BaseModel):
     low_stock: bool = False
     recommended_alert_date: Optional[str] = None
     food_brand: Optional[str] = None
+    duration_days: Optional[int] = None
+    reminder_time: Optional[str] = None
     mode: str = "kibble"
     enabled: bool = True
+    items: List["FeedingPlanItemData"] = Field(default_factory=list)
+
+
+class FeedingPlanItemPayload(BaseModel):
+    id: Optional[str] = None
+    label: Optional[str] = None
+    food_brand: Optional[str] = None
+    package_size_kg: Optional[float] = Field(None, ge=0.1, le=100)
+    daily_amount_g: Optional[float] = Field(None, ge=1, le=10000)
+    duration_days: Optional[int] = Field(None, ge=1, le=3650)
+    last_refill_date: Optional[str] = None
+    mode: str = Field("kibble", pattern="^(kibble|wet|mixed|homemade|prescribed)$")
+    barcode: Optional[str] = None
+    category: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=1000)
+    is_primary: bool = False
+
+
+class FeedingPlanItemData(BaseModel):
+    id: str
+    label: Optional[str] = None
+    food_brand: Optional[str] = None
+    package_size_kg: Optional[float] = None
+    daily_amount_g: Optional[float] = None
+    duration_days: Optional[int] = None
+    last_refill_date: Optional[str] = None
+    mode: str = "kibble"
+    barcode: Optional[str] = None
+    category: Optional[str] = None
+    notes: Optional[str] = None
+    is_primary: bool = False
 
 
 class FeedingPlanCreateRequest(BaseModel):
@@ -101,6 +146,7 @@ class FeedingPlanCreateRequest(BaseModel):
     food_brand: Optional[str] = None
     package_size_kg: Optional[float] = Field(None, ge=0.1, le=100)
     daily_amount_g: Optional[float] = Field(None, ge=1, le=10000)
+    duration_days: Optional[int] = Field(None, ge=1, le=3650)
     last_refill_date: Optional[str] = None  # date string "YYYY-MM-DD"
     
     # Configuration
@@ -116,6 +162,8 @@ class FeedingPlanCreateRequest(BaseModel):
     # Manual mode fields (when no_consumption_control=true)
     next_purchase_date: Optional[str] = None  # date string "YYYY-MM-DD"
     manual_reminder_days_before: Optional[int] = Field(None, ge=0, le=60)
+    reminder_time: Optional[str] = Field(None, max_length=5)
+    items: Optional[List[FeedingPlanItemPayload]] = None
 
 
 class FeedingPlanResponse(BaseModel):
@@ -135,6 +183,7 @@ class FeedingPlanData(BaseModel):
     food_brand: Optional[str] = None
     package_size_kg: Optional[float] = None
     daily_amount_g: Optional[float] = None
+    duration_days: Optional[int] = None
     last_refill_date: Optional[str] = None
     
     safety_buffer_days: int
@@ -148,6 +197,9 @@ class FeedingPlanData(BaseModel):
     # Manual mode fields
     next_purchase_date: Optional[str] = None
     manual_reminder_days_before: Optional[int] = None
+    reminder_time: Optional[str] = None
+    reminder_source: str = "calculated"
+    items: List[FeedingPlanItemData] = Field(default_factory=list)
     
     created_at: str
     updated_at: str

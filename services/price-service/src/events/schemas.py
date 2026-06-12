@@ -90,6 +90,7 @@ class EventOut(BaseModel):
     source: str
     created_at: UtcInstant
     updated_at: UtcInstant
+    deleted_at: OptionalUtcInstant = None
     # Canonicalization
     provider_name_raw: Optional[str] = None
     provider_name_canonical: Optional[str] = None

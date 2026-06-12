@@ -24,9 +24,9 @@ import imageCompression from 'browser-image-compression';
 
 const CROP_W = 320; // px — width of the rectangular preview / canvas output
 const CROP_H = 200; // px — height of the rectangular preview / canvas output
-const EXPORT_QUALITY = 0.8;
-const IMPORT_MAX_SIZE_MB = 1.2;
-const IMPORT_MAX_WIDTH = 1600;
+const EXPORT_QUALITY = 0.72;
+const IMPORT_MAX_SIZE_MB = 0.45;
+const IMPORT_MAX_WIDTH = 1280;
 
 interface PetPhotoPickerProps {
   /** Current photo URL or Data-URL to prefill the picker */
@@ -42,22 +42,22 @@ export function PetPhotoPicker({ initialSrc, onConfirm, onCancel }: PetPhotoPick
   const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const lastPointer = useRef<{ x: number; y: number } | null>(null);
   const imgNatural = useRef<{ w: number; h: number }>({ w: 1, h: 1 });
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // ── File input refs ──────────────────────────────────────────────────────
-  const fileGalleryRef = useRef<HTMLInputElement>(null);
-  const fileCameraRef = useRef<HTMLInputElement>(null);
-
   // ── Load image ───────────────────────────────────────────────────────────
   const readFile = async (file: File) => {
+    setError(null);
+    setProcessing(true);
     const preparedFile = file.type.startsWith('image/')
       ? await imageCompression(file, {
           maxSizeMB: IMPORT_MAX_SIZE_MB,
           maxWidthOrHeight: IMPORT_MAX_WIDTH,
           useWebWorker: true,
-          initialQuality: 0.82,
+          initialQuality: 0.72,
+          fileType: 'image/jpeg',
         }).catch(() => file)
       : file;
 
@@ -70,8 +70,17 @@ export function PetPhotoPicker({ initialSrc, onConfirm, onCancel }: PetPhotoPick
         setZoom(1);
         setOffset({ x: 0, y: 0 });
         setImgSrc(src);
+        setProcessing(false);
+      };
+      img.onerror = () => {
+        setProcessing(false);
+        setError('Não consegui abrir essa foto. Tente JPG, PNG ou WebP.');
       };
       img.src = src;
+    };
+    reader.onerror = () => {
+      setProcessing(false);
+      setError('Não consegui ler essa foto. Tente outra imagem.');
     };
     reader.readAsDataURL(preparedFile);
   };
@@ -177,11 +186,12 @@ export function PetPhotoPicker({ initialSrc, onConfirm, onCancel }: PetPhotoPick
   const { rw, rh } = imgSrc ? getRenderedSize() : { rw: 0, rh: 0 };
 
   return (
-    <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center touch-none p-4">
+    <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-[#111] rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[90dvh]">
         {/* Top bar */}
         <div className="flex items-center justify-between px-4 pt-5 pb-3">
           <button
+            type="button"
             onClick={onCancel}
             disabled={processing}
             className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
@@ -191,6 +201,7 @@ export function PetPhotoPicker({ initialSrc, onConfirm, onCancel }: PetPhotoPick
           <span className="text-white/80 text-sm font-medium">Ajuste a foto</span>
           {imgSrc ? (
             <button
+              type="button"
               onClick={handleConfirm}
               disabled={processing}
               className="p-2 rounded-full bg-[#0066ff] text-white hover:bg-[#0047cc] transition-colors disabled:opacity-50"
@@ -258,6 +269,12 @@ export function PetPhotoPicker({ initialSrc, onConfirm, onCancel }: PetPhotoPick
           </p>
         )}
 
+        {error && (
+          <p className="px-6 pb-2 text-center text-xs font-medium text-rose-200">
+            {error}
+          </p>
+        )}
+
         {/* Zoom slider */}
         {imgSrc && (
           <div className="px-8 pb-2 flex items-center gap-3">
@@ -277,24 +294,39 @@ export function PetPhotoPicker({ initialSrc, onConfirm, onCancel }: PetPhotoPick
 
         {/* Bottom actions */}
         <div className="flex gap-2 px-4 pb-5 pt-2 sm:gap-3 sm:px-6 sm:pb-8">
-          <button
-            onClick={() => fileCameraRef.current?.click()}
-            disabled={processing}
-            className="flex-1 flex flex-col items-center gap-1 py-2.5 rounded-2xl bg-white/10 text-white hover:bg-white/20 transition-colors disabled:opacity-50"
+          <label
+            className={`relative flex-1 flex flex-col items-center gap-1 py-2.5 rounded-2xl bg-white/10 text-white hover:bg-white/20 transition-colors ${
+              processing ? 'opacity-50 pointer-events-none' : 'cursor-pointer'
+            }`}
           >
             <Camera className="w-5 h-5" />
             <span className="text-xs font-medium">Câmera</span>
-          </button>
-          <button
-            onClick={() => fileGalleryRef.current?.click()}
-            disabled={processing}
-            className="flex-1 flex flex-col items-center gap-1 py-2.5 rounded-2xl bg-white/10 text-white hover:bg-white/20 transition-colors disabled:opacity-50"
+            <input
+              type="file"
+              accept="image/*"
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              disabled={processing}
+              onChange={handleFileChange}
+            />
+          </label>
+          <label
+            className={`relative flex-1 flex flex-col items-center gap-1 py-2.5 rounded-2xl bg-white/10 text-white hover:bg-white/20 transition-colors ${
+              processing ? 'opacity-50 pointer-events-none' : 'cursor-pointer'
+            }`}
           >
             <ImageIcon className="w-5 h-5" />
             <span className="text-xs font-medium">Galeria</span>
-          </button>
+            <input
+              type="file"
+              accept="image/*"
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              disabled={processing}
+              onChange={handleFileChange}
+            />
+          </label>
           {imgSrc && (
             <button
+              type="button"
               onClick={handleConfirm}
               disabled={processing}
               className="flex-1 flex flex-col items-center gap-1 py-2.5 rounded-2xl bg-[#0066ff] text-white hover:bg-[#0047cc] transition-colors disabled:opacity-50"
@@ -304,23 +336,6 @@ export function PetPhotoPicker({ initialSrc, onConfirm, onCancel }: PetPhotoPick
             </button>
           )}
         </div>
-
-        {/* Hidden file inputs */}
-        <input
-          ref={fileGalleryRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFileChange}
-        />
-        <input
-          ref={fileCameraRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={handleFileChange}
-        />
 
         {/* Off-screen canvas for export */}
         <canvas ref={canvasRef} className="hidden" />

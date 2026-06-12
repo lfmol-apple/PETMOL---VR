@@ -637,3 +637,112 @@ def admin_delete_pet(
     db.commit()
 
     return DeletedOut(success=True, message=f"Pet {pet.name} excluído com sucesso")
+
+
+# ── Document Reclassification ─────────────────────────────────────────────────
+
+from pydantic import BaseModel as _BM
+
+class ReclassifyResult(_BM):
+    total: int
+    updated: int
+    skipped_no_file: int
+    skipped_link: int
+    errors: int
+    details: list[dict]
+
+
+@router.post("/documents/reclassify", response_model=ReclassifyResult)
+async def admin_reclassify_documents(
+    db: Session = Depends(get_db),
+    current=Depends(get_current_admin),
+):
+    """
+    Re-runs the Gemini classifier on every stored document (kind='file')
+    and updates category, title, establishment_name and document_date.
+    Safe: never deletes files or records.
+    """
+    import asyncio
+    import logging
+    from pathlib import Path
+
+    from ..pets.document_models import PetDocument
+    from ..pets.document_router import (
+        DOCS_UPLOAD_DIR,
+        _classify_from_content,
+        _mime_from_ext,
+    )
+
+    logger = logging.getLogger("admin.reclassify")
+
+    docs = db.query(PetDocument).filter(PetDocument.kind == "file").all()
+
+    total = len(docs)
+    updated = 0
+    skipped_no_file = 0
+    skipped_link = 0
+    errors = 0
+    details: list[dict] = []
+
+    for doc in docs:
+        if not doc.storage_key:
+            skipped_no_file += 1
+            details.append({"id": doc.id, "status": "skip_no_key"})
+            continue
+
+        # Resolve file path (storage_key can be absolute or just filename)
+        candidate = Path(doc.storage_key)
+        fpath = candidate if candidate.is_absolute() else DOCS_UPLOAD_DIR / candidate.name
+        if not fpath.exists():
+            # Last-resort: search by filename stem in upload dir
+            matches = list(DOCS_UPLOAD_DIR.glob(candidate.name))
+            if matches:
+                fpath = matches[0]
+            else:
+                skipped_no_file += 1
+                details.append({"id": doc.id, "status": "skip_file_missing", "key": doc.storage_key})
+                continue
+
+        try:
+            content = fpath.read_bytes()
+            mime = doc.mime_type or _mime_from_ext(fpath.suffix.lower())
+
+            cat, doc_date, establishment, titulo = await _classify_from_content(
+                content, mime, fpath.name
+            )
+
+            doc.category = cat
+            if doc_date is not None:
+                doc.document_date = doc_date
+            if establishment:
+                doc.establishment_name = establishment
+            if titulo and not doc.title:
+                doc.title = titulo
+
+            db.add(doc)
+            updated += 1
+            details.append({
+                "id": doc.id,
+                "status": "updated",
+                "category": cat,
+                "date": str(doc_date) if doc_date else None,
+                "establishment": establishment,
+                "titulo": titulo,
+            })
+            logger.info("[reclassify] doc=%s → cat=%s", doc.id, cat)
+
+        except Exception as exc:
+            errors += 1
+            details.append({"id": doc.id, "status": "error", "error": str(exc)})
+            logger.warning("[reclassify] doc=%s error: %s", doc.id, exc)
+
+    db.commit()
+
+    return ReclassifyResult(
+        total=total,
+        updated=updated,
+        skipped_no_file=skipped_no_file,
+        skipped_link=skipped_link,
+        errors=errors,
+        details=details,
+    )

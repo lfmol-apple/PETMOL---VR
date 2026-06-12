@@ -78,7 +78,12 @@ export function useHomeHistoryDocumentBrowser({
   }, [currentPet?.pet_id, docFolderModal, onCloseDocFolder]);
 
   const deleteDocument = useCallback(async (docId: string, docTitle: string) => {
-    if (!requestUserConfirmation(`Excluir "${docTitle || 'este documento'}"?\n\nEsta ação não pode ser desfeita.`)) return;
+    const accepted = await requestUserConfirmation(`Excluir "${docTitle || 'este documento'}"?\n\nEsta ação não pode ser desfeita.`, {
+      title: 'Excluir documento',
+      tone: 'danger',
+      confirmLabel: 'Excluir documento',
+    });
+    if (!accepted) return;
     const authToken = getToken();
     if (!authToken || !currentPet?.pet_id) return;
 
@@ -100,7 +105,12 @@ export function useHomeHistoryDocumentBrowser({
     if (!docFolderModal || !currentPet?.pet_id) return;
 
     const count = docFolderModal.docs.length;
-    if (!requestUserConfirmation(`Excluir todos os ${count} arquivo(s) de "${docFolderModal.title}"?\n\nEsta ação não pode ser desfeita.`)) return;
+    const accepted = await requestUserConfirmation(`Excluir todos os ${count} arquivo(s) de "${docFolderModal.title}"?\n\nEsta ação não pode ser desfeita.`, {
+      title: 'Excluir documentos da pasta',
+      tone: 'danger',
+      confirmLabel: 'Excluir arquivos',
+    });
+    if (!accepted) return;
 
     const authToken = getToken();
     if (!authToken) return;

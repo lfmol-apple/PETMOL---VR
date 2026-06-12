@@ -20,6 +20,12 @@ export function MedicalShareQR({ petId, petName, shareToken }: MedicalShareQRPro
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [expiresIn, setExpiresIn] = useState<number>(30); // minutes
+  const [toast, setToast] = useState<string | null>(null);
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  }
 
   const generateQR = async () => {
     setIsGenerating(true);
@@ -53,7 +59,7 @@ export function MedicalShareQR({ petId, petName, shareToken }: MedicalShareQRPro
       setQrDataUrl(qrUrl);
     } catch (error) {
       console.error('Error generating QR code:', error);
-      alert('Erro ao gerar QR code');
+      showToast('Erro ao gerar QR code. Tente novamente.');
     } finally {
       setIsGenerating(false);
     }
@@ -74,7 +80,7 @@ export function MedicalShareQR({ petId, petName, shareToken }: MedicalShareQRPro
     const shareUrl = `${APP_URL}/health/share/${shareToken}`;
     try {
       await navigator.clipboard.writeText(shareUrl);
-      alert('Link copiado!');
+      showToast('Link copiado!');
     } catch (error) {
       console.error('Error copying link:', error);
     }
@@ -82,6 +88,13 @@ export function MedicalShareQR({ petId, petName, shareToken }: MedicalShareQRPro
 
   return (
     <div className="bg-white rounded-[24px] shadow-sm ring-1 ring-slate-100/50 p-6 overflow-hidden">
+      {/* Toast */}
+      {toast && (
+        <div className="mb-4 px-4 py-3 rounded-2xl bg-blue-50 border border-blue-200 text-sm font-semibold text-blue-800 flex items-center gap-2">
+          <span className="flex-1">{toast}</span>
+          <button onClick={() => setToast(null)} className="text-[11px] font-bold text-blue-600 underline">OK</button>
+        </div>
+      )}
       <div className="text-center mb-6">
         <div className="text-4xl mb-2">📱</div>
         <h3 className="text-xl font-bold text-slate-900 mb-1">

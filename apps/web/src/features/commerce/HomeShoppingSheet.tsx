@@ -51,7 +51,7 @@ export function HomeShoppingSheet({ open, onClose }: HomeShoppingSheetProps) {
                   <div className="font-bold text-gray-900 text-sm">{partner.name}</div>
                   <div className="text-xs text-gray-500 mt-0.5">{partner.description}</div>
                 </div>
-                <span className="text-gray-400 text-lg">›</span>
+                <span className="text-blue-700 font-semibold text-sm">Ver preços</span>
               </button>
             ))}
           </div>

@@ -2,6 +2,7 @@
 
 import type { Dispatch, SetStateAction } from 'react';
 import { useI18n } from '@/lib/I18nContext';
+import { IosSwitch } from '@/components/ui/IosSwitch';
 import type { GroomingRecord } from '@/lib/types/home';
 import type { GroomingFormData, GroomingFormSetter } from '@/lib/types/homeForms';
 
@@ -266,17 +267,16 @@ export function EditGroomingModal({
           <div className="bg-white border border-blue-200 rounded-xl p-3 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-800">🔔 Lembrete de próximo serviço</span>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={groomingFormData.reminder_enabled}
-                  onChange={(e) => setGroomingFormData((prev) => ({ ...prev, reminder_enabled: e.target.checked }))}
-                  className="w-4 h-4 text-[#0056D2] border-gray-300 rounded focus:ring-2 focus:ring-[#0056D2]"
-                />
+              <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-gray-600">
                   {groomingFormData.reminder_enabled ? '✅ Ativado' : '⭕ Desativado'}
                 </span>
-              </label>
+                <IosSwitch
+                  checked={groomingFormData.reminder_enabled}
+                  onChange={() => setGroomingFormData((prev) => ({ ...prev, reminder_enabled: !prev.reminder_enabled }))}
+                  size="sm"
+                />
+              </div>
             </div>
             {groomingFormData.reminder_enabled && (
               <select

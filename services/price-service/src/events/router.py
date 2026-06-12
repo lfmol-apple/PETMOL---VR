@@ -96,7 +96,7 @@ def list_events(
 ):
     """Listar eventos do usuário (inclui acesso familiar)"""
     owner_ids = _get_accessible_owner_ids(str(current_user.id), db)
-    query = db.query(Event).filter(Event.user_id.in_(owner_ids))
+    query = db.query(Event).filter(Event.user_id.in_(owner_ids), Event.deleted_at.is_(None))
     
     if pet_id:
         query = query.filter(Event.pet_id == pet_id)
@@ -130,7 +130,8 @@ def get_event(
     
     event = db.query(Event).filter(
         Event.id == event_id,
-        Event.user_id == str(current_user.id)
+        Event.user_id == str(current_user.id),
+        Event.deleted_at.is_(None),
     ).first()
     
     if not event:
@@ -153,7 +154,8 @@ def update_event(
     
     event = db.query(Event).filter(
         Event.id == event_id,
-        Event.user_id == str(current_user.id)
+        Event.user_id == str(current_user.id),
+        Event.deleted_at.is_(None),
     ).first()
     
     if not event:
@@ -199,7 +201,8 @@ def delete_event(
             detail="Evento não encontrado"
         )
     
-    db.delete(event)
+    event.deleted_at = datetime.utcnow()
+    event.updated_at = datetime.utcnow()
     db.commit()
     
     return None

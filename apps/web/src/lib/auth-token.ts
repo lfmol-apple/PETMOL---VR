@@ -29,6 +29,17 @@ function _safeRemove(storage: Storage, key: string): void {
   try { storage.removeItem(key); } catch { /* ignore */ }
 }
 
+function _readCookieToken(): string | null {
+  if (typeof document === 'undefined') return null;
+  try {
+    const match = document.cookie.match(/(?:^|;\s*)petmol_auth=([^;]+)/);
+    if (!match?.[1]) return null;
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
 /** Retorna o token JWT. Prioridade: memória → sessionStorage → localStorage. */
 export function getToken(): string | null {
   if (_memoryToken) return _memoryToken;
@@ -50,6 +61,15 @@ export function getToken(): string | null {
     // Sincroniza para sessionStorage para a aba atual
     _safeSet(sessionStorage, TOKEN_KEY, local);
     _ensureCookie(local);
+    return _memoryToken;
+  }
+
+  // Fallback para cookie (sessão válida mesmo com storage limpo/bloqueado)
+  const cookieToken = _readCookieToken();
+  if (cookieToken) {
+    _memoryToken = cookieToken;
+    _safeSet(sessionStorage, TOKEN_KEY, cookieToken);
+    _safeSet(localStorage, TOKEN_KEY, cookieToken);
     return _memoryToken;
   }
 

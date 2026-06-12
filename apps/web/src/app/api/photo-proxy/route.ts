@@ -15,9 +15,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Domínios permitidos para proxy
 const ALLOWED_HOSTS = [
-  'petshopbh.com',
   'petmol.app',
-  'petshopbh.com.br',
+  'petmol.com.br',
   'localhost',
 ];
 

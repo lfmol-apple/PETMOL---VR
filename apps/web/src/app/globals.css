@@ -2,9 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Google Fonts — Nunito */
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
-
 /* Leaflet CSS */
 @import 'leaflet/dist/leaflet.css';
 
@@ -120,30 +117,29 @@ body {
   }
 }
 
-/* ── Checkboxes — quadrado garantido em todos os browsers/mobile ── */
+/* ── Checkboxes — nativo e estável em mobile ── */
 input[type="checkbox"] {
-  appearance: none;
-  -webkit-appearance: none;
+  appearance: auto;
+  -webkit-appearance: checkbox;
   width: 1.125rem;
   height: 1.125rem;
   min-width: 1.125rem;
   min-height: 1.125rem;
-  border: 1.5px solid #94a3b8;
-  border-radius: 3px;          /* nunca circular */
-  background-color: #fff;
+  max-width: 1.125rem;
+  max-height: 1.125rem;
+  box-sizing: border-box;
+  aspect-ratio: 1 / 1;
+  accent-color: #2563eb;
   cursor: pointer;
+  display: inline-block;
+  flex: 0 0 1.125rem;
   flex-shrink: 0;
   vertical-align: middle;
-  transition: background-color 0.15s, border-color 0.15s;
+  align-self: center;
 }
 
 input[type="checkbox"]:checked {
-  background-color: #2563eb;
-  border-color: #2563eb;
-  background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
-  background-size: 100% 100%;
-  background-position: center;
-  background-repeat: no-repeat;
+  accent-color: #2563eb;
 }
 
 input[type="checkbox"]:focus-visible {
@@ -241,6 +237,15 @@ body {
 
 .animate-scaleIn {
   animation: scaleIn 0.3s ease-out;
+}
+
+/* ProductDetectionSheet — barcode scan line */
+@keyframes scanline {
+  0%, 100% { transform: translateY(0px); opacity: 1; }
+  50% { transform: translateY(96px); opacity: 0.7; }
+}
+.animate-scanline {
+  animation: scanline 2s ease-in-out infinite;
 }
 
 .animate-shimmer {

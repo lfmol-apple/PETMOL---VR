@@ -1,0 +1,799 @@
+import { getLocalProduct, saveLocalProduct } from './cache';
+import type { ResolvedProduct } from './types';
+import { API_BASE_URL } from '@/lib/api';
+import { fetchFromCosmos } from './apis/cosmos';
+import { fetchFromGlobal } from './apis/global';
+import { buildFoodSearchQueries, buildPartialFoodName, enrichFoodProduct, extractFoodFields, type StructuredFoodInput } from './foodParser';
+import { buildDominantTerms, compareDominantTerms, detectContradiction, hasStrongDominantTerms, type DominantTerms } from './dominantTerms';
+import type { ProductCategory } from '@/lib/productScanner';
+
+export type { ResolvedProduct };
+export { getLocalProduct, saveLocalProduct } from './cache';
+
+type ProductLookupResponse = {
+  ok: boolean;
+  gtin: string;
+  found: boolean;
+  from_cache: boolean;
+  queued: boolean;
+  source?: ResolvedProduct['source'] | 'none' | null;
+  error?: string | null;
+  product?: {
+    name?: string | null;
+    brand?: string | null;
+    category?: ResolvedProduct['category'] | string | null;
+    image_url?: string | null;
+    raw?: Record<string, unknown>;
+  } | null;
+};
+
+export interface ProductPhotoVisionPayload {
+  found?: boolean;
+  product_name?: string | null;
+  name?: string | null;
+  probable_name?: string | null;
+  brand?: string | null;
+  category?: ProductCategory | null;
+  weight?: string | null;
+  weight_value?: number | null;
+  weight_unit?: string | null;
+  variant?: string | null;
+  size?: string | null;
+  manufacturer?: string | null;
+  presentation?: string | null;
+  confidence?: number | null;
+  reason?: string | null;
+  species?: string | null;
+  life_stage?: string | null;
+  line?: string | null;
+  flavor?: string | null;
+  visible_text?: string | null;
+  raw_text_blobs?: string[] | null;
+}
+
+export type ProductDetectionOrigin = 'gtin' | 'ia' | 'parser' | 'fuzzy_match' | 'partial_name' | 'manual';
+export type ProductDetectionResultType = 'complete' | 'partial' | 'fallback';
+export type ProductDetectionConfidenceLevel = 'high' | 'medium' | 'low';
+
+export interface ProductDetectionConfidence {
+  score: number;
+  level: ProductDetectionConfidenceLevel;
+}
+
+export interface ProductPhotoCandidate {
+  product: ResolvedProduct;
+  origin: ProductDetectionOrigin;
+  resultType: ProductDetectionResultType;
+  confidence: ProductDetectionConfidence;
+  dominantTerms?: DominantTerms;
+  assistedConfirmation?: boolean;
+  strongTermConflicts?: string[];
+  mediumTermConflicts?: string[];
+}
+
+interface CatalogSearchApiCandidate {
+  source: string;
+  title: string;
+  brand?: string | null;
+  variant?: string | null;
+  species?: string | null;
+  pack_sizes?: Array<{ value: number; unit: string }>;
+}
+
+interface CatalogSearchApiResponse {
+  candidates?: CatalogSearchApiCandidate[];
+}
+
+interface CatalogMatchResult {
+  product: ResolvedProduct;
+  score: number;
+  dominantTerms: DominantTerms;
+  strongTermMatches: string[];
+  mediumTermMatches: string[];
+  strongTermConflicts: string[];
+  mediumTermConflicts: string[];
+}
+
+const ALLOWED_CATEGORIES: ProductCategory[] = [
+  'food',
+  'medication',
+  'antiparasite',
+  'dewormer',
+  'collar',
+  'hygiene',
+  'other',
+];
+
+const inFlight = new Map<string, Promise<ResolvedProduct | null>>();
+
+function normalizeText(value?: string | null): string | undefined {
+  const text = value?.trim();
+  return text ? text : undefined;
+}
+
+function normalizeCategory(category?: string | null, hint?: ProductCategory): ProductCategory {
+  if (category && ALLOWED_CATEGORIES.includes(category as ProductCategory)) {
+    return category as ProductCategory;
+  }
+  if (hint && ALLOWED_CATEGORIES.includes(hint)) {
+    return hint;
+  }
+  return 'other';
+}
+
+function hasUsefulVisionPayload(payload: ProductPhotoVisionPayload): boolean {
+  return Boolean(
+    normalizeText(payload.product_name) ||
+    normalizeText(payload.name) ||
+    normalizeText(payload.probable_name) ||
+    normalizeText(payload.brand) ||
+    normalizeText(payload.weight) ||
+    payload.weight_value != null ||
+    normalizeText(payload.weight_unit) ||
+    normalizeText(payload.species) ||
+    normalizeText(payload.life_stage) ||
+    normalizeText(payload.line) ||
+    normalizeText(payload.variant) ||
+    normalizeText(payload.size) ||
+    normalizeText(payload.flavor) ||
+    normalizeText(payload.visible_text) ||
+    (payload.raw_text_blobs?.length ?? 0) > 0 ||
+    payload.category,
+  );
+}
+
+function toConfidenceLevel(score: number): ProductDetectionConfidenceLevel {
+  if (score >= 0.8) return 'high';
+  if (score >= 0.55) return 'medium';
+  return 'low';
+}
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(0.99, Number(value.toFixed(2))));
+}
+
+function scorePhotoCandidate(args: {
+  payload: ProductPhotoVisionPayload;
+  category: ProductCategory;
+  brand?: string;
+  weight?: string;
+  hasPayloadName: boolean;
+  usedParser: boolean;
+  fuzzyBrand: boolean;
+  catalogScore?: number;
+  species?: string | null;
+  lifeStage?: string | null;
+  strongConflictCount?: number;
+  mediumConflictCount?: number;
+  strongMatchCount?: number;
+  mediumMatchCount?: number;
+}): ProductDetectionConfidence {
+  const baseAi = Number(args.payload.confidence ?? 0);
+  let score = baseAi > 0 ? Math.min(0.65, baseAi * 0.65) : 0.2;
+
+  if (args.hasPayloadName) score += 0.2;
+  if (args.brand) score += 0.13;
+  if (args.weight) score += 0.1;
+  if (args.category === 'food' && (args.species || args.lifeStage)) score += 0.08;
+  if (args.usedParser) score += 0.09;
+  if (args.fuzzyBrand) score -= 0.07;
+  if (typeof args.catalogScore === 'number') score += Math.min(0.24, args.catalogScore * 0.24);
+  if (args.strongMatchCount) score += Math.min(0.18, args.strongMatchCount * 0.06);
+  if (args.mediumMatchCount) score += Math.min(0.1, args.mediumMatchCount * 0.03);
+  if (args.mediumConflictCount) score -= args.mediumConflictCount * 0.2;
+  if (args.strongConflictCount) score -= 0.65 + args.strongConflictCount * 0.12;
+
+  const normalized = clampScore(score);
+  return { score: normalized, level: toConfidenceLevel(normalized) };
+}
+
+function normalizeRawTextBlobs(payload: ProductPhotoVisionPayload): string[] {
+  const unique = new Set<string>();
+  for (const item of payload.raw_text_blobs ?? []) {
+    const normalized = normalizeText(item);
+    if (normalized) unique.add(normalized);
+  }
+  const visibleText = normalizeText(payload.visible_text);
+  if (visibleText) {
+    for (const chunk of visibleText.split(/\n+/)) {
+      const normalized = normalizeText(chunk);
+      if (normalized) unique.add(normalized);
+    }
+  }
+  return Array.from(unique).slice(0, 12);
+}
+
+function normalizeWeight(payload: ProductPhotoVisionPayload): string | undefined {
+  const direct = normalizeText(payload.weight);
+  if (direct) return direct;
+  const value = payload.weight_value;
+  const unit = normalizeText(payload.weight_unit)?.toLowerCase();
+  if (value == null || !unit) return undefined;
+  const normalizedValue = Number.isInteger(value) ? String(value) : String(value).replace('.', ',');
+  return `${normalizedValue} ${unit}`;
+}
+
+function toStructuredFoodInput(payload: ProductPhotoVisionPayload): StructuredFoodInput {
+  return {
+    brand: payload.brand,
+    productName: payload.product_name,
+    probableName: payload.probable_name,
+    species: payload.species,
+    lifeStage: payload.life_stage,
+    weight: normalizeWeight(payload) ?? payload.weight,
+    weightValue: payload.weight_value,
+    weightUnit: payload.weight_unit,
+    line: payload.line,
+    variant: payload.variant ?? payload.size,
+    flavor: payload.flavor,
+    size: payload.size,
+    visibleText: payload.visible_text,
+    reason: payload.reason,
+    rawTextBlobs: normalizeRawTextBlobs(payload),
+  };
+}
+
+function normalizeSpeciesToken(value?: string | null): string | undefined {
+  const normalized = normalizeText(value)?.toLowerCase();
+  if (!normalized) return undefined;
+  if (['dog', 'cao', 'cão', 'canine'].includes(normalized)) return 'dog';
+  if (['cat', 'gato', 'feline'].includes(normalized)) return 'cat';
+  if (['other', 'pet'].includes(normalized)) return 'other';
+  return normalized;
+}
+
+function normalizeLifeStageToken(value?: string | null): string | undefined {
+  const normalized = normalizeText(value)?.toLowerCase();
+  if (!normalized) return undefined;
+  if (['puppy', 'filhote', 'kitten'].includes(normalized)) return 'puppy';
+  if (['adult', 'adulto'].includes(normalized)) return 'adult';
+  if (['senior', 'sênior', 'mature'].includes(normalized)) return 'senior';
+  if (['all', 'all ages', 'todas as idades'].includes(normalized)) return 'all';
+  return normalized;
+}
+
+function composeGenericName(payload: ProductPhotoVisionPayload): string | undefined {
+  const parts = [
+    normalizeText(payload.brand),
+    normalizeText(payload.product_name),
+    normalizeText(payload.line),
+    normalizeText(payload.variant ?? payload.size),
+    normalizeText(payload.flavor),
+    normalizeWeight(payload),
+  ].filter(Boolean);
+  if (parts.length > 0) return parts.join(' ');
+  return normalizeRawTextBlobs(payload)[0]?.slice(0, 80);
+}
+
+function tokenize(value: string): string[] {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(/\s+/)
+    .filter(token => token.length >= 2);
+}
+
+function formatPackSizes(packSizes?: Array<{ value: number; unit: string }>): string[] {
+  if (!packSizes?.length) return [];
+  return packSizes
+    .filter(size => Number.isFinite(size.value) && typeof size.unit === 'string')
+    .map(size => `${String(size.value).replace('.', ',')} ${size.unit.toLowerCase()}`);
+}
+
+function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: ProductPhotoVisionPayload, query: string): number {
+  const queryTokens = tokenize(query);
+  const candidateText = [
+    candidate.title,
+    candidate.brand,
+    candidate.variant,
+    candidate.species,
+    ...formatPackSizes(candidate.pack_sizes),
+  ].filter(Boolean).join(' ');
+  const candidateTokens = new Set(tokenize(candidateText));
+
+  let score = 0;
+  if (queryTokens.length > 0) {
+    let overlap = 0;
+    for (const token of queryTokens) {
+      if (candidateTokens.has(token)) overlap += 1;
+    }
+    score += overlap / queryTokens.length;
+  }
+
+  const brand = normalizeText(payload.brand)?.toLowerCase();
+  const candidateBrand = normalizeText(candidate.brand)?.toLowerCase();
+  if (brand && candidateBrand) {
+    if (candidateBrand.includes(brand) || brand.includes(candidateBrand)) {
+      score += 0.28;
+    } else {
+      // Different known brands — strong penalty to prevent cross-brand contamination
+      // (e.g. "Hill's Science Diet Puppy" scoring high in a "royal canin" search)
+      score -= 0.5;
+    }
+  }
+
+  const species = normalizeSpeciesToken(payload.species);
+  const candidateSpecies = normalizeSpeciesToken(candidate.species);
+  if (species && candidateSpecies && species === candidateSpecies) score += 0.12;
+
+  const weight = normalizeWeight(payload)?.toLowerCase();
+  if (weight && formatPackSizes(candidate.pack_sizes).some(pack => pack.toLowerCase() === weight || candidateText.toLowerCase().includes(weight))) {
+    score += 0.16;
+  }
+
+  const lifeStage = normalizeLifeStageToken(payload.life_stage);
+  const title = candidate.title.toLowerCase();
+  if (lifeStage === 'puppy' && /(filhote|puppy|kitten|junior)/.test(title)) score += 0.1;
+  if (lifeStage === 'adult' && /(adult|adulto)/.test(title)) score += 0.1;
+  if (lifeStage === 'senior' && /(senior|sênior|mature)/.test(title)) score += 0.1;
+
+  return clampScore(score);
+}
+
+async function searchInternalCatalogCandidate(
+  payload: ProductPhotoVisionPayload,
+  category: ProductCategory,
+  queries: string[],
+  expectedDominantTerms: DominantTerms,
+): Promise<CatalogMatchResult | null> {
+  const type = category === 'food' ? 'food' : 'product';
+  let bestMatch: CatalogMatchResult | null = null;
+
+  for (const query of queries.slice(0, 4)) {
+    if (!query.trim()) continue;
+    try {
+      const params = new URLSearchParams({ q: query, type, limit: '8' });
+      const response = await fetch(`${API_BASE_URL}/catalog/search/v2?${params.toString()}`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(2400),
+      });
+      if (!response.ok) continue;
+      const data = (await response.json()) as CatalogSearchApiResponse;
+      for (const candidate of data.candidates ?? []) {
+        const packSizes = formatPackSizes(candidate.pack_sizes);
+        const candidateFields = extractFoodFields({
+          brand: candidate.brand,
+          productName: candidate.title,
+          variant: candidate.variant,
+          species: candidate.species,
+          weight: packSizes[0],
+          rawTextBlobs: [candidate.title, candidate.brand, candidate.variant, candidate.species, ...packSizes],
+        });
+        const compatibility = compareDominantTerms(expectedDominantTerms, candidateFields.dominantTerms);
+        if (compatibility.strongConflicts.length > 0) continue;
+
+        let score = scoreCatalogCandidate(candidate, payload, query);
+        score += compatibility.strongMatches.length * 0.08;
+        score += compatibility.mediumMatches.length * 0.04;
+        score -= compatibility.mediumConflicts.length * 0.16;
+        if (score < 0.55) continue;
+        const weight = normalizeWeight(payload) ?? packSizes[0];
+        const resolved: ResolvedProduct = {
+          barcode: '',
+          name: candidate.title,
+          brand: normalizeText(candidate.brand) ?? normalizeText(payload.brand),
+          weight,
+          manufacturer: normalizeText(candidate.brand) ?? normalizeText(payload.brand),
+          presentation: weight,
+          category,
+          source: 'internal',
+        };
+        if (!bestMatch || score > bestMatch.score) {
+          bestMatch = {
+            product: category === 'food' ? enrichFoodProduct(resolved) : resolved,
+            score: clampScore(score),
+            dominantTerms: candidateFields.dominantTerms,
+            strongTermMatches: compatibility.strongMatches,
+            mediumTermMatches: compatibility.mediumMatches,
+            strongTermConflicts: compatibility.strongConflicts,
+            mediumTermConflicts: compatibility.mediumConflicts,
+          };
+        }
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return bestMatch;
+}
+
+export async function resolvePhotoProductCandidate(
+  payload: ProductPhotoVisionPayload,
+  options?: { hint?: ProductCategory; barcode?: string },
+): Promise<ProductPhotoCandidate | null> {
+  if (!hasUsefulVisionPayload(payload)) return null;
+
+  const category = normalizeCategory(payload.category, options?.hint);
+  let brand = normalizeText(payload.brand);
+  const productName = normalizeText(payload.product_name);
+  const probableName = normalizeText(payload.probable_name);
+  const visibleText = normalizeText(payload.visible_text);
+  const rawTextBlobs = normalizeRawTextBlobs(payload);
+  let weight = normalizeWeight(payload);
+  const manufacturer = normalizeText(payload.manufacturer) || brand;
+  const presentation = normalizeText(payload.presentation) || weight;
+  let name = normalizeText(payload.name) || productName || probableName;
+  let origin: ProductDetectionOrigin = normalizeText(payload.name) ? 'ia' : productName ? 'ia' : 'partial_name';
+  let usedParser = false;
+  let fuzzyBrand = false;
+  let aiContradicts = false;
+  const structuredFoodInput = toStructuredFoodInput(payload);
+  const parsedFoodFields = category === 'food' ? extractFoodFields(structuredFoodInput) : null;
+  const dominantTerms = parsedFoodFields?.dominantTerms;
+
+  if (category === 'food') {
+    usedParser = true;
+    const parsed = parsedFoodFields;
+    if (!parsed) return null;
+    fuzzyBrand = parsed.brandMatchMode === 'fuzzy';
+    weight = weight ?? parsed.weight;
+    // If parser's OCR found a different known brand than what AI reported, override.
+    if (parsed.brand && parsed.brand !== brand) {
+      brand = parsed.brand;
+    }
+
+    // Guard: if the AI's product_name / full name contradicts what the scan actually shows,
+    // strip the conflicting part so we build a name from the real scan evidence only.
+    let safeInput = structuredFoodInput;
+    const hasDominantConstraints = hasStrongDominantTerms(parsed.dominantTerms);
+
+    if (hasDominantConstraints) {
+      // ── Symmetric check ────────────────────────────────────────────────────
+      // Fires when BOTH sides name a term in the same bucket with no overlap.
+      // e.g. scan:puppy vs AI:adult, scan:dog vs AI:cat, scan:small-dog vs AI:maxi.
+      const aiTexts = [
+        structuredFoodInput.productName,
+        structuredFoodInput.probableName,
+        normalizeText(payload.name),
+      ].filter((t): t is string => Boolean(t));
+      const symmetricBlock = aiTexts.some(text => {
+        const terms = buildDominantTerms({ texts: [text] });
+        return detectContradiction(parsed.dominantTerms, terms).isHardBlock;
+      });
+
+      // ── Asymmetric check ───────────────────────────────────────────────────
+      // Fires when scan has a THERAPEUTIC term (urinary, renal, …) but a
+      // composed AI name specifies audience/life-stage WITHOUT any therapeutic
+      // term. "Royal Canin Maxi Adult" for a Urinary S/O scan = hard block.
+      // Covers both payload.name (full AI name) and probableName (composed by
+      // the vision service from brand+product_name+line+variant).
+      let asymmetricBlock = false;
+      if (!symmetricBlock && parsed.dominantTerms.functionalTerms.length > 0) {
+        const candidateFullNames = [
+          normalizeText(payload.name),
+          structuredFoodInput.probableName ?? undefined,
+        ].filter((t): t is string => Boolean(t));
+        asymmetricBlock = candidateFullNames.some(text => {
+          const terms = buildDominantTerms({ texts: [text] });
+          return (
+            terms.functionalTerms.length === 0 &&
+            (terms.audienceTerms.length > 0 || terms.lifeStageTerms.length > 0)
+          );
+        });
+      }
+
+      aiContradicts = symmetricBlock || asymmetricBlock;
+      if (aiContradicts) {
+        safeInput = { ...structuredFoodInput, productName: null, probableName: null };
+        origin = 'parser';
+      }
+    }
+
+    if (aiContradicts) {
+      // Use only safe evidence; do NOT fall back to the wrong AI name.
+      name = buildPartialFoodName(safeInput) ?? undefined;
+    } else {
+      name = buildPartialFoodName(structuredFoodInput) ?? name;
+    }
+
+    const correctedSafeInput = brand !== normalizeText(payload.brand) ? { ...safeInput, brand } : safeInput;
+    const queries = buildFoodSearchQueries(correctedSafeInput);
+    if (queries.length > 0) {
+      const catalogPayload = brand !== normalizeText(payload.brand) ? { ...payload, brand } : payload;
+      const catalogMatch = await searchInternalCatalogCandidate(catalogPayload, category, queries, parsed.dominantTerms);
+      if (catalogMatch) {
+        const hasStrongCompatibility = !hasStrongDominantTerms(parsed.dominantTerms) || catalogMatch.strongTermMatches.length > 0;
+        const isTherapeutic = parsed.dominantTerms.functionalTerms.length > 0;
+        const assistedConfirmation = isTherapeutic || !hasStrongCompatibility || catalogMatch.mediumTermConflicts.length > 0;
+        const confidence = scorePhotoCandidate({
+          payload,
+          category,
+          brand: catalogMatch.product.brand,
+          weight: catalogMatch.product.weight,
+          hasPayloadName: Boolean(normalizeText(payload.name) || productName),
+          usedParser,
+          fuzzyBrand,
+          catalogScore: catalogMatch.score,
+          species: payload.species,
+          lifeStage: payload.life_stage,
+          strongConflictCount: catalogMatch.strongTermConflicts.length,
+          mediumConflictCount: catalogMatch.mediumTermConflicts.length,
+          strongMatchCount: catalogMatch.strongTermMatches.length,
+          mediumMatchCount: catalogMatch.mediumTermMatches.length,
+        });
+        return {
+          product: {
+            ...catalogMatch.product,
+            barcode: options?.barcode ?? '',
+          },
+          origin: 'fuzzy_match',
+          resultType: !assistedConfirmation && confidence.score >= 0.84 ? 'complete' : 'partial',
+          confidence,
+          dominantTerms: parsed.dominantTerms,
+          assistedConfirmation,
+          strongTermConflicts: catalogMatch.strongTermConflicts,
+          mediumTermConflicts: catalogMatch.mediumTermConflicts,
+        };
+      }
+    }
+  }
+
+  if (!name && category !== 'food') {
+    const reasonHint = normalizeText(payload.reason)?.split('.')[0]?.trim();
+    const genericName = composeGenericName(payload);
+    if (genericName) {
+      name = genericName;
+    } else if (brand) {
+      name = [brand, normalizeText(payload.line), normalizeText(payload.variant ?? payload.size), weight].filter(Boolean).join(' ');
+    } else if (reasonHint && reasonHint.length > 4) {
+      name = reasonHint.slice(0, 80);
+    } else if (visibleText || rawTextBlobs.length > 0) {
+      name = rawTextBlobs[0]?.slice(0, 80) || visibleText?.split('\n')[0]?.trim().slice(0, 80) || undefined;
+    }
+  }
+
+  if (!name && category === 'food') {
+    const fields = parsedFoodFields ?? extractFoodFields(structuredFoodInput);
+    usedParser = true;
+    origin = 'parser';
+    fuzzyBrand = fields.brandMatchMode === 'fuzzy';
+    weight = weight ?? fields.weight;
+    const finalBrand = brand ?? fields.brand;
+    name = [finalBrand, fields.productName, fields.line, fields.variant, payload.species ?? fields.species, payload.life_stage ?? fields.lifeStage, weight]
+      .filter(Boolean)
+      .join(' ')
+      .trim() || undefined;
+  }
+
+  if (!name) {
+    const genericPartial = [
+      brand,
+      normalizeText(payload.product_name),
+      normalizeText(payload.line),
+      normalizeText(payload.variant),
+      normalizeText(payload.probable_name),
+      normalizeText(payload.species),
+      normalizeText(payload.life_stage),
+      weight,
+    ].filter(Boolean).join(' ').trim();
+    if (genericPartial) {
+      name = genericPartial;
+      origin = origin === 'ia' ? origin : 'partial_name';
+    }
+  }
+
+  if (!name) return null;
+
+  const resolved: ResolvedProduct = {
+    barcode: options?.barcode ?? '',
+    name,
+    brand,
+    weight,
+    manufacturer,
+    presentation,
+    category,
+    source: 'internal',
+  };
+  const enriched = category === 'food' ? enrichFoodProduct(resolved) : resolved;
+  const confidence = scorePhotoCandidate({
+    payload,
+    category,
+    brand: enriched.brand,
+    weight: enriched.weight,
+    // When AI name was overridden due to contradiction, treat as if no AI name existed.
+    hasPayloadName: !aiContradicts && Boolean(normalizeText(payload.name) || productName),
+    usedParser,
+    fuzzyBrand,
+    species: payload.species,
+    lifeStage: payload.life_stage,
+  });
+  const isTherapeutic = category === 'food' && (dominantTerms?.functionalTerms.length ?? 0) > 0;
+  const assistedConfirmation = isTherapeutic || aiContradicts || (category === 'food'
+    ? !normalizeText(payload.name) || confidence.level !== 'high'
+    : false);
+  const resultType: ProductDetectionResultType = confidence.level === 'low'
+    ? 'fallback'
+    : category === 'food'
+      ? assistedConfirmation
+        ? 'partial'
+        : 'complete'
+      : normalizeText(payload.name)
+        ? 'complete'
+        : 'partial';
+
+  return {
+    product: enriched,
+    origin,
+    resultType,
+    confidence,
+    dominantTerms,
+    assistedConfirmation,
+    strongTermConflicts: [],
+    mediumTermConflicts: [],
+  };
+}
+
+export function scoreGtinResolution(source?: ResolvedProduct['source'] | string | null): ProductDetectionConfidence {
+  const highSource = source === 'cache' || source === 'petmol_db' || source === 'history';
+  const score = highSource ? 0.97 : source === 'cosmos' || source === 'internal' ? 0.92 : 0.86;
+  return { score, level: toConfidenceLevel(score) };
+}
+
+function normalizeSource(source: ProductLookupResponse['source']): ResolvedProduct['source'] {
+  if (source === 'cache' || source === 'cosmos' || source === 'history' || source === 'internal' || source === 'petmol_db') {
+    return source;
+  }
+  return 'internal';
+}
+
+export async function resolveProductLookup(barcode: string): Promise<ProductLookupResponse | null> {
+  try {
+    console.info('[ProductScanner] lookupStarted', { barcode });
+    const res = await fetch(`${API_BASE_URL}/products/lookup/gtin/${encodeURIComponent(barcode)}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(5500),
+    });
+
+    if (!res.ok) {
+      console.info('[ProductScanner] lookupFailed', { barcode, status: res.status });
+      return null;
+    }
+
+    const data = (await res.json()) as ProductLookupResponse;
+    console.info('[ProductScanner] lookupResponse', {
+      barcode,
+      ok: data.ok,
+      found: data.found,
+      fromCache: data.from_cache,
+      queued: data.queued,
+      source: data.source,
+      error: data.error,
+    });
+    return data;
+  } catch {
+    console.info('[ProductScanner] lookupException', { barcode });
+    return null;
+  }
+}
+
+async function resolveFreshProduct(barcode: string): Promise<ResolvedProduct | null> {
+  const cached = getLocalProduct(barcode);
+  if (cached) {
+    console.info('[ProductScanner] cacheHit', { barcode, source: cached.source });
+    return cached;
+  }
+
+  const data = await resolveProductLookup(barcode);
+  if (data?.ok && data.found && data.product?.name) {
+    const normalizedCategory = data.product.category;
+    const category = (
+      normalizedCategory === 'food' ||
+      normalizedCategory === 'medication' ||
+      normalizedCategory === 'antiparasite' ||
+      normalizedCategory === 'dewormer' ||
+      normalizedCategory === 'collar' ||
+      normalizedCategory === 'hygiene' ||
+      normalizedCategory === 'other'
+    )
+      ? normalizedCategory
+      : 'other';
+
+    const raw = data.product.raw ?? {};
+    const manufacturer = typeof raw.manufacturer === 'string'
+      ? raw.manufacturer
+      : data.product.brand || undefined;
+    const presentation = typeof raw.presentation === 'string'
+      ? raw.presentation
+      : undefined;
+    const concentration = typeof raw.concentration === 'string'
+      ? raw.concentration
+      : undefined;
+    const weight = typeof raw.weight === 'string'
+      ? raw.weight
+      : undefined;
+
+    const product: ResolvedProduct = {
+      barcode: data.gtin || barcode,
+      name: data.product.name,
+      brand: data.product.brand || undefined,
+      image: data.product.image_url || undefined,
+      weight,
+      manufacturer,
+      presentation,
+      concentration,
+      category,
+      source: normalizeSource(data.source),
+    };
+
+    const enriched = enrichFoodProduct(product);
+    saveLocalProduct(barcode, enriched);
+    return enriched;
+  }
+
+  const cosmosProduct = await fetchFromCosmos(barcode);
+  if (cosmosProduct) {
+    console.info('[ProductScanner] cosmosFallbackHit', { barcode });
+    const enriched = enrichFoodProduct(cosmosProduct);
+    saveLocalProduct(barcode, enriched);
+    return enriched;
+  }
+
+  const globalProduct = await fetchFromGlobal(barcode);
+  if (globalProduct) {
+    console.info('[ProductScanner] globalFallbackHit', { barcode });
+    const enriched = enrichFoodProduct(globalProduct);
+    saveLocalProduct(barcode, enriched);
+    return enriched;
+  }
+
+  return null;
+}
+
+export async function resolveProduct(barcode: string): Promise<ResolvedProduct | null> {
+  const existing = inFlight.get(barcode);
+  if (existing) return existing;
+
+  const pending = resolveFreshProduct(barcode)
+    .finally(() => {
+      inFlight.delete(barcode);
+    });
+
+  inFlight.set(barcode, pending);
+  return pending;
+}
+
+export async function confirmProductLookup(product: {
+  barcode?: string;
+  name?: string;
+  brand?: string;
+  category?: ResolvedProduct['category'];
+  manufacturer?: string;
+  presentation?: string;
+  source?: ResolvedProduct['source'] | 'user_confirmed';
+}): Promise<void> {
+  const barcode = product.barcode?.replace(/\D/g, '');
+  const name = product.name?.trim();
+  if (!barcode || !name) return;
+
+  try {
+    console.info('[ProductScanner] confirmLookupStarted', { barcode, name });
+    const res = await fetch(`${API_BASE_URL}/product-lookup/confirm`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        code: barcode,
+        name,
+        brand: product.brand || null,
+        category: product.category || 'other',
+        manufacturer: product.manufacturer || product.brand || null,
+        presentation: product.presentation || null,
+        source: product.source || 'user_confirmed',
+        confidence: 1,
+      }),
+      signal: AbortSignal.timeout(2500),
+    });
+    console.info('[ProductScanner] confirmLookupResponse', { barcode, status: res.status });
+  } catch {
+    console.info('[ProductScanner] confirmLookupException', { barcode });
+  }
+}

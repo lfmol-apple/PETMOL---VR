@@ -4,11 +4,14 @@ PETMOL Health Module - API Router
 Health endpoints with authentication and pet ownership validation.
 Integrates with existing backend structure.
 """
+import json
+
 from datetime import date, datetime, timedelta
-from typing import List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -31,6 +34,8 @@ from .schemas import (
     FeedingPlanResponse,
     FeedingPlanData,
     FeedingEstimate,
+    FeedingPlanItemData,
+    FeedingPlanItemPayload,
     FeedingSnapshot,
     CountriesResponse,
     CountryInfo,
@@ -42,7 +47,9 @@ from .services import (
     calculate_days_until_out,
 )
 
-router = APIRouter(prefix="/api/health", tags=["health"])
+# Health v1 routes are defined under /health and mounted with + without "/api"
+# in main.py to support proxy variations (/api prefix stripped or preserved).
+router = APIRouter(prefix="/health", tags=["health"])
 
 
 # ============================================================================
@@ -84,6 +91,246 @@ def _vaccine_record_to_response(record: VaccineRecord) -> VaccineResponse:
         notes=record.notes,
         source="manual",
         confirmed_by_user=True,
+        record_type=record.record_type or "confirmed_application",
+        alert_days_before=record.alert_days_before,
+        reminder_date=record.reminder_date.isoformat() if getattr(record, "reminder_date", None) else None,
+        reminder_time=record.reminder_time,
+        reminder_enabled=getattr(record, "reminder_enabled", False),
+    )
+
+
+def _parse_feeding_date(value: Optional[str], field_name: str) -> Optional[date]:
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid date format for {field_name}. Use YYYY-MM-DD",
+        ) from exc
+
+
+def _parse_optional_local_date(value: Optional[str]) -> Optional[date]:
+    if not value:
+        return None
+    return datetime.strptime(value, "%Y-%m-%d").date()
+
+
+def _coerce_duration_days(value: Any) -> Optional[int]:
+    try:
+        duration = int(value)
+    except (TypeError, ValueError):
+        return None
+    return duration if duration > 0 else None
+
+
+def _derive_duration_days(start: Optional[date], end: Optional[date]) -> Optional[int]:
+    if not start or not end or end <= start:
+        return None
+    return (end - start).days
+
+
+def _normalize_feeding_items_from_request(request: FeedingPlanCreateRequest) -> List[Dict[str, Any]]:
+    raw_items = request.items or []
+    normalized: List[Dict[str, Any]] = []
+
+    for index, item in enumerate(raw_items):
+        _parse_feeding_date(item.last_refill_date, f"items[{index}].last_refill_date")
+        brand = (item.food_brand or "").strip() or None
+        normalized.append({
+            "id": item.id or str(uuid4()),
+            "label": (item.label or brand or f"Produto {index + 1}").strip(),
+            "food_brand": brand,
+            "package_size_kg": item.package_size_kg,
+            "daily_amount_g": item.daily_amount_g,
+            "duration_days": _coerce_duration_days(item.duration_days),
+            "last_refill_date": item.last_refill_date,
+            "mode": item.mode or request.mode,
+            "barcode": (item.barcode or "").strip() or None,
+            "category": (item.category or "").strip() or None,
+            "notes": (item.notes or "").strip() or None,
+            "is_primary": bool(item.is_primary),
+        })
+
+    if not normalized:
+        _parse_feeding_date(request.last_refill_date, "last_refill_date")
+        brand = (request.food_brand or "").strip() or None
+        normalized.append({
+            "id": str(uuid4()),
+            "label": brand or "Produto 1",
+            "food_brand": brand,
+            "package_size_kg": request.package_size_kg,
+            "daily_amount_g": request.daily_amount_g,
+            "duration_days": _coerce_duration_days(request.duration_days),
+            "last_refill_date": request.last_refill_date,
+            "mode": request.mode,
+            "barcode": None,
+            "category": None,
+            "notes": None,
+            "is_primary": True,
+        })
+
+    primary_index = next((index for index, item in enumerate(normalized) if item["is_primary"]), 0)
+    for index, item in enumerate(normalized):
+        item["is_primary"] = index == primary_index
+
+    return normalized
+
+
+def _fallback_feeding_item_from_plan(plan: FeedingPlan) -> Dict[str, Any]:
+    return {
+        "id": str(uuid4()),
+        "label": (plan.food_brand or "Produto 1").strip() or "Produto 1",
+        "food_brand": plan.food_brand,
+        "package_size_kg": plan.package_size_kg,
+        "daily_amount_g": plan.daily_amount_g,
+        "duration_days": plan.duration_days,
+        "last_refill_date": plan.last_refill_date.isoformat() if plan.last_refill_date else None,
+        "mode": plan.mode,
+        "barcode": None,
+        "category": None,
+        "notes": None,
+        "is_primary": True,
+    }
+
+
+def _parse_feeding_items_from_plan(plan: FeedingPlan) -> List[Dict[str, Any]]:
+    parsed: List[Dict[str, Any]] = []
+    if plan.items_json:
+        try:
+            raw_items = json.loads(plan.items_json)
+            if isinstance(raw_items, list):
+                for index, raw_item in enumerate(raw_items):
+                    if not isinstance(raw_item, dict):
+                        continue
+                    brand = str(raw_item.get("food_brand") or "").strip() or None
+                    parsed.append({
+                        "id": str(raw_item.get("id") or uuid4()),
+                        "label": str(raw_item.get("label") or brand or f"Produto {index + 1}").strip(),
+                        "food_brand": brand,
+                        "package_size_kg": raw_item.get("package_size_kg"),
+                        "daily_amount_g": raw_item.get("daily_amount_g"),
+                        "duration_days": _coerce_duration_days(raw_item.get("duration_days")),
+                        "last_refill_date": raw_item.get("last_refill_date"),
+                        "mode": str(raw_item.get("mode") or plan.mode or "kibble"),
+                        "barcode": str(raw_item.get("barcode") or "").strip() or None,
+                        "category": str(raw_item.get("category") or "").strip() or None,
+                        "notes": str(raw_item.get("notes") or "").strip() or None,
+                        "is_primary": bool(raw_item.get("is_primary")),
+                    })
+        except (TypeError, ValueError, json.JSONDecodeError):
+            parsed = []
+
+    if not parsed:
+        parsed = [_fallback_feeding_item_from_plan(plan)]
+
+    primary_index = next((index for index, item in enumerate(parsed) if item["is_primary"]), 0)
+    for index, item in enumerate(parsed):
+        item["is_primary"] = index == primary_index
+
+    return parsed
+
+
+def _get_primary_feeding_item(items: List[Dict[str, Any]]) -> Dict[str, Any]:
+    return next((item for item in items if item.get("is_primary")), items[0])
+
+
+def _serialize_feeding_items(items: List[Dict[str, Any]]) -> str:
+    return json.dumps(items, ensure_ascii=False)
+
+
+def _list_active_feeding_plans(db: Session, pet_id: str) -> List[FeedingPlan]:
+    """Return active feeding plans ordered by freshest first."""
+    return (
+        db.query(FeedingPlan)
+        .filter(
+            FeedingPlan.pet_id == pet_id,
+            FeedingPlan.deleted_at.is_(None),
+        )
+        .order_by(
+            FeedingPlan.updated_at.desc(),
+            FeedingPlan.created_at.desc(),
+            FeedingPlan.id.desc(),
+        )
+        .all()
+    )
+
+
+def _get_active_feeding_plan(db: Session, pet_id: str) -> Optional[FeedingPlan]:
+    plans = _list_active_feeding_plans(db, pet_id)
+    return plans[0] if plans else None
+
+
+def _get_any_feeding_plan(db: Session, pet_id: str) -> Optional[FeedingPlan]:
+    return (
+        db.query(FeedingPlan)
+        .filter(FeedingPlan.pet_id == pet_id)
+        .order_by(
+            FeedingPlan.updated_at.desc(),
+            FeedingPlan.created_at.desc(),
+            FeedingPlan.id.desc(),
+        )
+        .first()
+    )
+
+
+def _soft_delete_duplicate_feeding_plans(
+    plans: List[FeedingPlan],
+    *,
+    keep_id: str,
+) -> None:
+    now = datetime.utcnow()
+    for plan in plans:
+        if plan.id == keep_id:
+            continue
+        plan.deleted_at = now
+        plan.updated_at = now
+
+
+def _build_feeding_item_data(items: List[Dict[str, Any]]) -> List[FeedingPlanItemData]:
+    return [
+        FeedingPlanItemData(
+            id=str(item.get("id") or uuid4()),
+            label=item.get("label"),
+            food_brand=item.get("food_brand"),
+            package_size_kg=item.get("package_size_kg"),
+            daily_amount_g=item.get("daily_amount_g"),
+            duration_days=item.get("duration_days"),
+            last_refill_date=item.get("last_refill_date"),
+            mode=str(item.get("mode") or "kibble"),
+            barcode=item.get("barcode"),
+            category=item.get("category"),
+            notes=item.get("notes"),
+            is_primary=bool(item.get("is_primary")),
+        )
+        for item in items
+    ]
+
+
+def _build_feeding_plan_data(plan: FeedingPlan, items: List[Dict[str, Any]]) -> FeedingPlanData:
+    return FeedingPlanData(
+        pet_id=plan.pet_id,
+        species=plan.species,
+        country_code=plan.country_code,
+        food_brand=plan.food_brand,
+        package_size_kg=plan.package_size_kg,
+        daily_amount_g=plan.daily_amount_g,
+        duration_days=plan.duration_days,
+        last_refill_date=plan.last_refill_date.isoformat() if plan.last_refill_date else None,
+        safety_buffer_days=plan.safety_buffer_days,
+        meals_per_day=plan.meals_per_day,
+        mode=plan.mode,
+        notes=plan.notes,
+        enabled=plan.enabled,
+        no_consumption_control=plan.no_consumption_control,
+        next_purchase_date=plan.next_purchase_date.isoformat() if plan.next_purchase_date else None,
+        manual_reminder_days_before=plan.manual_reminder_days_before,
+        reminder_time=plan.reminder_time,
+        reminder_source=getattr(plan, "reminder_source", "calculated"),
+        items=_build_feeding_item_data(items),
+        created_at=plan.created_at.isoformat(),
+        updated_at=plan.updated_at.isoformat(),
     )
 
 
@@ -329,18 +576,35 @@ async def bulk_confirm_vaccines(
             continue
 
         # --- Persist ---
+        # Use canonical display name from catalog if resolved; fall back to user input
+        canonical_vaccine_name = vac.display_name
+        if resolved_code and resolved_code in VACCINE_CATALOG:
+            catalog_entry = VACCINE_CATALOG[resolved_code]
+            canonical_vaccine_name = (
+                catalog_entry.display_name.get(country)
+                or catalog_entry.display_name.get("BR")
+                or vac.display_name
+            )
+
         vaccine_record = VaccineRecord(
             id=str(uuid4()),
             pet_id=pet_id,
-            vaccine_name=vac.display_name,
+            vaccine_name=canonical_vaccine_name,
             applied_date=applied_date,
             next_dose_date=next_due_date,
             dose_number=vac.dose_number,
             notes=vac.notes,
+            clinic_name=vac.clinic_name,
+            veterinarian_name=vac.veterinarian,
             deleted=False,
             vaccine_code=resolved_code,
             country_code=country,
             next_due_source=next_due_source,
+            record_type=vac.record_type,
+            alert_days_before=vac.alert_days_before,
+            reminder_date=_parse_optional_local_date(vac.reminder_date),
+            reminder_time=vac.reminder_time,
+            reminder_enabled=vac.reminder_enabled,
         )
 
         db.add(vaccine_record)
@@ -425,30 +689,35 @@ async def get_health_snapshot(
     
     # Get feeding plan if exists
     feeding_snapshot = None
-    feeding_plan = db.query(FeedingPlan).filter(FeedingPlan.pet_id == pet_id).first()
+    feeding_plan = _get_active_feeding_plan(db, pet_id)
     
     if feeding_plan:
+        feeding_items = _parse_feeding_items_from_plan(feeding_plan)
         # Calculate estimates
-        estimated_end, _, days_total = calculate_food_stock_estimates(
+        estimated_end, next_reminder, days_total = calculate_food_stock_estimates(
             package_size_kg=feeding_plan.package_size_kg,
             daily_amount_g=feeding_plan.daily_amount_g,
             last_refill_date=feeding_plan.last_refill_date,
             safety_buffer_days=feeding_plan.safety_buffer_days,
             enabled=feeding_plan.enabled,
             no_consumption_control=feeding_plan.no_consumption_control,
+            duration_days=feeding_plan.duration_days,
         )
         
         days_left = calculate_days_until_out(estimated_end, today) if estimated_end else None
-        low_stock = is_food_stock_low(estimated_end, feeding_plan.next_reminder_date, today)
+        low_stock = is_food_stock_low(estimated_end, next_reminder, today)
         
         feeding_snapshot = FeedingSnapshot(
             estimated_end_date=estimated_end.isoformat() if estimated_end else None,
             estimated_days_left=days_left,
             low_stock=low_stock,
-            recommended_alert_date=feeding_plan.next_reminder_date.isoformat() if feeding_plan.next_reminder_date else None,
+            recommended_alert_date=next_reminder.isoformat() if next_reminder else None,
             food_brand=feeding_plan.food_brand,
+            duration_days=feeding_plan.duration_days,
+            reminder_time=feeding_plan.reminder_time,
             mode=feeding_plan.mode,
             enabled=feeding_plan.enabled,
+            items=_build_feeding_item_data(feeding_items),
         )
     
     return HealthSnapshotResponse(
@@ -484,49 +753,53 @@ async def create_or_update_feeding_plan(
     # Validate pet belongs to user
     pet = _check_pet_ownership(pet_id, current_user, db)
     
-    # Parse last_refill_date if provided
-    last_refill_date_obj = None
-    if request.last_refill_date:
-        try:
-            last_refill_date_obj = datetime.strptime(request.last_refill_date, "%Y-%m-%d").date()
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid date format for last_refill_date. Use YYYY-MM-DD"
-            )
+    items_payload = _normalize_feeding_items_from_request(request)
+    primary_item = _get_primary_feeding_item(items_payload)
+    last_refill_date_obj = _parse_feeding_date(primary_item.get("last_refill_date"), "last_refill_date")
 
     # Parse next_purchase_date if provided (manual mode)
-    next_purchase_date_obj = None
-    if request.next_purchase_date:
-        try:
-            next_purchase_date_obj = datetime.strptime(request.next_purchase_date, "%Y-%m-%d").date()
-        except ValueError:
-            pass  # ignore invalid date, field is optional
+    next_purchase_date_obj = _parse_feeding_date(request.next_purchase_date, "next_purchase_date") if request.next_purchase_date else None
+    duration_days = (
+        _coerce_duration_days(primary_item.get("duration_days"))
+        or _coerce_duration_days(request.duration_days)
+        or _derive_duration_days(last_refill_date_obj, next_purchase_date_obj)
+    )
+    primary_item["duration_days"] = duration_days
     
     # Calculate estimates if possible
     estimated_end, next_reminder, _ = calculate_food_stock_estimates(
-        package_size_kg=request.package_size_kg,
-        daily_amount_g=request.daily_amount_g,
+        package_size_kg=primary_item.get("package_size_kg"),
+        daily_amount_g=primary_item.get("daily_amount_g"),
         last_refill_date=last_refill_date_obj,
         safety_buffer_days=request.safety_buffer_days,
         enabled=request.enabled,
         no_consumption_control=request.no_consumption_control,
+        duration_days=duration_days,
     )
+    if duration_days and last_refill_date_obj:
+        next_purchase_date_obj = estimated_end
     
     # Check if plan already exists
-    existing_plan = db.query(FeedingPlan).filter(FeedingPlan.pet_id == pet_id).first()
+    active_plans = _list_active_feeding_plans(db, pet_id)
+    existing_plan = active_plans[0] if active_plans else _get_any_feeding_plan(db, pet_id)
     
     if existing_plan:
         # Update existing plan
+        new_reminder_time = request.reminder_time
+        reminder_time_changed = existing_plan.reminder_time != new_reminder_time
+        reminder_source = "manual" if request.next_purchase_date else "calculated"
+
+        existing_plan.deleted_at = None
         existing_plan.species = request.species
         existing_plan.country_code = request.country_code
-        existing_plan.food_brand = request.food_brand
-        existing_plan.package_size_kg = request.package_size_kg
-        existing_plan.daily_amount_g = request.daily_amount_g
+        existing_plan.food_brand = primary_item.get("food_brand")
+        existing_plan.package_size_kg = primary_item.get("package_size_kg")
+        existing_plan.daily_amount_g = primary_item.get("daily_amount_g")
+        existing_plan.duration_days = duration_days
         existing_plan.last_refill_date = last_refill_date_obj
         existing_plan.safety_buffer_days = request.safety_buffer_days
         existing_plan.meals_per_day = request.meals_per_day
-        existing_plan.mode = request.mode
+        existing_plan.mode = str(primary_item.get("mode") or request.mode)
         existing_plan.notes = request.notes
         existing_plan.enabled = request.enabled
         existing_plan.no_consumption_control = request.no_consumption_control
@@ -534,6 +807,14 @@ async def create_or_update_feeding_plan(
         existing_plan.next_reminder_date = next_reminder
         existing_plan.next_purchase_date = next_purchase_date_obj
         existing_plan.manual_reminder_days_before = request.manual_reminder_days_before
+        existing_plan.reminder_time = new_reminder_time
+        existing_plan.reminder_source = reminder_source
+        existing_plan.items_json = _serialize_feeding_items(items_payload)
+
+        # Se o tutor mudou o horário, liberar o dedup do dia atual para o push
+        # disparar no novo horário ainda hoje (em vez de só amanhã).
+        if reminder_time_changed:
+            existing_plan.last_food_push_date = None
         
         plan = existing_plan
     else:
@@ -543,13 +824,14 @@ async def create_or_update_feeding_plan(
             pet_id=pet_id,
             species=request.species,
             country_code=request.country_code,
-            food_brand=request.food_brand,
-            package_size_kg=request.package_size_kg,
-            daily_amount_g=request.daily_amount_g,
+            food_brand=primary_item.get("food_brand"),
+            package_size_kg=primary_item.get("package_size_kg"),
+            daily_amount_g=primary_item.get("daily_amount_g"),
+            duration_days=duration_days,
             last_refill_date=last_refill_date_obj,
             safety_buffer_days=request.safety_buffer_days,
             meals_per_day=request.meals_per_day,
-            mode=request.mode,
+            mode=str(primary_item.get("mode") or request.mode),
             notes=request.notes,
             enabled=request.enabled,
             no_consumption_control=request.no_consumption_control,
@@ -557,36 +839,24 @@ async def create_or_update_feeding_plan(
             next_reminder_date=next_reminder,
             next_purchase_date=next_purchase_date_obj,
             manual_reminder_days_before=request.manual_reminder_days_before,
+            reminder_time=request.reminder_time,
+            reminder_source="manual" if request.next_purchase_date else "calculated",
+            items_json=_serialize_feeding_items(items_payload),
         )
         db.add(plan)
     
+    if active_plans and len(active_plans) > 1:
+        _soft_delete_duplicate_feeding_plans(active_plans[1:], keep_id=plan.id)
+
     db.commit()
     db.refresh(plan)
     
-    # Build response
-    plan_data = FeedingPlanData(
-        pet_id=plan.pet_id,
-        species=plan.species,
-        country_code=plan.country_code,
-        food_brand=plan.food_brand,
-        package_size_kg=plan.package_size_kg,
-        daily_amount_g=plan.daily_amount_g,
-        last_refill_date=plan.last_refill_date.isoformat() if plan.last_refill_date else None,
-        safety_buffer_days=plan.safety_buffer_days,
-        meals_per_day=plan.meals_per_day,
-        mode=plan.mode,
-        notes=plan.notes,
-        enabled=plan.enabled,
-        no_consumption_control=plan.no_consumption_control,
-        next_purchase_date=plan.next_purchase_date.isoformat() if plan.next_purchase_date else None,
-        manual_reminder_days_before=plan.manual_reminder_days_before,
-        created_at=plan.created_at.isoformat(),
-        updated_at=plan.updated_at.isoformat(),
-    )
+    plan_items = _parse_feeding_items_from_plan(plan)
+    plan_data = _build_feeding_plan_data(plan, plan_items)
     
-    # Build estimate (only if enabled and not manual mode)
+    # Build estimate whenever a complete plan can be calculated.
     estimate = None
-    if plan.enabled and not plan.no_consumption_control and estimated_end:
+    if plan.enabled and estimated_end:
         days_left = calculate_days_until_out(estimated_end, date.today())
         estimate = FeedingEstimate(
             estimated_end_date=estimated_end.isoformat(),
@@ -610,68 +880,342 @@ async def get_feeding_plan(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get feeding plan for a pet."""
-    # Validate pet belongs to user
-    pet = _check_pet_ownership(pet_id, current_user, db)
+    """Get feeding plan for a pet.
     
-    # Get plan
-    plan = db.query(FeedingPlan).filter(FeedingPlan.pet_id == pet_id).first()
+    Logs all steps for debugging intermittent empty responses.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
     
+    try:
+        # Validate pet belongs to user
+        pet = _check_pet_ownership(pet_id, current_user, db)
+        logger.info(f"[FeedingPlan] GET start for pet {pet_id}")
+        
+        # Get plan
+        plan = _get_active_feeding_plan(db, pet_id)
+        
+        if not plan:
+            logger.warning(f"[FeedingPlan] No active plan found for pet {pet_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Plano de alimentação não encontrado para este pet"
+            )
+        
+        logger.info(f"[FeedingPlan] Plan found: {plan.id}, enabled={plan.enabled}, brand={plan.food_brand}")
+        
+        plan_items = _parse_feeding_items_from_plan(plan)
+        plan_data = _build_feeding_plan_data(plan, plan_items)
+        
+        # Validate that plan_data has required fields
+        if not plan_data.pet_id:
+            logger.error(f"[FeedingPlan] Invalid plan_data: missing pet_id for pet {pet_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Erro ao processar plano de alimentação"
+            )
+        
+        # Recalculate estimate with fresh data
+        today = date.today()
+        estimated_end, next_reminder, _ = calculate_food_stock_estimates(
+            package_size_kg=plan.package_size_kg,
+            daily_amount_g=plan.daily_amount_g,
+            last_refill_date=plan.last_refill_date,
+            safety_buffer_days=plan.safety_buffer_days,
+            enabled=plan.enabled,
+            no_consumption_control=plan.no_consumption_control,
+            duration_days=plan.duration_days,
+        )
+        
+        estimate = None
+        if plan.enabled and estimated_end:
+            days_left = calculate_days_until_out(estimated_end, today)
+            estimate = FeedingEstimate(
+                estimated_end_date=estimated_end.isoformat(),
+                estimated_days_left=days_left,
+                low_stock=is_food_stock_low(estimated_end, next_reminder, today),
+                recommended_alert_date=next_reminder.isoformat() if next_reminder else None,
+                calculated_at=datetime.now().isoformat(),
+            )
+        
+        response = FeedingPlanResponse(
+            status="ok",
+            pet_id=pet_id,
+            plan=plan_data,
+            estimate=estimate,
+        )
+        
+        logger.info(f"[FeedingPlan] GET success for pet {pet_id}, estimate={estimate is not None}")
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logger.error(f"[FeedingPlan] Unexpected error for pet {pet_id}: {str(e)}")
+        logger.error(f"[FeedingPlan] Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao carregar plano: {str(e)[:100]}"
+        )
+
+
+@router.delete("/pets/{pet_id}/feeding/plan", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_feeding_plan(
+    pet_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Soft delete feeding plan for quick correction."""
+    _check_pet_ownership(pet_id, current_user, db)
+    plan = _get_active_feeding_plan(db, pet_id)
+    if not plan:
+      raise HTTPException(
+          status_code=status.HTTP_404_NOT_FOUND,
+          detail="Plano de alimentação não encontrado para este pet"
+      )
+    plan.deleted_at = datetime.utcnow()
+    plan.updated_at = datetime.utcnow()
+    db.commit()
+    return None
+
+
+class SnoozeFeedingPlanRequest(BaseModel):
+    snooze_days: int = 7
+
+
+class RestockFeedingPlanRequest(BaseModel):
+    refill_date: Optional[str] = None  # YYYY-MM-DD; defaults to today
+
+
+class SetFeedingReminderDateRequest(BaseModel):
+    next_reminder_date: str  # YYYY-MM-DD
+
+
+@router.post("/pets/{pet_id}/feeding/plan/restock")
+async def restock_feeding_plan(
+    pet_id: str,
+    body: RestockFeedingPlanRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Registrar nova compra (reabastecimento). Reinicia ciclo de consumo.
+
+    Atualiza last_refill_date e recalcula estimated_end_date / next_reminder_date.
+    """
+    _check_pet_ownership(pet_id, current_user, db)
+    plan = _get_active_feeding_plan(db, pet_id)
+
     if not plan:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Plano de alimentação não encontrado para este pet"
+            detail="Plano de alimentação não encontrado para este pet",
         )
-    
-    # Build response
-    plan_data = FeedingPlanData(
-        pet_id=plan.pet_id,
-        species=plan.species,
-        country_code=plan.country_code,
-        food_brand=plan.food_brand,
-        package_size_kg=plan.package_size_kg,
-        daily_amount_g=plan.daily_amount_g,
-        last_refill_date=plan.last_refill_date.isoformat() if plan.last_refill_date else None,
-        safety_buffer_days=plan.safety_buffer_days,
-        meals_per_day=plan.meals_per_day,
-        mode=plan.mode,
-        notes=plan.notes,
-        enabled=plan.enabled,
-        no_consumption_control=plan.no_consumption_control,
-        next_purchase_date=plan.next_purchase_date.isoformat() if plan.next_purchase_date else None,
-        manual_reminder_days_before=plan.manual_reminder_days_before,
-        created_at=plan.created_at.isoformat(),
-        updated_at=plan.updated_at.isoformat(),
-    )
-    
-    # Recalculate estimate with fresh data
-    today = date.today()
+
+    if body.refill_date:
+        try:
+            refill_date = datetime.strptime(body.refill_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Data inválida. Use YYYY-MM-DD",
+            )
+    else:
+        refill_date = date.today()
+
+    plan.last_refill_date = refill_date
+
     estimated_end, next_reminder, _ = calculate_food_stock_estimates(
         package_size_kg=plan.package_size_kg,
         daily_amount_g=plan.daily_amount_g,
-        last_refill_date=plan.last_refill_date,
+        last_refill_date=refill_date,
         safety_buffer_days=plan.safety_buffer_days,
         enabled=plan.enabled,
         no_consumption_control=plan.no_consumption_control,
+        duration_days=plan.duration_days,
     )
-    
-    estimate = None
-    if plan.enabled and not plan.no_consumption_control and estimated_end:
-        days_left = calculate_days_until_out(estimated_end, today)
-        estimate = FeedingEstimate(
-            estimated_end_date=estimated_end.isoformat(),
-            estimated_days_left=days_left,
-           low_stock=is_food_stock_low(estimated_end, next_reminder, today),
-            recommended_alert_date=next_reminder.isoformat() if next_reminder else None,
-            calculated_at=datetime.now().isoformat(),
+
+    plan.estimated_end_date = estimated_end
+    plan.next_reminder_date = next_reminder
+    plan.reminder_source = "manual"
+    plan.updated_at = datetime.utcnow()
+    db.commit()
+
+    return {
+        "status": "ok",
+        "last_refill_date": refill_date.isoformat(),
+        "estimated_end_date": estimated_end.isoformat() if estimated_end else None,
+        "next_reminder_date": next_reminder.isoformat() if next_reminder else None,
+        "estimated_days_left": calculate_days_until_out(estimated_end, date.today()) if estimated_end else None,
+    }
+
+
+@router.patch("/pets/{pet_id}/feeding/plan/snooze")
+async def snooze_feeding_plan(
+    pet_id: str,
+    body: SnoozeFeedingPlanRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Adiar lembrete de ração por N dias.
+
+    Incrementa next_reminder_date pelo número de dias informado e persiste.
+    Retorna a nova next_reminder_date para o frontend atualizar o estado.
+    """
+    _check_pet_ownership(pet_id, current_user, db)
+    plan = _get_active_feeding_plan(db, pet_id)
+
+    if not plan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plano de alimentação não encontrado para este pet",
         )
-    
-    return FeedingPlanResponse(
-        status="ok",
-        pet_id=pet_id,
-        plan=plan_data,
-        estimate=estimate,
-    )
+
+    if not plan.next_reminder_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Plano não possui data de lembrete configurada",
+        )
+
+    plan.next_reminder_date = plan.next_reminder_date + timedelta(days=body.snooze_days)
+    plan.updated_at = datetime.utcnow()
+    db.commit()
+
+    return {
+        "status": "ok",
+        "next_reminder_date": plan.next_reminder_date.isoformat(),
+        "snooze_days": body.snooze_days,
+    }
+
+
+@router.patch("/pets/{pet_id}/feeding/plan/reminder-date")
+async def set_feeding_reminder_date(
+    pet_id: str,
+    body: SetFeedingReminderDateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Define manualmente a próxima data de lembrete de ração (YYYY-MM-DD)."""
+    _check_pet_ownership(pet_id, current_user, db)
+    plan = _get_active_feeding_plan(db, pet_id)
+
+    if not plan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plano de alimentação não encontrado para este pet",
+        )
+
+    try:
+        next_reminder = datetime.strptime(body.next_reminder_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Data inválida. Use YYYY-MM-DD",
+        )
+
+    if next_reminder < date.today():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="A data de lembrete não pode ser no passado",
+        )
+
+    plan.next_reminder_date = next_reminder
+    plan.reminder_source = "manual"
+    plan.updated_at = datetime.utcnow()
+    db.commit()
+
+    return {
+        "status": "ok",
+        "next_reminder_date": next_reminder.isoformat(),
+        "reminder_source": plan.reminder_source,
+    }
+
+
+class AdjustFeedingCycleRequest(BaseModel):
+    action: Literal['finished_early', 'still_has', 'remind_earlier', 'remind_later', 'set_end_date']
+    days: int = 3
+    target_date: Optional[str] = None  # YYYY-MM-DD, obrigatório para set_end_date
+
+
+@router.patch("/pets/{pet_id}/feeding/plan/adjust")
+async def adjust_feeding_cycle(
+    pet_id: str,
+    body: AdjustFeedingCycleRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Ajuste inteligente do ciclo de alimentação.
+
+    - finished_early: ração acabou antes do previsto — zera estimativa e agenda lembrete imediato
+    - still_has: ainda tem ração — adia next_reminder_date por `days` dias
+    - remind_earlier: lembrar mais cedo nos próximos ciclos — aumenta safety_buffer_days
+    - remind_later: lembrar mais tarde nos próximos ciclos — diminui safety_buffer_days
+    """
+    _check_pet_ownership(pet_id, current_user, db)
+    plan = _get_active_feeding_plan(db, pet_id)
+
+    if not plan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plano de alimentação não encontrado para este pet",
+        )
+
+    today = date.today()
+
+    if body.action == 'finished_early':
+        plan.estimated_end_date = today
+        plan.next_reminder_date = today
+
+    elif body.action == 'still_has':
+        base = plan.next_reminder_date or today
+        plan.next_reminder_date = base + timedelta(days=body.days)
+
+    elif body.action == 'remind_earlier':
+        plan.safety_buffer_days = (plan.safety_buffer_days or 3) + body.days
+        if plan.estimated_end_date:
+            plan.next_reminder_date = plan.estimated_end_date - timedelta(days=plan.safety_buffer_days)
+
+    elif body.action == 'remind_later':
+        plan.safety_buffer_days = max(0, (plan.safety_buffer_days or 3) - body.days)
+        if plan.estimated_end_date:
+            plan.next_reminder_date = plan.estimated_end_date - timedelta(days=plan.safety_buffer_days)
+
+    elif body.action == 'set_end_date':
+        if not body.target_date:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="target_date é obrigatório para a ação set_end_date",
+            )
+        try:
+            target = datetime.strptime(body.target_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="target_date inválido. Use YYYY-MM-DD",
+            )
+        plan.estimated_end_date = target
+        plan.next_reminder_date = target - timedelta(days=plan.safety_buffer_days or 3)
+        # Recalculate daily consumption so future cycles learn the real rate
+        start = plan.last_refill_date
+        if start and plan.package_size_kg and start < target:
+            days_real = (target - start).days
+            if days_real > 0:
+                plan.duration_days = days_real
+                plan.daily_amount_g = round((plan.package_size_kg * 1000) / days_real, 1)
+        elif start and start < target:
+            plan.duration_days = (target - start).days
+
+    plan.updated_at = datetime.utcnow()
+    db.commit()
+
+    return {
+        "status": "ok",
+        "action": body.action,
+        "estimated_end_date": plan.estimated_end_date.isoformat() if plan.estimated_end_date else None,
+        "next_reminder_date": plan.next_reminder_date.isoformat() if plan.next_reminder_date else None,
+        "safety_buffer_days": plan.safety_buffer_days,
+        "daily_amount_g": plan.daily_amount_g,
+    }
 
 
 @router.get("/pets/{pet_id}/feeding/estimate", response_model=FeedingEstimate)
@@ -690,7 +1234,7 @@ async def get_feeding_estimate(
     pet = _check_pet_ownership(pet_id, current_user, db)
     
     # Get plan
-    plan = db.query(FeedingPlan).filter(FeedingPlan.pet_id == pet_id).first()
+    plan = _get_active_feeding_plan(db, pet_id)
     
     if not plan:
         raise HTTPException(
@@ -707,6 +1251,7 @@ async def get_feeding_estimate(
         safety_buffer_days=plan.safety_buffer_days,
         enabled=plan.enabled,
         no_consumption_control=plan.no_consumption_control,
+        duration_days=plan.duration_days,
     )
     
     if not estimated_end:
@@ -830,3 +1375,92 @@ async def get_supported_countries():
 
     return CountriesResponse(status="ok", countries=country_list)
 
+
+@router.get("/pets/{pet_id}/feeding/plan/debug")
+async def debug_feeding_plan(
+    pet_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Debug endpoint to diagnose feeding plan loading issues.
+    
+    Returns detailed info about:
+    - Plan existence and state
+    - Database consistency
+    - Plan items
+    - Estimate calculations
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        pet = _check_pet_ownership(pet_id, current_user, db)
+        
+        # Get all plans for this pet (including deleted)
+        all_plans = db.query(FeedingPlan).filter(
+            FeedingPlan.pet_id == pet_id
+        ).order_by(
+            FeedingPlan.updated_at.desc(),
+            FeedingPlan.created_at.desc(),
+            FeedingPlan.id.desc(),
+        ).all()
+        
+        # Get active plan
+        active_plan = _get_active_feeding_plan(db, pet_id)
+        
+        debug_info = {
+            "pet_id": pet_id,
+            "total_plans": len(all_plans),
+            "active_plan": None,
+            "all_plans_summary": [],
+            "issues": [],
+        }
+        
+        if active_plan:
+            plan_items = _parse_feeding_items_from_plan(active_plan)
+            debug_info["active_plan"] = {
+                "id": active_plan.id,
+                "enabled": active_plan.enabled,
+                "food_brand": active_plan.food_brand,
+                "package_size_kg": active_plan.package_size_kg,
+                "daily_amount_g": active_plan.daily_amount_g,
+                "last_refill_date": active_plan.last_refill_date.isoformat() if active_plan.last_refill_date else None,
+                "created_at": active_plan.created_at.isoformat(),
+                "updated_at": active_plan.updated_at.isoformat(),
+                "deleted_at": active_plan.deleted_at.isoformat() if active_plan.deleted_at else None,
+                "items_count": len(plan_items),
+                "items": plan_items[:3],  # First 3 items
+            }
+            
+            # Validate plan data
+            plan_data = _build_feeding_plan_data(active_plan, plan_items)
+            if not plan_data.pet_id:
+                debug_info["issues"].append("CRITICAL: plan_data.pet_id is missing")
+            if not plan_data.food_brand and active_plan.food_brand:
+                debug_info["issues"].append("WARNING: food_brand lost during flattenFeedingPlan")
+        else:
+            debug_info["issues"].append("No active plan found")
+        
+        # Summarize all plans
+        for plan in all_plans:
+            debug_info["all_plans_summary"].append({
+                "id": plan.id,
+                "enabled": plan.enabled,
+                "deleted_at": plan.deleted_at.isoformat() if plan.deleted_at else None,
+                "created_at": plan.created_at.isoformat(),
+            })
+        
+        return {
+            "status": "ok",
+            "debug": debug_info,
+        }
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"[DebugFeedingPlan] Error for pet {pet_id}: {str(e)}")
+        logger.error(f"[DebugFeedingPlan] Traceback: {traceback.format_exc()}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "pet_id": pet_id,
+        }

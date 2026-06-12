@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/I18nContext';
 import { API_BASE_URL } from '@/lib/api';
+import { getToken } from '@/lib/auth-token';
 
 interface AuthGateProps {
   children: React.ReactNode;
@@ -25,7 +26,10 @@ export function AuthGate({ children, allowAnonymousPaths = [] }: AuthGateProps) 
 
     let active = true;
 
-    fetch(`${apiBase}/auth/me`, { credentials: 'include' })
+    const token = getToken();
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+    fetch(`${apiBase}/auth/me`, { credentials: 'include', headers })
       .then((res) => {
         if (!active) return;
         if (!res.ok) {

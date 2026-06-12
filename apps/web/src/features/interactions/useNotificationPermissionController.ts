@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
+import { showAppToast } from '@/features/interactions/userPromptChannel';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -45,9 +46,21 @@ function authHeader(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+async function readErrorMessage(response: Response, fallbackMessage: string): Promise<string> {
+  const payload = await response.json().catch(() => null);
+  if (payload && typeof payload.detail === 'string' && payload.detail.trim()) {
+    return payload.detail;
+  }
+
+  const text = await response.text().catch(() => '');
+  return text.trim() || fallbackMessage;
+}
+
 async function fetchVapidPublicKey(): Promise<string> {
   const res = await fetch(`${API_BASE_URL}/notifications/vapid-public-key`);
-  if (!res.ok) throw new Error('VAPID key indisponível');
+  if (!res.ok) {
+    throw new Error(await readErrorMessage(res, 'VAPID key indisponivel'));
+  }
   const data = await res.json();
   return data.publicKey as string;
 }
@@ -58,7 +71,9 @@ async function postSubscription(sub: PushSubscription): Promise<void> {
     headers: { 'Content-Type': 'application/json', ...authHeader() },
     body: JSON.stringify({ subscription: serializeSubscription(sub) }),
   });
-  if (!res.ok) throw new Error('Erro ao registrar subscription');
+  if (!res.ok) {
+    throw new Error(await readErrorMessage(res, 'Erro ao registrar subscription'));
+  }
 }
 
 async function deleteSubscription(): Promise<void> {
@@ -74,15 +89,38 @@ async function postTestNotification(): Promise<void> {
     headers: { 'Content-Type': 'application/json', ...authHeader() },
   });
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail ?? 'Erro ao enviar push de teste');
+    throw new Error(await readErrorMessage(res, 'Erro ao enviar push de teste'));
   }
 }
 
+async function showLocalTestNotification(): Promise<void> {
+  if (typeof window === 'undefined' || Notification.permission !== 'granted') return;
+
+  const reg = await getSwRegistration();
+  await reg.showNotification('Teste PETMOL', {
+    body: 'Push funcionando! Clique para abrir os lembretes.',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/badge-mono.png',
+    tag: 'petmol-test',
+    data: { url: '/home' },
+    requireInteraction: false,
+  });
+}
+
+function isExpiredSubscriptionError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes('subscription expirada') || normalized.includes('nenhuma subscription');
+}
+
 async function getSwRegistration(): Promise<ServiceWorkerRegistration> {
+  // Ensure SW is registered first
   const existing = await navigator.serviceWorker.getRegistration('/');
-  if (existing) return existing;
-  return navigator.serviceWorker.register('/sw.js', { scope: '/' });
+  if (!existing) {
+    await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+  }
+  // Always wait for the SW to reach 'active' state — PushManager.subscribe()
+  // requires an active SW; returning from register() too early causes AbortError.
+  return navigator.serviceWorker.ready;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,7 +133,55 @@ export function useNotificationPermissionController() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscription, setSubscription] = useState<PushSubscription | null>(null);
 
-  // Detect support and initial state
+  const requestPermission = useCallback(async (): Promise<boolean> => {
+    if (!isSupported) return false;
+    const result = await Notification.requestPermission();
+    setPermission(result);
+    return result === 'granted';
+  }, [isSupported]);
+
+  const subscribeToPush = useCallback(async (forceRefresh = false): Promise<PushSubscription | null> => {
+    if (!isSupported || Notification.permission !== 'granted') return null;
+    try {
+      const reg = await getSwRegistration();
+      const existing = await reg.pushManager.getSubscription();
+
+      if (existing && !forceRefresh) {
+        await postSubscription(existing);
+        setSubscription(existing);
+        setIsSubscribed(true);
+        return existing;
+      }
+
+      if (existing) {
+        try {
+          await existing.unsubscribe();
+        } catch {
+          // best effort: continue to create a fresh subscription
+        }
+      }
+
+      const vapidKey = await fetchVapidPublicKey();
+      const keyArray = urlBase64ToUint8Array(vapidKey);
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: keyArray as BufferSource,
+      });
+      await postSubscription(sub);
+      setSubscription(sub);
+      setIsSubscribed(true);
+      return sub;
+    } catch (err) {
+      setSubscription(null);
+      setIsSubscribed(false);
+      console.error('[push] subscribeToPush falhou', err);
+      return null;
+    }
+  }, [isSupported]);
+
+  // Detect support and initial state.
+  // If a browser subscription already exists, renew it silently so the backend
+  // does not keep receiving an expired endpoint from FCM.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const supported =
@@ -108,44 +194,36 @@ export function useNotificationPermissionController() {
 
     setPermission(Notification.permission);
 
-    // Check existing subscription
-    navigator.serviceWorker.ready
-      .then((reg) => reg.pushManager.getSubscription())
-      .then((sub) => {
-        if (sub) {
+    getSwRegistration()
+      .then(async (reg) => {
+        const sub = await reg.pushManager.getSubscription();
+        if (!sub) return;
+
+        setIsSubscribed(true);
+        setSubscription(sub);
+
+        if (Notification.permission !== 'granted') {
+          await postSubscription(sub).catch(() => showAppToast('Erro ao sincronizar', { tone: 'warning' }));
+          return;
+        }
+
+        try {
+          await sub.unsubscribe();
+          const vapidKey = await fetchVapidPublicKey();
+          const keyArray = urlBase64ToUint8Array(vapidKey);
+          const refreshed = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: keyArray as BufferSource,
+          });
+          await postSubscription(refreshed);
+          setSubscription(refreshed);
           setIsSubscribed(true);
-          setSubscription(sub);
+        } catch {
+          await postSubscription(sub).catch(() => showAppToast('Erro ao sincronizar', { tone: 'warning' }));
         }
       })
       .catch(() => { /* silently ignore */ });
   }, []);
-
-  const requestPermission = useCallback(async (): Promise<boolean> => {
-    if (!isSupported) return false;
-    const result = await Notification.requestPermission();
-    setPermission(result);
-    return result === 'granted';
-  }, [isSupported]);
-
-  const subscribeToPush = useCallback(async (): Promise<PushSubscription | null> => {
-    if (!isSupported || permission !== 'granted') return null;
-    try {
-      const vapidKey = await fetchVapidPublicKey();
-      const reg = await getSwRegistration();
-      const keyArray = urlBase64ToUint8Array(vapidKey);
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: keyArray.buffer as ArrayBuffer,
-      });
-      await postSubscription(sub);
-      setSubscription(sub);
-      setIsSubscribed(true);
-      return sub;
-    } catch (err) {
-      console.error('[push] subscribeToPush falhou', err);
-      return null;
-    }
-  }, [isSupported, permission]);
 
   const unsubscribe = useCallback(async (): Promise<void> => {
     if (!subscription) return;
@@ -159,8 +237,26 @@ export function useNotificationPermissionController() {
   }, [subscription]);
 
   const sendTestNotification = useCallback(async (): Promise<void> => {
-    await postTestNotification();
-  }, []);
+    try {
+      await postTestNotification();
+      await showLocalTestNotification();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao enviar push de teste';
+      if (!isExpiredSubscriptionError(message)) {
+        throw err;
+      }
+
+      const refreshed = await subscribeToPush(true);
+      if (!refreshed) {
+        setSubscription(null);
+        setIsSubscribed(false);
+        throw new Error('A inscricao deste dispositivo expirou e nao foi possivel renová-la automaticamente.');
+      }
+
+      await postTestNotification();
+      await showLocalTestNotification();
+    }
+  }, [subscribeToPush]);
 
   return {
     permission,

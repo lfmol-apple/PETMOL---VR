@@ -150,7 +150,7 @@ export function buildDefaultCarePolicies(): Record<string, CareInteractionPolicy
       secondaryCtaLabel: 'Ver histórico',
       pushEnabled: true,
       pushTitle: '💉 Vacina próxima!',
-      pushBody: 'A carteira vacinal do seu pet vence em breve. Registre antes.',
+      pushBody: 'Pode estar na hora de revisar a carteira vacinal do seu pet.',
       pushPreferredHour: '09:00',
       pushRepeatLimit: 3,
       registerDestination: 'health/vaccines',

@@ -3,6 +3,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { useI18n } from '@/lib/I18nContext';
 import { PremiumPanelShell } from '@/components/premium';
+import { IosSwitch } from '@/components/ui/IosSwitch';
 import type { ParasiteControl, ParasiteControlType } from '@/lib/types/home';
 import type { ParasiteFormData } from '@/lib/types/homeForms';
 import { dateToLocalISO } from '@/lib/localDate';
@@ -249,32 +250,39 @@ export function HealthParasiteControlPanel({
             <div className="bg-white border border-blue-200 rounded-lg p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-800">🔔 Lembrete de compra</span>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={parasiteFormData.reminder_enabled}
-                    onChange={(e) => setParasiteFormData((prev) => ({ ...prev, reminder_enabled: e.target.checked }))}
-                    className="w-4 h-4 text-[#0056D2] border-gray-300 rounded focus:ring-2 focus:ring-[#0056D2]"
-                  />
+                <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-gray-600">
                     {parasiteFormData.reminder_enabled ? '✅ Ativado' : '⭕ Desativado'}
                   </span>
-                </label>
+                  <IosSwitch
+                    checked={parasiteFormData.reminder_enabled}
+                    onChange={() => setParasiteFormData((prev) => ({ ...prev, reminder_enabled: !prev.reminder_enabled }))}
+                    size="sm"
+                  />
+                </div>
               </div>
               {parasiteFormData.reminder_enabled && (
-                <select
-                  value={parasiteFormData.alert_days_before || 7}
-                  onChange={(e) => setParasiteFormData((prev) => ({ ...prev, alert_days_before: parseInt(e.target.value, 10) }))}
-                  className="w-full p-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-[#0056D2] bg-white text-sm"
-                >
-                  <option value={3}>3 dias antes (compra local)</option>
-                  <option value={5}>5 dias antes</option>
-                  <option value={7}>7 dias antes (recomendado)</option>
-                  <option value={10}>10 dias antes</option>
-                  <option value={15}>15 dias antes (compra online)</option>
-                  <option value={20}>20 dias antes</option>
-                  <option value={30}>30 dias antes</option>
-                </select>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={parasiteFormData.alert_days_before || 7}
+                    onChange={(e) => setParasiteFormData((prev) => ({ ...prev, alert_days_before: parseInt(e.target.value, 10) }))}
+                    className="w-full p-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-[#0056D2] bg-white text-sm"
+                  >
+                    <option value={3}>3 dias antes</option>
+                    <option value={5}>5 dias antes</option>
+                    <option value={7}>7 dias antes</option>
+                    <option value={10}>10 dias antes</option>
+                    <option value={15}>15 dias antes</option>
+                    <option value={20}>20 dias antes</option>
+                    <option value={30}>30 dias antes</option>
+                  </select>
+                  <input
+                    type="time"
+                    value={parasiteFormData.reminder_time || '09:00'}
+                    onChange={(e) => setParasiteFormData((prev) => ({ ...prev, reminder_time: e.target.value }))}
+                    className="w-full p-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-[#0056D2] bg-white text-sm"
+                  />
+                </div>
               )}
             </div>
 
@@ -340,10 +348,12 @@ export function HealthParasiteControlPanel({
           )}
 
           {parasiteControls.map((control) => {
-            const latestIdForType = parasiteControls
-              .filter((item) => item.type === control.type)
-              .sort((a, b) => new Date(b.date_applied || '0').getTime() - new Date(a.date_applied || '0').getTime())[0]?.id;
-            const isHistory = control.id !== latestIdForType;
+            const controlTime = new Date(control.date_applied || '0').getTime();
+            const isHistory = parasiteControls.some((item) => {
+              if (item.id === control.id || item.type !== control.type) return false;
+              const itemTime = new Date(item.date_applied || '0').getTime();
+              return !Number.isNaN(itemTime) && (Number.isNaN(controlTime) || itemTime > controlTime);
+            });
 
             const nextDate = new Date(control.next_due_date || '');
             const today = new Date();
@@ -372,13 +382,29 @@ export function HealthParasiteControlPanel({
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-2xl">
-                        {control.type === 'dewormer' && '🪱'}
-                        {control.type === 'flea_tick' && '🦟'}
-                        {control.type === 'heartworm' && '❤️'}
-                        {control.type === 'collar' && '⭕'}
-                        {control.type === 'leishmaniasis' && '💉'}
-                      </span>
+                      <div className="relative">
+                        <span className="text-2xl">
+                          {control.type === 'dewormer' && '🪱'}
+                          {control.type === 'flea_tick' && '🦟'}
+                          {control.type === 'heartworm' && '❤️'}
+                          {control.type === 'collar' && '⭕'}
+                          {control.type === 'leishmaniasis' && '💉'}
+                        </span>
+                        {isOverdue && (
+                          <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold animate-pulse shadow-sm border border-white/50 z-10">
+                            !
+                          </div>
+                        )}
+                        {isUrgent && !isOverdue && (
+                          <div className="absolute -top-1.5 -right-1.5 w-6 h-6 flex items-center justify-center animate-pulse z-10">
+                            <span
+                              className="absolute inset-0 bg-amber-400 shadow-sm ring-2 ring-white"
+                              style={{ clipPath: 'polygon(50% 0%, 100% 92%, 0% 92%)' }}
+                            />
+                            <span className="relative mt-1 text-[11px] font-black text-amber-950 leading-none">!</span>
+                          </div>
+                        )}
+                      </div>
                       <div>
                         <div className="font-bold text-gray-800">{control.product_name}</div>
                         <div className="text-xs text-gray-500">

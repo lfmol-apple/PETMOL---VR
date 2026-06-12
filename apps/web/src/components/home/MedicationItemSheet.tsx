@@ -1,10 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
+import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
 import { ModalPortal } from '@/components/ModalPortal';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
+import { trackPartnerClicked } from '@/lib/v1Metrics';
+import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
+import { IosSwitch } from '@/components/ui/IosSwitch';
+import type { ScannedProduct } from '@/lib/productScanner';
+import { requestUserDecision } from '@/features/interactions/userPromptChannel';
+import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -53,6 +60,10 @@ interface MedForm {
   treatment_days: string;
   cost: string;
   notes: string;
+  manufacturer: string;
+  presentation: string;
+  concentration: string;
+  barcode: string;
 }
 
 const EMPTY_FORM: MedForm = {
@@ -68,17 +79,24 @@ const EMPTY_FORM: MedForm = {
   treatment_days: '',
   cost: '',
   notes: '',
+  manufacturer: '',
+  presentation: '',
+  concentration: '',
+  barcode: '',
 };
 
 export interface MedicationItemSheetProps {
   petId: string;
   petName?: string;
+  petSpecies?: string;
+  petPhotoUrl?: string | null;
   petEvents: PetEventRecord[];
   onClose: () => void;
   onRefresh: () => Promise<void>;
+  initialMode?: 'view' | 'buy';
 }
 
-type Mode = 'view' | 'add' | 'edit';
+type Mode = 'view' | 'add' | 'edit' | 'buy';
 
 const labelCls = 'block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5';
 const inputCls =
@@ -88,21 +106,32 @@ const inputCls =
 export function MedicationItemSheet({
   petId,
   petName,
+  petSpecies,
+  petPhotoUrl,
   petEvents,
   onClose,
   onRefresh,
+  initialMode,
 }: MedicationItemSheetProps) {
-  const [mode, setMode] = useState<Mode>('view');
+  const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
+  const [mode, setMode] = useState<Mode>(initialMode === 'buy' ? 'buy' : 'view');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<MedForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [medHistoryExpanded, setMedHistoryExpanded] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [expandedTreatmentId, setExpandedTreatmentId] = useState<string | null>(null);
   const [actionDate, setActionDate] = useState(localTodayISO());
   const [actionNotes, setActionNotes] = useState('');
+  const [confirmingDoseId, setConfirmingDoseId] = useState<string | null>(null);
+  const [confirmingEarlier, setConfirmingEarlier] = useState(false);
+
+  useEffect(() => {
+    void onRefresh();
+    // onRefresh is intentionally excluded to avoid effect loops when parent recreates callbacks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [petId]);
 
   const medications = petEvents.filter(
     ev => ev.type === 'medicacao' || ev.type === 'medication',
@@ -124,6 +153,33 @@ export function MedicationItemSheet({
     setTimeout(() => setToast(null), 2800);
   }
 
+  function applyScannedProduct(product: ScannedProduct) {
+    setForm(f => ({
+      ...f,
+      title: product.name || f.title,
+      professional_name: f.professional_name,
+      manufacturer: product.manufacturer || product.brand || f.manufacturer,
+      presentation: product.presentation || product.weight || f.presentation,
+      concentration: product.concentration || f.concentration,
+      barcode: product.barcode,
+    }));
+    if (!product.found) showToast('Não encontramos os dados. Preencha manualmente.');
+  }
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('petmol_pending_scanned_product');
+      if (!raw) return;
+      const payload = JSON.parse(raw) as { petId?: string; product?: ScannedProduct };
+      if (payload.petId !== petId || !payload.product || payload.product.category !== 'medication') return;
+      setForm({ ...EMPTY_FORM, scheduled_date: localTodayISO() });
+      setEditingId(null);
+      setMode('add');
+      applyScannedProduct(payload.product);
+      sessionStorage.removeItem('petmol_pending_scanned_product');
+    } catch { /* silent */ }
+  }, [petId]);
+
   function openAdd() {
     setForm({ ...EMPTY_FORM, scheduled_date: localTodayISO() });
     setEditingId(null);
@@ -134,13 +190,16 @@ export function MedicationItemSheet({
     const { dose, route, frequency, cleanNotes } = parseMedNotes(ev.notes || '');
     let treatmentDays = '';
     let reminderTimes = ['08:00'];
+    let reminderTime = '08:00';
     let reminderDate = '';
     const nextDue = ev.next_due_date ? ev.next_due_date.split('T')[0] : '';
     try {
       const ex = parsePetEventExtraData(ev.extra_data);
+      if (typeof ex.reminder_time === 'string' && ex.reminder_time) reminderTime = ex.reminder_time;
       if (ex.treatment_days) treatmentDays = String(ex.treatment_days);
       if (Array.isArray(ex.reminder_times) && (ex.reminder_times as string[]).length > 0)
         reminderTimes = ex.reminder_times as string[];
+      else reminderTimes = [reminderTime];
     } catch {}
     if (nextDue) reminderDate = nextDue;
 
@@ -157,6 +216,10 @@ export function MedicationItemSheet({
       treatment_days: treatmentDays,
       cost: ev.cost != null ? String(ev.cost) : '',
       notes: cleanNotes,
+      manufacturer: '',
+      presentation: '',
+      concentration: '',
+      barcode: '',
     });
     setEditingId(ev.id);
     setMode('edit');
@@ -166,15 +229,24 @@ export function MedicationItemSheet({
     if (!form.title.trim()) return;
     setSaving(true);
     try {
-      const token = localStorage.getItem('petmol_token');
-      if (!token) { alert('Sessão expirada.'); return; }
+      const token = getToken();
+      if (!token) {
+        showToast('⚠️ Sessão expirada. Faça login novamente.');
+        return;
+      }
 
       const medMeta = [
         form.dose ? `Dose: ${form.dose}` : '',
         form.route ? `Via: ${form.route}` : '',
         form.frequency ? `Frequência: ${form.frequency.replace('_', ' ')}` : '',
+        form.manufacturer ? `Fabricante: ${form.manufacturer}` : '',
+        form.presentation ? `Apresentação: ${form.presentation}` : '',
+        form.concentration ? `Concentração: ${form.concentration}` : '',
+        form.barcode ? `EAN/GTIN: ${form.barcode}` : '',
       ].filter(Boolean).join(' | ');
       const finalNotes = medMeta + (form.notes.trim() ? '\n' + form.notes.trim() : '');
+
+      const shouldKeepTreatmentActive = form.reminder_enabled || Boolean(form.treatment_days);
 
       const payload: Record<string, unknown> = {
         pet_id: petId,
@@ -182,23 +254,46 @@ export function MedicationItemSheet({
         scheduled_at: new Date(form.scheduled_date + 'T00:00:00').toISOString(),
         title: form.title.trim(),
         source: 'manual',
-        status: 'completed',
+        status: shouldKeepTreatmentActive ? 'active' : 'completed',
       };
       if (form.professional_name.trim()) payload.professional_name = form.professional_name.trim();
       if (form.cost) payload.cost = parseFloat(form.cost);
       if (finalNotes) payload.notes = finalNotes;
 
       if (form.reminder_enabled) {
-        const extra: Record<string, unknown> = {
-          frequency: form.frequency,
-        };
-        if (form.reminder_times.length > 0) {
-          extra.reminder_times = form.reminder_times;
-          extra.reminder_time = form.reminder_times[0];
+        // Ao editar, preservar applied_dates/skipped_dates/dose_notes da medicação existente
+        let extra: Record<string, unknown> = {};
+        if (editingId) {
+          const existing = medications.find(ev => ev.id === editingId);
+          if (existing?.extra_data) {
+            try { extra = { ...parsePetEventExtraData(existing.extra_data) }; } catch { /* silent */ }
+          }
+        }
+        const normalizedTimes = form.reminder_times.filter(Boolean);
+        extra.frequency = form.frequency;
+        if (normalizedTimes.length > 0) {
+          extra.reminder_times = normalizedTimes;
+          extra.reminder_time = normalizedTimes[0];
+        } else {
+          extra.reminder_times = ['08:00'];
+          extra.reminder_time = '08:00';
         }
         if (form.treatment_days) extra.treatment_days = parseInt(form.treatment_days);
         payload.extra_data = JSON.stringify(extra);
         if (form.reminder_date) payload.next_due_date = new Date(form.reminder_date + 'T00:00:00').toISOString();
+      } else if (editingId) {
+        // Ao desativar lembretes, limpar rastros de agendamento para não reativar silenciosamente no reload.
+        let extra: Record<string, unknown> = {};
+        const existing = medications.find(ev => ev.id === editingId);
+        if (existing?.extra_data) {
+          try { extra = { ...parsePetEventExtraData(existing.extra_data) }; } catch { /* silent */ }
+        }
+        delete extra.reminder_time;
+        delete extra.reminder_times;
+        delete extra.frequency;
+        delete extra.treatment_days;
+        payload.next_due_date = null;
+        payload.extra_data = Object.keys(extra).length > 0 ? JSON.stringify(extra) : null;
       }
 
       const url = editingId
@@ -217,7 +312,7 @@ export function MedicationItemSheet({
         await onRefresh();
       } else {
         const err = await res.json().catch(() => ({}));
-        alert('Erro ao salvar: ' + (err.detail || res.status));
+        showToast('❌ Erro ao salvar: ' + (err.detail || res.status));
       }
     } finally {
       setSaving(false);
@@ -225,8 +320,11 @@ export function MedicationItemSheet({
   }
 
   async function handleApplyDose(evId: string, action: 'apply' | 'skip' | 'unskip' | 'remove', date: string) {
-    const token = localStorage.getItem('petmol_token');
-    if (!token) return;
+    const token = getToken();
+    if (!token) {
+      showToast('⚠️ Sessão expirada. Faça login novamente.');
+      return;
+    }
     setSaving(true);
     setApplyingId(evId);
     try {
@@ -252,7 +350,7 @@ export function MedicationItemSheet({
         );
         await onRefresh();
       } else {
-        alert('Erro ao registrar dose');
+        showToast('❌ Erro ao registrar dose');
       }
     } finally {
       setSaving(false);
@@ -261,18 +359,49 @@ export function MedicationItemSheet({
   }
 
   async function handleDelete(evId: string) {
-    if (!confirm('Excluir este registro? Esta ação não pode ser desfeita.')) return;
-    const token = localStorage.getItem('petmol_token');
+    const token = getToken();
+    if (!token) {
+      showToast('⚠️ Sessão expirada. Faça login novamente.');
+      return false;
+    }
     try {
-      await fetch(`${API_BASE_URL}/events/${evId}`, {
+      const res = await fetch(`${API_BASE_URL}/events/${evId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) {
+        showToast(`❌ Erro ao excluir registro (${res.status}).`);
+        return false;
+      }
       showToast('🗑️ Registro removido');
       await onRefresh();
+      return true;
     } catch {
-      alert('Erro ao excluir registro.');
+      showToast('❌ Erro ao excluir registro. Tente novamente.');
+      return false;
     }
+  }
+
+  async function confirmDeleteCurrent() {
+    if (!editingId) return;
+    const accepted = await requestUserDecision(
+      'Excluir esta medicação? Essa ação remove o registro atual e não pode ser desfeita.',
+      {
+        title: 'Excluir medicação',
+        tone: 'danger',
+        confirmLabel: 'Excluir medicação',
+      },
+    );
+    if (!accepted) return;
+
+    setSaving(true);
+    const deleted = await handleDelete(editingId);
+    if (deleted) {
+      setEditingId(null);
+      setMode('view');
+      setForm(EMPTY_FORM);
+    }
+    setSaving(false);
   }
 
   // ── Status badge ──────────────────────────────────────────────────────────
@@ -284,33 +413,44 @@ export function MedicationItemSheet({
   const statusCls = active.length > 0
     ? 'bg-purple-100 text-purple-700 border-purple-200'
     : 'bg-gray-100 text-gray-600 border-gray-200';
-  const dotCls = active.length > 0 ? 'bg-purple-500 animate-pulse' : 'bg-gray-400';
+  const dotCls = active.length > 0 ? 'bg-purple-500' : 'bg-gray-400';
+  const nextActive = active[0] ?? null;
 
   return (
     <ModalPortal>
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-x-hidden overscroll-x-none touch-pan-y p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
 
       {/* Sheet */}
       <div
-        className="relative w-full max-w-lg bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 flex flex-col overflow-hidden"
+        className="relative w-full max-w-lg bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 flex flex-col overflow-x-hidden overflow-y-hidden animate-scaleIn"
         style={{ maxHeight: '92dvh' }}
         onClick={e => e.stopPropagation()}
       >
 
 
         {/* Header */}
-        <div className="px-5 pt-4 pb-3 bg-purple-50 border-b border-gray-100 flex-shrink-0">
+        <div className="px-5 pt-4 pb-3 bg-white border-b border-purple-100 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-white shadow-sm flex items-center justify-center text-xl flex-shrink-0">
-              💊
+            <div className="w-14 h-14 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-3xl flex-shrink-0">
+              {petPhotoSrc ? (
+                <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
+              ) : (
+                <span>{petSpecies === 'cat' ? '🐱' : '🐶'}</span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 min-w-0">
                 <h2 className="text-[16px] font-bold text-gray-900 leading-tight whitespace-nowrap">Medicação</h2>
-                {petName && <span className="text-sm text-gray-400 truncate">· {petName}</span>}
               </div>
+              {petName && (
+                <p className="mt-1">
+                  <span className="inline-flex max-w-full items-center px-2.5 py-1 rounded-full bg-white text-purple-800 text-xs font-black tracking-[0.04em] shadow-sm border border-purple-100 whitespace-normal break-all leading-tight">
+                    {petName}
+                  </span>
+                </p>
+              )}
               {mode === 'view' && (
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotCls}`} />
@@ -323,18 +463,35 @@ export function MedicationItemSheet({
                 </span>
               )}
             </div>
-            <button
-              onClick={mode !== 'view' ? () => setMode('view') : onClose}
-              className="w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
-              aria-label="Fechar"
-            >
-              {mode !== 'view' ? '‹' : '✕'}
-            </button>
+            {mode !== 'view' ? (
+              <button
+                type="button"
+                onClick={() => setMode('view')}
+                onTouchEnd={() => setMode('view')}
+                className="relative z-10 pointer-events-auto w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
+                aria-label="Voltar"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className="relative z-10 pointer-events-auto w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
+                aria-label="Fechar"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
+                  <path d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1 overscroll-contain">
+        <div className="overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
           {mode === 'view' && (
@@ -346,13 +503,82 @@ export function MedicationItemSheet({
                 </div>
               )}
 
-              {/* CTA */}
-              <button
-                onClick={openAdd}
-                className="w-full py-4 rounded-2xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-[15px] font-bold shadow-md transition-colors"
-              >
-                💊 Registrar nova medicação
-              </button>
+              {/* Primary CTA */}
+              {nextActive ? (
+                <div className="rounded-3xl border border-purple-100 bg-purple-50/70 p-4 space-y-3">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-purple-700">Cuidado de hoje</p>
+                    <p className="mt-1 text-lg font-black text-gray-900 break-words">{nextActive.title}</p>
+                    <p className="mt-0.5 text-sm text-purple-800/70">Registre a dose para manter o tratamento em dia.</p>
+                  </div>
+                  {confirmingDoseId === nextActive.id ? (
+                    <div className="space-y-2">
+                      <p className="text-[13px] font-semibold text-purple-900 text-center">
+                        Você deu a dose de <span className="font-black">{nextActive.title}</span>?
+                      </p>
+                      {confirmingEarlier && (
+                        <input
+                          type="date"
+                          className="w-full border border-purple-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+                          value={actionDate}
+                          max={localTodayISO()}
+                          onChange={e => setActionDate(e.target.value)}
+                        />
+                      )}
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => { handleApplyDose(nextActive.id, 'apply', confirmingEarlier ? actionDate : localTodayISO()); setConfirmingDoseId(null); setConfirmingEarlier(false); }}
+                          className="py-3 rounded-xl bg-purple-600 text-white text-[13px] font-bold disabled:opacity-50"
+                        >
+                          {confirmingEarlier ? 'Registrar' : 'Sim, agora'}
+                        </button>
+                        {!confirmingEarlier ? (
+                          <button
+                            type="button"
+                            onClick={() => { setConfirmingEarlier(true); setActionDate(localTodayISO()); }}
+                            className="py-3 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 text-[13px] font-semibold"
+                          >
+                            Foi mais cedo
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmingEarlier(false)}
+                            className="py-3 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 text-[13px] font-semibold"
+                          >
+                            Voltar
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setConfirmingDoseId(null); setConfirmingEarlier(false); }}
+                        className="w-full text-center text-[12px] text-gray-400 py-1"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={saving && applyingId === nextActive.id}
+                      onClick={() => setConfirmingDoseId(nextActive.id)}
+                      className="w-full py-4 rounded-2xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-[15px] font-bold shadow-md shadow-purple-500/20 disabled:opacity-50 transition-colors"
+                    >
+                      {saving && applyingId === nextActive.id ? 'Registrando...' : 'Registrar dose'}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={openAdd}
+                  className="w-full py-4 rounded-2xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-[15px] font-bold shadow-md shadow-purple-500/20 transition-colors"
+                >
+                  Registrar medicação
+                </button>
+              )}
 
               {/* Empty state */}
               {medications.length === 0 && (
@@ -365,10 +591,10 @@ export function MedicationItemSheet({
 
               {/* Daily application section */}
               {active.length > 0 && (
-                <div className="rounded-2xl border border-purple-300 bg-purple-50 overflow-hidden">
+                <div className="rounded-2xl border border-purple-200 bg-purple-50/70 overflow-hidden">
                   <div className="px-4 py-3 border-b border-purple-100">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-purple-700">
-                      💊 Aplicação diária · {active.length} em tratamento
+                      Tratamentos em andamento · {active.length}
                     </p>
                   </div>
                   {active.map(ev => {
@@ -416,7 +642,7 @@ export function MedicationItemSheet({
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
                               appliedDates.includes(todayStr) ? 'bg-green-100 text-green-700' : 'bg-purple-200 text-purple-700'
                             }`}>
-                              {appliedDates.length}/{totalDays}
+                              Dia {appliedDates.length} de {totalDays}
                             </span>
                           )}
                           <span className="text-gray-300 text-xs ml-1">{isOpen ? '▲' : '▼'}</span>
@@ -428,7 +654,54 @@ export function MedicationItemSheet({
                             <div className="h-1.5 bg-purple-200 rounded-full overflow-hidden">
                               <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                             </div>
-                            <p className="text-[10px] text-gray-400 mt-0.5">{pct}% concluído</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              Dia {appliedDates.length} de {totalDays}
+                              {totalDays > appliedDates.length ? ` · Faltam ${totalDays - appliedDates.length} dias` : ' · Concluído'}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* CTA inline — visível sem precisar expandir */}
+                        {!isOpen && (
+                          <div className="mx-4 mb-3 flex gap-2">
+                            {appliedDates.includes(todayStr) ? (
+                              <>
+                                <div className="flex-1 rounded-xl border border-green-200 bg-green-50 py-2.5 text-sm font-semibold text-green-700 text-center">
+                                  ✓ Aplicada hoje
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => openEdit(ev)}
+                                  className="rounded-xl border border-purple-200 bg-white px-3 py-2.5 text-xs font-semibold text-purple-700 transition-colors hover:bg-purple-50 active:scale-95"
+                                >✏️</button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => handleApplyDose(ev.id, 'apply', todayStr)}
+                                  className="flex-1 rounded-xl border border-purple-200 bg-white py-2.5 text-sm font-semibold text-purple-700 active:scale-95 transition-all disabled:opacity-40"
+                                >
+                                  {isBusy ? '...' : 'Registrar dose'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setExpandedTreatmentId(ev.id);
+                                    setActionDate(todayStr);
+                                    setActionNotes('');
+                                  }}
+                                  className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-50 active:scale-95"
+                                  title="Ver histórico"
+                                >⋯</button>
+                                <button
+                                  type="button"
+                                  onClick={() => openEdit(ev)}
+                                  className="rounded-xl border border-purple-200 bg-white px-3 py-2.5 text-xs font-semibold text-purple-700 transition-colors hover:bg-purple-50 active:scale-95"
+                                >✏️</button>
+                              </>
+                            )}
                           </div>
                         )}
 
@@ -495,7 +768,7 @@ export function MedicationItemSheet({
                                   disabled={isBusy}
                                   onClick={() => handleApplyDose(ev.id, 'apply', selectedDate)}
                                   className="w-full text-[15px] font-bold py-3.5 rounded-2xl bg-purple-500 text-white shadow-md active:scale-95 transition-all disabled:opacity-40"
-                                >{isBusy ? '...' : '✓ Administrado hoje'}</button>
+                                >{isBusy ? '...' : 'Registrar dose'}</button>
                                 <div className="flex gap-2">
                                   <button
                                     disabled={isBusy || selectedDate > todayStr}
@@ -531,10 +804,7 @@ export function MedicationItemSheet({
                         <MedRow
                           key={ev.id}
                           ev={ev}
-                          deletingId={deletingId}
-                          setDeletingId={setDeletingId}
                           onEdit={openEdit}
-                          onDelete={handleDelete}
                           accentText="text-gray-700"
                         />
                       ))}
@@ -542,12 +812,84 @@ export function MedicationItemSheet({
                   )}
                 </div>
               )}
+
+              <div className="grid grid-cols-2 gap-2">
+                {nextActive && (
+                  <button
+                    onClick={openAdd}
+                    className="w-full py-3 rounded-2xl border border-purple-200 bg-white text-sm font-semibold text-purple-700 hover:bg-purple-50 active:scale-95 transition-all"
+                  >
+                    Nova medicação
+                  </button>
+                )}
+                <button
+                  onClick={() => setMode('buy')}
+                  className={`${nextActive ? '' : 'col-span-2'} w-full py-3 rounded-2xl border border-blue-200 bg-white text-sm font-semibold text-blue-700 hover:bg-blue-50 active:scale-95 transition-all`}
+                >
+                  Comprar medicamento
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── BUY MODE ─────────────────────────────────────────────────── */}
+          {mode === 'buy' && (
+            <div className="p-5 pb-8 space-y-4">
+              <h3 className="text-[16px] font-bold text-gray-900">Onde comprar</h3>
+              <p className="text-sm text-gray-500">Escolha onde encontrar medicamentos e itens de saúde:</p>
+
+              <div className="space-y-3">
+                {[
+                  { name: 'Cobasi', url: 'https://www.cobasi.com.br/capsulas-e-saude/medicamentos', emoji: '🐾' },
+                  { name: 'Petz', url: 'https://www.petz.com.br/cachorro/farmacia', emoji: '🐕' },
+                  { name: 'Petlove', url: 'https://www.petlove.com.br/cachorro/medicina-e-saude', emoji: '❤️' },
+                  { name: 'Amazon Pet', url: 'https://www.amazon.com.br/s?k=medicamento+pet', emoji: '📦' },
+                ].map(store => (
+                  <button
+                    key={store.name}
+                    onClick={() => {
+                      trackPartnerClicked({
+                        source: 'medication_sheet',
+                        partner: store.name.toLowerCase(),
+                        pet_id: petId,
+                        control_type: 'medication',
+                      });
+                      window.open(store.url, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="w-full flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left"
+                  >
+                    <span className="text-2xl">{store.emoji}</span>
+                    <div className="flex-1">
+                      <p className="font-bold text-gray-900 text-sm">{store.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Comprar medicamentos</p>
+                    </div>
+                    <span className="text-gray-400 text-lg">›</span>
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMode('view')}
+                onTouchEnd={() => setMode('view')}
+                className="w-full py-3 rounded-xl text-sm font-semibold bg-gray-50 text-gray-600 border border-gray-200"
+              >
+                Voltar para tratamentos
+              </button>
             </div>
           )}
 
           {/* ── ADD / EDIT FORM ───────────────────────────────────────────── */}
           {(mode === 'add' || mode === 'edit') && (
             <div className="p-5 pb-8 space-y-4">
+              <ProductBarcodeScanner
+                label="Escanear medicamento"
+                expectedCategory="medication"
+                petId={petId}
+                petName={petName}
+                onProductConfirmed={applyScannedProduct}
+              />
+
               <div>
                 <label className={labelCls}>Nome do medicamento *</label>
                 <input
@@ -556,6 +898,40 @@ export function MedicationItemSheet({
                   placeholder="Ex: Amoxicilina, Prednisolona..."
                   value={form.title}
                   onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Fabricante</label>
+                  <input
+                    type="text"
+                    className={inputCls}
+                    placeholder="Ex: MSD"
+                    value={form.manufacturer}
+                    onChange={e => setForm(f => ({ ...f, manufacturer: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Apresentação</label>
+                  <input
+                    type="text"
+                    className={inputCls}
+                    placeholder="Ex: caixa, frasco 30 ml"
+                    value={form.presentation}
+                    onChange={e => setForm(f => ({ ...f, presentation: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Concentração</label>
+                <input
+                  type="text"
+                  className={inputCls}
+                  placeholder="Ex: 50 mg/ml"
+                  value={form.concentration}
+                  onChange={e => setForm(f => ({ ...f, concentration: e.target.value }))}
                 />
               </div>
 
@@ -628,19 +1004,18 @@ export function MedicationItemSheet({
               </div>
 
               {/* Lembretes toggle */}
-              <label className="flex items-center gap-3 p-3 bg-amber-50 rounded-2xl border border-amber-200 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.reminder_enabled}
-                  onChange={e => setForm(f => ({
-                    ...f,
-                    reminder_enabled: e.target.checked,
-                    reminder_date: e.target.checked ? (f.reminder_date || f.scheduled_date) : '',
-                  }))}
-                  className="w-4 h-4 accent-amber-500"
-                />
+              <div className="flex items-center justify-between gap-3 p-3 bg-amber-50 rounded-2xl border border-amber-200">
                 <span className="text-sm font-semibold text-amber-800">🔔 Quero lembretes desta medicação</span>
-              </label>
+                <IosSwitch
+                  checked={form.reminder_enabled}
+                  onChange={() => setForm(f => ({
+                    ...f,
+                    reminder_enabled: !f.reminder_enabled,
+                    reminder_date: !f.reminder_enabled ? (f.reminder_date || f.scheduled_date) : '',
+                  }))}
+                  size="sm"
+                />
+              </div>
 
               {form.reminder_enabled && (
                 <div className="space-y-3 px-4 py-3 bg-amber-50 rounded-2xl border border-amber-200">
@@ -730,6 +1105,17 @@ export function MedicationItemSheet({
               >
                 {saving ? 'Salvando...' : '✅ Confirmar registro'}
               </button>
+
+              {mode === 'edit' && editingId && (
+                <button
+                  type="button"
+                  onClick={confirmDeleteCurrent}
+                  disabled={saving}
+                  className="w-full py-4 rounded-2xl border border-red-200 bg-red-50 text-red-700 text-[15px] font-bold shadow-sm disabled:opacity-50 transition-colors hover:bg-red-100"
+                >
+                  {saving ? 'Excluindo...' : '🗑 Excluir medicação'}
+                </button>
+              )}
             </div>
           )}
 
@@ -743,17 +1129,11 @@ export function MedicationItemSheet({
 // ── Row sub-component ────────────────────────────────────────────────────────
 function MedRow({
   ev,
-  deletingId,
-  setDeletingId,
   onEdit,
-  onDelete,
   accentText,
 }: {
   ev: PetEventRecord;
-  deletingId: string | null;
-  setDeletingId: (id: string | null) => void;
   onEdit: (ev: PetEventRecord) => void;
-  onDelete: (id: string) => void;
   accentText: string;
 }) {
   let badgeCls = 'bg-yellow-100 text-yellow-700';
@@ -784,7 +1164,6 @@ function MedRow({
     notesCaption = firstLine;
   }
 
-  const isConfirming = deletingId === ev.id;
   const dateStr = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(
     new Date((ev.scheduled_at || '').replace(' ', 'T')),
   );
@@ -809,16 +1188,6 @@ function MedRow({
           className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-xs hover:bg-purple-100 transition-colors"
           title="Editar"
         >✏️</button>
-        <button
-          onClick={() => {
-            if (isConfirming) { onDelete(ev.id); setDeletingId(null); }
-            else setDeletingId(ev.id);
-          }}
-          className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs transition-colors ${
-            isConfirming ? 'bg-red-600 text-white' : 'bg-red-50 text-red-500 hover:bg-red-100'
-          }`}
-          title={isConfirming ? 'Confirmar exclusão' : 'Excluir'}
-        >{isConfirming ? '✓' : '🗑️'}</button>
       </div>
     </div>
   );

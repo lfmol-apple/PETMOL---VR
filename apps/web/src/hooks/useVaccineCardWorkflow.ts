@@ -7,6 +7,7 @@ import {
   type VaccineCardOcrRecord,
   type VaccineCardOcrResponse,
 } from '@/lib/vaccineOcr';
+import { showBlockingNotice } from '@/features/interactions/userPromptChannel';
 
 type VaccineCardAnalysis = (VaccineCardOcrResponse & { processed_images: number }) | null;
 
@@ -105,13 +106,19 @@ export function useVaccineCardWorkflow({
     const rejected = all.length - incoming.length;
     event.target.value = '';
     if (rejected > 0) {
-      alert(`${rejected} arquivo(s) ignorado(s): apenas imagens são aceitas.`);
+      showBlockingNotice(`${rejected} arquivo(s) ignorado(s): apenas imagens são aceitas.`, {
+        title: 'Arquivos não suportados',
+        tone: 'warning',
+      });
     }
     if (incoming.length === 0) return;
     setPendingCardFiles((prev) => {
       const merged = [...prev, ...incoming];
       if (merged.length > aiImageLimit) {
-        alert(`Limite de ${aiImageLimit} fotos atingido. As primeiras ${aiImageLimit} serão usadas.`);
+        showBlockingNotice(`Limite de ${aiImageLimit} fotos atingido. As primeiras ${aiImageLimit} serão usadas.`, {
+          title: 'Limite de imagens',
+          tone: 'warning',
+        });
         return merged.slice(0, aiImageLimit);
       }
       return merged;
@@ -152,7 +159,10 @@ export function useVaccineCardWorkflow({
       const heicHint = hasHeic
         ? '\n\n⚠️ Foram detectadas fotos HEIC (formato iPhone). Tente enviar como JPG/PNG ou use a câmera diretamente pelo navegador.'
         : '';
-      alert(`${ocrErrorMessage}\n\n${errorMessage}\n\n${ocrRetryMessage}${heicHint}`);
+      showBlockingNotice(`${ocrErrorMessage}\n\n${errorMessage}\n\n${ocrRetryMessage}${heicHint}`, {
+        title: 'Não foi possível analisar o cartão',
+        tone: 'danger',
+      });
     } finally {
       setImportingCard(false);
     }

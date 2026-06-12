@@ -6,6 +6,8 @@ src/config.py
 src/db.py
 src/email_otp.py
 src/feedback_system.py
+src/gtin_client.py
+src/gtin_router.py
 src/handoff.py
 src/handoff_partner.py
 src/i18n.py
@@ -15,6 +17,8 @@ src/migrations.py
 src/models.py
 src/otp.py
 src/petguard.py
+src/product_catalog_lookup.py
+src/product_lookup.py
 src/rate_limit.py
 src/search.py
 src/services_old.py
@@ -61,7 +65,11 @@ src/health/schemas.py
 src/health/services.py
 src/health/catalog/__init__.py
 src/health/catalog/vaccines.py
+src/metrics/__init__.py
+src/metrics/router.py
 src/notifications/__init__.py
+src/notifications/audit_logging.py
+src/notifications/pendencies.py
 src/petmol_price_service.egg-info/PKG-INFO
 src/petmol_price_service.egg-info/SOURCES.txt
 src/petmol_price_service.egg-info/dependency_links.txt
@@ -94,6 +102,8 @@ src/providers/places.py
 src/rg/__init__.py
 src/rg/router.py
 src/rg/schemas.py
+src/serialization/__init__.py
+src/serialization/utc_instant.py
 src/services/__init__.py
 src/services/geohash.py
 src/services/models.py
@@ -125,8 +135,13 @@ src/vaccines/__init__.py
 src/vision/__init__.py
 src/vision/confidence_scorer.py
 src/vision/cross_validation_service.py
+src/vision/document_classifier.py
 src/vision/image_preprocessing.py
+src/vision/monitor.py
 src/vision/pipeline_utils.py
 src/vision/robust_reader.py
 src/vision/router.py
 src/vision/service.py
+tests/test_care_notifications.py
+tests/test_config_notifications.py
+tests/test_medication_notifications.py

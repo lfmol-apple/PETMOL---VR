@@ -106,20 +106,20 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
   const { t } = useI18n();
 
   const CATEGORY_TABS = [
-    { id: 'all',          label: t('doc.cat.all'),           icon: '📁' },
-    { id: 'vaccine',      label: t('common.vaccines'),       icon: '💉' },
-    { id: 'exam',         label: t('doc.cat.exams'),         icon: '🔬' },
-    { id: 'prescription', label: t('doc.cat.prescriptions'), icon: '📋' },
-    { id: 'report',       label: t('doc.cat.reports'),       icon: '📄' },
-    { id: 'photo',        label: t('doc.cat.photos'),        icon: '📸' },
-    { id: 'other',        label: t('doc.cat.others'),        icon: '📎' },
+    { id: 'all',    label: t('doc.cat.all'),  icon: '📁' },
+    { id: 'health', label: t('doc.cat.health'), icon: '💊' },
+    { id: 'exam',   label: t('doc.cat.exams'), icon: '🔬' },
+    { id: 'photo',  label: t('doc.cat.photos'), icon: '📸' },
   ];
+
+  const HEALTH_CATS = ['vaccine', 'prescription', 'report', 'comprovante'];
 
   const CATEGORY_OPTIONS = [
     { value: 'exam',         label: '🔬 ' + t('upload.type_exam') },
     { value: 'vaccine',      label: '💉 ' + t('common.vaccine') },
     { value: 'prescription', label: '📋 ' + t('upload.type_prescription') },
     { value: 'report',       label: '📄 ' + t('upload.type_report') },
+    { value: 'comprovante',  label: '🧾 ' + t('upload.type_comprovante') },
     { value: 'photo',        label: '📸 ' + t('upload.type_photo') },
     { value: 'other',        label: '📎 ' + t('upload.type_other') },
   ];
@@ -151,7 +151,6 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
   const [viewerZoom, setViewerZoom] = useState(1);
   const [viewerDocIndex, setViewerDocIndex] = useState<number>(-1);
   const [viewerEditOpen, setViewerEditOpen] = useState(false);
-  const [viewerDeleteOpen, setViewerDeleteOpen] = useState(false);
   const [viewerChromeVisible, setViewerChromeVisible] = useState(true);
   // docId → blob URL; lifecycle managed by evictDistantCache + closeViewer
   const viewerBlobCache = useRef<Map<string, string>>(new Map());
@@ -347,7 +346,6 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
     setViewerLoading(false);
     setViewerZoom(1);
     setViewerEditOpen(false);
-    setViewerDeleteOpen(false);
   };
 
   // Add-link state
@@ -367,8 +365,15 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
   const [selectedDiscover, setSelectedDiscover] = useState<Set<string>>(new Set());
   const [importCategory, setImportCategory] = useState('other');
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [cardDeleteDocId, setCardDeleteDocId] = useState<string | null>(null);
   const [fabOpen, setFabOpen] = useState(false);
+  const [vaultToast, setVaultToast] = useState<string | null>(null);
+
+  function showVaultToast(msg: string) {
+    setVaultToast(msg);
+    setTimeout(() => setVaultToast(null), 3500);
+  }
 
   // ── Fetch ──────────────────────────────────────────────────────────────
 
@@ -411,15 +416,28 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
   const baseDocs = eventId != null ? docs.filter((d) => d.event_id === eventId) : docs;
   const filtered = activeCategory === 'all'
     ? baseDocs
+    : activeCategory === 'health'
+    ? baseDocs.filter((d) => HEALTH_CATS.includes(d.category || 'other'))
     : baseDocs.filter((d) => (d.category || 'other') === activeCategory);
+
+  const searchFiltered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return filtered;
+    return filtered.filter((d) =>
+      (d.title || '').toLowerCase().includes(q) ||
+      (d.establishment_name || '').toLowerCase().includes(q) ||
+      (d.notes || '').toLowerCase().includes(q)
+    );
+  }, [filtered, searchQuery]);
+
   const groupedDocs = useMemo(
-    () => groupVaultDocumentsByMonth(filtered as VaultPetDocument[]),
-    [filtered]
+    () => groupVaultDocumentsByMonth(searchFiltered as VaultPetDocument[]),
+    [searchFiltered]
   );
 
   const navigableDocs = useMemo(
-    () => filtered.filter((d) => !((d.kind === 'link') && !!d.url_masked) && !!d.storage_key),
-    [filtered]
+    () => searchFiltered.filter((d) => !((d.kind === 'link') && !!d.url_masked) && !!d.storage_key),
+    [searchFiltered]
   );
 
   // ── Upload ────────────────────────────────────────────────────────────
@@ -476,14 +494,14 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
         }
 
         if (data.errors?.length && !data.zip_extracted) {
-          alert(`⚠️ ${data.errors.join('\n')}`);
+          showVaultToast(`⚠️ ${data.errors.join(' | ')}`);
         }
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.detail || 'Erro ao enviar arquivo');
+        showVaultToast(err.detail || 'Erro ao enviar arquivo — tente novamente.');
       }
     } catch {
-      alert('Erro ao enviar arquivo');
+      showVaultToast('Erro ao enviar arquivo — verifique sua conexão.');
     } finally {
       setUploading(false);
     }
@@ -516,7 +534,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
       await handleUpload(convertedFiles);
     } catch (error) {
       console.error('[PetDocumentVault] erro ao converter foto em PDF:', error);
-      alert('Não foi possível converter a foto em PDF. Tente novamente.');
+      showVaultToast('Não foi possível converter a foto. Tente novamente.');
       setUploading(false);
     }
   };
@@ -629,10 +647,10 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
         await fetchDocs();
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.detail || 'Erro ao salvar link');
+        showVaultToast(err.detail || 'Erro ao salvar link. Tente novamente.');
       }
     } catch {
-      alert('Erro ao salvar link');
+      showVaultToast('Erro ao salvar link — verifique sua conexão.');
     } finally {
       setSavingLink(false);
     }
@@ -725,24 +743,12 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
       });
       if (res.ok || res.status === 204) {
         setDocs((prev) => prev.filter((d) => d.id !== docId));
+        if (viewerOpen && navigableDocs[viewerDocIndex]?.id === docId) {
+          closeViewer();
+        }
       }
     } finally {
       setCardDeleteDocId(null);
-    }
-  };
-
-  const handleDeleteAll = async () => {
-    if (!confirm(`Excluir TODOS os ${docs.length} documentos? Esta ação não pode ser desfeita.`)) return;
-    const token = getToken();
-    if (!token) return;
-    const res = await fetch(`${API_BASE_URL}/pets/${petId}/documents`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setDocs([]);
-      alert(`🗑️ ${data.deleted} documento(s) excluído(s).`);
     }
   };
 
@@ -750,7 +756,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
 
   const handleView = async (doc: PetDocument) => {
     if (doc.kind === 'link' && doc.url_masked) {
-      alert(`🔗 Link salvo:\n${doc.url_masked}\n\n(URL real ocultada por segurança)`);
+      showVaultToast(`🔗 Link: ${doc.url_masked} (URL real ocultada por segurança)`);
       return;
     }
     if (!doc.storage_key) return;
@@ -788,7 +794,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
         link.remove();
         setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
       } catch {
-        alert('Não foi possível baixar o arquivo.');
+        showVaultToast('Não foi possível baixar o arquivo.');
       }
       return;
     }
@@ -892,6 +898,13 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
 
   return (
     <div className="space-y-4" style={{ paddingBottom: 'calc(96px + env(safe-area-inset-bottom))' }}>
+      {/* Toast */}
+      {vaultToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[700] px-4 py-3 rounded-2xl bg-slate-800 text-white text-sm font-semibold shadow-xl max-w-sm w-[calc(100%-2rem)] flex items-center gap-2">
+          <span className="flex-1 text-[13px]">{vaultToast}</span>
+          <button onClick={() => setVaultToast(null)} className="text-xs font-bold text-slate-300 hover:text-white underline flex-shrink-0">OK</button>
+        </div>
+      )}
 
       {/* ── STANDALONE EDIT SHEET (works from card list) ── */}
       {viewerEditOpen && editingDoc && !viewerOpen && (
@@ -930,6 +943,18 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>🏥 Estabelecimento</label>
                 <EstablishmentInput value={editingDoc.establishment} onChange={(v) => setEditingDoc((p) => p ? { ...p, establishment: v } : p)} historyNames={(docs.map((d) => d.establishment_name).filter((v, i, a) => !!v && a.indexOf(v) === i) as string[])} className="" placeholder="Ex: Clínica VetCenter" />
+              </div>
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 16 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCardDeleteDocId(editingDoc.id);
+                    setViewerEditOpen(false);
+                  }}
+                  style={{ width: '100%', height: 46, borderRadius: 14, border: '1px solid #fecaca', background: '#fff7f7', color: '#b91c1c', fontSize: 14, fontWeight: 700, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
+                >
+                  Excluir documento
+                </button>
               </div>
             </div>
             {/* Footer */}
@@ -1034,15 +1059,16 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
               </p>
               {navigableDocs.length > 1 && viewerDocIndex >= 0 && (
                 <span style={{
-                  color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2,
+                  color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 2,
                   fontFeatureSettings: '"tnum"', userSelect: 'none',
+                  fontWeight: 600, letterSpacing: '0.04em',
                 } as React.CSSProperties}>
-                  {viewerDocIndex + 1} / {navigableDocs.length}
+                  {viewerDocIndex + 1} de {navigableDocs.length}
                 </span>
               )}
             </div>
 
-            {/* Col 3 — Actions (download / edit / delete) or placeholder */}
+            {/* Col 3 — Safe actions only. Delete stays out of the document preview. */}
             {viewerUrl ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {/* Download */}
@@ -1080,21 +1106,6 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
                   title="Editar"
                 >
                   ✏️
-                </button>
-                {/* Delete */}
-                <button
-                  onClick={() => setViewerDeleteOpen(true)}
-                  style={{
-                    width: 44, height: 44, borderRadius: 14, flexShrink: 0,
-                    background: 'rgba(220,38,38,0.22)', border: 'none',
-                    color: '#fca5a5', fontSize: 16,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
-                  } as React.CSSProperties}
-                  aria-label="Excluir documento"
-                  title="Excluir"
-                >
-                  🗑️
                 </button>
               </div>
             ) : (
@@ -1140,6 +1151,18 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>🏥 Estabelecimento</label>
                     <EstablishmentInput value={editingDoc.establishment} onChange={(v) => setEditingDoc((p) => p ? { ...p, establishment: v } : p)} historyNames={(docs.map((d) => d.establishment_name).filter((v, i, a) => !!v && a.indexOf(v) === i) as string[])} className="" placeholder="Ex: Clínica VetCenter" />
                   </div>
+                  <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 16 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCardDeleteDocId(editingDoc.id);
+                        setViewerEditOpen(false);
+                      }}
+                      style={{ width: '100%', height: 46, borderRadius: 14, border: '1px solid #fecaca', background: '#fff7f7', color: '#b91c1c', fontSize: 14, fontWeight: 700, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
+                    >
+                      Excluir documento
+                    </button>
+                  </div>
                 </div>
                 {/* Footer */}
                 <div style={{ flexShrink: 0, display: 'flex', gap: 10, padding: '14px 20px', borderTop: '1px solid #f0f0f0' }}>
@@ -1151,53 +1174,6 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
               </div>
             </>
           )}
-
-          {/* ── Delete confirmation sheet ── */}
-          {viewerDeleteOpen && (() => {
-            const doc = navigableDocs[viewerDocIndex];
-            return (
-              <>
-                <div onClick={() => setViewerDeleteOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.5)', animation: 'vaultFadeIn 0.2s ease' }} />
-                <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 51, background: '#fff', borderRadius: '24px 24px 0 0', boxShadow: '0 -2px 24px rgba(0,0,0,0.14)', paddingBottom: 'env(safe-area-inset-bottom)', display: 'flex', flexDirection: 'column', animation: 'vaultSlideUp 0.24s cubic-bezier(0.32,0.72,0,1)' }}>
-                  {/* Handle */}
-                  <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 8 }}>
-                    <div style={{ width: 40, height: 4, borderRadius: 4, background: '#dedede' }} />
-                  </div>
-                  {/* Body */}
-                  <div style={{ padding: '16px 24px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ width: 56, height: 56, borderRadius: 18, background: '#fff0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, marginBottom: 2 }}>🗑️</div>
-                    <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#111', letterSpacing: -0.3 }}>Excluir documento?</p>
-                    <p style={{ margin: 0, fontSize: 14, color: '#666', lineHeight: 1.6 }}>
-                      <strong style={{ color: '#333' }}>&ldquo;{doc?.title || 'Documento'}&rdquo;</strong> será removido permanentemente. Esta ação não pode ser desfeita.
-                    </p>
-                  </div>
-                  {/* Footer */}
-                  <div style={{ display: 'flex', gap: 10, padding: '14px 20px', borderTop: '1px solid #f0f0f0' }}>
-                    <button onClick={() => setViewerDeleteOpen(false)} style={{ flex: 1, height: 52, borderRadius: 16, background: '#f2f2f2', border: 'none', fontSize: 15, fontWeight: 600, color: '#666', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}>Cancelar</button>
-                    <button
-                      onClick={async () => {
-                        const docId = navigableDocs[viewerDocIndex]?.id;
-                        if (!docId) return;
-                        const token = getToken();
-                        if (!token) return;
-                        const res = await fetch(
-                          `${API_BASE_URL}/pets/${petId}/documents/${docId}`,
-                          { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
-                        );
-                        if (res.ok || res.status === 204) {
-                          setDocs((prev) => prev.filter((d) => d.id !== docId));
-                          closeViewer();
-                        }
-                      }}
-                      style={{ flex: 1, height: 52, borderRadius: 16, background: '#dc2626', border: 'none', fontSize: 15, fontWeight: 700, color: '#fff', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
-                    >
-                      Excluir
-                    </button>
-                  </div>
-                </div>
-              </>
-            );
-          })()}
 
           {/* ── Content area ── */}
           <div style={{ position: 'absolute', inset: 0, backgroundColor: '#000', overflow: 'hidden' }}>
@@ -1407,39 +1383,41 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
       <input ref={cameraInputRef} type="file" accept="image/*,application/pdf" capture="environment" className="hidden" onChange={(e) => e.target.files && handleCameraSelection(e.target.files)} />
 
 
-      {/* ── BATCH CONFIRM MODAL OVERLAY ──────────────────────────────── */}
+      {/* ── BATCH CONFIRM PANEL (right sidebar) ──────────────────────── */}
       {batchConfirm && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/60" onClick={() => setBatchConfirm(null)} />
+        <div className="fixed top-0 right-0 bottom-0 z-[300] flex flex-col w-full max-w-sm bg-white/97 backdrop-blur-xl shadow-2xl border-l border-gray-200 overflow-hidden">
 
-          {/* Sheet */}
-          <div className="relative w-full max-w-md bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 flex flex-col max-h-[85dvh] overflow-hidden">
-
-            {/* Header */}
-            <div className="px-5 pt-4 pb-3 border-b border-gray-100">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">📋</span>
-                <div className="flex-1">
-                  <h4 className="font-bold text-gray-900 text-base">
-                    {batchConfirm.docs.length === 1
-                      ? 'Confirmar documento'
-                      : `Confirmar ${batchConfirm.docs.length} documentos`}
-                  </h4>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {batchConfirm.detectedDate || batchConfirm.detectedEstablishment
-                      ? '✅ IA preencheu alguns campos — confirme ou corrija.'
-                      : 'Preencha data e local válidos para todos os documentos desta entrada.'}
-                  </p>
-                </div>
+          {/* Header */}
+          <div className="px-5 pt-5 pb-3 border-b border-gray-100 flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📋</span>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-gray-900 text-base leading-tight">
+                  {batchConfirm.docs.length === 1
+                    ? 'Confirmar documento'
+                    : `Confirmar ${batchConfirm.docs.length} documentos`}
+                </h4>
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                  {batchConfirm.detectedDate || batchConfirm.detectedEstablishment
+                    ? '✅ IA preencheu alguns campos — confirme ou corrija.'
+                    : 'Preencha data e local válidos para todos os documentos desta entrada.'}
+                </p>
               </div>
+              <button
+                onClick={() => setBatchConfirm(null)}
+                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+                aria-label="Fechar"
+              >
+                ✕
+              </button>
             </div>
+          </div>
 
-            {/* Scrollable body */}
-            <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+          {/* Scrollable body */}
+          <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
 
               {/* Shared date + establishment */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-gray-700 mb-1.5 block">
                     📅 Data do atendimento
@@ -1531,10 +1509,10 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
                   </div>
                 ))}
               </div>
-            </div>
+          </div>
 
-            {/* Footer actions */}
-            <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+          {/* Footer actions */}
+          <div className="px-5 py-4 border-t border-gray-100 flex gap-3 flex-shrink-0">
               <button
                 onClick={() => setBatchConfirm(null)}
                 className="px-4 py-3 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl transition-colors flex-shrink-0"
@@ -1550,7 +1528,6 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
                   ? '⏳ Salvando…'
                   : `✓ Salvar ${batchConfirm.docs.length > 1 ? 'todos os documentos' : 'documento'}`}
               </button>
-            </div>
           </div>
         </div>
       )}
@@ -1699,6 +1676,46 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
         </div>
       )}
 
+      {/* ── Search ──────────────────────────────────────────────────── */}
+      {docs.length > 0 && (
+        <div style={{ position: 'relative' }}>
+          <svg
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round"
+            style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#9ca3af', pointerEvents: 'none' }}
+          >
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Buscar por nome, clínica ou nota…"
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              border: '1.5px solid #e8e8ea', borderRadius: 14,
+              padding: '10px 14px 10px 36px',
+              fontSize: 16, color: '#111', outline: 'none',
+              background: '#f9f9f9',
+              WebkitAppearance: 'none',
+            } as React.CSSProperties}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                background: '#d1d5db', border: 'none', borderRadius: '50%',
+                width: 18, height: 18, fontSize: 10, color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', flexShrink: 0,
+              } as React.CSSProperties}
+              aria-label="Limpar busca"
+            >✕</button>
+          )}
+        </div>
+      )}
+
       {/* ── Category filter tabs ────────────────────────────────────── */}
       <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' } as React.CSSProperties}>
         <div style={{ display: 'flex', gap: 6, paddingBottom: 2, minWidth: 'max-content' }}>
@@ -1741,16 +1758,8 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
       {/* ── Documents list ─────────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: '#c0c0c8', letterSpacing: 0.6, textTransform: 'uppercase' }}>
-          {filtered.length} {filtered.length !== 1 ? 'Documentos' : 'Documento'}
+          {searchFiltered.length} {searchFiltered.length !== 1 ? 'Documentos' : 'Documento'}
         </span>
-        {docs.length > 0 && (
-          <button
-            onClick={handleDeleteAll}
-            style={{ fontSize: 12, fontWeight: 500, color: '#f87171', background: 'none', border: 'none', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', padding: '4px 0' } as React.CSSProperties}
-          >
-            Excluir tudo
-          </button>
-        )}
       </div>
 
       {loading && (
@@ -1759,15 +1768,39 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
         </div>
       )}
 
-      {!loading && filtered.length === 0 && (
+      {!loading && searchFiltered.length === 0 && (
         <div style={{ padding: '48px 16px', textAlign: 'center' }}>
-          <div style={{ fontSize: 52, marginBottom: 12 }}>📂</div>
-          <p style={{ fontSize: 15, fontWeight: 600, color: '#9ca3af', margin: '0 0 4px', letterSpacing: -0.2 }}>
-            {activeCategory === 'all' ? 'Nenhum documento' : 'Nenhum documento nesta categoria'}
-          </p>
-          <p style={{ fontSize: 13, color: '#d1d5db', margin: 0 }}>
-            Toque em + para adicionar
-          </p>
+          {searchQuery.trim() ? (
+            <>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
+              <p style={{ fontSize: 15, fontWeight: 600, color: '#9ca3af', margin: '0 0 4px', letterSpacing: -0.2 }}>
+                Nenhum resultado
+              </p>
+              <p style={{ fontSize: 13, color: '#d1d5db', margin: 0 }}>
+                Tente outro nome, clínica ou categoria
+              </p>
+            </>
+          ) : docs.length === 0 ? (
+            <>
+              <div style={{ fontSize: 48, marginBottom: 14 }}>🩺</div>
+              <p style={{ fontSize: 16, fontWeight: 700, color: '#6b7280', margin: '0 0 6px', letterSpacing: -0.3 }}>
+                Histórico clínico vazio
+              </p>
+              <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 2px', lineHeight: 1.55 }}>
+                Escaneie exames, receitas ou a carteirinha de vacina.
+              </p>
+              <p style={{ fontSize: 13, color: '#9ca3af', margin: 0, lineHeight: 1.55 }}>
+                Tudo aqui antes da próxima consulta.
+              </p>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>📂</div>
+              <p style={{ fontSize: 15, fontWeight: 600, color: '#9ca3af', margin: '0 0 4px', letterSpacing: -0.2 }}>
+                Nenhum documento nesta categoria
+              </p>
+            </>
+          )}
         </div>
       )}
 
@@ -1818,7 +1851,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
                       </p>
                     </div>
 
-                    {/* Subtle action buttons */}
+                    {/* Edit is the only inline document action; delete lives inside edit. */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0 }}>
                       <button
                         onClick={(e) => { e.stopPropagation(); startEdit(doc); setViewerEditOpen(true); }}
@@ -1826,13 +1859,6 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
                         aria-label="Editar"
                       >
                         ✏️
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setCardDeleteDocId(doc.id); }}
-                        style={{ width: 36, height: 36, borderRadius: 10, background: 'none', border: 'none', fontSize: 15, color: '#d1d5db', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
-                        aria-label="Excluir"
-                      >
-                        🗑️
                       </button>
                     </div>
                   </div>

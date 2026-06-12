@@ -148,7 +148,7 @@ export function HistoryDocumentUploadModal({
               type="text"
               value={inlineDocTitle}
               onChange={(event) => onSetTitle(event.target.value)}
-              placeholder="Ex: Consulta, Exame de sangue…"
+              placeholder="Ex: Consulta de vacina, Receita de medicação, Exame de sangue…"
               className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
             />
           </div>

@@ -34,6 +34,12 @@ COOKIE_VERIFIER = "petmol_ml_verifier"
 COOKIE_MAX_AGE = 600  # 10 minutes
 
 
+def get_ml_redirect_uri() -> str:
+    settings = get_settings()
+    frontend_url = str(settings.frontend_url or "https://petmol.com.br").rstrip("/")
+    return f"{frontend_url}/api/auth/ml/callback"
+
+
 def generate_code_verifier() -> str:
     """Generate cryptographically random code_verifier (43-128 chars, URL-safe)."""
     random_bytes = os.urandom(32)
@@ -69,7 +75,7 @@ async def start_oauth(request: Request):
     code_challenge = generate_code_challenge(code_verifier)
     
     # Build authorization URL
-    redirect_uri = f"https://petshopbh.com/api/auth/ml/callback"
+    redirect_uri = get_ml_redirect_uri()
     
     auth_url = (
         f"{ML_AUTH_URL}?"
@@ -156,7 +162,7 @@ async def oauth_callback(
         raise HTTPException(status_code=400, detail="Missing code_verifier cookie")
     
     # Exchange code for tokens
-    redirect_uri = f"https://petshopbh.com/api/auth/ml/callback"
+    redirect_uri = get_ml_redirect_uri()
     
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:

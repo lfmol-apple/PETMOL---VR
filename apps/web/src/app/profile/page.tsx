@@ -5,28 +5,26 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE_URL } from '@/lib/api';
 import { showBlockingNotice } from '@/features/interactions/userPromptChannel';
+import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
+import { IosSwitch } from '@/components/ui/IosSwitch';
 
 // ── Design tokens ─────────────────────────────────────────────
-const G   = 'divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200';
-const ROW = 'bg-white px-4 py-3';
-const CTA = 'w-full py-3.5 bg-[#0056D2] text-white text-sm font-semibold rounded-xl active:scale-[0.98] transition-transform disabled:opacity-40 disabled:cursor-not-allowed';
+import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 
-function Switch({ on, onChange, disabled }: { on: boolean; onChange: () => void; disabled?: boolean }) {
-  return (
-    <button type="button" onClick={disabled ? undefined : onChange} role="switch" aria-checked={on}
-      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${on ? 'bg-blue-500' : 'bg-gray-200'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
-      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${on ? 'translate-x-5' : ''}`} />
-    </button>
-  );
-}
+const G   = 'divide-y divide-slate-100 overflow-hidden rounded-[32px] border border-slate-100 bg-white/50 backdrop-blur-sm shadow-sm';
+const ROW = 'px-4 py-4';
+const CTA = 'w-full py-4 bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-base font-black rounded-2xl active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xl shadow-blue-500/20 uppercase tracking-widest';
+const DEFAULT_CHECKIN_DAY = 1;
+const DEFAULT_CHECKIN_HOUR = 20;
+const DEFAULT_CHECKIN_MINUTE = 0;
+const PROFILE_PUSH_SEEN_KEY = 'petmol-profile-push-seen-v1';
+const NOTIFICATION_CONSENTS_KEY = 'petmol_notification_consents_v1';
 
-// ── Types ─────────────────────────────────────────────────────
 interface TutorData {
   id: string;
   name: string;
   phone: string;
   email: string;
-  whatsapp: boolean;
   monthly_checkin_day?: number;
   monthly_checkin_hour?: number;
   monthly_checkin_minute?: number;
@@ -40,10 +38,22 @@ interface TutorData {
   country?: string;
 }
 
-// ── Component ─────────────────────────────────────────────────
+function PreferenceSwitch({ checked, onToggle, disabled = false }: { checked: boolean; onToggle: () => void; disabled?: boolean }) {
+  return <IosSwitch checked={checked} onChange={onToggle} disabled={disabled} size="md" />;
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const apiBase = API_BASE_URL;
+  const {
+    isSupported,
+    isSubscribed,
+    permission,
+    requestPermission,
+    subscribeToPush,
+    unsubscribe,
+    sendTestNotification,
+  } = useNotificationPermissionController();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -58,12 +68,42 @@ export default function ProfilePage() {
   const [addrOpen, setAddrOpen] = useState(false);
   const [notifsOpen, setNotifsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [pushLoading, setPushLoading] = useState<"activate" | "deactivate" | "test" | null>(null);
+  const [pushFeedback, setPushFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [notificationConsents, setNotificationConsents] = useState({ health: true, operational: true, offers: false });
+  const [checkinSaving, setCheckinSaving] = useState(false);
+  const [checkinSaved, setCheckinSaved] = useState(false);
 
   useEffect(() => {
     loadTutorData();
   }, []);
 
-  // Open notifications section if linked via #checkin
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const hasSeenPushPref = window.localStorage.getItem(PROFILE_PUSH_SEEN_KEY) === '1';
+
+    if (!hasSeenPushPref) {
+      setNotifsOpen(true);
+      window.localStorage.setItem(PROFILE_PUSH_SEEN_KEY, '1');
+    }
+
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(NOTIFICATION_CONSENTS_KEY) || '{}');
+      setNotificationConsents((prev) => ({ ...prev, ...saved }));
+    } catch {
+      // Local preference fallback only.
+    }
+  }, []);
+
+  const updateNotificationConsent = (key: keyof typeof notificationConsents, value: boolean) => {
+    setNotificationConsents((prev) => {
+      const next = { ...prev, [key]: value };
+      window.localStorage.setItem(NOTIFICATION_CONSENTS_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.hash === '#checkin') {
       setNotifsOpen(true);
@@ -73,13 +113,12 @@ export default function ProfilePage() {
     }
   }, []);
 
-  // CEP auto-fetch when 8 digits are entered in edit mode
   useEffect(() => {
     if (tutorData?.postal_code && editMode) {
       const normalized = tutorData.postal_code.replace(/\D/g, '');
       if (normalized.length === 8) handleCepLookup();
     }
-  }, [tutorData?.postal_code]);
+  }, [tutorData?.postal_code, editMode]);
 
   const loadTutorData = async () => {
     try {
@@ -145,6 +184,31 @@ export default function ProfilePage() {
       setError('Erro de conexão.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCheckinSave = async () => {
+    if (!tutorData) return;
+    setCheckinSaving(true);
+    setCheckinSaved(false);
+    try {
+      const token = getToken();
+      const res = await fetch(`${apiBase}/notifications/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        credentials: 'include',
+        body: JSON.stringify({
+          monthly_checkin_day: tutorData.monthly_checkin_day ?? DEFAULT_CHECKIN_DAY,
+          monthly_checkin_hour: tutorData.monthly_checkin_hour ?? DEFAULT_CHECKIN_HOUR,
+          monthly_checkin_minute: tutorData.monthly_checkin_minute ?? DEFAULT_CHECKIN_MINUTE,
+        }),
+      });
+      if (res.ok) {
+        setCheckinSaved(true);
+        setTimeout(() => setCheckinSaved(false), 3000);
+      }
+    } catch { /* noop */ } finally {
+      setCheckinSaving(false);
     }
   };
 
@@ -217,390 +281,551 @@ export default function ProfilePage() {
   };
 
   const tutorInitial = (tutorData?.name || 'T').trim().charAt(0).toUpperCase();
-  const inpCls = `w-full bg-transparent text-sm outline-none text-gray-900 placeholder:text-gray-400 disabled:opacity-50`;
+  const inpCls = `w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm outline-none text-slate-800 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all disabled:opacity-50 disabled:bg-transparent disabled:border-transparent disabled:px-0 placeholder:text-slate-300 font-medium`;
+  const pushPermissionLabel: Record<NotificationPermission, string> = {
+    granted: 'Permitido',
+    denied: 'Bloqueado',
+    default: 'Não solicitado',
+  };
+  const pushToggleChecked = isSubscribed || pushLoading === 'activate';
+
+  const activatePush = async () => {
+    setPushLoading('activate');
+    setPushFeedback(null);
+    try {
+      if (!isSupported) {
+        setNotifsOpen(true);
+        setPushFeedback({ ok: false, msg: 'Push não está disponível neste contexto. Abra o PETMOL pela Tela de Início e tente novamente.' });
+        return;
+      }
+
+      const granted = permission === 'granted' ? true : await requestPermission();
+      if (!granted) {
+        setPushFeedback({ ok: false, msg: 'Permissão negada pelo navegador.' });
+        return;
+      }
+
+      const sub = await subscribeToPush();
+      if (!sub) {
+        setPushFeedback({ ok: false, msg: 'Não foi possível ativar as notificações neste dispositivo.' });
+        return;
+      }
+
+      setPushFeedback({ ok: true, msg: 'Notificações no celular ativadas com sucesso.' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao ativar notificações.';
+      setPushFeedback({ ok: false, msg });
+    } finally {
+      setPushLoading(null);
+    }
+  };
+
+  const deactivatePush = async () => {
+    setPushLoading('deactivate');
+    setPushFeedback(null);
+    try {
+      await unsubscribe();
+      setPushFeedback({ ok: true, msg: 'Notificações no celular desativadas.' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao desativar notificações.';
+      setPushFeedback({ ok: false, msg });
+    } finally {
+      setPushLoading(null);
+    }
+  };
+
+  const handlePushToggle = async () => {
+    setNotifsOpen(true);
+    if (isSubscribed) {
+      await deactivatePush();
+      return;
+    }
+
+    await activatePush();
+  };
+
+  const handlePushTest = async () => {
+    setPushLoading('test');
+    setPushFeedback(null);
+    try {
+      await sendTestNotification();
+      setPushFeedback({ ok: true, msg: 'Notificação de teste enviada. Verifique seu dispositivo.' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao enviar push de teste.';
+      setPushFeedback({ ok: false, msg });
+    } finally {
+      setPushLoading(null);
+    }
+  };
 
   // ── Loading ───────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-dvh bg-gray-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#0056D2]/30 border-t-[#0056D2] rounded-full animate-spin" />
+      <div className="min-h-dvh bg-[#0056D2] flex flex-col items-center justify-center p-8">
+        <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4" />
+        <p className="text-white/80 text-sm font-bold uppercase tracking-widest animate-pulse">Carregando Perfil...</p>
       </div>
     );
   }
 
   if (error && !tutorData) {
     return (
-      <div className="min-h-dvh bg-gray-50 flex items-center justify-center p-6">
-        <div className="w-full max-w-sm space-y-4 text-center">
-          <p className="text-sm text-rose-700">{error}</p>
-          <Link href="/home" className={CTA + ' inline-block'}>Voltar ao início</Link>
+      <BrandBackground showLogo={false}>
+        <div className="flex flex-col items-center justify-center min-h-[80dvh] p-6 text-center animate-scaleIn">
+          <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center text-rose-500 text-3xl mb-4">⚠️</div>
+          <p className="text-white text-lg font-bold mb-6">{error}</p>
+          <Link href="/home" className="px-8 py-4 bg-white text-[#0056D2] font-black rounded-2xl shadow-xl active:scale-95 transition-all">Voltar ao início</Link>
         </div>
-      </div>
+      </BrandBackground>
     );
   }
 
   // ── Render ────────────────────────────────────────────────
   return (
-    <div className="min-h-dvh bg-gray-50 flex flex-col items-center px-4 py-6">
-      <div className="w-full max-w-sm space-y-4 pb-10">
+    <BrandBackground showLogo={false}>
+      <div className="flex flex-col items-center w-full px-4 py-6 animate-fadeIn pb-24">
+        
+        {/* Header Navigation: Idêntico ao estilo de Auth */}
+        <div className="w-full max-w-sm flex flex-col items-center mb-10 animate-scaleIn">
+          <div className="w-full flex items-center justify-between mb-8">
+            <Link href="/home"
+              className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white hover:text-[#0056D2] transition-all group">
+              <span className="text-2xl group-active:scale-90 transition-transform">←</span>
+            </Link>
+            <div className="w-12 h-12" /> {/* alignment spacer */}
+          </div>
+          <PetmolTextLogo className="text-6xl drop-shadow-3xl" />
+        </div>
 
-        {/* Header */}
-        <div className="flex items-center gap-3 pt-2 pb-1">
-          <Link href="/home"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white border border-gray-200 text-gray-600 text-sm flex-shrink-0">
-            ←
-          </Link>
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0056D2] text-white text-sm font-bold flex-shrink-0">
+        <div className="w-full max-w-md bg-white/95 backdrop-blur-xl rounded-[40px] shadow-premium border border-white/60 p-8 md:p-10 flex flex-col gap-8 animate-scaleIn">
+          
+          {/* Tutor Mini Card: Estilo Premium */}
+          <div className="flex items-center gap-5 p-2">
+            <div className="flex h-20 w-20 items-center justify-center rounded-[30px] bg-gradient-to-br from-[#0066ff] to-[#0056D2] text-white text-3xl font-black shadow-xl shadow-blue-500/20 flex-shrink-0 animate-scaleIn">
               {tutorInitial}
             </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-gray-900">{tutorData?.name || 'Tutor'}</p>
-              {tutorData?.email && <p className="text-xs text-gray-500 truncate">{tutorData.email}</p>}
-            </div>
-          </div>
-          {editMode && (
-            <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-blue-700 flex-shrink-0">
-              Editando
-            </span>
-          )}
-        </div>
-
-        {error && (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
-        )}
-
-        {/* Dados pessoais */}
-        <div className={G}>
-          <div className={ROW}>
-            <label className="block text-xs text-gray-500 mb-1">Nome completo</label>
-            <input
-              type="text"
-              value={tutorData?.name || ''}
-              onChange={(e) => setTutorData((prev) => prev ? { ...prev, name: e.target.value } : null)}
-              disabled={!editMode}
-              autoComplete="name"
-              placeholder="Nome completo"
-              className={inpCls}
-            />
-          </div>
-          <div className={ROW}>
-            <label className="block text-xs text-gray-500 mb-1">E-mail</label>
-            <input
-              type="email"
-              value={tutorData?.email || ''}
-              onChange={(e) => setTutorData((prev) => prev ? { ...prev, email: e.target.value } : null)}
-              disabled={!editMode}
-              autoCapitalize="none"
-              inputMode="email"
-              placeholder="seu@email.com"
-              className={inpCls}
-            />
-          </div>
-          <div className={ROW}>
-            <label className="block text-xs text-gray-500 mb-1">Telefone</label>
-            <input
-              type="tel"
-              value={tutorData?.phone || ''}
-              onChange={(e) => handlePhoneChange(e.target.value)}
-              disabled={!editMode}
-              inputMode="tel"
-              placeholder="(31) 99999-9999"
-              className={inpCls}
-            />
-            {tutorData?.phone && (() => {
-              const numbers = normalizeBRPhone(tutorData.phone);
-              if (numbers.length >= 10) {
-                const isMobile = numbers.length === 11 && numbers[2] === '9';
-                if (isMobile) return <p className="text-xs text-green-600 mt-0.5">Celular</p>;
-                if (numbers.length === 10) return <p className="text-xs text-blue-600 mt-0.5">Fixo</p>;
-                return <p className="text-xs text-amber-600 mt-0.5">Verifique o número</p>;
-              }
-              return null;
-            })()}
-            {/* Quick actions */}
-            {!editMode && tutorData?.phone && (() => {
-              const numbers = normalizeBRPhone(tutorData.phone);
-              if (numbers.length < 10) return null;
-              return (
-                <div className="flex gap-2 mt-2">
-                  <button
-                    type="button"
-                    onClick={() => navigator.clipboard.writeText(numbers)}
-                    className="rounded-lg bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600"
-                  >
-                    Copiar
-                  </button>
-                  {numbers.length === 11 && (
-                    <a href={`https://wa.me/55${numbers}`} target="_blank" rel="noopener noreferrer"
-                      className="rounded-lg bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
-                      WhatsApp
-                    </a>
-                  )}
-                  <a href={`tel:+55${numbers}`}
-                    className="rounded-lg bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
-                    Ligar
-                  </a>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-
-        {/* Endereço */}
-        <div className={G}>
-          <button
-            type="button"
-            onClick={() => setAddrOpen((v) => !v)}
-            className={`${ROW} flex w-full items-center justify-between`}
-          >
-            <span className="text-sm font-medium text-gray-800">Endereço</span>
-            <span className={`text-gray-400 text-xs transition-transform ${addrOpen ? 'rotate-180' : ''}`}>▾</span>
-          </button>
-
-          {addrOpen && (
-            <>
-              <div className={ROW}>
-                <label className="block text-xs text-gray-500 mb-1">CEP</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={tutorData?.postal_code || ''}
-                    onChange={(e) => {
-                      const nums = e.target.value.replace(/\D/g, '');
-                      const fmt = nums.length > 5 ? `${nums.slice(0, 5)}-${nums.slice(5, 8)}` : nums;
-                      setTutorData((prev) => prev ? { ...prev, postal_code: fmt } : null);
-                      setCepError(null);
-                    }}
-                    onBlur={handleCepLookup}
-                    disabled={!editMode}
-                    maxLength={9}
-                    placeholder="00000-000"
-                    className={inpCls + ' flex-1'}
-                  />
-                  {cepLoading && <span className="text-xs text-gray-400 animate-pulse">buscando…</span>}
-                </div>
-                {cepError && (
-                  <p className={`text-xs mt-0.5 ${cepError === 'Endereço preenchido' ? 'text-green-600' : 'text-rose-600'}`}>{cepError}</p>
-                )}
-              </div>
-              <div className={ROW}>
-                <label className="block text-xs text-gray-500 mb-1">Rua / Avenida</label>
-                <input type="text" value={tutorData?.street || ''} onChange={(e) => setTutorData((p) => p ? { ...p, street: e.target.value } : null)} disabled={!editMode} placeholder="Logradouro" className={inpCls} />
-              </div>
-              <div className={`${ROW} grid grid-cols-2 gap-3`}>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Número</label>
-                  <input type="text" value={tutorData?.number || ''} onChange={(e) => setTutorData((p) => p ? { ...p, number: e.target.value } : null)} disabled={!editMode} placeholder="Nº" className={inpCls} />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Complemento</label>
-                  <input type="text" value={tutorData?.complement || ''} onChange={(e) => setTutorData((p) => p ? { ...p, complement: e.target.value } : null)} disabled={!editMode} placeholder="Apto, casa…" className={inpCls} />
-                </div>
-              </div>
-              <div className={ROW}>
-                <label className="block text-xs text-gray-500 mb-1">Bairro</label>
-                <input type="text" value={tutorData?.neighborhood || ''} onChange={(e) => setTutorData((p) => p ? { ...p, neighborhood: e.target.value } : null)} disabled={!editMode} placeholder="Bairro" className={inpCls} />
-              </div>
-              <div className={`${ROW} grid grid-cols-3 gap-3`}>
-                <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 mb-1">Cidade</label>
-                  <input type="text" value={tutorData?.city || ''} onChange={(e) => setTutorData((p) => p ? { ...p, city: e.target.value } : null)} disabled={!editMode} placeholder="Cidade" className={inpCls} />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">UF</label>
-                  <input type="text" value={tutorData?.state || ''} onChange={(e) => setTutorData((p) => p ? { ...p, state: e.target.value.toUpperCase() } : null)} disabled={!editMode} maxLength={2} placeholder="UF" className={inpCls} />
-                </div>
-              </div>
-              {!editMode && tutorData?.street && (
-                <div className={ROW}>
-                  <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${tutorData.street}, ${tutorData.number || ''}, ${tutorData.neighborhood || ''}, ${tutorData.city || ''}, ${tutorData.state || ''}`)}`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="text-sm text-blue-600 font-medium"
-                  >
-                    Ver no Google Maps
-                  </a>
-                </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-2xl font-black text-slate-800 tracking-tight">{tutorData?.name || 'Tutor'}</h1>
+              <p className="text-sm text-slate-500 font-medium truncate italic">{tutorData?.email}</p>
+              {editMode && (
+                <span className="inline-block mt-2 rounded-full bg-blue-100 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-700 animate-pulse">
+                  Modo Edição
+                </span>
               )}
-            </>
+            </div>
+            {!editMode && (
+              <button 
+                onClick={() => setEditMode(true)}
+                className="h-12 w-12 flex items-center justify-center rounded-[20px] bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all active:scale-90 border border-slate-100 shadow-sm"
+                title="Editar Perfil"
+              >
+                ✎
+              </button>
+            )}
+          </div>
+
+          {error && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700 font-bold flex items-center gap-3 animate-shake">
+              <span>⚠️</span>
+              {error}
+            </div>
           )}
-        </div>
 
-        {/* Preferências */}
-        <div className={G}>
-          <button
-            type="button"
-            onClick={() => setNotifsOpen((v) => !v)}
-            className={`${ROW} flex w-full items-center justify-between`}
-          >
-            <span className="text-sm font-medium text-gray-800">Preferências</span>
-            <span className={`text-gray-400 text-xs transition-transform ${notifsOpen ? 'rotate-180' : ''}`}>▾</span>
-          </button>
-
-          {notifsOpen && (
-            <>
-              {/* WhatsApp toggle */}
-              <div className={`${ROW} flex items-center justify-between`}>
-                <div>
-                  <p className="text-sm text-gray-800">WhatsApp</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Lembretes dos pets via mensagem</p>
-                </div>
-                <Switch
-                  on={tutorData?.whatsapp || false}
-                  onChange={() => setTutorData((prev) => prev ? { ...prev, whatsapp: !prev.whatsapp } : null)}
+          <div className="space-y-4 animate-scaleIn" style={{ animationDelay: '100ms' }}>
+            {/* Dados pessoais */}
+            <div className={G}>
+              <div className={ROW}>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 pl-1">Nome completo</label>
+                <input
+                  type="text"
+                  value={tutorData?.name || ''}
+                  onChange={(e) => setTutorData((prev) => prev ? { ...prev, name: e.target.value } : null)}
                   disabled={!editMode}
+                  autoComplete="name"
+                  placeholder="Nome completo"
+                  className={inpCls}
                 />
               </div>
+              <div className={ROW}>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 pl-1">E-mail</label>
+                <input
+                  type="email"
+                  value={tutorData?.email || ''}
+                  onChange={(e) => setTutorData((prev) => prev ? { ...prev, email: e.target.value } : null)}
+                  disabled={!editMode}
+                  autoCapitalize="none"
+                  inputMode="email"
+                  placeholder="seu@email.com"
+                  className={inpCls}
+                />
+              </div>
+              <div className={ROW}>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 pl-1">Telefone</label>
+                <input
+                  type="tel"
+                  value={tutorData?.phone || ''}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  disabled={!editMode}
+                  inputMode="tel"
+                  placeholder="(00) 00000-0000"
+                  className={inpCls}
+                />
+              </div>
+            </div>
 
-              {/* Monthly reminder */}
-              <div className={ROW} id="checkin-config">
-                <p className="text-sm text-gray-800 mb-2">Lembrete mensal de saúde</p>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="block text-xs text-gray-500 mb-1">Dia</label>
-                    <select
-                      value={tutorData?.monthly_checkin_day ?? 5}
-                      onChange={(e) => setTutorData((prev) => prev ? { ...prev, monthly_checkin_day: Number(e.target.value) } : null)}
-                      disabled={!editMode}
-                      className="w-full bg-gray-100 rounded-lg px-2 py-2 text-sm outline-none disabled:opacity-50"
-                    >
-                      {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
-                        <option key={d} value={d}>Dia {d}</option>
-                      ))}
-                      <option value={0}>Último</option>
-                    </select>
+            {/* Endereço */}
+            <div className={G}>
+              <button
+                type="button"
+                onClick={() => setAddrOpen((v) => !v)}
+                className={`${ROW} flex w-full items-center justify-between group`}
+              >
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-widest transition-colors group-hover:text-blue-600">Endereço Residencial</span>
+                <span className={`text-slate-400 text-xs transition-transform ${addrOpen ? 'rotate-180 text-blue-600' : ''}`}>▾</span>
+              </button>
+
+              {addrOpen && (
+                <div className="bg-slate-50/50 p-1 space-y-1">
+                  <div className={ROW}>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">CEP</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={tutorData?.postal_code || ''}
+                        onChange={(e) => {
+                          const nums = e.target.value.replace(/\D/g, '');
+                          const fmt = nums.length > 5 ? `${nums.slice(0, 5)}-${nums.slice(5, 8)}` : nums;
+                          setTutorData((prev) => prev ? { ...prev, postal_code: fmt } : null);
+                          setCepError(null);
+                        }}
+                        onBlur={handleCepLookup}
+                        disabled={!editMode}
+                        maxLength={9}
+                        placeholder="00000-000"
+                        className={inpCls + ' flex-1'}
+                      />
+                      {cepLoading && <div className="w-5 h-5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />}
+                    </div>
+                    {cepError && (
+                      <p className={`text-[10px] font-bold mt-2 pl-1 uppercase tracking-tighter ${cepError === 'Endereço preenchido' ? 'text-emerald-600' : 'text-rose-600'}`}>{cepError}</p>
+                    )}
                   </div>
-                  <div className="flex-1">
-                    <label className="block text-xs text-gray-500 mb-1">Hora</label>
-                    <select
-                      value={tutorData?.monthly_checkin_hour ?? 9}
-                      onChange={(e) => setTutorData((prev) => prev ? { ...prev, monthly_checkin_hour: Number(e.target.value) } : null)}
-                      disabled={!editMode}
-                      className="w-full bg-gray-100 rounded-lg px-2 py-2 text-sm outline-none disabled:opacity-50"
-                    >
-                      {Array.from({ length: 24 }, (_, i) => i).map((h) => (
-                        <option key={h} value={h}>{String(h).padStart(2, '0')}h</option>
-                      ))}
-                    </select>
+                  <div className={ROW}>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Rua / Avenida</label>
+                    <input type="text" value={tutorData?.street || ''} onChange={(e) => setTutorData((p) => p ? { ...p, street: e.target.value } : null)} disabled={!editMode} placeholder="Logradouro" className={inpCls} />
                   </div>
-                  <div className="flex-1">
-                    <label className="block text-xs text-gray-500 mb-1">Min</label>
-                    <select
-                      value={tutorData?.monthly_checkin_minute ?? 0}
-                      onChange={(e) => setTutorData((prev) => prev ? { ...prev, monthly_checkin_minute: Number(e.target.value) } : null)}
-                      disabled={!editMode}
-                      className="w-full bg-gray-100 rounded-lg px-2 py-2 text-sm outline-none disabled:opacity-50"
+                  <div className={`${ROW} grid grid-cols-2 gap-4`}>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Número</label>
+                      <input type="text" value={tutorData?.number || ''} onChange={(e) => setTutorData((p) => p ? { ...p, number: e.target.value } : null)} disabled={!editMode} placeholder="Nº" className={inpCls} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Complemento</label>
+                      <input type="text" value={tutorData?.complement || ''} onChange={(e) => setTutorData((p) => p ? { ...p, complement: e.target.value } : null)} disabled={!editMode} placeholder="Apto, casa..." className={inpCls} />
+                    </div>
+                  </div>
+                  <div className={ROW}>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Bairro</label>
+                    <input type="text" value={tutorData?.neighborhood || ''} onChange={(e) => setTutorData((p) => p ? { ...p, neighborhood: e.target.value } : null)} disabled={!editMode} placeholder="Bairro" className={inpCls} />
+                  </div>
+                  <div className={`${ROW} grid grid-cols-3 gap-4`}>
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Cidade</label>
+                      <input type="text" value={tutorData?.city || ''} onChange={(e) => setTutorData((p) => p ? { ...p, city: e.target.value } : null)} disabled={!editMode} placeholder="Cidade" className={inpCls} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">UF</label>
+                      <input type="text" value={tutorData?.state || ''} onChange={(e) => setTutorData((p) => p ? { ...p, state: e.target.value.toUpperCase() } : null)} disabled={!editMode} maxLength={2} placeholder="UF" className={inpCls} />
+                    </div>
+                  </div>
+                  {!editMode && tutorData?.street && (
+                    <div className={ROW}>
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${tutorData.street}, ${tutorData.number || ''}, ${tutorData.neighborhood || ''}, ${tutorData.city || ''}, ${tutorData.state || ''}`)}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-blue-600 font-black uppercase tracking-widest flex items-center gap-2 hover:translate-x-1 transition-transform"
+                      >
+                        📍 Ver no Google Maps →
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Preferências */}
+            <div className={G}>
+              <button
+                type="button"
+                onClick={() => setNotifsOpen((v) => !v)}
+                className={`${ROW} flex w-full items-center justify-between group`}
+              >
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-widest transition-colors group-hover:text-blue-600">Preferências e Notificações</span>
+                <span className={`text-slate-400 text-xs transition-transform ${notifsOpen ? 'rotate-180 text-blue-600' : ''}`}>▾</span>
+              </button>
+
+              {notifsOpen && (
+                <div className="bg-slate-50/50 p-1 space-y-1">
+                  <div className={ROW}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-bold text-slate-800 tracking-tight">Notificações no celular</p>
+                        <p className="mt-1 text-xs text-slate-500 font-medium leading-relaxed">
+                          Receba lembretes discretos para vacinas, medicação e cuidados do pet.
+                        </p>
+                      </div>
+                      <PreferenceSwitch
+                        checked={pushToggleChecked}
+                        onToggle={() => {
+                          void handlePushToggle();
+                        }}
+                        disabled={pushLoading === 'activate' || pushLoading === 'deactivate'}
+                      />
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${pushToggleChecked ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {pushToggleChecked ? 'Chave ligada' : 'Chave desligada'}
+                      </span>
+                      <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${isSubscribed ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {isSubscribed ? 'Push ativo' : 'Push inativo'}
+                      </span>
+                      <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${permission === 'granted' ? 'bg-blue-50 text-blue-700' : permission === 'denied' ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {pushPermissionLabel[permission]}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+                      <p className="text-sm font-black text-slate-900">Quais notificações deseja receber?</p>
+                      <div className="mt-3 grid gap-2">
+                        {[
+                          { key: 'health', label: 'Saúde' },
+                          { key: 'operational', label: 'Operacional (ração)' },
+                          { key: 'offers', label: 'Ofertas' },
+                        ].map((item) => (
+                          <label key={item.key} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
+                            <span className="text-sm font-semibold text-slate-700">{item.label}</span>
+                            <input
+                              type="checkbox"
+                              checked={notificationConsents[item.key as keyof typeof notificationConsents]}
+                              onChange={(e) => updateNotificationConsent(item.key as keyof typeof notificationConsents, e.target.checked)}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {pushFeedback && (
+                      <div className={`mt-4 rounded-2xl px-4 py-3 text-xs font-bold ${pushFeedback.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                        {pushFeedback.msg}
+                      </div>
+                    )}
+
+                    <div className="mt-4 space-y-3">
+                      {!isSubscribed ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void activatePush();
+                          }}
+                          disabled={pushLoading === 'activate' || permission === 'denied'}
+                          className="w-full rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] py-3.5 text-xs font-black uppercase tracking-[0.2em] text-white shadow-lg shadow-blue-500/20 transition-all active:scale-[0.98] disabled:opacity-40"
+                        >
+                          {pushLoading === 'activate' ? 'Ativando...' : 'Ativar notificações no celular'}
+                        </button>
+                      ) : (
+                        <div className="flex gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handlePushTest();
+                            }}
+                            disabled={pushLoading === 'test'}
+                            className="flex-1 rounded-2xl bg-slate-900 py-3.5 text-[10px] font-black uppercase tracking-[0.2em] text-white transition-all active:scale-[0.98] disabled:opacity-40"
+                          >
+                            {pushLoading === 'test' ? 'Enviando...' : 'Enviar teste'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void deactivatePush();
+                            }}
+                            disabled={pushLoading === 'deactivate'}
+                            className="flex-1 rounded-2xl bg-slate-100 py-3.5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 transition-all active:scale-[0.98] disabled:opacity-40"
+                          >
+                            {pushLoading === 'deactivate' ? 'Desativando...' : 'Desativar'}
+                          </button>
+                        </div>
+                      )}
+
+                      {!isSupported && (
+                        <p className="rounded-2xl bg-amber-50 px-4 py-3 text-xs font-medium text-amber-700 leading-relaxed">
+                          Para concluir a ativação, abra o PETMOL pela Tela de Início do celular e volte aqui.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Monthly reminder */}
+                  <div className={ROW} id="checkin-config">
+                    <p className="text-sm font-bold text-slate-800 tracking-tight mb-1">Agenda Mentoral de Saúde</p>
+                    <p className="text-xs text-slate-500 font-medium mb-4 leading-relaxed">Dia e horário em que você recebe o lembrete mensal de saúde dos seus pets.</p>
+                    <div className="flex gap-3 mb-4">
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Dia</label>
+                        <select
+                          value={tutorData?.monthly_checkin_day ?? DEFAULT_CHECKIN_DAY}
+                          onChange={(e) => setTutorData((prev) => prev ? { ...prev, monthly_checkin_day: Number(e.target.value) } : null)}
+                          className="w-full bg-slate-100/50 rounded-xl px-3 py-3 text-xs font-bold text-slate-700 outline-none"
+                        >
+                          {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                            <option key={d} value={d}>Dia {d}</option>
+                          ))}
+                          <option value={0}>Último</option>
+                        </select>
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Hora</label>
+                        <select
+                          value={tutorData?.monthly_checkin_hour ?? DEFAULT_CHECKIN_HOUR}
+                          onChange={(e) => setTutorData((prev) => prev ? { ...prev, monthly_checkin_hour: Number(e.target.value) } : null)}
+                          className="w-full bg-slate-100/50 rounded-xl px-3 py-3 text-xs font-bold text-slate-700 outline-none"
+                        >
+                          {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+                            <option key={h} value={h}>{String(h).padStart(2, '0')}h</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Min</label>
+                        <select
+                          value={tutorData?.monthly_checkin_minute ?? DEFAULT_CHECKIN_MINUTE}
+                          onChange={(e) => setTutorData((prev) => prev ? { ...prev, monthly_checkin_minute: Number(e.target.value) } : null)}
+                          className="w-full bg-slate-100/50 rounded-xl px-3 py-3 text-xs font-bold text-slate-700 outline-none"
+                        >
+                          {Array.from({ length: 60 }, (_, i) => i).map((m) => (
+                            <option key={m} value={m}>{String(m).padStart(2, '0')}m</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { void handleCheckinSave(); }}
+                      disabled={checkinSaving}
+                      className="w-full rounded-2xl bg-slate-900 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white transition-all active:scale-[0.98] disabled:opacity-40"
                     >
-                      {Array.from({ length: 60 }, (_, i) => i).map((m) => (
-                        <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
-                      ))}
-                    </select>
+                      {checkinSaving ? 'Salvando...' : checkinSaved ? '✓ Salvo' : 'Salvar horário'}
+                    </button>
                   </div>
                 </div>
-              </div>
+              )}
+            </div>
 
-              <div className={ROW}>
+            {/* Mais opções */}
+            <div className={G}>
+              <button
+                type="button"
+                onClick={() => setMoreOpen((v) => !v)}
+                className={`${ROW} flex w-full items-center justify-between group`}
+              >
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-widest transition-colors group-hover:text-blue-600">Gerenciamento de Conta</span>
+                <span className={`text-slate-400 text-xs transition-transform ${moreOpen ? 'rotate-180 text-blue-600' : ''}`}>▾</span>
+              </button>
+
+              {moreOpen && (
+                <div className="bg-slate-50/50 p-1 space-y-1">
+                  <div className={ROW}>
+                    <div className="rounded-2xl bg-rose-50 p-5 border border-rose-100">
+                      <p className="text-[10px] font-black text-rose-700 uppercase tracking-[0.2em] mb-2">Zona de Perigo</p>
+                      <p className="text-xs text-rose-600 font-medium mb-4 leading-relaxed">A exclusão da conta é irreversível e removerá todos os seus pets e histórico.</p>
+                      
+                      {!showDeleteConfirm ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowDeleteConfirm(true)}
+                          className="w-full bg-white border border-rose-200 py-3 rounded-xl text-xs font-black text-rose-700 uppercase tracking-widest shadow-sm active:scale-95 transition-all"
+                        >
+                          Excluir Conta Permanentemente
+                        </button>
+                      ) : (
+                        <div className="space-y-4 animate-scaleIn">
+                          <div className="space-y-2">
+                            <label className="block text-[10px] font-black text-rose-800 uppercase tracking-widest pl-1 select-none">Confirmar com sua Senha:</label>
+                            <input
+                              type="password"
+                              value={deletePassword}
+                              onChange={(e) => setDeletePassword(e.target.value)}
+                              placeholder="Digite sua senha..."
+                              className="w-full px-4 py-3 bg-white border border-rose-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500 text-rose-900"
+                            />
+                          </div>
+                          <div className="flex gap-3">
+                            <button type="button" onClick={handleDeleteAccount}
+                              className="flex-[2] rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 py-3 text-xs font-black text-white uppercase tracking-widest shadow-lg shadow-rose-600/20 active:scale-95 transition-all">
+                              EXCLUIR AGORA
+                            </button>
+                            <button type="button" onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); }}
+                              className="flex-1 rounded-xl bg-slate-100 py-3 text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom Actions */}
+          <div className="animate-fadeInUp pt-4 border-t border-slate-100" style={{ animationDelay: '200ms' }}>
+            {editMode ? (
+              <div className="flex gap-4">
                 <button
                   type="button"
-                  onClick={() => router.push('/admin/notifications')}
-                  className="w-full"
+                  onClick={() => { setEditMode(false); loadTutorData(); }}
+                  disabled={saving}
+                  className="flex-1 py-4 rounded-2xl text-sm font-black text-slate-400 hover:bg-slate-50 transition-colors uppercase tracking-widest"
                 >
-                  <div className="w-full rounded-2xl border border-gray-200 bg-gray-50/80 p-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">Gerenciamento de interações</p>
-                      <p className="mt-0.5 text-xs text-gray-500">
-                        As notificações são controladas pelo sistema central do PETMOL.
-                      </p>
-                    </div>
-                    <span className="text-xs font-medium text-[#0056D2]">Abrir painel master</span>
-                  </div>
+                  Cancelar
+                </button>
+                <button type="button" onClick={handleSave} disabled={saving}
+                  className="flex-[1.5] py-4 rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-sm font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3">
+                  {saving ? (
+                    <div className="w-5 h-5 border-3 border-white/20 border-t-white rounded-full animate-spin" />
+                  ) : 'Salvar Dados'}
                 </button>
               </div>
-            </>
-          )}
-        </div>
-
-        {/* Mais opções */}
-        <div className={G}>
-          <button
-            type="button"
-            onClick={() => setMoreOpen((v) => !v)}
-            className={`${ROW} flex w-full items-center justify-between`}
-          >
-            <span className="text-sm font-medium text-gray-800">Mais opções</span>
-            <span className={`text-gray-400 text-xs transition-transform ${moreOpen ? 'rotate-180' : ''}`}>▾</span>
-          </button>
-
-          {moreOpen && (
-            <>
-              {/* Danger zone — Núcleo familiar movido para V1 */}
-              <div className={ROW}>
-                <p className="text-xs font-semibold text-rose-700 uppercase tracking-wide mb-2">Zona de perigo</p>
-                <p className="text-xs text-gray-500 mb-3">Excluir a conta remove seus dados permanentemente.</p>
-                {!showDeleteConfirm ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="w-full rounded-xl border border-rose-300 py-2.5 text-sm font-semibold text-rose-700 hover:bg-rose-50 transition-colors"
-                  >
-                    Excluir minha conta
-                  </button>
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-xs text-rose-800 font-medium">Digite sua senha para confirmar:</p>
-                    <input
-                      type="password"
-                      value={deletePassword}
-                      onChange={(e) => setDeletePassword(e.target.value)}
-                      placeholder="Sua senha"
-                      className="w-full px-4 py-3 border border-rose-200 rounded-xl text-sm outline-none bg-white focus:ring-2 focus:ring-rose-400"
-                    />
-                    <div className="flex gap-2">
-                      <button type="button" onClick={handleDeleteAccount}
-                        className="flex-1 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white">
-                        Confirmar exclusão
-                      </button>
-                      <button type="button" onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); }}
-                        className="flex-1 rounded-xl bg-gray-100 py-2.5 text-sm font-medium text-gray-700">
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                )}
+            ) : (
+              <div className="flex flex-col items-center gap-3">
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent('Olá, preciso de ajuda com o PETMOL.')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#0056D2] text-[10px] font-black uppercase tracking-[0.3em] hover:text-[#0047ad] transition-colors py-1"
+                >
+                  Ajuda via WhatsApp
+                </a>
+                <button
+                  onClick={() => {
+                    clearToken();
+                    localStorage.clear();
+                    router.push('/login');
+                  }}
+                  className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] hover:text-rose-500 transition-colors py-2"
+                >
+                  Desconectar da Conta
+                </button>
               </div>
-            </>
-          )}
-        </div>
-
-        {/* CTA */}
-        {!editMode ? (
-          <button type="button" onClick={() => setEditMode(true)} className={CTA}>
-            Editar perfil
-          </button>
-        ) : (
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => { setEditMode(false); loadTutorData(); }}
-              disabled={saving}
-              className="flex-1 py-3.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 bg-white disabled:opacity-40"
-            >
-              Cancelar
-            </button>
-            <button type="button" onClick={handleSave} disabled={saving}
-              className={`flex-1 ${CTA}`}>
-              {saving ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                  Salvando…
-                </span>
-              ) : 'Salvar'}
-            </button>
+            )}
           </div>
-        )}
+        </div>
+        
+        <p className="mt-8 text-white/40 text-[10px] font-black uppercase tracking-[0.3em] font-mono">PETMOL CORE SYNC</p>
       </div>
-    </div>
+    </BrandBackground>
   );
 }

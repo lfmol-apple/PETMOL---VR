@@ -221,6 +221,69 @@ def update_rg(
     return rg
 
 
+@router.post("/{pet_public_id}/revoke", response_model=RGPublicOut)
+def revoke_rg(
+    pet_public_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Revoga o QR/RG público sem apagar o histórico interno do pet."""
+    rg = db.query(RGPublic).filter(
+        RGPublic.pet_public_id == pet_public_id,
+        RGPublic.owner_user_id == current_user.id
+    ).first()
+
+    if not rg:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="RG não encontrado"
+        )
+
+    rg.is_public = False
+    rg.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(rg)
+    return rg
+
+
+@router.post("/{pet_public_id}/regenerate", response_model=RGCreateResponse)
+def regenerate_rg(
+    pet_public_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Gera novo pet_public_id e invalida a URL antiga."""
+    rg = db.query(RGPublic).filter(
+        RGPublic.pet_public_id == pet_public_id,
+        RGPublic.owner_user_id == current_user.id
+    ).first()
+
+    if not rg:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="RG não encontrado"
+        )
+
+    while True:
+        new_public_id = generate_short_id(8)
+        exists = db.query(RGPublic).filter(
+            RGPublic.pet_public_id == new_public_id
+        ).first()
+        if not exists:
+            break
+
+    rg.pet_public_id = new_public_id
+    rg.is_public = True
+    rg.updated_at = datetime.utcnow()
+    db.commit()
+
+    public_url = f"https://petmol.com/p/{new_public_id}"
+    return RGCreateResponse(
+        pet_public_id=new_public_id,
+        public_url=public_url
+    )
+
+
 @router.get("/{pet_public_id}/stats", response_model=RGStatsResponse)
 def get_rg_stats(
     pet_public_id: str,

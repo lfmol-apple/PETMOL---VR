@@ -17,8 +17,6 @@ interface EmergencyPageProps {
 
 async function getEmergencyInfo(code: string): Promise<EmergencyShare | null> {
   try {
-    // TODO: Fetch from Supabase (public API)
-    // For now, return mock data
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/shares/emergency/${code}`, {
       cache: 'no-store',
     });

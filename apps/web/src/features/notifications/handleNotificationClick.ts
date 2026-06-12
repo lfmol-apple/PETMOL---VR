@@ -23,45 +23,21 @@ function resolveClickUrl(
   type: string,
   petId: string,
 ): string {
-  const params = new URLSearchParams({ petId });
-
-  // Mapear type (careKey) para action_target parcial
-  const healthRouteMap: Record<string, string> = {
-    vaccines: 'health/vaccines',
-    medication: 'health/medication',
-    dewormer: 'health/parasites/dewormer',
-    flea_tick: 'health/parasites/flea_tick',
-    collar: 'health/parasites/collar',
-    food: 'health/food',
-    grooming: 'health/grooming',
-    emergency: 'health/eventos',
-    documents: 'home',
+  const modalMap: Record<string, string> = {
+    vaccines: 'vaccines',
+    medication: 'medication',
+    dewormer: 'vermifugo',
+    flea_tick: 'antipulgas',
+    collar: 'coleira',
+    food: 'food',
+    grooming: 'grooming',
+    emergency: 'eventos',
+    documents: 'health',
   };
 
-  const healthRoute = healthRouteMap[type] ?? 'home';
-
-  switch (destination) {
-    case 'purchase':
-      // Abre fluxo de compra contextual
-      return `/buy?${params}&from=${healthRoute}`;
-
-    case 'register':
-      // Abre modal/aba de registro no módulo de saúde
-      return `/${healthRoute}?${params}&mode=register`;
-
-    case 'edit':
-      return `/${healthRoute}?${params}&mode=edit`;
-
-    case 'history':
-      return `/${healthRoute}?${params}&view=history`;
-
-    case 'central':
-      return `/home?openCenter=1&${params}`;
-
-    case 'detail':
-    default:
-      return `/${healthRoute}?${params}`;
-  }
+  const params = new URLSearchParams({ modal: modalMap[type] ?? 'health', petId });
+  if (destination === 'purchase') params.set('buy', '1');
+  return `/home?${params}`;
 }
 
 // ---------------------------------------------------------------------------

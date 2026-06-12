@@ -174,7 +174,6 @@ export function RemindersSection({
 
   const inactiveSet = new Set<HomeInactiveEligibleControlId>(inactiveControls);
   const upcomingReminders = canonicalReminders.filter((reminder) => {
-    if (reminder.diff < 0) return false;
     // V-L: grooming e food removidos da superfície de lançamento
     if (reminder.domain === 'grooming') return false;
     if (reminder.domain === 'food') return false;
@@ -238,7 +237,7 @@ export function RemindersSection({
       {sorted.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between mb-1">
-            <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">📋 Próximos Lembretes de {currentPet?.pet_name}</p>
+            <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">📋 Lembretes e Cuidados de {currentPet?.pet_name}</p>
             <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{sorted.length}</span>
           </div>
           {sorted.map((c, i) => {

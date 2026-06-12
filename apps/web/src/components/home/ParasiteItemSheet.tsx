@@ -5,9 +5,13 @@ import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import type { ParasiteControl } from '@/lib/types/home';
 import { trackPartnerClicked, trackV1Metric } from '@/lib/v1Metrics';
+import { HOME_SHOPPING_PARTNERS, openHomeShoppingPartner } from '@/features/commerce/homeShoppingPartners';
 import { ModalPortal } from '@/components/ModalPortal';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
+import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
+import type { ProductCategory, ScannedProduct } from '@/lib/productScanner';
+import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 
 // ── Config por tipo ──────────────────────────────────────────────────────────
 const CONFIG = {
@@ -84,14 +88,27 @@ function getNextDate(ctrl: ParasiteControl): string | null {
   return ctrl.collar_expiry_date || ctrl.next_due_date || null;
 }
 
+function hasLaterParasiteRecord(records: ParasiteControl[], record: ParasiteControl): boolean {
+  const recordTime = new Date(record.date_applied).getTime();
+  return records.some((candidate) => {
+    if (candidate.id === record.id) return false;
+    const candidateTime = new Date(candidate.date_applied).getTime();
+    return !Number.isNaN(candidateTime) && (Number.isNaN(recordTime) || candidateTime > recordTime);
+  });
+}
+
 function computeStatus(nextDate?: string | null) {
   const diff = diffDays(nextDate);
-  if (diff === null) return { label: 'Sem dados', bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400' };
-  if (diff < 0)      return { label: `Vencido há ${Math.abs(diff)} dia${Math.abs(diff) !== 1 ? 's' : ''}`, bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' };
-  if (diff === 0)    return { label: 'Vence hoje!', bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' };
-  if (diff <= 7)     return { label: `Vence em ${diff} dias`, bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' };
-  if (diff <= 14)    return { label: `Em ${diff} dias`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' };
-  return { label: `Em ${diff} dias`, bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' };
+  if (diff === null) return { label: 'Sem dados', bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400', isOverdue: false, overdueDays: 0 };
+  if (diff < 0) {
+    const days = Math.abs(diff);
+    const label = days > 90 ? 'REVISÃO RECOMENDADA' : `ATRASADO ${days} dia${days !== 1 ? 's' : ''}`;
+    return { label, bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500', isOverdue: true, overdueDays: days };
+  }
+  if (diff === 0)    return { label: 'HOJE', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', isOverdue: false, overdueDays: 0 };
+  if (diff <= 7)     return { label: 'EM BREVE', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', isOverdue: false, overdueDays: 0 };
+  if (diff <= 14)    return { label: `Em ${diff} dias`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500', isOverdue: false, overdueDays: 0 };
+  return { label: `Em ${diff} dias`, bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', isOverdue: false, overdueDays: 0 };
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -99,10 +116,13 @@ interface ParasiteItemSheetProps {
   type: 'dewormer' | 'flea_tick' | 'collar';
   petId: string;
   petName?: string;
+  petSpecies?: string;
+  petPhotoUrl?: string | null;
   /** Controls already filtered by this.type, passed from parent */
   parasiteControls: ParasiteControl[];
   onClose: () => void;
   onRefresh: () => Promise<void>;
+  initialMode?: 'view' | 'buy';
 }
 
 type ViewMode = 'view' | 'apply' | 'edit' | 'buy';
@@ -112,17 +132,27 @@ export function ParasiteItemSheet({
   type,
   petId,
   petName,
+  petSpecies,
+  petPhotoUrl,
   parasiteControls,
   onClose,
   onRefresh,
+  initialMode,
 }: ParasiteItemSheetProps) {
   const cfg = CONFIG[type];
-  const [mode, setMode] = useState<ViewMode>('view');
+  const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
+  const [mode, setMode] = useState<ViewMode>(initialMode === 'buy' ? 'buy' : 'view');
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(true);
   const [historyShowAll, setHistoryShowAll] = useState(false);
+
+  useEffect(() => {
+    void onRefresh();
+    // onRefresh is intentionally excluded to avoid effect loops when parent recreates callbacks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [petId, type]);
 
   // Sorted most-recent-first
   const sorted = [...parasiteControls].sort(
@@ -151,11 +181,11 @@ export function ParasiteItemSheet({
         cost: '',
         notes: '',
         frequency_days: String(cfg.defaultFrequency),
-        reminder_days: '3',
-        reminder_time: '09:00',
+        reminder_days: String((current as unknown as Record<string, unknown> | null)?.alert_days_before ?? 3),
+        reminder_time: String((current as unknown as Record<string, unknown> | null)?.reminder_time ?? '09:00'),
       });
     }
-  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, current, cfg.defaultFrequency]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Edit form ─────────────────────────────────────────────────────────────
   const [editRecord, setEditRecord] = useState<ParasiteControl | null>(null);
@@ -177,15 +207,52 @@ export function ParasiteItemSheet({
     setTimeout(() => setToast(null), 2800);
   }
 
+  function expectedCategoryForType(): ProductCategory {
+    if (type === 'dewormer') return 'dewormer';
+    if (type === 'collar') return 'collar';
+    return 'antiparasite';
+  }
+
+  function applyScannedProduct(product: ScannedProduct) {
+    setApplyForm(f => ({
+      ...f,
+      product_name: [product.brand, product.name].filter(Boolean).join(' ').trim() || f.product_name,
+      notes: [
+        f.notes,
+        product.barcode ? `EAN/GTIN: ${product.barcode}` : '',
+        product.category ? `Categoria: ${product.category}` : '',
+      ].filter(Boolean).join('\n'),
+    }));
+    if (!product.found) showToast('Não encontramos os dados. Preencha manualmente.');
+  }
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('petmol_pending_scanned_product');
+      if (!raw) return;
+      const payload = JSON.parse(raw) as { petId?: string; product?: ScannedProduct };
+      const product = payload.product;
+      if (!product || payload.petId !== petId) return;
+      const expected = expectedCategoryForType();
+      const matches =
+        product.category === expected ||
+        (type === 'flea_tick' && product.category === 'antiparasite');
+      if (!matches) return;
+      setMode('apply');
+      applyScannedProduct(product);
+      sessionStorage.removeItem('petmol_pending_scanned_product');
+    } catch { /* silent */ }
+  }, [petId, type]);
+
   async function handleApply() {
     if (!applyForm.date || !applyForm.product_name.trim()) {
-      alert('Preencha data e produto.');
+      showToast('⚠️ Preencha data e produto.');
       return;
     }
     setSaving(true);
     try {
       const token = getToken();
-      if (!token) { alert('Sessão expirada. Faça login novamente.'); return; }
+      if (!token) { showToast('⚠️ Sessão expirada. Faça login novamente.'); return; }
 
       const freq = parseInt(applyForm.frequency_days, 10) || cfg.defaultFrequency;
       const computedNext = addDays(applyForm.date, freq);
@@ -244,9 +311,22 @@ export function ParasiteItemSheet({
 
         showToast('✅ Registrado com sucesso!');
         setMode('view');
+        // Track product usage for recurring product suggestions
+        try {
+          const usageKey = `petmol_product_usage_${petId}_${type}`;
+          const existing = JSON.parse(localStorage.getItem(usageKey) || '[]') as Array<{ name: string; count: number; lastUsed: string }>;
+          const name = applyForm.product_name.trim();
+          if (name) {
+            const found = existing.find(item => item.name.toLowerCase() === name.toLowerCase());
+            if (found) { found.count += 1; found.lastUsed = applyForm.date; }
+            else existing.push({ name, count: 1, lastUsed: applyForm.date });
+            existing.sort((a, b) => b.count - a.count || b.lastUsed.localeCompare(a.lastUsed));
+            localStorage.setItem(usageKey, JSON.stringify(existing));
+          }
+        } catch { /* silent */ }
         await onRefresh();
       } else {
-        alert('Erro ao salvar. Tente novamente.');
+        showToast('❌ Erro ao salvar. Tente novamente.');
       }
     } finally {
       setSaving(false);
@@ -271,13 +351,16 @@ export function ParasiteItemSheet({
 
   async function handleSaveEdit() {
     if (!editRecord || !editForm.date_applied || !editForm.product_name.trim()) {
-      alert('Preencha data e produto.');
+      showToast('⚠️ Preencha data e produto.');
       return;
     }
     setSaving(true);
     try {
       const token = getToken();
-      if (!token) return;
+      if (!token) {
+        showToast('⚠️ Sessão expirada. Faça login novamente.');
+        return;
+      }
       const res = await fetch(`${API_BASE_URL}/pets/${petId}/parasites/${editRecord.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -300,7 +383,8 @@ export function ParasiteItemSheet({
         setEditRecord(null);
         await onRefresh();
       } else {
-        alert('Erro ao atualizar. Tente novamente.');
+        const errorText = await res.text().catch(() => '');
+        showToast(`❌ Erro ao atualizar (${res.status}). ${errorText || 'Tente novamente.'}`);
       }
     } finally {
       setSaving(false);
@@ -310,7 +394,10 @@ export function ParasiteItemSheet({
   async function handleDelete(id: string) {
     setConfirmDeleteId(null);
     const token = getToken();
-    if (!token) return;
+    if (!token) {
+      showToast('⚠️ Sessão expirada. Faça login novamente.');
+      return;
+    }
     const res = await fetch(`${API_BASE_URL}/pets/${petId}/parasites/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
@@ -318,73 +405,101 @@ export function ParasiteItemSheet({
     if (res.ok) {
       showToast('🗑️ Registro removido');
       await onRefresh();
+    } else {
+      const errorText = await res.text().catch(() => '');
+      showToast(`❌ Erro ao remover (${res.status}). ${errorText || 'Tente novamente.'}`);
     }
   }
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
-  const inputCls = `w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 ${cfg.colorRing}`;
-  const labelCls = 'block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5';
+  const inputCls = `w-full prime-input text-gray-800 ${cfg.colorRing}`;
+  const labelCls = 'block text-[10px] font-black text-gray-400 uppercase tracking-[0.16em] mb-1.5 ml-1';
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <ModalPortal>
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-md backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[3px] transition-opacity duration-300" onClick={onClose} />
 
       {/* Sheet */}
       <div
-        className="relative w-full max-w-lg bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 flex flex-col overflow-hidden"
-        style={{ maxHeight: '92dvh' }}
+        className="relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-[28px] shadow-2xl border-t border-x sm:border border-gray-200/70 flex flex-col overflow-hidden animate-slideUp sm:animate-scaleIn h-[90vh] sm:h-auto sm:max-h-[90dvh]"
         onClick={e => e.stopPropagation()}
       >
+        {/* Prime Handle Bar (Desktop/Mobile) */}
+        <div className="sheet-handle my-3 opacity-40" />
 
         {/* Header */}
-        <div className={`px-5 pt-4 pb-3 ${cfg.colorLight} border-b border-gray-100 flex-shrink-0`}>
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-white shadow-sm flex items-center justify-center text-xl flex-shrink-0">
-              {cfg.icon}
+        <div className={`px-5 pt-2 pb-4 ${cfg.colorLight} border-b border-gray-100 flex-shrink-0 relative overflow-hidden`}>
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="w-12 h-12 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-2xl flex-shrink-0 ring-1 ring-black/5">
+              {petPhotoSrc ? (
+                <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
+              ) : (
+                <span>{petSpecies === 'cat' ? '🐱' : '🐶'}</span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <h2 className="text-[16px] font-bold text-gray-900 leading-tight whitespace-nowrap">{cfg.title}</h2>
-                {petName && <span className="text-sm text-gray-400 truncate">· {petName}</span>}
+              <div className="flex items-center gap-2 min-w-0">
+                <h2 className="text-[17px] font-black text-gray-900 leading-tight tracking-tight">{cfg.title}</h2>
               </div>
-              <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${status.dot}`} />
+              {petName && (
+                <p className="mt-1.5">
+                <span className="inline-flex max-w-full items-center px-2.5 py-1 rounded-full bg-white text-gray-800 text-xs font-bold shadow-sm border border-white/90 whitespace-normal break-all leading-tight">
+                    {petName}
+                  </span>
+                </p>
+              )}
+              <div className="flex items-center gap-2 mt-1 min-w-0">
+                <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${status.dot} ring-2 ring-white`} />
                 <span className={`text-[13px] font-semibold ${status.text} truncate`}>{status.label}</span>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
-              aria-label="Fechar"
-            >
-              ✕
-            </button>
+            {mode !== 'view' ? (
+              <button
+                type="button"
+                onClick={() => { setMode('view'); setEditRecord(null); }}
+                onTouchEnd={() => { setMode('view'); setEditRecord(null); }}
+                className="relative z-10 pointer-events-auto w-10 h-10 rounded-full bg-white/60 backdrop-blur-md flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-white shadow-sm flex-shrink-0 transition-all active:scale-90"
+                aria-label="Voltar"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-5 h-5">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className="relative z-10 pointer-events-auto w-10 h-10 rounded-full bg-white/60 backdrop-blur-md flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-white shadow-sm flex-shrink-0 transition-all active:scale-90"
+                aria-label="Fechar"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1 overscroll-contain">
+        <div className="overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
           {mode === 'view' && (
             <div className="p-5 space-y-3 pb-8">
 
-              {/* Active product card — product, status and next application at a glance */}
+              {/* Active product card */}
               {current && (() => {
                 const urgentBorder =
-                  status.dot === 'bg-red-500' ? 'border-red-300 bg-red-50' :
-                  status.dot === 'bg-orange-500' ? 'border-orange-300 bg-orange-50' :
+                  status.dot === 'bg-rose-500' ? 'border-rose-200 bg-rose-50' :
+                  status.dot === 'bg-amber-500' ? 'border-amber-200 bg-amber-50' :
                   status.dot === 'bg-yellow-500' ? 'border-yellow-200 bg-yellow-50' :
                   `${cfg.colorBorder} ${cfg.colorLight}`;
                 const statusPill =
-                  status.dot === 'bg-red-500' ? 'bg-red-100 text-red-700' :
-                  status.dot === 'bg-orange-500' ? 'bg-orange-100 text-orange-700' :
+                  status.dot === 'bg-rose-500' ? 'bg-rose-100 text-rose-700' :
+                  status.dot === 'bg-amber-500' ? 'bg-amber-100 text-amber-700' :
                   status.dot === 'bg-yellow-500' ? 'bg-yellow-100 text-yellow-700' :
                   'bg-emerald-100 text-emerald-700';
                 return (
@@ -394,12 +509,19 @@ export function ParasiteItemSheet({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Produto atual</p>
-                      <p className={`text-[13px] font-bold ${cfg.colorAccent} truncate`}>{current.product_name}</p>
+                      <p className={`text-[13px] font-bold ${cfg.colorAccent} leading-tight break-words`}>{current.product_name}</p>
                       <p className="text-[11px] text-gray-500 leading-tight">
                         Aplicado {fmtDate(current.date_applied)}
                       </p>
                       <p className="text-[11px] leading-tight text-gray-500">
-                        {nextDate ? <>Próxima {type === 'collar' ? 'troca' : 'aplicação'} <span className={`font-semibold ${status.text}`}>· {fmtDate(nextDate)}</span></> : 'Sem próxima data definida'}
+                        {nextDate
+                          ? status.isOverdue
+                            ? <>
+                                <span className="font-semibold text-rose-700">Era para aplicar em {fmtDate(nextDate)}</span>
+                                {status.overdueDays <= 90 && <> · <span className="text-rose-600">atrasado há {status.overdueDays} dia{status.overdueDays !== 1 ? 's' : ''}</span></>}
+                              </>
+                            : <>Próxima {type === 'collar' ? 'troca' : 'aplicação'} <span className={`font-semibold ${status.text}`}>· {fmtDate(nextDate)}</span></>
+                          : 'Sem próxima data definida'}
                       </p>
                     </div>
                     <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${statusPill}`}>{status.label}</span>
@@ -407,41 +529,42 @@ export function ParasiteItemSheet({
                 );
               })()}
 
-              {/* Main CTA — always dominant */}
-              <button
-                onClick={() => setMode('buy')}
-                className="w-full py-4 rounded-2xl text-[15px] font-bold text-white shadow-[0_14px_30px_rgba(29,78,216,0.34)] transition-all bg-gradient-to-br from-blue-800 via-blue-600 to-sky-500 border border-blue-400/70 border-l-4 border-l-sky-100 hover:shadow-[0_18px_34px_rgba(29,78,216,0.42)] hover:brightness-105"
-              >
-                <span className="mr-2 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-white ring-1 ring-blue-200/80 shadow-sm align-middle">
-                  <span className="text-[18px] leading-none">🛒</span>
-                </span>
-                Preciso comprar
-              </button>
-
-              {/* Secondary actions — compact and wrap-friendly */}
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setMode('apply')}
-                  className={`min-w-[132px] flex-1 py-3 rounded-2xl text-sm font-semibold shadow-sm active:opacity-70 ${cfg.colorBtn}`}
-                >
-                  <span className="mr-1.5">{cfg.icon}</span>
-                  {cfg.ctaLabel}
-                </button>
-                <button
-                  onClick={() => current ? startEdit(current) : setMode('apply')}
-                  className={`min-w-[132px] flex-1 py-3 rounded-2xl text-sm font-semibold active:opacity-70 ${cfg.colorLight} ${cfg.colorAccent} border ${cfg.colorBorder}`}
-                >
-                  ✏️ Editar
-                </button>
-              </div>
-
-              {/* Empty state — only shown when no records */}
+              {/* Empty state */}
               {!current && (
                 <div className="rounded-2xl border border-gray-100 bg-gray-50 p-8 text-center">
                   <p className="text-4xl mb-3">{cfg.icon}</p>
                   <p className="text-sm font-semibold text-gray-600">Nenhum registro encontrado</p>
-                  <p className="text-xs text-gray-400 mt-1">Registre a primeira aplicação acima</p>
+                  <p className="text-xs text-gray-400 mt-1">Registre a primeira aplicação abaixo</p>
                 </div>
+              )}
+
+              {/* Ação principal — Registrar aplicação (Resolver) */}
+              <button
+                onClick={() => setMode('apply')}
+                className={`w-full py-4 rounded-2xl text-[16px] font-black shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 ${cfg.colorBtn}`}
+              >
+                Registrar aplicação
+              </button>
+
+              {/* Ação secundária — Comprar novamente (menor peso visual) */}
+              {current && (
+                <button
+                  onClick={() => setMode('buy')}
+                  className="w-full py-3 rounded-2xl bg-white border border-sky-200 text-sky-700 text-[13px] font-semibold active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                  <span>🛒</span>
+                  Comprar novamente
+                </button>
+              )}
+
+              {/* Ação terciária — Editar (mínimo peso visual) */}
+              {current && (
+                <button
+                  onClick={() => startEdit(current)}
+                  className="w-full py-2 text-[11px] font-medium text-gray-400 hover:text-gray-600 transition-colors text-center"
+                >
+                  Editar registro
+                </button>
               )}
 
               {/* History — collapsed accordion */}
@@ -461,15 +584,25 @@ export function ParasiteItemSheet({
                   {historyExpanded && (
                     <div className="divide-y divide-gray-100 border-t border-gray-100">
                       {(historyShowAll ? sorted : sorted.slice(0, 2)).map((rec, i) => (
+                        (() => {
+                          const isHistory = hasLaterParasiteRecord(sorted, rec);
+                          return (
                         <div
                           key={rec.id}
                           className="flex items-center gap-3 px-4 py-2.5"
                         >
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${i === 0 ? cfg.colorLight : 'bg-gray-100'}`}>
-                            {i === 0 ? cfg.icon : '·'}
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${!isHistory ? cfg.colorLight : 'bg-gray-100'}`}>
+                            {!isHistory ? cfg.icon : '·'}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-800 truncate">{rec.product_name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold text-gray-800 truncate">{rec.product_name}</p>
+                              {!isHistory && diffDays(getNextDate(rec)) !== null && diffDays(getNextDate(rec))! < 0 && (
+                                <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm border border-white/50 flex-shrink-0">
+                                  !
+                                </div>
+                              )}
+                            </div>
                             <p className="text-xs text-gray-400">
                               {fmtDate(rec.date_applied)}
                               {rec.cost != null ? ` · ${fmtCurrency(rec.cost)}` : ''}
@@ -493,6 +626,8 @@ export function ParasiteItemSheet({
                             </button>
                           </div>
                         </div>
+                          );
+                        })()
                       ))}
                       {!historyShowAll && sorted.length > 2 && (
                         <button
@@ -513,12 +648,22 @@ export function ParasiteItemSheet({
           {mode === 'apply' && (
             <div className="p-5 pb-8 space-y-4">
               <button
+                type="button"
                 onClick={() => setMode('view')}
+                onTouchEnd={() => setMode('view')}
                 className="flex items-center gap-2 text-gray-500 hover:text-gray-800 text-sm font-medium mb-1"
               >
                 ‹ Voltar
               </button>
               <h3 className="text-[16px] font-bold text-gray-900">{cfg.ctaLabel}</h3>
+
+              <ProductBarcodeScanner
+                label="Escanear produto"
+                expectedCategory={expectedCategoryForType()}
+                petId={petId}
+                petName={petName}
+                onProductConfirmed={applyScannedProduct}
+              />
 
               <div>
                 <label className={labelCls}>Data *</label>
@@ -591,7 +736,9 @@ export function ParasiteItemSheet({
           {mode === 'edit' && editRecord && (
             <div className="p-5 pb-8 space-y-4">
               <button
+                type="button"
                 onClick={() => { setMode('view'); setEditRecord(null); }}
+                onTouchEnd={() => { setMode('view'); setEditRecord(null); }}
                 className="flex items-center gap-2 text-gray-500 hover:text-gray-800 text-sm font-medium mb-1"
               >
                 ‹ Voltar
@@ -663,39 +810,46 @@ export function ParasiteItemSheet({
           {mode === 'buy' && (
             <div className="p-5 pb-8 space-y-4">
               <button
+                type="button"
                 onClick={() => setMode('view')}
+                onTouchEnd={() => setMode('view')}
                 className="flex items-center gap-2 text-gray-500 hover:text-gray-800 text-sm font-medium mb-1"
               >
                 ‹ Voltar
               </button>
-              <h3 className="text-[16px] font-bold text-gray-900">Onde comprar</h3>
-              <p className="text-sm text-gray-500">Escolha onde encontrar {cfg.title.toLowerCase()}:</p>
+
+              <div className="flex items-center gap-3 mb-1">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <span className="text-[20px] leading-none">🛍️</span>
+                </div>
+                <div>
+                  <h3 className="text-[16px] font-bold text-gray-900">Compras Pet</h3>
+                  <p className="text-xs text-gray-500">Escolha onde comprar</p>
+                </div>
+              </div>
 
               <div className="space-y-3">
-                {[
-                  { name: 'Cobasi', url: 'https://www.cobasi.com.br', emoji: '🐾' },
-                  { name: 'Petz', url: 'https://www.petz.com.br', emoji: '🐕' },
-                  { name: 'Petlove', url: 'https://www.petlove.com.br', emoji: '❤️' },
-                  { name: 'Amazon Pet', url: 'https://www.amazon.com.br/s?k=pet+saude', emoji: '📦' },
-                ].map(store => (
+                {HOME_SHOPPING_PARTNERS.map(partner => (
                   <button
-                    key={store.name}
+                    key={partner.id}
                     onClick={() => {
                       trackPartnerClicked({
                         source: 'parasite_sheet',
-                        partner: store.name.toLowerCase(),
+                        partner: partner.id,
                         pet_id: petId,
                         control_type: type,
                         product_name: current?.product_name ?? null,
                       });
-                      window.open(store.url, '_blank', 'noopener,noreferrer');
+                      void openHomeShoppingPartner(partner.id);
                     }}
-                    className="w-full flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left"
+                    className="w-full flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-2xl hover:shadow-md active:scale-[0.98] transition-all text-left"
                   >
-                    <span className="text-2xl">{store.emoji}</span>
+                    <div className="w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center bg-white border border-gray-100 flex-shrink-0 p-1">
+                      <img src={partner.logoSrc} alt={partner.logoAlt} className="w-full h-full object-contain" loading="lazy" decoding="async" />
+                    </div>
                     <div className="flex-1">
-                      <p className="font-bold text-gray-900 text-sm">{store.name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Comprar {cfg.title.toLowerCase()}</p>
+                      <p className="font-bold text-gray-900 text-sm">{partner.name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{partner.description}</p>
                     </div>
                     <span className="text-gray-400 text-lg">›</span>
                   </button>

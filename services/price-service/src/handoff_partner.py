@@ -63,23 +63,33 @@ def _no_url_response(partner: str) -> JSONResponse:
 
 @router.get("/shop", response_model=None)
 def handoff_shop(
-    partner: str = Query(default="petz", description="petz | cobasi"),
+    partner: str = Query(default="petz", description="petz | cobasi | petlove | amazon"),
     lead_id: Optional[str] = Query(default=None),
     dest: Optional[str] = Query(default=None, description="URL destino override (ignorado em prod se affiliate URL configurada)"),
+    q: Optional[str] = Query(default=None, description="Query de busca contextual (ex: marca de ração)"),
     db: Session = Depends(get_db),
 ) -> Union[RedirectResponse, JSONResponse]:
     """Redireciona para loja parceira com tracking de lead.
 
-    - partner=petz   → PETZ_AFFILIATE_URL
-    - partner=cobasi → COBASI_AFFILIATE_URL
+    - partner=petz    → PETZ_AFFILIATE_URL
+    - partner=cobasi  → COBASI_AFFILIATE_URL
+    - partner=petlove → PETLOVE_DOG_LIFE_URL
+    - q=brand         → appends ?q=brand to affiliate URL for contextual search
     - Se URL não configurada → 503 JSON (não 500)
     """
+    from urllib.parse import quote as _quote
     settings = get_settings()
 
     partner = partner.lower().strip()
     if partner == "cobasi":
         affiliate_url = settings.cobasi_affiliate_url or dest
         target = "cobasi"
+    elif partner == "petlove":
+        affiliate_url = settings.petlove_dog_life_url or dest
+        target = "petlove"
+    elif partner == "amazon":
+        affiliate_url = getattr(settings, "amazon_affiliate_url", None) or dest or "https://www.amazon.com.br/s?k=pet+shop"
+        target = "amazon"
     else:
         # default: petz
         affiliate_url = settings.petz_affiliate_url or dest
@@ -89,6 +99,11 @@ def handoff_shop(
 
     if not affiliate_url:
         return _no_url_response(partner)
+
+    # Append contextual search query when provided
+    if q and q.strip():
+        sep = "&" if "?" in affiliate_url else "?"
+        affiliate_url = f"{affiliate_url}{sep}q={_quote(q.strip())}"
 
     return RedirectResponse(url=affiliate_url, status_code=302)
 

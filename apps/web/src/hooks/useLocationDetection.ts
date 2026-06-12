@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useI18n } from '@/lib/I18nContext';
 import { defaultLocaleForCountry, isValidLocale, localeNames } from '@/lib/i18n';
+import { requestUserConfirmation, showBlockingNotice } from '@/features/interactions/userPromptChannel';
 
 const STORAGE_KEY_LAST_COUNTRY = 'petmol_last_detected_country';
 const CHECK_INTERVAL = 5 * 60 * 1000; // Verifica a cada 5 minutos
@@ -109,11 +110,16 @@ export function useLocationDetection() {
           const countryName = countryNames[newCountry]?.[locale] || newCountry;
           const languageName = localeNames[newLocale] || newLocale;
           
-          const userWantsChange = confirm(
+          const userWantsChange = await requestUserConfirmation(
             `🌍 Bem-vindo!\n\n` +
             `Detectamos que você está em: ${countryName}\n\n` +
             `Gostaria de usar o app em ${languageName}?\n\n` +
-            `(Você pode mudar depois no menu de idiomas)`
+            `(Você pode mudar depois no menu de idiomas)`,
+            {
+              title: 'Idioma do app',
+              confirmLabel: 'Mudar idioma',
+              cancelLabel: 'Manter atual',
+            },
           );
           
           if (userWantsChange) {
@@ -142,18 +148,23 @@ export function useLocationDetection() {
       const languageName = localeNames[newLocale] || newLocale;
 
       // Sempre pergunta ao usuário se quer mudar o idioma
-      const userWantsChange = confirm(
+      const userWantsChange = await requestUserConfirmation(
         `✈️ Viagem Internacional Detectada!\n\n` +
         `De: ${oldCountryName} → Para: ${countryName}\n\n` +
         `Deseja mudar o idioma do app para ${languageName}?\n\n` +
-        `(Ideal para buscar clínicas e serviços locais)`
+        `(Ideal para buscar clínicas e serviços locais)`,
+        {
+          title: 'Idioma local',
+          confirmLabel: 'Mudar idioma',
+          cancelLabel: 'Manter atual',
+        },
       );
 
       if (userWantsChange) {
         setCountry(newCountry);
         setLocale(newLocale);
         console.log('✅ Idioma alterado para:', newLocale);
-        alert(`✅ App configurado para ${countryName}!\n\nAgora você pode buscar clínicas veterinárias locais.`);
+        showBlockingNotice(`App configurado para ${countryName}!`);
       } else {
         console.log('👤 Usuário optou por manter idioma atual');
       }

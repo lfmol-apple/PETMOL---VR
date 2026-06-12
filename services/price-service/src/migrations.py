@@ -38,6 +38,14 @@ def _pg_add_column_if_missing(conn, table: str, column: str, ddl_type: str) -> b
     return True
 
 
+def _pg_column_type(conn, table: str, column: str) -> str | None:
+    row = conn.execute(text(
+        "SELECT data_type FROM information_schema.columns "
+        "WHERE table_name = :t AND column_name = :c"
+    ), {"t": table, "c": column}).fetchone()
+    return str(row[0]).lower() if row and row[0] is not None else None
+
+
 def run_pg_migrations(engine: Engine) -> None:
     """Run additive, idempotent migrations for PostgreSQL."""
     if engine.dialect.name not in ("postgresql", "postgres"):
@@ -51,6 +59,22 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "vaccine_records", "vaccine_code", "TEXT")
         _pg_add_column_if_missing(conn, "vaccine_records", "country_code", "TEXT")
         _pg_add_column_if_missing(conn, "vaccine_records", "next_due_source", "TEXT DEFAULT 'unknown'")
+        _pg_add_column_if_missing(conn, "vaccine_records", "deleted_at", "TIMESTAMPTZ")
+        _pg_add_column_if_missing(conn, "vaccine_records", "record_type", "TEXT DEFAULT 'confirmed_application'")
+        _pg_add_column_if_missing(conn, "vaccine_records", "alert_days_before", "INTEGER")
+        _pg_add_column_if_missing(conn, "vaccine_records", "reminder_date", "DATE")
+        _pg_add_column_if_missing(conn, "vaccine_records", "reminder_time", "TEXT")
+        _pg_add_column_if_missing(conn, "vaccine_records", "reminder_enabled", "BOOLEAN DEFAULT FALSE")
+        _pg_add_column_if_missing(conn, "parasite_control_records", "reminder_date", "DATE")
+        _pg_add_column_if_missing(conn, "parasite_control_records", "reminder_time", "TEXT")
+        _pg_add_column_if_missing(conn, "events", "deleted_at", "TIMESTAMPTZ")
+        _pg_add_column_if_missing(conn, "pet_documents", "deleted_at", "TIMESTAMPTZ")
+        _pg_add_column_if_missing(conn, "feeding_plans", "deleted_at", "TIMESTAMPTZ")
+        _pg_add_column_if_missing(conn, "feeding_plans", "items_json", "TEXT DEFAULT '[]'")
+        _pg_add_column_if_missing(conn, "feeding_plans", "last_food_push_date", "DATE")
+        _pg_add_column_if_missing(conn, "feeding_plans", "duration_days", "INTEGER")
+        _pg_add_column_if_missing(conn, "feeding_plans", "reminder_time", "TEXT")
+        _pg_add_column_if_missing(conn, "feeding_plans", "reminder_source", "TEXT DEFAULT 'calculated'")
 
         # users: terms / monthly-checkin
         _pg_add_column_if_missing(conn, "users", "terms_accepted", "BOOLEAN DEFAULT FALSE")
@@ -59,6 +83,18 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "users", "monthly_checkin_day", "INTEGER DEFAULT 5")
         _pg_add_column_if_missing(conn, "users", "monthly_checkin_hour", "INTEGER DEFAULT 9")
         _pg_add_column_if_missing(conn, "users", "monthly_checkin_minute", "INTEGER DEFAULT 0")
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id          TEXT PRIMARY KEY,
+                user_id     TEXT NOT NULL,
+                token_hash  TEXT UNIQUE NOT NULL,
+                expires_at  TIMESTAMPTZ NOT NULL,
+                used_at     TIMESTAMPTZ,
+                created_at  TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens (user_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens (token_hash)"))
 
         # establishments: CNPJ + terms
         _pg_add_column_if_missing(conn, "establishments", "cnpj", "TEXT")
@@ -66,6 +102,91 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "establishments", "terms_accepted_at", "TIMESTAMPTZ")
         _pg_add_column_if_missing(conn, "establishments", "terms_accepted_ip", "TEXT")
         _pg_add_column_if_missing(conn, "establishments", "terms_accepted_user_agent", "TEXT")
+
+        # notification_pendencies: persistent in-app alerts (Apr 2026)
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS notification_pendencies (
+                id           TEXT PRIMARY KEY,
+                user_id      TEXT NOT NULL,
+                pet_id       TEXT,
+                type         TEXT NOT NULL,
+                event_id     TEXT,
+                title        TEXT NOT NULL,
+                message      TEXT NOT NULL,
+                deep_link    TEXT NOT NULL,
+                priority     INTEGER DEFAULT 50,
+                status       TEXT DEFAULT 'active',
+                snoozed_until TIMESTAMPTZ,
+                created_at   TIMESTAMPTZ DEFAULT NOW(),
+                expires_at   TIMESTAMPTZ,
+                updated_at   TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_notif_pend_user ON notification_pendencies (user_id)"
+        ))
+        if _pg_column_type(conn, "notification_pendencies", "user_id") in {"integer", "bigint", "smallint"}:
+            conn.execute(text(
+                'ALTER TABLE "notification_pendencies" '
+                'ALTER COLUMN "user_id" TYPE TEXT USING "user_id"::text'
+            ))
+        if _pg_column_type(conn, "notification_pendencies", "pet_id") in {"integer", "bigint", "smallint"}:
+            conn.execute(text(
+                'ALTER TABLE "notification_pendencies" '
+                'ALTER COLUMN "pet_id" TYPE TEXT USING "pet_id"::text'
+            ))
+
+        # Product learning memory (Apr 2026)
+        _pg_add_column_if_missing(conn, "product_correction_events", "brand", "TEXT")
+        _pg_add_column_if_missing(conn, "product_correction_events", "weight", "TEXT")
+        _pg_add_column_if_missing(conn, "product_correction_events", "probable_name", "TEXT")
+        _pg_add_column_if_missing(conn, "product_correction_events", "visible_text", "TEXT")
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS product_learning_events (
+                id BIGSERIAL PRIMARY KEY,
+                barcode_normalized TEXT,
+                ocr_raw_text TEXT,
+                visible_text TEXT,
+                probable_name TEXT,
+                detected_brand TEXT,
+                detected_species TEXT,
+                detected_life_stage TEXT,
+                detected_weight TEXT,
+                resolved_name TEXT NOT NULL,
+                resolved_category TEXT,
+                decision_source TEXT,
+                decision_score DOUBLE PRECISION,
+                decision_result TEXT,
+                tutor_confirmed BOOLEAN DEFAULT TRUE,
+                tutor_corrected BOOLEAN DEFAULT FALSE,
+                corrected_name TEXT,
+                ai_suggested_name TEXT,
+                pet_id TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_product_learning_events_barcode ON product_learning_events (barcode_normalized)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_product_learning_events_created_at ON product_learning_events (created_at)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS product_reliable_catalog (
+                id BIGSERIAL PRIMARY KEY,
+                canonical_key TEXT UNIQUE NOT NULL,
+                canonical_name TEXT NOT NULL,
+                aliases_json TEXT NOT NULL DEFAULT '[]',
+                gtins_json TEXT NOT NULL DEFAULT '[]',
+                brand TEXT,
+                category TEXT,
+                species TEXT,
+                life_stage TEXT,
+                weight TEXT,
+                confirmation_count INTEGER NOT NULL DEFAULT 0,
+                correction_count INTEGER NOT NULL DEFAULT 0,
+                last_confirmed_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_product_reliable_catalog_key ON product_reliable_catalog (canonical_key)"))
 
 
 def run_sqlite_migrations(engine: Engine) -> None:
@@ -87,6 +208,18 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "users", "monthly_checkin_day", "INTEGER DEFAULT 5")
         changed |= _sqlite_add_column_if_missing(conn, "users", "monthly_checkin_hour", "INTEGER DEFAULT 9")
         changed |= _sqlite_add_column_if_missing(conn, "users", "monthly_checkin_minute", "INTEGER DEFAULT 0")
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id          TEXT PRIMARY KEY,
+                user_id     TEXT NOT NULL,
+                token_hash  TEXT UNIQUE NOT NULL,
+                expires_at  DATETIME NOT NULL,
+                used_at     DATETIME,
+                created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens (user_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens (token_hash)"))
 
         # Establishments: CNPJ + terms acceptance metadata
         changed |= _sqlite_add_column_if_missing(conn, "establishments", "cnpj", "TEXT")
@@ -105,6 +238,22 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "vaccine_code", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "country_code", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "next_due_source", "TEXT DEFAULT 'unknown'")
+        changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "deleted_at", "DATETIME")
+        changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "record_type", "TEXT DEFAULT 'confirmed_application'")
+        changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "alert_days_before", "INTEGER")
+        changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "reminder_date", "DATE")
+        changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "reminder_time", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "reminder_enabled", "BOOLEAN DEFAULT FALSE")
+        changed |= _sqlite_add_column_if_missing(conn, "parasite_control_records", "reminder_date", "DATE")
+        changed |= _sqlite_add_column_if_missing(conn, "parasite_control_records", "reminder_time", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "events", "deleted_at", "DATETIME")
+        changed |= _sqlite_add_column_if_missing(conn, "pet_documents", "deleted_at", "DATETIME")
+        changed |= _sqlite_add_column_if_missing(conn, "feeding_plans", "deleted_at", "DATETIME")
+        changed |= _sqlite_add_column_if_missing(conn, "feeding_plans", "items_json", "TEXT DEFAULT '[]'")
+        changed |= _sqlite_add_column_if_missing(conn, "feeding_plans", "last_food_push_date", "DATE")
+        changed |= _sqlite_add_column_if_missing(conn, "feeding_plans", "duration_days", "INTEGER")
+        changed |= _sqlite_add_column_if_missing(conn, "feeding_plans", "reminder_time", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "feeding_plans", "reminder_source", "TEXT DEFAULT 'calculated'")
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_vaccine_records_code ON vaccine_records (vaccine_code)"))
 
         # ── World-health architecture (Mar 2026) ────────────────────────────
@@ -309,6 +458,81 @@ def run_sqlite_migrations(engine: Engine) -> None:
 
         # ── Seed: product_name_mappings (BR trade names) ────────────────────
         _seed_product_name_mappings(conn)
+
+        # ── notification_pendencies: persistent in-app alerts (Apr 2026) ────
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS notification_pendencies (
+                id           TEXT PRIMARY KEY,
+                user_id      TEXT NOT NULL,
+                pet_id       TEXT,
+                type         TEXT NOT NULL,
+                event_id     TEXT,
+                title        TEXT NOT NULL,
+                message      TEXT NOT NULL,
+                deep_link    TEXT NOT NULL,
+                priority     INTEGER DEFAULT 50,
+                status       TEXT DEFAULT 'active',
+                snoozed_until DATETIME,
+                created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+                expires_at   DATETIME,
+                updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_notif_pend_user ON notification_pendencies (user_id)"
+        ))
+
+        # Product learning memory (Apr 2026)
+        changed |= _sqlite_add_column_if_missing(conn, "product_correction_events", "brand", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "product_correction_events", "weight", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "product_correction_events", "probable_name", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "product_correction_events", "visible_text", "TEXT")
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS product_learning_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                barcode_normalized TEXT,
+                ocr_raw_text TEXT,
+                visible_text TEXT,
+                probable_name TEXT,
+                detected_brand TEXT,
+                detected_species TEXT,
+                detected_life_stage TEXT,
+                detected_weight TEXT,
+                resolved_name TEXT NOT NULL,
+                resolved_category TEXT,
+                decision_source TEXT,
+                decision_score REAL,
+                decision_result TEXT,
+                tutor_confirmed BOOLEAN DEFAULT 1,
+                tutor_corrected BOOLEAN DEFAULT 0,
+                corrected_name TEXT,
+                ai_suggested_name TEXT,
+                pet_id TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_product_learning_events_barcode ON product_learning_events (barcode_normalized)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_product_learning_events_created_at ON product_learning_events (created_at)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS product_reliable_catalog (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                canonical_key TEXT NOT NULL UNIQUE,
+                canonical_name TEXT NOT NULL,
+                aliases_json TEXT NOT NULL DEFAULT '[]',
+                gtins_json TEXT NOT NULL DEFAULT '[]',
+                brand TEXT,
+                category TEXT,
+                species TEXT,
+                life_stage TEXT,
+                weight TEXT,
+                confirmation_count INTEGER NOT NULL DEFAULT 0,
+                correction_count INTEGER NOT NULL DEFAULT 0,
+                last_confirmed_at DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_product_reliable_catalog_key ON product_reliable_catalog (canonical_key)"))
 
         # `changed` is intentionally unused; kept for potential logging later.
         _ = changed

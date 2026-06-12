@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
+import { getToken } from '@/lib/auth-token';
 import type { GroomingRecord, GroomingType } from '@/lib/types/home';
 import { ModalPortal } from '@/components/ModalPortal';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
+import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function addDays(dateStr: string, days: number): string {
@@ -22,6 +24,15 @@ function diffDays(dateStr?: string | null): number | null {
   const target = new Date(y, m - 1, d);
   const now = new Date(); now.setHours(0, 0, 0, 0);
   return Math.round((target.getTime() - now.getTime()) / 86400000);
+}
+
+function hasLaterGroomingRecord(records: GroomingRecord[], record: GroomingRecord): boolean {
+  const recordTime = new Date(record.date).getTime();
+  return records.some((candidate) => {
+    if (candidate.id === record.id || candidate.type !== record.type) return false;
+    const candidateTime = new Date(candidate.date).getTime();
+    return !Number.isNaN(candidateTime) && (Number.isNaN(recordTime) || candidateTime > recordTime);
+  });
 }
 
 function fmtDate(s?: string | null): string {
@@ -47,16 +58,18 @@ const FREQ_DEFAULTS: Record<GroomingType, number> = {
 function computeStatus(nextDate?: string | null) {
   const diff = diffDays(nextDate);
   if (diff === null) return { label: 'Sem agendamento', bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400' };
-  if (diff < 0)      return { label: `Atrasado ${Math.abs(diff)} dia${Math.abs(diff) !== 1 ? 's' : ''}`, bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' };
-  if (diff === 0)    return { label: 'Hoje!', bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' };
-  if (diff <= 7)     return { label: `Em ${diff} dias`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' };
-  return { label: `Em ${diff} dias`, bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' };
+  if (diff < 0)      return { label: `Precisa de atenção · atrasado há ${Math.abs(diff)} dia${Math.abs(diff) !== 1 ? 's' : ''}`, bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500' };
+  if (diff === 0)    return { label: 'hoje', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
+  if (diff <= 7)     return { label: `em ${diff} dia${diff !== 1 ? 's' : ''}`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' };
+  return { label: `em ${diff} dias`, bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' };
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface GroomingItemSheetProps {
   petId: string;
   petName?: string;
+  petSpecies?: string;
+  petPhotoUrl?: string | null;
   groomingRecords: GroomingRecord[];
   onClose: () => void;
   onRefresh: () => Promise<void>;
@@ -68,19 +81,29 @@ type ViewMode = 'view' | 'add' | 'edit';
 export function GroomingItemSheet({
   petId,
   petName,
+  petSpecies,
+  petPhotoUrl,
   groomingRecords,
   onClose,
   onRefresh,
 }: GroomingItemSheetProps) {
+  const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
   const [mode, setMode] = useState<ViewMode>('view');
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+  useEffect(() => {
+    void onRefresh();
+    // onRefresh is intentionally excluded to avoid effect loops when parent recreates callbacks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [petId]);
+
   const sorted = [...groomingRecords].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
   );
   const last = sorted[0] ?? null;
+  const nextEditableRecord = sorted.find((r) => !!r.next_recommended_date) ?? last;
   const nextDate = last?.next_recommended_date?.split('T')[0] ?? null;
   const status = computeStatus(nextDate);
 
@@ -91,6 +114,8 @@ export function GroomingItemSheet({
     location: '',
     cost: '',
     notes: '',
+    product_name: '',
+    barcode: '',
     frequency_days: String(FREQ_DEFAULTS['bath_grooming']),
     reminder_days: '3',
     reminder_time: '09:00',
@@ -104,6 +129,8 @@ export function GroomingItemSheet({
     location: '',
     cost: '',
     notes: '',
+    product_name: '',
+    barcode: '',
     frequency_days: String(FREQ_DEFAULTS['bath_grooming']),
     reminder_days: '3',
     reminder_time: '09:00',
@@ -120,11 +147,16 @@ export function GroomingItemSheet({
     if (!addForm.date) return;
     setSaving(true);
     try {
-      const token = localStorage.getItem('petmol_token');
-      if (!token) { alert('Sessão expirada. Faça login novamente.'); return; }
+      const token = getToken();
+      if (!token) { showToast('⚠️ Sessão expirada. Faça login novamente.'); return; }
 
       const freq = parseInt(addForm.frequency_days, 10) || FREQ_DEFAULTS[addForm.type];
       const nextRec = addDays(addForm.date, freq);
+
+      const productLine = addForm.product_name.trim()
+        ? `Produto: ${addForm.product_name.trim()}${addForm.barcode ? ` (EAN: ${addForm.barcode})` : ''}`
+        : '';
+      const finalNotes = [productLine, addForm.notes.trim()].filter(Boolean).join('\n') || null;
 
       const res = await fetch(`${API_BASE_URL}/pets/${petId}/grooming`, {
         method: 'POST',
@@ -134,23 +166,36 @@ export function GroomingItemSheet({
           date: addForm.date,
           location: addForm.location || null,
           cost: addForm.cost ? parseFloat(addForm.cost) : null,
-          notes: addForm.notes || null,
+          notes: finalNotes,
           next_recommended_date: nextRec,
           frequency_days: freq,
           reminder_enabled: true,
           alert_days_before: parseInt(addForm.reminder_days) || 3,
-          reminder_time: addForm.reminder_time || '09:00',
+          scheduled_time: addForm.reminder_time || '09:00',
         }),
       });
 
       if (res.ok) {
+        // Track hygiene product usage for recurring suggestions
+        const productName = addForm.product_name.trim();
+        if (productName) {
+          try {
+            const usageKey = `petmol_product_usage_${petId}_hygiene`;
+            const existing = JSON.parse(localStorage.getItem(usageKey) || '[]') as Array<{ name: string; count: number; lastUsed: string }>;
+            const found = existing.find(item => item.name.toLowerCase() === productName.toLowerCase());
+            if (found) { found.count += 1; found.lastUsed = addForm.date; }
+            else existing.push({ name: productName, count: 1, lastUsed: addForm.date });
+            existing.sort((a, b) => b.count - a.count || b.lastUsed.localeCompare(a.lastUsed));
+            localStorage.setItem(usageKey, JSON.stringify(existing));
+          } catch { /* silent */ }
+        }
         showToast('✅ Serviço registrado!');
         setMode('view');
-        // Reset form date to today for next use
-        setAddForm(f => ({ ...f, date: localTodayISO(), cost: '', notes: '', location: '' }));
+        setAddForm(f => ({ ...f, date: localTodayISO(), cost: '', notes: '', location: '', product_name: '', barcode: '' }));
         await onRefresh();
       } else {
-        alert('Erro ao salvar. Tente novamente.');
+        const errorText = await res.text().catch(() => '');
+        showToast(`❌ Erro ao salvar (${res.status}). ${errorText || 'Tente novamente.'}`);
       }
     } finally {
       setSaving(false);
@@ -160,15 +205,24 @@ export function GroomingItemSheet({
   // ── Edit handlers ─────────────────────────────────────────────────────────
   function startEdit(rec: GroomingRecord) {
     setEditRecord(rec);
+    // Extract product_name from notes if previously stored
+    const notesRaw = rec.notes || '';
+    const productMatch = notesRaw.match(/^Produto:\s*([^\n(]+)/);
+    const productName = productMatch ? productMatch[1].trim() : '';
+    const cleanNotes = productName
+      ? notesRaw.replace(/^Produto:[^\n]*(\n)?/, '').trim()
+      : notesRaw;
     setEditForm({
       date: rec.date,
       type: rec.type,
       location: rec.location || '',
       cost: rec.cost != null ? String(rec.cost) : '',
-      notes: rec.notes || '',
+      notes: cleanNotes,
+      product_name: productName,
+      barcode: '',
       frequency_days: String(rec.frequency_days ?? FREQ_DEFAULTS[rec.type]),
       reminder_days: String((rec as unknown as Record<string, unknown>).alert_days_before ?? 3),
-      reminder_time: String((rec as unknown as Record<string, unknown>).reminder_time ?? '09:00'),
+      reminder_time: String((rec as unknown as Record<string, unknown>).scheduled_time ?? '09:00'),
     });
     setMode('edit');
   }
@@ -177,10 +231,18 @@ export function GroomingItemSheet({
     if (!editRecord || !editForm.date) return;
     setSaving(true);
     try {
-      const token = localStorage.getItem('petmol_token');
-      if (!token) return;
+      const token = getToken();
+      if (!token) {
+        showToast('⚠️ Sessão expirada. Faça login novamente.');
+        return;
+      }
 
       const editFreq = parseInt(editForm.frequency_days, 10) || FREQ_DEFAULTS[editForm.type];
+      const productLine = editForm.product_name.trim()
+        ? `Produto: ${editForm.product_name.trim()}${editForm.barcode ? ` (EAN: ${editForm.barcode})` : ''}`
+        : '';
+      const finalNotes = [productLine, editForm.notes.trim()].filter(Boolean).join('\n') || null;
+
       const res = await fetch(`${API_BASE_URL}/pets/${petId}/grooming/${editRecord.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -189,12 +251,12 @@ export function GroomingItemSheet({
           type: editForm.type,
           location: editForm.location || null,
           cost: editForm.cost ? parseFloat(editForm.cost) : null,
-          notes: editForm.notes || null,
+          notes: finalNotes,
           next_recommended_date: addDays(editForm.date, editFreq),
           frequency_days: editFreq,
           reminder_enabled: true,
           alert_days_before: parseInt(editForm.reminder_days) || 3,
-          reminder_time: editForm.reminder_time || '09:00',
+          scheduled_time: editForm.reminder_time || '09:00',
         }),
       });
 
@@ -204,7 +266,8 @@ export function GroomingItemSheet({
         setEditRecord(null);
         await onRefresh();
       } else {
-        alert('Erro ao atualizar. Tente novamente.');
+        const errorText = await res.text().catch(() => '');
+        showToast(`❌ Erro ao atualizar (${res.status}). ${errorText || 'Tente novamente.'}`);
       }
     } finally {
       setSaving(false);
@@ -213,8 +276,11 @@ export function GroomingItemSheet({
 
   async function handleDelete(id: string) {
     setConfirmDeleteId(null);
-    const token = localStorage.getItem('petmol_token');
-    if (!token) return;
+    const token = getToken();
+    if (!token) {
+      showToast('⚠️ Sessão expirada. Faça login novamente.');
+      return;
+    }
     const res = await fetch(`${API_BASE_URL}/pets/${petId}/grooming/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
@@ -222,6 +288,9 @@ export function GroomingItemSheet({
     if (res.ok) {
       showToast('🗑️ Registro removido');
       await onRefresh();
+    } else {
+      const errorText = await res.text().catch(() => '');
+      showToast(`❌ Erro ao remover (${res.status}). ${errorText || 'Tente novamente.'}`);
     }
   }
 
@@ -232,45 +301,78 @@ export function GroomingItemSheet({
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <ModalPortal>
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-x-hidden overscroll-x-none touch-pan-y p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
 
       {/* Sheet */}
       <div
-        className="relative w-full max-w-lg bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 flex flex-col overflow-hidden"
+        className="relative w-full max-w-lg bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 flex flex-col overflow-x-hidden overflow-y-hidden animate-scaleIn"
         style={{ maxHeight: '92dvh' }}
         onClick={e => e.stopPropagation()}
       >
 
         {/* Header */}
-        <div className="px-5 pt-4 pb-4 bg-sky-50 border-b border-sky-100 flex-shrink-0">
+        <div className="px-5 pt-4 pb-4 bg-white border-b border-emerald-100 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-2xl flex-shrink-0">
-              🛁
+            <div className="w-14 h-14 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-3xl flex-shrink-0">
+              {petPhotoSrc ? (
+                <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
+              ) : (
+                <span>{petSpecies === 'cat' ? '🐱' : '🐶'}</span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-[17px] font-bold text-gray-900 leading-tight">Banho e Tosa</h2>
-              {petName && <p className="text-sm text-gray-500 mt-0.5">{petName}</p>}
+              <h2 className="text-[17px] font-bold text-gray-900 leading-tight">Higiene e Petshop</h2>
+              {petName && (
+                <p className="mt-1.5">
+                  <span className="inline-flex max-w-full items-center px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-black tracking-[0.04em] whitespace-normal break-all leading-tight border border-emerald-100">
+                    {petName}
+                  </span>
+                </p>
+              )}
             </div>
-            <button
-              onClick={onClose}
-              className="w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
-              aria-label="Fechar"
-            >
-              ✕
-            </button>
+            {mode !== 'view' ? (
+              <button
+                type="button"
+                onClick={() => { setMode('view'); setEditRecord(null); }}
+                onTouchEnd={() => { setMode('view'); setEditRecord(null); }}
+                className="relative z-10 pointer-events-auto w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
+                aria-label="Voltar"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className="relative z-10 pointer-events-auto w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
+                aria-label="Fechar"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
+                  <path d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
 
           {/* Status badge */}
-          <div className={`mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-semibold ${status.bg} ${status.text}`}>
-            <span className={`w-2 h-2 rounded-full ${status.dot}`} />
+          <div className={`mt-3 inline-flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm font-semibold ${status.bg} ${status.text}`}>
+            {status.dot === 'bg-rose-500' ? (
+              <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm border border-white/50 flex-shrink-0">
+                !
+              </div>
+            ) : (
+              <span className={`w-2 h-2 rounded-full ${status.dot}`} />
+            )}
             {nextDate ? status.label : 'Sem agendamento'}
           </div>
         </div>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1 overscroll-contain">
+        <div className="overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
           {mode === 'view' && (
@@ -304,9 +406,31 @@ export function GroomingItemSheet({
                       </div>
                     )}
                   </div>
-                  {last.notes && (
-                    <p className="text-xs text-gray-500 italic border-t border-sky-100 pt-2">{last.notes}</p>
-                  )}
+                  {last.notes && (() => {
+                    const productMatch = last.notes.match(/^Produto:\s*([^\n(]+)/);
+                    const productName = productMatch ? productMatch[1].trim() : null;
+                    const restNotes = last.notes.replace(/^Produto:[^\n]*(\n)?/, '').trim();
+                    return (
+                      <>
+                        {productName && (
+                          <div className="flex items-center justify-between gap-2 border-t border-sky-100 pt-2">
+                            <p className="text-xs text-sky-700 font-semibold truncate">🧴 {productName}</p>
+                            <a
+                              href={`https://www.google.com/search?tbm=shop&q=${encodeURIComponent(productName + ' pet')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] font-bold text-sky-600 underline whitespace-nowrap flex-shrink-0"
+                            >
+                              Ver produto
+                            </a>
+                          </div>
+                        )}
+                        {restNotes && (
+                          <p className="text-xs text-gray-500 italic border-t border-sky-100 pt-2">{restNotes}</p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               ) : (
                 <div className="rounded-2xl border border-gray-100 bg-gray-50 p-8 text-center">
@@ -317,20 +441,30 @@ export function GroomingItemSheet({
               )}
 
               {/* Main CTA */}
-              <button
-                onClick={() => setMode('add')}
-                className="w-full py-4 rounded-2xl bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-[15px] font-bold shadow-md transition-colors"
-              >
-                🛁 Fiz hoje
-              </button>
-
-              {/* Secondary */}
-              <button
-                onClick={() => setMode('add')}
-                className="w-full py-3 rounded-xl bg-sky-50 text-sky-700 text-sm font-semibold active:bg-sky-100"
-              >
-                ➕ Registrar outro serviço
-              </button>
+              {last ? (
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setMode('add')}
+                    className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-[15px] font-bold shadow-md shadow-emerald-500/20 transition-colors"
+                  >
+                    Registrar banho/tosa
+                  </button>
+                  <button
+                    onClick={() => nextEditableRecord && startEdit(nextEditableRecord)}
+                    disabled={!nextEditableRecord}
+                    className="w-full py-3 rounded-2xl bg-white border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 active:scale-95 transition-all"
+                  >
+                    Editar próximo
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setMode('add')}
+                  className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-[15px] font-bold shadow-md transition-colors"
+                >
+                  Registrar banho/tosa
+                </button>
+              )}
 
               {/* History */}
               {sorted.length > 0 && (
@@ -338,40 +472,50 @@ export function GroomingItemSheet({
                   <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                     Histórico ({sorted.length})
                   </p>
-                  {sorted.map((rec, i) => (
-                    <div
-                      key={rec.id}
-                      className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3 shadow-sm"
-                    >
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${i === 0 ? 'bg-sky-50' : 'bg-gray-50'}`}>
-                        {i === 0 ? '🛁' : '·'}
+                  {sorted.map((rec) => {
+                    const isHistory = hasLaterGroomingRecord(sorted, rec);
+                    return (
+                      <div
+                        key={rec.id}
+                        className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3 shadow-sm"
+                      >
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${!isHistory ? 'bg-sky-50' : 'bg-gray-50'}`}>
+                          {!isHistory ? '🛁' : '·'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-gray-800">{TYPE_LABELS[rec.type]}</p>
+                            {!isHistory && diffDays(rec.next_recommended_date) !== null && diffDays(rec.next_recommended_date)! < 0 && (
+                              <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm border border-white/50 flex-shrink-0">
+                                !
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-400">
+                            {fmtDate(rec.date)}
+                            {rec.cost != null ? ` · R$ ${rec.cost.toFixed(2).replace('.', ',')}` : ''}
+                            {rec.location ? ` · ${rec.location}` : ''}
+                          </p>
+                        </div>
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={() => startEdit(rec)}
+                            className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-sm hover:bg-gray-200"
+                            aria-label="Editar"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(rec.id)}
+                            className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-sm hover:bg-red-100"
+                            aria-label="Remover"
+                          >
+                            🗑
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800">{TYPE_LABELS[rec.type]}</p>
-                        <p className="text-xs text-gray-400">
-                          {fmtDate(rec.date)}
-                          {rec.cost != null ? ` · R$ ${rec.cost.toFixed(2).replace('.', ',')}` : ''}
-                          {rec.location ? ` · ${rec.location}` : ''}
-                        </p>
-                      </div>
-                      <div className="flex gap-1.5 flex-shrink-0">
-                        <button
-                          onClick={() => startEdit(rec)}
-                          className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-sm hover:bg-gray-200"
-                          aria-label="Editar"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => setConfirmDeleteId(rec.id)}
-                          className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-sm hover:bg-red-100"
-                          aria-label="Remover"
-                        >
-                          🗑
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -381,12 +525,25 @@ export function GroomingItemSheet({
           {mode === 'add' && (
             <div className="p-5 pb-8 space-y-4">
               <button
+                type="button"
                 onClick={() => setMode('view')}
+                onTouchEnd={() => setMode('view')}
                 className="flex items-center gap-2 text-gray-500 hover:text-gray-800 text-sm font-medium mb-1"
               >
                 ‹ Voltar
               </button>
               <h3 className="text-[16px] font-bold text-gray-900">Registrar serviço</h3>
+
+              <div>
+                <label className={labelCls}>Produto utilizado (opcional)</label>
+                <input
+                  type="text"
+                  className={inputCls}
+                  placeholder="Ex: Sanol Dog, Johnson's Baby..."
+                  value={addForm.product_name}
+                  onChange={e => setAddForm(f => ({ ...f, product_name: e.target.value }))}
+                />
+              </div>
 
               <div>
                 <label className={labelCls}>Data *</label>
@@ -476,12 +633,25 @@ export function GroomingItemSheet({
           {mode === 'edit' && editRecord && (
             <div className="p-5 pb-8 space-y-4">
               <button
+                type="button"
                 onClick={() => { setMode('view'); setEditRecord(null); }}
+                onTouchEnd={() => { setMode('view'); setEditRecord(null); }}
                 className="flex items-center gap-2 text-gray-500 hover:text-gray-800 text-sm font-medium mb-1"
               >
                 ‹ Voltar
               </button>
               <h3 className="text-[16px] font-bold text-gray-900">Editar registro</h3>
+
+              <div>
+                <label className={labelCls}>Produto utilizado (opcional)</label>
+                <input
+                  type="text"
+                  className={inputCls}
+                  placeholder="Ex: Sanol Dog, Johnson's Baby..."
+                  value={editForm.product_name}
+                  onChange={e => setEditForm(f => ({ ...f, product_name: e.target.value }))}
+                />
+              </div>
 
               <div>
                 <label className={labelCls}>Data *</label>
@@ -586,7 +756,7 @@ export function GroomingItemSheet({
 
         {/* ── Toast ─────────────────────────────────────────────────────────── */}
         {toast && (
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl z-20 whitespace-nowrap pointer-events-none">
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 max-w-[calc(100%-2rem)] bg-gray-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl z-20 text-center break-words pointer-events-none">
             {toast}
           </div>
         )}

@@ -1,0 +1,102 @@
+/* PETMOL Prime Design System — Estética de Vidro, Espelho e Brilho */
+
+.theme-prime {
+  /* Variáveis de Vidro High-End */
+  --prime-glass: rgba(255, 255, 255, 0.05);
+  --prime-glass-dark: rgba(28, 28, 30, 0.7);
+  --prime-glass-border: rgba(255, 255, 255, 0.15);
+  --prime-glass-shine: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 50%, rgba(255,255,255,0.1) 100%);
+  --prime-mirror-border: rgba(255, 255, 255, 0.6);
+  --prime-accent-halo: rgba(59, 130, 246, 0.15);
+  --prime-bg-dark: #000000;
+}
+
+/* Utilitário para Bordas "Nítidas" e Vítreas */
+.theme-prime .glass-card {
+  background-color: var(--prime-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--prime-glass-border);
+  box-shadow: 0 0 0 1px var(--prime-glass-border), 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Efeito de Reflexo Interno (Espelhamento) */
+.theme-prime .glass-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: var(--prime-glass-shine);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Animação de Brilho Dinâmico (Shimmer) */
+@keyframes prime-shimmer {
+  0% { transform: translateX(-150%) skewX(-25deg); }
+  50% { transform: translateX(150%) skewX(-25deg); }
+  100% { transform: translateX(150%) skewX(-25deg); }
+}
+
+.theme-prime .animate-prime-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Efeito de Shimmer removido a pedido do usuário */
+
+/* Melhor aproveitamento de tela - Otimização global */
+.theme-prime .screen-optimized {
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+}
+
+/* Custom Contours for Apps - Agora com a "cor leve" de contraste */
+.theme-prime .app-contour {
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.1), 0 10px 30px rgba(0,0,0,0.5);
+}
+
+/* Modern Inputs for Sheets */
+.theme-prime .prime-input {
+  background: rgba(255, 255, 255, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(8px);
+  border-radius: 16px !important;
+  padding: 12px 16px !important;
+  transition: all 0.3s ease;
+}
+
+.theme-prime .prime-input:focus {
+  background: white !important;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.5) !important;
+}
+
+/* Estilo de Fundo iPhone Dark */
+.theme-prime .prime-dark-shell {
+  background: radial-gradient(circle at top, #121212 0%, #000000 100%) !important;
+}
+
+/* Header de Vidro Escuro */
+.theme-prime .prime-glass-header {
+  background-color: rgba(0, 0, 0, 0.4) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Handle Bar para Sheets */
+.sheet-handle {
+  width: 36px;
+  height: 5px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  margin: 8px auto;
+}

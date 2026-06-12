@@ -11,7 +11,6 @@ from ..user_auth.models import User
 from .models import Pet
 from .grooming_models import GroomingRecord
 from .grooming_schemas import GroomingRecordCreate, GroomingRecordUpdate, GroomingRecordOut
-from ..family.utils import send_family_push
 
 router = APIRouter(prefix="/pets/{pet_id}/grooming", tags=["Grooming"])
 
@@ -81,18 +80,7 @@ def create_grooming_record(
             record.reschedule_history = json.loads(record.reschedule_history)
         except Exception:
             record.reschedule_history = []
-    # Notificar família
-    pet = db.query(Pet).filter(Pet.id == pet_id).first()
-    pet_name = pet.name if pet else "pet"
-    actor_name = (user.name or user.email).split()[0]
-    send_family_push(pet_id, user.id, {
-        "title": f"🛁 Banho/Tosa de {pet_name}",
-        "body": f"{actor_name} registrou banho/tosa de {pet_name}",
-        "icon": "/icons/icon-192x192.png",
-        "badge": "/icons/icon-96x96.png",
-        "tag": f"grooming-{record.id}",
-        "data": {"url": f"/home?modal=grooming&petId={pet_id}"},
-    }, db)
+    # Push família desativado: notificações centralizadas no modelo oficial de 4 camadas.
     return record
 
 

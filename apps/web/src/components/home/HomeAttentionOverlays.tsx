@@ -18,6 +18,7 @@ export function HomeAttentionOverlays({
   topAttentionAlerts,
   onAlertSelect,
 }: HomeAttentionOverlaysProps) {
+  const visibleAlerts = topAttentionAlerts.filter((alert) => alert.category !== 'grooming');
 
   return (
     <ModalPortal>
@@ -25,24 +26,24 @@ export function HomeAttentionOverlays({
       {showTopAttentionModal && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onCloseTopAttentionModal} />
-          <div className="relative w-full max-w-md bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 border border-gray-200 overflow-hidden">
-            <div className="px-4 py-3 bg-red-50 border-b border-red-100 flex items-center justify-between">
+          <div className="relative w-full max-w-md bg-white/95 backdrop-blur-xl rounded-[28px] shadow-premium border border-gray-200 overflow-hidden">
+            <div className="px-4 py-3 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="text-base">🔴</span>
-                <h3 className="text-sm font-bold text-red-700 truncate">
+                <span className="text-base">●</span>
+                <h3 className="text-sm font-bold text-rose-700 truncate">
                   {topAttentionPetCount === 1 ? '1 pet precisa de atenção' : `${topAttentionPetCount} pets precisam de atenção`}
                 </h3>
               </div>
               <button
                 onClick={onCloseTopAttentionModal}
-                className="w-7 h-7 rounded-lg bg-white border border-red-200 text-red-500 hover:bg-red-100"
+                className="w-7 h-7 rounded-lg bg-white border border-rose-200 text-rose-500 hover:bg-rose-100"
               >
                 ✕
               </button>
             </div>
 
             <div className="max-h-[58vh] overflow-y-auto divide-y divide-gray-100">
-              {[...topAttentionAlerts]
+              {[...visibleAlerts]
                 .sort((a, b) => (b.days_overdue || 0) - (a.days_overdue || 0))
                 .map((alert) => {
                   const icon = alert.category === 'vaccine'
@@ -51,9 +52,7 @@ export function HomeAttentionOverlays({
                       ? '🛡️'
                       : alert.category === 'medication'
                         ? '💊'
-                        : alert.category === 'grooming'
-                          ? '🛁'
-                          : '⚠️';
+                        : '⚠️';
 
                   return (
                     <button
@@ -68,8 +67,14 @@ export function HomeAttentionOverlays({
                             {alert.pet_name} <span className="text-gray-400">·</span>{' '}
                             <span className="font-medium text-gray-700">{alert.type_label}</span>
                           </p>
-                          <p className="text-xs font-bold text-red-600 mt-0.5">
-                            {alert.status === 'today' ? 'Hoje' : `${alert.days_overdue || 0}d em atraso`}
+                          <p className={`text-xs font-bold mt-0.5 ${alert.status === 'today' ? 'text-amber-700' : alert.days_overdue != null && alert.days_overdue > 0 ? 'text-rose-600' : 'text-amber-700'}`}>
+                            {alert.status === 'today'
+                              ? 'HOJE'
+                              : alert.days_overdue != null && alert.days_overdue > 90
+                                ? 'REVISÃO RECOMENDADA'
+                                : alert.days_overdue != null && alert.days_overdue > 0
+                                  ? `ATRASADO ${alert.days_overdue} dia${alert.days_overdue === 1 ? '' : 's'}`
+                                  : 'EM BREVE'}
                           </p>
                         </div>
                         <span className="text-gray-300 text-sm">›</span>

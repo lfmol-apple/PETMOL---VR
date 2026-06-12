@@ -4,16 +4,30 @@ Handles communication with Google Gemini AI for image analysis
 """
 
 import google.generativeai as genai
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
 import logging
 from datetime import datetime
+import re
+import os
 
 logger = logging.getLogger(__name__)
 
 
 class VisionService:
     """Serviço de visão AI usando Gemini"""
+
+    DEFAULT_MODEL_NAME = "gemini-2.5-flash"
+    FALLBACK_MODEL_NAMES = (
+        "gemini-2.5-flash",
+        "gemini-flash-latest",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-001",
+    )
+    PRODUCT_PHOTO_GENERATION_CONFIG = {
+        "temperature": 0,
+        "response_mime_type": "application/json",
+    }
     
     def __init__(self, api_key: str):
         """
@@ -23,7 +37,512 @@ class VisionService:
             api_key: Chave da Google AI (GOOGLE_API_KEY)
         """
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        configured_model = (os.getenv("GEMINI_MODEL") or os.getenv("VISION_GEMINI_MODEL") or self.DEFAULT_MODEL_NAME).strip()
+        self.model_name = configured_model or self.DEFAULT_MODEL_NAME
+        self.model = genai.GenerativeModel(self.model_name)
+
+    def _candidate_model_names(self) -> List[str]:
+        names = [self.model_name, *self.FALLBACK_MODEL_NAMES]
+        unique_names: List[str] = []
+        for name in names:
+            normalized = str(name).strip()
+            if normalized and normalized not in unique_names:
+                unique_names.append(normalized)
+        return unique_names
+
+    async def _generate_content_with_model_fallback(
+        self,
+        prompt: str,
+        image_part: Dict[str, Any],
+        generation_config: Optional[Dict[str, Any]] = None,
+    ):
+        last_error: Optional[Exception] = None
+        for model_name in self._candidate_model_names():
+            try:
+                if model_name != self.model_name:
+                    logger.warning("Gemini fallback: trocando modelo de %s para %s", self.model_name, model_name)
+                self.model_name = model_name
+                self.model = genai.GenerativeModel(model_name)
+                return await self.model.generate_content_async(
+                    [prompt, image_part],
+                    generation_config=generation_config,
+                    request_options={"timeout": 20},
+                )
+            except Exception as exc:
+                err_str = str(exc).lower()
+                retryable_model_error = (
+                    "is not found for api version" in err_str or
+                    "not supported for generatecontent" in err_str or
+                    "404 models/" in err_str
+                )
+                if not retryable_model_error:
+                    raise
+                last_error = exc
+                continue
+        if last_error:
+            raise last_error
+        raise RuntimeError("Nenhum modelo Gemini disponível para generateContent")
+
+    @staticmethod
+    def _detect_mime_type(image_bytes: bytes) -> str:
+        if image_bytes.startswith(b'\x89PNG\r\n\x1a\n'):
+            return "image/png"
+        if image_bytes.startswith(b'\xff\xd8\xff'):
+            return "image/jpeg"
+        if image_bytes[:4] == b'RIFF' and image_bytes[8:12] == b'WEBP':
+            return "image/webp"
+        return "image/jpeg"
+
+    @staticmethod
+    def _strip_json_fences(response_text: str) -> str:
+        text = response_text.strip()
+        if text.startswith("```json"):
+            return text.replace("```json", "").replace("```", "").strip()
+        if text.startswith("```"):
+            return text.replace("```", "").strip()
+        return text
+
+    @staticmethod
+    def _normalize_optional_str(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
+
+    @staticmethod
+    def _normalize_weight_value(value: Any) -> Optional[float]:
+        if value is None or value == "":
+            return None
+        if isinstance(value, (int, float)):
+            numeric = float(value)
+            return numeric if numeric > 0 else None
+        text = str(value).strip().replace(",", ".")
+        try:
+            numeric = float(text)
+            return numeric if numeric > 0 else None
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _normalize_weight_unit(value: Any) -> Optional[str]:
+        text = VisionService._normalize_optional_str(value)
+        if not text:
+            return None
+        normalized = text.lower().replace("grams", "g").replace("gram", "g").replace("kgs", "kg")
+        return normalized if normalized in {"g", "kg"} else None
+
+    @staticmethod
+    def _compose_weight(weight_value: Optional[float], weight_unit: Optional[str]) -> Optional[str]:
+        if weight_value is None or not weight_unit:
+            return None
+        if float(weight_value).is_integer():
+            value_text = str(int(weight_value))
+        else:
+            value_text = f"{weight_value:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+        return f"{value_text} {weight_unit}"
+
+    @staticmethod
+    def _extract_weight_parts(*values: Any) -> tuple[Optional[float], Optional[str]]:
+        for value in values:
+            text = VisionService._normalize_optional_str(value)
+            if not text:
+                continue
+            match = re.search(r"(\d+(?:[\.,]\d+)?)\s*(kg|g)\b", text, re.IGNORECASE)
+            if not match:
+                continue
+            numeric = VisionService._normalize_weight_value(match.group(1))
+            unit = VisionService._normalize_weight_unit(match.group(2))
+            if numeric is not None and unit:
+                return numeric, unit
+        return None, None
+
+    _KNOWN_BRANDS_ORDERED = [
+        "hill's science diet", "hills science diet", "hill's",
+        "royal canin",
+        "pro plan", "purina pro plan",
+        "premier pet", "premier",
+        "farmina n&d", "farmina",
+        "golden special", "golden",
+        "guabi natural", "guabi",
+        "formula natural",
+        "quatree", "special dog", "special cat",
+        "pedigree", "whiskas", "friskies",
+        "purina", "eukanuba", "iams",
+        "orijen", "acana",
+        "biofresh", "naturalys", "magnus",
+        "taste of the wild", "blue buffalo", "wellness",
+    ]
+
+    @staticmethod
+    def _ocr_brand_override(ai_brand: Optional[str], blobs: List[str]) -> Optional[str]:
+        """Return OCR-detected brand if blobs contain a known brand that differs from ai_brand."""
+        if not blobs:
+            return ai_brand
+        blob_text = " ".join(blobs).lower()
+        for known in VisionService._KNOWN_BRANDS_ORDERED:
+            if known in blob_text:
+                ai_norm = (ai_brand or "").lower()
+                if known not in ai_norm and ai_norm not in known:
+                    logger.info("[OCR Brand Override] AI said %r but OCR blobs have %r — using OCR brand", ai_brand, known)
+                    return known
+                break
+        return ai_brand
+
+    @staticmethod
+    def _normalize_text_blobs(value: Any) -> List[str]:
+        if value is None:
+            return []
+        raw_items = value if isinstance(value, list) else [value]
+        normalized: List[str] = []
+        for item in raw_items:
+            if item is None:
+                continue
+            if isinstance(item, list):
+                raw_items.extend(item)
+                continue
+            text = str(item).strip()
+            if not text:
+                continue
+            text = re.sub(r"\s+", " ", text)
+            if text not in normalized:
+                normalized.append(text)
+        return normalized[:12]
+
+    @staticmethod
+    def _normalize_species(value: Any) -> Optional[str]:
+        text = VisionService._normalize_optional_str(value)
+        if not text:
+            return None
+        normalized = text.lower()
+        aliases = {
+            "dog": "dog",
+            "dogs": "dog",
+            "cao": "dog",
+            "cão": "dog",
+            "canine": "dog",
+            "cat": "cat",
+            "cats": "cat",
+            "gato": "cat",
+            "gatos": "cat",
+            "feline": "cat",
+            "other": "other",
+            "pet": "other",
+        }
+        return aliases.get(normalized)
+
+    @staticmethod
+    def _normalize_life_stage(value: Any) -> Optional[str]:
+        text = VisionService._normalize_optional_str(value)
+        if not text:
+            return None
+        normalized = text.lower()
+        aliases = {
+            "puppy": "puppy",
+            "kitten": "puppy",
+            "filhote": "puppy",
+            "adult": "adult",
+            "adulto": "adult",
+            "senior": "senior",
+            "sênior": "senior",
+            "all": "all",
+            "all ages": "all",
+            "todas as idades": "all",
+        }
+        return aliases.get(normalized)
+
+    @staticmethod
+    def _build_probable_name(
+        brand: Optional[str],
+        product_name: Optional[str],
+        line: Optional[str],
+        variant: Optional[str],
+        flavor: Optional[str],
+        species: Optional[str],
+        life_stage: Optional[str],
+        weight: Optional[str],
+    ) -> Optional[str]:
+        species_map = {"dog": "Cão", "cat": "Gato", "other": "Pet"}
+        stage_map = {"puppy": "Filhote", "adult": "Adulto", "senior": "Sênior", "all": "Todas as idades"}
+        parts = [
+            brand,
+            product_name,
+            line,
+            variant,
+            flavor,
+            species_map.get(species),
+            stage_map.get(life_stage),
+            weight,
+        ]
+        compact = [str(part).strip() for part in parts if part and str(part).strip()]
+        return " ".join(compact) or None
+
+    async def identify_product_from_image(
+        self,
+        image_bytes: bytes,
+        pet_id: str,
+        hint: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Identifica um produto pet a partir de uma foto da embalagem.
+
+        Retorna um payload estruturado para o frontend preencher o sheet atual.
+        """
+        category_hint = (hint or "other").strip().lower()
+        category_guidance = {
+            "food": "Para ração/alimento: trate a embalagem como CAMPOS VISUAIS. Extraia marca, nome principal do produto, linha, variante, sabor, espécie, faixa etária e peso separadamente. Não dependa da ordem linear do texto.",
+            "medication": "Para medicamento, procure nome comercial, princípio ativo, concentração, laboratório/fabricante e apresentação. Exemplos: Apoquel, Prediderm, Amoxicilina, Simparic, Otomax, Dermotrat.",
+            "antiparasite": "Para antiparasitário, procure marca comercial, faixa de peso e apresentação. Exemplos: Bravecto, NexGard, Simparica, Frontline, Revolution.",
+            "dewormer": "Para vermífugo, procure nome comercial e apresentação. Exemplos: Drontal, Milbemax, Canex, Panacur.",
+            "collar": "Para coleira, procure marca e tamanho/faixa de peso. Exemplos: Seresto, Scalibor, Foresto.",
+            "hygiene": "Para higiene, procure nome do produto, marca e volume/peso. Exemplos: shampoo, tapete higiênico, areia, lenço umedecido.",
+            "other": "Se não houver categoria clara, identifique o produto pet mais provável lendo marca, nome e apresentação.",
+        }.get(category_hint, "Se houver categoria esperada, use-a para desempatar o produto mais provável.")
+
+        prompt = f"""
+Você é um especialista em identificar produtos pet por imagem de embalagem.
+
+Objetivo:
+- Ler visualmente a foto da embalagem como HIERARQUIA VISUAL + CAMPOS ESTRUTURADOS.
+- Extrair campos utilizáveis mesmo quando o nome completo não estiver legível.
+- Priorizar produtos pet reais, especialmente ração, antipulgas, vermífugo, coleira, medicamento e higiene.
+- Se a imagem estiver ambígua ou ilegível, diga que não encontrou.
+
+Contexto:
+- Pet ID: {pet_id}
+- Categoria esperada: {hint or 'não informada'}
+- Diretriz específica: {category_guidance}
+
+Regras:
+1. PRIORIDADE MÁXIMA: retorne um candidato utilizável sempre que possível. Se conseguir ler qualquer combinação de marca + espécie + fase + peso + nome parcial, isso já é suficiente.
+2. NÃO trate a embalagem como string linear. Pense em campos independentes: marca, nome principal, linha, variante, sabor, espécie, fase e peso.
+3. NÃO priorize `name` como saída principal. O campo principal é `product_name`.
+4. Para ração, `product_name` deve refletir apenas o nome principal visível do produto; `line`, `variant`, `flavor`, `species`, `life_stage` e peso devem ir separados.
+5. A categoria deve ser uma destas: food, medication, antiparasite, dewormer, collar, hygiene, other.
+6. Extraia o peso separadamente em `weight_value` e `weight_unit`.
+7. `raw_text_blobs` deve listar LITERALMENTE todos os blocos de texto legíveis na embalagem — em especial o nome da marca EXATAMENTE como impresso no rótulo. NUNCA omita texto visível por achar que é redundante com `brand` ou `product_name`. O objetivo é registrar o que está ESCRITO na embalagem, não o que você interpreta. Se você lê "ROYAL CANIN" na embalagem, "ROYAL CANIN" DEVE aparecer em raw_text_blobs, mesmo que você tenha colocado outra marca em `brand`.
+8. Se a categoria esperada estiver informada, use isso para priorizar candidatos e evitar cair em other.
+9. Para medication: retorne nome comercial OU princípio ativo + concentração se legível.
+10. Só retorne found=false e todos os campos relevantes null/vazios quando a imagem estiver realmente ilegível ou sem embalagem.
+11. Responda APENAS JSON válido, sem texto extra.
+
+Formato JSON obrigatório:
+{{
+  "found": true,
+  "brand": "Marca",
+    "product_name": "Nome principal visível do produto",
+  "category": "food",
+  "species": "dog",
+  "life_stage": "adult",
+    "weight_value": 15,
+    "weight_unit": "kg",
+    "variant": "Raças Pequenas",
+  "flavor": "Sabor (ex: Frango e Arroz)",
+    "line": "Linha específica (ex: Veterinary Diet, Natural)",
+    "raw_text_blobs": ["Royal Canin", "Mini Adult", "Cães Adultos", "1,5 kg"],
+  "confidence": 0.92,
+    "reason": "Resumo curto do que foi lido na embalagem"
+}}
+
+Valores válidos para species: "dog", "cat", "other", null
+Valores válidos para life_stage: "puppy", "adult", "senior", "all", null
+Se não souber um campo, use null. NÃO invente.
+
+Se a imagem for realmente ilegível:
+{{
+  "found": false,
+  "brand": null,
+    "product_name": null,
+  "category": null,
+    "species": null,
+    "life_stage": null,
+    "weight_value": null,
+    "weight_unit": null,
+    "variant": null,
+    "flavor": null,
+  "line": null,
+    "raw_text_blobs": [],
+  "confidence": 0.0,
+  "reason": "Imagem ilegível ou sem embalagem identificável"
+}}
+"""
+
+        try:
+            logger.info("Enviando imagem de produto para Gemini AI (pet_id=%s, hint=%s)", pet_id, hint)
+
+            image_part = {
+                "mime_type": self._detect_mime_type(image_bytes),
+                "data": image_bytes,
+            }
+
+            response = await self._generate_content_with_model_fallback(
+                prompt,
+                image_part,
+                generation_config=self.PRODUCT_PHOTO_GENERATION_CONFIG,
+            )
+            response_text = self._strip_json_fences(response.text)
+            result = json.loads(response_text)
+
+            allowed_categories = {"food", "medication", "antiparasite", "dewormer", "collar", "hygiene", "other"}
+            category = result.get("category")
+            if category not in allowed_categories:
+                result["category"] = hint if hint in allowed_categories else "other"
+
+            brand = self._normalize_optional_str(result.get("brand"))
+            product_name = self._normalize_optional_str(result.get("product_name"))
+            line = self._normalize_optional_str(result.get("line"))
+            variant = self._normalize_optional_str(result.get("variant"))
+            flavor = self._normalize_optional_str(result.get("flavor"))
+            raw_text_blobs = self._normalize_text_blobs(result.get("raw_text_blobs"))
+            visible_text = self._normalize_optional_str(result.get("visible_text"))
+            if visible_text and visible_text not in raw_text_blobs:
+                raw_text_blobs.append(visible_text)
+            raw_text_blobs = raw_text_blobs[:12]
+            brand = self._ocr_brand_override(brand, raw_text_blobs)
+
+            species = self._normalize_species(result.get("species"))
+            life_stage = self._normalize_life_stage(result.get("life_stage"))
+
+            weight_value = self._normalize_weight_value(result.get("weight_value"))
+            weight_unit = self._normalize_weight_unit(result.get("weight_unit"))
+            legacy_weight_value, legacy_weight_unit = self._extract_weight_parts(
+                result.get("weight"),
+                result.get("presentation"),
+                result.get("visible_text"),
+                raw_text_blobs,
+            )
+            if weight_value is None:
+                weight_value = legacy_weight_value
+            if not weight_unit:
+                weight_unit = legacy_weight_unit
+            weight = self._compose_weight(weight_value, weight_unit) or self._normalize_optional_str(result.get("weight"))
+
+            manufacturer = self._normalize_optional_str(result.get("manufacturer"))
+            presentation = self._normalize_optional_str(result.get("presentation"))
+            reason = self._normalize_optional_str(result.get("reason"))
+            name = self._normalize_optional_str(result.get("name"))
+            probable_name = self._normalize_optional_str(result.get("probable_name"))
+
+            useful_partial = bool(
+                brand or
+                product_name or
+                species or
+                life_stage or
+                weight or
+                line or
+                variant or
+                flavor or
+                raw_text_blobs
+            )
+
+            if not probable_name and useful_partial:
+                probable_name = self._build_probable_name(
+                    brand=brand,
+                    product_name=product_name,
+                    line=line,
+                    variant=variant,
+                    flavor=flavor,
+                    species=species,
+                    life_stage=life_stage,
+                    weight=weight,
+                )
+
+            result["found"] = bool(result.get("found") or product_name or name or useful_partial)
+            result["confidence"] = float(result.get("confidence") or 0.0)
+            result["product_name"] = product_name
+            result["name"] = name
+            result["probable_name"] = probable_name
+            result["brand"] = brand
+            result["weight"] = weight
+            result["weight_value"] = weight_value
+            result["weight_unit"] = weight_unit
+            result["variant"] = variant
+            result["visible_text"] = "\n".join(raw_text_blobs) if raw_text_blobs else visible_text
+            result["raw_text_blobs"] = raw_text_blobs
+            result["size"] = variant
+            result["manufacturer"] = manufacturer or brand or None
+            result["presentation"] = presentation or weight or None
+            result["reason"] = reason
+
+            result["species"] = species
+            result["life_stage"] = life_stage
+
+            result["line"] = line
+            result["flavor"] = flavor
+
+            if not result["name"] and result["probable_name"] and result["confidence"] >= 0.82:
+                result["name"] = result["probable_name"]
+
+            if not result["confidence"] and (result["product_name"] or result["name"] or useful_partial):
+                result["confidence"] = 0.65
+
+            if hint in allowed_categories and (result.get("category") == "other" or not result.get("category")):
+                result["category"] = hint
+
+            return_type = "complete" if result.get("name") else "partial" if useful_partial else "empty"
+            logger.info(
+                "Gemini produto return_type=%s found=%s category=%s confidence=%.2f brand=%s product_name=%s",
+                return_type,
+                bool(result["found"]),
+                result.get("category"),
+                result["confidence"],
+                result.get("brand"),
+                result.get("product_name"),
+            )
+            return result
+        except json.JSONDecodeError as e:
+            logger.warning("Gemini produto return_type=empty reason=json_parse_error detail=%s", e)
+            return {
+                "found": False,
+                "product_name": None,
+                "name": None,
+                "probable_name": None,
+                "brand": None,
+                "category": hint or "other",
+                "weight": None,
+                "weight_value": None,
+                "weight_unit": None,
+                "variant": None,
+                "size": None,
+                "manufacturer": None,
+                "presentation": None,
+                "visible_text": None,
+                "raw_text_blobs": [],
+                "species": None,
+                "life_stage": None,
+                "line": None,
+                "flavor": None,
+                "confidence": 0.0,
+                "reason": "Resposta inválida da IA",
+            }
+        except Exception as e:
+            err_str = str(e)
+            if "timeout" in err_str.lower() or "deadline" in err_str.lower():
+                logger.warning("Gemini produto return_type=timeout pet_id=%s detail=%s", pet_id, err_str)
+                return {
+                    "found": False,
+                    "product_name": None,
+                    "name": None,
+                    "probable_name": None,
+                    "brand": None,
+                    "category": hint or "other",
+                    "weight": None,
+                    "weight_value": None,
+                    "weight_unit": None,
+                    "variant": None,
+                    "size": None,
+                    "manufacturer": None,
+                    "presentation": None,
+                    "visible_text": None,
+                    "raw_text_blobs": [],
+                    "species": None,
+                    "life_stage": None,
+                    "line": None,
+                    "flavor": None,
+                    "confidence": 0.0,
+                    "reason": "Tempo limite da IA esgotado",
+                }
+            logger.error("Gemini produto return_type=exception pet_id=%s detail=%s", pet_id, err_str, exc_info=True)
+            raise
     
     async def extract_vaccine_data(self, image_bytes: bytes, pet_id: str) -> Dict[str, Any]:
         """
@@ -157,17 +676,9 @@ Retorne APENAS o JSON, sem texto adicional.
             # Enviar para Gemini
             logger.info(f"Enviando imagem para Gemini AI (pet_id={pet_id})")
             
-            # Detectar MIME type baseado nos bytes da imagem
-            if image_bytes.startswith(b'\x89PNG\r\n\x1a\n'):
-                mime_type = "image/png"
-            elif image_bytes.startswith(b'\xff\xd8\xff'):
-                mime_type = "image/jpeg"
-            else:
-                mime_type = "image/jpeg"  # Default
-                
             # Preparar imagem
             image_part = {
-                "mime_type": mime_type,
+                "mime_type": self._detect_mime_type(image_bytes),
                 "data": image_bytes
             }
             
@@ -175,13 +686,7 @@ Retorne APENAS o JSON, sem texto adicional.
             response = self.model.generate_content([prompt, image_part])
             
             # Parse da resposta
-            response_text = response.text.strip()
-            
-            # Remover markdown se existir
-            if response_text.startswith("```json"):
-                response_text = response_text.replace("```json", "").replace("```", "").strip()
-            elif response_text.startswith("```"):
-                response_text = response_text.replace("```", "").strip()
+            response_text = self._strip_json_fences(response.text)
             
             # Parse JSON
             result = json.loads(response_text)

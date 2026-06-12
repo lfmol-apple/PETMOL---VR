@@ -19,6 +19,7 @@ import {
   LoadingSpinner,
   EmptyState 
 } from '@/components/ui/BaseComponents';
+import { requestUserConfirmation, showBlockingNotice } from '@/features/interactions/userPromptChannel';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // EXEMPLO 1: Página Standalone com ScreenShell
@@ -34,7 +35,7 @@ export function ExemploPageStandalone() {
     // Simular save
     await new Promise(resolve => setTimeout(resolve, 1000));
     setLoading(false);
-    alert('Salvo com sucesso!');
+    showBlockingNotice('Salvo com sucesso!', { tone: 'success' });
   };
 
   return (
@@ -111,7 +112,7 @@ export function ExemploTabModal() {
       actions={
         <PrimaryButton 
           icon="➕" 
-          onClick={() => alert('Adicionar nova vacina')}
+          onClick={() => showBlockingNotice('Adicionar nova vacina')}
         >
           Nova Vacina
         </PrimaryButton>
@@ -142,7 +143,7 @@ export function ExemploTabModal() {
             title="Nenhuma vacina cadastrada"
             description="Comece adicionando a primeira vacina do histórico do seu pet ou importe uma carteirinha de vacinação"
             action={
-              <PrimaryButton icon="➕" onClick={() => alert('Adicionar')}>
+              <PrimaryButton icon="➕" onClick={() => showBlockingNotice('Adicionar')}>
                 Adicionar Vacina
               </PrimaryButton>
             }
@@ -203,7 +204,7 @@ export function ExemploFormularioCompleto() {
     // Simular save
     await new Promise(resolve => setTimeout(resolve, 1000));
     setSaving(false);
-    alert('✅ Vacina registrada com sucesso!');
+    showBlockingNotice('Vacina registrada com sucesso!', { tone: 'success' });
   };
 
   return (
@@ -312,8 +313,8 @@ export function ExemploListaCRUD() {
     { id: 3, name: 'Gripe Canina', date: '2025-12-10', status: 'Vencida' },
   ]);
 
-  const handleDelete = (id: number) => {
-    if (confirm('Tem certeza que deseja excluir esta vacina?')) {
+  const handleDelete = async (id: number) => {
+    if (await requestUserConfirmation('Tem certeza que deseja excluir esta vacina?', { tone: 'danger' })) {
       setItems(items.filter(item => item.id !== id));
     }
   };
@@ -323,7 +324,7 @@ export function ExemploListaCRUD() {
       title="Histórico de Vacinas"
       subtitle={`${items.length} vacina${items.length !== 1 ? 's' : ''} cadastrada${items.length !== 1 ? 's' : ''}`}
       actions={
-        <PrimaryButton icon="➕" onClick={() => alert('Adicionar')}>
+        <PrimaryButton icon="➕" onClick={() => showBlockingNotice('Adicionar')}>
           Nova Vacina
         </PrimaryButton>
       }
@@ -350,7 +351,7 @@ export function ExemploListaCRUD() {
               </div>
               
               <div className="flex gap-2">
-                <SecondaryButton onClick={() => alert('Editar ' + item.id)}>
+                <SecondaryButton onClick={() => showBlockingNotice('Editar ' + item.id)}>
                   ✏️
                 </SecondaryButton>
                 <DangerButton onClick={() => handleDelete(item.id)}>

@@ -1,5 +1,7 @@
 'use client';
 
+import { ModalPortal } from '@/components/ModalPortal';
+
 interface HomeEmergencySheetProps {
   open: boolean;
   onClose: () => void;
@@ -9,10 +11,10 @@ export function HomeEmergencySheet({ open, onClose }: HomeEmergencySheetProps) {
   if (!open) return null;
 
   return (
-    <>
+    <ModalPortal>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-md backdrop-blur-sm"
+        className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-md"
         onClick={onClose}
       />
 
@@ -27,7 +29,7 @@ export function HomeEmergencySheet({ open, onClose }: HomeEmergencySheetProps) {
               </div>
               <div className="flex-1">
                 <h2 className="text-base font-bold text-gray-900 leading-tight">Emergência Veterinária</h2>
-                <p className="text-xs text-gray-500">Selecione o tipo de atendimento</p>
+                <p className="text-xs text-gray-500">Abra as opções de atendimento mais próximas</p>
               </div>
               <button
                 onClick={onClose}
@@ -82,6 +84,6 @@ export function HomeEmergencySheet({ open, onClose }: HomeEmergencySheetProps) {
           </div>
         </div>
       </div>
-    </>
+    </ModalPortal>
   );
 }

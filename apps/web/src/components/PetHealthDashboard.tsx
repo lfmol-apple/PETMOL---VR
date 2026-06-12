@@ -11,7 +11,7 @@ import {
   type PetHealthProfile,
   type HealthSummary,
 } from '@/lib/petHealth';
-import { MedicalShareQR } from './MedicalShareQR';
+import { PetShareExportPanel } from './PetShareExportPanel';
 // ClinicVisitDetector removido — sem geolocalização
 
 interface PetHealthDashboardProps {
@@ -373,7 +373,14 @@ export function PetHealthDashboard({ petId }: PetHealthDashboardProps) {
 
         {showQRShare && (
           <div className="mt-6">
-            <MedicalShareQR petId={petId} petName={profile.pet_name} />
+            <PetShareExportPanel
+              pet={profile}
+              vaccines={profile.vaccines}
+              petEvents={[]}
+              documents={[]}
+              parasiteControls={profile.parasite_controls}
+              groomingRecords={profile.grooming_records}
+            />
           </div>
         )}
       </div>

@@ -1,4 +1,44 @@
+import type { CanonicalEventActionTarget } from '@/features/events/types';
+import type { ProductCategory } from '@/lib/productScanner';
+
 export type HomePushActionType = 'vaccines' | 'medication' | 'parasites' | 'food' | 'grooming';
+
+export const CANONICAL_ACTION_TARGET_TO_HOME_MODAL: Record<CanonicalEventActionTarget, string> = {
+  'health/vaccines': 'vaccines',
+  'health/parasites/dewormer': 'vermifugo',
+  'health/parasites/flea_tick': 'antipulgas',
+  'health/parasites/collar': 'coleira',
+  'health/parasites': 'vermifugo',
+  'health/medication': 'medication',
+  'health/grooming': 'grooming',
+  'health/food': 'food',
+  'health/eventos': 'eventos',
+};
+
+export function resolveCanonicalActionTargetModal(target: CanonicalEventActionTarget): string {
+  return CANONICAL_ACTION_TARGET_TO_HOME_MODAL[target] ?? 'health';
+}
+
+export function resolveTopAttentionDestination(target: CanonicalEventActionTarget): HomeSurfaceResolution | null {
+  if (target === 'health/eventos') {
+    return { kind: 'health-modal', healthModalMode: 'health', healthActiveTab: 'eventos' };
+  }
+  if (target === 'health/vaccines') {
+    return { kind: 'sheet', sheet: 'vaccines_quick' };
+  }
+
+  const modal = resolveCanonicalActionTargetModal(target);
+  return resolveHomeDeepLinkDestination(modal, null);
+}
+
+export function resolveScannedProductDestination(category: ProductCategory): HomeSurfaceResolution | null {
+  if (category === 'food') return { kind: 'sheet', sheet: 'food' };
+  if (category === 'medication') return { kind: 'sheet', sheet: 'medication' };
+  if (category === 'dewormer') return { kind: 'sheet', sheet: 'vermifugo' };
+  if (category === 'collar') return { kind: 'sheet', sheet: 'coleira' };
+  if (category === 'antiparasite') return { kind: 'sheet', sheet: 'antipulgas' };
+  return null;
+}
 
 export type HomeSurfaceResolution =
   | {
@@ -15,26 +55,23 @@ export type HomeSurfaceResolution =
     }
   | {
       kind: 'sheet';
-      sheet: 'grooming' | 'food' | 'vaccines' | 'vermifugo' | 'antipulgas' | 'coleira';
+      sheet: 'grooming' | 'food' | 'vaccines' | 'vaccines_quick' | 'vermifugo' | 'antipulgas' | 'coleira' | 'medication';
     }
   | {
       kind: 'edit-pet';
       initialSection: 'food';
+    }
+  | {
+      kind: 'documents';
     };
 
 export function resolveHomeDeepLinkDestination(
   modal: string | null,
   tabParam: string | null,
+  subtypeParam?: string | null,
 ): HomeSurfaceResolution | null {
   if (!modal) return null;
-
-  const actionSheetTypes: HomePushActionType[] = ['vaccines', 'parasites', 'medication', 'food', 'grooming'];
-  if (actionSheetTypes.includes(modal as HomePushActionType)) {
-    return {
-      kind: 'push-action-sheet',
-      actionSheetType: modal as HomePushActionType,
-    };
-  }
+  const subtype = String(subtypeParam || '').trim().toLowerCase();
 
   if (modal === 'food-setup') {
     return { kind: 'edit-pet', initialSection: 'food' };
@@ -75,8 +112,18 @@ export function resolveHomeDeepLinkDestination(
     };
   }
 
-  if (modal === 'vaccine-sheet') {
+  if (modal === 'vaccines' || modal === 'vaccine-sheet') {
     return { kind: 'sheet', sheet: 'vaccines' };
+  }
+
+  if (modal === 'parasites') {
+    if (subtype === 'antipulgas' || subtype === 'flea_tick' || subtype === 'flea-tick' || subtype === 'antiparasite') {
+      return { kind: 'sheet', sheet: 'antipulgas' };
+    }
+    if (subtype === 'coleira' || subtype === 'collar') {
+      return { kind: 'sheet', sheet: 'coleira' };
+    }
+    return { kind: 'sheet', sheet: 'vermifugo' };
   }
 
   if (modal === 'vermifugo') {
@@ -95,12 +142,24 @@ export function resolveHomeDeepLinkDestination(
     return { kind: 'sheet', sheet: 'grooming' };
   }
 
+  if (modal === 'medication') {
+    return { kind: 'sheet', sheet: 'medication' };
+  }
+
+  if (modal === 'food') {
+    return { kind: 'sheet', sheet: 'food' };
+  }
+
+  if (modal === 'documents') {
+    return { kind: 'documents' } as HomeSurfaceResolution;
+  }
+
   return null;
 }
 
 export function resolvePushActionSheetFullDestination(type: HomePushActionType): HomeSurfaceResolution {
   if (type === 'food') {
-    return { kind: 'edit-pet', initialSection: 'food' };
+    return { kind: 'sheet', sheet: 'food' };
   }
 
   if (type === 'grooming') {

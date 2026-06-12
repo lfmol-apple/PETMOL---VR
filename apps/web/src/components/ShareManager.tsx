@@ -24,6 +24,7 @@ import {
 } from '@/lib/shares/shareStorage';
 import { useI18n } from '@/lib/I18nContext';
 import { trackShareEvent } from '@/lib/analytics/storage';
+import { requestUserConfirmation } from '@/features/interactions/userPromptChannel';
 
 interface ShareManagerProps {
   petId: string;
@@ -40,6 +41,12 @@ export function ShareManager({ petId, petName, petSpecies, ownerPhone }: ShareMa
   const [showCreateEmergency, setShowCreateEmergency] = useState(false);
   const [showCreateVet, setShowCreateVet] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<string | null>(null);
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  }
 
   // Load shares
   useEffect(() => {
@@ -82,7 +89,7 @@ export function ShareManager({ petId, petName, petSpecies, ownerPhone }: ShareMa
       setShowCreateEmergency(false);
     } catch (error) {
       console.error('[ShareManager] Create emergency failed:', error);
-      alert(t('share_manager.alerts.create_emergency_error'));
+      showToast(t('share_manager.alerts.create_emergency_error'));
     }
   };
 
@@ -97,19 +104,24 @@ export function ShareManager({ petId, petName, petSpecies, ownerPhone }: ShareMa
       setShowCreateVet(false);
     } catch (error) {
       console.error('[ShareManager] Create vet share failed:', error);
-      alert(t('share_manager.alerts.create_vet_error'));
+      showToast(t('share_manager.alerts.create_vet_error'));
     }
   };
 
   // Copy to clipboard
   const copyLink = (link: string) => {
     navigator.clipboard.writeText(link);
-    alert(t('share_manager.alerts.copied'));
+    showToast(t('share_manager.alerts.copied'));
   };
 
   // Revoke
   const handleRevoke = async (type: 'emergency' | 'vet', id: string) => {
-    if (!confirm(t('share_manager.alerts.revoke_confirm'))) return;
+    const accepted = await requestUserConfirmation(t('share_manager.alerts.revoke_confirm'), {
+      title: 'Revogar acesso',
+      tone: 'danger',
+      confirmLabel: 'Revogar',
+    });
+    if (!accepted) return;
 
     try {
       if (type === 'emergency') {
@@ -122,7 +134,7 @@ export function ShareManager({ petId, petName, petSpecies, ownerPhone }: ShareMa
       await loadShares();
     } catch (error) {
       console.error('[ShareManager] Revoke failed:', error);
-      alert(t('share_manager.alerts.revoke_error'));
+      showToast(t('share_manager.alerts.revoke_error'));
     }
   };
 
@@ -134,7 +146,7 @@ export function ShareManager({ petId, petName, petSpecies, ownerPhone }: ShareMa
       await loadShares();
     } catch (error) {
       console.error('[ShareManager] Renew failed:', error);
-      alert(t('share_manager.alerts.renew_error'));
+      showToast(t('share_manager.alerts.renew_error'));
     }
   };
 
@@ -149,6 +161,14 @@ export function ShareManager({ petId, petName, petSpecies, ownerPhone }: ShareMa
 
   return (
     <div className="space-y-6">
+      {/* Toast */}
+      {toast && (
+        <div className="px-4 py-3 rounded-2xl bg-blue-50 border border-blue-200 text-sm font-semibold text-blue-800 shadow-sm flex items-center gap-2">
+          <span>ℹ️</span>
+          <span className="flex-1">{toast}</span>
+          <button onClick={() => setToast(null)} className="text-[11px] font-bold text-blue-600 underline">OK</button>
+        </div>
+      )}
       {/* Emergency Shares Section */}
       <div>
         <div className="flex items-center justify-between mb-4">

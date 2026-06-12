@@ -1,6 +1,7 @@
 'use client';
 
 import { useMasterInteractionRules } from './useMasterInteractionRules';
+import { IosSwitch } from '@/components/ui/IosSwitch';
 
 const categoryLabels = {
   vaccine: 'Vacinas',
@@ -12,17 +13,7 @@ const categoryLabels = {
 };
 
 function Switch({ on, onChange }: { on: boolean; onChange: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onChange}
-      role="switch"
-      aria-checked={on}
-      className={`relative h-6 w-11 rounded-full transition-colors ${on ? 'bg-blue-500' : 'bg-gray-200'}`}
-    >
-      <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${on ? 'translate-x-5' : ''}`} />
-    </button>
-  );
+  return <IosSwitch checked={on} onChange={onChange} size="sm" />;
 }
 
 interface InteractionRulesPanelProps {

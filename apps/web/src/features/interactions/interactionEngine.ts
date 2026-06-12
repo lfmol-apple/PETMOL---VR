@@ -43,6 +43,7 @@ export function isEventVisibleOnHome(
   event: CanonicalPetEvent,
   rules: MasterInteractionRules = DEFAULT_MASTER_INTERACTION_RULES,
 ): boolean {
+  if (event.domain === 'grooming') return false;
   const policy = getCarePolicyForEvent(event, rules);
   if (!policy?.enabled) return false;
   if (policy.showOnHome === false) return false;
@@ -70,7 +71,7 @@ function buildBody(event: CanonicalPetEvent): string {
     const days = Math.abs(event.diff);
     const dayText = days <= 1 ? 'ontem' : `há ${days} dias`;
     const overdueMessages: Partial<Record<typeof event.domain, string>> = {
-      vaccine: `Vacina ${event.label} venceu ${dayText}`,
+      vaccine: `Vacina ${event.label}: pode estar na hora de revisar (${dayText})`,
       parasite: `${event.label} está em atraso desde ${dayText}`,
       medication: `Medicação ${event.label} está em atraso`,
       grooming: `${event.label} está em atraso desde ${dayText}`,
@@ -81,7 +82,7 @@ function buildBody(event: CanonicalPetEvent): string {
   }
 
   const upcomingMessages: Partial<Record<typeof event.domain, string>> = {
-    vaccine: `Vacina ${event.label} vence em breve`,
+    vaccine: `Vacina ${event.label}: vale confirmar com seu veterinário`,
     parasite: `${event.label} precisa ser renovado em breve`,
     medication: `${event.label}: lembrete de medicação`,
     grooming: `${event.label} está próximo`,
@@ -96,6 +97,8 @@ export function canonicalEventsToPetInteractions(
   rules: MasterInteractionRules = DEFAULT_MASTER_INTERACTION_RULES,
 ): PetInteractionItem[] {
   return events.flatMap((event) => {
+    if (event.domain === 'grooming') return [];
+
     const careKey = resolveCarePolicyKeyFromEvent(event);
     const policy = rules.carePolicies[careKey];
 

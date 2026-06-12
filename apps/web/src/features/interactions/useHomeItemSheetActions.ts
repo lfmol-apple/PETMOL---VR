@@ -64,11 +64,10 @@ export function useHomeItemSheetActions({
   }, [setShowFoodSheet]);
 
   const handleFoodSaved = useCallback(() => {
-    setShowFoodSheet(false);
     if (selectedPetId) {
       fetchFeedingPlan(selectedPetId);
     }
-  }, [fetchFeedingPlan, selectedPetId, setShowFoodSheet]);
+  }, [fetchFeedingPlan, selectedPetId]);
 
   const closeVaccineSheet = useCallback(() => {
     setShowVaccineSheet(false);
@@ -110,7 +109,9 @@ export function useHomeItemSheetActions({
       next_dose_date: '',
       frequency_days: 365,
       veterinarian: '',
+      clinic_name: '',
       notes: '',
+      record_type: 'confirmed_application',
       ...prefill,
     });
     setShowVaccineForm(true);

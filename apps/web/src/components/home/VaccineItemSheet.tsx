@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
-import type { VaccineRecord } from '@/lib/petHealth';
+import type { VaccineRecord, VaccineType } from '@/lib/petHealth';
 import type { VaccineFormData } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
 import { ModalPortal } from '@/components/ModalPortal';
 import { localTodayISO } from '@/lib/localDate';
+import { trackPartnerClicked } from '@/lib/v1Metrics';
+import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -26,18 +28,30 @@ function fmtDate(s?: string | null): string {
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
+function fmtRelativeDays(diff: number | null): string {
+  if (diff === null) return '';
+  if (diff < 0) {
+    const days = Math.abs(diff);
+    if (days > 90) return 'revisão recomendada';
+    return `atrasado há ${days} dia${days !== 1 ? 's' : ''}`;
+  }
+  if (diff === 0) return 'hoje';
+  if (diff === 1) return 'amanhã';
+  return `em ${diff} dias`;
+}
+
 function computeStatus(overdue: number, nextDiff: number | null) {
   if (overdue > 0)
     return {
-      label: `${overdue} vacina${overdue !== 1 ? 's' : ''} em atraso`,
-      bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500',
+      label: `Pode estar na hora de revisar ${overdue} registro${overdue !== 1 ? 's' : ''}`,
+      bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500',
     };
   if (nextDiff === null)
-    return { label: 'Sem próxima dose agendada', bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400' };
+    return { label: 'Sem data de revisão definida', bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400' };
   if (nextDiff === 0)
-    return { label: 'Dose hoje!', bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' };
+    return { label: 'Dose hoje', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
   if (nextDiff <= 7)
-    return { label: `Próxima dose em ${nextDiff} dias`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' };
+    return { label: `Próxima dose em ${nextDiff} dia${nextDiff !== 1 ? 's' : ''}`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' };
   return {
     label: `Próxima dose em ${nextDiff} dias`,
     bg: 'bg-sky-50', text: 'text-sky-700', dot: 'bg-sky-500',
@@ -48,10 +62,12 @@ function computeStatus(overdue: number, nextDiff: number | null) {
 export interface VaccineItemSheetProps {
   petName?: string;
   petSpecies?: string;
+  petPhotoUrl?: string | null;
   vaccines: VaccineRecord[];
   onClose: () => void;
   onQuickAdd: () => void;
   onFullFormVaccine: (prefill: Partial<VaccineFormData>) => void;
+  onDirectSaveVaccine?: (vaccine: { type: VaccineType; name: string; icon: string; code: string }, when: 'today' | 'this_month' | 'unknown') => Promise<void>;
   onEditVaccine: (v: VaccineRecord) => void;
   onDeleteVaccine: (v: VaccineRecord) => void;
   onDeleteAllVaccines: () => void;
@@ -63,16 +79,19 @@ export interface VaccineItemSheetProps {
   setAiImageLimit: Dispatch<SetStateAction<number>>;
   handleFilesSelectedAppend: (event: ChangeEvent<HTMLInputElement>) => void;
   handleProcessCards: (selected: File[]) => Promise<void>;
+  initialMode?: 'view' | 'buy';
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 export function VaccineItemSheet({
   petName,
   petSpecies,
+  petPhotoUrl,
   vaccines,
   onClose,
   onQuickAdd,
   onFullFormVaccine,
+  onDirectSaveVaccine,
   onEditVaccine,
   onDeleteVaccine,
   onDeleteAllVaccines,
@@ -84,7 +103,10 @@ export function VaccineItemSheet({
   setAiImageLimit,
   handleFilesSelectedAppend,
   handleProcessCards,
+  initialMode,
 }: VaccineItemSheetProps) {
+  const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
+  const [mode, setMode] = useState<'view' | 'buy'>(initialMode === 'buy' ? 'buy' : 'view');
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [historyShowAll, setHistoryShowAll] = useState(false);
@@ -95,6 +117,9 @@ export function VaccineItemSheet({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [savingChip, setSavingChip] = useState<string | null>(null);
+  const [savedChip, setSavedChip] = useState<string | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -120,27 +145,47 @@ export function VaccineItemSheet({
   const status = computeStatus(overdue.length, nextDiff);
 
   // Quick-entry chip data
-  type ChipDef = { label: string; type: string; name: string; notes: string; disabled?: boolean };
+  type ChipDef = { label: string; type: string; name: string; icon: string; code: string; notes: string; disabled?: boolean; isOther?: boolean };
   const dogChips: ChipDef[] = [
-    { label: 'V10', type: 'multiple', name: 'V10 (Múltipla)', notes: 'Cinomose, Parvovirose, Hepatite, Coronavirose, Leptospirose, Adenovirose, Parainfluenza, Gripe' },
-    { label: 'V8', type: 'multiple', name: 'V8 (Múltipla)', notes: 'Cinomose, Parvovirose, Hepatite, Coronavirose, Leptospirose, Adenovirose, Parainfluenza' },
-    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', notes: '' },
-    { label: 'Gripe Canina', type: 'kennel_cough', name: 'Gripe Canina (Tosse dos Canis)', notes: 'Bordetella bronchiseptica' },
-    { label: 'Giárdia', type: 'giardia', name: 'Giárdia', notes: '' },
-    { label: 'Leishmaniose', type: 'leishmaniasis', name: 'Leishmaniose', notes: '', disabled: true },
+    { label: 'Polivalente (V8 / V10)', type: 'multiple', name: 'Polivalente (V10/V8)', icon: '💉', code: 'multiple', notes: 'Cinomose, Parvovirose, Hepatite, Coronavirose, Leptospirose, Adenovirose, Parainfluenza' },
+    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', icon: '🦠', code: 'rabies', notes: '' },
+    { label: 'Tosse dos canis', type: 'kennel_cough', name: 'Gripe Canina (Tosse dos Canis)', icon: '🫁', code: 'kennel_cough', notes: 'Bordetella bronchiseptica' },
+    { label: 'Giárdia', type: 'giardia', name: 'Giárdia', icon: '🧪', code: 'giardia', notes: '' },
+    { label: 'Leishmaniose', type: 'leishmaniasis', name: 'Leishmaniose', icon: '🛡️', code: 'leishmaniasis', notes: '', disabled: true },
+    { label: 'Outro', type: 'other', name: 'Outra Vacina', icon: '➕', code: 'other', notes: '', isOther: true },
   ];
   const catChips: ChipDef[] = [
-    { label: 'V5', type: 'multiple', name: 'V5 (Quíntupla)', notes: 'Rinotraqueíte, Calicivirose, Panleucopenia, Clamidiose, Leucemia Felina' },
-    { label: 'V4', type: 'multiple', name: 'V4 (Quádrupla)', notes: 'Rinotraqueíte, Calicivirose, Panleucopenia, Clamidiose' },
-    { label: 'V3', type: 'multiple', name: 'V3 (Tríplice)', notes: 'Rinotraqueíte, Calicivirose, Panleucopenia' },
-    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', notes: '' },
-    { label: 'FeLV', type: 'feline_leukemia', name: 'FeLV (Leucemia Felina)', notes: '' },
+    { label: 'Polivalente (V5 / V4 / V3)', type: 'multiple', name: 'Polivalente (V5/V4/V3)', icon: '💉', code: 'multiple', notes: 'Rinotraqueíte, Calicivirose, Panleucopenia, Clamidiose' },
+    { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', icon: '🦠', code: 'rabies', notes: '' },
+    { label: 'FeLV', type: 'feline_leukemia', name: 'FeLV (Leucemia Felina)', icon: '🐱', code: 'feline_leukemia', notes: '' },
+    { label: 'Outro', type: 'other', name: 'Outra Vacina', icon: '➕', code: 'other', notes: '', isOther: true },
   ];
   const chips = (petSpecies === 'cat' || petSpecies === 'cats') ? catChips : dogChips;
 
-  function handleChipClick(chip: ChipDef) {
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  }
+
+  async function handleChipClick(chip: ChipDef) {
     if (chip.disabled) {
-      alert('A vacina de Leishmaniose requer receita veterinária e está sujeita a regulamentação especial.');
+      showToast('A vacina de Leishmaniose requer receita veterinária especial.');
+      return;
+    }
+    if (chip.isOther) {
+      onQuickAdd();
+      return;
+    }
+    if (onDirectSaveVaccine && savingChip === null) {
+      setSavingChip(chip.code);
+      try {
+        await onDirectSaveVaccine({ type: chip.type as VaccineType, name: chip.name, icon: chip.icon, code: chip.code }, 'today');
+        setSavedChip(chip.code);
+        setTimeout(() => { setSavedChip(null); setSavingChip(null); onClose(); }, 1500);
+      } catch {
+        setSavingChip(null);
+        showToast('Erro ao registrar. Tente novamente.');
+      }
       return;
     }
     onFullFormVaccine({
@@ -151,6 +196,8 @@ export function VaccineItemSheet({
       frequency_days: 365,
       notes: chip.notes,
       veterinarian: '',
+      clinic_name: '',
+      record_type: 'confirmed_application',
     });
   }
 
@@ -176,89 +223,135 @@ export function VaccineItemSheet({
     <ModalPortal>
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
 
       {/* Sheet */}
       <div
-        className="relative w-full max-w-lg bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 flex flex-col overflow-hidden"
+        className="relative w-full max-w-lg bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 flex flex-col overflow-hidden animate-scaleIn"
         style={{ maxHeight: '92dvh' }}
         onClick={e => e.stopPropagation()}
       >
 
         {/* Header */}
-        <div className="px-5 pt-4 pb-3 bg-sky-50 border-b border-gray-100 flex-shrink-0">
+        <div className="px-5 pt-4 pb-3 bg-white border-b border-sky-100 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-white shadow-sm flex items-center justify-center text-xl flex-shrink-0">
-              💉
+            <div className="w-14 h-14 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-3xl flex-shrink-0">
+              {petPhotoSrc ? (
+                <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
+              ) : (
+                <span>{petSpecies === 'cat' || petSpecies === 'cats' ? '🐱' : '🐶'}</span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 min-w-0">
                 <h2 className="text-[16px] font-bold text-gray-900 leading-tight whitespace-nowrap">Vacinas</h2>
-                {petName && <span className="text-sm text-gray-400 truncate">· {petName}</span>}
               </div>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${status.dot}`} />
+              {petName && (
+                <p className="mt-1">
+                  <span className="inline-flex max-w-full items-center px-2.5 py-1 rounded-full bg-white text-sky-800 text-xs font-black tracking-[0.04em] shadow-sm border border-sky-100 whitespace-normal break-all leading-tight">
+                    {petName}
+                  </span>
+                </p>
+              )}
+              <div className="flex items-center gap-2 mt-0.5">
+                {status.dot === 'bg-rose-500' ? (
+                  <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm border border-white/50 flex-shrink-0">
+                    !
+                  </div>
+                ) : (
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${status.dot}`} />
+                )}
                 <span className={`text-[13px] font-semibold ${status.text} truncate`}>{status.label}</span>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
-              aria-label="Fechar"
-            >
-              ✕
-            </button>
+            {mode === 'buy' ? (
+              <button
+                type="button"
+                onClick={() => setMode('view')}
+                onTouchEnd={() => setMode('view')}
+                className="relative z-10 pointer-events-auto w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
+                aria-label="Voltar"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className="relative z-10 pointer-events-auto w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
+                aria-label="Fechar"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
+                  <path d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
         {/* Scrollable body */}
+        {/* Toast */}
+        {toast && (
+          <div className="absolute top-20 left-4 right-4 z-[60] px-4 py-3 rounded-2xl bg-amber-50 border border-amber-200 shadow-md flex items-center gap-2 animate-fadeIn">
+            <span className="text-amber-600 text-base">ℹ️</span>
+            <p className="text-xs font-semibold text-amber-800 flex-1">{toast}</p>
+            <button onClick={() => setToast(null)} className="text-[11px] font-bold text-amber-700 underline">OK</button>
+          </div>
+        )}
         <div className="overflow-y-auto flex-1 overscroll-contain">
-          <div className="p-5 space-y-3 pb-8">
+          {mode === 'view' && (
+            <div className="p-5 space-y-3 pb-8">
 
-            {/* ── PRIMARY CTA ───────────────────────────────────────────── */}
-            <button
-              onClick={onQuickAdd}
-              className="w-full py-4 rounded-2xl bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-[15px] font-bold shadow-md transition-opacity"
-            >
-              ➕ Registrar manualmente
-            </button>
-
-            {/* ── Secondary CTAs ─────────────────────────────────────────── */}
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => setShowImportModal(true)}
-                className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-white border border-gray-200 shadow-sm hover:bg-gray-50 active:scale-95 transition-all text-sm font-semibold text-gray-700"
-              >
-                📸 Tirar foto
-              </button>
-              <button
-                onClick={() => onFullFormVaccine({ date_administered: today, frequency_days: 365 })}
-                className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-emerald-50 border border-emerald-200 shadow-sm hover:bg-emerald-100 active:scale-95 transition-all text-sm font-semibold text-emerald-700"
-              >
-                ✍️ Formulário
-              </button>
-              <button
-                onClick={onRefreshVaccines}
-                className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-sky-50 border border-sky-200 shadow-sm hover:bg-sky-100 active:scale-95 transition-all text-sm font-semibold text-sky-700"
-              >
-                🔄 Atualizar
-              </button>
+            {/* ── QUICK REGISTER ────────────────────────────────────────── */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-base">⚡</span>
+                <div>
+                  <p className="text-[13px] font-black text-slate-800">Registro rápido</p>
+                  <p className="text-[11px] text-slate-500">Toque na vacina aplicada</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {chips.map((chip) => {
+                  const isSaving = savingChip === chip.code;
+                  const isSaved = savedChip === chip.code;
+                  return (
+                    <button
+                      key={chip.code}
+                      type="button"
+                      onClick={() => handleChipClick(chip)}
+                      disabled={savingChip !== null && !isSaving}
+                      className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border text-left transition-all active:scale-[0.98] ${
+                        chip.disabled
+                          ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed'
+                          : isSaved
+                            ? 'bg-emerald-50 border-emerald-300'
+                            : chip.isOther
+                              ? 'bg-white border-dashed border-gray-200 hover:bg-gray-50'
+                              : 'bg-white border-gray-200 hover:bg-sky-50 hover:border-sky-200 shadow-sm'
+                      }`}
+                    >
+                      <span className="text-2xl flex-shrink-0">{isSaved ? '✅' : chip.icon}</span>
+                      <span className={`flex-1 text-[14px] font-bold ${chip.disabled ? 'text-gray-400' : chip.isOther ? 'text-gray-500' : 'text-slate-800'}`}>
+                        {isSaved ? 'Registrado!' : isSaving ? 'Registrando...' : chip.label}
+                      </span>
+                      {chip.disabled && <span className="text-[10px] font-semibold text-gray-400">Prescrição veterinária</span>}
+                      {!chip.disabled && !isSaved && !isSaving && <span className="text-gray-300 text-lg">›</span>}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* ── Empty state (only when no data) ──────────────────────── */}
-            {vaccines.length === 0 && (
-              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-8 text-center">
-                <p className="text-4xl mb-3">💉</p>
-                <p className="text-sm font-semibold text-gray-600">Nenhuma vacina registrada ainda</p>
-                <p className="text-xs text-gray-400 mt-1">Leva menos de 1 minuto para começar</p>
-                <button
-                  onClick={onQuickAdd}
-                  className="mt-3 inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
-                >
-                  Registrar agora
-                </button>
-              </div>
-            )}
+            {/* ── Não sei o histórico ────────────────────────────────────── */}
+            <button
+              onClick={onQuickAdd}
+              className="w-full py-2.5 rounded-2xl border border-dashed border-gray-200 text-[12px] font-semibold text-gray-400 hover:text-gray-600 hover:border-gray-300 transition-all"
+            >
+              Não sei o histórico — começar daqui
+            </button>
 
             {/* ── DETALHES — single collapsed accordion for everything else */}
             {vaccines.length > 0 && (
@@ -270,8 +363,8 @@ export function VaccineItemSheet({
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Detalhes</span>
                     {overdue.length > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
-                        ⚠️ {overdue.length} em atraso
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700">
+                        {overdue.length} para revisar
                       </span>
                     )}
                     {overdue.length === 0 && upcoming.length > 0 && (
@@ -291,18 +384,18 @@ export function VaccineItemSheet({
                       <div>
                         <button
                           onClick={() => setOverdueExpanded(o => !o)}
-                          className="w-full flex items-center gap-3 px-4 py-3 bg-red-50 text-left"
+                          className="w-full flex items-center gap-3 px-4 py-3 bg-rose-50 text-left"
                         >
-                          <span className="text-sm flex-shrink-0">⚠️</span>
-                          <p className="flex-1 text-sm font-bold text-red-700 truncate">
+                          <span className="text-sm flex-shrink-0">•</span>
+                          <p className="flex-1 text-sm font-bold text-rose-700 truncate">
                             {overdue.length === 1
-                              ? `${overdue[0].vaccine_name} em atraso`
-                              : `${overdue.length} vacinas em atraso`}
+                              ? `${overdue[0].vaccine_name}: vale revisar`
+                              : `${overdue.length} vacinas para revisar`}
                           </p>
-                          <span className="text-red-400 text-xs">{overdueExpanded ? '▲' : '▼'}</span>
+                          <span className="text-rose-400 text-xs">{overdueExpanded ? '▲' : '▼'}</span>
                         </button>
                         {overdueExpanded && (
-                          <div className="divide-y divide-red-100 bg-red-50">
+                          <div className="divide-y divide-rose-100 bg-rose-50">
                             {(overdueShowAll ? overdue : overdue.slice(0, 2)).map(v => (
                               <VaccineRow
                                 key={v.id}
@@ -311,12 +404,12 @@ export function VaccineItemSheet({
                                 confirmDeleteId={confirmDeleteId}
                                 onEdit={onEditVaccine}
                                 onDeleteClick={handleDeleteClick}
-                                borderColor="border-l-red-500"
-                                statusBadge={<span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">⚠️ Vencida</span>}
+                                borderColor="border-l-rose-500"
+                                statusBadge={<span className="text-[10px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-semibold">Revisar</span>}
                               />
                             ))}
                             {overdue.length > 2 && (
-                              <button onClick={() => setOverdueShowAll(s => !s)} className="w-full py-2 text-xs font-semibold text-red-600 bg-red-50/80">
+                              <button onClick={() => setOverdueShowAll(s => !s)} className="w-full py-2 text-xs font-semibold text-rose-600 bg-rose-50/80">
                                 {overdueShowAll ? 'Mostrar menos' : `Ver mais ${overdue.length - 2}`}
                               </button>
                             )}
@@ -336,7 +429,7 @@ export function VaccineItemSheet({
                           <p className="flex-1 text-sm font-bold text-sky-700 truncate">
                             {upcoming[0].vaccine_name}
                             {diffDays(upcoming[0].next_dose_date) !== null && (
-                              <span className="font-normal text-sky-600 ml-1">· em {diffDays(upcoming[0].next_dose_date)}d</span>
+                              <span className="font-normal text-sky-600 ml-1">· {fmtRelativeDays(diffDays(upcoming[0].next_dose_date))}</span>
                             )}
                           </p>
                           <span className="text-sky-400 text-xs">{upcomingExpanded ? '▲' : '▼'}</span>
@@ -373,12 +466,6 @@ export function VaccineItemSheet({
                             </p>
                             <span className="text-gray-400 text-sm">{historyExpanded ? '▲' : '▼'}</span>
                           </button>
-                          <button
-                            onClick={onRefreshVaccines}
-                            className="ml-3 text-xs font-semibold text-sky-600 hover:text-sky-700"
-                          >
-                            🔄 Atualizar
-                          </button>
                         </div>
                         {historyExpanded && (
                           <div className="divide-y divide-gray-100 border-t border-gray-100">
@@ -407,39 +494,6 @@ export function VaccineItemSheet({
                       </div>
                     )}
 
-                    {/* Quick chips */}
-                    <div>
-                      <button
-                        className="w-full flex items-center justify-between px-4 py-3 text-left"
-                        onClick={() => setChipsExpanded(c => !c)}
-                      >
-                        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                          💡 Registro rápido por vacina
-                        </p>
-                        <span className="text-gray-400 text-sm">{chipsExpanded ? '▲' : '▼'}</span>
-                      </button>
-                      {chipsExpanded && (
-                        <div className="px-3 pb-3 pt-2 flex flex-wrap gap-2 border-t border-gray-100">
-                          {chips.map(chip => (
-                            <button
-                              key={chip.name}
-                              onClick={() => handleChipClick(chip)}
-                              disabled={chip.disabled}
-                              className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold border transition-all active:scale-95 ${
-                                chip.disabled
-                                  ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                                  : 'bg-white border-sky-200 text-sky-700 hover:bg-sky-50 shadow-sm'
-                              }`}
-                              title={chip.disabled ? 'Requer receita veterinária especial' : `Registrar ${chip.name}`}
-                            >
-                              {chip.label}
-                              {chip.disabled && <span className="ml-1 text-[10px] text-gray-400">(restrita)</span>}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
                     {/* Stats */}
                     <div className="px-4 py-3 grid grid-cols-3 gap-2">
                       <div className="rounded-2xl bg-gray-50 border border-gray-200 px-3 py-2.5 text-center">
@@ -452,7 +506,7 @@ export function VaccineItemSheet({
                       </div>
                       <div className="rounded-2xl bg-red-50 border border-red-200 px-3 py-2.5 text-center">
                         <p className="text-xl font-black text-red-600">{overdue.length}</p>
-                        <p className="text-[10px] text-red-500 font-medium mt-0.5">Em atraso</p>
+                        <p className="text-[10px] text-red-500 font-medium mt-0.5">Atrasadas</p>
                       </div>
                     </div>
 
@@ -469,13 +523,81 @@ export function VaccineItemSheet({
                         {confirmDeleteAll ? '⚠️ Confirmar exclusão de todas as vacinas' : '🗑️ Limpar todas as vacinas'}
                       </button>
                     </div>
-
                   </div>
                 )}
               </div>
             )}
 
+            {/* Find a place to vaccinate */}
+            {mode === 'view' && (
+              <a
+                href="https://www.google.com/maps/search/clínica+veterinária+vacina+perto+de+mim"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-between p-4 bg-sky-50 border border-sky-200 rounded-2xl hover:bg-sky-100 transition-all active:scale-[0.98] mt-1 shadow-sm"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center text-xl shadow-sm">
+                    📍
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[14px] font-bold text-sky-900">Procurar lugar para vacinar</p>
+                    <p className="text-[12px] text-sky-700/70">Clínicas e hospitais próximos</p>
+                  </div>
+                </div>
+                <span className="text-sky-400 text-lg font-bold">›</span>
+              </a>
+            )}
+
           </div>
+        )}
+
+        {/* ── BUY MODE ──────────────────────────────────────────────────── */}
+        {mode === 'buy' && (
+          <div className="p-5 space-y-4 pb-8">
+            <h3 className="text-[16px] font-bold text-gray-900">Onde comprar</h3>
+            <p className="text-sm text-gray-500">Escolha onde encontrar vacinas e serviços:</p>
+
+            <div className="space-y-3">
+              {[
+                { name: 'Cobasi', url: 'https://www.cobasi.com.br/capsulas-e-saude/vacinas', emoji: '🐾' },
+                { name: 'Petz', url: 'https://www.petz.com.br/servicos/vacinas', emoji: '🐕' },
+                { name: 'Petlove', url: 'https://www.petlove.com.br/saude', emoji: '❤️' },
+                { name: 'Amazon Pet', url: 'https://www.amazon.com.br/s?k=pet+saude', emoji: '📦' },
+              ].map(store => (
+                <button
+                  key={store.name}
+                  onClick={() => {
+                    trackPartnerClicked({
+                      source: 'vaccine_sheet',
+                      partner: store.name.toLowerCase(),
+                      pet_id: '', // handle generic if needed
+                      control_type: 'vaccines',
+                    });
+                    window.open(store.url, '_blank', 'noopener,noreferrer');
+                  }}
+                  className="w-full flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left"
+                >
+                  <span className="text-2xl">{store.emoji}</span>
+                  <div className="flex-1">
+                    <p className="font-bold text-gray-900 text-sm">{store.name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Agendar ou comprar</p>
+                  </div>
+                  <span className="text-gray-400 text-lg">›</span>
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setMode('view')}
+              onTouchEnd={() => setMode('view')}
+              className="w-full py-3 rounded-xl text-sm font-semibold bg-gray-50 text-gray-600 border border-gray-200"
+            >
+              Voltar para detalhes
+            </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -483,7 +605,7 @@ export function VaccineItemSheet({
         <div className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-2 sm:p-4" onClick={() => { setShowImportModal(false); setPendingCardFiles([]); }}>
           <div className="bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 p-5 sm:p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-800">📷 Importar Cartão de Vacina</h3>
+              <h3 className="text-lg sm:text-xl font-bold text-gray-800">📷 Fotografar carteirinha (opcional)</h3>
               <button
                 onClick={() => { setShowImportModal(false); setPendingCardFiles([]); }}
                 className="w-11 h-11 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition-colors flex-shrink-0"
@@ -495,7 +617,7 @@ export function VaccineItemSheet({
             </div>
 
             <div className="space-y-4">
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+              <div className="bg-sky-50 rounded-xl p-4 border border-sky-100">
                 <p className="font-semibold text-gray-800 mb-2">✨ O sistema vai:</p>
                 <ul className="space-y-1.5 text-sm text-gray-700">
                   <li className="flex items-start gap-2"><span className="text-green-600 mt-0.5">✓</span><span>Identificar vacinas automaticamente</span></li>
@@ -533,7 +655,7 @@ export function VaccineItemSheet({
                 >
                   <div className="text-4xl mb-2">📸</div>
                   <div className="text-sm font-semibold text-sky-700">Câmera</div>
-                  <div className="text-xs text-sky-600 mt-1">Tirar foto agora</div>
+                  <div className="text-xs text-sky-600 mt-1">Você pode pular esta etapa</div>
                 </button>
 
                 <button
@@ -597,10 +719,10 @@ export function VaccineItemSheet({
               )}
 
               {importingCard && (
-                <div className="bg-gradient-to-r from-purple-600 to-sky-700 text-white rounded-xl p-4 text-center">
-                  <div className="animate-spin w-8 h-8 border-4 border-white border-t-transparent rounded-full mx-auto mb-2" />
+                <div className="bg-sky-50 border border-sky-100 text-sky-900 rounded-xl p-4 text-center">
+                  <div className="animate-spin w-8 h-8 border-4 border-sky-200 border-t-sky-700 rounded-full mx-auto mb-2" />
                   <div className="font-semibold mb-1">Analisando cartão(ões)...</div>
-                  <div className="text-sm text-purple-100">Aguarde o processamento</div>
+                  <div className="text-sm text-sky-700">Aguarde o processamento</div>
                 </div>
               )}
 
@@ -682,29 +804,42 @@ function VaccineRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-bold text-gray-900 truncate">{v.vaccine_name}</p>
+            {diff !== null && diff < 0 && (
+              <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm border border-white/50 flex-shrink-0">
+                !
+              </div>
+            )}
             {statusBadge}
             {isCurrent && !statusBadge && (
               <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">✅ Atual</span>
             )}
           </div>
           <p className="text-xs text-gray-400 mt-0.5 truncate">
+            {v.record_type === 'estimated_control_start' ? 'Controle iniciado em ' : ''}
             {fmtDate(v.date_administered)}
             {v.next_dose_date && (
               <>
                 {' · '}próxima {fmtDate(v.next_dose_date)}
                 {diff !== null && (
                   <span className={`ml-1 font-medium ${
-                    diff < 0 ? 'text-red-500' : diff <= 7 ? 'text-yellow-600' : ''
+                    diff < 0 ? 'text-rose-600' : diff <= 7 ? 'text-amber-600' : ''
                   }`}>
-                    ({diff < 0 ? `${Math.abs(diff)}d atrás` : diff === 0 ? 'hoje' : `em ${diff}d`})
+                    ({fmtRelativeDays(diff)})
                   </span>
                 )}
               </>
             )}
             {v.veterinarian ? ` · ${v.veterinarian}` : ''}
           </p>
-          {(v.vaccine_code || v.country_code || v.next_due_source) && (
+          {(v.record_type || v.vaccine_code || v.country_code || v.next_due_source) && (
             <div className="flex flex-wrap gap-1.5 mt-1.5">
+              <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border ${
+                v.record_type === 'estimated_control_start'
+                  ? 'bg-amber-100 text-amber-700 border-amber-200'
+                  : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+              }`}>
+                {v.record_type === 'estimated_control_start' ? 'Estimado' : 'Confirmado'}
+              </span>
               {v.vaccine_code && (
                 <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-mono font-semibold border border-indigo-200">
                   🏷️ {v.vaccine_code}

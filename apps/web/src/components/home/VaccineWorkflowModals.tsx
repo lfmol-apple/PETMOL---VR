@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import { ModalPortal } from '@/components/ModalPortal';
 import { VaccineCardUpload } from '@/components/VaccineCardUpload';
 import { useI18n } from '@/lib/I18nContext';
 import { API_BASE_URL } from '@/lib/api';
@@ -79,9 +81,44 @@ export function VaccineWorkflowModals({
   reviewLearnEnabled,
 }: VaccineWorkflowModalsProps) {
   const { t } = useI18n();
+  const [toast, setToast] = useState<string | null>(null);
+  const [customProductIndex, setCustomProductIndex] = useState<number | null>(null);
+  const [customProductName, setCustomProductName] = useState('');
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  }
+
+  function resetCustomProductInput() {
+    setCustomProductIndex(null);
+    setCustomProductName('');
+  }
+
+  function applyCustomProduct(index: number) {
+    const productName = customProductName.trim();
+    if (!productName) {
+      showToast('Digite o nome da vacina antes de aplicar.');
+      return;
+    }
+
+    updateReviewRegistro(index, {
+      nome_comercial: productName,
+      tipo_vacina: mapNomeComercialToTipo(productName),
+    });
+    setReviewConfirmed(false);
+    resetCustomProductInput();
+  }
 
   return (
-    <>
+    <ModalPortal>
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 rounded-2xl bg-amber-50 border border-amber-200 shadow-lg text-sm font-semibold text-amber-800 max-w-sm w-full flex items-center gap-2">
+          <span className="flex-1">{toast}</span>
+          <button onClick={() => setToast(null)} className="text-[11px] font-bold text-amber-700 underline">OK</button>
+        </div>
+      )}
       {showVaccineForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-[80]">
           <div className="p-4 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 overflow-hidden">
@@ -177,7 +214,7 @@ export function VaccineWorkflowModals({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     {t('vaccine_form.application_date')} *
@@ -190,33 +227,53 @@ export function VaccineWorkflowModals({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Repetir em (dias)
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Histórico anterior</label>
+                  <label className="flex min-h-[42px] items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={vaccineFormData.record_type === 'estimated_control_start'}
+                      onChange={(e) => setVaccineFormData((prev: VaccineFormData) => ({
+                        ...prev,
+                        record_type: e.target.checked ? 'estimated_control_start' : 'confirmed_application',
+                      }))}
+                      className="h-4 w-4 accent-[#0056D2]"
+                    />
+                    Não sei o histórico anterior
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="730"
-                    value={vaccineFormData.frequency_days ?? 365}
-                    onChange={(e) => setVaccineFormData((prev: VaccineFormData) => ({ ...prev, frequency_days: parseInt(e.target.value, 10) || 365 }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">💡 Se identificada no catálogo, o intervalo é calculado pelo protocolo automaticamente</p>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('health.veterinarian')}
-                </label>
-                <input
-                  type="text"
-                  value={vaccineFormData.veterinarian}
-                  onChange={(e) => setVaccineFormData((prev: VaccineFormData) => ({ ...prev, veterinarian: e.target.value }))}
-                  placeholder="Dr. Nome do veterinário"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
-                />
-                <p className="text-xs text-gray-400 mt-1">Opcional</p>
+              <details className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <summary className="cursor-pointer text-sm font-bold text-gray-700">Opcionais</summary>
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Clínica</label>
+                    <input
+                      type="text"
+                      value={vaccineFormData.clinic_name}
+                      onChange={(e) => setVaccineFormData((prev: VaccineFormData) => ({ ...prev, clinic_name: e.target.value }))}
+                      placeholder="Nome da clínica"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Observação curta</label>
+                    <input
+                      type="text"
+                      maxLength={140}
+                      value={vaccineFormData.notes}
+                      onChange={(e) => setVaccineFormData((prev: VaccineFormData) => ({ ...prev, notes: e.target.value }))}
+                      placeholder="Ex: comprovante conferido"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </details>
+
+              <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">
+                {vaccineFormData.record_type === 'estimated_control_start'
+                  ? `Controle iniciado em ${vaccineFormData.date_administered || 'data selecionada'}`
+                  : 'Aplicação registrada'}
               </div>
 
               <div>
@@ -318,8 +375,6 @@ export function VaccineWorkflowModals({
             <VaccineCardUpload
               petId={selectedPetId || pets[0]?.pet_id || ''}
               onExtracted={(vaccines) => {
-                console.log('Vacinas extraídas:', vaccines);
-
                 if (vaccines.length > 0) {
                   const firstVaccine = vaccines[0];
 
@@ -344,16 +399,18 @@ export function VaccineWorkflowModals({
                     next_dose_date: firstVaccine.next_date || '',
                     frequency_days: 365,
                     veterinarian: firstVaccine.veterinarian || '',
+                    clinic_name: '',
+                    record_type: 'confirmed_application',
                     notes: firstVaccine.notes ? `Extraído por IA. ${firstVaccine.notes}` : 'Extraído por IA - Revisar dados',
                   });
 
-                  if (vaccines.length > 1) {
+                  if (vaccines.length > 1 && process.env.NODE_ENV !== 'production') {
                     console.log('⚠️ Múltiplas vacinas detectadas:', vaccines.length, '- Apenas a primeira será preenchida');
                   }
 
                   onOpenVaccineFormFromAIUpload();
                 } else {
-                  alert(t('health.vaccines.no_vaccines_detected'));
+                  showToast(t('health.vaccines.no_vaccines_detected'));
                 }
               }}
               onCancel={onCloseAIUpload}
@@ -603,20 +660,47 @@ export function VaccineWorkflowModals({
                               ))}
                               <button
                                 onClick={() => {
-                                  const customProduct = prompt('Digite o nome da vacina:');
-                                  if (customProduct) {
-                                    updateReviewRegistro(index, {
-                                      nome_comercial: customProduct,
-                                      tipo_vacina: mapNomeComercialToTipo(customProduct),
-                                    });
-                                    setReviewConfirmed(false);
-                                  }
+                                  setCustomProductIndex(index);
+                                  setCustomProductName(record.nome_comercial || '');
                                 }}
                                 className="text-xs bg-gray-100 text-gray-800 hover:bg-gray-200 px-2 py-1 rounded"
                               >
                                 + Outro
                               </button>
                             </div>
+                            {customProductIndex === index && (
+                              <div className="mt-2 flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-2 sm:flex-row">
+                                <input
+                                  type="text"
+                                  value={customProductName}
+                                  onChange={(e) => setCustomProductName(e.target.value)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                      applyCustomProduct(index);
+                                    }
+                                  }}
+                                  className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                  placeholder="Digite o nome da vacina"
+                                  autoFocus
+                                />
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => applyCustomProduct(index)}
+                                    className="rounded bg-slate-900 px-2 py-1 text-xs font-semibold text-white hover:bg-slate-800"
+                                  >
+                                    Aplicar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={resetCustomProductInput}
+                                    className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -760,6 +844,6 @@ export function VaccineWorkflowModals({
           </div>
         </div>
       )}
-    </>
+    </ModalPortal>
   );
 }

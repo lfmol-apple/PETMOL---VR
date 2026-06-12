@@ -3,6 +3,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { useI18n } from '@/lib/I18nContext';
 import { PremiumPanelShell } from '@/components/premium';
+import { IosSwitch } from '@/components/ui/IosSwitch';
 import type { GroomingRecord, PlaceDetails } from '@/lib/types/home';
 import type { GroomingFormData } from '@/lib/types/homeForms';
 
@@ -30,6 +31,15 @@ function createLocalDate(dateStr: string): Date {
   if (!dateStr) return new Date();
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day);
+}
+
+function hasLaterGroomingRecord(records: GroomingRecord[], record: GroomingRecord): boolean {
+  const recordTime = new Date(record.date || '0').getTime();
+  return records.some((candidate) => {
+    if (candidate.id === record.id || candidate.type !== record.type) return false;
+    const candidateTime = new Date(candidate.date || '0').getTime();
+    return !Number.isNaN(candidateTime) && (Number.isNaN(recordTime) || candidateTime > recordTime);
+  });
 }
 
 export function HealthGroomingPanel({
@@ -284,17 +294,16 @@ export function HealthGroomingPanel({
             <div className="bg-white border border-blue-200 rounded-lg p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-800">🔔 Lembrete de próximo serviço</span>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={groomingFormData.reminder_enabled}
-                    onChange={(e) => setGroomingFormData((prev) => ({ ...prev, reminder_enabled: e.target.checked }))}
-                    className="w-4 h-4 text-[#0056D2] border-gray-300 rounded focus:ring-2 focus:ring-[#0056D2]"
-                  />
+                <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-gray-600">
                     {groomingFormData.reminder_enabled ? '✅ Ativado' : '⭕ Desativado'}
                   </span>
-                </label>
+                  <IosSwitch
+                    checked={groomingFormData.reminder_enabled}
+                    onChange={() => setGroomingFormData((prev) => ({ ...prev, reminder_enabled: !prev.reminder_enabled }))}
+                    size="sm"
+                  />
+                </div>
               </div>
               {groomingFormData.reminder_enabled && (
                 <select
@@ -343,9 +352,13 @@ export function HealthGroomingPanel({
                 };
 
                 const latestGroomIdForType = groomingRecords
-                  .filter((r) => r.type === record.type)
-                  .sort((a, b) => new Date(b.date || '0').getTime() - new Date(a.date || '0').getTime())[0]?.id;
-                const isGroomHistory = record.id !== latestGroomIdForType;
+                const isGroomHistory = hasLaterGroomingRecord(groomingRecords, record);
+                const nextRecommendedDate = record.next_recommended_date ? createLocalDate(record.next_recommended_date) : null;
+                const nextRecommendedDaysLeft = nextRecommendedDate
+                  ? Math.ceil((nextRecommendedDate.getTime() - new Date().getTime()) / (24 * 60 * 60 * 1000))
+                  : null;
+                const isGroomOverdue = !isGroomHistory && nextRecommendedDaysLeft !== null && nextRecommendedDaysLeft < 0;
+                const isGroomUrgent = !isGroomHistory && nextRecommendedDaysLeft !== null && nextRecommendedDaysLeft >= 0 && nextRecommendedDaysLeft <= 7;
 
                 return (
                   <div
@@ -360,7 +373,25 @@ export function HealthGroomingPanel({
                       </span>
                     )}
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-bold text-gray-900 text-sm">{typeLabels[record.type]}</span>
+                       <div className="flex items-center gap-2">
+                        <div className="relative">
+                          <span className="font-bold text-gray-900 text-sm">{typeLabels[record.type]}</span>
+                          {isGroomOverdue && (
+                            <div className="absolute -top-3 -left-3 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold animate-pulse shadow-sm border border-white/50 z-10">
+                              !
+                            </div>
+                          )}
+                          {isGroomUrgent && !isGroomOverdue && (
+                            <div className="absolute -top-3 -left-3 w-6 h-6 flex items-center justify-center animate-pulse z-10">
+                              <span
+                                className="absolute inset-0 bg-amber-400 shadow-sm ring-2 ring-white"
+                                style={{ clipPath: 'polygon(50% 0%, 100% 92%, 0% 92%)' }}
+                              />
+                              <span className="relative mt-1 text-[11px] font-black text-amber-950 leading-none">!</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                       {record.cost && record.cost > 0 && (
                         <span className="text-sm font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
                           R$ {record.cost.toFixed(2)}

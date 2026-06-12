@@ -144,8 +144,14 @@ export function EventNudge() {
 
     // Show success with option to add medical details
     if (eventType === 'vet_visit') {
-      const addDetails = requestUserConfirmation(
-        `${t('event_nudge.confirmed.title')}\n\n${t('event_nudge.confirmed.details_question')}`
+      const addDetails = await requestUserConfirmation(
+        `${t('event_nudge.confirmed.title')}\n\n${t('event_nudge.confirmed.details_question')}`,
+        {
+          title: t('event_nudge.confirmed.title'),
+          tone: 'neutral',
+          confirmLabel: 'Adicionar detalhes',
+          cancelLabel: 'Agora não',
+        }
       );
       
       if (addDetails) {

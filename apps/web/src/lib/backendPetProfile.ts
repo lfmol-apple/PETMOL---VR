@@ -39,6 +39,8 @@ type BackendVaccineRecord = {
   vaccine_code?: string | null;
   country_code?: string | null;
   next_due_source?: string | null;
+  alert_days_before?: number | null;
+  reminder_time?: string | null;
 };
 
 type BackendParasiteControlRecord = {
@@ -57,6 +59,7 @@ type BackendParasiteControlRecord = {
   reminder_days: number;
   collar_expiry_date?: string | null;
   alert_days_before?: number;
+  reminder_time?: string | null;
   reminder_enabled?: boolean;
   notes?: string | null;
 };
@@ -157,6 +160,8 @@ export function normalizeBackendPetProfile(pet: BackendPet): PetHealthProfile {
         vaccine_code: v.vaccine_code || undefined,
         country_code: v.country_code || undefined,
         next_due_source: v.next_due_source || undefined,
+        alert_days_before: v.alert_days_before ?? undefined,
+        reminder_time: v.reminder_time || undefined,
       }));
     return fromRecords.length > 0 ? fromRecords : (healthData.vaccines || []);
   })();
@@ -176,9 +181,10 @@ export function normalizeBackendPetProfile(pet: BackendPet): PetHealthProfile {
       veterinarian: p.veterinarian || '',
       cost: p.cost,
       purchase_location: p.purchase_location || '',
-      reminder_days: p.reminder_days,
+      reminder_days: p.reminder_days ?? p.alert_days_before ?? 7,
       collar_expiry_date: p.collar_expiry_date ? toDateStr(p.collar_expiry_date) : '',
       alert_days_before: p.alert_days_before,
+      reminder_time: p.reminder_time || undefined,
       reminder_enabled: p.reminder_enabled,
       notes: p.notes || '',
     }))

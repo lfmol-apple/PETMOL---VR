@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { API_BASE_URL } from '@/lib/api';
+import { getToken } from '@/lib/auth-token';
 import { requestUserConfirmation, showBlockingNotice } from '@/features/interactions/userPromptChannel';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
 
@@ -24,6 +25,8 @@ export interface EventFormState {
   treatment_days: string;
   result: string;
   severity: string;
+  /** Campos de extra_data não editáveis no formulário — preservados entre edições (ex: applied_dates, skipped_dates, dose_notes) */
+  _preserved_extra?: Record<string, unknown>;
 }
 
 interface UsePetEventManagementParams {
@@ -95,16 +98,20 @@ export function usePetEventManagement({
   const [attachDocFiles, setAttachDocFiles] = useState<File[]>([]);
 
   const fetchPetEvents = useCallback(async (petId: string) => {
-    const token = localStorage.getItem('petmol_token');
-    if (!token || !petId) return;
+    const token = getToken();
+    if (!petId) return;
     setEventsLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/events?pet_id=${petId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        credentials: 'include',
+        cache: 'no-store',
       });
       if (response.ok) {
         const data: PetEventRecord[] = await response.json();
         setPetEvents(Array.isArray(data) ? data : []);
+      } else if (response.status === 401 || response.status === 403) {
+        setPetEvents([]);
       }
     } catch (error) {
       console.error('Erro ao carregar eventos:', error);
@@ -114,12 +121,18 @@ export function usePetEventManagement({
   }, []);
 
   const handleDeleteEvent = useCallback(async (eventId: string) => {
-    if (!requestUserConfirmation('Excluir este registro? Esta ação não pode ser desfeita.')) return;
-    const token = localStorage.getItem('petmol_token');
+    const accepted = await requestUserConfirmation('Excluir este registro? Esta ação não pode ser desfeita.', {
+      title: 'Excluir evento de saúde',
+      tone: 'danger',
+      confirmLabel: 'Excluir registro',
+    });
+    if (!accepted) return;
+    const token = getToken();
     try {
       await fetch(`${API_BASE_URL}/events/${eventId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        credentials: 'include',
       });
       if (selectedPetId) {
         await fetchPetEvents(selectedPetId);
@@ -143,13 +156,23 @@ export function usePetEventManagement({
     let reminderTimes: string[] = ['08:00'];
     const nextDueDate = event.next_due_date ? event.next_due_date.split('T')[0] : '';
 
+    let preservedExtra: Record<string, unknown> | undefined;
     try {
       const extraData = parsePetEventExtraData(event.extra_data);
       if (extraData.reminder_time) reminderTime = extraData.reminder_time;
       if (extraData.treatment_days) treatmentDays = String(extraData.treatment_days);
       if (Array.isArray(extraData.reminder_times) && extraData.reminder_times.length > 0) {
         reminderTimes = extraData.reminder_times;
+      } else if (extraData.reminder_time) {
+        reminderTimes = [extraData.reminder_time];
       }
+      // Preservar campos não editáveis no formulário para evitar perda de histórico ao editar.
+      const preserved: Record<string, unknown> = { ...extraData };
+      delete preserved.reminder_time;
+      delete preserved.reminder_times;
+      delete preserved.frequency;
+      delete preserved.treatment_days;
+      if (Object.keys(preserved).length > 0) preservedExtra = preserved;
     } catch {}
 
     if (event.type === 'medicacao') {
@@ -166,6 +189,14 @@ export function usePetEventManagement({
       if (nextDueDate) {
         reminderEnabled = true;
         reminderDate = nextDueDate;
+      } else {
+        // Restore reminder state from extra_data even when next_due_date is absent.
+        try {
+          const extraCheck = parsePetEventExtraData(event.extra_data);
+          if (extraCheck.reminder_time || (Array.isArray(extraCheck.reminder_times) && (extraCheck.reminder_times as string[]).length > 0)) {
+            reminderEnabled = true;
+          }
+        } catch {}
       }
     }
 
@@ -202,6 +233,7 @@ export function usePetEventManagement({
       treatment_days: treatmentDays,
       result: '',
       severity,
+      _preserved_extra: preservedExtra,
     });
     setEditingEventId(event.id);
     setEventTypeLocked(false);

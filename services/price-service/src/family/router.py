@@ -74,7 +74,7 @@ def _get_or_create_group(owner: User, db: Session) -> FamilyGroup:
 
 def _get_frontend_base_url() -> str:
     import os
-    return os.environ.get("FRONTEND_URL", "https://petshopbh.com")
+    return os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
 
 # ─── Endpoints ─────────────────────────────────────────────────────────────
