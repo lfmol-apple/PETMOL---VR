@@ -61,6 +61,7 @@ RSYNC_DIFF="$(rsync -anic --delete \
     --exclude 'node_modules' \
     --exclude '.next' \
     --exclude 'services/price-service/uploads' \
+    --exclude 'services/price-service/push_subscriptions.json' \
     --exclude 'uploads' \
     --exclude '__pycache__' \
     --exclude '*.pyc' \
