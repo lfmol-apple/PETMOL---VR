@@ -156,7 +156,19 @@ export async function scheduleReminder(
 ): Promise<void> {
   try {
     const already = await isSubscribed();
-    if (!already) {
+    if (already) {
+      // Browser já subscrito: re-sincroniza a subscription com o backend
+      // (garante que o backend tenha sempre a subscription atual)
+      const registration = await navigator.serviceWorker.ready;
+      const existingSub = await registration.pushManager.getSubscription();
+      if (existingSub) {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ""}/notifications/subscribe`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ subscription: existingSub.toJSON() }),
+        });
+      }
+    } else {
       const ok = await subscribeToPush(token);
       if (!ok) return;
     }
