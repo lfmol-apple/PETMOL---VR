@@ -54,7 +54,7 @@ def _send_push(subscription: dict, payload: dict) -> bool:
             subscription_info=subscription,
             data=json.dumps(payload),
             vapid_private_key=settings.vapid_private_key,
-            vapid_claims={"sub": f"mailto:{settings.vapid_claims_email}"},
+            vapid_claims={"sub": settings.vapid_claims_email},
         )
         return True
     except WebPushException as e:
