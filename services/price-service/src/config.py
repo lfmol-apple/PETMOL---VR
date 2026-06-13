@@ -62,8 +62,6 @@ class Settings(BaseSettings):
     
     # Feature flags - countries with price comparison enabled
     prices_enabled_countries: str = "BR,AR,MX,CO,CL"
-    feature_reminders_push: bool = True
-    feature_push_engine_v2: bool = False
 
     # Database - usa caminho relativo que funciona local e produção
     database_url: str = f"sqlite:///{os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'petmol.db'))}"
@@ -119,7 +117,7 @@ class Settings(BaseSettings):
     cobasi_affiliate_url: Optional[str] = None
     petlove_dog_life_url: Optional[str] = None
 
-    @field_validator("debug", "feature_reminders_push", "feature_push_engine_v2", mode="before")
+    @field_validator("debug", mode="before")
     @classmethod
     def _coerce_bool_like(cls, value):
         if isinstance(value, bool):

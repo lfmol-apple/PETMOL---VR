@@ -298,35 +298,18 @@ def init_db():
 
 @app.on_event("startup")
 def start_push_scheduler():
-    """Start Push Engine V2 jobs for explicitly configured reminders only."""
-    from .config import get_settings
-    settings = get_settings()
+    """Inicia o scheduler de lembretes de push."""
     push_logger = __import__("logging").getLogger(__name__)
-    
-    if not settings.feature_reminders_push:
-        push_logger.info("[PETMOL] Push scheduler desativado via FEATURE_REMINDERS_PUSH")
-        return
-
-    if not settings.feature_push_engine_v2:
-        push_logger.info("[PETMOL_PUSH] engine automático desativado: FEATURE_PUSH_ENGINE_V2=false")
-        return
-
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
-        from .notifications import (
-            send_medication_pushes,
-            send_care_pushes_v2,
-            send_food_reminder_pushes_v2,
-        )
+        from .notifications import send_due_reminders
 
         scheduler = BackgroundScheduler()
-        scheduler.add_job(send_medication_pushes, "interval", minutes=1, id="medication_pushes")
-        scheduler.add_job(send_care_pushes_v2, "interval", minutes=1, id="care_pushes_v2")
-        scheduler.add_job(send_food_reminder_pushes_v2, "interval", minutes=1, id="food_reminder_pushes_v2")
+        scheduler.add_job(send_due_reminders, "interval", minutes=1, id="send_due_reminders")
         scheduler.start()
-        push_logger.info("[PETMOL_PUSH] Push Engine V2 iniciado: medicação legacy + lembretes explícitos de cuidados/ração")
+        push_logger.info("[PETMOL] Push scheduler iniciado")
     except Exception as e:
-        push_logger.error(f"[PETMOL_PUSH] Push Engine V2 nao iniciado: {e}")
+        push_logger.error(f"[PETMOL] Push scheduler não iniciado: {e}")
 
 
 # Include autocomplete router
@@ -342,11 +325,6 @@ from .notifications import router as notifications_router
 app.include_router(notifications_router)
 # Some deployments forward /api/* without stripping the prefix (direct access).
 app.include_router(notifications_router, prefix="/api")
-
-# Include notification pendencies router (persistent in-app alerts)
-from .notifications.pendencies import router as pendencies_router
-app.include_router(pendencies_router)
-app.include_router(pendencies_router, prefix="/api")
 
 # Family sharing router — SILENCIADO: desativar compartilhamento entre contas.
 # Para reativar: descomentar as 3 linhas abaixo.

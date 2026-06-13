@@ -6,6 +6,7 @@ import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
 import { ModalPortal } from '@/components/ModalPortal';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
+import { scheduleReminder, buildRemindAt } from '@/features/notifications/pushService';
 import { trackPartnerClicked } from '@/lib/v1Metrics';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import { IosSwitch } from '@/components/ui/IosSwitch';
@@ -307,6 +308,12 @@ export function MedicationItemSheet({
 
       if (res.ok) {
         showToast(editingId ? '✅ Medicação atualizada' : '✅ Medicação registrada');
+        if (form.reminder_enabled && form.reminder_date && form.reminder_times.length > 0) {
+          void scheduleReminder(
+            { pet_id: petId, type: 'medication', title: `💊 ${form.title.trim()}`, body: 'Hora da medicação', remind_at: buildRemindAt(form.reminder_date, form.reminder_times[0]) },
+            token
+          );
+        }
         setMode('view');
         setEditingId(null);
         await onRefresh();

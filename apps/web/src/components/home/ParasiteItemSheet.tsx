@@ -9,6 +9,7 @@ import { HOME_SHOPPING_PARTNERS, openHomeShoppingPartner } from '@/features/comm
 import { ModalPortal } from '@/components/ModalPortal';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
+import { scheduleReminder, buildRemindAt } from '@/features/notifications/pushService';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import type { ProductCategory, ScannedProduct } from '@/lib/productScanner';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
@@ -310,6 +311,11 @@ export function ParasiteItemSheet({
         }
 
         showToast('✅ Registrado com sucesso!');
+        const pushType = (type === 'flea_tick' ? 'flea' : type) as 'dewormer' | 'flea' | 'collar';
+        void scheduleReminder(
+          { pet_id: petId, type: pushType, title: `${cfg.icon} ${cfg.title}`, body: `Verificar ${applyForm.product_name}`, remind_at: buildRemindAt(addDays(computedNext, -(parseInt(applyForm.reminder_days) || 3)), applyForm.reminder_time) },
+          token!
+        );
         setMode('view');
         // Track product usage for recurring product suggestions
         try {
@@ -379,6 +385,12 @@ export function ParasiteItemSheet({
       });
       if (res.ok) {
         showToast('✅ Registro atualizado!');
+        const nextDue = addDays(editForm.date_applied, parseInt(editForm.frequency_days, 10) || cfg.defaultFrequency);
+        const pushType = (type === 'flea_tick' ? 'flea' : type) as 'dewormer' | 'flea' | 'collar';
+        void scheduleReminder(
+          { pet_id: petId, type: pushType, title: `${cfg.icon} ${cfg.title}`, body: `Verificar ${editForm.product_name}`, remind_at: buildRemindAt(addDays(nextDue, -(parseInt(editForm.reminder_days) || 3)), editForm.reminder_time) },
+          token!
+        );
         setMode('view');
         setEditRecord(null);
         await onRefresh();

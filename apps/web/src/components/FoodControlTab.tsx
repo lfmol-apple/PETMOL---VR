@@ -10,6 +10,7 @@ import type { ScannedProduct } from '@/lib/productScanner';
 import { googleShoppingUrl } from '@/lib/externalShopping';
 import { resolveFoodCommerceSnapshot } from '@/features/commerce/homeContextualCommerce';
 import { requestUserDecision } from '@/features/interactions/userPromptChannel';
+import { scheduleReminder, buildRemindAt } from '@/features/notifications/pushService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -628,6 +629,14 @@ export function FoodControlTab({
 
       setSavedOk(true);
       onSaved?.();
+      const endDate = json?.estimate?.estimated_end_date as string | null | undefined;
+      if (endDate && token) {
+        const alertDate = addDays(endDate, -(plan?.manual_reminder_days_before ?? 3));
+        void scheduleReminder(
+          { pet_id: petId, type: 'food', title: '🥣 Hora de comprar ração', body: `Estoque de ${primaryRequestItem?.food_brand ?? 'ração'} previsto para acabar`, remind_at: buildRemindAt(alertDate, plan?.reminder_time ?? '09:00') },
+          token
+        );
+      }
       setTimeout(() => setSavedOk(false), 4000);
     } catch (error) {
       console.error('[FOOD_CONTROL] save failed', error);
