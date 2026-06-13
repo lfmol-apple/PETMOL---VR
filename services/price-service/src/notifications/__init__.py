@@ -47,11 +47,24 @@ def _save_subscriptions(subs: dict) -> None:
 
 # ── Push send helper ─────────────────────────────────────────────────────────
 
+def _normalize_subscription(sub: dict) -> dict:
+    """Convert flat subscription (old format) to nested keys format (Web Push standard)."""
+    if "keys" not in sub and ("p256dh" in sub or "auth" in sub):
+        return {
+            "endpoint": sub["endpoint"],
+            "keys": {
+                "p256dh": sub.get("p256dh", ""),
+                "auth": sub.get("auth", ""),
+            },
+        }
+    return sub
+
+
 def _send_push(subscription: dict, payload: dict) -> bool:
     settings = get_settings()
     try:
         webpush(
-            subscription_info=subscription,
+            subscription_info=_normalize_subscription(subscription),
             data=json.dumps(payload),
             vapid_private_key=settings.vapid_private_key,
             vapid_claims={"sub": settings.vapid_claims_email},
