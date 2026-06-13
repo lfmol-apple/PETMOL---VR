@@ -898,6 +898,8 @@ def send_care_pushes_v2() -> None:
                 reminder_date = getattr(record, "reminder_date", None)
                 if reminder_date is None:
                     next_due = getattr(record, "next_due_date", None)
+                    if next_due is None and type_key == "collar":
+                        next_due = getattr(record, "collar_expiry_date", None)
                     days_before = getattr(record, "alert_days_before", None) or 0
                     if next_due:
                         reminder_date = (next_due - timedelta(days=days_before)).date()
