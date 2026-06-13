@@ -411,9 +411,6 @@ app.include_router(establishments_admin_router)
 from .feedback.router import router as feedback_router
 app.include_router(feedback_router)
 
-# Secure upload / attachment endpoints
-from .uploads.router import router as uploads_router
-app.include_router(uploads_router)
 
 # SLICE 3 (REFACTOR): Events router - DESATIVADO (simplificação)
 from .events import router as events_router
