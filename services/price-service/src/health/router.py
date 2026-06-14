@@ -790,8 +790,8 @@ async def create_or_update_feeding_plan(
         reminder_source = "manual" if request.next_purchase_date else "calculated"
 
         existing_plan.deleted_at = None
-        existing_plan.species = request.species
-        existing_plan.country_code = request.country_code
+        existing_plan.species = request.species or existing_plan.species or "dog"
+        existing_plan.country_code = request.country_code or existing_plan.country_code or "BR"
         existing_plan.food_brand = primary_item.get("food_brand")
         existing_plan.package_size_kg = primary_item.get("package_size_kg")
         existing_plan.daily_amount_g = primary_item.get("daily_amount_g")

@@ -102,6 +102,30 @@ class Reminder(Base):
 Base.metadata.create_all(bind=engine, tables=[Reminder.__table__])
 
 
+# ── Deep link builder ────────────────────────────────────────────────────────
+
+_TYPE_TO_MODAL = {
+    "food":       ("food",      None),
+    "medication": ("medication", None),
+    "vaccine":    ("vaccines",  None),
+    "dewormer":   ("parasites", "dewormer"),
+    "flea":       ("parasites", "flea_tick"),
+    "collar":     ("parasites", "collar"),
+}
+
+
+def _build_deep_link(reminder_type: str, pet_id: Optional[str]) -> str:
+    modal, subtype = _TYPE_TO_MODAL.get(reminder_type, ("home", None))
+    if modal == "home":
+        return "/home"
+    params = f"modal={modal}"
+    if pet_id:
+        params += f"&petId={pet_id}"
+    if subtype:
+        params += f"&subtype={subtype}"
+    return f"/home?{params}"
+
+
 # ── Scheduler job ────────────────────────────────────────────────────────────
 
 def send_due_reminders() -> None:
@@ -126,13 +150,14 @@ def send_due_reminders() -> None:
                 logger.info(f"Reminder {reminder.id}: sem subscription para user {reminder.user_id}")
                 continue
 
+            deep_url = _build_deep_link(reminder.type, reminder.pet_id)
             payload = {
                 "title": reminder.title,
                 "body": reminder.body or "",
                 "tag": f"reminder-{reminder.id}",
                 "requireInteraction": True,
                 "data": {
-                    "url": "/home",
+                    "url": deep_url,
                     "pet_id": reminder.pet_id or "",
                     "type": reminder.type,
                 },

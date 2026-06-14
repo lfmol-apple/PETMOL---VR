@@ -139,8 +139,8 @@ class FeedingPlanCreateRequest(BaseModel):
     - User might not have all info yet
     - Can fill in incrementally
     """
-    species: str  # dog | cat
-    country_code: str
+    species: Optional[str] = "dog"   # dog | cat
+    country_code: Optional[str] = "BR"
     
     # Optional food details
     food_brand: Optional[str] = None
