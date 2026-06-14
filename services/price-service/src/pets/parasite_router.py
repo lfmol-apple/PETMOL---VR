@@ -94,6 +94,8 @@ def update_parasite_control(
     for field, value in payload.model_dump(exclude_unset=True).items():
         if field == "reminder_date":
             value = _parse_optional_date(value)
+        if field == "reminder_time" and isinstance(value, str):
+            value = value[:5] or None
         setattr(record, field, value)
     db.commit()
     db.refresh(record)

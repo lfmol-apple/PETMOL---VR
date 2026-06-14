@@ -230,7 +230,7 @@ def create_vaccine(
         next_dose_date=payload.next_dose_date,
         alert_days_before=payload.alert_days_before,
         reminder_date=_parse_optional_date(payload.reminder_date),
-        reminder_time=payload.reminder_time,
+        reminder_time=(payload.reminder_time or "")[:5] or None,
         reminder_enabled=payload.reminder_enabled,
         notes=payload.notes,
         created_at=datetime.utcnow(),
@@ -316,6 +316,8 @@ def update_vaccine(
     for field, value in payload.model_dump(exclude_unset=True).items():
         if field == "reminder_date":
             value = _parse_optional_date(value)
+        if field == "reminder_time" and isinstance(value, str):
+            value = value[:5] or None
         setattr(vaccine, field, value)
     
     vaccine.updated_at = datetime.utcnow()

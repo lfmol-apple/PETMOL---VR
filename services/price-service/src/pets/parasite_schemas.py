@@ -26,7 +26,7 @@ class ParasiteControlBase(BaseModel):
     reminder_date: Optional[str] = None
     reminder_days: int = Field(7, ge=0)
     alert_days_before: Optional[int] = None
-    reminder_time: Optional[str] = Field(None, max_length=5)
+    reminder_time: Optional[str] = Field(None, max_length=8)
     notes: Optional[str] = None
 
 
