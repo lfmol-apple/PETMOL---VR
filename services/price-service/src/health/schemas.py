@@ -150,7 +150,7 @@ class FeedingPlanCreateRequest(BaseModel):
     last_refill_date: Optional[str] = None  # date string "YYYY-MM-DD"
     
     # Configuration
-    safety_buffer_days: int = Field(3, ge=0, le=30)
+    safety_buffer_days: int = Field(3, ge=0, le=365)
     meals_per_day: Optional[int] = Field(None, ge=1, le=10)
     mode: str = Field("kibble", pattern="^(kibble|wet|mixed|homemade|prescribed)$")
     notes: Optional[str] = Field(None, max_length=1000)
