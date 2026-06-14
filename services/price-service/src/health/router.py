@@ -785,7 +785,7 @@ async def create_or_update_feeding_plan(
     
     if existing_plan:
         # Update existing plan
-        new_reminder_time = request.reminder_time
+        new_reminder_time = (request.reminder_time or "")[:5] or None
         reminder_time_changed = existing_plan.reminder_time != new_reminder_time
         reminder_source = "manual" if request.next_purchase_date else "calculated"
 
@@ -839,7 +839,7 @@ async def create_or_update_feeding_plan(
             next_reminder_date=next_reminder,
             next_purchase_date=next_purchase_date_obj,
             manual_reminder_days_before=request.manual_reminder_days_before,
-            reminder_time=request.reminder_time,
+            reminder_time=(request.reminder_time or "")[:5] or None,
             reminder_source="manual" if request.next_purchase_date else "calculated",
             items_json=_serialize_feeding_items(items_payload),
         )
