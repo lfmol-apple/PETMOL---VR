@@ -27,7 +27,7 @@ class VaccinePayload(BaseModel):
     record_type: str = "confirmed_application"  # confirmed_application | estimated_control_start
     clinic_name: Optional[str] = None
     veterinarian: Optional[str] = None
-    alert_days_before: Optional[int] = Field(None, ge=0, le=60)
+    alert_days_before: Optional[int] = Field(None, ge=0, le=365)
     reminder_date: Optional[str] = None
     reminder_time: Optional[str] = Field(None, max_length=8)
     reminder_enabled: bool = False
@@ -161,7 +161,7 @@ class FeedingPlanCreateRequest(BaseModel):
     
     # Manual mode fields (when no_consumption_control=true)
     next_purchase_date: Optional[str] = None  # date string "YYYY-MM-DD"
-    manual_reminder_days_before: Optional[int] = Field(None, ge=0, le=60)
+    manual_reminder_days_before: Optional[int] = Field(None, ge=0, le=365)
     reminder_time: Optional[str] = Field(None, max_length=8)
     items: Optional[List[FeedingPlanItemPayload]] = None
 
