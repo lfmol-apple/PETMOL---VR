@@ -46,7 +46,7 @@ class VaccineRecordBase(BaseModel):
         description="Observações adicionais (lote, veterinário, clínica, custo, etc)",
         examples=["Lote J217L | Dr. Silva | Clínica PetCenter | R$ 80,00"]
     )
-    alert_days_before: Optional[int] = Field(None, ge=0, le=60)
+    alert_days_before: Optional[int] = Field(None, ge=0, le=365)
     reminder_date: Optional[str] = None
     reminder_time: Optional[str] = Field(None, max_length=8)
     reminder_enabled: bool = False
@@ -79,7 +79,7 @@ class VaccineRecordUpdate(BaseModel):
     vaccine_type: Optional[str] = None
     clinic_name: Optional[str] = None
     veterinarian_name: Optional[str] = None
-    alert_days_before: Optional[int] = Field(None, ge=0, le=60)
+    alert_days_before: Optional[int] = Field(None, ge=0, le=365)
     reminder_date: Optional[str] = None
     reminder_time: Optional[str] = Field(None, max_length=8)
     reminder_enabled: Optional[bool] = None
