@@ -6,7 +6,7 @@ import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
 import { ModalPortal } from '@/components/ModalPortal';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
-import { scheduleReminder, buildRemindAt } from '@/features/notifications/pushService';
+import { scheduleReminder, buildRemindAt, listReminders, deleteReminder, createReminder } from '@/features/notifications/pushService';
 import { trackPartnerClicked } from '@/lib/v1Metrics';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import { IosSwitch } from '@/components/ui/IosSwitch';
@@ -15,6 +15,12 @@ import { requestUserDecision } from '@/features/interactions/userPromptChannel';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 function fmtDate(s?: string | null): string {
   if (!s) return '—';
@@ -309,10 +315,41 @@ export function MedicationItemSheet({
       if (res.ok) {
         showToast(editingId ? '✅ Medicação atualizada' : '✅ Medicação registrada');
         if (form.reminder_enabled && form.reminder_date && form.reminder_times.length > 0) {
-          void scheduleReminder(
-            { pet_id: petId, type: 'medication', title: `💊 ${form.title.trim()}`, body: 'Hora da medicação', remind_at: buildRemindAt(form.reminder_date, form.reminder_times[0]) },
-            token
-          );
+          const title = `💊 ${form.title.trim()}`;
+          const times = form.reminder_times.filter(Boolean);
+          const totalDays = Math.min(parseInt(form.treatment_days) || 1, 365);
+          const todayStr = new Date().toISOString().slice(0, 10);
+
+          try {
+            // Limpar lembretes antigos desta medicação (caso de edição, inclusive se o título mudou)
+            const prevTitle = editingId
+              ? `💊 ${medications.find(ev => ev.id === editingId)?.title ?? form.title.trim()}`
+              : title;
+            const existing = await listReminders(token);
+            const stale = existing.filter(r =>
+              r.type === 'medication' &&
+              r.pet_id === petId &&
+              (r.title === title || r.title === prevTitle)
+            );
+            await Promise.all(stale.map(r => deleteReminder(r.id, token)));
+
+            // Coletar payloads: um por dia × por horário
+            const payloads: Parameters<typeof createReminder>[0][] = [];
+            for (let day = 0; day < totalDays; day++) {
+              const dateStr = addDays(form.reminder_date, day);
+              if (dateStr < todayStr) continue;
+              for (const time of times) {
+                payloads.push({ pet_id: petId, type: 'medication', title, body: 'Hora da medicação', remind_at: buildRemindAt(dateStr, time) });
+              }
+            }
+
+            if (payloads.length > 0) {
+              // Primeira chamada via scheduleReminder para garantir subscription
+              await scheduleReminder(payloads[0], token);
+              // Demais direto via createReminder
+              await Promise.all(payloads.slice(1).map(p => createReminder(p, token)));
+            }
+          } catch { /* lembretes são best-effort; nunca bloqueiam o fluxo */ }
         }
         setMode('view');
         setEditingId(null);
