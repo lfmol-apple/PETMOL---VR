@@ -61,12 +61,27 @@ const CAT_BREEDS = [
 
 type SpeciesType = 'dog' | 'cat' | 'other' | '';
 
+function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={onChange}
+      className={`relative flex-shrink-0 w-[51px] h-[31px] rounded-full transition-colors duration-200 focus:outline-none ${on ? 'bg-[#34C759]' : 'bg-[#E5E5EA]'}`}
+    >
+      <span className={`absolute top-[2px] left-[2px] w-[27px] h-[27px] bg-white rounded-full shadow-[0_2px_6px_rgba(0,0,0,0.3)] transition-transform duration-200 ${on ? 'translate-x-[20px]' : 'translate-x-0'}`} />
+    </button>
+  );
+}
+
 function BreedPicker({
   species, value, onChange,
 }: { species: SpeciesType; value: string; onChange: (v: string) => void }) {
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isMounted = useRef(false);
 
   const breeds = species === 'dog' ? DOG_BREEDS : species === 'cat' ? CAT_BREEDS : [];
   const q = query.trim().toLowerCase();
@@ -74,8 +89,10 @@ function BreedPicker({
 
   useEffect(() => { setQuery(value); }, [value]);
 
-  // Reset breed when species changes
-  useEffect(() => { setQuery(''); onChange(''); }, [species]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!isMounted.current) { isMounted.current = true; return; }
+    setQuery(''); onChange('');
+  }, [species]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const select = (breed: string) => {
     setQuery(breed);
@@ -133,6 +150,7 @@ export default function RegisterPetPage() {
   const [weightValue, setWeightValue] = useState('');
   const [weightUnit, setWeightUnit] = useState('kg');
   const [ageGroup, setAgeGroup] = useState<'puppy' | 'adult' | 'senior' | ''>('');
+  const [neutered, setNeutered] = useState(false);
   const [petPhoto, setPetPhoto] = useState('');
   const [petPhotoDataUrl, setPetPhotoDataUrl] = useState<string | null>(null);
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
@@ -166,8 +184,9 @@ export default function RegisterPetPage() {
 
     setLoading(true);
     try {
-      const payload: Record<string, unknown> = { name: name.trim(), species, sex };
+      const payload: Record<string, unknown> = { name: name.trim(), species, sex, neutered };
       if (breed) payload.breed = breed;
+      if (ageGroup) payload.age_group = ageGroup;
       if (hasWeight) { payload.weight_value = weightNumber; payload.weight_unit = weightUnit; }
       if (petPhotoDataUrl) payload.photo = petPhotoDataUrl;
 
@@ -390,6 +409,12 @@ export default function RegisterPetPage() {
                     <option value="lb">lb</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Castrado */}
+              <div className="flex items-center justify-between py-1">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide">Castrado / Esterilizado</label>
+                <Toggle on={neutered} onChange={() => setNeutered(v => !v)} />
               </div>
 
               {errors.general && (
