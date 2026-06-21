@@ -171,6 +171,7 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const speciesSeg = ['dog', 'cat'].includes(formData.species) ? formData.species : 'other';
   const breeds = formData.species === 'dog' ? DOG_BREEDS : formData.species === 'cat' ? CAT_BREEDS : ['SRD (Sem Raça Definida)', 'Outro'];
@@ -388,16 +389,42 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
             </div>
 
             {/* Footer */}
-            <div className="flex-shrink-0 bg-white border-t border-gray-100 px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-2">
-              <button type="button" onClick={onClose}
-                className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 bg-white active:scale-[0.98] transition-transform">
-                Cancelar
-              </button>
-              <button type="submit" disabled={loading || !canSubmit}
-                className={`flex flex-1 items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white active:scale-[0.98] transition-transform disabled:opacity-40 disabled:cursor-not-allowed ${loading ? 'bg-blue-400' : 'bg-[#0056D2]'}`}>
-                <Save className="w-4 h-4" />
-                {loading ? 'Salvando...' : 'Salvar'}
-              </button>
+            <div className="flex-shrink-0 bg-white border-t border-gray-100 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] space-y-2">
+              {confirmDelete ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 space-y-2">
+                  <p className="text-sm font-semibold text-rose-700 text-center">Excluir {formData.name || 'este pet'} permanentemente?</p>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setConfirmDelete(false)}
+                      className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 bg-white active:scale-[0.98] transition-transform">
+                      Cancelar
+                    </button>
+                    <button type="button" onClick={() => { onDelete?.(pet.pet_id!); onClose(); }}
+                      className="flex-1 py-2.5 rounded-xl bg-rose-600 text-sm font-semibold text-white active:scale-[0.98] transition-transform">
+                      Confirmar exclusão
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={onClose}
+                      className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 bg-white active:scale-[0.98] transition-transform">
+                      Cancelar
+                    </button>
+                    <button type="submit" disabled={loading || !canSubmit}
+                      className={`flex flex-1 items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white active:scale-[0.98] transition-transform disabled:opacity-40 disabled:cursor-not-allowed ${loading ? 'bg-blue-400' : 'bg-[#0056D2]'}`}>
+                      <Save className="w-4 h-4" />
+                      {loading ? 'Salvando...' : 'Salvar'}
+                    </button>
+                  </div>
+                  {onDelete && (
+                    <button type="button" onClick={() => setConfirmDelete(true)}
+                      className="w-full py-2 text-xs font-semibold text-rose-500 hover:text-rose-700 active:scale-[0.98] transition-transform">
+                      Excluir pet
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </form>
         </div>
