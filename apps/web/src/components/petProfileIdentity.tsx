@@ -99,7 +99,7 @@ export function PetProfileHero({
           className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-[18px] bg-slate-100 shadow-sm ring-1 ring-slate-200"
         >
           {photoSrc ? (
-            <img src={photoSrc} alt={petHeaderName} className="h-full w-full object-cover" onError={onPhotoError} />
+            <img src={photoSrc} alt={petHeaderName} className="h-full w-full object-contain" onError={onPhotoError} />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-[1.8rem]">{selectedSpecies.emoji}</div>
           )}

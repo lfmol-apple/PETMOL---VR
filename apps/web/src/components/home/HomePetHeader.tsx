@@ -111,7 +111,7 @@ export function HomePetHeader({
                     <img
                       src={getPhotoUrl(pet.photo, pet.pet_id, photoTimestamps)!}
                       alt={pet.pet_name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-white/80">
@@ -183,7 +183,7 @@ export function HomePetHeader({
           <img
             src={currentPetPhotoUrl}
             alt={currentPet.pet_name}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-contain"
             style={{ 
               backfaceVisibility: 'hidden', 
               WebkitBackfaceVisibility: 'hidden', 

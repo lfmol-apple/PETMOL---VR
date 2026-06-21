@@ -447,7 +447,7 @@ export function ParasiteItemSheet({
           <div className="flex items-center gap-4 relative z-10">
             <div className="w-12 h-12 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-2xl flex-shrink-0 ring-1 ring-black/5">
               {petPhotoSrc ? (
-                <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
+                <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-contain" loading="lazy" />
               ) : (
                 <span>{petSpecies === 'cat' ? '🐱' : '🐶'}</span>
               )}

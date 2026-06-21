@@ -90,7 +90,7 @@ export function PetHealthDashboard({ petId }: PetHealthDashboardProps) {
               : `${base}${photoPath}`;
             return (
               <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-white/30 flex-shrink-0">
-                <img src={src} alt={profile.pet_name} className="w-full h-full object-cover"
+                <img src={src} alt={profile.pet_name} className="w-full h-full object-contain"
                   onError={(e) => { (e.currentTarget.closest('div') as HTMLElement).style.display = 'none'; }} />
               </div>
             );
