@@ -183,7 +183,7 @@ export function HomePetHeader({
           <img
             src={currentPetPhotoUrl}
             alt={currentPet.pet_name}
-            className="absolute inset-0 w-full h-full object-contain"
+            className="absolute inset-0 w-full h-full object-cover"
             style={{ 
               backfaceVisibility: 'hidden', 
               WebkitBackfaceVisibility: 'hidden', 
