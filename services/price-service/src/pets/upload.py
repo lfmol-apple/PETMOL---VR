@@ -78,6 +78,8 @@ def delete_pet_photo(photo_path: Optional[str]) -> None:
     """Remove foto do pet do disco."""
     if not photo_path:
         return
+    if photo_path.startswith("data:"):
+        return
     settings = get_settings()
     backend = getattr(settings, "storage_backend", "local").lower()
 
