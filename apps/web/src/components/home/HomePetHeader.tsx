@@ -163,43 +163,31 @@ export function HomePetHeader({
   return (
     <>    <div className="px-4 pt-4 space-y-3">
       {/* Container da Foto + Navegação Estilo Apple */}
-      <div 
-        className="relative group rounded-[28px] overflow-hidden shadow-xl shadow-blue-500/10 border border-white/50 ring-1 ring-black/5 bg-gradient-to-br from-blue-400 to-purple-500 h-44 sm:h-56"
-        style={{ 
-          backfaceVisibility: 'hidden', 
-          WebkitBackfaceVisibility: 'hidden', 
-          transform: 'translate3d(0,0,0)', 
+      <div
+        className="relative group rounded-[28px] overflow-hidden shadow-xl shadow-blue-500/10 border border-white/50 ring-1 ring-black/5 bg-gradient-to-br from-blue-400 to-purple-500 aspect-square"
+        style={{
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+          transform: 'translate3d(0,0,0)',
           WebkitTransform: 'translate3d(0,0,0)',
           WebkitMaskImage: '-webkit-radial-gradient(white, black)'
         }}
       >
-        
+
         <div className="w-full h-full flex items-center justify-center text-white/45">
-          <PetSilhouette className="h-24 w-24 transition-transform duration-500 sm:h-32 sm:w-32 sm:group-hover:scale-110" />
+          <PetSilhouette className="h-24 w-24 sm:h-32 sm:w-32" />
         </div>
 
-        {/* Foto Real do Pet (Se houver) */}
+        {/* Foto Real do Pet — mesma proporção 1:1 do picker, sem distorção */}
         {currentPetPhotoUrl && (
-          <>
-            {/* Fundo desfocado — preenche o banner sem cortar a foto principal */}
-            <img
-              src={currentPetPhotoUrl}
-              alt=""
-              aria-hidden="true"
-              className="absolute inset-0 w-full h-full object-cover scale-110"
-              style={{ filter: 'blur(18px) brightness(0.7)', transform: 'scale(1.1) translateZ(0)', WebkitTransform: 'scale(1.1) translateZ(0)' }}
-              draggable={false}
-            />
-            {/* Foto nítida, completa, centralizada */}
-            <img
-              src={currentPetPhotoUrl}
-              alt={currentPet.pet_name}
-              className="absolute inset-0 w-full h-full object-contain"
-              style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
-              draggable={false}
-              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-            />
-          </>
+          <img
+            src={currentPetPhotoUrl}
+            alt={currentPet.pet_name}
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+            draggable={false}
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
         )}
 
         {/* Overlay premium gradient na parte inferior da foto */}
