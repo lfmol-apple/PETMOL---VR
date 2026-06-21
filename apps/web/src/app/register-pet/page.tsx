@@ -61,32 +61,29 @@ const CAT_BREEDS = [
 
 type SpeciesType = 'dog' | 'cat' | 'other' | '';
 
-// Toggle com inline styles — garante renderização idêntica ao iOS UISwitch
-function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
+// Toggle visual — div sem estilos padrão de browser (button no Safari quebra backgroundColor)
+function Toggle({ on }: { on: boolean }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      onClick={onChange}
+    <div
+      aria-hidden="true"
       style={{
-        position: 'relative', flexShrink: 0,
+        position: 'relative', display: 'block', flexShrink: 0,
         width: 51, height: 31, borderRadius: 31,
-        border: 'none', padding: 0, cursor: 'pointer', outline: 'none',
         backgroundColor: on ? '#34C759' : '#E5E5EA',
         transition: 'background-color 0.2s ease',
+        pointerEvents: 'none',
       }}
     >
       <span style={{
         position: 'absolute', top: 2, left: 2,
         width: 27, height: 27, borderRadius: '50%',
-        backgroundColor: 'white',
+        backgroundColor: '#fff',
         boxShadow: '0 2px 4px rgba(0,0,0,0.28), 0 0 0 0.5px rgba(0,0,0,0.06)',
         transition: 'transform 0.2s ease',
         transform: on ? 'translateX(20px)' : 'translateX(0)',
         display: 'block',
       }} />
-    </button>
+    </div>
   );
 }
 
@@ -426,10 +423,17 @@ export default function RegisterPetPage() {
                 </div>
               </div>
 
-              {/* Castrado */}
-              <div className="flex items-center justify-between py-1">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide">Castrado / Esterilizado</label>
-                <Toggle on={neutered} onChange={() => setNeutered(v => !v)} />
+              {/* Castrado — linha inteira clicável */}
+              <div
+                role="switch"
+                aria-checked={neutered}
+                tabIndex={0}
+                onClick={() => setNeutered(v => !v)}
+                onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') setNeutered(v => !v); }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4, paddingBottom: 4, cursor: 'pointer', userSelect: 'none' }}
+              >
+                <span className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide">Castrado / Esterilizado</span>
+                <Toggle on={neutered} />
               </div>
 
               {errors.general && (
