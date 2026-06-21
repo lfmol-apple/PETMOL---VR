@@ -40,8 +40,7 @@ export function PetPhotoPicker({ initialSrc, onConfirm, onCancel }: PetPhotoPick
   const minScale = useCallback((): number => {
     const { w, h } = nat.current;
     const cs = csRef.current;
-    // contain: mostra a foto inteira sem zoom forçado
-    return cs > 0 ? Math.min(cs / w, cs / h) : 1;
+    return cs > 0 ? Math.max(cs / w, cs / h) : 1;
   }, []);
 
   const clamp = useCallback((t: TR): TR => {
