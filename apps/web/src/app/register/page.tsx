@@ -7,7 +7,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
-import { ReminderPicker } from '@/components/ReminderPicker';
 
 type FieldKey = 'name' | 'email' | 'password' | 'terms';
 
@@ -309,16 +308,6 @@ export default function RegisterPage() {
                 </div>
               </label>
               {errors.terms && <p className="text-sm text-rose-600 font-semibold">{errors.terms}</p>}
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide mb-2">Quando você quer ser lembrado?</p>
-                <ReminderPicker
-                  days={checkinDays}
-                  time={checkinTime}
-                  onDaysChange={(value) => setCheckinDays(value)}
-                  onTimeChange={(value) => setCheckinTime(value)}
-                  label="Lembrete padrão"
-                />
-              </div>
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
                   type="button"
