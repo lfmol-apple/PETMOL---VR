@@ -259,7 +259,7 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-5 space-y-5">
 
               {/* Foto */}
               <div className="flex justify-center">

@@ -325,7 +325,7 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 space-y-5">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-5 py-5 space-y-5">
 
               {/* Foto */}
               <div className="flex justify-center">
