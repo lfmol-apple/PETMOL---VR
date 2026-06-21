@@ -6,7 +6,7 @@ import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
 import { ModalPortal } from '@/components/ModalPortal';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
-import { buildRemindAt, listReminders, deleteReminder, createReminder } from '@/features/notifications/pushService';
+import { buildRemindAt, listReminders, deleteReminder, createReminder, refreshSubscription } from '@/features/notifications/pushService';
 import { trackPartnerClicked } from '@/lib/v1Metrics';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import { IosSwitch } from '@/components/ui/IosSwitch';
@@ -344,18 +344,8 @@ export function MedicationItemSheet({
             }
 
             if (payloads.length > 0) {
-              // Sincronizar subscription (best-effort — não bloqueia criação dos reminders)
-              try {
-                const reg = await navigator.serviceWorker.ready;
-                const existingSub = await reg.pushManager.getSubscription();
-                if (existingSub) {
-                  await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/notifications/subscribe`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                    body: JSON.stringify({ subscription: existingSub.toJSON() }),
-                  });
-                }
-              } catch { /* best-effort */ }
+              // Renovar subscription com a VAPID key atual (resolve VapidPkHashMismatch)
+              try { await refreshSubscription(token); } catch { /* best-effort */ }
 
               // Criar reminders no banco independentemente do estado da subscription
               await Promise.all(payloads.map(p => createReminder(p, token)));

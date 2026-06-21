@@ -64,6 +64,37 @@ export async function isSubscribed(): Promise<boolean> {
   return sub !== null;
 }
 
+/**
+ * Renova a subscription de push: revoga a existente e cria uma nova com a
+ * VAPID key atual do servidor. Necessário quando a chave VAPID muda.
+ */
+export async function refreshSubscription(token: string): Promise<boolean> {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+  if (Notification.permission !== "granted") return false;
+
+  const registration = await navigator.serviceWorker.ready;
+
+  const existing = await registration.pushManager.getSubscription();
+  if (existing) {
+    await existing.unsubscribe();
+  }
+
+  const { publicKey } = await fetch(`${API_BASE}/notifications/vapid-public-key`).then((r) => r.json());
+
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: _urlBase64ToUint8Array(publicKey) as unknown as BufferSource,
+  });
+
+  await fetch(`${API_BASE}/notifications/subscribe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ subscription: subscription.toJSON() }),
+  });
+
+  return true;
+}
+
 // ── Reminder CRUD ───────────────────────────────────────────────────────────
 
 export type ReminderType =

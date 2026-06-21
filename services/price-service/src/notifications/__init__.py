@@ -72,8 +72,8 @@ def _send_push(subscription: dict, payload: dict) -> bool:
         return True
     except WebPushException as e:
         status = getattr(e.response, "status_code", None) if e.response else None
-        if status in (404, 410):
-            logger.info(f"Subscription expired/gone ({status}) — removing")
+        if status in (400, 404, 410):
+            logger.warning(f"Subscription inválida/expirada ({status}) — será removida. Body: {getattr(e.response, 'text', '')[:200]}")
         else:
             logger.warning(f"WebPushException: {e}")
         return False
