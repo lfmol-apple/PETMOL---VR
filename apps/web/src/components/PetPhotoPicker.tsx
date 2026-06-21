@@ -40,7 +40,8 @@ export function PetPhotoPicker({ initialSrc, onConfirm, onCancel }: PetPhotoPick
   const minScale = useCallback((): number => {
     const { w, h } = nat.current;
     const cs = csRef.current;
-    return cs > 0 ? Math.max(cs / w, cs / h) : 1;
+    // contain: mostra a foto inteira sem zoom forçado
+    return cs > 0 ? Math.min(cs / w, cs / h) : 1;
   }, []);
 
   const clamp = useCallback((t: TR): TR => {
@@ -284,7 +285,8 @@ export function PetPhotoPicker({ initialSrc, onConfirm, onCancel }: PetPhotoPick
     canvas.width = EXPORT_SIZE;
     canvas.height = EXPORT_SIZE;
     const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, EXPORT_SIZE, EXPORT_SIZE);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, EXPORT_SIZE, EXPORT_SIZE);
 
     const img = document.createElement('img');
     img.onload = () => {
