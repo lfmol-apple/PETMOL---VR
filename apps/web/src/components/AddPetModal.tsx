@@ -266,7 +266,7 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
                 <button type="button" onClick={() => setShowPhotoPicker(true)}
                   className="relative w-24 h-24 rounded-full overflow-hidden bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center active:opacity-80 transition-opacity">
                   {petPhoto ? (
-                    <img src={petPhoto} alt="Pet" className="w-full h-full object-contain" />
+                    <img src={petPhoto} alt="Pet" className="w-full h-full object-cover" />
                   ) : (
                     <div className="flex flex-col items-center gap-1">
                       <Camera className="w-6 h-6 text-slate-400" />

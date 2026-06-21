@@ -480,7 +480,7 @@ export function MedicationItemSheet({
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-3xl flex-shrink-0">
               {petPhotoSrc ? (
-                <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-contain" loading="lazy" />
+                <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
               ) : (
                 <span>{petSpecies === 'cat' ? '🐱' : '🐶'}</span>
               )}

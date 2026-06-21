@@ -332,7 +332,7 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
                 <button type="button" onClick={() => setShowPhotoPicker(true)}
                   className="relative w-24 h-24 rounded-full overflow-hidden bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center active:opacity-80 transition-opacity">
                   {petPhotoUrl ? (
-                    <img src={petPhotoUrl} alt={formData.name || 'Pet'} className="w-full h-full object-contain"
+                    <img src={petPhotoUrl} alt={formData.name || 'Pet'} className="w-full h-full object-cover"
                       onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                   ) : (
                     <div className="flex flex-col items-center gap-1">

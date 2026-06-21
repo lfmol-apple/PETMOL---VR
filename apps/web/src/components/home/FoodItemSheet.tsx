@@ -564,7 +564,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
       style={{ width: size, height: size, fontSize: size * 0.45 }}
     >
       {petPhotoSrc && !photoLoadFailed ? (
-        <img src={petPhotoSrc} alt={pet.pet_name} className="w-full h-full object-contain" loading="lazy"
+        <img src={petPhotoSrc} alt={pet.pet_name} className="w-full h-full object-cover" loading="lazy"
           onError={() => setPhotoLoadFailed(true)} />
       ) : (
         <span>{pet.species === 'cat' ? '🐱' : '🐶'}</span>

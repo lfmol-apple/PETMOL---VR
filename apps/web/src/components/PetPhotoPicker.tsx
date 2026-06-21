@@ -40,7 +40,7 @@ export function PetPhotoPicker({ initialSrc, onConfirm, onCancel }: PetPhotoPick
   const minScale = useCallback((): number => {
     const { w, h } = nat.current;
     const cs = csRef.current;
-    return cs > 0 ? Math.min(cs / w, cs / h) : 1;
+    return cs > 0 ? Math.max(cs / w, cs / h) : 1;
   }, []);
 
   const clamp = useCallback((t: TR): TR => {
@@ -278,8 +278,32 @@ export function PetPhotoPicker({ initialSrc, onConfirm, onCancel }: PetPhotoPick
   // Scale to EXPORT_SIZE by multiplying all coords by ratio = EXPORT_SIZE / cs.
 
   const handleConfirm = () => {
-    if (!imgSrc) { onCancel(); return; }
-    onConfirm(imgSrc);
+    if (!imgSrc || !canvasRef.current || !containerRef.current) { onCancel(); return; }
+    setProcessing(true);
+    const canvas = canvasRef.current;
+    canvas.width = EXPORT_SIZE;
+    canvas.height = EXPORT_SIZE;
+    const ctx = canvas.getContext('2d')!;
+    ctx.clearRect(0, 0, EXPORT_SIZE, EXPORT_SIZE);
+
+    const img = document.createElement('img');
+    img.onload = () => {
+      const cs = containerRef.current!.getBoundingClientRect().width;
+      const R = EXPORT_SIZE / cs;
+      const { w, h } = nat.current;
+      const { scale, x, y } = tr.current;
+      ctx.drawImage(
+        img,
+        ((cs - w * scale) / 2 + x) * R,
+        ((cs - h * scale) / 2 + y) * R,
+        w * scale * R,
+        h * scale * R,
+      );
+      onConfirm(canvas.toDataURL('image/jpeg', EXPORT_QUALITY));
+      setProcessing(false);
+    };
+    img.onerror = () => { setProcessing(false); onCancel(); };
+    img.src = imgSrc;
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
