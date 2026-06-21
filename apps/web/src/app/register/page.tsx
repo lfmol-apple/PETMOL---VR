@@ -200,14 +200,23 @@ export default function RegisterPage() {
                 />
                 {errors.name && <p className="mt-2 text-sm text-rose-600 font-semibold">{errors.name}</p>}
               </div>
-              <button
-                type="button"
-                onClick={handleContinue}
-                disabled={!canContinueName}
-                className="mt-4 w-full rounded-2xl bg-[#0056D2] px-5 py-4 text-base font-black text-white shadow-lg active:scale-[0.99] disabled:opacity-50"
-              >
-                Continuar
-              </button>
+              <div className="grid grid-cols-2 gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="py-3.5 rounded-2xl border border-slate-200 bg-white text-slate-600 text-[13px] font-black uppercase tracking-widest"
+                >
+                  Voltar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleContinue}
+                  disabled={!canContinueName}
+                  className="py-3.5 rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-[13px] font-black uppercase tracking-widest disabled:opacity-50"
+                >
+                  Continuar
+                </button>
+              </div>
               <p className="text-center text-sm text-slate-500">
                 Já tem conta? <Link href="/login" className="text-blue-600 font-bold hover:underline">Entrar</Link>
               </p>
