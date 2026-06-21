@@ -180,22 +180,26 @@ export function HomePetHeader({
 
         {/* Foto Real do Pet (Se houver) */}
         {currentPetPhotoUrl && (
-          <img
-            src={currentPetPhotoUrl}
-            alt={currentPet.pet_name}
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ 
-              backfaceVisibility: 'hidden', 
-              WebkitBackfaceVisibility: 'hidden', 
-              transform: 'translateZ(0)', 
-              WebkitTransform: 'translateZ(0)',
-              willChange: 'transform'
-            }}
-            draggable={false}
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-            }}
-          />
+          <>
+            {/* Fundo desfocado — preenche o banner sem cortar a foto principal */}
+            <img
+              src={currentPetPhotoUrl}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 w-full h-full object-cover scale-110"
+              style={{ filter: 'blur(18px) brightness(0.7)', transform: 'scale(1.1) translateZ(0)', WebkitTransform: 'scale(1.1) translateZ(0)' }}
+              draggable={false}
+            />
+            {/* Foto nítida, completa, centralizada */}
+            <img
+              src={currentPetPhotoUrl}
+              alt={currentPet.pet_name}
+              className="absolute inset-0 w-full h-full object-contain"
+              style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+              draggable={false}
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          </>
         )}
 
         {/* Overlay premium gradient na parte inferior da foto */}
