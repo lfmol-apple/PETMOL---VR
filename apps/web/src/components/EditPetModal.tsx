@@ -73,7 +73,7 @@ const segBtn = (active: boolean) =>
 
 const inputCls = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10';
 
-// iOS-style toggle — dimensões e cores Apple exatas
+// Toggle com inline styles — garante renderização idêntica ao iOS UISwitch
 function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
   return (
     <button
@@ -81,9 +81,23 @@ function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
       role="switch"
       aria-checked={on}
       onClick={onChange}
-      className={`relative flex-shrink-0 w-[51px] h-[31px] rounded-full transition-colors duration-200 focus:outline-none ${on ? 'bg-[#34C759]' : 'bg-[#E5E5EA]'}`}
+      style={{
+        position: 'relative', flexShrink: 0,
+        width: 51, height: 31, borderRadius: 31,
+        border: 'none', padding: 0, cursor: 'pointer', outline: 'none',
+        backgroundColor: on ? '#34C759' : '#E5E5EA',
+        transition: 'background-color 0.2s ease',
+      }}
     >
-      <span className={`absolute top-[2px] left-[2px] w-[27px] h-[27px] bg-white rounded-full shadow-[0_2px_6px_rgba(0,0,0,0.3)] transition-transform duration-200 ${on ? 'translate-x-[20px]' : 'translate-x-0'}`} />
+      <span style={{
+        position: 'absolute', top: 2, left: 2,
+        width: 27, height: 27, borderRadius: '50%',
+        backgroundColor: 'white',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.28), 0 0 0 0.5px rgba(0,0,0,0.06)',
+        transition: 'transform 0.2s ease',
+        transform: on ? 'translateX(20px)' : 'translateX(0)',
+        display: 'block',
+      }} />
     </button>
   );
 }
