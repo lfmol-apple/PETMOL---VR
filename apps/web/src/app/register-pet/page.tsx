@@ -403,19 +403,40 @@ export default function RegisterPetPage() {
                   <p className="text-2xl font-black text-slate-900">Quer adicionar uma foto?</p>
                   <p className="text-sm text-slate-500 mt-2">Isso ajuda a reconhecer o pet mais rápido.</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPhotoProcessing(true);
-                    setShowPhotoPicker(true);
-                  }}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left text-base font-bold text-slate-700 shadow-sm hover:border-slate-300"
-                >
-                  {petPhoto ? 'Trocar foto' : 'Tirar foto ou escolher da galeria'}
-                </button>
+                {petPhoto ? (
+                  <div className="space-y-3">
+                    <div className="relative w-full aspect-square max-h-52 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
+                      <img src={petPhoto} alt="Foto do pet" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setPhotoProcessing(true); setShowPhotoPicker(true); }}
+                        className="py-3 rounded-2xl border border-slate-200 bg-white text-sm font-bold text-slate-700"
+                      >
+                        Trocar foto
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setPetPhoto(''); setPetPhotoDataUrl(null); }}
+                        className="py-3 rounded-2xl border border-rose-200 bg-rose-50 text-sm font-bold text-rose-600"
+                      >
+                        Excluir foto
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setPhotoProcessing(true); setShowPhotoPicker(true); }}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left text-base font-bold text-slate-700 shadow-sm hover:border-slate-300"
+                  >
+                    Tirar foto ou escolher da galeria
+                  </button>
+                )}
                 <div className="flex items-center justify-between gap-3">
                   <button type="button" onClick={handleBack} className="flex-1 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base font-bold text-slate-600">Voltar</button>
-                  <button type="button" onClick={handleNext} className="flex-1 rounded-2xl bg-[#0056D2] px-5 py-4 text-base font-black text-white">Pular</button>
+                  <button type="button" onClick={handleNext} className="flex-1 rounded-2xl bg-[#0056D2] px-5 py-4 text-base font-black text-white">Continuar</button>
                 </div>
               </div>
             )}
