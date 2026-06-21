@@ -208,7 +208,7 @@ export function MedicationItemSheet({
         reminderTimes = ex.reminder_times as string[];
       else reminderTimes = [reminderTime];
     } catch {}
-    if (nextDue) reminderDate = nextDue;
+    if (nextDue) reminderDate = nextDue < localTodayISO() ? localTodayISO() : nextDue;
 
     setForm({
       title: ev.title || '',
