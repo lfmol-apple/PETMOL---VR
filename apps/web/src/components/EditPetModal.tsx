@@ -199,7 +199,6 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
-  const [extrasOpen, setExtrasOpen] = useState(false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -365,45 +364,36 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
                 </div>
               </div>
 
-              {/* Detalhes extras */}
+              {/* Raça + detalhes */}
               <div className={G}>
-                <button type="button" onClick={() => setExtrasOpen(v => !v)}
-                  className={`${ROW} flex w-full items-center justify-between`}>
-                  <span className="text-sm font-medium text-slate-800">Detalhes extras</span>
-                  <span className={`text-slate-400 text-xs transition-transform ${extrasOpen ? 'rotate-180' : ''}`}>▾</span>
-                </button>
-                {extrasOpen && (
-                  <>
-                    <BreedPicker
-                      species={formData.species}
-                      value={formData.breed}
-                      onChange={(v) => setFormData(prev => ({ ...prev, breed: v }))}
-                    />
-                    <div className={ROW}>
-                      <label className="block text-xs text-slate-500 mb-1.5">Data de nascimento</label>
-                      <input type="date" max={today} value={formData.birth_date}
-                        onChange={(e) => setFormData(prev => ({ ...prev, birth_date: e.target.value }))}
-                        className="w-full bg-transparent text-sm outline-none text-slate-700" />
-                    </div>
-                    <div className={`${ROW} flex items-center gap-3`}>
-                      <span className="text-sm text-slate-800 flex-1">Peso</span>
-                      <input type="text" inputMode="decimal" value={formData.weight}
-                        onChange={(e) => setFormData(prev => ({ ...prev, weight: e.target.value }))}
-                        placeholder="0.0"
-                        className="w-16 text-right text-sm bg-transparent outline-none text-slate-700 placeholder:text-slate-400" />
-                      <select value={formData.weight_unit}
-                        onChange={(e) => setFormData(prev => ({ ...prev, weight_unit: e.target.value }))}
-                        className="text-sm bg-transparent outline-none text-slate-500">
-                        <option value="kg">kg</option>
-                        <option value="lb">lb</option>
-                      </select>
-                    </div>
-                    <div className={`${ROW} flex items-center justify-between`}>
-                      <span className="text-sm text-slate-800">Castrado / Esterilizado</span>
-                      <Toggle on={formData.is_neutered} onChange={() => setFormData(prev => ({ ...prev, is_neutered: !prev.is_neutered }))} />
-                    </div>
-                  </>
-                )}
+                <BreedPicker
+                  species={formData.species}
+                  value={formData.breed}
+                  onChange={(v) => setFormData(prev => ({ ...prev, breed: v }))}
+                />
+                <div className={ROW}>
+                  <label className="block text-xs text-slate-500 mb-1.5">Data de nascimento</label>
+                  <input type="date" max={today} value={formData.birth_date}
+                    onChange={(e) => setFormData(prev => ({ ...prev, birth_date: e.target.value }))}
+                    className="w-full bg-transparent text-sm outline-none text-slate-700" />
+                </div>
+                <div className={`${ROW} flex items-center gap-3`}>
+                  <span className="text-sm text-slate-800 flex-1">Peso</span>
+                  <input type="text" inputMode="decimal" value={formData.weight}
+                    onChange={(e) => setFormData(prev => ({ ...prev, weight: e.target.value }))}
+                    placeholder="0.0"
+                    className="w-16 text-right text-sm bg-transparent outline-none text-slate-700 placeholder:text-slate-400" />
+                  <select value={formData.weight_unit}
+                    onChange={(e) => setFormData(prev => ({ ...prev, weight_unit: e.target.value }))}
+                    className="text-sm bg-transparent outline-none text-slate-500">
+                    <option value="kg">kg</option>
+                    <option value="lb">lb</option>
+                  </select>
+                </div>
+                <div className={`${ROW} flex items-center justify-between`}>
+                  <span className="text-sm text-slate-800">Castrado / Esterilizado</span>
+                  <Toggle on={formData.is_neutered} onChange={() => setFormData(prev => ({ ...prev, is_neutered: !prev.is_neutered }))} />
+                </div>
               </div>
 
               {error && (

@@ -134,7 +134,6 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
   const [petPhoto,        setPetPhoto]        = useState('');
   const [petPhotoDataUrl, setPetPhotoDataUrl] = useState<string | null>(null);
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
-  const [extrasOpen,      setExtrasOpen]      = useState(false);
   const [loading,         setLoading]         = useState(false);
   const [error,           setError]           = useState('');
 
@@ -279,41 +278,30 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
                 </div>
               </div>
 
-              {/* Detalhes extras */}
+              {/* Raça + detalhes */}
               <div className={G}>
-                <button type="button" onClick={() => setExtrasOpen(v => !v)}
-                  className={`${ROW} flex w-full items-center justify-between`}>
-                  <span className="text-sm font-medium text-slate-800">Detalhes extras</span>
-                  <span className={`text-slate-400 text-xs transition-transform ${extrasOpen ? 'rotate-180' : ''}`}>▾</span>
-                </button>
+                <BreedPicker species={species} value={breed} onChange={setBreed} />
 
-                {extrasOpen && (
-                  <>
-                    {/* Breed searchable */}
-                    <BreedPicker species={species} value={breed} onChange={setBreed} />
-
-                    <div className={ROW}>
-                      <label className="block text-xs text-slate-500 mb-1.5">Data de nascimento</label>
-                      <input type="date" max={today} value={birthDate} onChange={e => setBirthDate(e.target.value)}
-                        className="w-full bg-transparent text-sm outline-none text-slate-700" />
-                    </div>
-                    <div className={`${ROW} flex items-center gap-3`}>
-                      <span className="text-sm text-slate-800 flex-1">Peso</span>
-                      <input type="text" inputMode="decimal" value={weightValue}
-                        onChange={e => setWeightValue(e.target.value)} placeholder="0.0"
-                        className="w-16 text-right text-sm bg-transparent outline-none text-slate-700 placeholder:text-slate-400" />
-                      <select value={weightUnit} onChange={e => setWeightUnit(e.target.value)}
-                        className="text-sm bg-transparent outline-none text-slate-500">
-                        <option value="kg">kg</option>
-                        <option value="lb">lb</option>
-                      </select>
-                    </div>
-                    <div className={`${ROW} flex items-center justify-between`}>
-                      <span className="text-sm text-slate-800">Castrado / Esterilizado</span>
-                      <Toggle on={neutered} onChange={() => setNeutered(v => !v)} />
-                    </div>
-                  </>
-                )}
+                <div className={ROW}>
+                  <label className="block text-xs text-slate-500 mb-1.5">Data de nascimento</label>
+                  <input type="date" max={today} value={birthDate} onChange={e => setBirthDate(e.target.value)}
+                    className="w-full bg-transparent text-sm outline-none text-slate-700" />
+                </div>
+                <div className={`${ROW} flex items-center gap-3`}>
+                  <span className="text-sm text-slate-800 flex-1">Peso</span>
+                  <input type="text" inputMode="decimal" value={weightValue}
+                    onChange={e => setWeightValue(e.target.value)} placeholder="0.0"
+                    className="w-16 text-right text-sm bg-transparent outline-none text-slate-700 placeholder:text-slate-400" />
+                  <select value={weightUnit} onChange={e => setWeightUnit(e.target.value)}
+                    className="text-sm bg-transparent outline-none text-slate-500">
+                    <option value="kg">kg</option>
+                    <option value="lb">lb</option>
+                  </select>
+                </div>
+                <div className={`${ROW} flex items-center justify-between`}>
+                  <span className="text-sm text-slate-800">Castrado / Esterilizado</span>
+                  <Toggle on={neutered} onChange={() => setNeutered(v => !v)} />
+                </div>
               </div>
 
               {error && (
