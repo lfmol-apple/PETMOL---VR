@@ -200,7 +200,7 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
     species:     (pet.species || 'dog') as PetSpecies,
     breed:       pet.breed || '',
     sex:         (pet.sex === 'male' || pet.sex === 'female' ? pet.sex : '') as 'male' | 'female' | '',
-    age_group:   (pet as Record<string, unknown>).age_group as string || '',
+    age_group:   (pet as { age_group?: string }).age_group || '',
     birth_date:  pet.birth_date || '',
     weight:      String(pet.weight_history?.[0]?.weight || pet.weight || ''),
     weight_unit: 'kg',
