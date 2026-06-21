@@ -313,7 +313,7 @@ export default function RegisterPetPage() {
             </div>
 
             {/* Scrollable form body */}
-            <div className="px-6 pb-4 space-y-5 overflow-y-auto max-h-[calc(100dvh-260px)]">
+            <div className="px-6 pb-4 space-y-5 overflow-y-auto overflow-x-hidden max-h-[calc(100dvh-260px)]">
 
               {/* Photo */}
               <div className="flex justify-center pt-2">
