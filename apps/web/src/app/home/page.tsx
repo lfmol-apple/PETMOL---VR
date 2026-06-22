@@ -1485,19 +1485,19 @@ function HomePageInner() {
                                 : 'Veja o que vem pela frente'}
                             </p>
                           </div>
-                          <button
-                            type="button"
-                            onClick={hasAttention ? (hasMany ? () => setShowOverdueGrid(true) : handleSelectedPetPrimaryAlertOpen) : handleOpenEvents}
-                            className={`flex-shrink-0 rounded-xl px-3 py-2 text-[12px] font-bold transition-transform active:scale-95 ${
-                              attentionTone === 'overdue'
-                                ? 'bg-rose-100 text-rose-800 hover:bg-rose-200'
-                                : attentionTone === 'today'
-                                  ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-                                  : 'bg-white/80 text-blue-700 hover:bg-blue-50'
-                            }`}
-                          >
-                            {hasAttention ? 'Ver lista' : 'Ver próximos'}
-                          </button>
+                          {hasAttention && (
+                            <button
+                              type="button"
+                              onClick={hasMany ? () => setShowOverdueGrid(true) : handleSelectedPetPrimaryAlertOpen}
+                              className={`flex-shrink-0 rounded-xl px-3 py-2 text-[12px] font-bold transition-transform active:scale-95 ${
+                                attentionTone === 'overdue'
+                                  ? 'bg-rose-100 text-rose-800 hover:bg-rose-200'
+                                  : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                              }`}
+                            >
+                              Ver lista
+                            </button>
+                          )}
                         </div>
                       </section>
                     );
