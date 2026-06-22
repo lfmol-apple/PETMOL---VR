@@ -259,7 +259,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
     }
     setShowFoodPhotoFlow(false);
     setFoodPhotoEntry(null);
-    setFormRequest({ id: Date.now(), mode: 'quick_setup' });
+    setFormRequest({ id: Date.now(), mode: 'edit' });
     setMode('edit');
   };
 
