@@ -1424,30 +1424,6 @@ function HomePageInner() {
         {/* Pet Management - if pets exist */}
         {pets.length > 0 ? (
           <div className="mx-auto max-w-xl space-y-4 rounded-3xl border border-slate-200 bg-gradient-to-b from-[#F0F4F8] to-[#E2E8F0] p-3 shadow-2xl sm:p-4">
-            {checkupBanner && (
-              <div className="mb-3 flex items-center gap-3 rounded-2xl bg-blue-50 border border-blue-100 px-4 py-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-base font-bold text-blue-900 leading-snug">
-                    Faltam {checkupBanner.pendingCount} {checkupBanner.pendingCount === 1 ? 'passo' : 'passos'} para colocar {checkupBanner.petName} em dia
-                  </p>
-                </div>
-                <button
-                  onClick={() => router.push('/check-up')}
-                  className="flex-shrink-0 text-sm font-semibold text-[#0056D2] bg-blue-100 px-3 py-1.5 rounded-lg active:scale-95 transition-transform"
-                >
-                  Continuar
-                </button>
-                <button
-                  onClick={() => {
-                    localStorage.setItem('petmol_checkup_dismissed', '1');
-                    setCheckupBanner(null);
-                  }}
-                  className="flex-shrink-0 text-gray-300 text-sm leading-none"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
             {(() => {
               const currentPet = pets.find(p => p.pet_id === selectedPetId);
               if (!currentPet) return null;
