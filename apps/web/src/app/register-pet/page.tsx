@@ -259,24 +259,10 @@ export default function RegisterPetPage() {
             <div className="flex justify-center mb-5">
               <PetmolTextLogo className="text-5xl drop-shadow-sm" color="#2563EB" />
             </div>
-            <h1 className="text-2xl font-black text-slate-900">Hoje com {label}</h1>
-            <p className="mt-1 text-sm font-medium text-slate-500">O PETMOL já separou os primeiros cuidados para revisar.</p>
-            <p className="mt-3 text-base font-black text-blue-600">✓ Pronto. Agora o PETMOL já começa a cuidar do {label}.</p>
-            <div className="mt-5 grid gap-3">
-              {[
-                { title: 'Vacina', body: 'Confira se a carteirinha está em dia.' },
-                { title: 'Vermífugo', body: 'Acompanhe o próximo reforço.' },
-                { title: 'Ração', body: 'Veja como evitar faltar com o estoque.' },
-              ].map(item => (
-                <div key={item.title} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="font-black text-slate-900">{item.title}</p>
-                  <p className="mt-0.5 text-sm text-slate-500">{item.body}</p>
-                </div>
-              ))}
-            </div>
+            <h1 className="text-2xl font-black text-slate-900">Vamos cadastrar a ração do {label}</h1>
             <button type="button"
               onClick={() => router.push(`/food?pet_id=${encodeURIComponent(savedPetId)}&mode=main&source=onboarding`)}
-              className="mt-5 w-full rounded-2xl bg-[#0056D2] px-5 py-4 text-base font-black text-white shadow-lg active:scale-[0.99]">
+              className="mt-6 w-full rounded-2xl bg-[#0056D2] px-5 py-4 text-base font-black text-white shadow-lg active:scale-[0.99]">
               Cadastrar ração
             </button>
             <button type="button" onClick={() => router.push('/home')}
