@@ -9,6 +9,7 @@ import {
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
+import { scheduleReminder, buildRemindAt, subtractDays } from '@/features/notifications/pushService';
 import { updateVaccine, deleteVaccine, clearAllVaccines } from '@/services/vaccineService';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
 import {
@@ -243,6 +244,18 @@ export function useVaccineManagement({
             ),
           );
           showAppToast('Vacina atualizada com sucesso.');
+          const editNextDate = vaccineFormData.next_dose_date;
+          const editDaysBefore = vaccineFormData.alert_days_before ?? 3;
+          const editTime = (vaccineFormData.reminder_time ?? '09:00').slice(0, 5);
+          if (editNextDate && editDaysBefore > 0) {
+            const remindAt = buildRemindAt(subtractDays(editNextDate, editDaysBefore), editTime);
+            if (new Date(remindAt) > new Date()) {
+              const editToken = getToken();
+              if (editToken) {
+                void scheduleReminder({ pet_id: currentPet.pet_id, type: 'vaccine', title: `Reforço: ${vaccineFormData.vaccine_name}`, body: `Próxima dose: ${editNextDate}`, remind_at: remindAt }, editToken);
+              }
+            }
+          }
         } else {
           showBlockingNotice('❌ Erro ao atualizar vacina. Tente novamente.');
         }
@@ -340,6 +353,16 @@ export function useVaccineManagement({
         let msg = `Vacina registrada.\nStatus: ${statusLabel}\nLembrete ativo`;
         if (saved.next_due_on) msg += `\nPróxima previsão: ${saved.next_due_on}`;
         showAppToast(msg, { title: 'Registro salvo', tone: 'success', durationMs: 3600 });
+
+        const newNextDate = createdVaccine.next_dose_date;
+        const newDaysBefore = createdVaccine.alert_days_before ?? 3;
+        const newTime = (createdVaccine.reminder_time ?? '09:00').slice(0, 5);
+        if (newNextDate && newDaysBefore > 0) {
+          const remindAt = buildRemindAt(subtractDays(newNextDate, newDaysBefore), newTime);
+          if (new Date(remindAt) > new Date()) {
+            void scheduleReminder({ pet_id: currentPet.pet_id, type: 'vaccine', title: `Reforço: ${createdVaccine.vaccine_name}`, body: `Próxima dose: ${newNextDate}`, remind_at: remindAt }, savedToken);
+          }
+        }
       }
 
       resetVaccineForm();

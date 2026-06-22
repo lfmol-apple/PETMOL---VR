@@ -5,6 +5,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { dateToLocalISO } from '@/lib/localDate';
+import { scheduleReminder, buildRemindAt, subtractDays } from '@/features/notifications/pushService';
 import {
   requestUserConfirmation,
   showAppToast,
@@ -343,6 +344,19 @@ export function useParasiteManagement({
       }
 
       if (success) {
+        const parasiteNextDue = controlData.next_due_date;
+        const parasiteDaysBefore = parasiteFormData.alert_days_before ?? 7;
+        const parasiteTime = (parasiteFormData.reminder_time ?? '09:00').slice(0, 5);
+        if (parasiteNextDue && parasiteDaysBefore > 0 && parasiteFormData.reminder_enabled !== false) {
+          const remindAt = buildRemindAt(subtractDays(parasiteNextDue, parasiteDaysBefore), parasiteTime);
+          if (new Date(remindAt) > new Date()) {
+            const parasiteToken = getToken();
+            if (parasiteToken) {
+              const pushType = (parasiteFormData.type === 'flea_tick' ? 'flea' : parasiteFormData.type) as 'dewormer' | 'flea' | 'collar';
+              void scheduleReminder({ pet_id: currentPet.pet_id, type: pushType, title: `Antiparasitário: ${parasiteFormData.product_name}`, body: `Próxima aplicação: ${parasiteNextDue}`, remind_at: remindAt }, parasiteToken);
+            }
+          }
+        }
         await loadParasiteControls();
         resetParasiteForm();
         if (selectedPetId) fetchPetEvents(selectedPetId);

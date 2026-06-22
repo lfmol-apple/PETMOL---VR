@@ -60,7 +60,8 @@ def _normalize_subscription(sub: dict) -> dict:
     return sub
 
 
-def _send_push(subscription: dict, payload: dict) -> bool:
+def _send_push(subscription: dict, payload: dict) -> tuple:
+    """Returns (ok: bool, sub_invalid: bool). sub_invalid=True means subscription should be removed."""
     settings = get_settings()
     try:
         webpush(
@@ -69,17 +70,18 @@ def _send_push(subscription: dict, payload: dict) -> bool:
             vapid_private_key=settings.vapid_private_key,
             vapid_claims={"sub": settings.vapid_claims_email},
         )
-        return True
+        return True, False
     except WebPushException as e:
         status = getattr(e.response, "status_code", None) if e.response else None
-        if status in (400, 404, 410):
-            logger.warning(f"Subscription inválida/expirada ({status}) — será removida. Body: {getattr(e.response, 'text', '')[:200]}")
+        if status in (404, 410):
+            logger.warning(f"Subscription expirada/removida ({status}) — será descartada. Body: {getattr(e.response, 'text', '')[:200]}")
+            return False, True
         else:
-            logger.warning(f"WebPushException: {e}")
-        return False
+            logger.warning(f"WebPushException ({status}): {e}")
+            return False, False
     except Exception as e:
         logger.error(f"_send_push error: {e}")
-        return False
+        return False, False
 
 
 # ── Reminder model ───────────────────────────────────────────────────────────
@@ -144,10 +146,10 @@ def send_due_reminders() -> None:
         changed = False
 
         for reminder in due:
-            reminder.sent = True
             sub = subscriptions.get(str(reminder.user_id))
             if not sub:
-                logger.info(f"Reminder {reminder.id}: sem subscription para user {reminder.user_id}")
+                logger.info(f"Reminder {reminder.id}: sem subscription para user {reminder.user_id} — consumindo")
+                reminder.sent = True
                 continue
 
             deep_url = _build_deep_link(reminder.type, reminder.pet_id)
@@ -162,9 +164,12 @@ def send_due_reminders() -> None:
                     "type": reminder.type,
                 },
             }
-            ok = _send_push(sub, payload)
+            ok, sub_invalid = _send_push(sub, payload)
             logger.info(f"Reminder {reminder.id} ({reminder.type}): push={'ok' if ok else 'falhou'}")
-            if not ok:
+            if ok:
+                reminder.sent = True
+            elif sub_invalid:
+                reminder.sent = True
                 subscriptions.pop(str(reminder.user_id), None)
                 changed = True
 
@@ -237,7 +242,7 @@ def test_push(current_user=Depends(get_current_user)):
     sub = subs.get(str(current_user.id))
     if not sub:
         raise HTTPException(status_code=404, detail="Sem subscription registrada para este usuário")
-    ok = _send_push(sub, {"title": "🐾 Teste PETMOL", "body": "Push funcionando!", "tag": "test"})
+    ok, _ = _send_push(sub, {"title": "🐾 Teste PETMOL", "body": "Push funcionando!", "tag": "test"})
     if not ok:
         raise HTTPException(status_code=502, detail="Falha ao enviar push")
     return {"status": "sent"}
