@@ -145,7 +145,7 @@ export default function RegisterPage() {
         return;
       }
 
-      router.push('/register-pet');
+      router.push('/welcome');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao criar conta.';
       setFieldValidation('email', message);
