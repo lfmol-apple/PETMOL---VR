@@ -162,6 +162,7 @@ export default function RegisterPetPage() {
   const [sex, setSex] = useState<'male' | 'female' | ''>('');
   const [weightValue, setWeightValue] = useState('');
   const [weightUnit, setWeightUnit] = useState('kg');
+  const [birthDate, setBirthDate] = useState('');
   const [ageGroup, setAgeGroup] = useState<'puppy' | 'adult' | 'senior' | ''>('');
   const [neutered, setNeutered] = useState(false);
   const [petPhoto, setPetPhoto] = useState('');
@@ -201,6 +202,7 @@ export default function RegisterPetPage() {
     try {
       const payload: Record<string, unknown> = { name: name.trim(), species, sex, neutered };
       if (breed) payload.breed = breed;
+      if (birthDate) payload.birth_date = birthDate;
       if (ageGroup) payload.age_group = ageGroup;
       if (hasWeight) { payload.weight_value = weightNumber; payload.weight_unit = weightUnit; }
       if (petPhotoDataUrl) payload.photo = petPhotoDataUrl;
@@ -410,7 +412,19 @@ export default function RegisterPetPage() {
                 {errors.sex && <p className="text-xs text-rose-600 font-semibold">{errors.sex}</p>}
               </div>
 
-              {/* Age */}
+              {/* Birth date */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide">Data de nascimento (opcional)</label>
+                <input
+                  type="date"
+                  value={birthDate}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={e => setBirthDate(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                />
+              </div>
+
+              {/* Age group */}
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide">Faixa etária (opcional)</label>
                 <div className="flex gap-2">
