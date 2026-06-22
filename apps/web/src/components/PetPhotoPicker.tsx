@@ -138,7 +138,7 @@ export function PetPhotoPicker({ initialSrc, onConfirm, onCancel }: PetPhotoPick
         ? await imageCompression(file, {
             maxSizeMB: IMPORT_MAX_SIZE_MB,
             maxWidthOrHeight: IMPORT_MAX_WIDTH,
-            useWebWorker: true,
+            useWebWorker: false,
             initialQuality: 0.82,
             fileType: 'image/jpeg',
           }).catch(() => file)
