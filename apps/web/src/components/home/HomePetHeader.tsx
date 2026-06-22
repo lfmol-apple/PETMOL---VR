@@ -152,10 +152,19 @@ export function HomePetHeader({
     if (months === 0) return `${years} ${years === 1 ? t('common.age.year') : t('common.age.years')}`;
     return `${years}a ${months}m`;
   })();
-  const petMeta = [
-    currentPet.breed,
-    petAge,
-  ].filter(Boolean).join(' · ');
+
+  const latestWeight = currentPet.weight_history?.[0];
+  const weightChip = latestWeight?.weight
+    ? `${latestWeight.weight} ${latestWeight.weight_unit ?? 'kg'}`
+    : null;
+
+  const petChips = [
+    currentPet.breed || (currentPet.species === 'cat' ? 'Gato' : currentPet.species === 'dog' ? 'Cão' : null),
+    currentPet.sex === 'male' ? 'Macho' : currentPet.sex === 'female' ? 'Fêmea' : null,
+    petAge ?? null,
+    weightChip,
+    currentPet.neutered === true ? 'Castrado' : null,
+  ].filter(Boolean) as string[];
 
   const currentPetPhotoUrl = getPhotoUrl(currentPet.photo, currentPet.pet_id, photoTimestamps);
   const hasVisibleAttention = selectedPetNeedsAttention && topAttentionPetCount > 0;
@@ -289,12 +298,19 @@ export function HomePetHeader({
             </div>
           </div>
           
-          {/* Metadados em Linha (Raça · Idade) */}
-          <div className="mt-1.5 ml-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
-            <span className="text-[11.5px] font-bold text-slate-700 tracking-tight">
-              {petMeta || (currentPet.species === 'cat' ? 'Gato' : 'Cachorro')}
-            </span>
-          </div>
+          {/* Chips de dados do pet */}
+          {petChips.length > 0 && (
+            <div className="mt-2 ml-1 flex flex-wrap gap-1.5">
+              {petChips.map((chip) => (
+                <span
+                  key={chip}
+                  className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-bold text-slate-600 leading-none"
+                >
+                  {chip}
+                </span>
+              ))}
+            </div>
+          )}
 
         </div>
 
