@@ -7,6 +7,7 @@ import { API_BASE_URL } from '@/lib/api';
 import { PetPhotoPicker } from '@/components/PetPhotoPicker';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { trackV1Metric } from '@/lib/v1Metrics';
+import { subscribeToPush } from '@/features/notifications/pushService';
 import { Camera } from 'lucide-react';
 
 // ── Breed data ────────────────────────────────────────────────────────────────
@@ -169,6 +170,8 @@ export default function RegisterPetPage() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ name?: string; species?: string; sex?: string; general?: string }>({});
   const [savedPetId, setSavedPetId] = useState<string | null>(null);
+  const [notifStep, setNotifStep] = useState<'ask' | 'done'>('ask');
+  const [notifLoading, setNotifLoading] = useState(false);
 
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -260,15 +263,51 @@ export default function RegisterPetPage() {
               <PetmolTextLogo className="text-5xl drop-shadow-sm" color="#2563EB" />
             </div>
             <h1 className="text-2xl font-black text-slate-900">Vamos cadastrar a ração do {label}</h1>
-            <button type="button"
-              onClick={() => router.push(`/food?pet_id=${encodeURIComponent(savedPetId)}&mode=main&source=onboarding`)}
-              className="mt-6 w-full rounded-2xl bg-[#0056D2] px-5 py-4 text-base font-black text-white shadow-lg active:scale-[0.99]">
-              Cadastrar ração
-            </button>
-            <button type="button" onClick={() => router.push('/home')}
-              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base font-bold text-slate-600">
-              Ir para home
-            </button>
+
+            {notifStep === 'ask' ? (
+              <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                <p className="text-sm font-black text-slate-900">Posso te avisar quando a ração estiver acabando?</p>
+                <p className="mt-1 text-xs text-slate-500 leading-relaxed">Assim você nunca precisa lembrar — o PETMOL avisa na hora certa.</p>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    disabled={notifLoading}
+                    onClick={async () => {
+                      setNotifLoading(true);
+                      try {
+                        const token = getToken();
+                        if (token) await subscribeToPush(token);
+                      } finally {
+                        setNotifLoading(false);
+                        setNotifStep('done');
+                      }
+                    }}
+                    className="flex-1 rounded-xl bg-[#0056D2] py-3 text-xs font-black text-white disabled:opacity-50 active:scale-[0.98]"
+                  >
+                    {notifLoading ? 'Ativando…' : 'Sim, quero avisos'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNotifStep('done')}
+                    className="flex-1 rounded-xl border border-slate-200 bg-white py-3 text-xs font-bold text-slate-600 active:bg-slate-50"
+                  >
+                    Agora não
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <button type="button"
+                  onClick={() => router.push(`/food?pet_id=${encodeURIComponent(savedPetId)}&mode=main&source=onboarding`)}
+                  className="mt-6 w-full rounded-2xl bg-[#0056D2] px-5 py-4 text-base font-black text-white shadow-lg active:scale-[0.99]">
+                  Cadastrar ração
+                </button>
+                <button type="button" onClick={() => router.push('/home')}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base font-bold text-slate-600">
+                  Ir para home
+                </button>
+              </>
+            )}
           </div>
         </div>
       </BrandBackground>

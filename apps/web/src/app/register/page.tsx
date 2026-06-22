@@ -225,7 +225,7 @@ export default function RegisterPage() {
             <div className="space-y-5">
               <div>
                 <p className="text-2xl font-black text-slate-900">Seu acesso ao PETMOL</p>
-                <p className="text-sm text-slate-500 mt-2">E-mail, senha e lembrete padrão prontos.</p>
+                <p className="text-sm text-slate-500 mt-2">E-mail e senha prontos para continuar.</p>
               </div>
               <div>
                 <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">E-mail *</label>

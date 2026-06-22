@@ -667,58 +667,6 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  {/* Monthly reminder */}
-                  <div className={ROW} id="checkin-config">
-                    <p className="text-sm font-bold text-slate-800 tracking-tight mb-1">Agenda Mentoral de Saúde</p>
-                    <p className="text-xs text-slate-500 font-medium mb-4 leading-relaxed">Dia e horário em que você recebe o lembrete mensal de saúde dos seus pets.</p>
-                    <div className="flex gap-3 mb-4">
-                      <div className="flex-1">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Dia</label>
-                        <select
-                          value={tutorData?.monthly_checkin_day ?? DEFAULT_CHECKIN_DAY}
-                          onChange={(e) => setTutorData((prev) => prev ? { ...prev, monthly_checkin_day: Number(e.target.value) } : null)}
-                          className="w-full bg-slate-100/50 rounded-xl px-3 py-3 text-xs font-bold text-slate-700 outline-none"
-                        >
-                          {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
-                            <option key={d} value={d}>Dia {d}</option>
-                          ))}
-                          <option value={0}>Último</option>
-                        </select>
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Hora</label>
-                        <select
-                          value={tutorData?.monthly_checkin_hour ?? DEFAULT_CHECKIN_HOUR}
-                          onChange={(e) => setTutorData((prev) => prev ? { ...prev, monthly_checkin_hour: Number(e.target.value) } : null)}
-                          className="w-full bg-slate-100/50 rounded-xl px-3 py-3 text-xs font-bold text-slate-700 outline-none"
-                        >
-                          {Array.from({ length: 24 }, (_, i) => i).map((h) => (
-                            <option key={h} value={h}>{String(h).padStart(2, '0')}h</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Min</label>
-                        <select
-                          value={tutorData?.monthly_checkin_minute ?? DEFAULT_CHECKIN_MINUTE}
-                          onChange={(e) => setTutorData((prev) => prev ? { ...prev, monthly_checkin_minute: Number(e.target.value) } : null)}
-                          className="w-full bg-slate-100/50 rounded-xl px-3 py-3 text-xs font-bold text-slate-700 outline-none"
-                        >
-                          {Array.from({ length: 60 }, (_, i) => i).map((m) => (
-                            <option key={m} value={m}>{String(m).padStart(2, '0')}m</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { void handleCheckinSave(); }}
-                      disabled={checkinSaving}
-                      className="w-full rounded-2xl bg-slate-900 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white transition-all active:scale-[0.98] disabled:opacity-40"
-                    >
-                      {checkinSaving ? 'Salvando...' : checkinSaved ? '✓ Salvo' : 'Salvar horário'}
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
