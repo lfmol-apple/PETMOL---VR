@@ -5,7 +5,7 @@ import { FoodControlTab, type FoodControlTabFormRequest, type FoodControlTabStat
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { ModalPortal } from '@/components/ModalPortal';
 import { trackPartnerClicked, trackV1Metric } from '@/lib/v1Metrics';
-import { API_BACKEND_BASE } from '@/lib/api';
+import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { localTodayISO } from '@/lib/localDate';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
@@ -24,6 +24,7 @@ export interface FoodItemSheetProps {
   onSaved?: () => void;
   initialMode?: 'view' | 'buy';
   petPhotoUrl?: string | null;
+  racaoEventId?: string | null;
 }
 
 // Sheet-level navigation (page swaps)
@@ -131,7 +132,7 @@ function clearPendingScannedProduct(): void {
 
 // ── component ─────────────────────────────────────────────────────────────────
 
-export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl }: FoodItemSheetProps) {
+export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl, racaoEventId }: FoodItemSheetProps) {
   // Navigation
   const [mode, setMode]           = useState<SheetMode>(initialMode === 'buy' ? 'buy' : 'view');
   const [subMode, setSubMode]     = useState<FoodSubMode>('main');
@@ -365,6 +366,26 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
     return t ? { Authorization: `Bearer ${t}` } : {};
   };
 
+  const upsertRacaoEvent = async (date: string) => {
+    const brand = foodBrand || 'Ração';
+    const headers = { 'Content-Type': 'application/json', ...authH() };
+    if (racaoEventId) {
+      await fetch(`${API_BASE_URL}/events/${racaoEventId}`, {
+        method: 'PATCH',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ title: brand, scheduled_at: `${date}T00:00:00`, status: 'active' }),
+      });
+    } else {
+      await fetch(`${API_BASE_URL}/events`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ pet_id: pet.pet_id, type: 'racao', title: brand, scheduled_at: `${date}T00:00:00`, status: 'active', source: 'manual' }),
+      });
+    }
+  };
+
   const callRestock = async () => {
     const r = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan/restock`, {
       method: 'POST',
@@ -396,6 +417,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
       trackV1Metric('food_purchase_confirmed', { pet_id: pet.pet_id, source: 'sheet', channel: 'same_package' });
       const ok = await callRestock();
       if (ok) {
+        void upsertRacaoEvent(localTodayISO());
         onSaved?.();
         await refreshFoodPlan();
         dispatchFoodPlanUpdated();
@@ -437,6 +459,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
       });
       const ok = await callAdjust(targetDate);
       if (ok) {
+        void upsertRacaoEvent(localTodayISO());
         onSaved?.();
         await refreshFoodPlan();
         dispatchFoodPlanUpdated();
@@ -471,6 +494,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl 
       });
       const ok = await callAdjust(targetDate);
       if (ok) {
+        void upsertRacaoEvent(targetDate);
         onSaved?.();
         await refreshFoodPlan();
         dispatchFoodPlanUpdated();

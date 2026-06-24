@@ -1934,6 +1934,7 @@ function HomePageInner() {
           onClose={() => { setFoodSheetInitialMode('view'); closeFoodSheet(); }}
           onSaved={handleFoodSaved}
           initialMode={foodSheetInitialMode}
+          racaoEventId={petEvents.find((e) => e.type === 'racao')?.id ?? null}
         />
       )}
 

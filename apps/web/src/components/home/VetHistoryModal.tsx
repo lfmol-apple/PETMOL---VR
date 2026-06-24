@@ -92,7 +92,7 @@ export function VetHistoryModal({
             const vcAll = vaccines.filter((v) => v.date_administered).map((v) => ({ date: v.date_administered, label: v.vaccine_name || t('common.vaccine'), icon: '💉' }));
             const paAll = (currentPet?.health_data?.parasite_controls || []).map((p: ParasiteControl) => ({ date: p.date_applied, label: p.type === 'dewormer' ? t('event.type.dewormer') : p.type === 'flea_tick' ? t('event.type.flea_tick') : t('event.type.parasite_control'), icon: '🦟' }));
             const dcAll = vetHistoryDocs.filter((d) => d.document_date || d.created_at).map((d) => ({ date: d.document_date || d.created_at?.split('T')[0], label: d.title || 'Documento', icon: '📄', evId: d.event_id || null }));
-            const evAllIcons: Record<string, string> = { consulta: '🩺', retorno: '🔁', exame_lab: '🔬', exame_imagem: '📷', cirurgia: '✂️', odonto: '🦷', medicacao: '💊', emergencia: '🚨', outro: '📝' };
+            const evAllIcons: Record<string, string> = { consulta: '🩺', retorno: '🔁', exame_lab: '🔬', exame_imagem: '📷', cirurgia: '✂️', odonto: '🦷', medicacao: '💊', emergencia: '🚨', racao: '🥣', outro: '📝' };
             const seenEvIds = new Set<string>();
             const evAll = petEvents
               .filter((ev) => {
@@ -289,8 +289,8 @@ export function VetHistoryModal({
                   };
                 });
 
-                const petEventColors: Record<string, string> = { consulta: 'blue', retorno: 'blue', exame_lab: 'indigo', exame_imagem: 'indigo', cirurgia: 'purple', odonto: 'teal', medicacao: 'pink', emergencia: 'amber', outro: 'gray' };
-                const petEventIcons: Record<string, string> = { consulta: '🩺', retorno: '🔁', exame_lab: '🔬', exame_imagem: '📷', cirurgia: '✂️', odonto: '🦷', medicacao: '💊', emergencia: '🚨', outro: '📝' };
+                const petEventColors: Record<string, string> = { consulta: 'blue', retorno: 'blue', exame_lab: 'indigo', exame_imagem: 'indigo', cirurgia: 'purple', odonto: 'teal', medicacao: 'pink', emergencia: 'amber', racao: 'amber', outro: 'gray' };
+                const petEventIcons: Record<string, string> = { consulta: '🩺', retorno: '🔁', exame_lab: '🔬', exame_imagem: '📷', cirurgia: '✂️', odonto: '🦷', medicacao: '💊', emergencia: '🚨', racao: '🥣', outro: '📝' };
                 const consultaEvents = petEvents
                   .filter((ev) => ev.scheduled_at && ev.source !== 'document')
                   .map((ev) => ({
