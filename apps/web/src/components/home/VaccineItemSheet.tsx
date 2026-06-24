@@ -107,13 +107,10 @@ export function VaccineItemSheet({
 }: VaccineItemSheetProps) {
   const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
   const [mode, setMode] = useState<'view' | 'buy'>(initialMode === 'buy' ? 'buy' : 'view');
-  const [detailsExpanded, setDetailsExpanded] = useState(false);
-  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [quickRegisterExpanded, setQuickRegisterExpanded] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(true);
   const [historyShowAll, setHistoryShowAll] = useState(false);
   const [overdueShowAll, setOverdueShowAll] = useState(false);
-  const [chipsExpanded, setChipsExpanded] = useState(false);
-  const [overdueExpanded, setOverdueExpanded] = useState(false);
-  const [upcomingExpanded, setUpcomingExpanded] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -304,249 +301,212 @@ export function VaccineItemSheet({
           {mode === 'view' && (
             <div className="p-5 space-y-3 pb-8">
 
-            {/* ── QUICK REGISTER ────────────────────────────────────────── */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-base">⚡</span>
-                <div>
-                  <p className="text-[13px] font-black text-slate-800">Registro rápido</p>
-                  <p className="text-[11px] text-slate-500">Toque na vacina aplicada</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                {chips.map((chip) => {
-                  const isSaving = savingChip === chip.code;
-                  const isSaved = savedChip === chip.code;
-                  return (
-                    <button
-                      key={chip.code}
-                      type="button"
-                      onClick={() => handleChipClick(chip)}
-                      disabled={savingChip !== null && !isSaving}
-                      className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border text-left transition-all active:scale-[0.98] ${
-                        chip.disabled
-                          ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed'
-                          : isSaved
-                            ? 'bg-emerald-50 border-emerald-300'
-                            : chip.isOther
-                              ? 'bg-white border-dashed border-gray-200 hover:bg-gray-50'
-                              : 'bg-white border-gray-200 hover:bg-sky-50 hover:border-sky-200 shadow-sm'
-                      }`}
-                    >
-                      <span className="text-2xl flex-shrink-0">{isSaved ? '✅' : chip.icon}</span>
-                      <span className={`flex-1 text-[14px] font-bold ${chip.disabled ? 'text-gray-400' : chip.isOther ? 'text-gray-500' : 'text-slate-800'}`}>
-                        {isSaved ? 'Registrado!' : isSaving ? 'Registrando...' : chip.label}
-                      </span>
-                      {chip.disabled && <span className="text-[10px] font-semibold text-gray-400">Prescrição veterinária</span>}
-                      {!chip.disabled && !isSaved && !isSaving && <span className="text-gray-300 text-lg">›</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* ── Não sei o histórico ────────────────────────────────────── */}
-            <button
-              onClick={onQuickAdd}
-              className="w-full py-2.5 rounded-2xl border border-dashed border-gray-200 text-[12px] font-semibold text-gray-400 hover:text-gray-600 hover:border-gray-300 transition-all"
-            >
-              Não sei o histórico — começar daqui
-            </button>
-
-            {/* ── DETALHES — single collapsed accordion for everything else */}
-            {vaccines.length > 0 && (
-              <div className="rounded-2xl border border-gray-200 overflow-hidden">
-                <button
-                  className="w-full flex items-center justify-between px-4 py-3 text-left bg-gray-50"
-                  onClick={() => setDetailsExpanded(d => !d)}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Detalhes</span>
-                    {overdue.length > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700">
-                        {overdue.length} para revisar
-                      </span>
-                    )}
-                    {overdue.length === 0 && upcoming.length > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-700">
-                        📅 {upcoming.length} próximas
-                      </span>
-                    )}
+            {/* ── REGISTRO RÁPIDO (colapsável) ──────────────────────────── */}
+            <div className="rounded-2xl border border-gray-200 overflow-hidden">
+              <button
+                type="button"
+                className="w-full flex items-center justify-between px-4 py-3.5 bg-white text-left active:bg-gray-50 transition-colors"
+                onClick={() => setQuickRegisterExpanded(q => !q)}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">⚡</span>
+                  <div>
+                    <p className="text-[14px] font-black text-slate-800">Registro rápido</p>
+                    <p className="text-[11px] text-slate-400">Toque para registrar uma vacina aplicada</p>
                   </div>
-                  <span className="text-gray-400 text-sm">{detailsExpanded ? '▲' : '▼'}</span>
-                </button>
-
-                {detailsExpanded && (
-                  <div className="border-t border-gray-100 divide-y divide-gray-100">
-
-                    {/* Overdue chip + list */}
-                    {overdue.length > 0 && (
-                      <div>
-                        <button
-                          onClick={() => setOverdueExpanded(o => !o)}
-                          className="w-full flex items-center gap-3 px-4 py-3 bg-rose-50 text-left"
-                        >
-                          <span className="text-sm flex-shrink-0">•</span>
-                          <p className="flex-1 text-sm font-bold text-rose-700 truncate">
-                            {overdue.length === 1
-                              ? `${overdue[0].vaccine_name}: vale revisar`
-                              : `${overdue.length} vacinas para revisar`}
-                          </p>
-                          <span className="text-rose-400 text-xs">{overdueExpanded ? '▲' : '▼'}</span>
-                        </button>
-                        {overdueExpanded && (
-                          <div className="divide-y divide-rose-100 bg-rose-50">
-                            {(overdueShowAll ? overdue : overdue.slice(0, 2)).map(v => (
-                              <VaccineRow
-                                key={v.id}
-                                vaccine={v}
-                                isCurrent={currentVaccineIds.has(v.id)}
-                                confirmDeleteId={confirmDeleteId}
-                                onEdit={onEditVaccine}
-                                onDeleteClick={handleDeleteClick}
-                                borderColor="border-l-rose-500"
-                                statusBadge={<span className="text-[10px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-semibold">Revisar</span>}
-                              />
-                            ))}
-                            {overdue.length > 2 && (
-                              <button onClick={() => setOverdueShowAll(s => !s)} className="w-full py-2 text-xs font-semibold text-rose-600 bg-rose-50/80">
-                                {overdueShowAll ? 'Mostrar menos' : `Ver mais ${overdue.length - 2}`}
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Upcoming chip + list */}
-                    {upcoming.length > 0 && (
-                      <div>
-                        <button
-                          onClick={() => setUpcomingExpanded(u => !u)}
-                          className="w-full flex items-center gap-3 px-4 py-3 bg-sky-50 text-left"
-                        >
-                          <span className="text-sm flex-shrink-0">📅</span>
-                          <p className="flex-1 text-sm font-bold text-sky-700 truncate">
-                            {upcoming[0].vaccine_name}
-                            {diffDays(upcoming[0].next_dose_date) !== null && (
-                              <span className="font-normal text-sky-600 ml-1">· {fmtRelativeDays(diffDays(upcoming[0].next_dose_date))}</span>
-                            )}
-                          </p>
-                          <span className="text-sky-400 text-xs">{upcomingExpanded ? '▲' : '▼'}</span>
-                        </button>
-                        {upcomingExpanded && (
-                          <div className="divide-y divide-sky-100 bg-sky-50">
-                            {upcoming.slice(0, 3).map(v => (
-                              <VaccineRow
-                                key={v.id}
-                                vaccine={v}
-                                isCurrent={currentVaccineIds.has(v.id)}
-                                confirmDeleteId={confirmDeleteId}
-                                onEdit={onEditVaccine}
-                                onDeleteClick={handleDeleteClick}
-                                borderColor="border-l-sky-500"
-                                statusBadge={<span className="text-[10px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-semibold">⏰ Próxima</span>}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* History */}
-                    {applied.length > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between px-4 py-3">
-                          <button
-                            className="flex items-center justify-between text-left flex-1"
-                            onClick={() => setHistoryExpanded(h => !h)}
-                          >
-                            <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                              🗂️ Histórico ({applied.length})
-                            </p>
-                            <span className="text-gray-400 text-sm">{historyExpanded ? '▲' : '▼'}</span>
-                          </button>
-                        </div>
-                        {historyExpanded && (
-                          <div className="divide-y divide-gray-100 border-t border-gray-100">
-                            {(historyShowAll ? applied : applied.slice(0, 2)).map(v => (
-                              <VaccineRow
-                                key={v.id}
-                                vaccine={v}
-                                isCurrent={currentVaccineIds.has(v.id)}
-                                confirmDeleteId={confirmDeleteId}
-                                onEdit={onEditVaccine}
-                                onDeleteClick={handleDeleteClick}
-                                borderColor="border-l-gray-300"
-                                statusBadge={<span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-semibold">📚 Histórico</span>}
-                              />
-                            ))}
-                            {!historyShowAll && applied.length > 2 && (
-                              <button
-                                onClick={() => setHistoryShowAll(true)}
-                                className="w-full py-2.5 text-xs font-semibold text-sky-600 hover:text-sky-700 bg-gray-50"
-                              >
-                                Ver todas ({applied.length - 2} restantes)
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Stats */}
-                    <div className="px-4 py-3 grid grid-cols-3 gap-2">
-                      <div className="rounded-2xl bg-gray-50 border border-gray-200 px-3 py-2.5 text-center">
-                        <p className="text-xl font-black text-gray-800">{vaccines.length}</p>
-                        <p className="text-[10px] text-gray-500 font-medium mt-0.5">Total</p>
-                      </div>
-                      <div className="rounded-2xl bg-sky-50 border border-sky-200 px-3 py-2.5 text-center">
-                        <p className="text-xl font-black text-sky-700">{upcomingSoon.length}</p>
-                        <p className="text-[10px] text-sky-600 font-medium mt-0.5">Próximas</p>
-                      </div>
-                      <div className="rounded-2xl bg-red-50 border border-red-200 px-3 py-2.5 text-center">
-                        <p className="text-xl font-black text-red-600">{overdue.length}</p>
-                        <p className="text-[10px] text-red-500 font-medium mt-0.5">Atrasadas</p>
-                      </div>
-                    </div>
-
-                    {/* Delete all */}
-                    <div className="px-4 py-3">
+                </div>
+                <span className="text-gray-400 text-sm">{quickRegisterExpanded ? '▲' : '▼'}</span>
+              </button>
+              {quickRegisterExpanded && (
+                <div className="border-t border-gray-100 p-4 space-y-2">
+                  {chips.map((chip) => {
+                    const isSaving = savingChip === chip.code;
+                    const isSaved = savedChip === chip.code;
+                    return (
                       <button
-                        onClick={handleDeleteAll}
-                        className={`w-full py-2.5 rounded-2xl text-[13px] font-semibold border transition-all ${
-                          confirmDeleteAll
-                            ? 'bg-red-600 text-white border-red-600'
-                            : 'bg-white text-red-500 border-red-200 hover:bg-red-50'
+                        key={chip.code}
+                        type="button"
+                        onClick={() => handleChipClick(chip)}
+                        disabled={savingChip !== null && !isSaving}
+                        className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border text-left transition-all active:scale-[0.98] ${
+                          chip.disabled
+                            ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed'
+                            : isSaved
+                              ? 'bg-emerald-50 border-emerald-300'
+                              : chip.isOther
+                                ? 'bg-white border-dashed border-gray-200 hover:bg-gray-50'
+                                : 'bg-white border-gray-200 hover:bg-sky-50 hover:border-sky-200 shadow-sm'
                         }`}
                       >
-                        {confirmDeleteAll ? '⚠️ Confirmar exclusão de todas as vacinas' : '🗑️ Limpar todas as vacinas'}
+                        <span className="text-2xl flex-shrink-0">{isSaved ? '✅' : chip.icon}</span>
+                        <span className={`flex-1 text-[14px] font-bold ${chip.disabled ? 'text-gray-400' : chip.isOther ? 'text-gray-500' : 'text-slate-800'}`}>
+                          {isSaved ? 'Registrado!' : isSaving ? 'Registrando...' : chip.label}
+                        </span>
+                        {chip.disabled && <span className="text-[10px] font-semibold text-gray-400">Prescrição veterinária</span>}
+                        {!chip.disabled && !isSaved && !isSaving && <span className="text-gray-300 text-lg">›</span>}
                       </button>
-                    </div>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={onQuickAdd}
+                    className="w-full py-2.5 rounded-2xl border border-dashed border-gray-200 text-[12px] font-semibold text-gray-400 hover:text-gray-600 hover:border-gray-300 transition-all"
+                  >
+                    Não sei o histórico — começar daqui
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ── ATRASADAS (sempre visível) ─────────────────────────────── */}
+            {overdue.length > 0 && (
+              <div className="rounded-2xl border border-rose-200 overflow-hidden">
+                <div className="px-4 py-3 bg-rose-50 flex items-center gap-2">
+                  <span className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">!</span>
+                  <p className="text-sm font-bold text-rose-700 flex-1 truncate">
+                    {overdue.length === 1
+                      ? `${overdue[0].vaccine_name}: vale revisar`
+                      : `${overdue.length} vacinas para revisar`}
+                  </p>
+                </div>
+                <div className="divide-y divide-rose-100">
+                  {(overdueShowAll ? overdue : overdue.slice(0, 2)).map(v => (
+                    <VaccineRow
+                      key={v.id}
+                      vaccine={v}
+                      isCurrent={currentVaccineIds.has(v.id)}
+                      confirmDeleteId={confirmDeleteId}
+                      onEdit={onEditVaccine}
+                      onDeleteClick={handleDeleteClick}
+                      borderColor="border-l-rose-500"
+                      statusBadge={<span className="text-[10px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-semibold">Revisar</span>}
+                    />
+                  ))}
+                  {overdue.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => setOverdueShowAll(s => !s)}
+                      className="w-full py-2.5 text-xs font-semibold text-rose-600 bg-rose-50/80"
+                    >
+                      {overdueShowAll ? 'Mostrar menos' : `Ver mais ${overdue.length - 2}`}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ── PRÓXIMAS (sempre visível) ──────────────────────────────── */}
+            {upcoming.length > 0 && (
+              <div className="rounded-2xl border border-sky-200 overflow-hidden">
+                <div className="px-4 py-3 bg-sky-50 flex items-center gap-2">
+                  <span className="text-sm flex-shrink-0">📅</span>
+                  <p className="text-sm font-bold text-sky-700 flex-1 truncate">
+                    {upcoming[0].vaccine_name}
+                    {diffDays(upcoming[0].next_dose_date) !== null && (
+                      <span className="font-normal text-sky-600 ml-1">· {fmtRelativeDays(diffDays(upcoming[0].next_dose_date))}</span>
+                    )}
+                  </p>
+                </div>
+                <div className="divide-y divide-sky-100">
+                  {upcoming.slice(0, 3).map(v => (
+                    <VaccineRow
+                      key={v.id}
+                      vaccine={v}
+                      isCurrent={currentVaccineIds.has(v.id)}
+                      confirmDeleteId={confirmDeleteId}
+                      onEdit={onEditVaccine}
+                      onDeleteClick={handleDeleteClick}
+                      borderColor="border-l-sky-500"
+                      statusBadge={<span className="text-[10px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-semibold">⏰ Próxima</span>}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── HISTÓRICO ─────────────────────────────────────────────── */}
+            {applied.length > 0 && (
+              <div className="rounded-2xl border border-gray-200 overflow-hidden">
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 text-left"
+                  onClick={() => setHistoryExpanded(h => !h)}
+                >
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                    🗂️ Histórico ({applied.length})
+                  </p>
+                  <span className="text-gray-400 text-sm">{historyExpanded ? '▲' : '▼'}</span>
+                </button>
+                {historyExpanded && (
+                  <div className="divide-y divide-gray-100 border-t border-gray-100">
+                    {(historyShowAll ? applied : applied.slice(0, 3)).map(v => (
+                      <VaccineRow
+                        key={v.id}
+                        vaccine={v}
+                        isCurrent={currentVaccineIds.has(v.id)}
+                        confirmDeleteId={confirmDeleteId}
+                        onEdit={onEditVaccine}
+                        onDeleteClick={handleDeleteClick}
+                        borderColor="border-l-gray-300"
+                      />
+                    ))}
+                    {!historyShowAll && applied.length > 3 && (
+                      <button
+                        type="button"
+                        onClick={() => setHistoryShowAll(true)}
+                        className="w-full py-2.5 text-xs font-semibold text-sky-600 hover:text-sky-700 bg-gray-50"
+                      >
+                        Ver todas ({applied.length - 3} restantes)
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
             )}
 
-            {/* Find a place to vaccinate */}
-            {mode === 'view' && (
+            {/* ── AÇÕES SECUNDÁRIAS ─────────────────────────────────────── */}
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowImportModal(true)}
+                className="w-full flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-2xl hover:bg-gray-50 transition-all active:scale-[0.98]"
+              >
+                <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center text-lg flex-shrink-0">📷</div>
+                <div className="text-left flex-1">
+                  <p className="text-[13px] font-bold text-gray-800">Importar carteirinha</p>
+                  <p className="text-[11px] text-gray-400">Foto ou galeria — identificação automática</p>
+                </div>
+                <span className="text-gray-300 text-lg">›</span>
+              </button>
+
               <a
                 href="https://www.google.com/maps/search/clínica+veterinária+vacina+perto+de+mim"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full flex items-center justify-between p-4 bg-sky-50 border border-sky-200 rounded-2xl hover:bg-sky-100 transition-all active:scale-[0.98] mt-1 shadow-sm"
+                className="w-full flex items-center gap-3 p-4 bg-sky-50 border border-sky-200 rounded-2xl hover:bg-sky-100 transition-all active:scale-[0.98]"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center text-xl shadow-sm">
-                    📍
-                  </div>
-                  <div className="text-left">
-                    <p className="text-[14px] font-bold text-sky-900">Procurar lugar para vacinar</p>
-                    <p className="text-[12px] text-sky-700/70">Clínicas e hospitais próximos</p>
-                  </div>
+                <div className="w-9 h-9 rounded-xl bg-sky-100 flex items-center justify-center text-lg flex-shrink-0">📍</div>
+                <div className="text-left flex-1">
+                  <p className="text-[13px] font-bold text-sky-900">Procurar lugar para vacinar</p>
+                  <p className="text-[11px] text-sky-700/70">Clínicas e hospitais próximos</p>
                 </div>
                 <span className="text-sky-400 text-lg font-bold">›</span>
               </a>
+            </div>
+
+            {/* ── LIMPAR TUDO (ação destrutiva) ─────────────────────────── */}
+            {vaccines.length > 0 && (
+              <button
+                type="button"
+                onClick={handleDeleteAll}
+                className={`w-full py-2.5 rounded-2xl text-[13px] font-semibold border transition-all ${
+                  confirmDeleteAll
+                    ? 'bg-red-600 text-white border-red-600'
+                    : 'bg-white text-red-400 border-red-100 hover:bg-red-50'
+                }`}
+              >
+                {confirmDeleteAll ? '⚠️ Confirmar exclusão de todas as vacinas' : '🗑️ Limpar todas as vacinas'}
+              </button>
             )}
 
           </div>
@@ -831,36 +791,6 @@ function VaccineRow({
             )}
             {v.veterinarian ? ` · ${v.veterinarian}` : ''}
           </p>
-          {(v.record_type || v.vaccine_code || v.country_code || v.next_due_source) && (
-            <div className="flex flex-wrap gap-1.5 mt-1.5">
-              <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border ${
-                v.record_type === 'estimated_control_start'
-                  ? 'bg-amber-100 text-amber-700 border-amber-200'
-                  : 'bg-emerald-100 text-emerald-700 border-emerald-200'
-              }`}>
-                {v.record_type === 'estimated_control_start' ? 'Estimado' : 'Confirmado'}
-              </span>
-              {v.vaccine_code && (
-                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-mono font-semibold border border-indigo-200">
-                  🏷️ {v.vaccine_code}
-                </span>
-              )}
-              {v.country_code && (
-                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                  🌎 {v.country_code}
-                </span>
-              )}
-              {v.next_due_source === 'protocol' && (
-                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">📅 Protocolo</span>
-              )}
-              {v.next_due_source === 'manual' && (
-                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-sky-700 border border-blue-200">✍️ Manual</span>
-              )}
-              {v.next_due_source === 'unknown' && (
-                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">⚠️ Estimativa</span>
-              )}
-            </div>
-          )}
           {v.notes && (
             <p className="text-xs text-gray-500 mt-1 italic line-clamp-2">📝 {v.notes}</p>
           )}
