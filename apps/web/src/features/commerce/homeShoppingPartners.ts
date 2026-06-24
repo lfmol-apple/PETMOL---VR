@@ -1,6 +1,6 @@
 import { trackClick } from '@/lib/analytics/click';
 
-export type HomeShoppingPartnerId = 'cobasi' | 'petz' | 'amazon' | 'petlove' | 'doglife';
+export type HomeShoppingPartnerId = 'cobasi' | 'petz' | 'amazon' | 'petlove' | 'doglife' | 'shopee' | 'mercadolivre' | 'araujo';
 
 export interface HomeShoppingPartner {
   id: HomeShoppingPartnerId;
@@ -52,6 +52,30 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/doglife.svg',
     logoAlt: 'DogLife',
     fallbackUrl: 'https://www.doglife.com.br',
+  },
+  {
+    id: 'shopee',
+    name: 'Shopee',
+    description: 'Produtos pet com preços competitivos',
+    logoSrc: '/partner-logos/shopee.png',
+    logoAlt: 'Shopee',
+    directUrl: 'https://shopee.com.br/search?keyword=pet',
+  },
+  {
+    id: 'mercadolivre',
+    name: 'Mercado Livre',
+    description: 'Ampla seleção de produtos pet',
+    logoSrc: '/partner-logos/mercadolivre.png',
+    logoAlt: 'Mercado Livre',
+    directUrl: 'https://www.mercadolivre.com.br/c/pet-shop',
+  },
+  {
+    id: 'araujo',
+    name: 'Drogaria Araújo',
+    description: 'Medicamentos e produtos de saúde pet',
+    logoSrc: '/partner-logos/araujo.png',
+    logoAlt: 'Drogaria Araújo',
+    directUrl: 'https://www.araujo.com.br/busca?q=pet',
   },
 ];
 
