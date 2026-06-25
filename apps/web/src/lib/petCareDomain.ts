@@ -322,20 +322,28 @@ function processFood(p: PetCareDomainParams): PetCareReminder[] {
   const nextDate = parseLocalDate(reminderDateStr);
   if (!nextDate) return [];
 
-  const diff = diffFromToday(nextDate);
+  const alertDiff = diffFromToday(nextDate);
   const brand = (plan.food_brand || plan.brand || primaryItem?.food_brand || '').trim() || undefined;
 
+  // Status do card deve refletir quando a ração VAI ACABAR, não quando o lembrete de compra disparou.
+  // O lembrete de compra pode ter passado (alertDiff < 0) enquanto a ração ainda tem dias restantes —
+  // nesse caso o card não deve mostrar "ATRASADO". Só mostra overdue quando a ração realmente acabou.
+  const estimatedEndDate = plan.estimated_end_date ? parseLocalDate(plan.estimated_end_date) : null;
+  const endDiff = estimatedEndDate ? diffFromToday(estimatedEndDate) : null;
+  const cardDiff = endDiff !== null ? endDiff : alertDiff;
+  const cardDate = estimatedEndDate ?? nextDate;
+
   return [{
-    key: makeKey(p.pet_id, 'food', 'purchase', 'active-plan', dateToLocalISO(nextDate)),
+    key: makeKey(p.pet_id, 'food', 'purchase', 'active-plan', dateToLocalISO(cardDate)),
     pet_id: p.pet_id,
     pet_name: p.pet_name,
     domain: 'food',
     label: 'Compra de ração',
     sublabel: brand,
     icon: '🥣',
-    due_date: dateToLocalISO(nextDate),
-    diff,
-    status: toStatus(diff),
+    due_date: dateToLocalISO(cardDate),
+    diff: cardDiff,
+    status: toStatus(cardDiff),
     action_target: 'health/food',
     is_derived: reminderDateStr !== (plan.next_purchase_date ?? ''),
   }];
