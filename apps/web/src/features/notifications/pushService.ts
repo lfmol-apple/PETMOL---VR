@@ -188,8 +188,6 @@ export async function scheduleReminder(
   try {
     const already = await isSubscribed();
     if (already) {
-      // Browser já subscrito: re-sincroniza a subscription com o backend
-      // (garante que o backend tenha sempre a subscription atual)
       const registration = await navigator.serviceWorker.ready;
       const existingSub = await registration.pushManager.getSubscription();
       if (existingSub) {
@@ -203,6 +201,55 @@ export async function scheduleReminder(
       const ok = await subscribeToPush(token);
       if (!ok) return;
     }
+    await createReminder(payload, token);
+  } catch {
+    // push é best-effort; nunca propaga erro para o caller
+  }
+}
+
+/**
+ * Cancela todos os pushes de ração pendentes para o pet informado.
+ * Best-effort — falhas são silenciosas.
+ */
+export async function cancelFoodRemindersForPet(petId: string, token: string): Promise<void> {
+  try {
+    const existing = await listReminders(token);
+    const old = existing.filter((r) => r.type === 'food' && r.pet_id === petId);
+    await Promise.all(old.map((r) => deleteReminder(r.id, token)));
+  } catch {
+    // best-effort
+  }
+}
+
+/**
+ * Agenda UM lembrete de ração para o pet, substituindo quaisquer lembretes
+ * anteriores não enviados. Garante que nunca há mais de um push de ração
+ * pendente por pet.
+ */
+export async function scheduleFoodReminder(
+  payload: CreateReminderPayload & { pet_id: string },
+  token: string
+): Promise<void> {
+  try {
+    // Garante subscription ativa
+    const already = await isSubscribed();
+    if (already) {
+      const registration = await navigator.serviceWorker.ready;
+      const existingSub = await registration.pushManager.getSubscription();
+      if (existingSub) {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ""}/notifications/subscribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ subscription: existingSub.toJSON() }),
+        });
+      }
+    } else {
+      const ok = await subscribeToPush(token);
+      if (!ok) return;
+    }
+    // Cancela pushes anteriores de ração para este pet
+    await cancelFoodRemindersForPet(payload.pet_id, token);
+    // Cria o único push correto
     await createReminder(payload, token);
   } catch {
     // push é best-effort; nunca propaga erro para o caller

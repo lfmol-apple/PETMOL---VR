@@ -8,6 +8,7 @@ import { trackPartnerClicked, trackV1Metric } from '@/lib/v1Metrics';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { localTodayISO } from '@/lib/localDate';
+import { scheduleFoodReminder, cancelFoodRemindersForPet, buildRemindAt } from '@/features/notifications/pushService';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
 import type { ScannedProduct } from '@/lib/productScanner';
@@ -336,7 +337,9 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
     onClose();
   }, [onClose]);
 
-  const refreshFoodPlan = async () => {
+  type RefreshedPlanAlert = { recommendedAlertDate: string | null; reminderTime: string | null; brand: string } | null;
+
+  const refreshFoodPlan = async (): Promise<RefreshedPlanAlert> => {
     try {
       const response = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan`, {
         headers: authH(),
@@ -360,10 +363,10 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
           durationDays: null,
           startDate: null,
         });
-        return;
+        return null;
       }
 
-      if (!response.ok) return;
+      if (!response.ok) return null;
       const payload: FeedingPlanApiResponse = await response.json();
       const plan = payload.plan;
       const estimate = payload.estimate;
@@ -421,8 +424,11 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
         durationDays: durationDays ?? null,
         startDate: startDateOnly,
       });
+
+      return { recommendedAlertDate: nextReminder, reminderTime: plan?.reminder_time ?? null, brand };
     } catch {
       // Preserve current view state on transient failures
+      return null;
     }
   };
 
@@ -486,11 +492,14 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
       if (ok) {
         void upsertRacaoEvent(localTodayISO());
         onSaved?.();
-        await refreshFoodPlan();
+        const refreshed = await refreshFoodPlan();
         dispatchFoodPlanUpdated();
+        if (refreshed?.recommendedAlertDate) {
+          const t = getToken();
+          if (t) void scheduleFoodReminder({ pet_id: pet.pet_id, type: 'food', title: '🥣 Hora de comprar ração', body: `Estoque de ${refreshed.brand || 'ração'} previsto para acabar`, remind_at: buildRemindAt(refreshed.recommendedAlertDate, refreshed.reminderTime ?? '09:00') }, t);
+        }
         setMode('view');
         setSubMode('channel');
-    
         setFeedback(null);
       }
       else setFeedback({ msg: 'Não foi possível registrar. Tente novamente.', tone: 'red' });
@@ -528,8 +537,12 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
       if (ok) {
         void upsertRacaoEvent(localTodayISO());
         onSaved?.();
-        await refreshFoodPlan();
+        const refreshed = await refreshFoodPlan();
         dispatchFoodPlanUpdated();
+        if (refreshed?.recommendedAlertDate) {
+          const t = getToken();
+          if (t) void scheduleFoodReminder({ pet_id: pet.pet_id, type: 'food', title: '🥣 Hora de comprar ração', body: `Estoque de ${refreshed.brand || 'ração'} previsto para acabar`, remind_at: buildRemindAt(refreshed.recommendedAlertDate, refreshed.reminderTime ?? '09:00') }, t);
+        }
         showSuccessAndReturnToMain('Previsão ajustada');
       }
       else {
@@ -564,9 +577,10 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
         onSaved?.();
         await refreshFoodPlan();
         dispatchFoodPlanUpdated();
+        const t = getToken();
+        if (t) void cancelFoodRemindersForPet(pet.pet_id, t);
         setSubMode('main');
         setMode('buy');
-    
         setFeedback(null);
       } else {
         setFeedback({ msg: 'Não foi possível atualizar. Tente novamente.', tone: 'red' });
