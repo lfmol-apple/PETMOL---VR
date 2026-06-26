@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FoodControlTab, type FoodControlTabFormRequest, type FoodControlTabState } from '@/components/FoodControlTab';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { ModalPortal } from '@/components/ModalPortal';
@@ -130,6 +130,76 @@ function clearPendingScannedProduct(): void {
   }
 }
 
+// ── Drum-roller days picker ────────────────────────────────────────────────────
+
+function DaysScrollPicker({ value, onChange, min = 1, max = 90 }: {
+  value: number;
+  onChange: (days: number) => void;
+  min?: number;
+  max?: number;
+}) {
+  const ITEM_H = 52;
+  const VISIBLE = 5;
+  const PAD = ITEM_H * Math.floor(VISIBLE / 2);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const days = useMemo(() => Array.from({ length: max - min + 1 }, (_, i) => min + i), [min, max]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.scrollTop = (value - min) * ITEM_H;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const readValue = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const idx = Math.round(el.scrollTop / ITEM_H);
+    onChange(days[Math.max(0, Math.min(idx, days.length - 1))]);
+  }, [days, onChange]);
+
+  const handleScroll = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(readValue, 80);
+  }, [readValue]);
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  return (
+    <div className="relative select-none" style={{ height: ITEM_H * VISIBLE }}>
+      <div className="absolute inset-x-0 top-0 pointer-events-none z-10"
+        style={{ height: PAD, background: 'linear-gradient(to bottom, white 60%, transparent)' }} />
+      <div className="absolute inset-x-0 bottom-0 pointer-events-none z-10"
+        style={{ height: PAD, background: 'linear-gradient(to top, white 60%, transparent)' }} />
+      <div className="absolute inset-x-8 bg-blue-50 border border-blue-200 rounded-2xl pointer-events-none z-0"
+        style={{ top: PAD, height: ITEM_H }} />
+      <div
+        ref={containerRef}
+        className="absolute inset-0 overflow-y-scroll [&::-webkit-scrollbar]:hidden"
+        style={{
+          scrollSnapType: 'y mandatory',
+          paddingTop: PAD,
+          paddingBottom: PAD,
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        } as React.CSSProperties}
+        onScroll={handleScroll}
+      >
+        {days.map((d) => (
+          <div
+            key={d}
+            style={{ height: ITEM_H, scrollSnapAlign: 'center' }}
+            className="flex items-center justify-center text-[18px] font-bold text-gray-800"
+          >
+            {d} dia{d !== 1 ? 's' : ''}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── component ─────────────────────────────────────────────────────────────────
 
 export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl, racaoEventId }: FoodItemSheetProps) {
@@ -148,16 +218,13 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
   // Partner / commerce
   const [formRequest, setFormRequest]       = useState<FoodControlTabFormRequest | null>(null);
 
-  // Date pickers (shared across submodes — only one active at a time)
-  const [customDate, setCustomDate]           = useState(localTodayISO);
-  const [showDatePicker, setShowDatePicker]   = useState(false);
-
   // UI state
   const [busy, setBusy]                           = useState(false);
   const [feedback, setFeedback]                   = useState<{ msg: string; tone: 'green' | 'blue' | 'red' } | null>(null);
   const [showDetails, setShowDetails]             = useState(false);
   const [photoLoadFailed, setPhotoLoadFailed]     = useState(false);
   const [successMessage, setSuccessMessage]       = useState<string | null>(null);
+  const [selectedDays, setSelectedDays]           = useState(7);
   const [hasFoodConfigured, setHasFoodConfigured] = useState(false);
   const [alertDaysBefore, setAlertDaysBefore]     = useState<number | null>(null);
   const [nextReminderDate, setNextReminderDate]   = useState<string | null>(null);
@@ -212,7 +279,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
     clearSuccessMessageTimer();
     setMode('view');
     setSubMode('main');
-    setShowDatePicker(false);
+
     setFeedback(null);
     setSuccessMessage(`✅ ${message}`);
     successMessageTimerRef.current = setTimeout(() => {
@@ -226,7 +293,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
     clearSuccessMessageTimer();
     setFormRequest(null);
     setFeedback(null);
-    setShowDatePicker(false);
+
     setSubMode('main');
     setMode('view');
   };
@@ -234,7 +301,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
   const handleSubModeBackToMain = () => {
     clearPendingScannedProduct();
     setSubMode('main');
-    setShowDatePicker(false);
+
     setFeedback(null);
   };
 
@@ -423,7 +490,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
         dispatchFoodPlanUpdated();
         setMode('view');
         setSubMode('channel');
-        setShowDatePicker(false);
+    
         setFeedback(null);
       }
       else setFeedback({ msg: 'Não foi possível registrar. Tente novamente.', tone: 'red' });
@@ -475,32 +542,33 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
     }
   };
 
-  // "⚠️ Acabou" → set_end_date to a past date
-  const handleFinished = async (targetDate: string) => {
+  // "⚠️ Acabou" → mark as finished today and go straight to buy screen
+  const handleFinishedNow = async () => {
     if (busy) return;
     setBusy(true);
     setFeedback(null);
-    const prevEnd = estEnd;
-    const prevDailyG = foodState.dailyConsumptionG;
+    const today = localTodayISO();
     try {
       trackV1Metric('food_finished_early', {
         pet_id: pet.pet_id,
-        finished_date: targetDate,
-        old_estimated_end_date: prevEnd,
-        new_estimated_end_date: targetDate,
-        old_daily_consumption_g: prevDailyG,
+        finished_date: today,
+        old_estimated_end_date: estEnd,
+        new_estimated_end_date: today,
+        old_daily_consumption_g: foodState.dailyConsumptionG,
         package_size_kg: foodState.packageSizeKg,
         delta_days: -(foodState.daysLeft ?? 0),
       });
-      const ok = await callAdjust(targetDate);
+      const ok = await callAdjust(today);
       if (ok) {
-        void upsertRacaoEvent(targetDate);
+        void upsertRacaoEvent(today);
         onSaved?.();
         await refreshFoodPlan();
         dispatchFoodPlanUpdated();
-        showSuccessAndReturnToMain('Ração finalizada');
-      }
-      else {
+        setSubMode('main');
+        setMode('buy');
+    
+        setFeedback(null);
+      } else {
         setFeedback({ msg: 'Não foi possível atualizar. Tente novamente.', tone: 'red' });
       }
     } catch {
@@ -938,16 +1006,20 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
                           {/* 4. Ajustes rápidos */}
                           <div className="grid grid-cols-2 gap-2">
                             <button type="button"
-                              onClick={() => { setSubMode('adjustDuration'); setShowDatePicker(false); setFeedback(null); }}
+                              onClick={() => {
+                                setSelectedDays(Math.max(1, Math.min(Math.round(foodState.daysLeft ?? 7), 90)));
+                                setSubMode('adjustDuration');
+                                setFeedback(null);
+                              }}
                               disabled={busy}
                               className="py-2.5 min-h-[44px] rounded-2xl bg-white border border-gray-200 text-[11px] font-medium text-gray-500 active:scale-95 transition-all disabled:opacity-50">
                               Ainda vai durar
                             </button>
                             <button type="button"
-                              onClick={() => { setSubMode('finished'); setShowDatePicker(false); setFeedback(null); }}
+                              onClick={() => { void handleFinishedNow(); }}
                               disabled={busy}
                               className="py-2.5 min-h-[44px] rounded-2xl bg-white border border-gray-200 text-[11px] font-medium text-gray-500 active:scale-95 transition-all disabled:opacity-50">
-                              Acabou
+                              {busy ? '…' : 'Acabou'}
                             </button>
                           </div>
 
@@ -994,105 +1066,34 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
 
                       {/* ─── SUBMODE: adjustDuration ────────────────────────── */}
                       {subMode === 'adjustDuration' && (
-                        <div className="space-y-4 pt-1">
+                        <div className="space-y-5 pt-1">
                           <div>
                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Ajustar previsão</p>
                             <h3 className="text-[20px] font-black text-gray-900 leading-tight mt-1">
                               Por quantos dias a ração ainda deve durar?
                             </h3>
                             <p className="text-[13px] text-gray-500 mt-1">
-                              Previsão atual: {fmtDate(estEnd)} ({foodState.daysLeft ?? '—'} dias)
+                              Arraste para selecionar os dias restantes
                             </p>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-2">
-                            {[3, 7, 15, 30].map((d) => (
-                              <button type="button" key={d} disabled={busy}
-                                onClick={() => handleAdjustDuration(isoPlus(d))}
-                                className="py-4 rounded-2xl border border-gray-200 bg-white text-[15px] font-bold text-gray-800 hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-50">
-                                {d} dias
-                              </button>
-                            ))}
-                          </div>
+                          <DaysScrollPicker
+                            value={selectedDays}
+                            onChange={setSelectedDays}
+                            min={1}
+                            max={90}
+                          />
 
-                          {!showDatePicker ? (
-                            <button type="button"
-                              onClick={() => { setCustomDate(isoPlus(7)); setShowDatePicker(true); }}
-                              className="w-full py-3 min-h-[44px] rounded-2xl border border-dashed border-gray-300 bg-white text-sm font-semibold text-gray-500 hover:bg-gray-50 active:scale-95 transition-all">
-                              Escolher data específica
-                            </button>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <input type="date" value={customDate} min={localTodayISO()}
-                                onChange={(e) => setCustomDate(e.target.value)}
-                                className="flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm" />
-                              <button type="button" disabled={!customDate || busy}
-                                onClick={() => handleAdjustDuration(customDate)}
-                                className="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold disabled:opacity-50 active:scale-95 transition-all">
-                                OK
-                              </button>
-                            </div>
-                          )}
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void handleAdjustDuration(isoPlus(selectedDays))}
+                            className="w-full py-4 rounded-2xl bg-blue-600 text-white text-[16px] font-black shadow-lg shadow-blue-500/25 hover:bg-blue-700 active:scale-[0.97] transition-all disabled:opacity-50"
+                          >
+                            {busy ? 'Ajustando…' : `Confirmar ${selectedDays} dia${selectedDays !== 1 ? 's' : ''}`}
+                          </button>
 
                           <FeedbackBanner />
-                        </div>
-                      )}
-
-                      {/* ─── SUBMODE: finished ──────────────────────────────── */}
-                      {subMode === 'finished' && (
-                        <div className="space-y-4 pt-1">
-                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">A ração acabou?</p>
-                            <h3 className="text-[20px] font-black text-gray-900 leading-tight mt-1">
-                              Quando acabou?
-                            </h3>
-                          </div>
-
-                          <div className="space-y-2">
-                            {[
-                              { label: 'Hoje', iso: localTodayISO() },
-                              { label: 'Ontem', iso: isoPlus(-1) },
-                              { label: 'Há 3 dias', iso: isoPlus(-3) },
-                            ].map(({ label, iso }) => (
-                              <button type="button" key={label} disabled={busy}
-                                onClick={() => handleFinished(iso)}
-                                className="w-full py-3.5 rounded-2xl border border-gray-200 bg-white text-[15px] font-semibold text-gray-800 text-left px-5 hover:bg-gray-50 active:scale-[0.98] transition-all disabled:opacity-50">
-                                {label}
-                              </button>
-                            ))}
-                          </div>
-
-                          {!showDatePicker ? (
-                            <button type="button"
-                              onClick={() => { setCustomDate(localTodayISO()); setShowDatePicker(true); }}
-                              className="w-full py-3 min-h-[44px] rounded-2xl border border-dashed border-gray-300 bg-white text-sm font-semibold text-gray-500 hover:bg-gray-50 active:scale-95 transition-all">
-                              Escolher data
-                            </button>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <input type="date" value={customDate} max={localTodayISO()}
-                                onChange={(e) => setCustomDate(e.target.value)}
-                                className="flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm" />
-                              <button type="button" disabled={!customDate || busy}
-                                onClick={() => handleFinished(customDate)}
-                                className="px-5 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-bold disabled:opacity-50 active:scale-95 transition-all">
-                                OK
-                              </button>
-                            </div>
-                          )}
-
-                          <FeedbackBanner />
-
-                          {/* Suggest buy after finishing */}
-                          {feedback?.tone === 'blue' && (
-                            <button type="button"
-                              onClick={() => { setSubMode('main'); setMode('buy'); }}
-                              className="w-full py-4 rounded-2xl bg-blue-600 text-white text-[15px] font-black shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2.5 active:scale-[0.98] transition-all"
-                            >
-                              <span className="text-xl">🛒</span>
-                              Comprar novamente
-                            </button>
-                          )}
                         </div>
                       )}
 
