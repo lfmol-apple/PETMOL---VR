@@ -45,36 +45,36 @@ export function HomeEmergencySheet({ open, onClose }: HomeEmergencySheetProps) {
                 href="https://www.google.com/maps/search/clinica+veterinaria+24+horas+perto+de+mim"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-4 p-4 bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 rounded-2xl active:scale-[0.98] transition-all"
+                className="flex items-center gap-4 p-4 bg-red-500 hover:bg-red-600 rounded-2xl active:scale-[0.98] transition-all shadow-md shadow-red-500/25"
               >
-                <div className="w-11 h-11 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
                   <span className="text-2xl">🏥</span>
                 </div>
                 <div className="flex-1">
-                  <div className="font-bold text-gray-900 text-sm">Clínicas Veterinárias</div>
-                  <div className="text-xs text-gray-500 mt-0.5">
-                    Atendimento <span className="font-bold text-red-600">24h</span> · Consultas e urgências
+                  <div className="font-bold text-white text-sm">Clínicas Veterinárias</div>
+                  <div className="text-xs text-red-100 mt-0.5">
+                    Atendimento 24h · Consultas e urgências
                   </div>
                 </div>
-                <span className="text-red-400 text-lg">›</span>
+                <span className="text-white/70 text-lg">›</span>
               </a>
 
               <a
                 href="https://www.google.com/maps/search/hospital+veterinario+24+horas+perto+de+mim"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-4 p-4 bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-2xl active:scale-[0.98] transition-all"
+                className="flex items-center gap-4 p-4 bg-orange-500 hover:bg-orange-600 rounded-2xl active:scale-[0.98] transition-all shadow-md shadow-orange-500/25"
               >
-                <div className="w-11 h-11 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
+                <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
                   <span className="text-2xl">🏨</span>
                 </div>
                 <div className="flex-1">
-                  <div className="font-bold text-gray-900 text-sm">Hospitais Veterinários</div>
-                  <div className="text-xs text-gray-500 mt-0.5">
-                    Internação e cirurgia <span className="font-bold text-red-600">24h</span>
+                  <div className="font-bold text-white text-sm">Hospitais Veterinários</div>
+                  <div className="text-xs text-orange-100 mt-0.5">
+                    Internação e cirurgia 24h
                   </div>
                 </div>
-                <span className="text-orange-400 text-lg">›</span>
+                <span className="text-white/70 text-lg">›</span>
               </a>
             </div>
 
