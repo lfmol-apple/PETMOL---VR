@@ -10,6 +10,7 @@ import { getToken } from '@/lib/auth-token';
 import { localTodayISO } from '@/lib/localDate';
 import { scheduleFoodReminder, cancelFoodRemindersForPet, buildRemindAt } from '@/features/notifications/pushService';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
+import { petDo } from '@/lib/petGender';
 import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
 import type { ScannedProduct } from '@/lib/productScanner';
 import {
@@ -829,7 +830,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
                 <PhotoBubble size={44} />
                 <div className="flex-1 min-w-0">
                   <h2 className="text-[18px] font-black text-gray-900 leading-tight">
-                    Ração {pet.pet_name.charAt(0).toUpperCase() !== pet.pet_name.charAt(0) ? 'da' : 'do'} {pet.pet_name}
+                    Ração {petDo(pet)} {pet.pet_name}
                   </h2>
                 </div>
                 {subMode !== 'main' ? (
@@ -871,7 +872,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
                   {!hasFood && (
                     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 space-y-4">
                       <div>
-                        <h3 className="text-[20px] font-black text-gray-900 leading-tight">Vamos cadastrar a ração do {pet.pet_name}?</h3>
+                        <h3 className="text-[20px] font-black text-gray-900 leading-tight">Vamos cadastrar a ração {petDo(pet)} {pet.pet_name}?</h3>
                         <p className="text-[13px] text-amber-900/80 mt-1">Fotografe a embalagem para identificar automaticamente, ou preencha manualmente.</p>
                       </div>
                       <div className="space-y-2">

@@ -7,6 +7,7 @@ import type { PetEventRecord } from '@/lib/petEvents';
 import type { PetHealthProfile, VaccineRecord } from '@/lib/petHealth';
 import type { FeedingPlanEntry } from '@/lib/types/homeForms';
 import type { GroomingRecord, ParasiteControl } from '@/lib/types/home';
+import { petDo } from '@/lib/petGender';
 
 type CardTone = 'neutral' | 'ok' | 'warning' | 'critical';
 
@@ -249,7 +250,7 @@ export function HomePetDashboard({
   const foodDaysLeft = typeof foodPlan?.estimated_days_left === 'number'
     ? foodPlan.estimated_days_left
     : (resolvedFoodEndDate ? diffDaysFromIso(resolvedFoodEndDate) : null);
-  const foodTitle = `Ração do ${currentPet.pet_name}`;
+  const foodTitle = `Ração ${petDo(currentPet)} ${currentPet.pet_name}`;
   const foodHeadline = !hasFoodData
     ? 'Cadastre a ração para o PETMOL avisar antes de acabar.'
     : foodDaysLeft != null

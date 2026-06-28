@@ -8,6 +8,7 @@ import { FoodItemSheet } from '@/components/home/FoodItemSheet';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 import type { PetHealthProfile } from '@/lib/petHealth';
+import { petDo } from '@/lib/petGender';
 
 type StepStatus = 'pending' | 'visiting' | 'none' | 'done' | 'skipped';
 
@@ -167,7 +168,7 @@ export default function CheckupPage() {
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-[11px] font-semibold text-blue-500 uppercase tracking-[0.08em] mb-1">Opcional</p>
-                <p className="text-sm font-semibold text-slate-800">Cadastre a ração do {petName}</p>
+                <p className="text-sm font-semibold text-slate-800">Cadastre a ração {petDo(pet ?? {})} {petName}</p>
                 <p className="text-xs text-slate-500 mt-1 leading-snug">
                   Assim o PETMOL avisa antes de acabar. Leva menos de 1 minuto.
                 </p>
