@@ -11,7 +11,7 @@
  * 4. Parceiros sempre no topo
  */
 
-import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
 import { geohashForLocation, distanceBetween } from 'geofire-common';
 import fetch from 'node-fetch';
@@ -19,7 +19,8 @@ import fetch from 'node-fetch';
 const db = admin.firestore();
 
 // Config
-const GOOGLE_PLACES_API_KEY = functions.config().google?.places_key || process.env.GOOGLE_PLACES_API_KEY;
+const runtimeConfig = (functions as unknown as { config: () => { google?: { places_key?: string } } }).config();
+const GOOGLE_PLACES_API_KEY = runtimeConfig.google?.places_key || process.env.GOOGLE_PLACES_API_KEY;
 const CACHE_TTL_DAYS = 30;
 const GEOHASH_PRECISION = 6; // ~1.2km precision
 const DEFAULT_RADIUS = 5000;

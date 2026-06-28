@@ -10,9 +10,9 @@ import { EmergencyShare } from '@/lib/shares/shareStorage';
 import { t, type Locale } from '@/lib/i18n';
 
 interface EmergencyPageProps {
-  params: {
+  params: Promise<{
     code: string;
-  };
+  }>;
 }
 
 async function getEmergencyInfo(code: string): Promise<EmergencyShare | null> {
@@ -30,8 +30,8 @@ async function getEmergencyInfo(code: string): Promise<EmergencyShare | null> {
   }
 }
 
-function getLocaleFromHeaders(): Locale {
-  const accept = headers().get('accept-language')?.toLowerCase() || '';
+async function getLocaleFromHeaders(): Promise<Locale> {
+  const accept = (await headers()).get('accept-language')?.toLowerCase() || '';
 
   if (accept.startsWith('pt')) return 'pt-BR';
   if (accept.startsWith('es')) return 'es';
@@ -45,9 +45,10 @@ function getSpeciesLabel(species: string, locale: Locale): string {
 }
 
 export default async function EmergencyPage({ params }: EmergencyPageProps) {
-  const locale = getLocaleFromHeaders();
+  const { code } = await params;
+  const locale = await getLocaleFromHeaders();
   const tr = (key: string, params?: Record<string, string | number>) => t(key, locale, params);
-  const share = await getEmergencyInfo(params.code);
+  const share = await getEmergencyInfo(code);
 
   if (!share) {
     return (
@@ -243,8 +244,9 @@ export default async function EmergencyPage({ params }: EmergencyPageProps) {
 }
 
 export async function generateMetadata({ params }: EmergencyPageProps) {
-  const locale = getLocaleFromHeaders();
-  const share = await getEmergencyInfo(params.code);
+  const { code } = await params;
+  const locale = await getLocaleFromHeaders();
+  const share = await getEmergencyInfo(code);
 
   if (!share) {
     return {

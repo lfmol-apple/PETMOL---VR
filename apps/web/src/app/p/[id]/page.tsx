@@ -41,8 +41,9 @@ async function getRGData(id: string): Promise<RGData | null> {
   }
 }
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const data = await getRGData(params.id);
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const data = await getRGData(id);
 
   if (!data) {
     return {
@@ -66,8 +67,9 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
   };
 }
 
-export default async function PublicRGPage({ params }: { params: { id: string } }) {
-  const data = await getRGData(params.id);
+export default async function PublicRGPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const data = await getRGData(id);
 
   if (!data) {
     notFound();

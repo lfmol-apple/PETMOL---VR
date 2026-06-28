@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 
 interface FoodDeepLinkPageProps {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 function pickFirst(value: string | string[] | undefined): string | null {
@@ -10,11 +10,12 @@ function pickFirst(value: string | string[] | undefined): string | null {
   return null;
 }
 
-export default function FoodDeepLinkPage({ searchParams }: FoodDeepLinkPageProps) {
-  const petId = pickFirst(searchParams?.pet_id) ?? pickFirst(searchParams?.petId) ?? '';
-  const mode = pickFirst(searchParams?.mode) ?? 'main';
-  const pushAction = pickFirst(searchParams?.push_action);
-  const source = pickFirst(searchParams?.source);
+export default async function FoodDeepLinkPage({ searchParams }: FoodDeepLinkPageProps) {
+  const resolvedSearchParams = await searchParams;
+  const petId = pickFirst(resolvedSearchParams?.pet_id) ?? pickFirst(resolvedSearchParams?.petId) ?? '';
+  const mode = pickFirst(resolvedSearchParams?.mode) ?? 'main';
+  const pushAction = pickFirst(resolvedSearchParams?.push_action);
+  const source = pickFirst(resolvedSearchParams?.source);
 
   const params = new URLSearchParams();
   params.set('modal', 'food');

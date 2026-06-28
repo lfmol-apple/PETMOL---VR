@@ -11,9 +11,9 @@ import { PetHealthProfile } from '@/lib/health/syncStorage';
 import { t, type Locale } from '@/lib/i18n';
 
 interface VetSharePageProps {
-  params: {
+  params: Promise<{
     token: string;
-  };
+  }>;
 }
 
 async function getVetShareData(token: string): Promise<{
@@ -35,8 +35,8 @@ async function getVetShareData(token: string): Promise<{
   }
 }
 
-function getLocaleFromHeaders(): Locale {
-  const accept = headers().get('accept-language')?.toLowerCase() || '';
+async function getLocaleFromHeaders(): Promise<Locale> {
+  const accept = (await headers()).get('accept-language')?.toLowerCase() || '';
 
   if (accept.startsWith('pt')) return 'pt-BR';
   if (accept.startsWith('es')) return 'es';
@@ -52,9 +52,10 @@ function getSpeciesLabel(species: string, locale: Locale): string {
 }
 
 export default async function VetSharePage({ params }: VetSharePageProps) {
-  const locale = getLocaleFromHeaders();
+  const { token } = await params;
+  const locale = await getLocaleFromHeaders();
   const tr = (key: string, params?: Record<string, string | number>) => t(key, locale, params);
-  const data = await getVetShareData(params.token);
+  const data = await getVetShareData(token);
 
   if (!data) {
     return (
@@ -324,7 +325,8 @@ export default async function VetSharePage({ params }: VetSharePageProps) {
 }
 
 export async function generateMetadata({ params }: VetSharePageProps) {
-  const locale = getLocaleFromHeaders();
+  await params;
+  const locale = await getLocaleFromHeaders();
   return {
     title: t('vet_share.meta.title', locale),
     description: t('vet_share.meta.description', locale),

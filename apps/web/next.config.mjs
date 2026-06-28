@@ -1,15 +1,12 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  swcMinify: false,
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**',
-      },
-    ],
-  },
+  outputFileTracingRoot: path.join(__dirname, '../..'),
   // Disable static page generation for dynamic routes
   experimental: {
     // This helps with monorepo React issues
