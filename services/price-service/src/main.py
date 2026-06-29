@@ -47,6 +47,7 @@ from .admin import models as _admin_models
 from .admin.models import AdminUser
 from .user_auth.models import PasswordResetToken as _password_reset_token_model  # noqa: F401
 from .user_auth.models import User
+from .user_auth.deps import get_current_user
 from .user_auth.security import hash_password
 from .version import get_version_info
 from .product_lookup import router as product_lookup_router
@@ -571,7 +572,7 @@ class ErrorsResponse(BaseModel):
 
 
 @app.get("/debug/providers", response_model=ProvidersResponse, tags=["Debug"])
-async def debug_providers():
+async def debug_providers(current_user: User = Depends(get_current_user)):
     """
     List all providers and their current status.
     Useful for debugging connectivity issues.
@@ -606,6 +607,7 @@ async def debug_providers():
 @app.get("/debug/last-errors", response_model=ErrorsResponse, tags=["Debug"])
 async def debug_last_errors(
     limit: int = Query(20, ge=1, le=100, description="Max errors to return"),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get recent errors from all providers.
@@ -629,7 +631,7 @@ async def debug_last_errors(
 
 
 @app.post("/debug/clear-errors", tags=["Debug"])
-async def debug_clear_errors():
+async def debug_clear_errors(current_user: User = Depends(get_current_user)):
     """Clear all stored errors."""
     clear_global_errors()
     return {"cleared": True}
@@ -647,7 +649,7 @@ class SelfTestResponse(BaseModel):
 
 
 @app.get("/debug/self-test", response_model=SelfTestResponse, tags=["Debug"])
-async def debug_self_test():
+async def debug_self_test(current_user: User = Depends(get_current_user)):
     """
     Quick self-test endpoint.
     Confirms the API is alive and shows status.
@@ -1743,6 +1745,7 @@ async def identify_food(
     image_base64: str,
     country: str = Query("BR", min_length=2, max_length=2, description="Country for product matching"),
     hint: Optional[str] = Query(None, max_length=100, description="User hint about the product"),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Identify pet food from a photo using AI vision.
@@ -1852,6 +1855,7 @@ Focus on dog food, cat food, and other pet food products."""
 async def analyze_vaccine_card(
     image_base64: str,
     hint: Optional[str] = Query(None, max_length=200, description="Additional context about the vaccination card"),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Analyze a vaccination card image using AI to extract vaccine information.

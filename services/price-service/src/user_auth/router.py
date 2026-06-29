@@ -6,12 +6,13 @@ from datetime import datetime, timedelta
 from typing import Optional
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status, Cookie, Header
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Cookie, Header
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..config import get_settings
 from ..db import get_db
+from ..rate_limit import rate_limiter
 from .models import PasswordResetToken, User
 from .schemas import (
     LoginRequest,
@@ -49,7 +50,10 @@ def _cookie_settings():
 
 
 @router.post("/signup", response_model=UserOut)
-def signup(payload: UserCreate, response: Response, db: Session = Depends(get_db)):
+def signup(payload: UserCreate, response: Response, request: Request, db: Session = Depends(get_db)):
+    allowed, _, _ = rate_limiter.check_rate_limit(request, max_requests=10, window_seconds=60)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Muitas tentativas. Aguarde um momento.")
     existing = db.query(User).filter(User.email == payload.email.lower()).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email já cadastrado")
@@ -89,13 +93,19 @@ def signup(payload: UserCreate, response: Response, db: Session = Depends(get_db
 
 # Alias para compatibilidade com frontend existente
 @router.post("/register", response_model=UserOut)
-def register(payload: UserCreate, response: Response, db: Session = Depends(get_db)):
+def register(payload: UserCreate, response: Response, request: Request, db: Session = Depends(get_db)):
     """Alias para /signup - mantém compatibilidade com frontend existente"""
-    return signup(payload, response, db)
+    allowed, _, _ = rate_limiter.check_rate_limit(request, max_requests=10, window_seconds=60)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Muitas tentativas. Aguarde um momento.")
+    return signup(payload, response, request, db)
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, response: Response, request: Request, db: Session = Depends(get_db)):
+    allowed, _, _ = rate_limiter.check_rate_limit(request, max_requests=10, window_seconds=60)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Muitas tentativas. Aguarde um momento.")
     from ..utils.logging_utils import setup_logger, hash_email
 
     logger = setup_logger(__name__)

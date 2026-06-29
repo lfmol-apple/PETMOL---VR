@@ -617,15 +617,6 @@ export function OnboardingWizard({ onComplete, initialStep = 1 }: OnboardingWiza
         // Converter para base64 com qualidade reduzida (0.7 = 70%)
         const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
         
-        console.log('Imagem comprimida (OnboardingWizard):', {
-          larguraOriginal: img.width,
-          alturaOriginal: img.height,
-          larguraFinal: width,
-          alturaFinal: height,
-          tamanhoBase64: compressedBase64.length,
-          tamanhoKB: (compressedBase64.length / 1024).toFixed(2)
-        });
-        
         // Base64 não deve ultrapassar ~100KB
         if (compressedBase64.length > 150000) {
           showToast(`Imagem muito grande: ${(compressedBase64.length / 1024).toFixed(0)}KB. Tente uma foto menor.`);

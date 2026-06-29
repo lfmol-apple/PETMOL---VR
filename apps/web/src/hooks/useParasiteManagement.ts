@@ -5,7 +5,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { dateToLocalISO } from '@/lib/localDate';
-import { scheduleReminder, buildRemindAt, subtractDays } from '@/features/notifications/pushService';
+import { scheduleUniqueReminder, buildRemindAt, subtractDays } from '@/features/notifications/pushService';
 import {
   requestUserConfirmation,
   showAppToast,
@@ -353,7 +353,7 @@ export function useParasiteManagement({
             const parasiteToken = getToken();
             if (parasiteToken) {
               const pushType = (parasiteFormData.type === 'flea_tick' ? 'flea' : parasiteFormData.type) as 'dewormer' | 'flea' | 'collar';
-              void scheduleReminder({ pet_id: currentPet.pet_id, type: pushType, title: `Antiparasitário: ${parasiteFormData.product_name}`, body: `Próxima aplicação: ${parasiteNextDue}`, remind_at: remindAt }, parasiteToken);
+              void scheduleUniqueReminder({ pet_id: currentPet.pet_id, type: pushType, title: `Antiparasitário: ${parasiteFormData.product_name}`, body: `Próxima aplicação: ${parasiteNextDue}`, remind_at: remindAt }, parasiteToken);
             }
           }
         }

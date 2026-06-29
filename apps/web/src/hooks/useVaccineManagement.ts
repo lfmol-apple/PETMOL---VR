@@ -9,7 +9,7 @@ import {
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
-import { scheduleReminder, buildRemindAt, subtractDays } from '@/features/notifications/pushService';
+import { scheduleUniqueReminder, buildRemindAt, subtractDays } from '@/features/notifications/pushService';
 import { updateVaccine, deleteVaccine, clearAllVaccines } from '@/services/vaccineService';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
 import {
@@ -252,7 +252,7 @@ export function useVaccineManagement({
             if (new Date(remindAt) > new Date()) {
               const editToken = getToken();
               if (editToken) {
-                void scheduleReminder({ pet_id: currentPet.pet_id, type: 'vaccine', title: `Reforço: ${vaccineFormData.vaccine_name}`, body: `Próxima dose: ${editNextDate}`, remind_at: remindAt }, editToken);
+                void scheduleUniqueReminder({ pet_id: currentPet.pet_id, type: 'vaccine', title: `Reforço: ${vaccineFormData.vaccine_name}`, body: `Próxima dose: ${editNextDate}`, remind_at: remindAt }, editToken);
               }
             }
           }
@@ -360,7 +360,7 @@ export function useVaccineManagement({
         if (newNextDate && newDaysBefore > 0) {
           const remindAt = buildRemindAt(subtractDays(newNextDate, newDaysBefore), newTime);
           if (new Date(remindAt) > new Date()) {
-            void scheduleReminder({ pet_id: currentPet.pet_id, type: 'vaccine', title: `Reforço: ${createdVaccine.vaccine_name}`, body: `Próxima dose: ${newNextDate}`, remind_at: remindAt }, savedToken);
+            void scheduleUniqueReminder({ pet_id: currentPet.pet_id, type: 'vaccine', title: `Reforço: ${createdVaccine.vaccine_name}`, body: `Próxima dose: ${newNextDate}`, remind_at: remindAt }, savedToken);
           }
         }
       }

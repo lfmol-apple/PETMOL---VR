@@ -256,6 +256,43 @@ export async function scheduleFoodReminder(
   }
 }
 
+/**
+ * Agenda UM lembrete por tipo + pet + título, substituindo qualquer lembrete
+ * anterior com os mesmos identificadores. Garante que não há duplicatas por
+ * vacina, antiparasitário, medicação, etc.
+ */
+export async function scheduleUniqueReminder(
+  payload: CreateReminderPayload & { pet_id: string },
+  token: string
+): Promise<void> {
+  try {
+    const already = await isSubscribed();
+    if (already) {
+      const registration = await navigator.serviceWorker.ready;
+      const existingSub = await registration.pushManager.getSubscription();
+      if (existingSub) {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/notifications/subscribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ subscription: existingSub.toJSON() }),
+        });
+      }
+    } else {
+      const ok = await subscribeToPush(token);
+      if (!ok) return;
+    }
+    // Cancela apenas reminders do mesmo tipo + pet + título (específico por vacina/parasita)
+    const existing = await listReminders(token);
+    const old = existing.filter(
+      (r) => r.type === payload.type && r.pet_id === payload.pet_id && r.title === payload.title,
+    );
+    await Promise.all(old.map((r) => deleteReminder(r.id, token)));
+    await createReminder(payload, token);
+  } catch {
+    // push é best-effort; nunca propaga erro para o caller
+  }
+}
+
 function _urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
