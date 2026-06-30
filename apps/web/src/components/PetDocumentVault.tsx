@@ -106,21 +106,19 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
   const { t } = useI18n();
 
   const CATEGORY_TABS = [
-    { id: 'all',    label: t('doc.cat.all'),  icon: '📁' },
+    { id: 'all',    label: t('doc.cat.all'),    icon: '📁' },
     { id: 'health', label: t('doc.cat.health'), icon: '💊' },
-    { id: 'exam',   label: t('doc.cat.exams'), icon: '🔬' },
-    { id: 'photo',  label: t('doc.cat.photos'), icon: '📸' },
+    { id: 'exam',   label: t('doc.cat.exams'),  icon: '🔬' },
   ];
 
   const HEALTH_CATS = ['vaccine', 'prescription', 'report', 'comprovante'];
 
   const CATEGORY_OPTIONS = [
     { value: 'exam',         label: '🔬 ' + t('upload.type_exam') },
-    { value: 'vaccine',      label: '💉 ' + t('common.vaccine') },
+    { value: 'vaccine',      label: '📔 Carteirinha de Vacinação' },
     { value: 'prescription', label: '📋 ' + t('upload.type_prescription') },
     { value: 'report',       label: '📄 ' + t('upload.type_report') },
     { value: 'comprovante',  label: '🧾 ' + t('upload.type_comprovante') },
-    { value: 'photo',        label: '📸 ' + t('upload.type_photo') },
     { value: 'other',        label: '📎 ' + t('upload.type_other') },
   ];
 

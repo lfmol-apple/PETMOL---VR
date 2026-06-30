@@ -36,12 +36,11 @@ interface MedicalVaultModalProps {
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const DOC_FOLDERS = [
-  { id: 'exam',         icon: '🔬', label: 'Exames',    bg: 'bg-blue-50',   border: 'border-blue-200'   },
-  { id: 'vaccine',      icon: '💉', label: 'Vacinas',   bg: 'bg-green-50',  border: 'border-green-200'  },
-  { id: 'prescription', icon: '📋', label: 'Receitas',  bg: 'bg-purple-50', border: 'border-purple-200' },
-  { id: 'report',       icon: '📄', label: 'Laudos',    bg: 'bg-indigo-50', border: 'border-indigo-200' },
-  { id: 'photo',        icon: '📸', label: 'Fotos',     bg: 'bg-pink-50',   border: 'border-pink-200'   },
-  { id: 'other',        icon: '📎', label: 'Outros',    bg: 'bg-gray-50',   border: 'border-gray-200'   },
+  { id: 'exam',         icon: '🔬', label: 'Exames',       bg: 'bg-blue-50',   border: 'border-blue-200'   },
+  { id: 'vaccine',      icon: '📔', label: 'Carteirinha',  bg: 'bg-green-50',  border: 'border-green-200'  },
+  { id: 'prescription', icon: '📋', label: 'Receitas',     bg: 'bg-purple-50', border: 'border-purple-200' },
+  { id: 'report',       icon: '📄', label: 'Laudos',       bg: 'bg-indigo-50', border: 'border-indigo-200' },
+  { id: 'other',        icon: '📎', label: 'Outros',       bg: 'bg-gray-50',   border: 'border-gray-200'   },
 ];
 
 const EVENT_ICONS: Record<string, string> = {
@@ -233,12 +232,11 @@ function exportPetHistoryPDF(
 
   // Part 2: docs split by category
   const catConfig: { id: string; icon: string; label: string }[] = [
-    { id: 'exam',         icon: '🔬', label: 'Exames'   },
-    { id: 'vaccine',      icon: '💉', label: 'Vacinas'  },
-    { id: 'prescription', icon: '📋', label: 'Receitas' },
-    { id: 'report',       icon: '📄', label: 'Laudos'   },
-    { id: 'photo',        icon: '📸', label: 'Fotos'    },
-    { id: 'other',        icon: '📎', label: 'Outros'   },
+    { id: 'exam',         icon: '🔬', label: 'Exames'                  },
+    { id: 'vaccine',      icon: '📔', label: 'Carteirinha de Vacinação' },
+    { id: 'prescription', icon: '📋', label: 'Receitas'                 },
+    { id: 'report',       icon: '📄', label: 'Laudos'                   },
+    { id: 'other',        icon: '📎', label: 'Outros'                   },
   ];
   const docsByCat = catConfig.map(cat => ({
     ...cat,
