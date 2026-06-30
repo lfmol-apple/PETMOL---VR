@@ -197,7 +197,7 @@ function HomePageInner() {
     quickMarkToast, setQuickMarkToast,
   } = useQuickMark();
   const [showVetHistoryModal, setShowVetHistoryModal] = useState(false);
-  const [historicoTab, setHistoricoTab] = useState<'resumo' | 'detalhado'>('detalhado');
+  const [historicoTab, setHistoricoTab] = useState<'resumo' | 'detalhado' | 'documentos'>('detalhado');
   const [showDocUploadInHistorico, setShowDocUploadInHistorico] = useState(false);
   const [vetHistoryDocs, setVetHistoryDocs] = useState<VetHistoryDocument[]>([]);
   const [docFolderModal, setDocFolderModal] = useState<DocFolderModalState>(null);
@@ -1757,6 +1757,7 @@ function HomePageInner() {
           onOpenHealthTab={openHealthTabFromVetHistory}
           onOpenDocumentFolder={openVetHistoryDocumentFolder}
           onNavigateToSaude={navigateToSaudeFromVetHistory}
+          onOpenUpload={() => setShowDocUploadInHistorico(true)}
         />
       )}
 

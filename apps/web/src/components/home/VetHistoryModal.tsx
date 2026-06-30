@@ -13,7 +13,7 @@ import type { DocFolderModalState, VetHistoryDocument } from '@/lib/types/homeFo
 import type { GroomingRecord, ParasiteControl } from '@/lib/types/home';
 import type { PetWithHealth } from '@/features/pets/types';
 
-type HistoryTab = 'resumo' | 'detalhado';
+type HistoryTab = 'resumo' | 'detalhado' | 'documentos';
 interface VetHistoryModalProps {
   currentPet: PetWithHealth | null;
   historicoTab: HistoryTab;
@@ -28,6 +28,7 @@ interface VetHistoryModalProps {
   onOpenHealthTab: (tab: string) => void;
   onOpenDocumentFolder: (folder: DocFolderModalState) => void;
   onNavigateToSaude?: (tab: string) => void;
+  onOpenUpload?: () => void;
 }
 
 export function VetHistoryModal({
@@ -44,6 +45,7 @@ export function VetHistoryModal({
   onOpenHealthTab,
   onOpenDocumentFolder,
   onNavigateToSaude,
+  onOpenUpload,
 }: VetHistoryModalProps) {
   const { t, locale } = useI18n();
 
@@ -82,6 +84,12 @@ export function VetHistoryModal({
               className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${historicoTab === 'detalhado' ? 'bg-white text-violet-700 shadow' : 'bg-white/20 text-white hover:bg-white/30'}`}
             >
               🗂 {t('hist.tab_detailed')}
+            </button>
+            <button
+              onClick={() => setHistoricoTab('documentos')}
+              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${historicoTab === 'documentos' ? 'bg-white text-violet-700 shadow' : 'bg-white/20 text-white hover:bg-white/30'}`}
+            >
+              📁 Arquivos
             </button>
           </div>
         </div>
@@ -548,6 +556,93 @@ export function VetHistoryModal({
               })()}
             </div>
           )}
+          {historicoTab === 'documentos' && (() => {
+            const DOC_FOLDERS: { id: string; icon: string; label: string; color: string }[] = [
+              { id: 'exam',         icon: '🔬', label: 'Exames',    color: 'blue'   },
+              { id: 'vaccine',      icon: '💉', label: 'Vacinas',   color: 'green'  },
+              { id: 'prescription', icon: '📋', label: 'Receitas',  color: 'purple' },
+              { id: 'report',       icon: '📄', label: 'Laudos',    color: 'indigo' },
+              { id: 'photo',        icon: '📸', label: 'Fotos',     color: 'pink'   },
+              { id: 'other',        icon: '📎', label: 'Outros',    color: 'gray'   },
+            ];
+
+            const folderColorClasses: Record<string, { bg: string; border: string; count: string }> = {
+              blue:   { bg: 'bg-blue-50',   border: 'border-blue-200',   count: 'bg-blue-100 text-blue-700'   },
+              green:  { bg: 'bg-green-50',  border: 'border-green-200',  count: 'bg-green-100 text-green-700'  },
+              purple: { bg: 'bg-purple-50', border: 'border-purple-200', count: 'bg-purple-100 text-purple-700' },
+              indigo: { bg: 'bg-indigo-50', border: 'border-indigo-200', count: 'bg-indigo-100 text-indigo-700' },
+              pink:   { bg: 'bg-pink-50',   border: 'border-pink-200',   count: 'bg-pink-100 text-pink-700'   },
+              gray:   { bg: 'bg-gray-50',   border: 'border-gray-200',   count: 'bg-gray-100 text-gray-600'   },
+            };
+
+            const docsByCategory: Record<string, VetHistoryDocument[]> = {};
+            vetHistoryDocs.forEach((d) => {
+              const cat = d.category || 'other';
+              if (!docsByCategory[cat]) docsByCategory[cat] = [];
+              docsByCategory[cat].push(d);
+            });
+
+            const totalDocs = vetHistoryDocs.length;
+
+            return (
+              <div className="p-4 space-y-4">
+                {totalDocs === 0 && (
+                  <div className="text-center py-6 px-4">
+                    <div className="text-4xl mb-2">📁</div>
+                    <p className="text-gray-500 text-sm">Nenhum documento guardado ainda.</p>
+                    <p className="text-gray-400 text-xs mt-1">Adicione exames, receitas e outros arquivos do seu pet.</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  {DOC_FOLDERS.map((folder) => {
+                    const docs = docsByCategory[folder.id] || [];
+                    const cls = folderColorClasses[folder.color] ?? folderColorClasses.gray;
+                    const isEmpty = docs.length === 0;
+                    return (
+                      <button
+                        key={folder.id}
+                        type="button"
+                        disabled={isEmpty}
+                        onClick={() => onOpenDocumentFolder({
+                          cat: folder.id,
+                          title: folder.label,
+                          icon: folder.icon,
+                          color: folder.color,
+                          docs,
+                        })}
+                        className={`relative flex flex-col items-start gap-2 p-4 rounded-2xl border transition-all text-left active:scale-[0.97] ${isEmpty ? 'opacity-40 cursor-default' : `${cls.bg} ${cls.border} hover:shadow-md`}`}
+                      >
+                        <span className="text-3xl">{folder.icon}</span>
+                        <div className="w-full">
+                          <p className="font-bold text-gray-900 text-[14px] leading-tight">{folder.label}</p>
+                          <p className={`mt-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full inline-block ${cls.count}`}>
+                            {docs.length === 0 ? 'Vazia' : `${docs.length} arquivo${docs.length !== 1 ? 's' : ''}`}
+                          </p>
+                        </div>
+                        {!isEmpty && (
+                          <span className="absolute top-3 right-3 text-gray-300 text-xs">›</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={onOpenUpload}
+                  className="w-full py-3.5 rounded-2xl bg-violet-600 hover:bg-violet-700 active:scale-[0.98] transition-all text-white text-[15px] font-bold flex items-center justify-center gap-2 shadow-md shadow-violet-500/20"
+                >
+                  <span className="text-lg">＋</span>
+                  Adicionar documento
+                </button>
+
+                {totalDocs > 0 && (
+                  <p className="text-center text-xs text-gray-400">{totalDocs} arquivo{totalDocs !== 1 ? 's' : ''} guardado{totalDocs !== 1 ? 's' : ''}</p>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>

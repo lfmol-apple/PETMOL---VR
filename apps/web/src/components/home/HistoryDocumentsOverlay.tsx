@@ -10,7 +10,7 @@ import { useI18n } from '@/lib/I18nContext';
 import type { DocFolderModalState, VetHistoryDocument } from '@/lib/types/homeForms';
 import type { PetWithHealth } from '@/features/pets/types';
 
-type HistoryTab = 'resumo' | 'detalhado';
+type HistoryTab = 'resumo' | 'detalhado' | 'documentos';
 
 interface HistoryDocumentsOverlayProps {
   currentPet: PetWithHealth | null;
