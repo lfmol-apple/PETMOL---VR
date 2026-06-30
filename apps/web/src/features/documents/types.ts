@@ -56,4 +56,6 @@ export interface PetDocumentVaultProps {
   onDocsChanged?: () => void;
   /** When set, only documents with a matching event_id are shown. */
   eventId?: string | null;
+  /** Pre-select this category tab on mount (e.g. 'exam', 'vaccine', 'all'). */
+  initialCategory?: string;
 }

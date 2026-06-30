@@ -102,7 +102,7 @@ function EstablishmentInput({
 
 // ── Main component ──────────────────────────────────────────────────────────
 
-export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentVaultProps) {
+export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategory }: PetDocumentVaultProps) {
   const { t } = useI18n();
 
   const CATEGORY_TABS = [
@@ -364,7 +364,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId }: PetDocumentV
   const [discovered, setDiscovered] = useState<DiscoveredItem[]>([]);
   const [selectedDiscover, setSelectedDiscover] = useState<Set<string>>(new Set());
   const [importCategory, setImportCategory] = useState('other');
-  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [activeCategory, setActiveCategory] = useState<string>(initialCategory ?? 'all');
   const [searchQuery, setSearchQuery] = useState('');
   const [cardDeleteDocId, setCardDeleteDocId] = useState<string | null>(null);
   const [fabOpen, setFabOpen] = useState(false);
