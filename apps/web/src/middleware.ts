@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 
 // Rotas públicas — não exigem autenticação
 const PUBLIC_PATHS = [
+  '/',
   '/login',
   '/register',
   '/register-pet',
@@ -97,15 +98,6 @@ export function middleware(request: NextRequest) {
     } catch {
       // NEXT_PUBLIC_SITE_URL inválida: ignora redirecionamento canônico
     }
-  }
-
-  // Trata o caminho raiz separadamente para evitar loop de redirecionamento:
-  // / → (autenticado) /home | (não autenticado) /login
-  // Se passássemos redirect=/ ao login, após o login voltaria para / que seria
-  // bloqueada novamente pelo middleware, criando um loop infinito.
-  if (pathname === '/') {
-    const target = new URL(session ? '/home' : '/login', origin);
-    return NextResponse.redirect(target);
   }
 
   if (!session) {
