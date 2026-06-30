@@ -102,7 +102,7 @@ function EstablishmentInput({
 
 // ── Main component ──────────────────────────────────────────────────────────
 
-export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategory, hideCategoryTabs }: PetDocumentVaultProps) {
+export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategory, hideCategoryTabs, pendingFiles, onFilesConsumed }: PetDocumentVaultProps) {
   const { t } = useI18n();
 
   const CATEGORY_TABS = [
@@ -437,6 +437,20 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
     () => searchFiltered.filter((d) => !((d.kind === 'link') && !!d.url_masked) && !!d.storage_key),
     [searchFiltered]
   );
+
+  // Auto-upload files received via PWA share target (runs once on mount)
+  const autoUploadRef = useRef<File[] | undefined>(
+    pendingFiles && pendingFiles.length > 0 ? pendingFiles : undefined
+  );
+  useEffect(() => {
+    const files = autoUploadRef.current;
+    if (!files?.length) return;
+    autoUploadRef.current = undefined;
+    setTimeout(() => {
+      handleUpload(files).then(() => onFilesConsumed?.());
+    }, 150);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Upload ────────────────────────────────────────────────────────────
 

@@ -31,6 +31,8 @@ interface MedicalVaultModalProps {
   vaccines?: VaccineRecord[];
   petEvents?: PetEventRecord[];
   vetHistoryDocs?: VetHistoryDocument[];
+  pendingFiles?: File[];
+  onFilesConsumed?: () => void;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -344,6 +346,8 @@ export function MedicalVaultModal({
   vaccines = [],
   petEvents = [],
   vetHistoryDocs = [],
+  pendingFiles,
+  onFilesConsumed,
 }: MedicalVaultModalProps) {
   const [openedCategory, setOpenedCategory] = useState<string | null>(null);
   const [eventsExpanded, setEventsExpanded] = useState(false);
@@ -501,6 +505,18 @@ export function MedicalVaultModal({
                 )}
               </div>
 
+              {/* Pending share banner */}
+              {pendingFiles && pendingFiles.length > 0 && (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-emerald-50 border border-emerald-200">
+                  <span className="text-xl flex-shrink-0">📎</span>
+                  <p className="text-[13px] text-emerald-800 font-semibold leading-snug flex-1">
+                    {pendingFiles.length === 1
+                      ? '1 arquivo recebido — escolha uma pasta para salvar'
+                      : `${pendingFiles.length} arquivos recebidos — escolha uma pasta para salvar`}
+                  </p>
+                </div>
+              )}
+
               {/* Documents */}
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 px-1 mb-2">Documentos guardados</p>
@@ -547,6 +563,8 @@ export function MedicalVaultModal({
                 onDocsChanged={refreshDocuments}
                 initialCategory={openedCategory === 'all' ? 'all' : openedCategory ?? 'all'}
                 hideCategoryTabs={openedCategory !== 'all'}
+                pendingFiles={pendingFiles}
+                onFilesConsumed={onFilesConsumed}
               />
             </div>
           )}

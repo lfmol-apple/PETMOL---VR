@@ -60,4 +60,8 @@ export interface PetDocumentVaultProps {
   initialCategory?: string;
   /** When true, hides the category filter tabs (use when the caller already provides category context). */
   hideCategoryTabs?: boolean;
+  /** Files received via PWA share target — auto-uploaded on mount. */
+  pendingFiles?: File[];
+  /** Called after pendingFiles have been consumed (uploaded or dismissed). */
+  onFilesConsumed?: () => void;
 }

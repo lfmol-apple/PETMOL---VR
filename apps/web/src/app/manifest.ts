@@ -33,6 +33,19 @@ export default function manifest(): MetadataRoute.Manifest {
         description: 'Ir para início',
       },
     ],
-  };
+    share_target: {
+      action: '/share-target',
+      method: 'POST',
+      enctype: 'multipart/form-data',
+      params: {
+        title: 'title',
+        text: 'text',
+        url: 'url',
+        files: [
+          { name: 'files', accept: ['image/*', 'application/pdf'] },
+        ],
+      },
+    },
+  } as MetadataRoute.Manifest;
 }
 

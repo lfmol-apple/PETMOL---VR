@@ -129,6 +129,41 @@ function HomePageInner() {
   // Grade de alertas em atraso (expande o banner quando há múltiplos alertas)
   const [showOverdueGrid, setShowOverdueGrid] = useState(false);
 
+  // Files received via PWA Web Share Target (WhatsApp → PETMOL)
+  const [sharedFiles, setSharedFiles] = useState<File[] | undefined>(undefined);
+
+  // Detect share target redirect and read files from Cache Storage
+  useEffect(() => {
+    if (!searchParams.get('petmol_share')) return;
+    router.replace('/home', { scroll: false });
+    (async () => {
+      try {
+        const cache = await caches.open('petmol-shared-files-v1');
+        const metaResp = await cache.match('/petmol-share/meta');
+        if (!metaResp) return;
+        const { count } = await metaResp.json() as { count: number };
+        const files: File[] = [];
+        for (let i = 0; i < count; i++) {
+          const resp = await cache.match(`/petmol-share/file-${i}`);
+          if (!resp) continue;
+          const buf = await resp.arrayBuffer();
+          const mime = resp.headers.get('Content-Type') || 'application/octet-stream';
+          const name = decodeURIComponent(resp.headers.get('X-File-Name') || `arquivo-${i}`);
+          files.push(new File([buf], name, { type: mime }));
+          await cache.delete(`/petmol-share/file-${i}`);
+        }
+        await cache.delete('/petmol-share/meta');
+        if (files.length > 0) {
+          setSharedFiles(files);
+          setShowMedicalVault(true);
+        }
+      } catch {
+        // silently ignore — user can still open Histórico manually
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (localStorage.getItem('petmol_checkup_dismissed')) return;
@@ -1729,6 +1764,8 @@ function HomePageInner() {
           vaccines={vaccines}
           petEvents={petEvents}
           vetHistoryDocs={vetHistoryDocs}
+          pendingFiles={sharedFiles}
+          onFilesConsumed={() => setSharedFiles(undefined)}
         />
       )}
 

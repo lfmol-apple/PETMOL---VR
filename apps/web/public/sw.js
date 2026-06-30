@@ -17,7 +17,8 @@
  * }
  */
 
-const CACHE_NAME = 'petmol-shell-v2026-06-30b';
+const CACHE_NAME = 'petmol-shell-v2026-06-30c';
+const SHARE_CACHE = 'petmol-shared-files-v1';
 const SHELL_URLS = [
   '/',
   '/home',
@@ -174,8 +175,52 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// ── Share Target ───────────────────────────────────────────────────────────
+// Recebe arquivos compartilhados via Web Share API, salva no Cache Storage
+// e redireciona para /home?petmol_share=1 onde o app faz o upload.
+async function handleShareTarget(request) {
+  try {
+    const formData = await request.formData();
+    const files = formData.getAll('files').filter((f) => f instanceof File && f.size > 0);
+    if (files.length > 0) {
+      const cache = await caches.open(SHARE_CACHE);
+      const oldKeys = await cache.keys();
+      await Promise.all(oldKeys.map((k) => cache.delete(k)));
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        const buf = await f.arrayBuffer();
+        await cache.put(
+          new Request(`/petmol-share/file-${i}`),
+          new Response(buf, {
+            headers: {
+              'Content-Type': f.type || 'application/octet-stream',
+              'X-File-Name': encodeURIComponent(f.name || `arquivo-${i}`),
+            },
+          })
+        );
+      }
+      await cache.put(
+        new Request('/petmol-share/meta'),
+        new Response(JSON.stringify({ count: files.length }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+    }
+  } catch {
+    // silent — ainda redireciona mesmo se falhar o armazenamento
+  }
+  return Response.redirect('/home?petmol_share=1', 303);
+}
+
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+
+  // Interceptar POST do share target antes de qualquer outra lógica
+  if (url.pathname === '/share-target' && event.request.method === 'POST') {
+    event.respondWith(handleShareTarget(event.request));
+    return;
+  }
+
   if (
     url.origin === self.location.origin &&
     !url.pathname.startsWith('/_next/') &&
