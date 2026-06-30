@@ -171,6 +171,7 @@ export default function RegisterPetPage() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ name?: string; species?: string; sex?: string; general?: string }>({});
   const [savedPetId, setSavedPetId] = useState<string | null>(null);
+  const [onboardStep, setOnboardStep] = useState<0 | 1 | 2 | 'done'>(0);
   const [notifStep, setNotifStep] = useState<'ask' | 'done'>('ask');
   const [notifLoading, setNotifLoading] = useState(false);
 
@@ -253,10 +254,127 @@ export default function RegisterPetPage() {
     }
   };
 
-  // ── Success screen ────────────────────────────────────────────────────────
+  // ── Success / onboarding screen ──────────────────────────────────────────
 
   if (savedPetId) {
     const label = name.trim() || 'seu pet';
+
+    const ONBOARD_CARDS = [
+      {
+        icon: '📎',
+        bg: 'from-emerald-50 to-teal-50',
+        border: 'border-emerald-100',
+        iconBg: 'bg-emerald-500',
+        tag: 'Exclusivo PETMOL',
+        tagColor: 'text-emerald-600',
+        title: 'Do WhatsApp direto no histórico',
+        body: `O vet mandou exame ou receita pelo WhatsApp? Compartilhe com o PETMOL — o arquivo é salvo automaticamente no histórico do ${label}. Sem baixar, sem organizar.`,
+        flow: ['WhatsApp', 'Compartilhar', 'PETMOL salva'],
+        flowColor: 'text-emerald-700',
+      },
+      {
+        icon: '💉',
+        bg: 'from-purple-50 to-violet-50',
+        border: 'border-purple-100',
+        iconBg: 'bg-purple-500',
+        tag: 'Saúde',
+        tagColor: 'text-purple-600',
+        title: 'Nunca perca uma vacina',
+        body: `Registre vacinas, vermífugos, remédios e antiparasitários do ${label}. O PETMOL avisa antes do prazo vencer — sem precisar lembrar de nada.`,
+        flow: null,
+        flowColor: '',
+      },
+      {
+        icon: '🍗',
+        bg: 'from-amber-50 to-orange-50',
+        border: 'border-amber-100',
+        iconBg: 'bg-amber-500',
+        tag: 'Ração',
+        tagColor: 'text-amber-600',
+        title: 'Ração no controle',
+        body: `Informe quanto tem de ração. O PETMOL calcula o consumo diário e avisa antes de acabar. Chega de chegar em casa e a vasilha estar vazia.`,
+        flow: null,
+        flowColor: '',
+      },
+    ] as const;
+
+    if (onboardStep !== 'done') {
+      const card = ONBOARD_CARDS[onboardStep];
+      const isLast = onboardStep === 2;
+
+      return (
+        <BrandBackground showLogo={false}>
+          <div className="min-h-[calc(100dvh-40px)] w-full px-4 py-8 flex items-center justify-center">
+            <div className="w-full max-w-md">
+
+              {/* Progress dots */}
+              <div className="flex justify-center gap-2 mb-6">
+                {([0, 1, 2] as const).map(i => (
+                  <div key={i}
+                    className={`h-1.5 rounded-full transition-all duration-300 ${i === onboardStep ? 'w-8 bg-[#0056D2]' : 'w-1.5 bg-slate-200'}`}
+                  />
+                ))}
+              </div>
+
+              {/* Card */}
+              <div className={`rounded-3xl bg-gradient-to-br ${card.bg} border ${card.border} p-6`}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`w-14 h-14 rounded-2xl ${card.iconBg} flex items-center justify-center text-3xl flex-shrink-0`}>
+                    {card.icon}
+                  </div>
+                  <div>
+                    <p className={`text-[10px] font-black uppercase tracking-wider ${card.tagColor}`}>{card.tag}</p>
+                    <h2 className="text-[20px] font-black text-slate-900 leading-tight">{card.title}</h2>
+                  </div>
+                </div>
+                <p className="text-sm text-slate-600 leading-relaxed">{card.body}</p>
+                {card.flow && (
+                  <div className={`mt-4 flex items-center gap-2 text-xs font-bold ${card.flowColor}`}>
+                    {card.flow.map((step, i) => (
+                      <span key={step} className="flex items-center gap-2">
+                        {i > 0 && <span className="text-slate-300">→</span>}
+                        {step}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Navigation */}
+              <div className="mt-5 flex gap-3">
+                {onboardStep > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setOnboardStep(prev => (prev === 1 ? 0 : prev === 2 ? 1 : 0) as 0 | 1 | 2 | 'done')}
+                    className="flex-shrink-0 px-5 py-4 rounded-2xl border border-slate-200 bg-white text-slate-600 text-sm font-bold active:bg-slate-50"
+                  >
+                    Voltar
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setOnboardStep(isLast ? 'done' : (onboardStep + 1) as 0 | 1 | 2 | 'done')}
+                  className="flex-1 py-4 rounded-2xl bg-[#0056D2] text-white text-sm font-black shadow-lg active:scale-[0.98]"
+                >
+                  {isLast ? 'Entendi, vamos lá!' : 'Próximo'}
+                </button>
+              </div>
+
+              {/* Skip */}
+              <button
+                type="button"
+                onClick={() => setOnboardStep('done')}
+                className="mt-3 w-full text-center text-xs text-slate-400 font-semibold py-2"
+              >
+                Pular tour
+              </button>
+
+            </div>
+          </div>
+        </BrandBackground>
+      );
+    }
+
     return (
       <BrandBackground showLogo={false}>
         <div className="min-h-[calc(100dvh-40px)] w-full px-4 py-8 flex items-center justify-center">

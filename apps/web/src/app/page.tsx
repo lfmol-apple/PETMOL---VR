@@ -1,5 +1,164 @@
-import { redirect } from 'next/navigation';
+'use client';
 
-export default function RootPage() {
-  redirect('/login');
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { getToken } from '@/lib/auth-token';
+import { PetmolTextLogo } from '@/components/ui/BrandBackground';
+
+export default function LandingPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (getToken()) router.replace('/home');
+  }, [router]);
+
+  return (
+    <div className="min-h-dvh bg-white flex flex-col">
+
+      {/* Nav */}
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-5 py-3 flex items-center justify-between">
+        <PetmolTextLogo className="text-3xl" color="#0056D2" />
+        <div className="flex gap-2">
+          <Link href="/login"
+            className="px-4 py-2 rounded-xl text-sm font-bold text-[#0056D2] border border-[#0056D2]/30 active:bg-blue-50">
+            Entrar
+          </Link>
+          <Link href="/register"
+            className="px-4 py-2 rounded-xl text-sm font-black text-white bg-[#0056D2] shadow-sm active:scale-[0.97]">
+            Criar conta
+          </Link>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section className="px-6 pt-14 pb-12 text-center bg-gradient-to-b from-blue-50 to-white">
+        <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wider mb-6">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          Gratuito • Sem anúncios
+        </div>
+        <h1 className="text-[32px] font-black text-slate-900 leading-[1.15] tracking-tight">
+          Nunca esqueça nada<br />do que importa<br />pro seu pet.
+        </h1>
+        <p className="mt-4 text-base text-slate-500 leading-relaxed font-medium max-w-xs mx-auto">
+          Vacinas, documentos, remédios e ração — tudo organizado, tudo com aviso na hora certa.
+        </p>
+        <Link href="/register"
+          className="mt-8 inline-block w-full max-w-xs rounded-2xl bg-[#0056D2] px-6 py-4 text-base font-black text-white shadow-lg shadow-blue-500/25 active:scale-[0.98]">
+          Criar conta grátis
+        </Link>
+        <p className="mt-3 text-xs text-slate-400">Sem cartão de crédito. Cancele quando quiser.</p>
+      </section>
+
+      {/* Diferencial — WhatsApp share */}
+      <section className="px-5 py-10">
+        <div className="rounded-3xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500 flex items-center justify-center text-2xl flex-shrink-0">
+              📎
+            </div>
+            <div>
+              <p className="text-[11px] font-black text-emerald-600 uppercase tracking-wider">Exclusivo PETMOL</p>
+              <h2 className="text-[17px] font-black text-slate-900 leading-tight">
+                Do WhatsApp direto no app
+              </h2>
+            </div>
+          </div>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            O veterinário mandou o exame ou a receita pelo WhatsApp? Compartilhe com o PETMOL — o arquivo é salvo automaticamente no histórico do seu pet. Sem precisar baixar, renomear ou organizar.
+          </p>
+          <div className="mt-4 flex items-center gap-2 text-xs text-emerald-700 font-bold">
+            <span>WhatsApp</span>
+            <span className="text-slate-400">→</span>
+            <span>Compartilhar</span>
+            <span className="text-slate-400">→</span>
+            <span>PETMOL salva</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="px-5 pb-10 space-y-4">
+        <FeatureCard
+          icon="💉"
+          color="bg-purple-50 border-purple-100"
+          iconBg="bg-purple-500"
+          tag="Saúde"
+          title="Nunca perca uma vacina"
+          body="Registre o calendário de vacinas, vermífugos e remédios. Receba lembretes automáticos antes do prazo — sem precisar lembrar de nada."
+        />
+        <FeatureCard
+          icon="🍗"
+          color="bg-amber-50 border-amber-100"
+          iconBg="bg-amber-500"
+          tag="Ração"
+          title="Ração no controle"
+          body="Informe quanto tem. O PETMOL calcula o consumo diário e avisa antes de acabar. Chega de chegar em casa sem ração."
+        />
+        <FeatureCard
+          icon="📋"
+          color="bg-blue-50 border-blue-100"
+          iconBg="bg-blue-500"
+          tag="Histórico"
+          title="Tudo do seu pet em um lugar"
+          body="Documentos, exames, receitas, dados de saúde e contatos de emergência — acessíveis em qualquer momento, mesmo sem internet."
+        />
+      </section>
+
+      {/* Social proof */}
+      <section className="px-5 pb-10">
+        <div className="rounded-3xl bg-slate-50 border border-slate-100 p-6 text-center">
+          <p className="text-2xl font-black text-slate-900">"Finalmente um app de pet<br />que funciona de verdade."</p>
+          <p className="mt-3 text-sm text-slate-500">Feito para quem trata pet como família.</p>
+        </div>
+      </section>
+
+      {/* CTA final */}
+      <section className="px-5 pb-12 text-center">
+        <h2 className="text-2xl font-black text-slate-900">Comece agora.<br />É grátis.</h2>
+        <p className="mt-2 text-sm text-slate-500 font-medium">Cadastre em menos de 1 minuto.</p>
+        <Link href="/register"
+          className="mt-6 inline-block w-full max-w-xs rounded-2xl bg-[#0056D2] px-6 py-4 text-base font-black text-white shadow-lg shadow-blue-500/25 active:scale-[0.98]">
+          Criar conta grátis
+        </Link>
+        <Link href="/login" className="mt-3 inline-block text-sm text-slate-400 font-semibold">
+          Já tenho conta
+        </Link>
+      </section>
+
+      {/* Footer */}
+      <footer className="mt-auto border-t border-slate-100 px-5 py-5 text-center">
+        <p className="text-xs text-slate-400">© 2026 PETMOL</p>
+        <div className="mt-1 flex justify-center gap-4 text-xs text-slate-400">
+          <Link href="/legal/privacy" className="hover:text-slate-600">Privacidade</Link>
+          <Link href="/legal/terms" className="hover:text-slate-600">Termos de Uso</Link>
+        </div>
+      </footer>
+
+    </div>
+  );
+}
+
+function FeatureCard({ icon, color, iconBg, tag, title, body }: {
+  icon: string;
+  color: string;
+  iconBg: string;
+  tag: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className={`rounded-3xl border p-6 ${color}`}>
+      <div className="flex items-center gap-3 mb-3">
+        <div className={`w-11 h-11 rounded-xl ${iconBg} flex items-center justify-center text-xl flex-shrink-0`}>
+          {icon}
+        </div>
+        <div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{tag}</p>
+          <h3 className="text-[16px] font-black text-slate-900 leading-tight">{title}</h3>
+        </div>
+      </div>
+      <p className="text-sm text-slate-600 leading-relaxed">{body}</p>
+    </div>
+  );
 }
