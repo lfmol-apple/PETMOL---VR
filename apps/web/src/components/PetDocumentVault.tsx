@@ -350,7 +350,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
   const [showLinkForm, setShowLinkForm] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkTitle, setLinkTitle] = useState('');
-  const [linkCategory, setLinkCategory] = useState('other');
+  const [linkCategory, setLinkCategory] = useState(hideCategoryTabs && initialCategory ? initialCategory : 'other');
   const [savingLink, setSavingLink] = useState(false);
   const [createTimelineEvent, setCreateTimelineEvent] = useState(true);
 
@@ -361,7 +361,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [discovered, setDiscovered] = useState<DiscoveredItem[]>([]);
   const [selectedDiscover, setSelectedDiscover] = useState<Set<string>>(new Set());
-  const [importCategory, setImportCategory] = useState('other');
+  const [importCategory, setImportCategory] = useState(hideCategoryTabs && initialCategory ? initialCategory : 'other');
   const [activeCategory, setActiveCategory] = useState<string>(initialCategory ?? 'all');
   const [searchQuery, setSearchQuery] = useState('');
   const [cardDeleteDocId, setCardDeleteDocId] = useState<string | null>(null);
@@ -478,7 +478,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
             icon: d.icon || '📄',
             mime_type: d.mime_type || null,
             customTitle: d.title || 'Documento',
-            customCategory: d.category || 'other',
+            customCategory: hideCategoryTabs && initialCategory ? initialCategory : (d.category || 'other'),
           }));
 
           setBatchConfirm({
@@ -928,12 +928,14 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Nome</label>
                 <input type="text" value={editingDoc.title} onChange={(e) => setEditingDoc((p) => p ? { ...p, title: e.target.value } : p)} style={{ width: '100%', boxSizing: 'border-box', border: '1.5px solid #e8e8ea', borderRadius: 12, padding: '12px 14px', fontSize: 15, color: '#111', outline: 'none', background: '#f9f9f9' }} />
               </div>
+              {!hideCategoryTabs && (
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Categoria</label>
                 <select value={editingDoc.category} onChange={(e) => setEditingDoc((p) => p ? { ...p, category: e.target.value } : p)} style={{ width: '100%', boxSizing: 'border-box', border: '1.5px solid #e8e8ea', borderRadius: 12, padding: '12px 14px', fontSize: 15, color: '#111', outline: 'none', background: '#f9f9f9', appearance: 'none' }}>
                   {CATEGORY_OPTIONS.map((c) => (<option key={c.value} value={c.value}>{c.label}</option>))}
                 </select>
               </div>
+              )}
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>📅 Data</label>
                 <input type="date" value={editingDoc.date} onChange={(e) => setEditingDoc((p) => p ? { ...p, date: e.target.value } : p)} style={{ width: '100%', boxSizing: 'border-box', border: '1.5px solid #e8e8ea', borderRadius: 12, padding: '12px 14px', fontSize: 15, color: '#111', outline: 'none', background: '#f9f9f9' }} />
@@ -1135,12 +1137,14 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Nome</label>
                     <input type="text" value={editingDoc.title} onChange={(e) => setEditingDoc((p) => p ? { ...p, title: e.target.value } : p)} style={{ width: '100%', boxSizing: 'border-box', border: '1.5px solid #e8e8ea', borderRadius: 12, padding: '12px 14px', fontSize: 15, color: '#111', outline: 'none', background: '#f9f9f9' }} />
                   </div>
+                  {!hideCategoryTabs && (
                   <div>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Categoria</label>
                     <select value={editingDoc.category} onChange={(e) => setEditingDoc((p) => p ? { ...p, category: e.target.value } : p)} style={{ width: '100%', boxSizing: 'border-box', border: '1.5px solid #e8e8ea', borderRadius: 12, padding: '12px 14px', fontSize: 15, color: '#111', outline: 'none', background: '#f9f9f9', appearance: 'none' }}>
                       {CATEGORY_OPTIONS.map((c) => (<option key={c.value} value={c.value}>{c.label}</option>))}
                     </select>
                   </div>
+                  )}
                   <div>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>📅 Data</label>
                     <input type="date" value={editingDoc.date} onChange={(e) => setEditingDoc((p) => p ? { ...p, date: e.target.value } : p)} style={{ width: '100%', boxSizing: 'border-box', border: '1.5px solid #e8e8ea', borderRadius: 12, padding: '12px 14px', fontSize: 15, color: '#111', outline: 'none', background: '#f9f9f9' }} />
@@ -1482,6 +1486,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                       placeholder="Nome do documento"
                       className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
                     />
+                    {!hideCategoryTabs && (
                     <div className="mt-2">
                       <select
                         value={item.customCategory}
@@ -1504,6 +1509,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                         ))}
                       </select>
                     </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1548,6 +1554,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
             onChange={(e) => setLinkTitle(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
           />
+          {!hideCategoryTabs && (
           <select
             value={linkCategory}
             onChange={(e) => { setLinkCategory(e.target.value); }}
@@ -1557,6 +1564,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
               <option key={c.value} value={c.value}>{c.label}</option>
             ))}
           </select>
+          )}
           <label className="flex items-center gap-2 text-xs text-indigo-700 cursor-pointer select-none">
             <input
               type="checkbox"
@@ -1598,6 +1606,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
             onChange={(e) => setImportUrl(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
           />
+          {!hideCategoryTabs && (
           <select
             value={importCategory}
             onChange={(e) => { setImportCategory(e.target.value); }}
@@ -1607,6 +1616,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
               <option key={c.value} value={c.value}>{c.label}</option>
             ))}
           </select>
+          )}
 
           <div className="flex gap-2">
             <button

@@ -36,11 +36,12 @@ interface MedicalVaultModalProps {
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const DOC_FOLDERS = [
-  { id: 'exam',         icon: '🔬', label: 'Exames',       bg: 'bg-blue-50',   border: 'border-blue-200'   },
-  { id: 'vaccine',      icon: '📔', label: 'Carteirinha',  bg: 'bg-green-50',  border: 'border-green-200'  },
-  { id: 'prescription', icon: '📋', label: 'Receitas',     bg: 'bg-purple-50', border: 'border-purple-200' },
-  { id: 'report',       icon: '📄', label: 'Laudos',       bg: 'bg-indigo-50', border: 'border-indigo-200' },
-  { id: 'other',        icon: '📎', label: 'Outros',       bg: 'bg-gray-50',   border: 'border-gray-200'   },
+  { id: 'exam',         icon: '🔬', label: 'Exames',           bg: 'bg-blue-50',   border: 'border-blue-200'   },
+  { id: 'vaccine',      icon: '📔', label: 'Carteirinha',      bg: 'bg-green-50',  border: 'border-green-200'  },
+  { id: 'prescription', icon: '📋', label: 'Receitas',         bg: 'bg-purple-50', border: 'border-purple-200' },
+  { id: 'report',       icon: '📄', label: 'Laudos',           bg: 'bg-indigo-50', border: 'border-indigo-200' },
+  { id: 'comprovante',  icon: '🧾', label: 'Comprovantes',     bg: 'bg-amber-50',  border: 'border-amber-200'  },
+  { id: 'other',        icon: '📎', label: 'Outros',           bg: 'bg-gray-50',   border: 'border-gray-200'   },
 ];
 
 const EVENT_ICONS: Record<string, string> = {
@@ -56,12 +57,6 @@ function fmtDate(iso: string | null | undefined): string {
   const [y, m, d] = iso.split('T')[0].split('-').map(Number);
   const months = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   return `${d} ${months[m - 1]} ${y}`;
-}
-
-function fmtDateShort(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  const [, m, d] = iso.split('T')[0].split('-').map(Number);
-  return `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}`;
 }
 
 // ── Build unified event list ───────────────────────────────────────────────
@@ -236,6 +231,7 @@ function exportPetHistoryPDF(
     { id: 'vaccine',      icon: '📔', label: 'Carteirinha de Vacinação' },
     { id: 'prescription', icon: '📋', label: 'Receitas'                 },
     { id: 'report',       icon: '📄', label: 'Laudos'                   },
+    { id: 'comprovante',  icon: '🧾', label: 'Comprovantes'             },
     { id: 'other',        icon: '📎', label: 'Outros'                   },
   ];
   const docsByCat = catConfig.map(cat => ({
@@ -362,7 +358,6 @@ export function MedicalVaultModal({
   const parasites  = currentPet.health_data?.parasite_controls  ?? [];
   const grooming   = currentPet.health_data?.grooming_records   ?? [];
   const allEvents  = buildAllEvents(vaccines, parasites, grooming, petEvents);
-  const previewEvents = allEvents.slice(0, 5);
 
   // Group by year for expanded view
   const byYear: Record<string, AppEvent[]> = {};
@@ -469,31 +464,6 @@ export function MedicalVaultModal({
                   </svg>
                 </button>
 
-                {/* Preview (collapsed) */}
-                {!eventsExpanded && allEvents.length > 0 && (
-                  <div className="border-t border-slate-100 divide-y divide-slate-50">
-                    {previewEvents.map((ev, i) => (
-                      <div key={i} className="flex items-center gap-3 px-4 py-2.5">
-                        <span className="text-base flex-shrink-0">{ev.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[12px] font-semibold text-slate-800 truncate">{ev.label}</p>
-                          {ev.sub && <p className="text-[10px] text-slate-400 truncate">{ev.sub}</p>}
-                        </div>
-                        <span className="text-[11px] text-slate-400 flex-shrink-0">{fmtDateShort(ev.date)}</span>
-                      </div>
-                    ))}
-                    {allEvents.length > 5 && (
-                      <button
-                        type="button"
-                        onClick={() => setEventsExpanded(true)}
-                        className="w-full text-center text-[12px] font-semibold text-blue-600 py-2.5 hover:bg-blue-50 transition-colors"
-                      >
-                        Ver todos os {allEvents.length} eventos →
-                      </button>
-                    )}
-                  </div>
-                )}
-
                 {/* Full timeline (expanded) */}
                 {eventsExpanded && (
                   <div className="border-t border-slate-100">
@@ -531,6 +501,25 @@ export function MedicalVaultModal({
                 )}
               </div>
 
+              {/* Documents */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 px-1 mb-2">Documentos guardados</p>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {DOC_FOLDERS.map((folder) => (
+                    <button
+                      key={folder.id}
+                      type="button"
+                      onClick={() => setOpenedCategory(folder.id)}
+                      className={`relative flex flex-col items-start gap-1.5 p-4 rounded-2xl border transition-all text-left active:scale-[0.97] hover:shadow-md ${folder.bg} ${folder.border}`}
+                    >
+                      <span className="text-2xl">{folder.icon}</span>
+                      <p className="font-bold text-slate-900 text-[13px] leading-tight">{folder.label}</p>
+                      <span className="absolute top-3 right-3 text-slate-300 text-xs">›</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Export PDF */}
               <button
                 type="button"
@@ -547,39 +536,6 @@ export function MedicalVaultModal({
                 </div>
                 <span className="text-violet-300 text-sm">›</span>
               </button>
-
-              {/* Documents */}
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 px-1 mb-2">Documentos guardados</p>
-
-                <button
-                  type="button"
-                  onClick={() => setOpenedCategory('all')}
-                  className="w-full flex items-center gap-3 px-4 py-3 mb-3 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 active:scale-[0.98] transition-all text-left shadow-sm"
-                >
-                  <span className="text-xl">🗂️</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-slate-900 text-[15px]">Todos os documentos</p>
-                    <p className="text-xs text-slate-500">Ver e gerenciar sem filtro de categoria</p>
-                  </div>
-                  <span className="text-slate-300 text-sm">›</span>
-                </button>
-
-                <div className="grid grid-cols-2 gap-2.5">
-                  {DOC_FOLDERS.map((folder) => (
-                    <button
-                      key={folder.id}
-                      type="button"
-                      onClick={() => setOpenedCategory(folder.id)}
-                      className={`relative flex flex-col items-start gap-1.5 p-4 rounded-2xl border transition-all text-left active:scale-[0.97] hover:shadow-md ${folder.bg} ${folder.border}`}
-                    >
-                      <span className="text-2xl">{folder.icon}</span>
-                      <p className="font-bold text-slate-900 text-[13px] leading-tight">{folder.label}</p>
-                      <span className="absolute top-3 right-3 text-slate-300 text-xs">›</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
 
