@@ -443,6 +443,13 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
   const handleUpload = async (files: FileList | File[]) => {
     const token = getToken();
     if (!token || !petId || uploading) return;
+    // Use file's lastModified as date — more reliable than AI extraction for camera photos
+    const fileDate = Array.from(files).reduce<string | null>((best, f) => {
+      if (best || !f.lastModified) return best;
+      const d = new Date(f.lastModified);
+      if (isNaN(d.getTime())) return best;
+      return d.toISOString().split('T')[0];
+    }, null);
     setUploading(true);
     try {
       const form = new FormData();
@@ -483,9 +490,9 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
 
           setBatchConfirm({
             docs: batchDocs,
-            detectedDate,
+            detectedDate: null,
             detectedEstablishment,
-            sharedDate: detectedDate || localTodayISO(),
+            sharedDate: fileDate || localTodayISO(),
             sharedEstablishment: detectedEstablishment || '',
             saving: false,
           });
@@ -564,7 +571,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
             fetch(`${API_BASE_URL}/pets/${petId}/documents/${d.id}`, {
               method: 'PATCH',
               headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ title: d.customTitle, category: d.customCategory }),
+              body: JSON.stringify({ title: d.customTitle.trim().toUpperCase(), category: d.customCategory }),
             })
           )
       );
@@ -1399,10 +1406,8 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                     ? 'Confirmar documento'
                     : `Confirmar ${batchConfirm.docs.length} documentos`}
                 </h4>
-                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
-                  {batchConfirm.detectedDate || batchConfirm.detectedEstablishment
-                    ? '✅ IA preencheu alguns campos — confirme ou corrija.'
-                    : 'Preencha data e local válidos para todos os documentos desta entrada.'}
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Confirme a data e o local do atendimento.
                 </p>
               </div>
               <button
@@ -1423,9 +1428,6 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                 <div>
                   <label className="text-xs font-semibold text-gray-700 mb-1.5 block">
                     📅 Data do atendimento
-                    {batchConfirm.detectedDate && (
-                      <span className="ml-1 text-green-600 font-normal">(detectada pela IA ✓)</span>
-                    )}
                   </label>
                   <input
                     type="date"
@@ -1439,9 +1441,6 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                 <div>
                   <label className="text-xs font-semibold text-gray-700 mb-1.5 block">
                     🏥 Estabelecimento
-                    {batchConfirm.detectedEstablishment && (
-                      <span className="ml-1 text-green-600 font-normal">(detectado pela IA ✓)</span>
-                    )}
                   </label>
                   <EstablishmentInput
                     value={batchConfirm.sharedEstablishment}
@@ -1484,7 +1483,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                         )
                       }
                       placeholder="Nome do documento"
-                      className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+                      className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white uppercase"
                     />
                     {!hideCategoryTabs && (
                     <div className="mt-2">
@@ -1884,7 +1883,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
         @keyframes vaultSlideUp { from { transform: translateY(100%) } to { transform: translateY(0) } }
       `}</style>
       <button
-        onClick={() => setFabOpen(true)}
+        onClick={() => hideCategoryTabs ? openCameraPicker('image') : setFabOpen(true)}
         disabled={uploading}
         style={{
           position: 'fixed', right: 20, bottom: 'calc(24px + env(safe-area-inset-bottom))', zIndex: 200,
@@ -1902,7 +1901,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
         } as React.CSSProperties}
         aria-label="Adicionar documento"
       >
-        {uploading ? '⏳' : '+'}
+        {uploading ? '⏳' : hideCategoryTabs ? '📷' : '+'}
       </button>
 
       {/* FAB bottom sheet */}
