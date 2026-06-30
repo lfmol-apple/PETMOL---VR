@@ -457,13 +457,22 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
   const handleUpload = async (files: FileList | File[]) => {
     const token = getToken();
     if (!token || !petId || uploading) return;
+
+    const fileArray = Array.from(files);
+
     // Use file's lastModified as date — more reliable than AI extraction for camera photos
-    const fileDate = Array.from(files).reduce<string | null>((best, f) => {
+    const fileDate = fileArray.reduce<string | null>((best, f) => {
       if (best || !f.lastModified) return best;
       const d = new Date(f.lastModified);
       if (isNaN(d.getTime())) return best;
       return d.toISOString().split('T')[0];
     }, null);
+
+    // Derive clean title from original filename (strip extension + normalize separators)
+    const fileNames = fileArray.map((f) => {
+      const base = f.name.replace(/\.[^/.]+$/, '');
+      return base.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase() || 'DOCUMENTO';
+    });
     setUploading(true);
     try {
       const form = new FormData();
@@ -485,29 +494,25 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
 
         const created: { id: string; title?: string; category?: string; icon?: string; mime_type?: string; document_date?: string; establishment_name?: string }[] = data.created || [];
 
-        // Pick best AI-detected values across the whole batch
-        const detectedDate = created.find((d) => d.document_date)?.document_date || null;
-        const detectedEstablishment =
-          created.find((d) => d.establishment_name)?.establishment_name || null;
-
         // Always show BatchConfirm so user names & confirms the entire batch at once
         if (created.length > 0) {
-          const batchDocs: BatchDocItem[] = created.map((d) => ({
+          const batchDocs: BatchDocItem[] = created.map((d, index) => ({
             id: d.id,
-            title: d.title || 'Documento',
+            title: d.title || '',
             category: d.category || 'other',
             icon: d.icon || '📄',
             mime_type: d.mime_type || null,
-            customTitle: d.title || 'Documento',
+            // Use original filename — API title is often a storage key (UUID), not human-readable
+            customTitle: fileNames[index] ?? 'DOCUMENTO',
             customCategory: hideCategoryTabs && initialCategory ? initialCategory : (d.category || 'other'),
           }));
 
           setBatchConfirm({
             docs: batchDocs,
             detectedDate: null,
-            detectedEstablishment,
+            detectedEstablishment: null,
             sharedDate: fileDate || localTodayISO(),
-            sharedEstablishment: detectedEstablishment || '',
+            sharedEstablishment: '',  // never pre-fill from API — extraction is unreliable
             saving: false,
           });
         }
@@ -1421,7 +1426,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                     : `Confirmar ${batchConfirm.docs.length} documentos`}
                 </h4>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Confirme a data e o local do atendimento.
+                  Confirme a data e dê um nome ao documento.
                 </p>
               </div>
               <button
@@ -1470,19 +1475,19 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
 
               {/* Per-doc list */}
               <div className="space-y-2">
-                <p className="text-xs font-semibold text-gray-600">
-                  {batchConfirm.docs.length > 1
-                    ? `${batchConfirm.docs.length} documentos — edite nome ou categoria se necessário:`
-                    : 'Edite o nome ou categoria se necessário:'}
-                </p>
+                {batchConfirm.docs.length > 1 && (
+                  <p className="text-xs font-semibold text-gray-500">
+                    {batchConfirm.docs.length} documentos — confirme os nomes:
+                  </p>
+                )}
                 {batchConfirm.docs.map((item, idx) => (
-                  <div key={item.id} className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                  <div key={item.id} className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
                       <span>{item.icon}</span>
-                      {batchConfirm.docs.length > 1 && (
-                        <span className="text-gray-400 shrink-0">#{idx + 1}</span>
-                      )}
-                    </div>
+                      {batchConfirm.docs.length > 1
+                        ? `Nome do documento #${idx + 1}`
+                        : 'Nome do documento'}
+                    </label>
                     <input
                       type="text"
                       value={item.customTitle}
@@ -1496,8 +1501,8 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                           } : prev
                         )
                       }
-                      placeholder="Nome do documento"
-                      className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white uppercase"
+                      placeholder="Ex: EXAME DE SANGUE"
+                      className="w-full border-2 border-amber-300 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-400 bg-amber-50 uppercase"
                     />
                     {!hideCategoryTabs && (
                     <div className="mt-2">
