@@ -104,8 +104,8 @@ app = FastAPI(
     title="PETMOL Price Service",
     description="API for searching and comparing pet product prices across multiple providers.",
     version="0.1.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if settings.env == "prod" else "/docs",
+    redoc_url=None if settings.env == "prod" else "/redoc",
 )
 
 # ========================================
