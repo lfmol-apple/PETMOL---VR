@@ -102,7 +102,7 @@ function EstablishmentInput({
 
 // ── Main component ──────────────────────────────────────────────────────────
 
-export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategory }: PetDocumentVaultProps) {
+export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategory, hideCategoryTabs }: PetDocumentVaultProps) {
   const { t } = useI18n();
 
   const CATEGORY_TABS = [
@@ -1717,7 +1717,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
       )}
 
       {/* ── Category filter tabs ────────────────────────────────────── */}
-      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' } as React.CSSProperties}>
+      {!hideCategoryTabs && <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' } as React.CSSProperties}>
         <div style={{ display: 'flex', gap: 6, paddingBottom: 2, minWidth: 'max-content' }}>
           {CATEGORY_TABS.map((tab) => {
             const count = tab.id === 'all'
@@ -1753,7 +1753,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
             );
           })}
         </div>
-      </div>
+      </div>}
 
       {/* ── Documents list ─────────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>

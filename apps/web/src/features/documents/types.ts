@@ -58,4 +58,6 @@ export interface PetDocumentVaultProps {
   eventId?: string | null;
   /** Pre-select this category tab on mount (e.g. 'exam', 'vaccine', 'all'). */
   initialCategory?: string;
+  /** When true, hides the category filter tabs (use when the caller already provides category context). */
+  hideCategoryTabs?: boolean;
 }

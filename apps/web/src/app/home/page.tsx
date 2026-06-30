@@ -1726,6 +1726,8 @@ function HomePageInner() {
           currentPet={currentPet}
           setShowMedicalVault={setShowMedicalVault}
           setVetHistoryDocs={setVetHistoryDocs}
+          vaccines={vaccines}
+          petEvents={petEvents}
         />
       )}
 
