@@ -30,8 +30,7 @@ export default function PrivacyPage() {
             <li>Nome, espécie, raça, data de nascimento</li>
             <li>Sexo, peso, informações de castração</li>
             <li>Fotos do pet (opcional)</li>
-            <li>Histórico de saúde (vacinas, vermífugos, consultas, medicamentos)</li>
-            <li>Controles antiparasitários</li>
+            <li><strong>Dados de saúde</strong> (vacinas, vermífugos, consultas, medicamentos, controles antiparasitários) — tratados com nível de proteção equivalente a dados sensíveis nos termos da LGPD, utilizados exclusivamente para as funcionalidades do app e nunca compartilhados com terceiros para fins comerciais</li>
           </ul>
 
           <h3>2.3. Dados de Uso</h3>
@@ -130,10 +129,10 @@ export default function PrivacyPage() {
             Mantemos seus dados enquanto sua conta estiver ativa ou conforme necessário para:
           </p>
           <ul>
-            <li>Cumprir obrigações legais (5 anos após encerramento)</li>
-            <li>Resolver disputas</li>
-            <li>Fazer cumprir nossos acordos</li>
+            <li>Cumprir obrigações legais enquanto a conta estiver ativa</li>
+            <li>Resolver disputas e fazer cumprir nossos acordos</li>
           </ul>
+          <p>Ao solicitar a exclusão da conta, todos os seus dados pessoais e dos pets são removidos permanentemente dos nossos sistemas de forma imediata e irreversível.</p>
 
           <h2>7. Seus Direitos (LGPD)</h2>
           <p>Você tem direito a:</p>
@@ -149,9 +148,8 @@ export default function PrivacyPage() {
 
           <h3>Como Exercer Seus Direitos</h3>
           <ul>
-            <li>Através das configurações da sua conta</li>
+            <li>Através das configurações da sua conta (exclusão de conta disponível diretamente no app)</li>
             <li>Enviando e-mail para: privacidade@petmol.com.br</li>
-            <li>Utilizando o formulário de solicitação na plataforma</li>
           </ul>
           <p className="text-sm text-gray-600">
             Responderemos sua solicitação em até 15 dias úteis.

@@ -14,7 +14,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from pywebpush import webpush, WebPushException
-from sqlalchemy import Boolean, Column, DateTime, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 
 from ..db import Base, SessionLocal, engine
 from ..user_auth.deps import get_current_user
@@ -41,8 +41,10 @@ def _load_subscriptions() -> dict:
 
 def _save_subscriptions(subs: dict) -> None:
     os.makedirs(os.path.dirname(_SUBS_FILE), exist_ok=True)
-    with open(_SUBS_FILE, "w") as f:
+    tmp = _SUBS_FILE + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(subs, f)
+    os.replace(tmp, _SUBS_FILE)  # atomic on POSIX
 
 
 # ── Push send helper ─────────────────────────────────────────────────────────
@@ -86,18 +88,21 @@ def _send_push(subscription: dict, payload: dict) -> tuple:
 
 # ── Reminder model ───────────────────────────────────────────────────────────
 
+_MAX_RETRY = 5
+
 class Reminder(Base):
     __tablename__ = "reminders"
 
-    id         = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id    = Column(String(36), nullable=False, index=True)
-    pet_id     = Column(String(36), nullable=True, index=True)
-    type       = Column(String(50), nullable=False)
-    title      = Column(String(255), nullable=False)
-    body       = Column(Text, nullable=True)
-    remind_at  = Column(DateTime(timezone=True), nullable=False, index=True)
-    sent       = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    id          = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id     = Column(String(36), nullable=False, index=True)
+    pet_id      = Column(String(36), nullable=True, index=True)
+    type        = Column(String(50), nullable=False)
+    title       = Column(String(255), nullable=False)
+    body        = Column(Text, nullable=True)
+    remind_at   = Column(DateTime(timezone=True), nullable=False, index=True)
+    sent        = Column(Boolean, default=False, nullable=False)
+    retry_count = Column(Integer, default=0, nullable=False)
+    created_at  = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 # Cria a tabela se não existir
@@ -165,13 +170,18 @@ def send_due_reminders() -> None:
                 },
             }
             ok, sub_invalid = _send_push(sub, payload)
-            logger.info(f"Reminder {reminder.id} ({reminder.type}): push={'ok' if ok else 'falhou'}")
+            logger.info(f"Reminder {reminder.id} ({reminder.type}): push={'ok' if ok else 'falhou'} retries={reminder.retry_count}")
             if ok:
                 reminder.sent = True
             elif sub_invalid:
                 reminder.sent = True
                 subscriptions.pop(str(reminder.user_id), None)
                 changed = True
+            else:
+                reminder.retry_count = (reminder.retry_count or 0) + 1
+                if reminder.retry_count >= _MAX_RETRY:
+                    logger.warning(f"Reminder {reminder.id}: desistindo após {_MAX_RETRY} tentativas")
+                    reminder.sent = True
 
         db.commit()
         if changed:

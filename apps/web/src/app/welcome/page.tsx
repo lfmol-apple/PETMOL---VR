@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getToken } from '@/lib/auth-token';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
+import { trackV1Metric } from '@/lib/v1Metrics';
 
 export default function WelcomePage() {
   const router = useRouter();
@@ -65,14 +66,14 @@ export default function WelcomePage() {
             {/* CTA */}
             <button
               type="button"
-              onClick={() => router.push('/register-pet')}
+              onClick={() => { trackV1Metric('welcome_register_pet_clicked', {}); router.push('/register-pet'); }}
               className="w-full rounded-2xl bg-[#0056D2] px-5 py-4 text-base font-black text-white shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform"
             >
               Cadastrar meu pet
             </button>
             <button
               type="button"
-              onClick={() => router.push('/home')}
+              onClick={() => { trackV1Metric('welcome_skipped', {}); router.push('/home'); }}
               className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-bold text-slate-500 active:bg-slate-50 transition-colors"
             >
               Fazer isso depois

@@ -38,7 +38,11 @@ export type V1MetricEvent =
   | 'reminder_action_completed'
   | 'partner_clicked'
   | 'document_uploaded'
-  | 'push_sync_degraded';
+  | 'push_sync_degraded'
+  | 'register_step1_completed'
+  | 'register_completed'
+  | 'welcome_register_pet_clicked'
+  | 'welcome_skipped';
 
 export function trackV1Metric(name: V1MetricEvent, properties: Record<string, unknown> = {}): void {
   track(name, properties);

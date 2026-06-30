@@ -40,7 +40,6 @@ export async function GET(request: NextRequest) {
     // Cache HIT
     const cached = cacheSearch.get(query);
     if (cached && cached.expiresAt > Date.now()) {
-      console.log('[places/search] cache HIT:', query);
       return NextResponse.json({ results: cached.results, status: 'OK', cached: true });
     }
 
@@ -72,8 +71,6 @@ export async function GET(request: NextRequest) {
     }));
 
     cacheSearch.set(query, { results, expiresAt: Date.now() + CACHE_TTL_MS });
-    console.log('[places/search] cache MISS — chamada Google OK:', query);
-
     return NextResponse.json({ results, status: 'OK' });
 
   } catch (error) {

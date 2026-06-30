@@ -160,7 +160,6 @@ export async function createEmergencyShare(
   const db = await getDB();
   await db.put('emergency_shares', share);
 
-  // TODO: Sync to Supabase (public table com RLS)
 
   return share;
 }
@@ -196,7 +195,6 @@ export async function revokeEmergencyShare(code: string): Promise<void> {
     share.is_active = false;
     await db.put('emergency_shares', share);
     
-    // TODO: Sync to Supabase
   }
 }
 
@@ -213,7 +211,6 @@ export async function renewEmergencyShare(code: string, daysToAdd: number): Prom
 
   await db.put('emergency_shares', share);
 
-  // TODO: Sync to Supabase
 
   return share;
 }
@@ -274,7 +271,6 @@ export async function createVetShare(
   const db = await getDB();
   await db.put('vet_shares', share);
 
-  // TODO: Sync to Supabase (private table com RLS)
 
   return share;
 }
@@ -310,7 +306,6 @@ export async function revokeVetShare(token: string): Promise<void> {
     share.is_active = false;
     await db.put('vet_shares', share);
     
-    // TODO: Sync to Supabase
   }
 }
 

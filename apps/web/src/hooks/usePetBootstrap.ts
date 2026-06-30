@@ -49,7 +49,6 @@ export function usePetBootstrap() {
   useEffect(() => {
     const forceLoadPets = async () => {
       if (tutor && tutor.email) {
-        console.log('[FORÇA] Usuário logado detectado:', tutor.email);
         setIsChecking(false);
 
         try {
@@ -83,14 +82,11 @@ export function usePetBootstrap() {
 
           if (response.ok) {
             const backendPets = await response.json();
-            console.log('[FORÇA] Pets encontrados:', backendPets.length);
             const convertedPets = normalizeBackendPetProfiles(backendPets);
             setPets(convertedPets);
             if (convertedPets.length > 0) {
               setSelectedPetId((prev) => resolveSelectedPetId(convertedPets, prev));
-              console.log('[FORÇA] Pets carregados:', convertedPets.map((p: PetHealthProfile) => p.pet_name));
             } else {
-              console.log('[FORÇA] Nenhum pet encontrado — redirecionando para cadastro');
               router.push('/register-pet');
             }
           } else {
@@ -100,9 +96,9 @@ export function usePetBootstrap() {
               router.push('/register-pet');
             }
           }
-        } catch (error) {
-          console.error('[FORÇA] Erro ao carregar pets:', error);
-          router.replace('/login');
+        } catch {
+          // Erro de rede — usuário está logado, não deslogar; manter na tela atual
+          setIsChecking(false);
         }
       }
     };
@@ -158,9 +154,6 @@ export function usePetBootstrap() {
         }
 
         const backendPets = await response.json();
-        console.log('[LoadPets] Pets do backend:', backendPets);
-        console.log('[LoadPets] Número de pets recebidos:', backendPets.length);
-
         const convertedPets = normalizeBackendPetProfiles(backendPets);
 
         convertedPets.sort((a, b) => {
@@ -172,17 +165,14 @@ export function usePetBootstrap() {
         });
         setPets(convertedPets);
         if (convertedPets.length > 0) {
-          console.log('[LoadPets] SUCESSO - Carregados', convertedPets.length, 'pets');
           setSelectedPetId((prev) => resolveSelectedPetId(convertedPets, prev));
         } else {
-          console.log('[LoadPets] Nenhum pet — redirecionando para cadastro');
           router.push('/register-pet');
         }
         setIsChecking(false);
-      } catch (error) {
-        console.error('[LoadPets] ERRO ao carregar pets do backend:', error);
+      } catch {
+        // Erro de rede — não redirecionar para login; usuário pode ter conexão instável
         setPets([]);
-        router.replace('/login');
         setIsChecking(false);
       }
     };

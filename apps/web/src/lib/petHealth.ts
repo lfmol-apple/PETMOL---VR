@@ -866,38 +866,6 @@ export function getHealthSummary(petId: string): HealthSummary | null {
   };
 }
 
-// ============================================================
-// EXPORT / IMPORT (For backup or sharing with vet)
-// ============================================================
-
-export function exportHealthProfile(petId: string): string | null {
-  const profile = getHealthProfile(petId);
-  if (!profile) return null;
-  
-  return JSON.stringify(profile, null, 2);
-}
-
-export function importHealthProfile(jsonData: string): boolean {
-  if (typeof window === 'undefined') return false;
-  
-  try {
-    const profile: PetHealthProfile = JSON.parse(jsonData);
-    
-    // Validate structure
-    if (!profile.pet_id || !profile.pet_name || !profile.species) {
-      throw new Error('Invalid health profile structure');
-    }
-    
-    const stored = localStorage.getItem(STORAGE_KEY);
-    const profiles: Record<string, PetHealthProfile> = stored ? JSON.parse(stored) : {};
-    profiles[profile.pet_id] = profile;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
-    return true;
-  } catch (error) {
-    console.error('Failed to import health profile:', error);
-    return false;
-  }
-}
 
 // ============================================================
 // CLEAR ALL DATA (For privacy)

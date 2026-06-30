@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
+import { trackV1Metric } from '@/lib/v1Metrics';
 
 type FieldKey = 'name' | 'email' | 'password' | 'terms';
 
@@ -75,6 +76,7 @@ export default function RegisterPage() {
   const handleContinue = () => {
     if (step === 1) {
       if (canContinueName) {
+        trackV1Metric('register_step1_completed', {});
         setStep(2);
         setTimeout(() => emailRef.current?.focus(), 120);
         return;
@@ -145,6 +147,7 @@ export default function RegisterPage() {
         return;
       }
 
+      trackV1Metric('register_completed', {});
       router.push('/welcome');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao criar conta.';

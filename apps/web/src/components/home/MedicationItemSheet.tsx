@@ -537,6 +537,7 @@ export function MedicationItemSheet({
 
         {/* Scrollable body */}
         <div className="overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
+          <p className="mx-4 mt-3 mb-1 text-[10px] text-gray-400 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
           {mode === 'view' && (
