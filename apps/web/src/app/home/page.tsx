@@ -1728,6 +1728,7 @@ function HomePageInner() {
           setVetHistoryDocs={setVetHistoryDocs}
           vaccines={vaccines}
           petEvents={petEvents}
+          vetHistoryDocs={vetHistoryDocs}
         />
       )}
 

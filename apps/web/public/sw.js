@@ -17,7 +17,7 @@
  * }
  */
 
-const CACHE_NAME = 'petmol-shell-v2026-06-30';
+const CACHE_NAME = 'petmol-shell-v2026-06-30b';
 const SHELL_URLS = [
   '/',
   '/home',
