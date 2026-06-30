@@ -76,6 +76,14 @@ type AppEvent = {
   section: string;
 };
 
+// Types already covered by dedicated data sources (vaccines[], parasites[], grooming[])
+// — exclude from petEvents to avoid duplication in timeline and PDF
+const DEDUPLICATED_EVENT_TYPES = new Set([
+  'vaccine',
+  'dewormer', 'flea_tick', 'heartworm', 'collar', 'leishmaniasis',
+  'bath', 'grooming', 'bath_grooming',
+]);
+
 function buildAllEvents(
   vaccines: VaccineRecord[],
   parasites: ParasiteControl[],
@@ -121,7 +129,7 @@ function buildAllEvents(
     });
 
   petEvts
-    .filter((ev) => ev.scheduled_at && ev.source !== 'document')
+    .filter((ev) => ev.scheduled_at && ev.source !== 'document' && !DEDUPLICATED_EVENT_TYPES.has(ev.type))
     .forEach((ev) => events.push({
       date: ev.scheduled_at.split('T')[0],
       icon: EVENT_ICONS[ev.type] ?? '📝',
@@ -206,7 +214,7 @@ function exportPetHistoryPDF(
     exame_imagem: 'Exame de imagem', cirurgia: 'Cirurgia', odonto: 'Odontologia',
     medicacao: 'Medicação', emergencia: 'Emergência', racao: 'Reposição de ração', outro: 'Outro',
   };
-  const filteredEvts = petEvts.filter(ev => ev.scheduled_at && ev.source !== 'document');
+  const filteredEvts = petEvts.filter(ev => ev.scheduled_at && ev.source !== 'document' && !DEDUPLICATED_EVENT_TYPES.has(ev.type));
   const evtTable = filteredEvts.length === 0 ? emptyMsg : `
     <table>
       <thead>${row(['Data','Tipo','Descrição','Local / Profissional'], true)}</thead>
