@@ -223,22 +223,39 @@ function exportPetHistoryPDF(
       </tbody>
     </table>`;
 
-  const catLabels: Record<string, string> = { exam: 'Exame', vaccine: 'Vacina', prescription: 'Receita', report: 'Laudo', photo: 'Foto', other: 'Outro' };
-  const docsTable = docs.length === 0 ? emptyMsg : `
-    <table>
-      <thead>${row(['Data','Título','Categoria','Estabelecimento'], true)}</thead>
-      <tbody>
-        ${[...docs]
-          .sort((a, b) => (b.document_date || b.created_at || '').localeCompare(a.document_date || a.created_at || ''))
-          .map(d => row([
+  // Part 2: docs split by category
+  const catConfig: { id: string; icon: string; label: string }[] = [
+    { id: 'exam',         icon: '🔬', label: 'Exames'   },
+    { id: 'vaccine',      icon: '💉', label: 'Vacinas'  },
+    { id: 'prescription', icon: '📋', label: 'Receitas' },
+    { id: 'report',       icon: '📄', label: 'Laudos'   },
+    { id: 'photo',        icon: '📸', label: 'Fotos'    },
+    { id: 'other',        icon: '📎', label: 'Outros'   },
+  ];
+  const docsByCat = catConfig.map(cat => ({
+    ...cat,
+    items: [...docs]
+      .filter(d => (d.category || 'other') === cat.id)
+      .sort((a, b) => (b.document_date || b.created_at || '').localeCompare(a.document_date || a.created_at || '')),
+  })).filter(cat => cat.items.length > 0);
+
+  const docsCatSections = docsByCat.length === 0 ? emptyMsg : docsByCat.map(cat => `
+    <div style="margin-top:16px">
+      <h3 style="font-size:11pt;font-weight:700;color:#4338ca;margin-bottom:6px">${cat.icon} ${cat.label}</h3>
+      <table>
+        <thead>${row(['Data','Título','Estabelecimento'], true)}</thead>
+        <tbody>
+          ${cat.items.map(d => row([
             fmtDate(d.document_date || d.created_at?.split('T')[0]),
             d.title || '—',
-            catLabels[d.category || 'other'] ?? 'Outro',
             d.establishment_name || '—',
-          ]))
-          .join('')}
-      </tbody>
-    </table>`;
+          ])).join('')}
+        </tbody>
+      </table>
+    </div>`).join('');
+
+  const partHeader = (num: string, title: string, subtitle: string) =>
+    `<div class="part-header"><span class="part-num">${num}</span><div><div class="part-title">${title}</div><div class="part-sub">${subtitle}</div></div></div>`;
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -252,14 +269,19 @@ function exportPetHistoryPDF(
       @page { margin: 15mm 18mm; }
       .no-print { display: none !important; }
       .section { page-break-inside: avoid; }
+      .part-header { page-break-before: auto; }
     }
     body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11pt; color: #1a1a2e; background: #fff; padding: 28px 32px; max-width: 900px; margin: 0 auto; }
     .cover { display: flex; flex-direction: column; gap: 4px; margin-bottom: 32px; padding-bottom: 16px; border-bottom: 3px solid #7c3aed; }
     .pet-name { font-size: 28pt; font-weight: 900; color: #4c1d95; }
     .pet-meta { font-size: 11pt; color: #555; }
     .export-date { font-size: 9pt; color: #aaa; margin-top: 6px; }
-    .section { margin-top: 28px; }
-    h2 { font-size: 14pt; font-weight: 800; color: #4c1d95; border-bottom: 2px solid #ede9fe; padding-bottom: 5px; margin-bottom: 10px; }
+    .part-header { display: flex; align-items: center; gap: 14px; background: #4c1d95; color: #fff; border-radius: 10px; padding: 12px 18px; margin-top: 36px; margin-bottom: 4px; }
+    .part-num { font-size: 22pt; font-weight: 900; opacity: 0.6; line-height: 1; }
+    .part-title { font-size: 14pt; font-weight: 800; }
+    .part-sub { font-size: 9pt; opacity: 0.75; margin-top: 2px; }
+    .section { margin-top: 22px; }
+    h2 { font-size: 13pt; font-weight: 800; color: #4c1d95; border-bottom: 2px solid #ede9fe; padding-bottom: 5px; margin-bottom: 10px; }
     table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
     th { background: #f5f3ff; padding: 6px 9px; text-align: left; font-weight: 700; border-bottom: 1.5px solid #c4b5fd; color: #3730a3; }
     td { padding: 5px 9px; border-bottom: 1px solid #ede9fe; vertical-align: top; }
@@ -277,11 +299,14 @@ function exportPetHistoryPDF(
     <div class="export-date">Exportado em ${now} via Petmol</div>
   </div>
 
+  ${partHeader('1', 'Eventos registrados pelo Petmol', 'Gerados automaticamente pelos fluxos do app')}
   ${section('Vacinas', '💉', vacTable)}
   ${section('Controle Antiparasitário', '🦟', parTable)}
   ${section('Banho e Tosa', '🛁', groomTable)}
   ${section('Consultas e Eventos', '🩺', evtTable)}
-  ${section('Documentos Guardados', '📁', docsTable)}
+
+  ${partHeader('2', 'Documentos enviados pelo tutor', 'Arquivos e documentos adicionados manualmente pelo responsável')}
+  <div class="section">${docsCatSections}</div>
 
   <div class="footer">Petmol · Histórico completo de ${pet.pet_name} · ${now}</div>
 
@@ -417,22 +442,22 @@ export function MedicalVaultModal({
             <div className="p-4 space-y-4">
 
               {/* Eventos — collapsible */}
-              <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+              <div className="rounded-2xl border border-indigo-200 bg-white overflow-hidden shadow-sm">
                 <button
                   type="button"
                   onClick={() => setEventsExpanded((v) => !v)}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-4 py-3.5 bg-indigo-50 hover:bg-indigo-100 transition-colors text-left"
                 >
                   <span className="text-xl">📋</span>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-slate-900 text-[15px]">Eventos da vida {currentPet.pet_name.startsWith('de ') ? '' : 'de '}{currentPet.pet_name}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {allEvents.length === 0 ? 'Nenhum evento registrado' : `${allEvents.length} evento${allEvents.length !== 1 ? 's' : ''} registrado${allEvents.length !== 1 ? 's' : ''}`}
+                    <p className="font-bold text-indigo-900 text-[15px]">Eventos da vida {currentPet.pet_name.startsWith('de ') ? '' : 'de '}{currentPet.pet_name}</p>
+                    <p className="text-xs text-indigo-400 mt-0.5">
+                      {allEvents.length === 0 ? 'Nenhum evento registrado' : `${allEvents.length} evento${allEvents.length !== 1 ? 's' : ''} · toque para ver o histórico`}
                     </p>
                   </div>
                   <svg
                     viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-                    className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${eventsExpanded ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 text-indigo-400 transition-transform flex-shrink-0 ${eventsExpanded ? 'rotate-180' : ''}`}
                   >
                     <path d="M6 9l6 6 6-6" />
                   </svg>
