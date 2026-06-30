@@ -1897,7 +1897,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
         @keyframes vaultSlideUp { from { transform: translateY(100%) } to { transform: translateY(0) } }
       `}</style>
       <button
-        onClick={() => hideCategoryTabs ? openCameraPicker('image') : setFabOpen(true)}
+        onClick={() => setFabOpen(true)}
         disabled={uploading}
         style={{
           position: 'fixed', right: 20, bottom: 'calc(24px + env(safe-area-inset-bottom))', zIndex: 200,
@@ -1915,7 +1915,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
         } as React.CSSProperties}
         aria-label="Adicionar documento"
       >
-        {uploading ? '⏳' : hideCategoryTabs ? '📷' : '+'}
+        {uploading ? '⏳' : '+'}
       </button>
 
       {/* FAB bottom sheet */}
