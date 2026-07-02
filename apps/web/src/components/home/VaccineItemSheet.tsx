@@ -470,14 +470,14 @@ export function VaccineItemSheet({
               <button
                 type="button"
                 onClick={() => setShowImportModal(true)}
-                className="w-full flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-2xl hover:bg-gray-50 transition-all active:scale-[0.98]"
+                className="w-full flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-2xl hover:bg-gray-50 transition-all active:scale-[0.98]"
               >
-                <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center text-lg flex-shrink-0">📷</div>
+                <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-base flex-shrink-0">📷</div>
                 <div className="text-left flex-1">
-                  <p className="text-[13px] font-bold text-gray-800">Importar carteirinha</p>
-                  <p className="text-[11px] text-gray-400">Foto ou galeria — identificação automática</p>
+                  <p className="text-[12px] font-semibold text-gray-600">Tentar ler carteirinha com IA</p>
+                  <p className="text-[10px] text-gray-400">Funciona melhor com cartões impressos — revise os dados após</p>
                 </div>
-                <span className="text-gray-300 text-lg">›</span>
+                <span className="text-gray-300 text-base">›</span>
               </button>
 
               <a
@@ -566,7 +566,7 @@ export function VaccineItemSheet({
         <div className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-2 sm:p-4" onClick={() => { setShowImportModal(false); setPendingCardFiles([]); }}>
           <div className="bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 p-5 sm:p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-800">📷 Fotografar carteirinha (opcional)</h3>
+              <h3 className="text-lg sm:text-xl font-bold text-gray-800">📷 Tentar ler carteirinha com IA</h3>
               <button
                 onClick={() => { setShowImportModal(false); setPendingCardFiles([]); }}
                 className="w-11 h-11 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition-colors flex-shrink-0"
@@ -578,13 +578,10 @@ export function VaccineItemSheet({
             </div>
 
             <div className="space-y-4">
-              <div className="bg-sky-50 rounded-xl p-4 border border-sky-100">
-                <p className="font-semibold text-gray-800 mb-2">✨ O sistema vai:</p>
-                <ul className="space-y-1.5 text-sm text-gray-700">
-                  <li className="flex items-start gap-2"><span className="text-green-600 mt-0.5">✓</span><span>Identificar vacinas automaticamente</span></li>
-                  <li className="flex items-start gap-2"><span className="text-green-600 mt-0.5">✓</span><span>Extrair datas e informações</span></li>
-                  <li className="flex items-start gap-2"><span className="text-green-600 mt-0.5">✓</span><span>Criar seu prontuário digital</span></li>
-                </ul>
+              <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
+                <p className="font-semibold text-gray-800 mb-1.5">💡 Como funciona</p>
+                <p className="text-sm text-gray-700 mb-2">A IA tenta extrair vacinas, datas e veterinário da foto. <strong>Funciona melhor com carteiras impressas.</strong> Carteiras manuscritas podem ter resultados parciais.</p>
+                <p className="text-xs text-amber-800">Sempre revise e corrija os dados antes de salvar.</p>
               </div>
 
               <input

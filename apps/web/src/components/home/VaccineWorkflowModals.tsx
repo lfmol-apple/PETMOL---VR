@@ -357,7 +357,7 @@ export function VaccineWorkflowModals({
           <div className="p-4 sm:p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 overflow-hidden">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold flex items-center gap-2">
-                🤖 Carteirinha Mágica - Leitura Automática
+                📷 Leitura de Carteirinha com IA
               </h3>
               <button
                 onClick={onCloseAIUpload}
@@ -368,8 +368,9 @@ export function VaccineWorkflowModals({
               </button>
             </div>
 
-            <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
-              <p className="text-blue-800 text-sm" dangerouslySetInnerHTML={{ __html: t('feedback.photo_instructions') }} />
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <p className="text-amber-900 text-sm font-semibold mb-1">💡 Dica importante</p>
+              <p className="text-amber-800 text-sm">Funciona melhor com carteiras <strong>impressas</strong>. Carteiras manuscritas podem ter leitura parcial. Sempre revise os dados extraídos antes de salvar.</p>
             </div>
 
             <VaccineCardUpload
