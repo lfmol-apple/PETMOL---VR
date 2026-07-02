@@ -1723,7 +1723,7 @@ def _get_gemini_api_key() -> Optional[str]:
 
 def _get_gemini_model() -> str:
     """Get Gemini model name from environment."""
-    return os.environ.get("GEMINI_MODEL") or "gemini-2.0-flash"
+    return os.environ.get("GEMINI_MODEL") or "gemini-2.5-flash"
 
 
 @app.get("/vision/status", response_model=VisionStatusResponse, tags=["Vision"])
