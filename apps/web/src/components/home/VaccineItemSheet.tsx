@@ -76,6 +76,8 @@ export interface VaccineItemSheetProps {
   pendingCardFiles: File[];
   setPendingCardFiles: Dispatch<SetStateAction<File[]>>;
   importingCard: boolean;
+  aiImageLimit?: number;
+  setAiImageLimit?: Dispatch<SetStateAction<number>>;
   handleFilesSelectedAppend: (event: ChangeEvent<HTMLInputElement>) => void;
   handleProcessCards: (selected: File[]) => Promise<void>;
   initialMode?: 'view' | 'buy';
