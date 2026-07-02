@@ -348,6 +348,96 @@ function exportPetHistoryPDF(
   }
 }
 
+// ── WhatsApp text export ────────────────────────────────────────────────────
+
+function generateWhatsAppText(
+  pet: VaultPet,
+  vaccines: VaccineRecord[],
+  parasites: ParasiteControl[],
+  grooming: GroomingRecord[],
+  petEvts: PetEventRecord[],
+  docs: VetHistoryDocument[],
+): string {
+  const now = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const species = pet.species === 'cat' ? 'Gato' : pet.species === 'dog' ? 'Cachorro' : pet.species ?? '';
+  const parasiteLabels: Record<string, string> = {
+    dewormer: 'Vermífugo', flea_tick: 'Antipulgas/Carrapato', collar: 'Coleira',
+    heartworm: 'Filária', leishmaniasis: 'Leishmaniose',
+  };
+  const evtLabels: Record<string, string> = {
+    consulta: 'Consulta', retorno: 'Retorno', exame_lab: 'Exame lab.',
+    exame_imagem: 'Exame imagem', cirurgia: 'Cirurgia', odonto: 'Odontologia',
+    medicacao: 'Medicação', emergencia: 'Emergência', outro: 'Outro',
+  };
+
+  const lines: string[] = [
+    `*Histórico de ${pet.pet_name}*`,
+    [species, pet.breed, pet.birth_date ? `Nascido(a) em ${fmtDate(pet.birth_date)}` : ''].filter(Boolean).join(' · '),
+    `_Exportado em ${now} via Petmol_`,
+    '',
+  ];
+
+  const sortedVac = vaccines.filter(v => v.date_administered).sort((a, b) => b.date_administered!.localeCompare(a.date_administered!));
+  if (sortedVac.length > 0) {
+    lines.push('*Vacinas*');
+    for (const v of sortedVac.slice(0, 6)) {
+      const p = [fmtDate(v.date_administered), v.vaccine_name || '?'];
+      if (v.veterinarian) p.push(`Dr(a). ${v.veterinarian}`);
+      if (v.clinic_name) p.push(v.clinic_name);
+      lines.push(`• ${p.join(' — ')}`);
+    }
+    if (sortedVac.length > 6) lines.push(`_...e mais ${sortedVac.length - 6} vacinas_`);
+    lines.push('');
+  }
+
+  const sortedPar = parasites.filter(p => p.date_applied).sort((a, b) => b.date_applied!.localeCompare(a.date_applied!));
+  if (sortedPar.length > 0) {
+    lines.push('*Antiparasitários*');
+    for (const p of sortedPar.slice(0, 4)) {
+      const parts = [fmtDate(p.date_applied), parasiteLabels[p.type] ?? p.type];
+      if (p.product_name) parts.push(p.product_name);
+      if (p.next_due_date) parts.push(`próxima: ${fmtDate(p.next_due_date)}`);
+      lines.push(`• ${parts.join(' — ')}`);
+    }
+    lines.push('');
+  }
+
+  const sortedGroom = grooming.filter(g => g.date).sort((a, b) => b.date.localeCompare(a.date));
+  if (sortedGroom.length > 0) {
+    lines.push('*Banho e Tosa*');
+    for (const g of sortedGroom.slice(0, 3)) {
+      const label = g.type === 'bath' ? 'Banho' : g.type === 'grooming' ? 'Tosa' : 'Banho e Tosa';
+      const parts = [fmtDate(g.date), label];
+      if (g.location) parts.push(g.location);
+      lines.push(`• ${parts.join(' — ')}`);
+    }
+    lines.push('');
+  }
+
+  const filteredEvts = petEvts
+    .filter(ev => ev.scheduled_at && ev.source !== 'document' && !DEDUPLICATED_EVENT_TYPES.has(ev.type))
+    .sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at));
+  if (filteredEvts.length > 0) {
+    lines.push('*Consultas e Eventos*');
+    for (const ev of filteredEvts.slice(0, 5)) {
+      const parts = [fmtDate(ev.scheduled_at.split('T')[0]), evtLabels[ev.type] ?? ev.type];
+      if (ev.title && ev.title !== evtLabels[ev.type]) parts.push(ev.title);
+      if (ev.professional_name) parts.push(`Dr(a). ${ev.professional_name}`);
+      if (ev.location_name) parts.push(ev.location_name);
+      lines.push(`• ${parts.join(' — ')}`);
+    }
+    if (filteredEvts.length > 5) lines.push(`_...e mais ${filteredEvts.length - 5} eventos_`);
+    lines.push('');
+  }
+
+  if (docs.length > 0) {
+    lines.push(`*Documentos:* ${docs.length} ${docs.length === 1 ? 'arquivo' : 'arquivos'} no Petmol`);
+    lines.push('_Exames, receitas e laudos disponíveis no app_');
+  }
+
+  return lines.join('\n');
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 export function MedicalVaultModal({
@@ -404,6 +494,21 @@ export function MedicalVaultModal({
       exportPetHistoryPDF(currentPet, allEvents, vaccines, parasites, grooming, petEvents, localDocs);
     } finally {
       setTimeout(() => setExporting(false), 1500);
+    }
+  };
+
+  const handleShareWhatsApp = async () => {
+    const text = generateWhatsAppText(currentPet, vaccines, parasites, grooming, petEvents, localDocs);
+    try {
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ text, title: `Histórico de ${currentPet.pet_name}` });
+      } else {
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+      }
     }
   };
 
@@ -547,22 +652,35 @@ export function MedicalVaultModal({
                 </div>
               </div>
 
-              {/* Export PDF */}
-              <button
-                type="button"
-                onClick={handleExportPDF}
-                disabled={exporting}
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border border-violet-200 bg-violet-50 hover:bg-violet-100 active:scale-[0.98] transition-all text-left disabled:opacity-60"
-              >
-                <span className="text-xl">{exporting ? '⏳' : '📤'}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-violet-900 text-[15px]">
-                    {exporting ? 'Gerando documento…' : 'Exportar histórico em PDF'}
-                  </p>
-                  <p className="text-[11px] text-violet-600 mt-0.5">Vacinas, antiparasitários, consultas e documentos</p>
-                </div>
-                <span className="text-violet-300 text-sm">›</span>
-              </button>
+              {/* Compartilhar histórico */}
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={handleShareWhatsApp}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 active:scale-[0.98] transition-all text-left"
+                >
+                  <span className="text-xl">📲</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-emerald-900 text-[15px]">Compartilhar histórico</p>
+                    <p className="text-[11px] text-emerald-700 mt-0.5">Vacinas, antiparasitários, consultas e documentos</p>
+                  </div>
+                  <span className="text-emerald-300 text-sm">›</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportPDF}
+                  disabled={exporting}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] transition-all text-left disabled:opacity-60"
+                >
+                  <span className="text-lg">{exporting ? '⏳' : '🖨️'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-slate-600 text-[13px]">
+                      {exporting ? 'Gerando…' : 'Exportar como PDF'}
+                    </p>
+                  </div>
+                  <span className="text-slate-300 text-sm">›</span>
+                </button>
+              </div>
             </div>
           )}
 
