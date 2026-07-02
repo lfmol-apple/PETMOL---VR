@@ -169,21 +169,40 @@ def export_pet_pdf(
     if not pet:
         raise HTTPException(status_code=404, detail="Pet nao encontrado")
 
+    # Data mínima: nascimento do pet, ou 2010 como piso absoluto
+    from datetime import timezone
+    _floor = datetime(2010, 1, 1, tzinfo=timezone.utc)
+    if pet.birth_date:
+        _birth = datetime(pet.birth_date.year, pet.birth_date.month, pet.birth_date.day, tzinfo=timezone.utc)
+        min_date = max(_birth, _floor)
+    else:
+        min_date = _floor
+
     vaccines = (
         db.query(VaccineRecord)
-        .filter(VaccineRecord.pet_id == pet_id, VaccineRecord.deleted_at.is_(None))
+        .filter(
+            VaccineRecord.pet_id == pet_id,
+            VaccineRecord.deleted_at.is_(None),
+            VaccineRecord.applied_date >= min_date,
+        )
         .order_by(VaccineRecord.applied_date.desc())
         .all()
     )
     parasites = (
         db.query(ParasiteControlRecord)
-        .filter(ParasiteControlRecord.pet_id == pet_id)
+        .filter(
+            ParasiteControlRecord.pet_id == pet_id,
+            ParasiteControlRecord.date_applied >= min_date,
+        )
         .order_by(ParasiteControlRecord.date_applied.desc())
         .all()
     )
     grooming = (
         db.query(GroomingRecord)
-        .filter(GroomingRecord.pet_id == pet_id)
+        .filter(
+            GroomingRecord.pet_id == pet_id,
+            GroomingRecord.date >= min_date,
+        )
         .order_by(GroomingRecord.date.desc())
         .all()
     )
@@ -195,6 +214,7 @@ def export_pet_pdf(
             Event.deleted_at.is_(None),
             Event.source != "document",
             Event.type.notin_(list(_DEDUP_EVENT_TYPES)),
+            Event.scheduled_at >= min_date,
         )
         .order_by(Event.scheduled_at.desc())
         .limit(60)
