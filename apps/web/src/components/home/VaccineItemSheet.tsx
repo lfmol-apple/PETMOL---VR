@@ -75,8 +75,6 @@ export interface VaccineItemSheetProps {
   pendingCardFiles: File[];
   setPendingCardFiles: Dispatch<SetStateAction<File[]>>;
   importingCard: boolean;
-  aiImageLimit: number;
-  setAiImageLimit: Dispatch<SetStateAction<number>>;
   handleFilesSelectedAppend: (event: ChangeEvent<HTMLInputElement>) => void;
   handleProcessCards: (selected: File[]) => Promise<void>;
   initialMode?: 'view' | 'buy';
@@ -99,8 +97,6 @@ export function VaccineItemSheet({
   pendingCardFiles,
   setPendingCardFiles,
   importingCard,
-  aiImageLimit,
-  setAiImageLimit,
   handleFilesSelectedAppend,
   handleProcessCards,
   initialMode,
@@ -563,170 +559,102 @@ export function VaccineItemSheet({
       </div>
 
       {showImportModal && (
-        <div className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-2 sm:p-4" onClick={() => { setShowImportModal(false); setPendingCardFiles([]); }}>
-          <div className="bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 p-5 sm:p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-800">📷 Tentar ler carteirinha com IA</h3>
-              <button
-                onClick={() => { setShowImportModal(false); setPendingCardFiles([]); }}
-                className="w-11 h-11 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition-colors flex-shrink-0"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+        <div
+          className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-md flex items-end sm:items-center justify-center"
+          onClick={() => { if (!importingCard) { setShowImportModal(false); setPendingCardFiles([]); } }}
+        >
+          <div
+            className="bg-white rounded-t-[32px] sm:rounded-[32px] w-full max-w-lg p-5 sm:p-6 shadow-xl"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Hidden file inputs */}
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" multiple onChange={handleFilesSelectedAppend} disabled={importingCard} className="hidden" />
+            <input ref={galleryInputRef} type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.bmp,.tiff,.tif,.avif,image/*" multiple onChange={handleFilesSelectedAppend} disabled={importingCard} className="hidden" />
+
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold text-gray-900">
+                {pendingCardFiles.length > 0 && !importingCard
+                  ? `${pendingCardFiles.length} foto${pendingCardFiles.length > 1 ? 's' : ''} — o que fazer?`
+                  : '📷 Ler carteirinha com IA'}
+              </h3>
+              {!importingCard && (
+                <button
+                  onClick={() => { setShowImportModal(false); setPendingCardFiles([]); }}
+                  className="w-9 h-9 flex items-center justify-center bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200"
+                >
+                  ✕
+                </button>
+              )}
             </div>
 
-            <div className="space-y-4">
-              <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
-                <p className="font-semibold text-gray-800 mb-1.5">💡 Como funciona</p>
-                <p className="text-sm text-gray-700 mb-2">A IA tenta extrair vacinas, datas e veterinário da foto. <strong>Funciona melhor com carteiras impressas.</strong> Carteiras manuscritas podem ter resultados parciais.</p>
-                <p className="text-xs text-amber-800">Sempre revise e corrija os dados antes de salvar.</p>
-              </div>
-
-              <input
-                ref={cameraInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                multiple
-                onChange={handleFilesSelectedAppend}
-                disabled={importingCard}
-                className="hidden"
-              />
-              <input
-                ref={galleryInputRef}
-                type="file"
-                accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.bmp,.tiff,.tif,.avif,image/*"
-                multiple
-                onChange={handleFilesSelectedAppend}
-                disabled={importingCard}
-                className="hidden"
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* STATE: no photos yet */}
+            {pendingCardFiles.length === 0 && !importingCard && (
+              <div className="space-y-3">
                 <button
                   type="button"
-                  disabled={importingCard}
                   onClick={() => cameraInputRef.current?.click()}
-                  className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-xl p-6 text-center hover:bg-blue-100 hover:border-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-5 rounded-2xl bg-sky-600 active:bg-sky-700 text-white font-bold text-base flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
                 >
-                  <div className="text-4xl mb-2">📸</div>
-                  <div className="text-sm font-semibold text-sky-700">Câmera</div>
-                  <div className="text-xs text-sky-600 mt-1">Você pode pular esta etapa</div>
+                  <span className="text-2xl">📸</span> Abrir câmera
                 </button>
-
                 <button
                   type="button"
-                  disabled={importingCard}
                   onClick={() => galleryInputRef.current?.click()}
-                  className="border-2 border-dashed border-purple-300 bg-purple-50 rounded-xl p-6 text-center hover:bg-purple-100 hover:border-purple-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-3 rounded-2xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 active:scale-[0.98] transition-all"
                 >
-                  <div className="text-4xl mb-2">🖼️</div>
-                  <div className="text-sm font-semibold text-purple-700">Galeria / Arquivos</div>
-                  <div className="text-xs text-purple-600 mt-1">Selecionar do dispositivo</div>
+                  🖼️ Escolher da galeria
+                </button>
+                <p className="text-xs text-amber-700 text-center pt-1">
+                  Funciona melhor com carteiras impressas — revise os dados após a leitura
+                </p>
+              </div>
+            )}
+
+            {/* STATE: photos selected — dynamic action choice */}
+            {pendingCardFiles.length > 0 && !importingCard && (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleProcessCards(pendingCardFiles);
+                    setShowImportModal(false);
+                  }}
+                  className="w-full py-4 rounded-2xl bg-sky-700 active:bg-sky-800 text-white font-bold text-base flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-md shadow-sky-500/20"
+                >
+                  🔍 Ler agora
+                </button>
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="w-full py-3 rounded-2xl border border-sky-200 text-sky-700 bg-sky-50 text-sm font-medium flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                >
+                  📸 Tirar mais fotos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => galleryInputRef.current?.click()}
+                  className="w-full py-3 rounded-2xl border border-gray-200 text-gray-600 text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                >
+                  + Adicionar da galeria
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingCardFiles([])}
+                  className="w-full py-2 text-gray-400 text-xs"
+                >
+                  Remover fotos e recomeçar
                 </button>
               </div>
+            )}
 
-              {pendingCardFiles.length > 0 && !importingCard && (
-                <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
-                  <p className="text-sm font-semibold text-green-800">
-                    📎 {pendingCardFiles.length} foto{pendingCardFiles.length > 1 ? 's' : ''} selecionada{pendingCardFiles.length > 1 ? 's' : ''}
-                  </p>
-                  <ul className="text-xs text-green-700 space-y-0.5 max-h-24 overflow-y-auto">
-                    {pendingCardFiles.map((f, i) => (
-                      <li key={i} className="truncate">📄 {f.name}</li>
-                    ))}
-                  </ul>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => galleryInputRef.current?.click()}
-                      className="border border-purple-300 text-purple-700 bg-purple-50 py-2 rounded-xl text-xs font-medium hover:bg-purple-100 transition-all active:scale-95"
-                    >
-                      + Adicionar mais fotos
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => cameraInputRef.current?.click()}
-                      className="border border-blue-300 text-sky-700 bg-blue-50 py-2 rounded-xl text-xs font-medium hover:bg-blue-100 transition-all active:scale-95"
-                    >
-                      📸 Tirar mais fotos
-                    </button>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPendingCardFiles([])}
-                      className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-all active:scale-95"
-                    >
-                      Limpar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await handleProcessCards(pendingCardFiles);
-                        setShowImportModal(false);
-                      }}
-                      className="flex-[2] bg-sky-700 hover:bg-sky-800 text-white py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95"
-                    >
-                      🚀 Analisar agora
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {importingCard && (
-                <div className="bg-sky-50 border border-sky-100 text-sky-900 rounded-xl p-4 text-center">
-                  <div className="animate-spin w-8 h-8 border-4 border-sky-200 border-t-sky-700 rounded-full mx-auto mb-2" />
-                  <div className="font-semibold mb-1">Analisando cartão(ões)...</div>
-                  <div className="text-sm text-sky-700">Aguarde o processamento</div>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between text-sm bg-gray-50 border border-gray-200 rounded-xl p-3">
-                <span className="font-medium text-gray-700">Limite de fotos</span>
-                <select
-                  value={aiImageLimit}
-                  onChange={(e) => setAiImageLimit(Number(e.target.value))}
-                  disabled={importingCard}
-                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-medium focus:ring-2 focus:ring-sky-600 focus:border-sky-600"
-                >
-                  <option value={3}>3 (rápido)</option>
-                  <option value={5}>5 (recomendado)</option>
-                  <option value={8}>8 (completo)</option>
-                  <option value={12}>12 (máximo)</option>
-                </select>
+            {/* STATE: analyzing */}
+            {importingCard && (
+              <div className="py-8 text-center">
+                <div className="animate-spin w-10 h-10 border-4 border-sky-200 border-t-sky-700 rounded-full mx-auto mb-4" />
+                <div className="font-semibold text-sky-900 mb-1">Analisando com IA...</div>
+                <div className="text-sm text-sky-600">Pode levar alguns segundos</div>
               </div>
-
-              <div className="bg-amber-50 border-l-4 border-amber-400 rounded-lg p-4 space-y-2">
-                <div className="flex items-start gap-2">
-                  <span className="text-amber-600 text-xl flex-shrink-0">⚠️</span>
-                  <div className="text-sm">
-                    <p className="font-bold text-amber-900 mb-1">Atenção importante:</p>
-                    <p className="text-amber-800 leading-relaxed">
-                      Alguns cartões podem não ser lidos com total exatidão, dependendo da qualidade da foto, caligrafia e formato.
-                      <strong className="block mt-1">Você é responsável por revisar e corrigir os dados importados antes de confiar neles.</strong>
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="flex items-start gap-2">
-                  <span className="text-sky-700 text-lg flex-shrink-0">💡</span>
-                  <div className="text-xs text-blue-800">
-                    <span className="font-semibold">Dicas para melhor resultado:</span>
-                    <ul className="mt-1 space-y-0.5 ml-2">
-                      <li>• Boa iluminação e foto nítida</li>
-                      <li>• Cartão todo visível no enquadramento</li>
-                      <li>• Pode enviar várias páginas/fotos</li>
-                      <li>• Frente e verso se houver</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       )}

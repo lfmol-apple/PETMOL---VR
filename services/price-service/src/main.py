@@ -2727,7 +2727,7 @@ Retorne APENAS o JSON abaixo contendo TODAS as vacinas encontradas na imagem.
             },
         }
 
-        async with httpx.AsyncClient(timeout=45.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             last_error: Optional[Exception] = None
             for attempt in range(1, 4):
                 try:
@@ -2740,7 +2740,6 @@ Retorne APENAS o JSON abaixo contendo TODAS as vacinas encontradas na imagem.
                     status = e.response.status_code
                     retry_after = e.response.headers.get("retry-after")
                     if status in (429, 500, 502, 503, 504) and attempt < 3:
-                        # Respect Retry-After when present; otherwise exponential backoff.
                         delay = 0.0
                         if retry_after:
                             try:
@@ -2748,12 +2747,17 @@ Retorne APENAS o JSON abaixo contendo TODAS as vacinas encontradas na imagem.
                             except Exception:
                                 delay = 0.0
                         if delay <= 0:
-                            delay = float(2 ** (attempt - 1))  # 1s, 2s
+                            delay = float(2 ** (attempt - 1))
                         await asyncio.sleep(min(delay, 10.0))
                         continue
                     raise
+                except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException) as e:
+                    last_error = e
+                    if attempt < 3:
+                        await asyncio.sleep(float(2 ** attempt))
+                        continue
+                    raise
             else:
-                # Shouldn't happen, but keep mypy happy.
                 raise last_error or RuntimeError("Gemini request failed")
 
         text = ""
@@ -2805,7 +2809,7 @@ Retorne APENAS o JSON abaixo contendo TODAS as vacinas encontradas na imagem.
             "generationConfig": {"responseMimeType": "application/json", "temperature": 0.1},
         }
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=90.0) as client:
             last_error: Optional[Exception] = None
             for attempt in range(1, 4):
                 try:
@@ -2827,6 +2831,12 @@ Retorne APENAS o JSON abaixo contendo TODAS as vacinas encontradas na imagem.
                         if delay <= 0:
                             delay = float(2 ** (attempt - 1))
                         await asyncio.sleep(min(delay, 10.0))
+                        continue
+                    raise
+                except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException) as e:
+                    last_error = e
+                    if attempt < 3:
+                        await asyncio.sleep(float(2 ** attempt))
                         continue
                     raise
             else:
@@ -4238,7 +4248,7 @@ Retorne APENAS o JSON abaixo contendo TODAS as vacinas encontradas na imagem.
             },
         }
 
-        async with httpx.AsyncClient(timeout=45.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             last_error: Optional[Exception] = None
             for attempt in range(1, 4):
                 try:
@@ -4251,7 +4261,6 @@ Retorne APENAS o JSON abaixo contendo TODAS as vacinas encontradas na imagem.
                     status = e.response.status_code
                     retry_after = e.response.headers.get("retry-after")
                     if status in (429, 500, 502, 503, 504) and attempt < 3:
-                        # Respect Retry-After when present; otherwise exponential backoff.
                         delay = 0.0
                         if retry_after:
                             try:
@@ -4259,12 +4268,17 @@ Retorne APENAS o JSON abaixo contendo TODAS as vacinas encontradas na imagem.
                             except Exception:
                                 delay = 0.0
                         if delay <= 0:
-                            delay = float(2 ** (attempt - 1))  # 1s, 2s
+                            delay = float(2 ** (attempt - 1))
                         await asyncio.sleep(min(delay, 10.0))
                         continue
                     raise
+                except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException) as e:
+                    last_error = e
+                    if attempt < 3:
+                        await asyncio.sleep(float(2 ** attempt))
+                        continue
+                    raise
             else:
-                # Shouldn't happen, but keep mypy happy.
                 raise last_error or RuntimeError("Gemini request failed")
 
         text = ""
@@ -4316,7 +4330,7 @@ Retorne APENAS o JSON abaixo contendo TODAS as vacinas encontradas na imagem.
             "generationConfig": {"responseMimeType": "application/json", "temperature": 0.1},
         }
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=90.0) as client:
             last_error: Optional[Exception] = None
             for attempt in range(1, 4):
                 try:
@@ -4338,6 +4352,12 @@ Retorne APENAS o JSON abaixo contendo TODAS as vacinas encontradas na imagem.
                         if delay <= 0:
                             delay = float(2 ** (attempt - 1))
                         await asyncio.sleep(min(delay, 10.0))
+                        continue
+                    raise
+                except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException) as e:
+                    last_error = e
+                    if attempt < 3:
+                        await asyncio.sleep(float(2 ** attempt))
                         continue
                     raise
             else:

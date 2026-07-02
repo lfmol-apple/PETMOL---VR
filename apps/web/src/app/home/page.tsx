@@ -1994,8 +1994,6 @@ function HomePageInner() {
           pendingCardFiles={pendingCardFiles}
           setPendingCardFiles={setPendingCardFiles}
           importingCard={importingCard}
-          aiImageLimit={aiImageLimit}
-          setAiImageLimit={setAiImageLimit}
           handleFilesSelectedAppend={handleFilesSelectedAppend}
           handleProcessCards={handleProcessCards}
         />
