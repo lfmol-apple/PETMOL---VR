@@ -14,12 +14,18 @@ export function fmtDate(s: string | null): string {
   }
 }
 
-/** Returns document_date if plausible (>= 2010), otherwise falls back to created_at. */
+/**
+ * Returns document_date if plausible, otherwise falls back to created_at.
+ * A date is considered implausible if it's more than 2 years before created_at
+ * (catches wrong DICOM/EXIF metadata) or before year 2000.
+ */
 export function resolveDocDate(documentDate: string | null, createdAt: string): string | null {
   if (!documentDate) return createdAt;
   try {
-    const year = new Date(documentDate).getFullYear();
-    if (year >= 2010) return documentDate;
+    const docMs = new Date(documentDate).getTime();
+    const uploadMs = new Date(createdAt).getTime();
+    const twoYearsMs = 2 * 365.25 * 24 * 60 * 60 * 1000;
+    if (docMs >= uploadMs - twoYearsMs) return documentDate;
   } catch {
     // malformed date — fall through
   }

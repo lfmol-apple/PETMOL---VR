@@ -165,8 +165,10 @@ export function fmtVaultDate(s: string | null): string {
 function resolveVaultDocDate(documentDate: string | null, createdAt: string): string {
   if (!documentDate) return createdAt;
   try {
-    const year = new Date(documentDate).getFullYear();
-    if (year >= 2010) return documentDate;
+    const docMs = new Date(documentDate).getTime();
+    const uploadMs = new Date(createdAt).getTime();
+    const twoYearsMs = 2 * 365.25 * 24 * 60 * 60 * 1000;
+    if (docMs >= uploadMs - twoYearsMs) return documentDate;
   } catch {
     // malformed — fall through
   }
