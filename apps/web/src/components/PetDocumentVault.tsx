@@ -3,7 +3,7 @@ import { getToken } from '@/lib/auth-token';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { AuthenticatedDocumentImage } from '@/components/AuthenticatedDocumentImage';
 import { API_BASE_URL } from '@/lib/api';
-import { buildDocumentFilename, fetchDocumentBlob } from '@/lib/documentFile';
+import { buildDocumentFilename, fetchDocumentBlob, triggerBrowserDownload } from '@/lib/documentFile';
 import { useI18n } from '@/lib/I18nContext';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { groupVaultDocumentsByMonth } from '@/components/petDocuments/vaultHelpers';
@@ -142,6 +142,8 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
   const [viewerApiUrl, setViewerApiUrl] = useState<string | null>(null); // API URL (fallback)
   const [viewerMime, setViewerMime] = useState<string>('');
   const [viewerTitle, setViewerTitle] = useState<string>('');
+  const [viewerDocMimeType, setViewerDocMimeType] = useState<string>(''); // MIME type real (ex: application/pdf)
+  const [viewerStorageKey, setViewerStorageKey] = useState<string>('');   // storage_key para extensão
   const [viewerLoading, setViewerLoading] = useState(false);
   const [viewerError, setViewerError] = useState<string | null>(null);
   const [isIOS, setIsIOS] = useState(false);
@@ -799,6 +801,8 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
     setViewerDocIndex(navigableDocs.findIndex((d) => d.id === doc.id));
     setViewerTitle(doc.title ?? 'Documento');
     setViewerMime(mime);
+    setViewerDocMimeType(doc.mime_type ?? '');
+    setViewerStorageKey(doc.storage_key ?? '');
     setViewerApiUrl(apiUrl);
     setViewerUrl(null);
     setViewerError(null);
@@ -872,6 +876,8 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                : 'other';
     setViewerTitle(doc.title ?? 'Documento');
     setViewerMime(mime);
+    setViewerDocMimeType(doc.mime_type ?? '');
+    setViewerStorageKey(doc.storage_key ?? '');
     setViewerError(null);
     setViewerZoom(1);
 
@@ -1097,22 +1103,40 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
             {/* Col 3 — Safe actions only. Delete stays out of the document preview. */}
             {viewerUrl ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {/* Download */}
-                <a
-                  href={viewerUrl}
-                  download={viewerTitle || 'documento'}
+                {/* Compartilhar / Baixar */}
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!viewerUrl) return;
+                    const filename = buildDocumentFilename(viewerTitle || 'documento', viewerDocMimeType, viewerStorageKey);
+                    try {
+                      const blob = await fetch(viewerUrl).then((r) => r.blob());
+                      const file = new File([blob], filename, { type: viewerDocMimeType || blob.type });
+                      if (
+                        typeof navigator.share === 'function' &&
+                        typeof navigator.canShare === 'function' &&
+                        navigator.canShare({ files: [file] })
+                      ) {
+                        await navigator.share({ files: [file], title: viewerTitle || 'Documento' });
+                      } else {
+                        triggerBrowserDownload(viewerUrl, filename);
+                      }
+                    } catch {
+                      // Cancelado pelo usuário ou não suportado — fallback silencioso
+                      triggerBrowserDownload(viewerUrl, filename);
+                    }
+                  }}
                   style={{
                     width: 44, height: 44, borderRadius: 14, flexShrink: 0,
                     background: 'rgba(255,255,255,0.13)', color: '#fff', fontSize: 17,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    textDecoration: 'none', WebkitTapHighlightColor: 'transparent',
+                    border: 'none', cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
                   } as React.CSSProperties}
-                  onClick={(e) => e.stopPropagation()}
-                  aria-label="Baixar"
-                  title="Baixar"
+                  aria-label="Compartilhar"
+                  title="Compartilhar"
                 >
-                  ↓
-                </a>
+                  ↑
+                </button>
                 {/* Edit */}
                 <button
                   onClick={() => {
