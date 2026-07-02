@@ -142,7 +142,7 @@ function buildAllEvents(
 
 function exportPetHistoryPDF(
   pet: VaultPet,
-  allEvents: AppEvent[],
+  _allEvents: AppEvent[],
   vaccines: VaccineRecord[],
   parasites: ParasiteControl[],
   grooming: GroomingRecord[],
@@ -151,83 +151,60 @@ function exportPetHistoryPDF(
 ) {
   const now = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   const species = pet.species === 'cat' ? 'Gato' : pet.species === 'dog' ? 'Cachorro' : pet.species ?? '';
+  const petEmoji = pet.species === 'cat' ? '🐱' : '🐶';
 
   const row = (cells: string[], header = false) => {
     const tag = header ? 'th' : 'td';
     return `<tr>${cells.map(c => `<${tag}>${c}</${tag}>`).join('')}</tr>`;
   };
 
-  const section = (title: string, icon: string, content: string) => `
-    <div class="section">
-      <h2>${icon} ${title}</h2>
-      ${content}
-    </div>`;
+  const emptyRow = `<tr><td colspan="4" class="empty">Nenhum registro encontrado.</td></tr>`;
 
-  const emptyMsg = '<p class="empty">Nenhum registro encontrado.</p>';
+  // ── Vacinas ──
+  const sortedVac = vaccines.filter(v => v.date_administered).sort((a, b) => b.date_administered!.localeCompare(a.date_administered!));
+  const vacTable = `<table>
+    <thead>${row(['Data', 'Vacina', 'Veterinário', 'Clínica'], true)}</thead>
+    <tbody>${sortedVac.length === 0 ? emptyRow : sortedVac.map(v => row([fmtDate(v.date_administered), v.vaccine_name || '—', v.veterinarian || '—', v.clinic_name || '—'])).join('')}</tbody>
+  </table>`;
 
-  const vacTable = vaccines.length === 0 ? emptyMsg : `
-    <table>
-      <thead>${row(['Data','Vacina','Veterinário','Clínica'], true)}</thead>
-      <tbody>
-        ${vaccines
-          .filter(v => v.date_administered)
-          .sort((a, b) => b.date_administered!.localeCompare(a.date_administered!))
-          .map(v => row([fmtDate(v.date_administered), v.vaccine_name || '—', v.veterinarian || '—', v.clinic_name || '—']))
-          .join('')}
-      </tbody>
-    </table>`;
-
+  // ── Antiparasitários ──
   const parasiteLabels: Record<string, string> = { dewormer: 'Vermífugo', flea_tick: 'Antipulgas/Carrapato', collar: 'Coleira', heartworm: 'Filária', leishmaniasis: 'Leishmaniose' };
-  const parTable = parasites.length === 0 ? emptyMsg : `
-    <table>
-      <thead>${row(['Data','Tipo','Produto','Próxima Aplicação'], true)}</thead>
-      <tbody>
-        ${parasites
-          .filter(p => p.date_applied)
-          .sort((a, b) => b.date_applied!.localeCompare(a.date_applied!))
-          .map(p => row([fmtDate(p.date_applied), parasiteLabels[p.type] ?? p.type, p.product_name || '—', fmtDate(p.next_due_date)]))
-          .join('')}
-      </tbody>
-    </table>`;
+  const sortedPar = parasites.filter(p => p.date_applied).sort((a, b) => b.date_applied!.localeCompare(a.date_applied!));
+  const parTable = `<table>
+    <thead>${row(['Data', 'Tipo', 'Produto', 'Próxima Aplicação'], true)}</thead>
+    <tbody>${sortedPar.length === 0 ? emptyRow : sortedPar.map(p => row([fmtDate(p.date_applied), parasiteLabels[p.type] ?? p.type, p.product_name || '—', fmtDate(p.next_due_date)])).join('')}</tbody>
+  </table>`;
 
-  const groomTable = grooming.length === 0 ? emptyMsg : `
-    <table>
-      <thead>${row(['Data','Serviço','Estabelecimento','Profissional'], true)}</thead>
-      <tbody>
-        ${grooming
-          .filter(g => g.date)
-          .sort((a, b) => b.date.localeCompare(a.date))
-          .map(g => {
-            const label = g.type === 'bath' ? 'Banho' : g.type === 'grooming' ? 'Tosa' : 'Banho e Tosa';
-            return row([fmtDate(g.date), label, g.location || '—', g.groomer || '—']);
-          })
-          .join('')}
-      </tbody>
-    </table>`;
+  // ── Banho e Tosa ──
+  const sortedGroom = grooming.filter(g => g.date).sort((a, b) => b.date.localeCompare(a.date));
+  const groomTable = `<table>
+    <thead>${row(['Data', 'Serviço', 'Estabelecimento', 'Profissional'], true)}</thead>
+    <tbody>${sortedGroom.length === 0 ? emptyRow : sortedGroom.map(g => {
+      const label = g.type === 'bath' ? 'Banho' : g.type === 'grooming' ? 'Tosa' : 'Banho e Tosa';
+      return row([fmtDate(g.date), label, g.location || '—', g.groomer || '—']);
+    }).join('')}</tbody>
+  </table>`;
 
+  // ── Consultas e Eventos ──
   const evtLabels: Record<string, string> = {
-    consulta: 'Consulta', retorno: 'Retorno', exame_lab: 'Exame laboratorial',
+    consulta: 'Consulta', retorno: 'Retorno', exame_lab: 'Exame lab.',
     exame_imagem: 'Exame de imagem', cirurgia: 'Cirurgia', odonto: 'Odontologia',
     medicacao: 'Medicação', emergencia: 'Emergência', racao: 'Reposição de ração', outro: 'Outro',
   };
-  const filteredEvts = petEvts.filter(ev => ev.scheduled_at && ev.source !== 'document' && !DEDUPLICATED_EVENT_TYPES.has(ev.type));
-  const evtTable = filteredEvts.length === 0 ? emptyMsg : `
-    <table>
-      <thead>${row(['Data','Tipo','Descrição','Local / Profissional'], true)}</thead>
-      <tbody>
-        ${filteredEvts
-          .sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at))
-          .map(ev => row([
-            fmtDate(ev.scheduled_at.split('T')[0]),
-            evtLabels[ev.type] ?? ev.type,
-            ev.title,
-            [ev.professional_name ? `Dr(a). ${ev.professional_name}` : '', ev.location_name || ''].filter(Boolean).join(', ') || '—',
-          ]))
-          .join('')}
-      </tbody>
-    </table>`;
+  const filteredEvts = petEvts
+    .filter(ev => ev.scheduled_at && ev.source !== 'document' && !DEDUPLICATED_EVENT_TYPES.has(ev.type))
+    .sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at));
+  const evtTable = `<table>
+    <thead>${row(['Data', 'Tipo', 'Descrição', 'Local / Profissional'], true)}</thead>
+    <tbody>${filteredEvts.length === 0 ? emptyRow : filteredEvts.map(ev => row([
+      fmtDate(ev.scheduled_at.split('T')[0]),
+      evtLabels[ev.type] ?? ev.type,
+      ev.title,
+      [ev.professional_name ? `Dr(a). ${ev.professional_name}` : '', ev.location_name || ''].filter(Boolean).join(', ') || '—',
+    ])).join('')}</tbody>
+  </table>`;
 
-  // Part 2: docs split by category
+  // ── Documentos por categoria ──
   const catConfig: { id: string; icon: string; label: string }[] = [
     { id: 'exam',         icon: '🔬', label: 'Exames'                  },
     { id: 'vaccine',      icon: '📔', label: 'Carteirinha de Vacinação' },
@@ -243,98 +220,210 @@ function exportPetHistoryPDF(
       .sort((a, b) => (b.document_date || b.created_at || '').localeCompare(a.document_date || a.created_at || '')),
   })).filter(cat => cat.items.length > 0);
 
-  const docsCatSections = docsByCat.length === 0 ? emptyMsg : docsByCat.map(cat => `
-    <div style="margin-top:16px">
-      <h3 style="font-size:11pt;font-weight:700;color:#4338ca;margin-bottom:6px">${cat.icon} ${cat.label}</h3>
-      <table>
-        <thead>${row(['Data','Título','Estabelecimento'], true)}</thead>
-        <tbody>
-          ${cat.items.map(d => row([
-            fmtDate(d.document_date || d.created_at?.split('T')[0]),
-            d.title || '—',
-            d.establishment_name || '—',
-          ])).join('')}
-        </tbody>
-      </table>
-    </div>`).join('');
+  const docsContent = docs.length === 0
+    ? `<tr><td colspan="3" class="empty">Nenhum documento encontrado.</td></tr>`
+    : docsByCat.map(cat => `
+        <tr class="cat-row"><td colspan="3"><span class="cat-label">${cat.icon} ${cat.label}</span></td></tr>
+        ${cat.items.map(d => `<tr>
+          <td class="doc-date">${fmtDate(d.document_date || d.created_at?.split('T')[0])}</td>
+          <td class="doc-name">${d.title || '—'}</td>
+          <td class="doc-estab">${d.establishment_name || '—'}</td>
+        </tr>`).join('')}
+      `).join('');
 
-  const partHeader = (num: string, title: string, subtitle: string) =>
-    `<div class="part-header"><span class="part-num">${num}</span><div><div class="part-title">${title}</div><div class="part-sub">${subtitle}</div></div></div>`;
+  const pl = (n: number, s: string) => `${n} ${s}${n !== 1 ? 's' : ''}`;
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Histórico de ${pet.pet_name}</title>
+  <title>Histórico de ${pet.pet_name} — Petmol</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    @page { margin: 10mm 13mm; }
     @media print {
-      @page { margin: 15mm 18mm; }
+      @page { margin: 10mm 13mm; }
       .no-print { display: none !important; }
-      .section { page-break-inside: avoid; }
-      .part-header { page-break-before: auto; }
+      body { padding: 0; margin-bottom: 0; }
+      .sec { page-break-inside: avoid; }
     }
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11pt; color: #1a1a2e; background: #fff; padding: 28px 32px; max-width: 900px; margin: 0 auto; }
-    .cover { display: flex; flex-direction: column; gap: 4px; margin-bottom: 32px; padding-bottom: 16px; border-bottom: 3px solid #7c3aed; }
-    .pet-name { font-size: 28pt; font-weight: 900; color: #4c1d95; }
-    .pet-meta { font-size: 11pt; color: #555; }
-    .export-date { font-size: 9pt; color: #aaa; margin-top: 6px; }
-    .part-header { display: flex; align-items: center; gap: 14px; background: #4c1d95; color: #fff; border-radius: 10px; padding: 12px 18px; margin-top: 36px; margin-bottom: 4px; }
-    .part-num { font-size: 22pt; font-weight: 900; opacity: 0.6; line-height: 1; }
-    .part-title { font-size: 14pt; font-weight: 800; }
-    .part-sub { font-size: 9pt; opacity: 0.75; margin-top: 2px; }
-    .section { margin-top: 22px; }
-    h2 { font-size: 13pt; font-weight: 800; color: #4c1d95; border-bottom: 2px solid #ede9fe; padding-bottom: 5px; margin-bottom: 10px; }
-    table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
-    th { background: #f5f3ff; padding: 6px 9px; text-align: left; font-weight: 700; border-bottom: 1.5px solid #c4b5fd; color: #3730a3; }
-    td { padding: 5px 9px; border-bottom: 1px solid #ede9fe; vertical-align: top; }
-    tr:nth-child(even) td { background: #fdfcff; }
-    .empty { color: #bbb; font-style: italic; font-size: 10pt; padding: 6px 0; }
-    .footer { margin-top: 40px; padding-top: 10px; border-top: 1px solid #eee; font-size: 8pt; color: #bbb; text-align: center; margin-bottom: 100px; }
-    .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 20px 20px; background: rgba(255,255,255,0.97); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-top: 1.5px solid #ede9fe; }
-    .tip { font-size: 9pt; color: #5b21b6; margin-bottom: 10px; line-height: 1.45; }
-    .tip b { font-weight: 800; }
-    .print-btn { display: block; width: 100%; background: #7c3aed; color: #fff; border: none; border-radius: 16px; padding: 14px 28px; font-size: 14pt; font-weight: 700; cursor: pointer; box-shadow: 0 4px 16px rgba(124,58,237,0.3); text-align: center; }
-    .print-btn:hover { background: #6d28d9; }
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      font-size: 9.5pt;
+      color: #1e293b;
+      background: #fff;
+      padding: 20px 24px 120px;
+      max-width: 820px;
+      margin: 0 auto;
+    }
+
+    /* ── Cover ── */
+    .cover {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 16px;
+      background: linear-gradient(135deg, #0056D2 0%, #2563eb 100%);
+      border-radius: 14px; color: #fff; margin-bottom: 10px;
+    }
+    .cover-avatar {
+      width: 46px; height: 46px; flex-shrink: 0;
+      background: rgba(255,255,255,0.18); border-radius: 12px;
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
+    }
+    .cover-info { flex: 1; }
+    .cover-name { font-size: 18pt; font-weight: 900; line-height: 1.1; }
+    .cover-meta { font-size: 8.5pt; color: rgba(255,255,255,0.8); margin-top: 2px; }
+    .cover-date { font-size: 7pt; color: rgba(255,255,255,0.5); margin-top: 3px; }
+    .petmol-tag {
+      align-self: flex-start;
+      font-size: 7pt; font-weight: 800; letter-spacing: 0.1em;
+      text-transform: uppercase; color: rgba(255,255,255,0.55);
+      background: rgba(255,255,255,0.12); padding: 3px 7px; border-radius: 5px;
+    }
+
+    /* ── Section card ── */
+    .sec { margin-bottom: 7px; }
+    .sec-hdr {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 9px; border-radius: 8px; margin-bottom: 2px;
+      border-left: 3px solid currentColor;
+    }
+    .sec-icon { font-size: 12px; line-height: 1; }
+    .sec-title { font-size: 10pt; font-weight: 800; }
+    .sec-count { font-size: 7pt; font-weight: 600; opacity: 0.6; margin-left: auto; }
+
+    .hdr-v { background: #f5f3ff; color: #5b21b6; }
+    .hdr-g { background: #ecfdf5; color: #065f46; }
+    .hdr-c { background: #ecfeff; color: #0e7490; }
+    .hdr-b { background: #eff6ff; color: #1d4ed8; }
+    .hdr-s { background: #f8fafc; color: #334155; }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+    th {
+      background: #f8fafc; padding: 3px 7px; text-align: left;
+      font-weight: 700; font-size: 7pt; color: #64748b;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      border-bottom: 1.5px solid #e2e8f0;
+    }
+    td { padding: 3.5px 7px; border-bottom: 1px solid #f1f5f9; vertical-align: top; line-height: 1.3; }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .empty { color: #94a3b8; font-style: italic; }
+
+    /* Docs table specifics */
+    .cat-row td { padding: 4px 7px 2px; background: #f8fafc !important; border-bottom: none; }
+    .cat-label { font-size: 7.5pt; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; }
+    .doc-date { color: #64748b; width: 80px; }
+    .doc-name { font-weight: 600; }
+    .doc-estab { color: #94a3b8; width: 120px; font-size: 8pt; }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 10px; padding-top: 7px; border-top: 1px solid #e2e8f0;
+      display: flex; justify-content: space-between;
+      font-size: 7pt; color: #94a3b8;
+    }
+
+    /* ── FAB bar (screen only) ── */
+    .fab-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      padding: 10px 18px 18px;
+      background: rgba(255,255,255,0.97);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      border-top: 1px solid #e2e8f0;
+    }
+    .fab-tip { font-size: 8pt; color: #0056D2; margin-bottom: 7px; line-height: 1.4; }
+    .fab-tip b { font-weight: 800; }
+    .fab {
+      display: block; width: 100%;
+      background: #0056D2; color: #fff; border: none;
+      border-radius: 13px; padding: 13px 20px;
+      font-size: 12pt; font-weight: 700; cursor: pointer; text-align: center;
+    }
+    .fab:hover { background: #004ab5; }
   </style>
 </head>
 <body>
+
   <div class="cover">
-    <div class="pet-name">🐾 ${pet.pet_name}</div>
-    <div class="pet-meta">${[species, pet.breed, pet.birth_date ? `Nascido(a) em ${fmtDate(pet.birth_date)}` : ''].filter(Boolean).join(' · ')}</div>
-    <div class="export-date">Exportado em ${now} via Petmol</div>
+    <div class="cover-avatar">${petEmoji}</div>
+    <div class="cover-info">
+      <div class="cover-name">${pet.pet_name}</div>
+      <div class="cover-meta">${[species, pet.breed, pet.birth_date ? `Nascido(a) em ${fmtDate(pet.birth_date)}` : ''].filter(Boolean).join(' · ')}</div>
+      <div class="cover-date">Exportado em ${now}</div>
+    </div>
+    <div class="petmol-tag">PETMOL</div>
   </div>
 
-  ${partHeader('1', 'Eventos registrados pelo Petmol', 'Gerados automaticamente pelos fluxos do app')}
-  ${section('Vacinas', '💉', vacTable)}
-  ${section('Controle Antiparasitário', '🦟', parTable)}
-  ${section('Banho e Tosa', '🛁', groomTable)}
-  ${section('Consultas e Eventos', '🩺', evtTable)}
-
-  ${partHeader('2', 'Documentos enviados pelo tutor', 'Arquivos e documentos adicionados manualmente pelo responsável')}
-  <div class="section">${docsCatSections}</div>
-
-  <div class="footer">Petmol · Histórico completo de ${pet.pet_name} · ${now}</div>
-
-  <div class="bottom-bar no-print">
-    <p class="tip">📲 Para enviar ao WhatsApp: toque em <b>Gerar PDF</b> → na janela de impressão, toque em <b>Compartilhar ⬆️</b> no canto superior → escolha WhatsApp</p>
-    <button class="print-btn" onclick="window.print()">🖨️ Gerar PDF / Compartilhar</button>
+  <div class="sec">
+    <div class="sec-hdr hdr-v">
+      <span class="sec-icon">💉</span>
+      <span class="sec-title">Vacinas</span>
+      <span class="sec-count">${pl(sortedVac.length, 'registro')}</span>
+    </div>
+    ${vacTable}
   </div>
+
+  <div class="sec">
+    <div class="sec-hdr hdr-g">
+      <span class="sec-icon">🦟</span>
+      <span class="sec-title">Controle Antiparasitário</span>
+      <span class="sec-count">${pl(sortedPar.length, 'registro')}</span>
+    </div>
+    ${parTable}
+  </div>
+
+  <div class="sec">
+    <div class="sec-hdr hdr-c">
+      <span class="sec-icon">🛁</span>
+      <span class="sec-title">Banho e Tosa</span>
+      <span class="sec-count">${pl(sortedGroom.length, 'registro')}</span>
+    </div>
+    ${groomTable}
+  </div>
+
+  <div class="sec">
+    <div class="sec-hdr hdr-b">
+      <span class="sec-icon">🩺</span>
+      <span class="sec-title">Consultas e Eventos</span>
+      <span class="sec-count">${pl(filteredEvts.length, 'registro')}</span>
+    </div>
+    ${evtTable}
+  </div>
+
+  <div class="sec">
+    <div class="sec-hdr hdr-s">
+      <span class="sec-icon">📁</span>
+      <span class="sec-title">Documentos</span>
+      <span class="sec-count">${pl(docs.length, 'arquivo')}</span>
+    </div>
+    <table>
+      <thead>${row(['Data', 'Título', 'Estabelecimento'], true)}</thead>
+      <tbody>${docsContent}</tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    <span>PETMOL · Histórico de ${pet.pet_name}</span>
+    <span>${now}</span>
+  </div>
+
+  <div class="fab-bar no-print">
+    <p class="fab-tip">Para enviar ao WhatsApp: toque em <b>Gerar PDF</b> → no preview de impressão, toque em <b>Compartilhar ⬆️</b> → escolha WhatsApp</p>
+    <button class="fab" onclick="window.print()">🖨️ Gerar PDF</button>
+  </div>
+
 </body>
 </html>`;
 
   try {
-    // Usar about:blank + document.write para evitar blob: URL na barra de endereços.
-    // Blob URLs são efêmeras: se o usuário compartilhar a aba pelo share sheet do iOS,
-    // o WhatsApp recebe a blob: URL e não consegue acessá-la remotamente → erro de envio.
     const win = window.open('about:blank', '_blank');
     if (win) {
       win.document.open();
       win.document.write(html);
       win.document.close();
     } else {
-      // Popup bloqueado — fallback: download do HTML
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
