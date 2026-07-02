@@ -100,6 +100,25 @@ function EstablishmentInput({
   );
 }
 
+// ── Auto-title helper ────────────────────────────────────────────────────────
+
+const CATEGORY_TITLE_MAP: Record<string, string> = {
+  exam: 'EXAME',
+  prescription: 'RECEITA',
+  vaccine: 'VACINA',
+  report: 'LAUDO',
+  comprovante: 'COMPROVANTE',
+  other: 'DOCUMENTO',
+};
+
+function autoDocTitle(category: string, dateISO: string, idx: number, total: number): string {
+  const base = CATEGORY_TITLE_MAP[category] ?? 'DOCUMENTO';
+  const [y, m, d] = dateISO.split('-');
+  const dateBR = y && m && d ? `${d}/${m}/${y}` : '';
+  const seq = total > 1 ? ` (${idx + 1}/${total})` : '';
+  return dateBR ? `${base} ${dateBR}${seq}` : `${base}${seq}`;
+}
+
 // ── Main component ──────────────────────────────────────────────────────────
 
 export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategory, hideCategoryTabs, pendingFiles, onFilesConsumed }: PetDocumentVaultProps) {
@@ -498,16 +517,20 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
 
         // Always show BatchConfirm so user names & confirms the entire batch at once
         if (created.length > 0) {
-          const batchDocs: BatchDocItem[] = created.map((d, index) => ({
-            id: d.id,
-            title: d.title || '',
-            category: d.category || 'other',
-            icon: d.icon || '📄',
-            mime_type: d.mime_type || null,
-            // Use original filename — API title is often a storage key (UUID), not human-readable
-            customTitle: fileNames[index] ?? 'DOCUMENTO',
-            customCategory: hideCategoryTabs && initialCategory ? initialCategory : (d.category || 'other'),
-          }));
+          const uploadDate = fileDate || localTodayISO();
+          const batchDocs: BatchDocItem[] = created.map((d, index) => {
+            const cat = hideCategoryTabs && initialCategory ? initialCategory : (d.category || 'other');
+            return {
+              id: d.id,
+              title: d.title || '',
+              category: d.category || 'other',
+              icon: d.icon || '📄',
+              mime_type: d.mime_type || null,
+              customTitle: autoDocTitle(cat, uploadDate, index, created.length),
+              customCategory: cat,
+              isAutoTitle: true,
+            };
+          });
 
           setBatchConfirm({
             docs: batchDocs,
@@ -1450,7 +1473,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                     : `Confirmar ${batchConfirm.docs.length} documentos`}
                 </h4>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Confirme a data e dê um nome ao documento.
+                  Confirme a data — nome gerado automaticamente.
                 </p>
               </div>
               <button
@@ -1476,7 +1499,19 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                     type="date"
                     value={batchConfirm.sharedDate}
                     onChange={(e) =>
-                      setBatchConfirm((prev) => prev ? { ...prev, sharedDate: e.target.value } : prev)
+                      setBatchConfirm((prev) => {
+                        if (!prev) return prev;
+                        const newDate = e.target.value;
+                        return {
+                          ...prev,
+                          sharedDate: newDate,
+                          docs: prev.docs.map((d, i) =>
+                            d.isAutoTitle
+                              ? { ...d, customTitle: autoDocTitle(d.customCategory, newDate, i, prev.docs.length) }
+                              : d
+                          ),
+                        };
+                      })
                     }
                     className="w-full border-2 border-amber-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-amber-50"
                   />
@@ -1508,9 +1543,11 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                   <div key={item.id} className="space-y-1.5">
                     <label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
                       <span>{item.icon}</span>
-                      {batchConfirm.docs.length > 1
-                        ? `Nome do documento #${idx + 1}`
-                        : 'Nome do documento'}
+                      {item.isAutoTitle
+                        ? 'Nome (gerado automaticamente — toque para editar)'
+                        : batchConfirm.docs.length > 1
+                          ? `Nome do documento #${idx + 1}`
+                          : 'Nome do documento'}
                     </label>
                     <input
                       type="text"
@@ -1520,13 +1557,17 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                           prev ? {
                             ...prev,
                             docs: prev.docs.map((d) =>
-                              d.id === item.id ? { ...d, customTitle: e.target.value } : d
+                              d.id === item.id ? { ...d, customTitle: e.target.value, isAutoTitle: false } : d
                             ),
                           } : prev
                         )
                       }
                       placeholder="Ex: EXAME DE SANGUE"
-                      className="w-full border-2 border-amber-300 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-400 bg-amber-50 uppercase"
+                      className={`w-full border-2 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 uppercase ${
+                        item.isAutoTitle
+                          ? 'border-green-300 bg-green-50 focus:ring-green-400 text-green-900'
+                          : 'border-amber-300 bg-amber-50 focus:ring-amber-400'
+                      }`}
                     />
                     {!hideCategoryTabs && (
                     <div className="mt-2">
@@ -1538,7 +1579,11 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                               ...prev,
                               docs: prev.docs.map((d) =>
                                 d.id === item.id
-                                  ? { ...d, customCategory: e.target.value }
+                                  ? {
+                                      ...d,
+                                      customCategory: e.target.value,
+                                      ...(d.isAutoTitle ? { customTitle: autoDocTitle(e.target.value, prev.sharedDate, idx, prev.docs.length) } : {}),
+                                    }
                                   : d
                               ),
                             } : prev

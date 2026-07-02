@@ -25,6 +25,7 @@ export interface BatchDocItem {
   mime_type: string | null;
   customTitle: string;
   customCategory: string;
+  isAutoTitle: boolean;
 }
 
 export interface BatchConfirm {
