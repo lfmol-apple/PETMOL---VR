@@ -6,6 +6,27 @@ import { getToken } from '@/lib/auth-token';
 import { normalizeBackendPetProfiles } from '@/lib/backendPetProfile';
 import type { PetHealthProfile } from '@/lib/petHealth';
 
+/** Re-envia a subscription de push ao backend uma vez por sessão do browser.
+ *  Garante que o servidor sempre tem um endpoint válido mesmo após deploys. */
+async function syncPushSubscriptionOnce(token: string): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  if (Notification.permission !== 'granted') return;
+  const SESSION_KEY = 'petmol_push_synced';
+  if (sessionStorage.getItem(SESSION_KEY)) return;
+  sessionStorage.setItem(SESSION_KEY, '1');
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) return;
+    await fetch(`${API_BASE_URL}/notifications/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    });
+  } catch { /* silent — push sync nunca bloqueia o boot */ }
+}
+
 export function usePetBootstrap() {
   const router = useRouter();
   const { tutor, token, isLoading, isAuthenticated } = useAuth();
@@ -92,9 +113,8 @@ export function usePetBootstrap() {
           } else {
             if (response.status === 401 || response.status === 403) {
               router.replace('/login');
-            } else {
-              router.push('/register-pet');
             }
+            // Erros genéricos (5xx, etc.) — não redirecionar; manter tela atual
           }
         } catch {
           // Erro de rede — usuário está logado, não deslogar; manter na tela atual
@@ -119,6 +139,8 @@ export function usePetBootstrap() {
       localStorage.removeItem('petmol_pets');
       localStorage.removeItem('pet_health_profiles');
       localStorage.removeItem('petmol_cached_pets');
+
+      void syncPushSubscriptionOnce(token);
 
       try {
         const tutorResponse = await fetch(`${API_BASE_URL}/auth/me`, {
