@@ -1749,6 +1749,7 @@ function HomePageInner() {
           handleImportAnalyzedVaccines={handleImportAnalyzedVaccines}
           importVaccineLoading={importVaccineLoading}
           reviewConfirmed={reviewConfirmed}
+          onGoHome={() => { closeVaccineSheet(); }}
         />
       )}
 

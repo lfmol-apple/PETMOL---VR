@@ -43,6 +43,7 @@ interface VaccineWorkflowModalsProps {
   handleImportAnalyzedVaccines: () => Promise<void>;
   importVaccineLoading: boolean;
   reviewConfirmed: boolean;
+  onGoHome: () => void;
 }
 
 export function VaccineWorkflowModals({
@@ -73,11 +74,13 @@ export function VaccineWorkflowModals({
   handleImportAnalyzedVaccines,
   importVaccineLoading,
   reviewConfirmed,
+  onGoHome,
 }: VaccineWorkflowModalsProps) {
   const { t } = useI18n();
   const [toast, setToast] = useState<string | null>(null);
   const [customProductIndex, setCustomProductIndex] = useState<number | null>(null);
   const [customProductName, setCustomProductName] = useState('');
+  const [justImported, setJustImported] = useState(false);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -414,9 +417,36 @@ export function VaccineWorkflowModals({
         </div>
       )}
 
-      {cardAnalysis && (
+      {(cardAnalysis || justImported) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-[70]">
           <div className="p-4 sm:p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 overflow-hidden">
+
+            {/* SUCCESS SCREEN */}
+            {justImported ? (
+              <div className="py-6 flex flex-col items-center gap-5 text-center">
+                <div className="text-5xl">✅</div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-1">Vacinas importadas!</h3>
+                  <p className="text-sm text-gray-500">O prontuário do pet foi atualizado.</p>
+                </div>
+                <button
+                  onClick={onGoHome}
+                  className="w-full rounded-2xl bg-blue-600 py-3.5 text-[15px] font-black text-white shadow-md shadow-blue-500/20 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                  Ir para a home
+                </button>
+                <button
+                  onClick={() => { setJustImported(false); closeCardAnalysis(); }}
+                  className="text-sm text-gray-400 underline"
+                >
+                  Ver prontuário de vacinas
+                </button>
+              </div>
+            ) : (
+            <>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold">
                 {reviewRegistros.length} vacina{reviewRegistros.length !== 1 ? 's' : ''} encontrada{reviewRegistros.length !== 1 ? 's' : ''}
@@ -430,7 +460,7 @@ export function VaccineWorkflowModals({
             </div>
 
             <div className="space-y-4">
-              {!cardAnalysis.leitura_confiavel && (
+              {cardAnalysis && !cardAnalysis.leitura_confiavel && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
                   ⚠️ Leitura parcial — revise os dados antes de importar.
                 </div>
@@ -652,7 +682,10 @@ export function VaccineWorkflowModals({
 
               <div className="flex gap-3">
                 <button
-                  onClick={handleImportAnalyzedVaccines}
+                  onClick={async () => {
+                    await handleImportAnalyzedVaccines();
+                    setJustImported(true);
+                  }}
                   disabled={importVaccineLoading || !reviewConfirmed || reviewRegistros.some((record) => !record.data_aplicacao)}
                   className={`flex-1 px-4 py-3 rounded-xl font-semibold text-sm ${
                     importVaccineLoading || !reviewConfirmed || reviewRegistros.some((record) => !record.data_aplicacao)
@@ -670,6 +703,8 @@ export function VaccineWorkflowModals({
                 </button>
               </div>
             </div>
+            </>
+            )}
           </div>
         </div>
       )}
