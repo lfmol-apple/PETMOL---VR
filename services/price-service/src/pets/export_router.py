@@ -519,7 +519,9 @@ def _build_content(pdf, vaccines, parasites, grooming, events, documents, min_da
             pdf.set_text_color(*_DARK)
             # Linhas
             for i, d in enumerate(items):
-                date_str = _fmt(d.document_date) if d.document_date else ""
+                from datetime import timezone as _tz
+                doc_dt = datetime(d.document_date.year, d.document_date.month, d.document_date.day, tzinfo=_tz.utc) if d.document_date else None
+                date_str, _ = _resolve_date(doc_dt, d.created_at, min_date)
                 estab = _s(d.establishment_name or "")
                 right_col = " | ".join(filter(None, [date_str, estab])) or "-"
                 _row(pdf, [d.title or "-", right_col], ws, alt=i % 2 == 1)
