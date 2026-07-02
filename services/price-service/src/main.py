@@ -360,6 +360,10 @@ app.include_router(handoff_partner_router)
 from .pets.vaccine_router import router as vaccine_router
 app.include_router(vaccine_router)
 
+# Include PDF export router
+from .pets.export_router import router as pet_export_router
+app.include_router(pet_export_router)
+
 # Include parasite + grooming CRUD routers
 from .pets.parasite_router import router as parasite_router
 from .pets.grooming_router import router as grooming_router
