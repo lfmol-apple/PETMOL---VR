@@ -65,6 +65,7 @@ export interface VaccineItemSheetProps {
   petPhotoUrl?: string | null;
   vaccines: VaccineRecord[];
   onClose: () => void;
+  onGoHome?: () => void;
   onQuickAdd: () => void;
   onFullFormVaccine: (prefill: Partial<VaccineFormData>) => void;
   onDirectSaveVaccine?: (vaccine: { type: VaccineType; name: string; icon: string; code: string }, when: 'today' | 'this_month' | 'unknown') => Promise<void>;
@@ -87,6 +88,7 @@ export function VaccineItemSheet({
   petPhotoUrl,
   vaccines,
   onClose,
+  onGoHome,
   onQuickAdd,
   onFullFormVaccine,
   onDirectSaveVaccine,
@@ -113,6 +115,7 @@ export function VaccineItemSheet({
   const [toast, setToast] = useState<string | null>(null);
   const [savingChip, setSavingChip] = useState<string | null>(null);
   const [savedChip, setSavedChip] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -174,7 +177,7 @@ export function VaccineItemSheet({
       try {
         await onDirectSaveVaccine({ type: chip.type as VaccineType, name: chip.name, icon: chip.icon, code: chip.code }, 'today');
         setSavedChip(chip.code);
-        setTimeout(() => { setSavedChip(null); setSavingChip(null); onClose(); }, 1500);
+        setTimeout(() => { setSavedChip(null); setSavingChip(null); setJustSaved(true); }, 800);
       } catch {
         setSavingChip(null);
         showToast('Erro ao registrar. Tente novamente.');
@@ -224,6 +227,28 @@ export function VaccineItemSheet({
         style={{ maxHeight: '92dvh' }}
         onClick={e => e.stopPropagation()}
       >
+        {/* Success overlay */}
+        {justSaved && (
+          <div className="absolute inset-0 bg-white z-20 flex flex-col items-center justify-center gap-6 text-center p-8 rounded-[32px]">
+            <div className="text-6xl">✅</div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900 mb-1">Vacina registrada!</h3>
+              <p className="text-sm text-gray-500">O prontuário do pet foi atualizado.</p>
+            </div>
+            <button
+              onClick={() => onGoHome?.()}
+              className="w-full rounded-2xl bg-blue-600 py-3.5 text-[15px] font-black text-white shadow-md shadow-blue-500/20 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+              Ir para a home
+            </button>
+            <button onClick={() => setJustSaved(false)} className="text-sm text-gray-400 underline">
+              Ver prontuário
+            </button>
+          </div>
+        )}
 
         {/* Header */}
         <div className="px-5 pt-4 pb-3 bg-white border-b border-sky-100 flex-shrink-0">

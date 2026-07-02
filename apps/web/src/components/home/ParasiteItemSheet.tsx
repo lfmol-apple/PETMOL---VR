@@ -123,6 +123,7 @@ interface ParasiteItemSheetProps {
   parasiteControls: ParasiteControl[];
   onClose: () => void;
   onRefresh: () => Promise<void>;
+  onGoHome?: () => void;
   initialMode?: 'view' | 'buy';
 }
 
@@ -138,6 +139,7 @@ export function ParasiteItemSheet({
   parasiteControls,
   onClose,
   onRefresh,
+  onGoHome,
   initialMode,
 }: ParasiteItemSheetProps) {
   const cfg = CONFIG[type];
@@ -148,6 +150,7 @@ export function ParasiteItemSheet({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [historyExpanded, setHistoryExpanded] = useState(true);
   const [historyShowAll, setHistoryShowAll] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
 
   useEffect(() => {
     void onRefresh();
@@ -309,7 +312,6 @@ export function ParasiteItemSheet({
           });
         }
 
-        showToast('✅ Registrado com sucesso!');
         const pushType = (type === 'flea_tick' ? 'flea' : type) as 'dewormer' | 'flea' | 'collar';
         void scheduleUniqueReminder(
           { pet_id: petId, type: pushType, title: `${cfg.icon} ${cfg.title}`, body: `Verificar ${applyForm.product_name}`, remind_at: buildRemindAt(addDays(computedNext, -(parseInt(applyForm.reminder_days) || 3)), applyForm.reminder_time) },
@@ -330,6 +332,7 @@ export function ParasiteItemSheet({
           }
         } catch { /* silent */ }
         await onRefresh();
+        setJustSaved(true);
       } else {
         showToast('❌ Erro ao salvar. Tente novamente.');
       }
@@ -447,6 +450,29 @@ export function ParasiteItemSheet({
         className="relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-[28px] shadow-2xl border-t border-x sm:border border-gray-200/70 flex flex-col overflow-hidden animate-slideUp sm:animate-scaleIn h-[90vh] sm:h-auto sm:max-h-[90dvh]"
         onClick={e => e.stopPropagation()}
       >
+        {/* Success overlay */}
+        {justSaved && (
+          <div className="absolute inset-0 bg-white z-20 flex flex-col items-center justify-center gap-6 text-center p-8">
+            <div className="text-6xl">✅</div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900 mb-1">{cfg.title} registrado!</h3>
+              <p className="text-sm text-gray-500">O prontuário do pet foi atualizado.</p>
+            </div>
+            <button
+              onClick={() => onGoHome?.()}
+              className="w-full rounded-2xl bg-blue-600 py-3.5 text-[15px] font-black text-white shadow-md shadow-blue-500/20 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+              Ir para a home
+            </button>
+            <button onClick={() => setJustSaved(false)} className="text-sm text-gray-400 underline">
+              Ver prontuário
+            </button>
+          </div>
+        )}
+
         {/* Prime Handle Bar (Desktop/Mobile) */}
         <div className="sheet-handle my-3 opacity-40" />
 

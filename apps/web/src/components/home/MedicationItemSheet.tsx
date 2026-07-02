@@ -100,6 +100,7 @@ export interface MedicationItemSheetProps {
   petEvents: PetEventRecord[];
   onClose: () => void;
   onRefresh: () => Promise<void>;
+  onGoHome?: () => void;
   initialMode?: 'view' | 'buy';
 }
 
@@ -118,6 +119,7 @@ export function MedicationItemSheet({
   petEvents,
   onClose,
   onRefresh,
+  onGoHome,
   initialMode,
 }: MedicationItemSheetProps) {
   const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
@@ -126,6 +128,7 @@ export function MedicationItemSheet({
   const [form, setForm] = useState<MedForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
   const [medHistoryExpanded, setMedHistoryExpanded] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [expandedTreatmentId, setExpandedTreatmentId] = useState<string | null>(null);
@@ -355,6 +358,7 @@ export function MedicationItemSheet({
         setMode('view');
         setEditingId(null);
         await onRefresh();
+        setJustSaved(true);
       } else {
         const err = await res.json().catch(() => ({}));
         showToast('❌ Erro ao salvar: ' + (err.detail || res.status));
@@ -473,7 +477,28 @@ export function MedicationItemSheet({
         style={{ maxHeight: '92dvh' }}
         onClick={e => e.stopPropagation()}
       >
-
+        {/* Success overlay */}
+        {justSaved && (
+          <div className="absolute inset-0 bg-white z-20 flex flex-col items-center justify-center gap-6 text-center p-8 rounded-[32px]">
+            <div className="text-6xl">✅</div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900 mb-1">Medicação registrada!</h3>
+              <p className="text-sm text-gray-500">O prontuário do pet foi atualizado.</p>
+            </div>
+            <button
+              onClick={() => onGoHome?.()}
+              className="w-full rounded-2xl bg-blue-600 py-3.5 text-[15px] font-black text-white shadow-md shadow-blue-500/20 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+              Ir para a home
+            </button>
+            <button onClick={() => setJustSaved(false)} className="text-sm text-gray-400 underline">
+              Ver prontuário
+            </button>
+          </div>
+        )}
 
         {/* Header */}
         <div className="px-5 pt-4 pb-3 bg-white border-b border-purple-100 flex-shrink-0">
@@ -521,16 +546,18 @@ export function MedicationItemSheet({
                 </svg>
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={onClose}
-                className="relative z-10 pointer-events-auto w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
-                aria-label="Fechar"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
-                  <path d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="relative z-10 pointer-events-auto w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
+                  aria-label="Fechar"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
+                    <path d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             )}
           </div>
         </div>
