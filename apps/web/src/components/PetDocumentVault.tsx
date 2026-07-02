@@ -17,7 +17,7 @@ import type {
   EditingDoc,
   PetDocumentVaultProps,
 } from '@/features/documents/types';
-import { fmtBytes, fmtDate } from '@/features/documents/utils';
+import { fmtBytes, fmtDate, resolveDocDate } from '@/features/documents/utils';
 import { loadImageElement, buildPdfFromJpeg, convertImageFileToPdf } from '@/features/documents/fileProcessing';
 
 
@@ -1896,7 +1896,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                         {doc.title || 'Documento'}
                       </p>
                       <p className="m-0 mt-0.5 text-xs font-semibold text-slate-500 truncate">
-                        {doc.document_date ? fmtDate(doc.document_date) : 'Sem data'}
+                        {fmtDate(resolveDocDate(doc.document_date, doc.created_at)) || 'Sem data'}
                         {doc.establishment_name ? ` · ${doc.establishment_name}` : ''}
                       </p>
                     </div>

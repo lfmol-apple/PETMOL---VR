@@ -14,6 +14,18 @@ export function fmtDate(s: string | null): string {
   }
 }
 
+/** Returns document_date if plausible (>= 2010), otherwise falls back to created_at. */
+export function resolveDocDate(documentDate: string | null, createdAt: string): string | null {
+  if (!documentDate) return createdAt;
+  try {
+    const year = new Date(documentDate).getFullYear();
+    if (year >= 2010) return documentDate;
+  } catch {
+    // malformed date — fall through
+  }
+  return createdAt;
+}
+
 export function replaceFileExtension(fileName: string, ext: string): string {
   const base = fileName.replace(/\.[^/.]+$/, '');
   return `${base || 'documento'}${ext}`;

@@ -162,11 +162,22 @@ export function fmtVaultDate(s: string | null): string {
   }
 }
 
+function resolveVaultDocDate(documentDate: string | null, createdAt: string): string {
+  if (!documentDate) return createdAt;
+  try {
+    const year = new Date(documentDate).getFullYear();
+    if (year >= 2010) return documentDate;
+  } catch {
+    // malformed — fall through
+  }
+  return createdAt;
+}
+
 /** Group documents by calendar month label (pt-BR), same logic as previous inline useMemo. */
 export function groupVaultDocumentsByMonth(docs: VaultPetDocument[]): Array<[string, VaultPetDocument[]]> {
   const groups = new Map<string, VaultPetDocument[]>();
   docs.forEach((doc) => {
-    const dateKey = doc.document_date || doc.created_at;
+    const dateKey = resolveVaultDocDate(doc.document_date, doc.created_at);
     let label = 'Sem data';
     try {
       const dk = dateKey.trim();
