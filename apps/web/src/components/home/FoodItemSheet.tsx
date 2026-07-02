@@ -226,6 +226,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
   const [showDetails, setShowDetails]             = useState(false);
   const [photoLoadFailed, setPhotoLoadFailed]     = useState(false);
   const [successMessage, setSuccessMessage]       = useState<string | null>(null);
+  const [justSaved, setJustSaved]                 = useState(false);
   const [selectedDays, setSelectedDays]           = useState(7);
   const [hasFoodConfigured, setHasFoodConfigured] = useState(false);
   const [alertDaysBefore, setAlertDaysBefore]     = useState<number | null>(null);
@@ -281,6 +282,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
     clearSuccessMessageTimer();
     setMode('view');
     setSubMode('main');
+    setJustSaved(true);
 
     setFeedback(null);
     setSuccessMessage(`✅ ${message}`);
@@ -862,6 +864,22 @@ export function FoodItemSheet({ pet, onClose, onSaved, initialMode, petPhotoUrl,
                   <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-900">
                     {successMessage}
                   </div>
+                </div>
+              )}
+
+              {/* Go-home button — shown after saving, persists until user navigates */}
+              {justSaved && (
+                <div className="flex-shrink-0 px-4 pb-2">
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    className="w-full rounded-2xl bg-blue-600 py-3.5 text-[15px] font-black text-white shadow-md shadow-blue-500/20 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+                    </svg>
+                    Ir para a home
+                  </button>
                 </div>
               )}
 
