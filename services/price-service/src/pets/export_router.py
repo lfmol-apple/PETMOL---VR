@@ -265,7 +265,7 @@ def _build_cover(pdf: _PDF, pet: Pet, n_vac: int, n_par: int, n_groom: int, n_ev
     for i, (cnt, lbl) in enumerate(cards):
         cx = x0 + i * (cw + cgap)
         pdf.set_fill_color(*_WHITE)
-        pdf.rounded_rect(cx, 100, cw, 26, 3, "F")
+        pdf.rect(cx, 100, cw, 26, "F", round_corners=True, corner_radius=3)
         pdf.set_xy(cx, 105)
         pdf.set_font("Helvetica", "B", 14)
         pdf.set_text_color(*_BLUE)
