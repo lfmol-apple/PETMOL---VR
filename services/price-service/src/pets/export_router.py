@@ -80,6 +80,26 @@ def _fmt(dt) -> str:
         return str(dt)
 
 
+def _resolve_date(primary, fallback, min_date) -> tuple:
+    """Retorna (data_formatada, eh_aproximada).
+    Se a data primária for anterior a min_date, usa created_at como aproximação."""
+    from datetime import timezone
+    def _aware(dt):
+        if dt is None:
+            return None
+        if hasattr(dt, 'tzinfo') and dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt
+
+    p = _aware(primary)
+    if p is not None and p >= min_date:
+        return _fmt(p), False
+    f = _aware(fallback)
+    if f is not None:
+        return _fmt(f) + "*", True
+    return "-", False
+
+
 def _trunc(text: str, n: int) -> str:
     if len(text) <= n:
         return text
@@ -169,7 +189,9 @@ def export_pet_pdf(
     if not pet:
         raise HTTPException(status_code=404, detail="Pet nao encontrado")
 
-    # Data mínima: nascimento do pet, ou 2010 como piso absoluto
+    # Data mínima válida: nascimento do pet (ou 2010 como piso absoluto)
+    # Registros com data anterior a esse limite têm a data substituída por created_at,
+    # mas NÃO são descartados — o dado é real, só a data estava errada.
     from datetime import timezone
     _floor = datetime(2010, 1, 1, tzinfo=timezone.utc)
     if pet.birth_date:
@@ -180,29 +202,19 @@ def export_pet_pdf(
 
     vaccines = (
         db.query(VaccineRecord)
-        .filter(
-            VaccineRecord.pet_id == pet_id,
-            VaccineRecord.deleted_at.is_(None),
-            VaccineRecord.applied_date >= min_date,
-        )
+        .filter(VaccineRecord.pet_id == pet_id, VaccineRecord.deleted_at.is_(None))
         .order_by(VaccineRecord.applied_date.desc())
         .all()
     )
     parasites = (
         db.query(ParasiteControlRecord)
-        .filter(
-            ParasiteControlRecord.pet_id == pet_id,
-            ParasiteControlRecord.date_applied >= min_date,
-        )
+        .filter(ParasiteControlRecord.pet_id == pet_id)
         .order_by(ParasiteControlRecord.date_applied.desc())
         .all()
     )
     grooming = (
         db.query(GroomingRecord)
-        .filter(
-            GroomingRecord.pet_id == pet_id,
-            GroomingRecord.date >= min_date,
-        )
+        .filter(GroomingRecord.pet_id == pet_id)
         .order_by(GroomingRecord.date.desc())
         .all()
     )
@@ -214,7 +226,6 @@ def export_pet_pdf(
             Event.deleted_at.is_(None),
             Event.source != "document",
             Event.type.notin_(list(_DEDUP_EVENT_TYPES)),
-            Event.scheduled_at >= min_date,
         )
         .order_by(Event.scheduled_at.desc())
         .limit(60)
@@ -229,7 +240,7 @@ def export_pet_pdf(
 
     pdf = _PDF(pet.name)
     _build_cover(pdf, pet, len(vaccines), len(parasites), len(grooming), len(events), len(documents))
-    _build_content(pdf, vaccines, parasites, grooming, events, documents)
+    _build_content(pdf, vaccines, parasites, grooming, events, documents, min_date)
 
     pdf_bytes = bytes(pdf.output())
     safe = pet.name.lower().replace(" ", "-").encode("ascii", errors="ignore").decode()
@@ -400,7 +411,7 @@ _CAT_LABELS = {
 }
 
 
-def _build_content(pdf, vaccines, parasites, grooming, events, documents):
+def _build_content(pdf, vaccines, parasites, grooming, events, documents, min_date):
     pdf.add_page()
 
     # ── Vacinas ──────────────────────────────────────────────────────────
@@ -413,8 +424,9 @@ def _build_content(pdf, vaccines, parasites, grooming, events, documents):
         for i, v in enumerate(vaccines):
             notes = _s(v.notes or "")
             if v.clinic_name:
-                notes = _s(v.clinic_name) + (f" | {notes}" if notes and notes != "—" else "")
-            _row(pdf, [v.vaccine_name or "", _fmt(v.applied_date), _fmt(v.next_dose_date), notes or "-"], ws, alt=i % 2 == 1)
+                notes = _s(v.clinic_name) + (f" | {notes}" if notes else "")
+            date_str, _ = _resolve_date(v.applied_date, v.created_at, min_date)
+            _row(pdf, [v.vaccine_name or "", date_str, _fmt(v.next_dose_date), notes or "-"], ws, alt=i % 2 == 1)
 
     pdf.ln(5)
 
@@ -426,10 +438,11 @@ def _build_content(pdf, vaccines, parasites, grooming, events, documents):
         ws = [42, 54, 30, 30, 26]
         _row(pdf, ["Tipo", "Produto", "Aplicado em", "Proxima dose", "Vet."], ws, header=True)
         for i, p in enumerate(parasites):
+            date_str, _ = _resolve_date(p.date_applied, p.created_at, min_date)
             _row(pdf, [
                 _PARASITE_LABELS.get(p.type, p.type),
                 p.product_name or "",
-                _fmt(p.date_applied),
+                date_str,
                 _fmt(p.next_due_date),
                 p.veterinarian or "-",
             ], ws, alt=i % 2 == 1)
@@ -444,9 +457,10 @@ def _build_content(pdf, vaccines, parasites, grooming, events, documents):
         ws = [38, 28, 68, 48]
         _row(pdf, ["Servico", "Data", "Estabelecimento", "Profissional"], ws, header=True)
         for i, g in enumerate(grooming):
+            date_str, _ = _resolve_date(g.date, g.created_at, min_date)
             _row(pdf, [
                 _GROOM_LABELS.get(g.type, g.type),
-                _fmt(g.date),
+                date_str,
                 g.location or "-",
                 g.groomer or "-",
             ], ws, alt=i % 2 == 1)
@@ -468,9 +482,10 @@ def _build_content(pdf, vaccines, parasites, grooming, events, documents):
             if ev.location_name:
                 details_parts.append(ev.location_name)
             details = " | ".join(details_parts) if details_parts else "-"
+            date_str, _ = _resolve_date(ev.scheduled_at, getattr(ev, "created_at", None), min_date)
             _row(pdf, [
                 _EVENT_LABELS.get(ev.type, ev.type),
-                _fmt(ev.scheduled_at),
+                date_str,
                 _STATUS_LABELS.get(ev.status, ev.status),
                 details,
             ], ws, alt=i % 2 == 1)
@@ -508,3 +523,9 @@ def _build_content(pdf, vaccines, parasites, grooming, events, documents):
                 estab = _s(d.establishment_name or "")
                 right_col = " | ".join(filter(None, [date_str, estab])) or "-"
                 _row(pdf, [d.title or "-", right_col], ws, alt=i % 2 == 1)
+
+    # Nota de rodapé sobre datas aproximadas
+    pdf.ln(4)
+    pdf.set_font("Helvetica", "I", 7)
+    pdf.set_text_color(*_MID)
+    pdf.cell(0, 4, "* Data aproximada (data original invalida; exibida a data de cadastro do registro).", new_x="LMARGIN", new_y="NEXT")
