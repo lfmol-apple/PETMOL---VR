@@ -211,37 +211,39 @@ export function AppleControlButtons({
               </button>
             </div>
             <div className="px-5 py-4 pb-8 space-y-2.5">
+              {/* Hospital 24h — mais urgente, aparece primeiro */}
+              <a
+                href="https://www.google.com/maps/search/hospital+veterinário+24+horas+perto+de+mim"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShowEmergencyChoice(false)}
+                className="flex items-center gap-4 p-4 bg-red-600 rounded-2xl active:scale-[0.98] transition-all shadow-lg shadow-red-600/30"
+              >
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-xl flex-shrink-0">
+                  🏨
+                </div>
+                <div className="flex-1">
+                  <p className="font-black text-white text-[15px]">Hospitais veterinários 24h</p>
+                  <p className="text-[11px] text-red-100 mt-0.5">Internação e atendimento emergencial</p>
+                </div>
+                <span className="text-white/60 text-lg">›</span>
+              </a>
+              {/* Clínica — urgente, mas menos grave */}
               <a
                 href="https://www.google.com/maps/search/clínica+veterinária+aberta+agora+perto+de+mim"
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setShowEmergencyChoice(false)}
-                className="flex items-center gap-4 p-4 bg-red-500 rounded-2xl active:scale-[0.98] transition-all shadow-lg shadow-red-500/25"
+                className="flex items-center gap-4 p-4 bg-orange-500 rounded-2xl active:scale-[0.98] transition-all shadow-md shadow-orange-500/20"
               >
                 <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-xl flex-shrink-0">
                   🏥
                 </div>
                 <div className="flex-1">
                   <p className="font-black text-white text-[15px]">Clínicas abertas agora</p>
-                  <p className="text-[11px] text-red-100 mt-0.5">Atendimento urgente próximo de você</p>
+                  <p className="text-[11px] text-orange-100 mt-0.5">Atendimento urgente próximo de você</p>
                 </div>
                 <span className="text-white/60 text-lg">›</span>
-              </a>
-              <a
-                href="https://www.google.com/maps/search/hospital+veterinário+24+horas+perto+de+mim"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setShowEmergencyChoice(false)}
-                className="flex items-center gap-4 p-4 bg-white border border-red-200 rounded-2xl active:scale-[0.98] transition-all"
-              >
-                <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-xl flex-shrink-0">
-                  🏨
-                </div>
-                <div className="flex-1">
-                  <p className="font-bold text-red-900 text-[14px]">Hospitais veterinários 24h</p>
-                  <p className="text-[11px] text-red-600/70 mt-0.5">Internação e atendimento emergencial</p>
-                </div>
-                <span className="text-red-300 text-lg">›</span>
               </a>
             </div>
           </div>
