@@ -2097,7 +2097,8 @@ export function ProductDetectionSheetGold({
     const showAutoFound = !fromHistory && !assistedConfirmationRef.current && decisionResultTypeRef.current === 'complete' && termConflictsRef.current.length === 0;
 
     return (
-      <div className="space-y-4 p-5 pb-8">
+      <div className="flex flex-col min-h-0 flex-1">
+      <div className="flex-1 overflow-y-auto overscroll-contain p-5 space-y-4">
         {fromHistory && (
           <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
             <span className="text-xl">⭐</span>
@@ -2172,6 +2173,8 @@ export function ProductDetectionSheetGold({
           </div>
         )}
 
+      </div>
+      <div className="flex-shrink-0 border-t border-gray-100 bg-white px-5 py-4 space-y-3">
         <button
           type="button"
           onClick={handleConfirm}
@@ -2194,6 +2197,7 @@ export function ProductDetectionSheetGold({
         >
           Não, escolher outro
         </button>
+      </div>
       </div>
     );
   };
@@ -2268,7 +2272,7 @@ export function ProductDetectionSheetGold({
             </div>
           )}
 
-          <div className={immersiveMode ? 'h-full' : 'flex-1 overflow-y-auto overscroll-contain'}>
+          <div className={immersiveMode ? 'h-full' : step === 'confirm' ? 'flex-1 flex flex-col overflow-hidden min-h-0' : 'flex-1 overflow-y-auto overscroll-contain'}>
             {step === 'entry' && renderEntry()}
             {step === 'scanning' && renderScanning()}
             {step === 'resolving' && renderResolving()}
