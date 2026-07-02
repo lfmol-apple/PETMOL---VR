@@ -99,9 +99,9 @@ export default function LandingPage() {
           icon="📋"
           color="bg-blue-50 border-blue-100"
           iconBg="bg-blue-500"
-          tag="Histórico"
-          title="Tudo do seu pet em um lugar"
-          body="Documentos, exames, receitas, dados de saúde e contatos de emergência — acessíveis em qualquer momento, mesmo sem internet."
+          tag="Documentos & Eventos"
+          title="Guarda de Documentos/Eventos"
+          body="Documentos, exames, receitas e eventos do pet — organizados em pastas, acessíveis em qualquer momento, mesmo sem internet."
         />
       </section>
 

@@ -163,8 +163,8 @@ export function AppleControlButtons({
               <span className="pointer-events-none text-lg">📁</span>
             </div>
             <div className="min-w-0 flex-1 text-left">
-              <h3 className="truncate text-[14px] sm:text-base font-bold leading-tight text-slate-800">Histórico</h3>
-              <p className="mt-0.5 text-[10px] sm:text-xs font-semibold leading-[1.15] text-slate-500">Leve o histórico do pet para cada consulta</p>
+              <h3 className="truncate text-[14px] sm:text-base font-bold leading-tight text-slate-800">Guarda de Documentos/Eventos</h3>
+              <p className="mt-0.5 text-[10px] sm:text-xs font-semibold leading-[1.15] text-slate-500">Documentos, exames, receitas e eventos do pet</p>
             </div>
             <span className="text-lg text-slate-300 transition-transform group-hover:translate-x-1">›</span>
           </button>
