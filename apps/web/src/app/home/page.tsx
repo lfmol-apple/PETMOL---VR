@@ -1659,6 +1659,7 @@ function HomePageInner() {
           eventTypeLocked={eventTypeLocked}
           onBackFromHealthModal={backFromHealthModal}
           onCloseHealthModal={closeHealthModal}
+          onGoHome={closeHealthModal}
           onSelectHealthTab={selectHealthTab}
           onOpenVaccineCenter={openVaccineCenterFromHealthModal}
           vaccines={vaccines}
@@ -1749,7 +1750,7 @@ function HomePageInner() {
           handleImportAnalyzedVaccines={handleImportAnalyzedVaccines}
           importVaccineLoading={importVaccineLoading}
           reviewConfirmed={reviewConfirmed}
-          onGoHome={() => { closeVaccineSheet(); }}
+          onGoHome={() => { closeCardAnalysis(); closeVaccineSheet(); }}
         />
       )}
 
@@ -1934,6 +1935,7 @@ function HomePageInner() {
           parasiteControls={parasiteControls.filter(p => p.type === 'dewormer' || p.type === 'heartworm' || p.type === 'leishmaniasis')}
           initialMode={parasiteSheetInitialMode}
           onClose={() => { setParasiteSheetInitialMode('view'); closeVermifugoSheet(); }}
+          onGoHome={() => { setParasiteSheetInitialMode('view'); closeVermifugoSheet(); }}
           onRefresh={loadParasiteControls}
         />
       )}
@@ -1948,6 +1950,7 @@ function HomePageInner() {
           parasiteControls={parasiteControls.filter(p => p.type === 'flea_tick')}
           initialMode={parasiteSheetInitialMode}
           onClose={() => { setParasiteSheetInitialMode('view'); closeAntipulgasSheet(); }}
+          onGoHome={() => { setParasiteSheetInitialMode('view'); closeAntipulgasSheet(); }}
           onRefresh={loadParasiteControls}
         />
       )}
@@ -1962,6 +1965,7 @@ function HomePageInner() {
           parasiteControls={parasiteControls.filter(p => p.type === 'collar')}
           initialMode={parasiteSheetInitialMode}
           onClose={() => { setParasiteSheetInitialMode('view'); closeColeiraSheet(); }}
+          onGoHome={() => { setParasiteSheetInitialMode('view'); closeColeiraSheet(); }}
           onRefresh={loadParasiteControls}
         />
       )}
@@ -1971,6 +1975,7 @@ function HomePageInner() {
           pet={currentPet}
           petPhotoUrl={(currentPet as { photo?: string | null; photo_url?: string | null }).photo ?? (currentPet as { photo_url?: string | null }).photo_url ?? null}
           onClose={() => { setFoodSheetInitialMode('view'); closeFoodSheet(); }}
+          onGoHome={() => { setFoodSheetInitialMode('view'); closeFoodSheet(); }}
           onSaved={handleFoodSaved}
           initialMode={foodSheetInitialMode}
           racaoEventId={petEvents.find((e) => e.type === 'racao')?.id ?? null}
@@ -1985,6 +1990,7 @@ function HomePageInner() {
           vaccines={vaccines}
           initialMode={vaccineSheetInitialMode}
           onClose={() => { setVaccineSheetInitialMode('view'); closeVaccineSheet(); }}
+          onGoHome={() => { setVaccineSheetInitialMode('view'); closeVaccineSheet(); }}
           onQuickAdd={handleVaccineQuickAdd}
           onDirectSaveVaccine={handleQuickAddVaccine}
           onFullFormVaccine={handleVaccineFullForm}
@@ -1995,6 +2001,8 @@ function HomePageInner() {
           pendingCardFiles={pendingCardFiles}
           setPendingCardFiles={setPendingCardFiles}
           importingCard={importingCard}
+          aiImageLimit={aiImageLimit}
+          setAiImageLimit={setAiImageLimit}
           handleFilesSelectedAppend={handleFilesSelectedAppend}
           handleProcessCards={handleProcessCards}
         />
@@ -2009,6 +2017,7 @@ function HomePageInner() {
           petEvents={petEvents}
           initialMode={medicationSheetInitialMode}
           onClose={() => { setMedicationSheetInitialMode('view'); closeMedicationSheet(); }}
+          onGoHome={() => { setMedicationSheetInitialMode('view'); closeMedicationSheet(); }}
           onRefresh={refreshMedicationHistory}
         />
       )}
@@ -2021,6 +2030,7 @@ function HomePageInner() {
           petPhotoUrl={currentPet?.photo}
           groomingRecords={groomingRecords}
           onClose={closeGroomingSheet}
+          onGoHome={closeGroomingSheet}
           onRefresh={loadGroomingRecords}
         />
       )}
