@@ -35,8 +35,6 @@ interface VaccineWorkflowModalsProps {
   pets: PetHealthProfile[];
   closeCardAnalysis: () => void;
   reviewRegistros: VaccineCardOcrRecord[];
-  reviewExpectedCount: number;
-  setReviewExpectedCount: Dispatch<SetStateAction<number>>;
   setReviewConfirmed: Dispatch<SetStateAction<boolean>>;
   addReviewRegistro: () => void;
   removeReviewRegistro: (index: number) => void;
@@ -45,7 +43,6 @@ interface VaccineWorkflowModalsProps {
   handleImportAnalyzedVaccines: () => Promise<void>;
   importVaccineLoading: boolean;
   reviewConfirmed: boolean;
-  reviewLearnEnabled: boolean;
 }
 
 export function VaccineWorkflowModals({
@@ -68,8 +65,6 @@ export function VaccineWorkflowModals({
   pets,
   closeCardAnalysis,
   reviewRegistros,
-  reviewExpectedCount,
-  setReviewExpectedCount,
   setReviewConfirmed,
   addReviewRegistro,
   removeReviewRegistro,
@@ -78,7 +73,6 @@ export function VaccineWorkflowModals({
   handleImportAnalyzedVaccines,
   importVaccineLoading,
   reviewConfirmed,
-  reviewLearnEnabled,
 }: VaccineWorkflowModalsProps) {
   const { t } = useI18n();
   const [toast, setToast] = useState<string | null>(null);
@@ -422,186 +416,36 @@ export function VaccineWorkflowModals({
 
       {cardAnalysis && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-[70]">
-          <div className="p-4 sm:p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 overflow-hidden">
+          <div className="p-4 sm:p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 overflow-hidden">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center gap-2">
-                🔍 Análise Completa do Prontuário
+              <h3 className="text-lg font-bold">
+                {reviewRegistros.length} vacina{reviewRegistros.length !== 1 ? 's' : ''} encontrada{reviewRegistros.length !== 1 ? 's' : ''}
               </h3>
               <button
                 onClick={closeCardAnalysis}
-                className="text-gray-500 hover:text-gray-700"
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
               >
                 ✕
               </button>
             </div>
 
             <div className="space-y-4">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <h4 className="font-medium text-green-800 mb-2">📊 Resumo da Análise</h4>
-                <div className="grid grid-cols-3 gap-4 text-center text-sm">
-                  <div>
-                    <div className="font-bold text-lg">{cardAnalysis.processed_images}</div>
-                    <div className="text-green-600">Fotos analisadas</div>
-                  </div>
-                  <div>
-                    <div className="font-bold text-lg">{cardAnalysis.registros.length}</div>
-                    <div className="text-green-600">Registros</div>
-                  </div>
-                  <div>
-                    <div className="font-bold text-lg">{cardAnalysis.leitura_confiavel ? 'OK' : 'Parcial'}</div>
-                    <div className="text-red-600">Confiabilidade</div>
-                  </div>
-                </div>
-
-                <div className="mt-3 text-xs text-green-800 flex items-center justify-between">
-                  <span>
-                    <strong>Motor:</strong>{' '}
-                    {(cardAnalysis.motor_usado || (cardAnalysis.ia_usada ? 'ia' : 'tesseract') || '—').toString()}
-                  </span>
-                  {Array.isArray(cardAnalysis.motores_usados) && cardAnalysis.motores_usados.length > 0 && (
-                    <span>
-                      <strong>Motores:</strong> {cardAnalysis.motores_usados.join(', ')}
-                    </span>
-                  )}
-                </div>
-
-                {cardAnalysis.ia_tentada && !cardAnalysis.ia_usada && (
-                  <div className="mt-2 text-xs text-amber-800">
-                    <strong>IA:</strong> tentativa falhou ({cardAnalysis.motivo_fallback || 'motivo desconhecido'}). Foi usado fallback.
-                  </div>
-                )}
-              </div>
-
               {!cardAnalysis.leitura_confiavel && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <h4 className="font-medium text-amber-900 mb-1">⚠️ Leitura parcial</h4>
-                  <div className="text-sm text-amber-800">
-                    A imagem pode estar borrada/escura. O sistema ajustou automaticamente a quantidade esperada para compensar possíveis vacinas não detectadas. Revise antes de importar.
-                  </div>
-                </div>
-              )}
-
-              {reviewRegistros.some((record) => !record.data_aplicacao && (record.nome_comercial || record.tipo_vacina)) && (
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                  <h4 className="font-medium text-orange-900 mb-1">🔍 Vacinas parcialmente detectadas</h4>
-                  <div className="text-sm text-orange-800">
-                    O sistema encontrou marcas de vacinas mas não conseguiu ler todas as datas. A quantidade esperada foi ajustada automaticamente para incluir possíveis vacinas não detectadas completamente.
-                  </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+                  ⚠️ Leitura parcial — revise os dados antes de importar.
                 </div>
               )}
 
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-gray-800">✅ Revisão antes de importar</h4>
-                  {reviewLearnEnabled && (
-                    <div className="flex items-center gap-1.5 bg-gradient-to-r from-purple-100 to-blue-100 border border-purple-300 rounded-full px-3 py-1">
-                      <span className="text-purple-600 text-sm">🧠</span>
-                      <span className="text-xs font-semibold text-purple-700">ML Aprendendo</span>
-                    </div>
-                  )}
-                </div>
+                <p className="text-xs text-gray-500 mb-3">Corrija o que precisar e confirme antes de importar.</p>
 
-                {reviewLearnEnabled && (
-                  <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-3 mb-3">
-                    <div className="flex items-start gap-2">
-                      <div className="text-purple-600 text-lg">🧠</div>
-                      <div className="text-sm text-purple-800">
-                        <div className="font-bold mb-1">Aprendizado Ativo</div>
-                        <p className="text-xs leading-relaxed">
-                          Suas correções (datas, nomes, veterinários) serão usadas para melhorar a precisão das próximas leituras.
-                          <strong className="block mt-1">Corrija livremente - cada ajuste torna o sistema mais inteligente!</strong>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
-                  <div className="flex items-start gap-2">
-                    <div className="text-[#0056D2] text-lg">💡</div>
-                    <div className="text-sm text-blue-800">
-                      <div className="font-medium mb-1">Como validar se está completo:</div>
-                      <ol className="list-decimal list-inside space-y-1 text-xs">
-                        <li>Abra a foto do cartão em outra aba/janela</li>
-                        <li>Conte quantos <strong>adesivos de vacina</strong> você vê (ex: Nobivac, Vanguard, Rabisin, etc.)</li>
-                        <li>Informe a quantidade no campo "Qtd esperada"</li>
-                        <li>Se faltar alguma, clique "+ Adicionar" e preencha manualmente</li>
-                      </ol>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-3">
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="text-sm text-slate-700">
-                      <div>
-                        <strong>Encontrados:</strong> {reviewRegistros.length}
-                        {reviewExpectedCount > reviewRegistros.length && (
-                          <span className="ml-2 text-orange-600 font-medium">
-                            (Sistema estimou {reviewExpectedCount} no total)
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        {reviewExpectedCount > reviewRegistros.length
-                          ? 'O sistema detectou que podem haver mais vacinas. Ajuste conforme necessário.'
-                          : 'Ajuste qualquer campo antes de importar.'}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm text-slate-700">
-                        <span className="font-medium">Qtd esperada</span>
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={reviewExpectedCount}
-                        onChange={(e) => {
-                          setReviewExpectedCount(Number(e.target.value));
-                          setReviewConfirmed(false);
-                        }}
-                        className={`w-24 border rounded px-2 py-1 text-sm font-medium ${
-                          reviewExpectedCount !== reviewRegistros.length ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-200'
-                        }`}
-                        placeholder="?"
-                      />
-                      <button
-                        onClick={addReviewRegistro}
-                        className={`px-3 py-1 border rounded text-sm transition-all ${
-                          reviewExpectedCount > reviewRegistros.length
-                            ? 'bg-green-500 text-white border-green-600 hover:bg-green-600 font-medium animate-pulse'
-                            : 'border-slate-200 hover:bg-white'
-                        }`}
-                        title="Adicionar manualmente um registro que faltou"
-                      >
-                        ＋ Adicionar
-                      </button>
-                    </div>
-                  </div>
-
-                  {reviewExpectedCount !== reviewRegistros.length && (
-                    <div className="mt-2 text-xs text-amber-800 font-medium">
-                      ⚠️ Quantidade esperada ({reviewExpectedCount}) não bate com os registros ({reviewRegistros.length}). Ajuste (adicione/remova) antes de importar.
-                    </div>
-                  )}
-
-                  {reviewExpectedCount > reviewRegistros.length && (
-                    <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <div className="flex items-start gap-2">
-                        <span className="text-red-600 text-lg">⚠️</span>
-                        <div className="text-sm text-red-800">
-                          <div className="font-bold mb-1">
-                            ATENÇÃO: {reviewExpectedCount - reviewRegistros.length} vacina(s) NÃO foi(ram) detectada(s)!
-                          </div>
-                          <div className="text-xs">
-                            Clique em "<strong>＋ Adicionar</strong>" acima para preencher manualmente as vacinas que faltaram.
-                            Isso garante que seu prontuário fique completo.
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                <div className="flex justify-end mb-2">
+                  <button
+                    onClick={addReviewRegistro}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium border border-blue-200 rounded-lg px-3 py-1.5"
+                  >
+                    ＋ Adicionar vacina manualmente
+                  </button>
                 </div>
 
                 <div className="space-y-3">
@@ -793,38 +637,7 @@ export function VaccineWorkflowModals({
                 </div>
               </div>
 
-              <div className="sticky bottom-0 bg-white z-10 pt-3 pb-3 border-t border-gray-100 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] flex gap-3">
-                <button
-                  onClick={handleImportAnalyzedVaccines}
-                  disabled={importVaccineLoading || !reviewConfirmed || reviewRegistros.some((record) => !record.data_aplicacao)}
-                  className={`flex-1 px-4 py-3 rounded-lg font-medium ${
-                    importVaccineLoading || !reviewConfirmed || reviewRegistros.some((record) => !record.data_aplicacao)
-                      ? 'bg-slate-300 text-slate-600 cursor-not-allowed'
-                      : 'bg-purple-600 text-white hover:bg-purple-700'
-                  }`}
-                >
-                  {importVaccineLoading ? '⏳ Importando...' : '✅ Importar para Prontuário Digital'}
-                </button>
-                <button
-                  onClick={closeCardAnalysis}
-                  className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  {t('common.cancel')}
-                </button>
-              </div>
-
-              {reviewRegistros.some((record) => (record.missing_fields || []).length > 0) && (
-                <div className="text-sm text-[#0047ad] bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <div className="font-medium mb-1">💡 Sobre campos em branco:</div>
-                  <div className="text-xs">
-                    Alguns campos não foram detectados automaticamente e ficarão em branco após a importação.
-                    Você pode preenchê-los manualmente acima ou editá-los posteriormente no prontuário.
-                    Apenas a <strong>data de aplicação</strong> é obrigatória.
-                  </div>
-                </div>
-              )}
-
-              <label className="flex items-start gap-3 text-sm text-slate-700 bg-white border border-slate-200 rounded-lg p-3">
+              <label className="flex items-start gap-3 text-sm text-slate-700 bg-white border border-slate-200 rounded-xl p-3">
                 <input
                   type="checkbox"
                   checked={reviewConfirmed}
@@ -833,14 +646,29 @@ export function VaccineWorkflowModals({
                 />
                 <div>
                   <div className="font-medium">Conferi e confirmo os registros acima</div>
-                  <div className="text-xs text-slate-500">
-                    Para evitar frustração, a importação só fica disponível após revisão.
-                    {reviewRegistros.some((record) => (record.missing_fields || []).length > 0) && (
-                      <span className="text-[#0056D2]"> Campos em branco serão salvos assim.</span>
-                    )}
-                  </div>
+                  <div className="text-xs text-slate-500">A importação só fica disponível após a revisão.</div>
                 </div>
               </label>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleImportAnalyzedVaccines}
+                  disabled={importVaccineLoading || !reviewConfirmed || reviewRegistros.some((record) => !record.data_aplicacao)}
+                  className={`flex-1 px-4 py-3 rounded-xl font-semibold text-sm ${
+                    importVaccineLoading || !reviewConfirmed || reviewRegistros.some((record) => !record.data_aplicacao)
+                      ? 'bg-slate-300 text-slate-600 cursor-not-allowed'
+                      : 'bg-blue-600 text-white'
+                  }`}
+                >
+                  {importVaccineLoading ? '⏳ Importando...' : 'Importar vacinas'}
+                </button>
+                <button
+                  onClick={closeCardAnalysis}
+                  className="px-5 py-3 border border-gray-300 rounded-xl text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  {t('common.cancel')}
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -1741,8 +1741,6 @@ function HomePageInner() {
           pets={pets}
           closeCardAnalysis={closeCardAnalysis}
           reviewRegistros={reviewRegistros}
-          reviewExpectedCount={reviewExpectedCount}
-          setReviewExpectedCount={setReviewExpectedCount}
           setReviewConfirmed={setReviewConfirmed}
           addReviewRegistro={addReviewRegistro}
           removeReviewRegistro={removeReviewRegistro}
@@ -1751,7 +1749,6 @@ function HomePageInner() {
           handleImportAnalyzedVaccines={handleImportAnalyzedVaccines}
           importVaccineLoading={importVaccineLoading}
           reviewConfirmed={reviewConfirmed}
-          reviewLearnEnabled={reviewLearnEnabled}
         />
       )}
 
