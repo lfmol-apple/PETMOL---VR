@@ -39,7 +39,7 @@ _HDR_ROW = (220, 228, 248)
 def _s(text) -> str:
     """Sanitize string to Latin-1 (fpdf2 core fonts)."""
     if text is None:
-        return "—"
+        return "-"
     text = str(text)
     replacements = {
         "–": "-", "—": "-", "‘": "'", "’": "'",
@@ -53,7 +53,7 @@ def _s(text) -> str:
 
 def _fmt(dt) -> str:
     if dt is None:
-        return "—"
+        return "-"
     if isinstance(dt, datetime):
         dt = dt.date()
     try:
@@ -65,7 +65,7 @@ def _fmt(dt) -> str:
 def _trunc(text: str, n: int) -> str:
     if len(text) <= n:
         return text
-    return text[: n - 1] + "…"
+    return text[: n - 1] + "."
 
 
 # ── PDF class ─────────────────────────────────────────────────────────────
@@ -375,7 +375,7 @@ def _build_content(pdf, vaccines, parasites, grooming, events, documents):
             notes = _s(v.notes or "")
             if v.clinic_name:
                 notes = _s(v.clinic_name) + (f" | {notes}" if notes and notes != "—" else "")
-            _row(pdf, [v.vaccine_name or "", _fmt(v.applied_date), _fmt(v.next_dose_date), notes or "—"], ws, alt=i % 2 == 1)
+            _row(pdf, [v.vaccine_name or "", _fmt(v.applied_date), _fmt(v.next_dose_date), notes or "-"], ws, alt=i % 2 == 1)
 
     pdf.ln(5)
 
@@ -392,7 +392,7 @@ def _build_content(pdf, vaccines, parasites, grooming, events, documents):
                 p.product_name or "",
                 _fmt(p.date_applied),
                 _fmt(p.next_due_date),
-                p.veterinarian or "—",
+                p.veterinarian or "-",
             ], ws, alt=i % 2 == 1)
 
     pdf.ln(5)
@@ -408,8 +408,8 @@ def _build_content(pdf, vaccines, parasites, grooming, events, documents):
             _row(pdf, [
                 _GROOM_LABELS.get(g.type, g.type),
                 _fmt(g.date),
-                g.location or "—",
-                g.groomer or "—",
+                g.location or "-",
+                g.groomer or "-",
             ], ws, alt=i % 2 == 1)
 
     pdf.ln(5)
@@ -428,7 +428,7 @@ def _build_content(pdf, vaccines, parasites, grooming, events, documents):
                 details_parts.append(ev.professional_name)
             if ev.location_name:
                 details_parts.append(ev.location_name)
-            details = " | ".join(details_parts) if details_parts else "—"
+            details = " | ".join(details_parts) if details_parts else "-"
             _row(pdf, [
                 _EVENT_LABELS.get(ev.type, ev.type),
                 _fmt(ev.scheduled_at),
@@ -448,6 +448,6 @@ def _build_content(pdf, vaccines, parasites, grooming, events, documents):
         for i, d in enumerate(documents):
             _row(pdf, [
                 _CAT_LABELS.get(d.category or "", "Outro"),
-                d.title or "—",
-                d.establishment_name or "—",
+                d.title or "-",
+                d.establishment_name or "-",
             ], ws, alt=i % 2 == 1)
