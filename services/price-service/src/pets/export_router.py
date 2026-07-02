@@ -20,6 +20,24 @@ from ..events.models import Event
 
 router = APIRouter(prefix="/pets", tags=["Pet Export"])
 
+# Tipos de eventos que ja aparecem em secoes dedicadas — nao repetem em Consultas
+_DEDUP_EVENT_TYPES = {
+    "vaccine",
+    "dewormer", "flea_tick", "heartworm", "collar", "leishmaniasis",
+    "bath", "grooming", "bath_grooming",
+}
+
+# Pastas de documentos — mesma ordem e nomenclatura do app
+_DOC_FOLDERS = [
+    ("exam",         "Exames"),
+    ("vaccine",      "Carteirinha de Vacinacao"),
+    ("prescription", "Receitas"),
+    ("report",       "Laudos"),
+    ("comprovante",  "Comprovantes"),
+    ("photo",        "Fotos"),
+    ("other",        "Outros"),
+]
+
 # ── Brand colors (R, G, B) ────────────────────────────────────────────────
 _BLUE = (0, 86, 210)
 _BLUE2 = (37, 99, 235)
@@ -176,6 +194,7 @@ def export_pet_pdf(
             Event.user_id == str(current_user.id),
             Event.deleted_at.is_(None),
             Event.source != "document",
+            Event.type.notin_(list(_DEDUP_EVENT_TYPES)),
         )
         .order_by(Event.scheduled_at.desc())
         .limit(60)
@@ -414,14 +433,14 @@ def _build_content(pdf, vaccines, parasites, grooming, events, documents):
 
     pdf.ln(5)
 
-    # ── Eventos ───────────────────────────────────────────────────────────
+    # ── Consultas e Eventos ───────────────────────────────────────────────
     pdf.add_page()
-    _sec_header(pdf, "EVENTOS", _CYAN)
+    _sec_header(pdf, "CONSULTAS E EVENTOS", _CYAN)
     if not events:
         _empty(pdf)
     else:
-        ws = [44, 28, 28, 82]
-        _row(pdf, ["Tipo", "Data", "Status", "Local / Profissional"], ws, header=True)
+        ws = [50, 28, 28, 76]
+        _row(pdf, ["Tipo", "Data", "Status", "Profissional / Local"], ws, header=True)
         for i, ev in enumerate(events):
             details_parts = []
             if ev.professional_name:
@@ -438,16 +457,34 @@ def _build_content(pdf, vaccines, parasites, grooming, events, documents):
 
     pdf.ln(5)
 
-    # ── Documentos ────────────────────────────────────────────────────────
+    # ── Documentos por pasta ───────────────────────────────────────────────
     _sec_header(pdf, "DOCUMENTOS", _INDIGO)
     if not documents:
         _empty(pdf)
     else:
-        ws = [30, 82, 70]
-        _row(pdf, ["Categoria", "Titulo", "Estabelecimento"], ws, header=True)
-        for i, d in enumerate(documents):
-            _row(pdf, [
-                _CAT_LABELS.get(d.category or "", "Outro"),
-                d.title or "-",
-                d.establishment_name or "-",
-            ], ws, alt=i % 2 == 1)
+        from collections import defaultdict
+        by_cat: dict = defaultdict(list)
+        for d in documents:
+            by_cat[d.category or "other"].append(d)
+
+        ws = [90, 92]
+        first_folder = True
+        for cat_id, cat_label in _DOC_FOLDERS:
+            items = by_cat.get(cat_id, [])
+            if not items:
+                continue
+            if not first_folder:
+                pdf.ln(2)
+            first_folder = False
+            # Pasta sub-header
+            pdf.set_fill_color(232, 240, 254)
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_text_color(*_INDIGO)
+            pdf.cell(0, 6.5, _s(f"   {cat_label}"), fill=True, new_x="LMARGIN", new_y="NEXT")
+            pdf.set_text_color(*_DARK)
+            # Linhas
+            for i, d in enumerate(items):
+                date_str = _fmt(d.document_date) if d.document_date else ""
+                estab = _s(d.establishment_name or "")
+                right_col = " | ".join(filter(None, [date_str, estab])) or "-"
+                _row(pdf, [d.title or "-", right_col], ws, alt=i % 2 == 1)
