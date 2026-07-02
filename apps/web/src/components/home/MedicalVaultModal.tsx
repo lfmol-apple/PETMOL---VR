@@ -291,8 +291,11 @@ function exportPetHistoryPDF(
     td { padding: 5px 9px; border-bottom: 1px solid #ede9fe; vertical-align: top; }
     tr:nth-child(even) td { background: #fdfcff; }
     .empty { color: #bbb; font-style: italic; font-size: 10pt; padding: 6px 0; }
-    .footer { margin-top: 40px; padding-top: 10px; border-top: 1px solid #eee; font-size: 8pt; color: #bbb; text-align: center; }
-    .print-btn { position: fixed; bottom: 24px; right: 24px; background: #7c3aed; color: #fff; border: none; border-radius: 16px; padding: 14px 28px; font-size: 14pt; font-weight: 700; cursor: pointer; box-shadow: 0 4px 16px rgba(124,58,237,0.3); }
+    .footer { margin-top: 40px; padding-top: 10px; border-top: 1px solid #eee; font-size: 8pt; color: #bbb; text-align: center; margin-bottom: 100px; }
+    .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 20px 20px; background: rgba(255,255,255,0.97); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-top: 1.5px solid #ede9fe; }
+    .tip { font-size: 9pt; color: #5b21b6; margin-bottom: 10px; line-height: 1.45; }
+    .tip b { font-weight: 800; }
+    .print-btn { display: block; width: 100%; background: #7c3aed; color: #fff; border: none; border-radius: 16px; padding: 14px 28px; font-size: 14pt; font-weight: 700; cursor: pointer; box-shadow: 0 4px 16px rgba(124,58,237,0.3); text-align: center; }
     .print-btn:hover { background: #6d28d9; }
   </style>
 </head>
@@ -314,18 +317,26 @@ function exportPetHistoryPDF(
 
   <div class="footer">Petmol · Histórico completo de ${pet.pet_name} · ${now}</div>
 
-  <button class="print-btn no-print" onclick="window.print()">🖨️ Salvar como PDF</button>
+  <div class="bottom-bar no-print">
+    <p class="tip">📲 Para enviar ao WhatsApp: toque em <b>Gerar PDF</b> → na janela de impressão, toque em <b>Compartilhar ⬆️</b> no canto superior → escolha WhatsApp</p>
+    <button class="print-btn" onclick="window.print()">🖨️ Gerar PDF / Compartilhar</button>
+  </div>
 </body>
 </html>`;
 
   try {
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const win = window.open(url, '_blank');
+    // Usar about:blank + document.write para evitar blob: URL na barra de endereços.
+    // Blob URLs são efêmeras: se o usuário compartilhar a aba pelo share sheet do iOS,
+    // o WhatsApp recebe a blob: URL e não consegue acessá-la remotamente → erro de envio.
+    const win = window.open('about:blank', '_blank');
     if (win) {
-      win.addEventListener('load', () => setTimeout(() => URL.revokeObjectURL(url), 60000));
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
     } else {
-      // Fallback: trigger download
+      // Popup bloqueado — fallback: download do HTML
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `historico-${pet.pet_name.toLowerCase().replace(/\s+/g, '-')}.html`;
