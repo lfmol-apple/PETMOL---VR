@@ -29,6 +29,7 @@ import { VaccineItemSheet } from '@/components/home/VaccineItemSheet';
 import { MedicationItemSheet } from '@/components/home/MedicationItemSheet';
 import { FoodItemSheet } from '@/components/home/FoodItemSheet';
 import { GroomingItemSheet } from '@/components/home/GroomingItemSheet';
+import { PetSumidoSheet } from '@/components/home/PetSumidoSheet';
 import { useMultipetInteractions } from '@/features/interactions/useMultipetInteractions';
 import type { PetInteractionItem } from '@/features/interactions/types';
 import { openHomeContextualCommerce, resolvePushActionSheetCommerceIntent } from '@/features/commerce/homeContextualCommerce';
@@ -402,6 +403,7 @@ function HomePageInner() {
   const [showAntipulgasSheet, setShowAntipulgasSheet] = useState(false);
   const [showColeiraSheet, setShowColeiraSheet] = useState(false);
   const [showBanhoTosaSheet, setShowBanhoTosaSheet] = useState(false);
+  const [showPetSumidoSheet, setShowPetSumidoSheet] = useState(false);
   const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   const [showMedicationSheet, setShowMedicationSheet] = useState(false);
   const [showFoodSheet, setShowFoodSheet] = useState(false);
@@ -1622,6 +1624,7 @@ function HomePageInner() {
                     onOpenFood={handleOpenFood}
                     onOpenEvents={handleOpenEvents}
                     onOpenFamily={togglePetSelector}
+                    onOpenPetSumido={() => setShowPetSumidoSheet(true)}
                     onHealthItemClick={setHealthQuickAction}
                   />
                 </PetTabs>
@@ -1853,11 +1856,13 @@ function HomePageInner() {
         alertVaccinesValue={alertVaccinesValue}
         alertParasitesValue={alertParasitesValue}
         alertMedicationValue={alertMedicationValue}
+        alertGroomingValue={selectedPetCardAlerts.grooming}
         colorVaccinesValue={selectedPetCardColors.vacinas}
         colorVermifugoValue={selectedPetCardColors.vermifugo}
         colorAntipulgasValue={selectedPetCardColors.antipulgas}
         colorColeiraValue={selectedPetCardColors.coleira}
         colorMedicationValue={medicationCardStatus.color}
+        colorGroomingValue={selectedPetCardColors.grooming}
         onOpenHealthTab={openHealthTab}
         onStartEventRegistration={startEventRegistration}
         onOpenEditPet={openEditPetModal}
@@ -1868,6 +1873,7 @@ function HomePageInner() {
         onOpenAntipulgas={handleOpenAntipulgas}
         onOpenColeira={handleOpenColeira}
         onOpenMedication={handleOpenMedication}
+        onOpenGrooming={handleOpenGrooming}
       />
 
       {/* Add Pet Modal */}
@@ -2037,6 +2043,15 @@ function HomePageInner() {
           onClose={closeGroomingSheet}
           onGoHome={closeGroomingSheet}
           onRefresh={loadGroomingRecords}
+        />
+      )}
+
+      {showPetSumidoSheet && currentPet && (
+        <PetSumidoSheet
+          pet={currentPet}
+          petPhotoUrl={currentPet.photo ?? null}
+          onClose={() => setShowPetSumidoSheet(false)}
+          onGoHome={() => setShowPetSumidoSheet(false)}
         />
       )}
 

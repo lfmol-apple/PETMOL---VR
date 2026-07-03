@@ -12,6 +12,7 @@ interface AppleControlButtonsProps {
   onAlimentacaoClick?: () => void;
   onBanhoTosaClick?: () => void;
   onMedicacaoClick?: () => void;
+  onPetSumidoClick?: () => void;
   onFamilyClick?: () => void;
   hasFoodData?: boolean;
   foodTitle?: string;
@@ -24,12 +25,12 @@ interface AppleControlButtonsProps {
   alertFood?: boolean;
   alertMedicacao?: boolean;
   alertShopping?: boolean;
-  
+
   colorHealth?: 'neutral' | 'ok' | 'warning' | 'critical';
   colorGrooming?: 'neutral' | 'ok' | 'warning' | 'critical';
   colorFood?: 'neutral' | 'ok' | 'warning' | 'critical';
   colorMedicacao?: 'neutral' | 'ok' | 'warning' | 'critical';
-  
+
   inactiveControls?: HomeInactiveEligibleControlId[];
   onDeactivateControl?: (controlId: HomeInactiveEligibleControlId) => void;
 }
@@ -56,29 +57,19 @@ export function AppleControlButtons({
   onHealthClick,
   onDocumentosClick,
   onAlimentacaoClick,
-  onMedicacaoClick,
+  onPetSumidoClick,
   hasFoodData,
   foodTitle,
   foodHeadline,
   foodSubline,
   alertHealth,
   alertFood,
-  alertMedicacao,
   colorHealth,
   colorFood,
-  colorMedicacao,
 }: AppleControlButtonsProps) {
   const { t } = useI18n();
   const [showShoppingSheet, setShowShoppingSheet] = useState(false);
   const [showEmergencyChoice, setShowEmergencyChoice] = useState(false);
-
-  const medicacaoStatusText = colorMedicacao === 'critical'
-    ? 'Dose atrasada'
-    : colorMedicacao === 'warning'
-      ? 'Dose para hoje'
-      : colorMedicacao === 'ok'
-        ? 'Em dia'
-        : 'Gerenciar medicação';
 
   return (
     <>
@@ -109,7 +100,7 @@ export function AppleControlButtons({
             </div>
           </button>
 
-          {/* 2. SAÚDE */}
+          {/* 2. SAÚDE/CUIDADOS */}
           <button
             type="button"
             onClick={onHealthClick}
@@ -118,22 +109,21 @@ export function AppleControlButtons({
             {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
             <span className="absolute right-2.5 top-2.5 text-[22px] opacity-85 pointer-events-none transition-transform group-hover:scale-105">🏥</span>
             <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
-              <h3 className="truncate text-[14px] sm:text-base font-semibold leading-tight text-indigo-950">Saúde</h3>
-              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-indigo-900/80">Vacinas, parasitas e coleira</p>
+              <h3 className="truncate text-[14px] sm:text-base font-semibold leading-tight text-indigo-950">Saúde/Cuidados</h3>
+              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-indigo-900/80">Vacinas, medicação e banho</p>
             </div>
           </button>
 
-          {/* 3. MEDICAÇÃO */}
+          {/* 3. PET SUMIDO */}
           <button
             type="button"
-            onClick={onMedicacaoClick}
-            className="group relative overflow-hidden rounded-2xl border border-purple-200/80 bg-gradient-to-br from-purple-50 via-violet-50 to-purple-100 p-3 min-h-[82px] shadow-sm shadow-purple-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+            onClick={onPetSumidoClick}
+            className="group relative overflow-hidden rounded-2xl border border-orange-300/80 bg-gradient-to-br from-orange-50 via-red-50 to-orange-100 p-3 min-h-[82px] shadow-sm shadow-orange-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
-            {shouldShowAlert(colorMedicacao, alertMedicacao) && <AlertDot tone={colorMedicacao} />}
-            <span className="absolute right-2.5 top-2.5 text-[22px] opacity-85 pointer-events-none transition-transform group-hover:scale-105">💊</span>
+            <span className="absolute right-2.5 top-2.5 text-[22px] opacity-90 pointer-events-none transition-transform group-hover:scale-105">🔍</span>
             <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
-              <h3 className="truncate text-[14px] sm:text-base font-semibold leading-tight text-purple-950">Medicação</h3>
-              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-purple-900/80">{medicacaoStatusText}</p>
+              <h3 className="truncate text-[14px] sm:text-base font-semibold leading-tight text-orange-950">Pet Sumido</h3>
+              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-orange-900/80">Alertar a região</p>
             </div>
           </button>
 

@@ -23,11 +23,13 @@ interface HomeNavigationModalsProps {
   alertVaccinesValue: boolean;
   alertParasitesValue: boolean;
   alertMedicationValue: boolean;
+  alertGroomingValue?: boolean;
   colorVaccinesValue?: ControlTone;
   colorVermifugoValue?: ControlTone;
   colorAntipulgasValue?: ControlTone;
   colorColeiraValue?: ControlTone;
   colorMedicationValue?: ControlTone;
+  colorGroomingValue?: ControlTone;
   onOpenHealthTab: (tab: string) => void;
   onStartEventRegistration: (type: string) => void;
   onOpenEditPet: () => void;
@@ -39,6 +41,7 @@ interface HomeNavigationModalsProps {
   onOpenAntipulgas?: () => void;
   onOpenColeira?: () => void;
   onOpenMedication?: () => void;
+  onOpenGrooming?: () => void;
   onOpenEmergency?: () => void;
 }
 
@@ -97,6 +100,9 @@ export function HomeNavigationModals({
   onOpenAntipulgas,
   onOpenColeira,
   onOpenMedication,
+  onOpenGrooming,
+  alertGroomingValue,
+  colorGroomingValue,
   onOpenEmergency,
 }: HomeNavigationModalsProps) {
   const { t } = useI18n();
@@ -154,7 +160,7 @@ export function HomeNavigationModals({
                   <span className="text-xl">🏥</span>
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-slate-900 leading-tight">Saúde</h3>
+                  <h3 className="text-lg font-black text-slate-900 leading-tight">Saúde/Cuidados</h3>
                   <p className="text-xs text-slate-500 font-medium">{currentPet?.pet_name ? `Cuidando de ${currentPet.pet_name}` : 'Cuidados preventivos'}</p>
                 </div>
               </div>
@@ -175,6 +181,8 @@ export function HomeNavigationModals({
                   { icon: '🪱', label: 'Vermífugo', gradient: 'from-orange-100 to-amber-200 border-amber-300', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
                   { icon: '🛡️', label: 'Antipulgas', gradient: 'from-emerald-100 to-green-200 border-green-300', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
                   { icon: '📿', label: 'Coleira', gradient: 'from-teal-100 to-cyan-200 border-teal-300', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue },
+                  { icon: '🛁', label: 'Banho e Tosa', gradient: 'from-sky-100 to-blue-200 border-sky-300', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
+                  { icon: '💊', label: 'Medicação', gradient: 'from-purple-100 to-violet-200 border-purple-300', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
                 ].map(({ icon, label, gradient, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 
@@ -200,6 +208,11 @@ export function HomeNavigationModals({
                       if (tab === 'collar' && onOpenColeira) {
                         onCloseHealthOptionsModal();
                         onOpenColeira();
+                        return;
+                      }
+                      if (tab === 'grooming' && onOpenGrooming) {
+                        onCloseHealthOptionsModal();
+                        onOpenGrooming();
                         return;
                       }
                       if (tab === 'medication' && onOpenMedication) {

@@ -119,6 +119,7 @@ interface HomePetDashboardProps {
   onOpenFood: () => void;
   onOpenEvents: () => void;
   onOpenFamily?: () => void;
+  onOpenPetSumido?: () => void;
   onHealthItemClick?: (ctx: {
     action_target: string;
     label: string;
@@ -163,10 +164,11 @@ export function HomePetDashboard({
   onOpenFood,
   onOpenEvents,
   onOpenFamily,
+  onOpenPetSumido,
   onHealthItemClick,
 }: HomePetDashboardProps) {
 
-  const healthTones = [colorVacinas, colorVermifugo, colorAntipulgas, colorColeira];
+  const healthTones = [colorVacinas, colorVermifugo, colorAntipulgas, colorColeira, colorMedicacao, colorGrooming];
   const colorHealth: CardTone = healthTones.includes('critical')
     ? 'critical'
     : healthTones.includes('warning')
@@ -174,7 +176,7 @@ export function HomePetDashboard({
       : healthTones.includes('ok')
         ? 'ok'
         : 'neutral';
-  const alertHealth = colorHealth === 'warning' || colorHealth === 'critical' || alertVacinas || alertVermifugo || alertAntipulgas || alertColeira;
+  const alertHealth = colorHealth === 'warning' || colorHealth === 'critical' || alertVacinas || alertVermifugo || alertAntipulgas || alertColeira || alertMedicacao || alertGrooming;
   const upcomingReminders = useMemo(() => {
     if (!currentPet?.pet_id) return [];
 
@@ -316,6 +318,7 @@ export function HomePetDashboard({
         onBanhoTosaClick={onOpenGrooming}
         onMedicacaoClick={onOpenMedication}
         onFamilyClick={onOpenFamily}
+        onPetSumidoClick={onOpenPetSumido}
         hasFoodData={hasFoodData}
         foodTitle={foodTitle}
         foodHeadline={foodHeadline ?? undefined}
