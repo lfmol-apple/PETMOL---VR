@@ -2,7 +2,7 @@
 import hashlib
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from ..config import get_settings
 from ..db import get_db
 from ..rate_limit import rate_limiter
-from .models import PasswordResetToken, User
+from .models import EmailVerificationToken, PasswordResetToken, User
 from .schemas import (
     LoginRequest,
     LoginResponse,
@@ -32,6 +32,7 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 COOKIE_NAME = "petmol_session"
 PASSWORD_RESET_TTL_MINUTES = 30
+EMAIL_VERIFY_TTL_MINUTES = 60 * 24  # 24 horas
 
 
 def _cookie_settings():
@@ -71,7 +72,7 @@ def signup(payload: UserCreate, response: Response, request: Request, db: Sessio
         phone=payload.phone,
         terms_accepted=payload.terms_accepted,
         terms_version="2026-02-03",
-        terms_accepted_at=datetime.utcnow() if payload.terms_accepted else None,
+        terms_accepted_at=datetime.now(timezone.utc) if payload.terms_accepted else None,
         postal_code=payload.postal_code,
         street=payload.street,
         number=str(payload.number) if payload.number else None,
@@ -84,6 +85,9 @@ def signup(payload: UserCreate, response: Response, request: Request, db: Sessio
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Envia email de verificação (best-effort, não bloqueia o cadastro)
+    _send_verification_for_user(user, db)
 
     token = create_access_token(user_id=str(user.id))
     response.set_cookie(COOKIE_NAME, token, **_cookie_settings())
@@ -157,7 +161,7 @@ def request_password_reset(
         return generic
 
     token = secrets.token_urlsafe(32)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     reset_token = PasswordResetToken(
         user_id=str(user.id),
         token_hash=_password_reset_hash(token),
@@ -182,7 +186,7 @@ def confirm_password_reset(
 ):
     token_hash = _password_reset_hash(payload.token)
     reset_token = db.query(PasswordResetToken).filter(PasswordResetToken.token_hash == token_hash).first()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     if not reset_token or reset_token.used_at is not None or reset_token.expires_at < now:
         raise HTTPException(status_code=400, detail="Link inválido ou expirado. Solicite um novo e-mail.")
@@ -192,6 +196,7 @@ def confirm_password_reset(
         raise HTTPException(status_code=400, detail="Link inválido ou expirado. Solicite um novo e-mail.")
 
     user.password_hash = hash_password(payload.password)
+    user.email_verified = True  # acesso ao email já foi provado pelo link
     reset_token.used_at = now
     db.query(PasswordResetToken).filter(
         PasswordResetToken.user_id == user.id,
@@ -201,6 +206,84 @@ def confirm_password_reset(
     db.commit()
 
     return PasswordResetResponse(ok=True, message="Senha redefinida com sucesso.")
+
+
+def _email_verify_url(token: str) -> str:
+    base = settings.frontend_url.rstrip("/")
+    return f"{base}/auth/verify-email?{urlencode({'token': token})}"
+
+
+def _send_verification_for_user(user: "User", db: Session) -> None:
+    """Issue a fresh verification token and send the email (best-effort, non-blocking)."""
+    token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    db.add(EmailVerificationToken(
+        user_id=str(user.id),
+        token_hash=_password_reset_hash(token),
+        expires_at=now + timedelta(minutes=EMAIL_VERIFY_TTL_MINUTES),
+    ))
+    db.commit()
+    from ..email_otp import send_verification_email
+    try:
+        send_verification_email(user.email, _email_verify_url(token), EMAIL_VERIFY_TTL_MINUTES)
+    except Exception:
+        pass  # non-blocking — email failure never breaks the request
+
+
+@router.post("/verify-email/send", response_model=PasswordResetResponse)
+def send_email_verification(
+    authorization: Optional[str] = Header(default=None),
+    token: Optional[str] = Cookie(default=None, alias=COOKIE_NAME),
+    db: Session = Depends(get_db),
+):
+    """Re-send the email verification link for the currently authenticated user."""
+    auth_token = None
+    if authorization and authorization.startswith("Bearer "):
+        auth_token = authorization[7:]
+    elif token:
+        auth_token = token
+    if not auth_token:
+        raise HTTPException(status_code=401, detail="Não autenticado")
+
+    token_data = decode_token(auth_token)
+    if not token_data or not token_data.user_id:
+        raise HTTPException(status_code=401, detail="Token inválido")
+
+    user = db.query(User).filter(User.id == token_data.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+    if user.email_verified:
+        return PasswordResetResponse(ok=True, message="E-mail já verificado.")
+
+    _send_verification_for_user(user, db)
+    return PasswordResetResponse(ok=True, message="Link de verificação enviado para o seu e-mail.")
+
+
+@router.get("/verify-email/confirm", response_model=PasswordResetResponse)
+def confirm_email_verification(
+    token: str,
+    db: Session = Depends(get_db),
+):
+    """Validate the email verification token from the link click."""
+    token_hash = _password_reset_hash(token)
+    ev_token = db.query(EmailVerificationToken).filter(
+        EmailVerificationToken.token_hash == token_hash
+    ).first()
+    now = datetime.now(timezone.utc)
+
+    if not ev_token or ev_token.used_at is not None or ev_token.expires_at < now:
+        raise HTTPException(status_code=400, detail="Link inválido ou expirado. Solicite um novo e-mail.")
+
+    user = db.query(User).filter(User.id == ev_token.user_id).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Link inválido ou expirado.")
+
+    user.email_verified = True
+    ev_token.used_at = now
+    db.commit()
+
+    return PasswordResetResponse(ok=True, message="E-mail confirmado com sucesso!")
 
 
 @router.get("/me", response_model=UserOut)

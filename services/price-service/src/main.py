@@ -306,7 +306,7 @@ def start_push_scheduler():
         from .notifications import send_due_reminders
 
         scheduler = BackgroundScheduler()
-        scheduler.add_job(send_due_reminders, "interval", minutes=1, id="send_due_reminders")
+        scheduler.add_job(send_due_reminders, "cron", second=0, id="send_due_reminders")
         scheduler.start()
         push_logger.info("[PETMOL] Push scheduler iniciado")
     except Exception as e:

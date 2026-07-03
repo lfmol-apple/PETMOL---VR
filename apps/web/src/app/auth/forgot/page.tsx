@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { API_BASE_URL } from '@/lib/api';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -39,7 +38,7 @@ export default function ForgotPage() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/password-reset/request`, {
+      const response = await fetch('/api/auth/password-reset/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),
@@ -49,7 +48,13 @@ export default function ForgotPage() {
       }
       setMessage('Se o e-mail estiver cadastrado, enviamos um link para redefinir a senha.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível enviar o e-mail.');
+      const msg = err instanceof Error ? err.message : '';
+      // iOS Safari retorna "Load failed" para erros de rede
+      if (!msg || msg === 'Load failed' || msg === 'Failed to fetch' || msg.toLowerCase().includes('network')) {
+        setError('Sem conexão. Verifique sua internet e tente novamente.');
+      } else {
+        setError(msg || 'Não foi possível enviar o e-mail.');
+      }
     } finally {
       setLoading(false);
     }
@@ -71,7 +76,7 @@ export default function ForgotPage() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/password-reset/confirm`, {
+      const response = await fetch('/api/auth/password-reset/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password }),

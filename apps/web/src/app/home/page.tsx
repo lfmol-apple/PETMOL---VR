@@ -117,6 +117,44 @@ const getPhotoUrl = (photoPath: string | undefined | null, petId?: string, photo
   return `${photosBase}${path}${version}`;
 };
 
+function EmailVerificationBanner({ email }: { email: string }) {
+  const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const resend = async () => {
+    setSending(true);
+    try {
+      await fetch('/api/auth/verify-email/send', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      setSent(true);
+    } catch {}
+    setSending(false);
+  };
+
+  return (
+    <div className="mb-3 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+      <span className="mt-0.5 text-lg">✉️</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-bold text-amber-900">Confirme seu e-mail</p>
+        <p className="mt-0.5 text-[12px] text-amber-700 truncate">
+          {sent ? 'Link reenviado! Verifique sua caixa de entrada.' : `Enviamos um link para ${email}`}
+        </p>
+      </div>
+      {!sent && (
+        <button
+          onClick={resend}
+          disabled={sending}
+          className="shrink-0 rounded-xl bg-amber-200 px-3 py-1.5 text-[11px] font-black uppercase tracking-wide text-amber-900 disabled:opacity-50"
+        >
+          {sending ? '...' : 'Reenviar'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function HomePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -406,6 +444,7 @@ function HomePageInner() {
   const [showFoodSheet, setShowFoodSheet] = useState(false);
   const [foodSheetInitialMode, setFoodSheetInitialMode] = useState<'view' | 'buy'>('view');
   const [vaccineSheetInitialMode, setVaccineSheetInitialMode] = useState<'view' | 'buy'>('view');
+  const [vaccineFormJustSaved, setVaccineFormJustSaved] = useState(false);
   const [medicationSheetInitialMode, setMedicationSheetInitialMode] = useState<'view' | 'buy'>('view');
   const [parasiteSheetInitialMode, setParasiteSheetInitialMode] = useState<'view' | 'buy'>('view');
 
@@ -1431,6 +1470,9 @@ function HomePageInner() {
         </div>
       </div>
       <div className="max-w-2xl mx-auto px-4 py-4">
+        {tutor && !tutor.email_verified && (
+          <EmailVerificationBanner email={tutor.email} />
+        )}
         {pets.length > 0 && (
           <div className="mb-3 flex justify-center">
             <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-sm ${
@@ -1751,6 +1793,7 @@ function HomePageInner() {
           importVaccineLoading={importVaccineLoading}
           reviewConfirmed={reviewConfirmed}
           onGoHome={() => { closeCardAnalysis(); closeVaccineSheet(); }}
+          onAfterSave={() => setVaccineFormJustSaved(true)}
         />
       )}
 
@@ -2005,6 +2048,8 @@ function HomePageInner() {
           setAiImageLimit={setAiImageLimit}
           handleFilesSelectedAppend={handleFilesSelectedAppend}
           handleProcessCards={handleProcessCards}
+          forceJustSaved={vaccineFormJustSaved}
+          onForceJustSavedConsumed={() => setVaccineFormJustSaved(false)}
         />
       )}
 

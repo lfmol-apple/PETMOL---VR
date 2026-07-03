@@ -6,7 +6,7 @@
     "predev": "node -e \"const fs=require('fs');const p='.next/build-manifest.json';try{if(fs.existsSync(p))JSON.parse(fs.readFileSync(p,'utf8'));}catch{console.log('[predev] Cache corrompido — limpando .next');fs.rmSync('.next',{recursive:true,force:true});}\"",
     "dev": "next dev",
     "dev:clean": "rm -rf .next && next dev",
-    "build": "next build && cp -r public .next/standalone/apps/web/public && cp -r .next/static .next/standalone/apps/web/.next/static",
+    "build": "NEXT_PUBLIC_API_BASE_URL=/api NEXT_PUBLIC_API_URL=/api next build && cp -r public .next/standalone/apps/web/public && cp -r .next/static .next/standalone/apps/web/.next/static",
     "build:clean": "rm -rf .next && npm run build",
     "start": "next start",
     "lint": "next lint"

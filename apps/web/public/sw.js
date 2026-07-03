@@ -17,7 +17,7 @@
  * }
  */
 
-const CACHE_NAME = 'petmol-shell-v2026-06-30c';
+const CACHE_NAME = 'petmol-shell-v2026-07-03b';
 const SHARE_CACHE = 'petmol-shared-files-v1';
 const SHELL_URLS = [
   '/',
@@ -218,6 +218,11 @@ self.addEventListener('fetch', (event) => {
   // Interceptar POST do share target antes de qualquer outra lógica
   if (url.pathname === '/share-target' && event.request.method === 'POST') {
     event.respondWith(handleShareTarget(event.request));
+    return;
+  }
+
+  // API calls e qualquer método não-GET: nunca interceptar, deixar ir direto à rede
+  if (url.pathname.startsWith('/api/') || event.request.method !== 'GET') {
     return;
   }
 

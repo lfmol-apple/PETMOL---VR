@@ -118,6 +118,96 @@ def send_email_otp(to_email: str, code: str) -> bool:
         return False
 
 
+def send_verification_email(to_email: str, verify_url: str, ttl_minutes: int) -> bool:
+    """
+    Envia link de verificação de e-mail.
+    Usa as mesmas variáveis SMTP. Em dev, sem SMTP, imprime o link.
+    """
+    host = os.environ.get("SMTP_HOST", "")
+    port = int(os.environ.get("SMTP_PORT", "587"))
+    user = os.environ.get("SMTP_USER", "")
+    password = os.environ.get("SMTP_PASS", "")
+    from_addr = os.environ.get("SMTP_FROM", f"PETMOL <{user}>") if user else ""
+
+    if not (host and user and password):
+        logger.warning("[EMAIL VERIFY DEV] Email não configurado. Link disponível abaixo.")
+        print(f"\n{'='*50}")
+        print(f"[PETMOL VERIFY EMAIL] Para: {to_email}")
+        print(f"[PETMOL VERIFY EMAIL] Link: {verify_url}")
+        print(f"[PETMOL VERIFY EMAIL] Válido {ttl_minutes} min")
+        print(f"{'='*50}\n")
+        return True
+
+    subject = "Confirme seu e-mail — PETMOL"
+    html = f"""
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f4f7fb;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fb;padding:40px 0;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08);">
+        <tr>
+          <td style="background:linear-gradient(135deg,#0056D2,#1a73e8);padding:32px;text-align:center;">
+            <div style="font-size:40px;">🐾</div>
+            <h1 style="color:#fff;margin:8px 0 4px;font-size:22px;letter-spacing:-0.5px;">PETMOL</h1>
+            <p style="color:#b3d0ff;margin:0;font-size:13px;">Confirmação de e-mail</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px 40px;text-align:center;">
+            <p style="color:#374151;font-size:15px;margin:0 0 24px;">
+              Clique no botão abaixo para confirmar seu e-mail.<br>
+              O link é válido por <strong>{ttl_minutes} minutos</strong>.
+            </p>
+            <a href="{verify_url}"
+               style="background:#0056D2;color:#ffffff;text-decoration:none;border-radius:12px;
+                      display:inline-block;padding:14px 32px;font-weight:700;font-size:14px;">
+              ✅ Confirmar e-mail
+            </a>
+            <p style="color:#9ca3af;font-size:12px;margin:24px 0 0;">
+              Se você não criou uma conta no PETMOL, ignore este e-mail.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#f9fafb;padding:16px 40px;text-align:center;border-top:1px solid #f0f0f0;">
+            <p style="color:#d1d5db;font-size:11px;margin:0;">© 2026 PETMOL — petmol.app</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
+"""
+    text = (
+        "Confirme seu e-mail no PETMOL:\n"
+        f"{verify_url}\n\n"
+        f"Link válido por {ttl_minutes} minutos."
+    )
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = from_addr
+    msg["To"] = to_email
+    msg.attach(MIMEText(text, "plain"))
+    msg.attach(MIMEText(html, "html"))
+
+    try:
+        with smtplib.SMTP(host, port) as smtp:
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.login(user, password)
+            smtp.sendmail(from_addr or user, to_email, msg.as_string())
+        logger.info(f"Email de verificação enviado para {mask_email(to_email)}")
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao enviar email de verificação: {e}")
+        return False
+
+
 def send_password_reset_email(to_email: str, reset_url: str, ttl_minutes: int) -> bool:
     """
     Envia link de redefinicao de senha por e-mail.

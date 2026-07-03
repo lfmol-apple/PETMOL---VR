@@ -9,6 +9,7 @@ interface Tutor {
   email: string;
   name: string;
   phone?: string;
+  email_verified?: boolean;
   created_at: string;
 }
 
@@ -102,16 +103,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (email: string, password: string): Promise<void> => {
-    const response = await fetch(`${API_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ email, password })
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (!msg || msg === 'Load failed' || msg === 'Failed to fetch' || msg.toLowerCase().includes('network')) {
+        throw new Error('Sem conexão. Verifique sua internet e tente novamente.');
+      }
+      throw new Error(msg || 'Erro ao fazer login');
+    }
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Erro ao fazer login');
+      const error = await response.json().catch(() => ({})) as { detail?: string };
+      throw new Error(error.detail || 'Credenciais inválidas. Verifique e-mail e senha.');
     }
 
     const data = await response.json();
@@ -144,7 +153,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await fetch(`${API_URL}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ name, email, password, phone, terms_accepted: termsAccepted, ...address, ...prefs })
     });
 
@@ -172,7 +180,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await fetch(`${API_URL}/auth/me`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            credentials: 'include',
             body: JSON.stringify(prefs),
           });
         }
@@ -184,7 +191,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await fetch(`${API_URL}/auth/logout`, {
         method: 'POST',
-        credentials: 'include',
       });
     } catch (error) {
       console.error('Erro ao fazer logout:', error);

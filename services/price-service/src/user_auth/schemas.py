@@ -59,6 +59,7 @@ class UserOut(BaseModel):
     monthly_checkin_day: int = 5
     monthly_checkin_hour: int = 9
     monthly_checkin_minute: int = 0
+    email_verified: bool = False
     created_at: OptionalUtcInstant = None
 
     class Config:
