@@ -94,6 +94,171 @@ function Toggle({ on }: { on: boolean }) {
   );
 }
 
+// ── Zoomed text field — bottom sheet para digitação confortável ───────────────
+function ZoomedField({
+  labelText,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  inputMode,
+  hint,
+}: {
+  labelText: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+  inputMode?: React.InputHTMLAttributes<HTMLInputElement>['inputMode'];
+  hint?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLInputElement>(null);
+
+  const openPanel = () => {
+    setOpen(true);
+    setTimeout(() => ref.current?.focus(), 80);
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <p className={label}>{labelText}</p>
+      <button
+        type="button"
+        onClick={openPanel}
+        className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base text-left transition-all duration-200 active:scale-[0.99] active:bg-slate-50"
+      >
+        <span className={value ? 'text-slate-900 font-semibold' : 'text-slate-400'}>
+          {value || placeholder}
+        </span>
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-[300]" onClick={() => setOpen(false)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl animate-slideUp"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-slate-200" />
+            </div>
+            <div className="px-5 pt-3 pb-4">
+              <p className={`${label} mb-4`}>{labelText}</p>
+              <input
+                ref={ref}
+                type={type}
+                inputMode={inputMode}
+                autoFocus
+                value={value}
+                onChange={e => onChange(e.target.value)}
+                placeholder={placeholder}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setOpen(false); } }}
+                className="w-full text-[28px] font-semibold text-slate-900 border-b-2 border-blue-400 outline-none pb-3 bg-transparent placeholder:text-slate-300 leading-tight"
+              />
+              {hint && <p className="text-[12px] text-slate-400 mt-3 leading-relaxed">{hint}</p>}
+            </div>
+            <div className="px-5 pb-[max(24px,env(safe-area-inset-bottom))]">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="w-full py-4 rounded-2xl bg-[#0056D2] text-white font-black text-[16px] active:scale-[0.98] transition-all shadow-md shadow-blue-600/20"
+              >
+                Pronto
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Zoomed weight field — número grande + seletor de unidade ──────────────────
+function ZoomedWeightField({
+  value,
+  unit,
+  onValueChange,
+  onUnitChange,
+}: {
+  value: string;
+  unit: string;
+  onValueChange: (v: string) => void;
+  onUnitChange: (u: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLInputElement>(null);
+
+  const openPanel = () => {
+    setOpen(true);
+    setTimeout(() => ref.current?.focus(), 80);
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <p className={label}>Peso (opcional)</p>
+      <button
+        type="button"
+        onClick={openPanel}
+        className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base text-left transition-all duration-200 active:scale-[0.99] active:bg-slate-50"
+      >
+        <span className={value ? 'text-slate-900 font-semibold' : 'text-slate-400'}>
+          {value ? `${value} ${unit}` : 'Ex: 8.5 kg'}
+        </span>
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-[300]" onClick={() => setOpen(false)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl animate-slideUp"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-slate-200" />
+            </div>
+            <div className="px-5 pt-3 pb-4">
+              <p className={`${label} mb-4`}>Peso</p>
+              <div className="flex items-end gap-4">
+                <input
+                  ref={ref}
+                  type="text"
+                  inputMode="decimal"
+                  autoFocus
+                  value={value}
+                  onChange={e => onValueChange(e.target.value.replace(',', '.').replace(/[^0-9.]/g, ''))}
+                  placeholder="0.0"
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setOpen(false); } }}
+                  className="flex-1 text-[40px] font-bold text-slate-900 border-b-2 border-blue-400 outline-none pb-2 bg-transparent placeholder:text-slate-300"
+                />
+                <div className="flex gap-2 pb-2">
+                  {(['kg', 'lb'] as const).map(u => (
+                    <button
+                      key={u}
+                      type="button"
+                      onClick={() => onUnitChange(u)}
+                      className={`px-4 py-2.5 rounded-xl font-bold text-[15px] transition-all border ${unit === u ? 'bg-[#0056D2] text-white border-blue-600' : 'bg-slate-100 text-slate-500 border-slate-200'}`}
+                    >
+                      {u}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="px-5 pb-[max(24px,env(safe-area-inset-bottom))]">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="w-full py-4 rounded-2xl bg-[#0056D2] text-white font-black text-[16px] active:scale-[0.98] transition-all shadow-md shadow-blue-600/20"
+              >
+                Pronto
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // BreedPicker — bottom sheet com scroll livre por todas as raças
 function BreedPicker({ species, value, onChange }: { species: string; value: string; onChange: (v: string) => void }) {
   const [query, setQuery] = useState('');
@@ -154,7 +319,7 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 placeholder="Buscar raça…"
-                className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base outline-none transition-all duration-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-xl outline-none transition-all duration-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
               />
               <button
                 type="button"
@@ -168,7 +333,7 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
                   key={b}
                   type="button"
                   onPointerDown={e => { e.preventDefault(); select(b); }}
-                  className={`w-full text-left px-5 py-4 text-base border-b border-slate-100 last:border-b-0 active:bg-blue-50 transition-colors ${b === value ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-800'}`}
+                  className={`w-full text-left px-5 py-[18px] text-[17px] border-b border-slate-100 last:border-b-0 active:bg-blue-50 transition-colors ${b === value ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-800'}`}
                 >
                   {b}
                 </button>
@@ -314,12 +479,12 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
               </div>
 
               {/* Nome */}
-              <div className="space-y-1.5">
-                <label className={label}>Nome do pet *</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)}
-                  placeholder="Ex: Mel"
-                  className={`${inputCls} font-semibold`} />
-              </div>
+              <ZoomedField
+                labelText="Nome do pet *"
+                value={name}
+                onChange={setName}
+                placeholder="Ex: Mel"
+              />
 
               {/* Espécie */}
               <div className="space-y-1.5">
@@ -365,20 +530,12 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
               </div>
 
               {/* Peso */}
-              <div className="space-y-1.5">
-                <label className={label}>Peso (opcional)</label>
-                <div className="flex gap-2">
-                  <input type="text" inputMode="decimal" value={weightValue}
-                    onChange={e => setWeightValue(e.target.value.replace(',', '.').replace(/[^0-9.]/g, ''))}
-                    placeholder="Ex: 8.5"
-                    className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base outline-none transition-all duration-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10 focus:py-4 focus:px-5 focus:shadow-lg focus:shadow-blue-500/10" />
-                  <select value={weightUnit} onChange={e => setWeightUnit(e.target.value)}
-                    className="rounded-2xl border border-slate-200 bg-white px-3 py-3.5 text-sm outline-none">
-                    <option value="kg">kg</option>
-                    <option value="lb">lb</option>
-                  </select>
-                </div>
-              </div>
+              <ZoomedWeightField
+                value={weightValue}
+                unit={weightUnit}
+                onValueChange={setWeightValue}
+                onUnitChange={setWeightUnit}
+              />
 
               {/* Castrado — linha inteira clicável */}
               <div
