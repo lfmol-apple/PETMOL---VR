@@ -532,6 +532,23 @@ export function FoodControlTab({
       setApiError('Selecione "Por peso" ou "Por duração" antes de salvar.');
       return;
     }
+    if (formMode !== 'quick_setup') {
+      if (showAdvanced) {
+        if (primaryItem.trackingMethod === 'weight' && !primaryItem.packageSizeKg.trim()) {
+          setApiError('Informe o tamanho do pacote em kg.');
+          return;
+        }
+        if (primaryItem.trackingMethod === 'duration' && !primaryItem.durationDays.trim()) {
+          setApiError('Informe a duração em dias.');
+          return;
+        }
+      } else {
+        if (!primaryItem.durationDays.trim()) {
+          setApiError('Informe a duração em dias.');
+          return;
+        }
+      }
+    }
     setSaving(true);
     setSavedOk(false);
     if (formMode === 'quick_setup') {
