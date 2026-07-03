@@ -124,10 +124,7 @@ function EmailVerificationBanner({ email }: { email: string }) {
   const resend = async () => {
     setSending(true);
     try {
-      await fetch('/api/auth/verify-email/send', {
-        method: 'POST',
-        credentials: 'include',
-      });
+      await fetch('/api/auth/verify-email/send', { method: 'POST' });
       setSent(true);
     } catch {}
     setSending(false);
