@@ -71,7 +71,7 @@ const segBtn = (active: boolean) =>
     active ? 'border-[#0056D2] bg-blue-50 text-[#0047ad]' : 'border-slate-200 bg-white text-slate-600'
   }`;
 
-const inputCls = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10';
+const inputCls = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base outline-none transition-all duration-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10 focus:py-4 focus:px-5 focus:shadow-lg focus:shadow-blue-500/10';
 
 // Toggle visual — div sem estilos padrão de browser (button no Safari quebra backgroundColor)
 function Toggle({ on }: { on: boolean }) {
@@ -99,53 +99,90 @@ function Toggle({ on }: { on: boolean }) {
   );
 }
 
-// Typeahead com isMounted para não limpar raça existente no mount
+// BreedPicker — bottom sheet com scroll livre por todas as raças
 function BreedPicker({ species, value, onChange }: { species: string; value: string; onChange: (v: string) => void }) {
-  const [query, setQuery] = useState(value);
+  const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const isMounted = useRef(false);
 
   const breeds = species === 'dog' ? DOG_BREEDS : species === 'cat' ? CAT_BREEDS : [];
   const q = query.trim().toLowerCase();
-  const filtered = q ? breeds.filter(b => b.toLowerCase().includes(q)).slice(0, 10) : breeds.slice(0, 10);
+  const filtered = q ? breeds.filter(b => b.toLowerCase().includes(q)) : breeds;
 
-  useEffect(() => { setQuery(value); }, [value]);
+  useEffect(() => { if (!open) setQuery(''); }, [open]);
   useEffect(() => {
     if (!isMounted.current) { isMounted.current = true; return; }
     setQuery(''); onChange('');
   }, [species]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const select = (breed: string) => { setQuery(breed); onChange(breed); setOpen(false); inputRef.current?.blur(); };
+  const select = (breed: string) => { onChange(breed); setOpen(false); };
+
+  const openSheet = () => {
+    setOpen(true);
+    setTimeout(() => searchRef.current?.focus(), 120);
+  };
 
   if (!species || species === 'other') return null;
 
   return (
     <div className="space-y-1.5">
       <label className={lbl}>Raça (opcional)</label>
-      <div className="relative">
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={e => { setQuery(e.target.value); onChange(''); setOpen(true); }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder="Buscar raça…"
-          className={inputCls}
-        />
-        {open && filtered.length > 0 && (
-          <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden max-h-52 overflow-y-auto">
-            {filtered.map(b => (
-              <button key={b} type="button"
-                onPointerDown={e => { e.preventDefault(); select(b); }}
-                className="w-full text-left px-4 py-3 text-sm text-slate-800 border-b border-slate-100 last:border-b-0 active:bg-blue-50 hover:bg-blue-50">
-                {b}
-              </button>
-            ))}
+      <button
+        type="button"
+        onClick={openSheet}
+        className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base text-left outline-none transition-all duration-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10 focus:shadow-lg focus:shadow-blue-500/10 active:scale-[0.99]"
+      >
+        <span className={value ? 'text-slate-900 font-medium' : 'text-slate-400'}>
+          {value || 'Selecionar raça…'}
+        </span>
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-[200] flex flex-col justify-end"
+          onClick={() => setOpen(false)}
+        >
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative bg-white rounded-t-3xl shadow-2xl flex flex-col animate-slideUp"
+            style={{ maxHeight: '74vh' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+              <div className="w-10 h-1 rounded-full bg-slate-200" />
+            </div>
+            <div className="px-4 pt-2 pb-3 border-b border-slate-100 flex items-center gap-2 flex-shrink-0">
+              <input
+                ref={searchRef}
+                type="text"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Buscar raça…"
+                className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base outline-none transition-all duration-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+              />
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="w-11 h-11 flex-shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-lg active:scale-95 transition-all"
+              >✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 overscroll-contain">
+              {filtered.map(b => (
+                <button
+                  key={b}
+                  type="button"
+                  onPointerDown={e => { e.preventDefault(); select(b); }}
+                  className={`w-full text-left px-5 py-4 text-base border-b border-slate-100 last:border-b-0 active:bg-blue-50 transition-colors ${b === value ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-800'}`}
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+            <div className="flex-shrink-0" style={{ height: 'max(8px, env(safe-area-inset-bottom))' }} />
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -408,9 +445,9 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
                   <input type="text" inputMode="decimal" value={formData.weight}
                     onChange={e => set('weight', e.target.value.replace(',', '.').replace(/[^0-9.]/g, ''))}
                     placeholder="Ex: 8.5"
-                    className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10" />
+                    className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base outline-none transition-all duration-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10 focus:py-4 focus:px-5 focus:shadow-lg focus:shadow-blue-500/10" />
                   <select value={formData.weight_unit} onChange={e => set('weight_unit', e.target.value)}
-                    className="rounded-2xl border border-slate-200 bg-white px-3 py-3.5 text-sm outline-none">
+                    className="rounded-2xl border border-slate-200 bg-white px-3 py-3.5 text-base outline-none">
                     <option value="kg">kg</option>
                     <option value="lb">lb</option>
                   </select>
