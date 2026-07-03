@@ -13,8 +13,11 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json(data, { status: res.status });
     const setCookie = res.headers.get('set-cookie');
     if (setCookie) response.headers.set('set-cookie', setCookie);
+    response.cookies.delete('petmol_ev');
     return response;
   } catch {
-    return NextResponse.json({ ok: true }, { status: 200 });
+    const response = NextResponse.json({ ok: true }, { status: 200 });
+    response.cookies.delete('petmol_ev');
+    return response;
   }
 }

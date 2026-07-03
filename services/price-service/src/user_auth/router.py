@@ -127,7 +127,7 @@ def login(payload: LoginRequest, response: Response, request: Request, db: Sessi
     token = create_access_token(user_id=str(user.id))
     response.set_cookie(COOKIE_NAME, token, **_cookie_settings())
     logger.info(f"Login success - User: {hash_email(payload.email)}")
-    return LoginResponse(id=user.id, email=user.email, created_at=user.created_at, access_token=token)
+    return LoginResponse(id=user.id, email=user.email, created_at=user.created_at, access_token=token, email_verified=user.email_verified)
 
 
 def _password_reset_hash(token: str) -> str:

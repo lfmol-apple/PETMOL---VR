@@ -71,6 +71,7 @@ class LoginResponse(BaseModel):
     email: EmailStr
     created_at: OptionalUtcInstant = None
     access_token: str
+    email_verified: bool = False
 
     class Config:
         from_attributes = True
