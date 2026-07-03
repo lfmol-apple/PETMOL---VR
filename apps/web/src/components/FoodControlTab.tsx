@@ -561,6 +561,10 @@ export function FoodControlTab({
         setApiError('Informe o tamanho do pacote em kg.');
         return;
       }
+      if (primarySource.trackingMethod === 'weight' && !primarySource.dailyConsumptionG.trim()) {
+        setApiError('Informe o consumo diário em gramas.');
+        return;
+      }
       if (primarySource.trackingMethod === 'duration' && !primarySource.durationDays.trim()) {
         setApiError('Informe a duração em dias.');
         return;
