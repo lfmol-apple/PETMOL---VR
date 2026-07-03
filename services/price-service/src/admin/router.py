@@ -251,18 +251,19 @@ def admin_list_users(
     current=Depends(get_current_admin),
     limit: int = 100,
     offset: int = 0,
+    email: Optional[str] = None,
 ):
-    users = (
-        db.query(User)
-        .order_by(User.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    q = db.query(User)
+    if email:
+        q = q.filter(User.email.ilike(f"%{email}%"))
+    users = q.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
 
     user_data = []
     for user in users:
-        user_data.append(UserOut(id=str(user.id), email=user.email, created_at=user.created_at))
+        user_data.append(UserOut(
+            id=str(user.id), email=user.email, created_at=user.created_at,
+            email_verified=bool(user.email_verified),
+        ))
 
     return UsersListOut(success=True, data=user_data)
 
@@ -303,7 +304,8 @@ def admin_get_user(
 
     return UserDetailOut(
         success=True,
-        data=UserOut(id=str(user.id), email=user.email, created_at=user.created_at),
+        data=UserOut(id=str(user.id), email=user.email, created_at=user.created_at,
+                     email_verified=bool(user.email_verified)),
     )
 
 
@@ -327,12 +329,16 @@ def admin_update_user(
     if payload.password:
         user.password_hash = hash_password(payload.password)
 
+    if payload.email_verified is not None:
+        user.email_verified = payload.email_verified
+
     db.commit()
     db.refresh(user)
 
     return UserDetailOut(
         success=True,
-        data=UserOut(id=str(user.id), email=user.email, created_at=user.created_at),
+        data=UserOut(id=str(user.id), email=user.email, created_at=user.created_at,
+                     email_verified=bool(user.email_verified)),
     )
 
 

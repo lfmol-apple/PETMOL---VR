@@ -105,12 +105,14 @@ class UserCreateRequest(BaseModel):
 class UserUpdateRequest(BaseModel):
     email: Optional[EmailStr] = None
     password: Optional[str] = None
+    email_verified: Optional[bool] = None
 
 
 class UserOut(BaseModel):
     id: str
     email: EmailStr
     created_at: UtcInstant
+    email_verified: bool = False
 
 
 class UserDetailOut(BaseModel):
