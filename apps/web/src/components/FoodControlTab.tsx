@@ -532,32 +532,8 @@ export function FoodControlTab({
       setApiError('Selecione "Por peso" ou "Por duração" antes de salvar.');
       return;
     }
-    if (formMode !== 'quick_setup') {
-      if (showAdvanced) {
-        if (primaryItem.trackingMethod === 'weight' && !primaryItem.packageSizeKg.trim()) {
-          setApiError('Informe o tamanho do pacote em kg.');
-          return;
-        }
-        if (primaryItem.trackingMethod === 'duration' && !primaryItem.durationDays.trim()) {
-          setApiError('Informe a duração em dias.');
-          return;
-        }
-      } else {
-        if (!primaryItem.durationDays.trim()) {
-          setApiError('Informe a duração em dias.');
-          return;
-        }
-      }
-    }
-    setSaving(true);
-    setSavedOk(false);
-    if (formMode === 'quick_setup') {
-      setSaveFeedback('Racao cadastrada com sucesso.');
-    } else {
-      setSaveFeedback(hasExisting ? 'Alteracoes salvas com sucesso.' : 'Controle de alimentacao salvo com sucesso.');
-    }
-    setApiError(null);
 
+    // Build the exact payload first, then validate what will actually be sent.
     const sourceItems = formMode === 'quick_setup'
       ? ensurePrimaryItem([
           {
@@ -574,10 +550,31 @@ export function FoodControlTab({
             ...item,
             trackingMethod: 'duration',
             startDate: item.startDate || localTodayISO(),
-            durationDays: item.durationDays || '30',
+            durationDays: item.durationDays,
             dailyConsumptionG: '',
           })))
       : normalizedItems;
+
+    if (formMode !== 'quick_setup') {
+      const primarySource = getPrimaryItem(sourceItems);
+      if (primarySource.trackingMethod === 'weight' && !primarySource.packageSizeKg.trim()) {
+        setApiError('Informe o tamanho do pacote em kg.');
+        return;
+      }
+      if (primarySource.trackingMethod === 'duration' && !primarySource.durationDays.trim()) {
+        setApiError('Informe a duração em dias.');
+        return;
+      }
+    }
+
+    setSaving(true);
+    setSavedOk(false);
+    if (formMode === 'quick_setup') {
+      setSaveFeedback('Racao cadastrada com sucesso.');
+    } else {
+      setSaveFeedback(hasExisting ? 'Alteracoes salvas com sucesso.' : 'Controle de alimentacao salvo com sucesso.');
+    }
+    setApiError(null);
     const { requestItems, primaryRequestItem, requestBody } = buildPlanPayload(sourceItems);
 
     try {
