@@ -161,7 +161,7 @@ export function VaccineItemSheet({
     { label: 'Antirrábica', type: 'rabies', name: 'Antirrábica', icon: '🦠', code: 'rabies', notes: '' },
     { label: 'Tosse dos canis', type: 'kennel_cough', name: 'Gripe Canina (Tosse dos Canis)', icon: '🫁', code: 'kennel_cough', notes: 'Bordetella bronchiseptica' },
     { label: 'Giárdia', type: 'giardia', name: 'Giárdia', icon: '🧪', code: 'giardia', notes: '' },
-    { label: 'Leishmaniose', type: 'leishmaniasis', name: 'Leishmaniose', icon: '🛡️', code: 'leishmaniasis', notes: '', disabled: true },
+    { label: 'Leishmaniose', type: 'leishmaniasis', name: 'Leishmaniose', icon: '🛡️', code: 'leishmaniasis', notes: '' },
     { label: 'Outro', type: 'other', name: 'Outra Vacina', icon: '➕', code: 'other', notes: '', isOther: true },
   ];
   const catChips: ChipDef[] = [
@@ -179,7 +179,7 @@ export function VaccineItemSheet({
 
   async function handleChipClick(chip: ChipDef) {
     if (chip.disabled) {
-      showToast('A vacina de Leishmaniose requer receita veterinária especial.');
+      showToast('Esta vacina não está disponível no momento.');
       return;
     }
     if (chip.isOther) {

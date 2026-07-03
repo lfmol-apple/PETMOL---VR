@@ -239,10 +239,10 @@ export function HealthParasiteControlPanel({
             )}
 
             {parasiteFormData.type === 'collar' && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-start gap-2">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-2">
                 <span>⚠️</span>
-                <p className="text-xs text-red-800">
-                  <span className="font-bold">Leishmaniose — Doença Grave.</span> Vacina descontinuada no Brasil. Use coleira repelente + tópico mensal. Evite passeios no amanhecer/entardecer. Consulte seu veterinário.
+                <p className="text-xs text-amber-800">
+                  <span className="font-bold">Leishmaniose — Doença Grave.</span> Use coleira repelente + antipulgas/carrapato tópico mensal. Evite passeios no amanhecer/entardecer em áreas de risco. Consulte seu veterinário.
                 </p>
               </div>
             )}
