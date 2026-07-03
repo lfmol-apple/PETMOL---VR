@@ -105,7 +105,7 @@ function EstablishmentInput({
 const CATEGORY_TITLE_MAP: Record<string, string> = {
   exam: 'EXAME',
   prescription: 'RECEITA',
-  vaccine: 'VACINA',
+  vaccine: 'CARTEIRINHA',
   report: 'LAUDO',
   comprovante: 'COMPROVANTE',
   other: 'DOCUMENTO',
@@ -1458,42 +1458,45 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
       <input ref={cameraInputRef} type="file" accept="image/*,application/pdf" capture="environment" className="hidden" onChange={(e) => e.target.files && handleCameraSelection(e.target.files)} />
 
 
-      {/* ── BATCH CONFIRM PANEL (right sidebar) ──────────────────────── */}
+      {/* ── BATCH CONFIRM PANEL ──────────────────────────────────────── */}
       {batchConfirm && (
-        <div className="fixed top-0 right-0 bottom-0 z-[300] flex flex-col w-full max-w-sm bg-white/97 backdrop-blur-xl shadow-2xl border-l border-gray-200 overflow-hidden">
+        <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center">
+          {/* backdrop */}
+          <div className="absolute inset-0 bg-black/50" onClick={() => setBatchConfirm(null)} />
 
-          {/* Header */}
-          <div className="px-5 pt-5 pb-3 border-b border-gray-100 flex-shrink-0">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">📋</span>
-              <div className="flex-1 min-w-0">
-                <h4 className="font-bold text-gray-900 text-base leading-tight">
-                  {batchConfirm.docs.length === 1
-                    ? 'Confirmar documento'
-                    : `Confirmar ${batchConfirm.docs.length} documentos`}
-                </h4>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Confirme a data — nome gerado automaticamente.
-                </p>
-              </div>
-              <button
-                onClick={() => setBatchConfirm(null)}
-                className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
-                aria-label="Fechar"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
+          <div className="relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-[24px] shadow-2xl flex flex-col max-h-[90dvh] overflow-hidden">
 
-          {/* Scrollable body */}
-          <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
-
-              {/* Shared date + establishment */}
-              <div className="grid grid-cols-1 gap-3">
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 flex-shrink-0">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-gray-700 mb-1.5 block">
-                    📅 Data do atendimento
+                  <h4 className="text-lg font-bold text-gray-900 leading-tight">
+                    {batchConfirm.docs.length === 1
+                      ? 'Confirmar documento'
+                      : `Confirmar ${batchConfirm.docs.length} documentos`}
+                  </h4>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    Confirme a data — o nome foi gerado automaticamente.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setBatchConfirm(null)}
+                  className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors text-sm"
+                  aria-label="Fechar"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="overflow-y-auto flex-1 px-6 pb-2 space-y-5">
+
+              {/* Date + Establishment */}
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">
+                    Data do atendimento
                   </label>
                   <input
                     type="date"
@@ -1513,12 +1516,12 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                         };
                       })
                     }
-                    className="w-full border-2 border-amber-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-amber-50"
+                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-700 mb-1.5 block">
-                    🏥 Estabelecimento
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">
+                    Estabelecimento (opcional)
                   </label>
                   <EstablishmentInput
                     value={batchConfirm.sharedEstablishment}
@@ -1527,27 +1530,23 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                     }
                     historyNames={(docs.map((d) => d.establishment_name).filter((v, i, a) => !!v && a.indexOf(v) === i) as string[])}
                     placeholder="Ex: Clínica VetCenter"
-                    className="w-full border-2 border-amber-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-amber-50"
+                    className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white transition-colors"
                   />
                 </div>
               </div>
 
               {/* Per-doc list */}
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {batchConfirm.docs.length > 1 && (
-                  <p className="text-xs font-semibold text-gray-500">
-                    {batchConfirm.docs.length} documentos — confirme os nomes:
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    {batchConfirm.docs.length} documentos
                   </p>
                 )}
                 {batchConfirm.docs.map((item, idx) => (
-                  <div key={item.id} className="space-y-1.5">
-                    <label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
-                      <span>{item.icon}</span>
-                      {item.isAutoTitle
-                        ? 'Nome (gerado automaticamente — toque para editar)'
-                        : batchConfirm.docs.length > 1
-                          ? `Nome do documento #${idx + 1}`
-                          : 'Nome do documento'}
+                  <div key={item.id} className="space-y-2">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block">
+                      {batchConfirm.docs.length > 1 ? `Documento ${idx + 1} — ` : ''}{item.icon} Nome
+                      {item.isAutoTitle && <span className="normal-case font-normal text-blue-500 ml-1">· toque para editar</span>}
                     </label>
                     <input
                       type="text"
@@ -1563,14 +1562,9 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                         )
                       }
                       placeholder="Ex: EXAME DE SANGUE"
-                      className={`w-full border-2 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 uppercase ${
-                        item.isAutoTitle
-                          ? 'border-green-300 bg-green-50 focus:ring-green-400 text-green-900'
-                          : 'border-amber-300 bg-amber-50 focus:ring-amber-400'
-                      }`}
+                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm font-semibold text-gray-900 uppercase focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white transition-colors"
                     />
                     {!hideCategoryTabs && (
-                    <div className="mt-2">
                       <select
                         value={item.customCategory}
                         onChange={(e) =>
@@ -1589,36 +1583,36 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                             } : prev
                           )
                         }
-                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+                        className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-sm text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white transition-colors"
                       >
                         {CATEGORY_OPTIONS.map((c) => (
                           <option key={c.value} value={c.value}>{c.label}</option>
                         ))}
                       </select>
-                    </div>
                     )}
                   </div>
                 ))}
               </div>
-          </div>
+            </div>
 
-          {/* Footer actions */}
-          <div className="px-5 py-4 border-t border-gray-100 flex gap-3 flex-shrink-0">
-              <button
-                onClick={() => setBatchConfirm(null)}
-                className="px-4 py-3 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl transition-colors flex-shrink-0"
-              >
-                Pular
-              </button>
+            {/* Footer */}
+            <div className="px-6 pt-4 pb-8 sm:pb-6 flex-shrink-0 space-y-3">
               <button
                 onClick={handleSaveBatch}
                 disabled={batchConfirm.saving}
-                className="flex-1 py-3 bg-amber-500 text-white rounded-xl text-sm font-bold hover:bg-amber-600 disabled:opacity-50 transition-colors shadow-sm"
+                className="w-full py-4 bg-blue-600 text-white rounded-2xl text-base font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
               >
                 {batchConfirm.saving
                   ? '⏳ Salvando…'
-                  : `✓ Salvar ${batchConfirm.docs.length > 1 ? 'todos os documentos' : 'documento'}`}
+                  : `Salvar ${batchConfirm.docs.length > 1 ? `${batchConfirm.docs.length} documentos` : 'documento'}`}
               </button>
+              <button
+                onClick={() => setBatchConfirm(null)}
+                className="w-full py-3 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                Pular
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -268,6 +268,7 @@ export function GroomingItemSheet({
         setMode('view');
         setEditRecord(null);
         await onRefresh();
+        setJustSaved(true);
       } else {
         const errorText = await res.text().catch(() => '');
         showToast(`❌ Erro ao atualizar (${res.status}). ${errorText || 'Tente novamente.'}`);

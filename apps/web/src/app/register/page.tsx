@@ -8,6 +8,7 @@ import { getToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { trackV1Metric } from '@/lib/v1Metrics';
+import { subscribeToPush } from '@/features/notifications/pushService';
 
 type FieldKey = 'name' | 'email' | 'password' | 'terms';
 
@@ -42,6 +43,9 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<FieldKey, string>>({ name: '', email: '', password: '', terms: '' });
   const [currentField, setCurrentField] = useState<FieldKey>('name');
+  const [subscribing, setSubscribing] = useState(false);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [postNotifRoute, setPostNotifRoute] = useState('/welcome');
 
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -52,6 +56,12 @@ export default function RegisterPage() {
     const params = new URLSearchParams(window.location.search);
     setInviteToken(params.get('invite'));
     nameRef.current?.focus();
+    setPushSupported(
+      'Notification' in window &&
+      'serviceWorker' in navigator &&
+      'PushManager' in window &&
+      Notification.permission !== 'granted',
+    );
   }, []);
 
   const canContinueName = name.trim().length >= 2;
@@ -88,13 +98,24 @@ export default function RegisterPage() {
   };
 
   const handleBack = () => {
-    if (loading) return;
-    if (step === 2) {
+    if (step === 2 && !loading) {
       setStep(1);
       setTimeout(() => nameRef.current?.focus(), 120);
       return;
     }
     router.push('/login');
+  };
+
+  const handleActivateNotifications = async () => {
+    setSubscribing(true);
+    try {
+      const token = getToken();
+      if (token) await subscribeToPush(token);
+    } catch {
+      // best-effort — falhas não bloqueiam o cadastro
+    }
+    setSubscribing(false);
+    router.push(postNotifRoute);
   };
 
   const handleSubmit = async () => {
@@ -143,12 +164,17 @@ export default function RegisterPage() {
         } catch {
           // non-blocking
         }
-        router.push('/home');
-        return;
+        setPostNotifRoute('/home');
+      } else {
+        trackV1Metric('register_completed', {});
+        setPostNotifRoute('/welcome');
       }
 
-      trackV1Metric('register_completed', {});
-      router.push('/welcome');
+      if (pushSupported) {
+        setStep(3);
+      } else {
+        router.push(inviteToken ? '/home' : '/welcome');
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao criar conta.';
       setFieldValidation('email', message);
@@ -177,10 +203,70 @@ export default function RegisterPage() {
 
           <div className="mb-4">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-500">Cadastro rápido</p>
-            <p className="mt-2 text-sm font-bold text-slate-900">Passo {step} de 2</p>
+            <p className="mt-2 text-sm font-bold text-slate-900">Passo {Math.min(step, pushSupported ? 3 : 2)} de {pushSupported ? 3 : 2}</p>
           </div>
 
-          {step === 1 ? (
+          {step === 3 ? (
+            <div className="space-y-6">
+              {/* Ícone */}
+              <div className="flex justify-center">
+                <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center shadow-inner">
+                  <svg viewBox="0 0 24 24" fill="none" className="w-10 h-10 text-blue-600" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Texto */}
+              <div className="text-center">
+                <p className="text-2xl font-black text-slate-900 leading-tight">Ative os lembretes</p>
+                <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+                  Receba avisos no celular antes que vacinas vençam, medicamentos acabem ou a ração esgote.
+                </p>
+              </div>
+
+              {/* Benefícios */}
+              <ul className="space-y-2.5">
+                {[
+                  { icon: '💉', text: 'Vacinas prestes a vencer' },
+                  { icon: '💊', text: 'Hora do remédio e antiparasitários' },
+                  { icon: '🍽️', text: 'Estoque de ração acabando' },
+                ].map(({ icon, text }) => (
+                  <li key={text} className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+                    <span className="text-lg leading-none">{icon}</span>
+                    <span className="text-sm font-semibold text-slate-700">{text}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {/* Botões */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleActivateNotifications}
+                  disabled={subscribing}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-[15px] font-black shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {subscribing ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.3" /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>
+                      Ativando...
+                    </>
+                  ) : (
+                    '🔔  Ativar notificações'
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push(postNotifRoute)}
+                  className="w-full py-3 text-sm font-semibold text-slate-400 active:text-slate-600 transition-colors"
+                >
+                  Agora não
+                </button>
+              </div>
+            </div>
+          ) : step === 1 ? (
             <div className="space-y-5">
               <div>
                 <p className="text-2xl font-black text-slate-900">Qual o seu nome?</p>
@@ -324,8 +410,7 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={handleBack}
-                  disabled={loading}
-                  className="py-3.5 rounded-2xl border border-slate-200 bg-white text-slate-600 text-[13px] font-black uppercase tracking-widest disabled:opacity-40"
+                  className="py-3.5 rounded-2xl border border-slate-200 bg-white text-slate-600 text-[13px] font-black uppercase tracking-widest"
                 >
                   Voltar
                 </button>

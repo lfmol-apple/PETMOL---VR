@@ -51,6 +51,8 @@ class VaccineRecordBase(BaseModel):
     reminder_time: Optional[str] = Field(None, max_length=8)
     reminder_enabled: bool = False
     
+class VaccineRecordCreate(VaccineRecordBase):
+
     @field_validator('next_dose_date')
     @classmethod
     def validate_next_dose_date(cls, value, info):
@@ -60,9 +62,6 @@ class VaccineRecordBase(BaseModel):
             if value <= applied:
                 raise ValueError('Data da próxima dose deve ser posterior à data de aplicação')
         return value
-
-
-class VaccineRecordCreate(VaccineRecordBase):
     """Schema for creating a vaccine record."""
     pass
 
@@ -84,14 +83,7 @@ class VaccineRecordUpdate(BaseModel):
     reminder_time: Optional[str] = Field(None, max_length=8)
     reminder_enabled: Optional[bool] = None
     
-    @field_validator('next_dose_date')
-    @classmethod
-    def validate_next_dose_date(cls, value, info):
-        """Validar que next_dose_date é posterior a applied_date se ambos fornecidos."""
-        if 'applied_date' in info.data and info.data['applied_date'] and value:
-            if value <= info.data['applied_date']:
-                raise ValueError('Data da próxima dose deve ser posterior à data de aplicação')
-        return value
+    pass
 
 
 class VaccineRecordOut(VaccineRecordBase):

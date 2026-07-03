@@ -104,6 +104,7 @@ interface HealthModalProps {
   eventTypeLocked: boolean;
   onBackFromHealthModal: (wasLocked: boolean) => void;
   onCloseHealthModal: () => void;
+  onGoHome?: () => void;
   onSelectHealthTab: (tab: string) => void;
   onOpenVaccineCenter: () => void;
   vaccines: VaccineRecord[];
@@ -131,7 +132,7 @@ interface HealthModalProps {
 
 export function HealthModal({
   currentPet, selectedPetId, photoTimestamps,
-  healthModalMode, healthActiveTab, eventTypeLocked, onBackFromHealthModal, onCloseHealthModal, onSelectHealthTab, onOpenVaccineCenter,
+  healthModalMode, healthActiveTab, eventTypeLocked, onBackFromHealthModal, onCloseHealthModal, onGoHome, onSelectHealthTab, onOpenVaccineCenter,
   vaccines,
   parasiteControls, showParasiteForm, setShowParasiteForm, editingParasite, setEditingParasite,
   parasiteFormData, setParasiteFormData, handleDeleteParasite, handleEditParasite, handleSaveParasite, resetParasiteForm,
@@ -372,7 +373,7 @@ export function HealthModal({
                     </div>
                   </div>
 
-                  {/* Direita: Compartilhar + Fechar */}
+                  {/* Direita: Compartilhar + Início + Fechar */}
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {currentPet && (
                       <button
@@ -383,6 +384,15 @@ export function HealthModal({
                         <svg className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors ${showShareOverlay ? 'text-white' : 'text-gray-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                         </svg>
+                      </button>
+                    )}
+                    {onGoHome && (
+                      <button
+                        onClick={onGoHome}
+                        className="h-8 px-3 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold hover:bg-blue-100 transition-colors flex-shrink-0"
+                        aria-label="Ir para a home"
+                      >
+                        Início
                       </button>
                     )}
                     <button

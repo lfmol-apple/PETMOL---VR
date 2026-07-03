@@ -697,33 +697,22 @@ export function useVaccineManagement({
 
   // ── handleImportAnalyzedVaccines ──────────────────────────────────────────
 
-  const handleImportAnalyzedVaccines = async () => {
+  const handleImportAnalyzedVaccines = async (): Promise<boolean> => {
     const currentPet = getCurrentPet();
-    if (!currentPet) return;
+    if (!currentPet) return false;
 
     const registrosToImport = reviewRegistros || [];
-    if (registrosToImport.length === 0) return;
+    if (registrosToImport.length === 0) return false;
 
     if (!reviewConfirmed) {
       showBlockingNotice('Antes de importar, confirme/edite os registros.');
-      return;
-    }
-    if (reviewExpectedCount !== registrosToImport.length) {
-      const proceed = await requestUserConfirmation(
-        `⚠️ Quantidade esperada (${reviewExpectedCount}) não bate com os registros encontrados (${registrosToImport.length}).\n\nVocê pode importar assim mesmo as ${registrosToImport.length} vacina(s) encontradas.\n\nContinuar?`,
-        {
-          title: 'Quantidade divergente no cartão',
-          tone: 'warning',
-          confirmLabel: 'Importar assim mesmo',
-        },
-      );
-      if (!proceed) return;
+      return false;
     }
     if (registrosToImport.some((r) => !r.data_aplicacao)) {
       showBlockingNotice(
         'Preencha a data de aplicação em todos os registros antes de importar.',
       );
-      return;
+      return false;
     }
 
     setImportVaccineLoading(true);
@@ -806,7 +795,7 @@ export function useVaccineManagement({
           },
         ))
       ) {
-        return;
+        return false;
       }
     }
 
@@ -814,7 +803,7 @@ export function useVaccineManagement({
       showBlockingNotice(
         '❌ Todas as vacinas do cartão já estão no prontuário. Nenhuma nova vacina para importar.',
       );
-      return;
+      return false;
     }
 
     let importedCount = 0;
@@ -825,14 +814,14 @@ export function useVaccineManagement({
 
     if (!savedToken) {
       showBlockingNotice('❌ Sessão expirada. Faça login novamente para importar vacinas.');
-      return;
+      return false;
     }
 
     if (validRecords.length === 0) {
       showBlockingNotice(
         '❌ Nenhuma vacina com data de aplicação válida para importar.',
       );
-      return;
+      return false;
     }
 
     try {
@@ -888,7 +877,7 @@ export function useVaccineManagement({
         importedCount = createdVaccines.length;
       } else if (res.status === 401 || res.status === 403) {
         showBlockingNotice('❌ Sessão expirada. Faça login novamente para importar vacinas.');
-        return;
+        return false;
       } else {
         const errText = await res.text().catch(() => '');
         console.warn(`bulk-confirm retornou ${res.status}: ${errText}`);
@@ -941,7 +930,7 @@ export function useVaccineManagement({
             importedCount++;
           } else if (res.status === 401 || res.status === 403) {
             showBlockingNotice('❌ Sessão expirada. Faça login novamente para importar vacinas.');
-            return;
+            return false;
           }
         } catch (error) {
           console.error('Erro ao importar vacina (fallback):', error);
@@ -970,36 +959,6 @@ export function useVaccineManagement({
     }
 
     if (importedCount > 0) {
-      const wasPartialRead = !cardAnalysis?.leitura_confiavel;
-      const hadMissingVaccines =
-        duplicates.length > 0 || newRecords.length < reviewExpectedCount;
-
-      const corrections =
-        rawRegistros && reviewRegistros
-          ? reviewRegistros.filter((r, i) => {
-              const orig = rawRegistros[i];
-              return (
-                orig &&
-                (orig.nome_comercial !== r.nome_comercial ||
-                  orig.tipo_vacina !== r.tipo_vacina ||
-                  orig.data_aplicacao !== r.data_aplicacao ||
-                  orig.data_revacina !== r.data_revacina ||
-                  orig.veterinario_responsavel !== r.veterinario_responsavel)
-              );
-            }).length
-          : 0;
-
-      let message = `✅ ${importedCount} vacina(s) importada(s) para o prontuário digital!`;
-      if (corrections > 0 && reviewLearnEnabled) {
-        message += `\n\n🧠 Sistema aprendeu com ${corrections} correção(ões)!\nPróximas leituras serão mais precisas.`;
-      }
-      if (wasPartialRead || hadMissingVaccines) {
-        message += `\n\n⚠️ IMPORTANTE: Verifique se todas as vacinas do cartão foram importadas.`;
-        message += `\nSe faltou alguma, clique em "➕ Nova Vacina Manual" para adicionar.`;
-      }
-      showBlockingNotice(message);
-
-      closeCardAnalysis();
       if (selectedPetId) fetchPetEvents(selectedPetId);
 
       const allVaccinesNow = [...(vaccines || []), ...createdVaccines];
@@ -1021,12 +980,15 @@ export function useVaccineManagement({
           }),
         );
       }
-    } else {
       setImportVaccineLoading(false);
+      return true;
+    } else {
       showBlockingNotice(
         '❌ Nenhuma vacina foi importada. Verifique se você está logado e tente novamente.',
       );
     }
+    setImportVaccineLoading(false);
+    return false;
   };
 
   // ── return ────────────────────────────────────────────────────────────────

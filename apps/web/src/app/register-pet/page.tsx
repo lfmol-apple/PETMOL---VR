@@ -178,8 +178,22 @@ export default function RegisterPetPage() {
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!getToken()) { router.push('/login'); return; }
-    nameRef.current?.focus();
+    const token = getToken();
+    if (!token) { router.push('/login'); return; }
+    // Se o usuário já tem pets cadastrados, vai direto para home
+    fetch(`${API_BASE_URL}/pets`, {
+      credentials: 'include',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : [])
+      .then(pets => {
+        if (Array.isArray(pets) && pets.length > 0) {
+          router.replace('/home');
+        } else {
+          nameRef.current?.focus();
+        }
+      })
+      .catch(() => { nameRef.current?.focus(); });
   }, [router]);
 
   const weightNumber = parseFloat(formatWeight(weightValue));
@@ -602,7 +616,7 @@ export default function RegisterPetPage() {
 
             {/* Footer buttons */}
             <div className="px-6 pt-3 pb-6 border-t border-slate-100 flex gap-2">
-              <button type="button" onClick={() => router.push('/home')}
+              <button type="button" onClick={() => router.push('/login')}
                 className="flex-shrink-0 py-3.5 px-5 rounded-2xl border border-slate-200 bg-white text-slate-600 text-sm font-bold">
                 Voltar
               </button>

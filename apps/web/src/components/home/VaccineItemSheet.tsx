@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
+import React, { useEffect, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
 import type { VaccineRecord, VaccineType } from '@/lib/petHealth';
 import type { VaccineFormData } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
@@ -81,6 +81,8 @@ export interface VaccineItemSheetProps {
   handleFilesSelectedAppend: (event: ChangeEvent<HTMLInputElement>) => void;
   handleProcessCards: (selected: File[]) => Promise<void>;
   initialMode?: 'view' | 'buy';
+  forceJustSaved?: boolean;
+  onForceJustSavedConsumed?: () => void;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -104,6 +106,8 @@ export function VaccineItemSheet({
   handleFilesSelectedAppend,
   handleProcessCards,
   initialMode,
+  forceJustSaved,
+  onForceJustSavedConsumed,
 }: VaccineItemSheetProps) {
   const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
   const [mode, setMode] = useState<'view' | 'buy'>(initialMode === 'buy' ? 'buy' : 'view');
@@ -118,6 +122,14 @@ export function VaccineItemSheet({
   const [savingChip, setSavingChip] = useState<string | null>(null);
   const [savedChip, setSavedChip] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
+
+  useEffect(() => {
+    if (forceJustSaved) {
+      setJustSaved(true);
+      onForceJustSavedConsumed?.();
+    }
+  }, [forceJustSaved]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
