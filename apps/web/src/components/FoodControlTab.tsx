@@ -335,6 +335,7 @@ export function FoodControlTab({
   const [formOpen, setFormOpen] = useState(() => !!formRequest);
   const [formMode, setFormMode] = useState<'add' | 'edit' | 'quick_setup'>(() => formRequest?.mode ?? 'edit');
   const [showAdvanced, setShowAdvanced] = useState(() => formRequest?.mode === 'edit');
+  const [methodChosen, setMethodChosen] = useState(false);
   const [deleteFeedback, setDeleteFeedback] = useState<string | null>(null);
   const [apiEstimate, setApiEstimate] = useState<{ estimated_end_date: string | null; estimated_days_left: number | null } | null>(null);
 
@@ -413,6 +414,7 @@ export function FoodControlTab({
             });
             setHasExisting(true);
             setLoadedExisting(true);
+            setMethodChosen(true);
             return;
           }
         }
@@ -526,6 +528,10 @@ export function FoodControlTab({
   // ─── Save ─────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
+    if (showAdvanced && !methodChosen) {
+      setApiError('Selecione "Por peso" ou "Por duração" antes de salvar.');
+      return;
+    }
     setSaving(true);
     setSavedOk(false);
     if (formMode === 'quick_setup') {
@@ -716,6 +722,7 @@ export function FoodControlTab({
     setDeleteFeedback(null);
     setSavedOk(false);
     setShowAdvanced(false);
+    setMethodChosen(false);
     setItems((current) => ensurePrimaryItem([...current, createEmptyFoodItem(false)]));
     setFormMode('add');
     setFormOpen(true);
@@ -966,12 +973,15 @@ export function FoodControlTab({
 
                   {!isQuickSetup && showAdvanced && (
                     <div className="space-y-2">
+                      {!methodChosen && (
+                        <p className="text-xs font-bold text-amber-700">Selecione como controlar a ração:</p>
+                      )}
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
-                          onClick={() => updateItem(item.id, (current) => ({ ...current, trackingMethod: 'weight' }))}
+                          onClick={() => { updateItem(item.id, (current) => ({ ...current, trackingMethod: 'weight' })); setMethodChosen(true); }}
                           className={`min-h-[44px] rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all ${
-                            item.trackingMethod === 'weight'
+                            methodChosen && item.trackingMethod === 'weight'
                               ? 'border-amber-300 bg-amber-50 text-amber-900'
                               : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                           }`}
@@ -980,9 +990,9 @@ export function FoodControlTab({
                         </button>
                         <button
                           type="button"
-                          onClick={() => updateItem(item.id, (current) => ({ ...current, trackingMethod: 'duration' }))}
+                          onClick={() => { updateItem(item.id, (current) => ({ ...current, trackingMethod: 'duration' })); setMethodChosen(true); }}
                           className={`min-h-[44px] rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all ${
-                            item.trackingMethod === 'duration'
+                            methodChosen && item.trackingMethod === 'duration'
                               ? 'border-amber-300 bg-amber-50 text-amber-900'
                               : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                           }`}
@@ -1119,7 +1129,7 @@ export function FoodControlTab({
                   {!isQuickSetup && !showAdvanced && (
                     <button
                       type="button"
-                      onClick={() => setShowAdvanced(true)}
+                      onClick={() => { setShowAdvanced(true); if (!hasExisting) setMethodChosen(false); }}
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50"
                     >
                       Mostrar opções avançadas

@@ -616,7 +616,7 @@ export default function RegisterPetPage() {
 
             {/* Footer buttons */}
             <div className="px-6 pt-3 pb-6 border-t border-slate-100 flex gap-2">
-              <button type="button" onClick={() => router.push('/login')}
+              <button type="button" onClick={() => router.push('/home')}
                 className="flex-shrink-0 py-3.5 px-5 rounded-2xl border border-slate-200 bg-white text-slate-600 text-sm font-bold">
                 Voltar
               </button>

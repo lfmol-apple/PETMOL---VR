@@ -279,7 +279,7 @@ export default function RegisterPage() {
                   ref={nameRef}
                   type="text"
                   value={name}
-                  onFocus={() => setCurrentField('name')}
+                  onFocus={(e) => { setCurrentField('name'); const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 350); }}
                   onChange={(e) => {
                     setName(e.target.value);
                     if (errors.name) setFieldValidation('name', '');
@@ -322,7 +322,7 @@ export default function RegisterPage() {
                   ref={emailRef}
                   type="email"
                   value={email}
-                  onFocus={() => setCurrentField('email')}
+                  onFocus={(e) => { setCurrentField('email'); const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 350); }}
                   onChange={(e) => {
                     setEmail(e.target.value.trim());
                     if (errors.email) setFieldValidation('email', '');
@@ -339,7 +339,7 @@ export default function RegisterPage() {
                     ref={passwordRef}
                     type={showPassword ? 'text' : 'password'}
                     value={password}
-                    onFocus={() => setCurrentField('password')}
+                    onFocus={(e) => { setCurrentField('password'); const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 350); }}
                     onChange={(e) => {
                       setPassword(e.target.value);
                       if (errors.password) setFieldValidation('password', '');
