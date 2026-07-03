@@ -81,18 +81,20 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onAlimentacaoClick}
-            className="group relative overflow-hidden rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-100 p-3 min-h-[82px] shadow-sm shadow-amber-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+            className="group relative overflow-hidden rounded-2xl border border-amber-300 bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-200 p-3 min-h-[82px] shadow-sm shadow-amber-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
-            {shouldShowAlert(colorFood, alertFood) && <AlertDot tone={colorFood} />}
-            <span className="absolute right-2.5 top-2.5 opacity-85 pointer-events-none transition-transform group-hover:scale-105">
+            {(!hasFoodData || shouldShowAlert(colorFood, alertFood)) && (
+              <AlertDot tone={!hasFoodData ? 'critical' : colorFood} />
+            )}
+            <span className="absolute right-2.5 top-2.5 opacity-90 pointer-events-none transition-transform group-hover:scale-105">
               <span className="text-[22px]">🥣</span>
             </span>
             <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
               <h3 className="line-clamp-2 text-[13px] sm:text-base font-bold leading-tight text-amber-950">{foodTitle || t('home.food.title')}</h3>
-              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-amber-800/85">
-                {hasFoodData ? (foodHeadline || t('home.food.desc')) : (foodHeadline || 'Toque para cadastrar')}
+              <p className={`mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] ${!hasFoodData ? 'font-bold text-red-700' : 'text-amber-800/85'}`}>
+                {!hasFoodData ? 'Cuidado em aberto' : (hasFoodData ? (foodHeadline || t('home.food.desc')) : (foodHeadline || 'Toque para cadastrar'))}
               </p>
-              {foodSubline && (
+              {foodSubline && hasFoodData && (
                 <p className="mt-1 line-clamp-1 text-[10px] sm:text-xs font-bold leading-[1.15] text-amber-900">
                   {foodSubline}
                 </p>
@@ -100,16 +102,16 @@ export function AppleControlButtons({
             </div>
           </button>
 
-          {/* 2. SAÚDE/CUIDADOS */}
+          {/* 2. SAÚDE */}
           <button
             type="button"
             onClick={onHealthClick}
-            className="group relative overflow-hidden rounded-2xl border border-indigo-200/70 bg-gradient-to-br from-indigo-50 via-violet-50 to-violet-100 p-3 min-h-[82px] shadow-sm shadow-indigo-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+            className="group relative overflow-hidden rounded-2xl border border-indigo-300 bg-gradient-to-br from-indigo-100 via-violet-100 to-violet-200 p-3 min-h-[82px] shadow-sm shadow-indigo-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
             {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
-            <span className="absolute right-2.5 top-2.5 text-[22px] opacity-85 pointer-events-none transition-transform group-hover:scale-105">🏥</span>
+            <span className="absolute right-2.5 top-2.5 text-[22px] opacity-90 pointer-events-none transition-transform group-hover:scale-105">🏥</span>
             <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
-              <h3 className="truncate text-[14px] sm:text-base font-semibold leading-tight text-indigo-950">Saúde/Cuidados</h3>
+              <h3 className="truncate text-[14px] sm:text-base font-semibold leading-tight text-indigo-950">Saúde</h3>
               <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-indigo-900/80">Vacinas, medicação e banho</p>
             </div>
           </button>
@@ -118,12 +120,12 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onPetSumidoClick}
-            className="group relative overflow-hidden rounded-2xl border border-orange-300/80 bg-gradient-to-br from-orange-50 via-red-50 to-orange-100 p-3 min-h-[82px] shadow-sm shadow-orange-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+            className="group relative overflow-hidden rounded-2xl border border-red-400 bg-gradient-to-br from-red-100 via-rose-100 to-red-200 p-3 min-h-[82px] shadow-sm shadow-red-900/15 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
-            <span className="absolute right-2.5 top-2.5 text-[22px] opacity-90 pointer-events-none transition-transform group-hover:scale-105">🔍</span>
+            <span className="absolute right-2.5 top-2.5 text-[22px] opacity-95 pointer-events-none transition-transform group-hover:scale-110">🚨</span>
             <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
-              <h3 className="truncate text-[14px] sm:text-base font-semibold leading-tight text-orange-950">Pet Sumido</h3>
-              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-orange-900/80">Alertar a região</p>
+              <h3 className="truncate text-[14px] sm:text-base font-black leading-tight text-red-950">Pet Sumido</h3>
+              <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] font-semibold text-red-800/90">Gerar alerta urgente</p>
             </div>
           </button>
 
@@ -131,9 +133,9 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={() => setShowShoppingSheet(true)}
-            className="group relative overflow-hidden rounded-2xl border border-sky-200/80 bg-gradient-to-br from-sky-50 via-blue-50 to-blue-100 p-3 min-h-[82px] shadow-sm shadow-sky-900/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+            className="group relative overflow-hidden rounded-2xl border border-sky-300 bg-gradient-to-br from-sky-100 via-blue-100 to-blue-200 p-3 min-h-[82px] shadow-sm shadow-sky-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
-            <span className="absolute right-2.5 top-2.5 text-[22px] opacity-85 pointer-events-none transition-transform group-hover:scale-105">🛒</span>
+            <span className="absolute right-2.5 top-2.5 text-[22px] opacity-90 pointer-events-none transition-transform group-hover:scale-105">🛒</span>
             <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
               <h3 className="truncate text-[14px] sm:text-base font-semibold leading-tight text-sky-950">{t('home.shopping.title')}</h3>
               <p className="mt-0.5 line-clamp-2 text-[10px] sm:text-xs leading-[1.15] text-sky-900/75">Produtos com desconto</p>

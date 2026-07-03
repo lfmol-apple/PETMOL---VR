@@ -338,6 +338,9 @@ export default function RegisterPage() {
                   <input
                     ref={passwordRef}
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                     value={password}
                     onFocus={(e) => { setCurrentField('password'); const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 350); }}
                     onChange={(e) => {
