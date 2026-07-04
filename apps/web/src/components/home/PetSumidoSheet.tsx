@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import type { PetHealthProfile } from '@/lib/petHealth';
+import { getToken } from '@/lib/auth-token';
 
 interface PetSumidoSheetProps {
   pet: PetHealthProfile;
@@ -71,6 +72,7 @@ export function PetSumidoSheet({ pet, petPhotoUrl, onClose, onGoHome }: PetSumid
   const [cardDataUrl, setCardDataUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [alertSent, setAlertSent] = useState(false);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -84,6 +86,19 @@ export function PetSumidoSheet({ pet, petPhotoUrl, onClose, onGoHome }: PetSumid
     const canvas = canvasRef.current;
     if (!canvas) return;
     setGenerating(true);
+
+    // Get geolocation (optional — used for radius-based notifications)
+    let geoLat: number | undefined;
+    let geoLng: number | undefined;
+    try {
+      if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+        const pos = await new Promise<GeolocationPosition>((res, rej) =>
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000, maximumAge: 60000 })
+        );
+        geoLat = pos.coords.latitude;
+        geoLng = pos.coords.longitude;
+      }
+    } catch { /* geolocation is optional */ }
 
     const W = 1080;
     const H = 1350;
@@ -197,10 +212,10 @@ export function PetSumidoSheet({ pet, petPhotoUrl, onClose, onGoHome }: PetSumid
 
     // Characteristics free text
     if (characteristics.trim()) {
-      ctx.letterSpacing = '0px';
-      ctx.font = '400 28px Arial, sans-serif';
-      ctx.fillStyle = '#C8B89A';
-      wrapText(ctx, characteristics.trim(), 56, infoY + 186, W - 112, 42);
+      ctx.letterSpacing = '1px';
+      ctx.font = '700 34px Arial, sans-serif';
+      ctx.fillStyle = '#F5EFE6';
+      wrapText(ctx, characteristics.trim().toUpperCase(), 56, infoY + 186, W - 112, 48);
     }
 
     // Contact row
@@ -239,11 +254,36 @@ export function PetSumidoSheet({ pet, petPhotoUrl, onClose, onGoHome }: PetSumid
     ctx.letterSpacing = '0px';
     ctx.fillText('petmol.com.br/achei-um-pet', 56, stripY + 100);
 
+    // Submit alert to backend — push notifications go out immediately
+    const _token = getToken();
+    fetch('/api/missing-pets', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(_token ? { Authorization: `Bearer ${_token}` } : {}),
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        pet_id: pet.pet_id,
+        pet_name: pet.pet_name,
+        species: pet.species,
+        breed: (pet as unknown as { breed?: string }).breed ?? null,
+        characteristics: characteristics.trim() || null,
+        contact: contact.trim(),
+        last_seen_location: lastSeenLocation.trim() || null,
+        lat: geoLat ?? null,
+        lng: geoLng ?? null,
+        missing_date: missingDate,
+        missing_time: missingTime,
+        photo_url: petPhotoUrl && !petPhotoUrl.startsWith('data:') ? petPhotoUrl : null,
+      }),
+    }).then(() => setAlertSent(true)).catch(() => {});
+
     // Done — store as data URL
     setCardDataUrl(canvas.toDataURL('image/png'));
     setGenerating(false);
     setStep('card');
-  }, [pet, photoPreview, lastSeenLocation, characteristics, missingDate, missingTime, contact]);
+  }, [pet, petPhotoUrl, photoPreview, lastSeenLocation, characteristics, missingDate, missingTime, contact]);
 
   const handleShare = useCallback(async (target: 'native' | 'download') => {
     if (!cardDataUrl) return;
@@ -488,33 +528,63 @@ export function PetSumidoSheet({ pet, petPhotoUrl, onClose, onGoHome }: PetSumid
                   </div>
                 </div>
               ) : (
-                <div className="bg-red-950/40 border border-red-800/40 rounded-2xl px-4 py-3">
-                  <p className="font-bold text-red-400 text-[13px] mb-0.5">Card gerado — compartilhe agora 🚨</p>
+                <div className="bg-red-950/40 border border-red-800/40 rounded-2xl px-4 py-3 space-y-1.5">
+                  <p className="font-bold text-red-400 text-[13px]">Card gerado — compartilhe agora 🚨</p>
                   <p className="text-[12px] text-red-300/60">Poste no Instagram, mande em grupos do WhatsApp e peça para amigos republicarem.</p>
+                  {alertSent && (
+                    <p className="text-[12px] text-emerald-400 font-semibold">✓ Alerta enviado para usuários PETMOL próximos</p>
+                  )}
                 </div>
               )}
 
               {/* Share buttons */}
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleShare('native')}
-                  className="col-span-2 flex items-center justify-center gap-2 py-4 bg-[#C0392B] text-white rounded-2xl font-black text-[15px] shadow-lg shadow-red-900/30 border border-red-600/30 active:scale-[0.98] transition-all"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                  </svg>
-                  Compartilhar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleShare('download')}
-                  className="flex items-center justify-center bg-white/8 text-white/70 rounded-2xl font-bold text-lg border border-white/10 active:scale-[0.98] transition-all"
-                  title="Salvar imagem"
-                  aria-label="Salvar imagem"
-                >
-                  ↓
-                </button>
+              <div className="space-y-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleShare('native')}
+                    className="col-span-2 flex items-center justify-center gap-2 py-4 bg-[#C0392B] text-white rounded-2xl font-black text-[15px] shadow-lg shadow-red-900/30 border border-red-600/30 active:scale-[0.98] transition-all"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                    </svg>
+                    Compartilhar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleShare('download')}
+                    className="flex items-center justify-center bg-white/8 text-white/70 rounded-2xl font-bold text-lg border border-white/10 active:scale-[0.98] transition-all"
+                    title="Salvar imagem"
+                    aria-label="Salvar imagem"
+                  >
+                    ↓
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const txt = encodeURIComponent(`🚨 ${pet.pet_name} está desaparecido!\n📍 ${lastSeenLocation || 'Local a confirmar'}\n📱 Contato: ${contact}\n🔗 petmol.com.br/achei-um-pet`);
+                      window.open(`https://wa.me/?text=${txt}`, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-[14px] bg-[#25D366]/15 text-[#25D366] border border-[#25D366]/30 active:scale-[0.98] transition-all"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current flex-shrink-0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                    WhatsApp
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const txt = encodeURIComponent(`🚨 ${pet.pet_name} está desaparecido! Contato: ${contact}`);
+                      const url = encodeURIComponent('https://petmol.com.br/achei-um-pet');
+                      window.open(`https://t.me/share/url?url=${url}&text=${txt}`, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-[14px] bg-[#2AABEE]/15 text-[#2AABEE] border border-[#2AABEE]/30 active:scale-[0.98] transition-all"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current flex-shrink-0"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                    Telegram
+                  </button>
+                </div>
               </div>
 
               <button

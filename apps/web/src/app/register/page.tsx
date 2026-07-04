@@ -46,11 +46,16 @@ export default function RegisterPage() {
   const [subscribing, setSubscribing] = useState(false);
   const [pushSupported, setPushSupported] = useState(false);
   const [postNotifRoute, setPostNotifRoute] = useState('/welcome');
+  const [emailPanelOpen, setEmailPanelOpen] = useState(false);
+  const [passwordPanelOpen, setPasswordPanelOpen] = useState(false);
+  const [showPasswordInPanel, setShowPasswordInPanel] = useState(false);
 
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const termsRef = useRef<HTMLInputElement>(null);
+  const emailPanelInputRef = useRef<HTMLInputElement>(null);
+  const passwordPanelInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -194,6 +199,7 @@ export default function RegisterPage() {
     }`;
 
   return (
+    <>
     <BrandBackground showLogo={false}>
       <div className="min-h-[calc(100dvh-40px)] w-full px-4 py-8 flex items-center justify-center">
         <div className="w-full max-w-md bg-white/95 backdrop-blur-xl rounded-[32px] border border-white/60 shadow-premium p-6 overflow-hidden">
@@ -318,46 +324,32 @@ export default function RegisterPage() {
               </div>
               <div>
                 <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">E-mail *</label>
-                <input
-                  ref={emailRef}
-                  type="email"
-                  value={email}
-                  onFocus={(e) => { setCurrentField('email'); const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 350); }}
-                  onChange={(e) => {
-                    setEmail(e.target.value.trim());
-                    if (errors.email) setFieldValidation('email', '');
-                  }}
-                  placeholder="voce@email.com"
-                  className={fieldClass('email')}
-                />
+                <button
+                  type="button"
+                  onClick={() => { setCurrentField('email'); setEmailPanelOpen(true); }}
+                  className={`${fieldClass('email')} text-left`}
+                >
+                  {email
+                    ? <span className="text-slate-800">{email}</span>
+                    : <span className="text-slate-400">voce@email.com</span>
+                  }
+                </button>
                 {errors.email && <p className="mt-1 text-xs text-rose-600 font-semibold">{errors.email}</p>}
               </div>
               <div>
                 <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Senha *</label>
-                <div className="relative">
-                  <input
-                    ref={passwordRef}
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="off"
-                    data-lpignore="true"
-                    data-1p-ignore="true"
-                    value={password}
-                    onFocus={(e) => { setCurrentField('password'); const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 350); }}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      if (errors.password) setFieldValidation('password', '');
-                    }}
-                    placeholder="Mínimo 6 caracteres"
-                    className={fieldClass('password')}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500"
-                  >
-                    {showPassword ? 'Ocultar' : 'Ver'}
-                  </button>
-                </div>
+                {/* Fake hidden field — confunde a heurística de senha forte do Safari/iOS */}
+                <input type="password" style={{ display: 'none' }} autoComplete="off" tabIndex={-1} aria-hidden="true" readOnly />
+                <button
+                  type="button"
+                  onClick={() => { setCurrentField('password'); setPasswordPanelOpen(true); }}
+                  className={`${fieldClass('password')} text-left`}
+                >
+                  {password
+                    ? <span className="text-slate-800 font-mono tracking-widest text-sm">{'●'.repeat(Math.min(password.length, 16))}</span>
+                    : <span className="text-slate-400">Mínimo 6 caracteres</span>
+                  }
+                </button>
                 {errors.password && <p className="mt-1 text-xs text-rose-600 font-semibold">{errors.password}</p>}
               </div>
               <div>
@@ -431,5 +423,100 @@ export default function RegisterPage() {
         </div>
       </div>
     </BrandBackground>
+
+      {/* ── E-mail zoom panel ─────────────────────────────────────────────── */}
+      {emailPanelOpen && (
+        <div className="fixed inset-0 z-[300]" onClick={() => setEmailPanelOpen(false)}>
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
+          <div
+            className="absolute inset-x-0 bottom-0 bg-white rounded-t-[32px] shadow-2xl"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 20px)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mx-auto mt-3 mb-1 h-1 w-10 rounded-full bg-slate-200" />
+            <div className="flex items-center justify-between px-5 pt-3 pb-3 border-b border-slate-100">
+              <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider">E-mail</span>
+              <button
+                type="button"
+                onClick={() => setEmailPanelOpen(false)}
+                className="px-5 py-2 rounded-full bg-blue-600 text-white text-sm font-black active:scale-95 transition-all"
+              >
+                Pronto
+              </button>
+            </div>
+            <div className="px-5 py-5">
+              <input
+                ref={emailPanelInputRef}
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value.trim());
+                  if (errors.email) setFieldValidation('email', '');
+                }}
+                placeholder="voce@email.com"
+                autoComplete="email"
+                inputMode="email"
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus
+                className="w-full text-[28px] font-medium text-slate-900 border-none outline-none bg-transparent placeholder:text-slate-300"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Senha zoom panel ──────────────────────────────────────────────── */}
+      {passwordPanelOpen && (
+        <div className="fixed inset-0 z-[300]" onClick={() => setPasswordPanelOpen(false)}>
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
+          <div
+            className="absolute inset-x-0 bottom-0 bg-white rounded-t-[32px] shadow-2xl"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 20px)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mx-auto mt-3 mb-1 h-1 w-10 rounded-full bg-slate-200" />
+            <div className="flex items-center justify-between px-5 pt-3 pb-3 border-b border-slate-100">
+              <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider">Senha</span>
+              <button
+                type="button"
+                onClick={() => setPasswordPanelOpen(false)}
+                className="px-5 py-2 rounded-full bg-blue-600 text-white text-sm font-black active:scale-95 transition-all"
+              >
+                Pronto
+              </button>
+            </div>
+            <div className="px-5 py-5 relative">
+              <input
+                ref={passwordPanelInputRef}
+                type={showPasswordInPanel ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (errors.password) setFieldValidation('password', '');
+                }}
+                placeholder="Mínimo 6 caracteres"
+                autoComplete="off"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                data-form-type="other"
+                name="access-code"
+                id="petmol-access-code"
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus
+                className="w-full text-[28px] font-medium text-slate-900 border-none outline-none bg-transparent pr-24 placeholder:text-slate-300"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPasswordInPanel(v => !v)}
+                className="absolute right-5 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400 hover:text-slate-700 transition-colors"
+              >
+                {showPasswordInPanel ? 'Ocultar' : 'Ver'}
+              </button>
+            </div>
+            <p className="px-5 pb-4 text-[12px] text-slate-400">Mínimo 6 caracteres. Use letras, números e símbolos.</p>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

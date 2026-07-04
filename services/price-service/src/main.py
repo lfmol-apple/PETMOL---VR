@@ -399,6 +399,12 @@ app.include_router(feedback_router)
 from .events import router as events_router
 app.include_router(events_router)
 
+# Pet Sumido — missing pet alerts + push broadcast
+from .missing_pets import MissingPet as _missing_pet_model  # noqa: F401 – registers with Base
+from .missing_pets import router as missing_pets_router
+app.include_router(missing_pets_router)
+app.include_router(missing_pets_router, prefix="/api")
+
 # SLICE 5: Vigia AI router - DESATIVADO (simplificação)
 # from .vigia import router as vigia_router
 # app.include_router(vigia_router)
