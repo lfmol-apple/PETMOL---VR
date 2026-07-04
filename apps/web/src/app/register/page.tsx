@@ -103,18 +103,17 @@ export default function RegisterPage() {
   };
 
   const handleBack = () => {
-    // Painéis de zoom abertos? Fecha primeiro; Voltar exige dois toques intencionais
     if (emailPanelOpen || passwordPanelOpen) {
       setEmailPanelOpen(false);
       setPasswordPanelOpen(false);
       return;
     }
-    if (step === 2 && !loading) {
+    if (step === 2) {
       setStep(1);
       setTimeout(() => nameRef.current?.focus(), 120);
       return;
     }
-    router.back();
+    router.push('/login');
   };
 
   const handleActivateNotifications = async () => {
