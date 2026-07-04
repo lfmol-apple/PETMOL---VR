@@ -183,7 +183,7 @@ function HomePageInner() {
   const [pullY, setPullY] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { t, locale } = useI18n();
-  const { tutor, isLoading } = useAuth();
+  const { tutor, isLoading, logout } = useAuth();
 
   // Ler ?checkin=1 da URL (vindo de notificação push — app estava fechado)
   useEffect(() => {
@@ -1648,6 +1648,16 @@ function HomePageInner() {
               className="mt-6 w-full rounded-2xl bg-[#0056D2] px-5 py-4 text-base font-black text-white shadow-lg active:scale-[0.99]"
             >
               Adicionar pet
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                await logout();
+                router.push('/login');
+              }}
+              className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-500 active:bg-slate-50"
+            >
+              Sair / Trocar conta
             </button>
           </div>
         )}
