@@ -133,16 +133,30 @@ function ZoomedField({
         </span>
       </button>
       {open && (
-        <div className="fixed inset-0 z-[300]" onClick={() => setOpen(false)}>
+        <div
+          className="fixed inset-0 z-[300]"
+          style={{ cursor: 'pointer' }}
+          onClick={() => setOpen(false)}
+        >
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
           <div
             className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl animate-slideUp"
+            style={{ cursor: 'default' }}
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 rounded-full bg-slate-200" />
+            <div className="flex items-center justify-between px-5 pt-4 pb-2">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold active:bg-slate-200 transition-colors"
+                aria-label="Fechar"
+              >
+                ✕
+              </button>
+              <div className="h-1 w-10 rounded-full bg-slate-200" />
+              <div className="w-9" />
             </div>
-            <div className="px-5 pt-3 pb-4">
+            <div className="px-5 pt-1 pb-4">
               <p className={`${label} mb-4`}>{labelText}</p>
               <input
                 ref={ref}
@@ -206,16 +220,30 @@ function ZoomedWeightField({
         </span>
       </button>
       {open && (
-        <div className="fixed inset-0 z-[300]" onClick={() => setOpen(false)}>
+        <div
+          className="fixed inset-0 z-[300]"
+          style={{ cursor: 'pointer' }}
+          onClick={() => setOpen(false)}
+        >
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
           <div
             className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl animate-slideUp"
+            style={{ cursor: 'default' }}
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 rounded-full bg-slate-200" />
+            <div className="flex items-center justify-between px-5 pt-4 pb-2">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold active:bg-slate-200 transition-colors"
+                aria-label="Fechar"
+              >
+                ✕
+              </button>
+              <div className="h-1 w-10 rounded-full bg-slate-200" />
+              <div className="w-9" />
             </div>
-            <div className="px-5 pt-3 pb-4">
+            <div className="px-5 pt-1 pb-4">
               <p className={`${label} mb-4`}>Peso</p>
               <div className="flex items-end gap-4">
                 <input

@@ -103,12 +103,18 @@ export default function RegisterPage() {
   };
 
   const handleBack = () => {
+    // Painéis de zoom abertos? Fecha primeiro; Voltar exige dois toques intencionais
+    if (emailPanelOpen || passwordPanelOpen) {
+      setEmailPanelOpen(false);
+      setPasswordPanelOpen(false);
+      return;
+    }
     if (step === 2 && !loading) {
       setStep(1);
       setTimeout(() => nameRef.current?.focus(), 120);
       return;
     }
-    router.push('/login');
+    router.back();
   };
 
   const handleActivateNotifications = async () => {
@@ -426,15 +432,27 @@ export default function RegisterPage() {
 
       {/* ── E-mail zoom panel ─────────────────────────────────────────────── */}
       {emailPanelOpen && (
-        <div className="fixed inset-0 z-[300]" onClick={() => setEmailPanelOpen(false)}>
+        <div
+          className="fixed inset-0 z-[300]"
+          style={{ cursor: 'pointer' }}
+          onClick={() => setEmailPanelOpen(false)}
+        >
           <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
           <div
             className="absolute inset-x-0 bottom-0 bg-white rounded-t-[32px] shadow-2xl"
-            style={{ paddingBottom: 'env(safe-area-inset-bottom, 20px)' }}
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 20px)', cursor: 'default' }}
             onClick={e => e.stopPropagation()}
           >
             <div className="mx-auto mt-3 mb-1 h-1 w-10 rounded-full bg-slate-200" />
             <div className="flex items-center justify-between px-5 pt-3 pb-3 border-b border-slate-100">
+              <button
+                type="button"
+                onClick={() => setEmailPanelOpen(false)}
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 font-bold active:bg-slate-200 transition-colors"
+                aria-label="Fechar"
+              >
+                ✕
+              </button>
               <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider">E-mail</span>
               <button
                 type="button"
@@ -467,15 +485,27 @@ export default function RegisterPage() {
 
       {/* ── Senha zoom panel ──────────────────────────────────────────────── */}
       {passwordPanelOpen && (
-        <div className="fixed inset-0 z-[300]" onClick={() => setPasswordPanelOpen(false)}>
+        <div
+          className="fixed inset-0 z-[300]"
+          style={{ cursor: 'pointer' }}
+          onClick={() => setPasswordPanelOpen(false)}
+        >
           <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
           <div
             className="absolute inset-x-0 bottom-0 bg-white rounded-t-[32px] shadow-2xl"
-            style={{ paddingBottom: 'env(safe-area-inset-bottom, 20px)' }}
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 20px)', cursor: 'default' }}
             onClick={e => e.stopPropagation()}
           >
             <div className="mx-auto mt-3 mb-1 h-1 w-10 rounded-full bg-slate-200" />
             <div className="flex items-center justify-between px-5 pt-3 pb-3 border-b border-slate-100">
+              <button
+                type="button"
+                onClick={() => setPasswordPanelOpen(false)}
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 font-bold active:bg-slate-200 transition-colors"
+                aria-label="Fechar"
+              >
+                ✕
+              </button>
               <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider">Senha</span>
               <button
                 type="button"

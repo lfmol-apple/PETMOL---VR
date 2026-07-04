@@ -20,6 +20,7 @@ const PUBLIC_PATHS = [
   '/handoff',
   '/auth/',
   '/invite/',
+  '/achei-um-pet',
 ];
 
 function isPublic(pathname: string): boolean {
