@@ -119,6 +119,116 @@ const getPhotoUrl = (photoPath: string | undefined | null, petId?: string, photo
 };
 
 
+function NoPetsCard({ onAddPet, onLogout }: { onAddPet: () => void; onLogout: () => void }) {
+  const [showDelete, setShowDelete] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleDelete = async () => {
+    if (!deletePassword) { setDeleteError('Digite sua senha para confirmar.'); return; }
+    setDeleteLoading(true);
+    setDeleteError('');
+    try {
+      const token = getToken();
+      const res = await fetch('/api/auth/delete-account', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({ password: deletePassword }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { detail?: string };
+        setDeleteError(data.detail || 'Erro ao apagar conta. Verifique a senha.');
+        return;
+      }
+      try { localStorage.clear(); } catch {}
+      try { sessionStorage.clear(); } catch {}
+      onLogout();
+    } catch {
+      setDeleteError('Erro de rede. Tente novamente.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  return (
+    <div className="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white px-5 py-8 text-center shadow-xl">
+      <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-[28px] bg-slate-50 ring-1 ring-slate-200">
+        <svg viewBox="0 0 96 96" className="h-14 w-14 text-slate-400" aria-hidden="true">
+          <path fill="currentColor" d="M46 22c-10 0-18 8-18 18v11c0 13 9 23 20 23s20-10 20-23V40c0-10-8-18-18-18h-4Zm-9 18c0-5 4-9 9-9h4c5 0 9 4 9 9v11c0 8-5 14-11 14s-11-6-11-14V40Z" />
+          <path fill="currentColor" d="M25 42c-5 0-9 5-9 11s4 11 9 11 9-5 9-11-4-11-9-11Zm46 0c-5 0-9 5-9 11s4 11 9 11 9-5 9-11-4-11-9-11ZM31 21c-4 0-8 4-8 9s4 9 8 9 8-4 8-9-4-9-8-9Zm34 0c-4 0-8 4-8 9s4 9 8 9 8-4 8-9-4-9-8-9Z" />
+        </svg>
+      </div>
+
+      <h1 className="text-2xl font-black text-slate-900">Quem é o seu pet?</h1>
+      <p className="mt-2 text-sm font-medium text-slate-500">Cadastre o primeiro pet para começar os cuidados.</p>
+
+      <button
+        type="button"
+        onClick={onAddPet}
+        className="mt-6 w-full rounded-2xl bg-[#0056D2] px-5 py-4 text-base font-black text-white shadow-lg active:scale-[0.99]"
+      >
+        Adicionar pet
+      </button>
+
+      <button
+        type="button"
+        onClick={onLogout}
+        className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-500 active:bg-slate-50"
+      >
+        Sair / Trocar conta
+      </button>
+
+      {!showDelete ? (
+        <button
+          type="button"
+          onClick={() => setShowDelete(true)}
+          className="mt-2 w-full py-2 text-xs font-semibold text-rose-400 active:text-rose-600"
+        >
+          Apagar conta permanentemente
+        </button>
+      ) : (
+        <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-left">
+          <p className="text-sm font-black text-rose-800">Apagar conta permanentemente</p>
+          <p className="mt-1 text-xs text-rose-600 leading-relaxed">
+            Todos os dados serão excluídos e não poderão ser recuperados. Digite sua senha para confirmar.
+          </p>
+          <input
+            type="password"
+            value={deletePassword}
+            onChange={e => { setDeletePassword(e.target.value); setDeleteError(''); }}
+            placeholder="Sua senha"
+            autoComplete="current-password"
+            className="mt-3 w-full rounded-xl border border-rose-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-500/10"
+          />
+          {deleteError && <p className="mt-1.5 text-xs text-rose-700 font-semibold">{deleteError}</p>}
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setShowDelete(false); setDeletePassword(''); setDeleteError(''); }}
+              className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-600 active:bg-slate-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleteLoading}
+              className="flex-1 rounded-xl bg-rose-600 py-2.5 text-xs font-black text-white disabled:opacity-60 active:bg-rose-700"
+            >
+              {deleteLoading ? 'Apagando…' : 'Confirmar exclusão'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HomePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1633,33 +1743,10 @@ function HomePageInner() {
             })()}
           </div>
         ) : (
-          <div className="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white px-5 py-8 text-center shadow-xl">
-            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-[28px] bg-slate-50 ring-1 ring-slate-200">
-              <svg viewBox="0 0 96 96" className="h-14 w-14 text-slate-400" aria-hidden="true">
-                <path fill="currentColor" d="M46 22c-10 0-18 8-18 18v11c0 13 9 23 20 23s20-10 20-23V40c0-10-8-18-18-18h-4Zm-9 18c0-5 4-9 9-9h4c5 0 9 4 9 9v11c0 8-5 14-11 14s-11-6-11-14V40Z" />
-                <path fill="currentColor" d="M25 42c-5 0-9 5-9 11s4 11 9 11 9-5 9-11-4-11-9-11Zm46 0c-5 0-9 5-9 11s4 11 9 11 9-5 9-11-4-11-9-11ZM31 21c-4 0-8 4-8 9s4 9 8 9 8-4 8-9-4-9-8-9Zm34 0c-4 0-8 4-8 9s4 9 8 9 8-4 8-9-4-9-8-9Z" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-black text-slate-900">Quem é o seu pet?</h1>
-            <p className="mt-2 text-sm font-medium text-slate-500">Cadastre o primeiro pet para começar os cuidados.</p>
-            <button
-              type="button"
-              onClick={openAddPetModal}
-              className="mt-6 w-full rounded-2xl bg-[#0056D2] px-5 py-4 text-base font-black text-white shadow-lg active:scale-[0.99]"
-            >
-              Adicionar pet
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                await logout();
-                router.push('/login');
-              }}
-              className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-500 active:bg-slate-50"
-            >
-              Sair / Trocar conta
-            </button>
-          </div>
+          <NoPetsCard
+            onAddPet={openAddPetModal}
+            onLogout={async () => { await logout(); router.push('/login'); }}
+          />
         )}
       </div>
 
