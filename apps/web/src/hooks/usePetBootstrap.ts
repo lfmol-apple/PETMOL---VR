@@ -107,9 +107,8 @@ export function usePetBootstrap() {
             setPets(convertedPets);
             if (convertedPets.length > 0) {
               setSelectedPetId((prev) => resolveSelectedPetId(convertedPets, prev));
-            } else {
-              router.push('/register-pet');
             }
+            // sem pets: home exibe estado vazio com botão "Adicionar pet"
           } else {
             if (response.status === 401 || response.status === 403) {
               router.replace('/login');
@@ -188,9 +187,8 @@ export function usePetBootstrap() {
         setPets(convertedPets);
         if (convertedPets.length > 0) {
           setSelectedPetId((prev) => resolveSelectedPetId(convertedPets, prev));
-        } else {
-          router.push('/register-pet');
         }
+        // sem pets: home exibe estado vazio com botão "Adicionar pet"
         setIsChecking(false);
       } catch {
         // Erro de rede — não redirecionar para login; usuário pode ter conexão instável
