@@ -457,22 +457,22 @@ export default function RegisterPetPage() {
 
   return (
     <BrandBackground showLogo={false}>
-      <div className="min-h-[calc(100dvh-40px)] w-full px-4 py-6 flex items-start justify-center">
-        <div className="w-full max-w-md">
+      <div className="h-dvh w-full px-4 py-6 flex flex-col">
+        <div className="w-full max-w-md mx-auto flex flex-col flex-1 min-h-0">
           {/* Header */}
-          <div className="flex justify-center mb-5">
+          <div className="flex justify-center mb-4 flex-shrink-0">
             <PetmolTextLogo className="text-5xl drop-shadow-sm" color="#2563EB" />
           </div>
 
-          <div className="bg-white/95 backdrop-blur-xl rounded-[32px] border border-white/60 shadow-premium overflow-hidden">
+          <div className="flex flex-col flex-1 min-h-0 bg-white/95 backdrop-blur-xl rounded-[32px] border border-white/60 shadow-premium overflow-hidden">
             {/* Title */}
-            <div className="px-6 pt-6 pb-2">
+            <div className="px-6 pt-6 pb-2 flex-shrink-0">
               <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-500">Cadastro do pet</p>
               <p className="mt-1 text-xl font-black text-slate-900">Conte-nos sobre ele</p>
             </div>
 
             {/* Scrollable form body */}
-            <div className="px-6 pb-4 space-y-5 overflow-y-auto overflow-x-hidden max-h-[calc(100dvh-260px)]">
+            <div className="flex-1 min-h-0 px-6 pb-4 space-y-5 overflow-y-auto overflow-x-hidden">
 
               {/* Photo */}
               <div className="flex justify-center pt-2">
@@ -614,8 +614,8 @@ export default function RegisterPetPage() {
               )}
             </div>
 
-            {/* Footer buttons */}
-            <div className="px-6 pt-3 pb-6 border-t border-slate-100 flex gap-2">
+            {/* Footer buttons — flex-shrink-0 garante que ficam sempre visíveis */}
+            <div className="flex-shrink-0 px-6 pt-3 pb-6 border-t border-slate-100 flex gap-2" style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}>
               <button type="button" onClick={() => router.push('/home')}
                 className="flex-shrink-0 py-3.5 px-5 rounded-2xl border border-slate-200 bg-white text-slate-600 text-sm font-bold">
                 Voltar
