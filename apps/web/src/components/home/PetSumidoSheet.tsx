@@ -9,6 +9,13 @@ interface PetSumidoSheetProps {
   petPhotoUrl?: string | null;
   onClose: () => void;
   onGoHome: () => void;
+  // Modo edição: alerta já existe, preenche os campos e chama PATCH
+  editAlertId?: string;
+  initialContact?: string;
+  initialLocation?: string;
+  initialCharacteristics?: string;
+  initialMissingDate?: string;
+  initialMissingTime?: string;
 }
 
 type Step = 'form' | 'card';
@@ -72,13 +79,18 @@ function nowTime() {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-export function PetSumidoSheet({ pet, petPhotoUrl, onClose, onGoHome }: PetSumidoSheetProps) {
+export function PetSumidoSheet({
+  pet, petPhotoUrl, onClose, onGoHome,
+  editAlertId, initialContact = '', initialLocation = '',
+  initialCharacteristics = '', initialMissingDate, initialMissingTime,
+}: PetSumidoSheetProps) {
+  const isEditMode = Boolean(editAlertId);
   const [step, setStep] = useState<Step>('form');
-  const [contact, setContact] = useState('');
-  const [lastSeenLocation, setLastSeenLocation] = useState('');
-  const [characteristics, setCharacteristics] = useState('');
-  const [missingDate, setMissingDate] = useState(todayISO());
-  const [missingTime, setMissingTime] = useState(nowTime());
+  const [contact, setContact] = useState(initialContact);
+  const [lastSeenLocation, setLastSeenLocation] = useState(initialLocation);
+  const [characteristics, setCharacteristics] = useState(initialCharacteristics);
+  const [missingDate, setMissingDate] = useState(initialMissingDate ?? todayISO());
+  const [missingTime, setMissingTime] = useState(initialMissingTime ?? nowTime());
   const [photoPreview, setPhotoPreview] = useState<string | null>(petPhotoUrl || null);
   const [generating, setGenerating] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
@@ -162,40 +174,61 @@ export function PetSumidoSheet({ pet, petPhotoUrl, onClose, onGoHome }: PetSumid
     }
 
     try {
-      const checkRes = await fetch('/api/missing-pets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(_token ? { Authorization: `Bearer ${_token}` } : {}),
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          pet_id: pet.pet_id,
-          pet_name: pet.pet_name,
-          species: pet.species,
-          breed: (pet as unknown as { breed?: string }).breed ?? null,
-          characteristics: characteristics.trim() || null,
-          contact: contact.trim(),
-          last_seen_location: lastSeenLocation.trim() || null,
-          lat: geoLat ?? null,
-          lng: geoLng ?? null,
-          radius_km: liveRadius.km,
-          missing_date: missingDate,
-          missing_time: missingTime,
-          photo_url: resolvedPhotoUrl,
-        }),
-      });
-      if (checkRes.status === 409) {
-        setAlertBlocked(true);
-        setGenerating(false);
-        return;
-      }
-      if (checkRes.ok) {
-        setAlertSent(true);
-        try {
-          const resData = await checkRes.json() as { notified_count?: number };
-          if (resData.notified_count != null) setNotifiedCount(resData.notified_count);
-        } catch { /* silent */ }
+      if (isEditMode && editAlertId) {
+        // Modo edição: PATCH no alerta existente
+        const patchRes = await fetch(`/api/missing-pets/${editAlertId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', ...(_token ? { Authorization: `Bearer ${_token}` } : {}) },
+          body: JSON.stringify({
+            contact: contact.trim() || null,
+            last_seen_location: lastSeenLocation.trim() || null,
+            characteristics: characteristics.trim() || null,
+          }),
+        });
+        if (patchRes.ok) {
+          setAlertSent(true);
+          try {
+            const resData = await patchRes.json() as { newly_notified?: number };
+            if (resData.newly_notified != null) setNotifiedCount(resData.newly_notified);
+          } catch { /* silent */ }
+        }
+      } else {
+        // Modo criação: POST
+        const checkRes = await fetch('/api/missing-pets', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(_token ? { Authorization: `Bearer ${_token}` } : {}),
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            pet_id: pet.pet_id,
+            pet_name: pet.pet_name,
+            species: pet.species,
+            breed: (pet as unknown as { breed?: string }).breed ?? null,
+            characteristics: characteristics.trim() || null,
+            contact: contact.trim(),
+            last_seen_location: lastSeenLocation.trim() || null,
+            lat: geoLat ?? null,
+            lng: geoLng ?? null,
+            radius_km: liveRadius.km,
+            missing_date: missingDate,
+            missing_time: missingTime,
+            photo_url: resolvedPhotoUrl,
+          }),
+        });
+        if (checkRes.status === 409) {
+          setAlertBlocked(true);
+          setGenerating(false);
+          return;
+        }
+        if (checkRes.ok) {
+          setAlertSent(true);
+          try {
+            const resData = await checkRes.json() as { notified_count?: number };
+            if (resData.notified_count != null) setNotifiedCount(resData.notified_count);
+          } catch { /* silent */ }
+        }
       }
     } catch { /* silent */ }
 
@@ -341,7 +374,7 @@ export function PetSumidoSheet({ pet, petPhotoUrl, onClose, onGoHome }: PetSumid
     setCardDataUrl(canvas.toDataURL('image/png'));
     setGenerating(false);
     setStep('card');
-  }, [pet, petPhotoUrl, photoPreview, lastSeenLocation, characteristics, missingDate, missingTime, contact]);
+  }, [pet, petPhotoUrl, photoPreview, lastSeenLocation, characteristics, missingDate, missingTime, contact, isEditMode, editAlertId]);
 
   const handleShare = useCallback(async (target: 'native' | 'download') => {
     if (!cardDataUrl) return;
@@ -598,7 +631,7 @@ export function PetSumidoSheet({ pet, petPhotoUrl, onClose, onGoHome }: PetSumid
                     : 'bg-gray-100 text-gray-300 cursor-not-allowed'
                 }`}
               >
-                {generating ? '⏳ Gerando alerta...' : '🚨 Gerar alerta e card'}
+                {generating ? '⏳ Aguarde...' : isEditMode ? '📣 Salvar e reenviar alerta' : '🚨 Gerar alerta e card'}
               </button>
 
               {!canGenerate && (
@@ -629,11 +662,17 @@ export function PetSumidoSheet({ pet, petPhotoUrl, onClose, onGoHome }: PetSumid
                 <div className="bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 flex items-center gap-3">
                   <span className="text-xl flex-shrink-0">✅</span>
                   <p className="text-[13px] font-semibold text-emerald-700">
-                    {notifiedCount != null
-                      ? notifiedCount === 0
-                        ? 'Alerta registrado — nenhum usuário com push na área agora'
-                        : `${notifiedCount} ${notifiedCount === 1 ? 'usuário notificado' : 'usuários notificados'} na sua região`
-                      : 'Alerta enviado para usuários PETMOL próximos'}
+                    {isEditMode
+                      ? notifiedCount != null
+                        ? notifiedCount === 0
+                          ? 'Atualizado — todos no raio já foram notificados'
+                          : `${notifiedCount} nova${notifiedCount !== 1 ? 's' : ''} pessoa${notifiedCount !== 1 ? 's' : ''} notificada${notifiedCount !== 1 ? 's' : ''}!`
+                        : 'Alerta atualizado com sucesso'
+                      : notifiedCount != null
+                        ? notifiedCount === 0
+                          ? 'Alerta registrado — nenhum usuário com push na área agora'
+                          : `${notifiedCount} ${notifiedCount === 1 ? 'usuário notificado' : 'usuários notificados'} na sua região`
+                        : 'Alerta enviado para usuários PETMOL próximos'}
                   </p>
                 </div>
               )}

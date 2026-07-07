@@ -461,7 +461,7 @@ def my_active_alerts(db: Session = Depends(get_db), current_user: User = Depends
         .filter(MissingPet.user_id == str(current_user.id), MissingPet.status == "active")
         .all()
     )
-    return [{"id": p.id, "pet_id": p.pet_id, "pet_name": p.pet_name} for p in pets]
+    return [_mp_to_dict(p) for p in pets]
 
 
 @router.get("/my-alerts")
