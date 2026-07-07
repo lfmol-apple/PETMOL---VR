@@ -470,6 +470,38 @@ def mark_found(
     return {"status": "found"}
 
 
+class PhotoUploadBody(BaseModel):
+    photo_base64: str  # data:image/jpeg;base64,... or raw base64
+
+
+@router.post("/upload-photo")
+def upload_missing_pet_photo(body: PhotoUploadBody):
+    """Salva foto do alerta no disco e retorna o caminho relativo."""
+    import base64 as _b64
+    import re
+    try:
+        data = body.photo_base64
+        mime = "image/jpeg"
+        if data.startswith("data:"):
+            m = re.match(r"data:([^;]+);base64,(.+)", data, re.DOTALL)
+            if m:
+                mime = m.group(1)
+                data = m.group(2)
+        raw = _b64.b64decode(data)
+        ext_map = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+        ext = ext_map.get(mime, ".jpg")
+        filename = f"{uuid.uuid4().hex}{ext}"
+        upload_dir = os.path.join(os.path.dirname(__file__), "..", "..", "uploads", "pets")
+        os.makedirs(upload_dir, exist_ok=True)
+        filepath = os.path.join(upload_dir, filename)
+        with open(filepath, "wb") as f:
+            f.write(raw)
+        return {"photo_url": f"pets/{filename}"}
+    except Exception as e:
+        logger.error(f"upload_missing_pet_photo error: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao salvar foto")
+
+
 @router.post("/{mp_id}/analyze-photo")
 def analyze_photo(mp_id: str, body: PhotoAnalysisBody, db: Session = Depends(get_db)):
     """Pré-análise de compatibilidade sem criar report — usado antes de enviar aviso."""
@@ -516,7 +548,7 @@ def _analyze_photo_compatibility(pet_photo_url: str, finder_photos_b64: list) ->
             return 0, ""
 
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-2.0-flash")
 
         if pet_photo_url.startswith("http"):
             url = pet_photo_url
