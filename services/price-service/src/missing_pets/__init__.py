@@ -222,16 +222,19 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
                 skipped += 1
                 continue
 
-            # Geo filter — só aplica se ambos têm coordenadas
-            if has_location and isinstance(subscription, dict):
-                sub_lat = subscription.get("lat")
-                sub_lng = subscription.get("lng")
-                if sub_lat is not None and sub_lng is not None:
-                    dist = _haversine_km(mp.lat, mp.lng, sub_lat, sub_lng)
-                    if dist > radius:
-                        print(f"[broadcast]   skip {user_id[:8]} dist={dist:.1f}km > {radius}km", flush=True)
-                        skipped += 1
-                        continue
+            # Geo filter — se o alerta tem localização, só notifica quem também tem coordenadas no raio
+            if has_location:
+                sub_lat = subscription.get("lat") if isinstance(subscription, dict) else None
+                sub_lng = subscription.get("lng") if isinstance(subscription, dict) else None
+                if sub_lat is None or sub_lng is None:
+                    # Assinante sem coordenadas — localização desconhecida, não notificar
+                    skipped += 1
+                    continue
+                dist = _haversine_km(mp.lat, mp.lng, sub_lat, sub_lng)
+                if dist > radius:
+                    print(f"[broadcast]   skip {user_id[:8]} dist={dist:.1f}km > {radius}km", flush=True)
+                    skipped += 1
+                    continue
 
             ok, invalid = _send_push(subscription, payload)
             print(f"[broadcast]   user={user_id[:8]} ok={ok} invalid={invalid}", flush=True)
@@ -548,17 +551,18 @@ def alert_reach(
     for user_id, sub in subs.items():
         if user_id == str(mp.user_id):
             continue
-        in_radius = True
-        if has_location and isinstance(sub, dict):
-            sub_lat, sub_lng = sub.get("lat"), sub.get("lng")
-            if sub_lat is not None and sub_lng is not None:
-                dist = _haversine_km(mp.lat, mp.lng, sub_lat, sub_lng)
-                in_radius = dist <= radius
-        if in_radius:
-            if user_id in already_notified_ids:
-                notified_active += 1
-            else:
-                new_in_radius += 1
+        if has_location:
+            sub_lat = sub.get("lat") if isinstance(sub, dict) else None
+            sub_lng = sub.get("lng") if isinstance(sub, dict) else None
+            if sub_lat is None or sub_lng is None:
+                continue
+            dist = _haversine_km(mp.lat, mp.lng, sub_lat, sub_lng)
+            if dist > radius:
+                continue
+        if user_id in already_notified_ids:
+            notified_active += 1
+        else:
+            new_in_radius += 1
 
     return {
         "notified_active": notified_active,
