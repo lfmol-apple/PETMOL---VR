@@ -73,6 +73,32 @@ export function PetSumidoSheet({ pet, petPhotoUrl, onClose, onGoHome }: PetSumid
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [alertSent, setAlertSent] = useState(false);
+  const [cep, setCep] = useState('');
+  const [cepLoading, setCepLoading] = useState(false);
+  const [cepError, setCepError] = useState('');
+
+  const handleCepChange = async (raw: string) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 8);
+    const formatted = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+    setCep(formatted);
+    setCepError('');
+    if (digits.length === 8) {
+      setCepLoading(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+        const data = await res.json();
+        if (data.erro) {
+          setCepError('CEP não encontrado');
+        } else {
+          const parts = [data.logradouro, data.bairro, `${data.localidade}/${data.uf}`].filter(Boolean);
+          setLastSeenLocation(parts.join(', '));
+        }
+      } catch {
+        setCepError('Erro ao consultar CEP');
+      }
+      setCepLoading(false);
+    }
+  };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -434,16 +460,32 @@ export function PetSumidoSheet({ pet, petPhotoUrl, onClose, onGoHome }: PetSumid
                 </div>
               </div>
 
-              {/* Onde sumiu */}
+              {/* Onde sumiu — CEP */}
               <div>
                 <label className="block text-[13px] font-bold text-white/80 mb-2">
-                  📍 Onde desapareceu? <span className="text-white/40 font-normal">(bairro, rua…)</span>
+                  📍 Onde desapareceu?
                 </label>
+                <div className="relative mb-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={cep}
+                    onChange={e => handleCepChange(e.target.value)}
+                    placeholder="CEP do local (preenche o endereço)"
+                    className="w-full rounded-xl border border-white/15 px-4 py-3.5 text-base text-white placeholder:text-white/25 outline-none focus:border-red-500/60 focus:ring-2 focus:ring-red-500/20 transition-all pr-10"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {cepLoading ? <span className="text-white/40 text-sm">⏳</span>
+                      : cep.replace(/\D/g, '').length === 8 && !cepError ? <span className="text-emerald-400">✓</span> : null}
+                  </span>
+                </div>
+                {cepError && <p className="text-[11px] text-red-400 font-semibold mb-2">{cepError}</p>}
                 <input
                   type="text"
                   value={lastSeenLocation}
                   onChange={e => setLastSeenLocation(e.target.value)}
-                  placeholder="Ex: Rua das Flores, Vila Madalena, SP"
+                  placeholder="Endereço (preenchido pelo CEP ou manual)"
                   className="w-full rounded-xl border border-white/15 px-4 py-3.5 text-base text-white placeholder:text-white/25 outline-none focus:border-red-500/60 focus:ring-2 focus:ring-red-500/20 transition-all"
                   style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
                 />

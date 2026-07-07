@@ -7,14 +7,15 @@ Endpoints:
   GET    /missing-pets/all     — listar todos incluindo encontrados (público)
   PATCH  /missing-pets/{id}/found — marcar como encontrado (auth, apenas dono)
 """
+import json
 import uuid
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import Column, String, DateTime, Text, Float
+from sqlalchemy import Column, Integer, String, DateTime, Text, Float
 from sqlalchemy.orm import Session
 
 from ..db import Base, get_db
@@ -24,6 +25,20 @@ from ..notifications import _load_subscriptions, _save_subscriptions, _send_push
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/missing-pets", tags=["Missing Pets"])
+
+
+class FoundReport(Base):
+    __tablename__ = "found_reports"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    missing_pet_id = Column(String(36), nullable=False, index=True)
+    finder_contact = Column(String(200), nullable=False)
+    finder_location = Column(String(500), nullable=True)
+    notes = Column(Text, nullable=True)
+    finder_photos = Column(Text, nullable=True)
+    compatibility_score = Column(Integer, nullable=True)
+    compatibility_analysis = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class MissingPet(Base):
@@ -47,6 +62,13 @@ class MissingPet(Base):
     current_radius_km = Column(Float, default=2.0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     found_at = Column(DateTime, nullable=True)
+
+
+class FoundReportCreate(BaseModel):
+    finder_contact: str
+    finder_location: Optional[str] = None
+    notes: Optional[str] = None
+    finder_photos: List[str] = []
 
 
 class MissingPetCreate(BaseModel):
@@ -179,3 +201,51 @@ def mark_found(
     mp.found_at = datetime.now(timezone.utc)
     db.commit()
     return {"status": "found"}
+
+
+@router.post("/{mp_id}/report-found", status_code=201)
+def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_db)):
+    """Achador registra que encontrou o pet — sem autenticação necessária."""
+    mp = db.query(MissingPet).filter(MissingPet.id == mp_id, MissingPet.status == "active").first()
+    if not mp:
+        raise HTTPException(status_code=404, detail="Alerta não encontrado ou pet já foi encontrado")
+
+    existing = (
+        db.query(FoundReport)
+        .filter(FoundReport.missing_pet_id == mp_id, FoundReport.finder_contact == body.finder_contact.strip())
+        .first()
+    )
+    if existing:
+        return {"id": existing.id, "status": "already_reported"}
+
+    report = FoundReport(
+        id=str(uuid.uuid4()),
+        missing_pet_id=mp_id,
+        finder_contact=body.finder_contact.strip(),
+        finder_location=body.finder_location,
+        notes=body.notes,
+        finder_photos=json.dumps(body.finder_photos) if body.finder_photos else None,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(report)
+    db.commit()
+
+    # Push para o tutor
+    try:
+        subs = _load_subscriptions()
+        owner_sub = subs.get(str(mp.user_id))
+        if owner_sub:
+            loc = f" em {body.finder_location}" if body.finder_location else ""
+            _send_push(owner_sub, {
+                "title": f"🎉 {mp.pet_name} foi encontrado!",
+                "body": f"Alguém encontrou seu pet{loc}. Contato: {body.finder_contact}. Toque para confirmar.",
+                "tag": f"found-report-{mp_id}",
+                "renotify": True,
+                "requireInteraction": True,
+                "icon": "/icons/icon-192x192.png",
+                "data": {"url": f"/home?found_report={mp_id}"},
+            })
+    except Exception as e:
+        logger.error(f"Push ao tutor falhou: {e}")
+
+    return {"id": report.id, "status": "reported"}
