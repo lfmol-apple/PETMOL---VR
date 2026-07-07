@@ -63,7 +63,8 @@ function calcAutoRadius(missingDate: string, missingTime: string, species: strin
     const missingAt = new Date(yr, mo - 1, dy, hh, mm);
     const hoursElapsed = Math.max(0, (Date.now() - missingAt.getTime()) / 3600000);
     const speedKmh = species === 'cat' ? 3 : 5;
-    const rawKm = Math.max(2, Math.ceil(hoursElapsed * speedKmh));
+    const maxKm = species === 'cat' ? 20 : 50;
+    const rawKm = Math.min(maxKm, Math.max(2, Math.ceil(hoursElapsed * speedKmh)));
     return { km: rawKm, hoursElapsed: Math.round(hoursElapsed * 10) / 10, speedKmh };
   } catch {
     return { km: 2, hoursElapsed: 0, speedKmh: 5 };
@@ -183,6 +184,8 @@ export function PetSumidoSheet({
             contact: contact.trim() || null,
             last_seen_location: lastSeenLocation.trim() || null,
             characteristics: characteristics.trim() || null,
+            missing_date: missingDate || null,
+            missing_time: missingTime || null,
             radius_km: liveRadius.km,
           }),
         });

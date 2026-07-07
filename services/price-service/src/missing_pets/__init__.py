@@ -152,6 +152,8 @@ class MissingPetUpdate(BaseModel):
     characteristics: Optional[str] = None
     contact: Optional[str] = None
     last_seen_location: Optional[str] = None
+    missing_date: Optional[str] = None
+    missing_time: Optional[str] = None
     radius_km: Optional[float] = None
 
 
@@ -638,6 +640,10 @@ def update_missing_pet(
         mp.contact = body.contact
     if body.last_seen_location is not None:
         mp.last_seen_location = body.last_seen_location or None
+    if body.missing_date is not None:
+        mp.missing_date = body.missing_date
+    if body.missing_time is not None:
+        mp.missing_time = body.missing_time
     if body.radius_km is not None:
         mp.current_radius_km = body.radius_km
     db.commit()
