@@ -61,6 +61,7 @@ export default function AcheiUmPetPage() {
 function AcheiUmPetInner() {
   const searchParams = useSearchParams();
   const focusedId = searchParams.get('id');
+  const retry = searchParams.get('retry') === '1';
 
   const [pets, setPets] = useState<MissingPetRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,6 +83,49 @@ function AcheiUmPetInner() {
   const [preAnalysis, setPreAnalysis] = useState<string>('');
   const [preLoading, setPreLoading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+
+  // Inicializa reportedIds do localStorage e verifica dismissals no backend
+  useEffect(() => {
+    const stored = JSON.parse(localStorage.getItem('petmol_finder_reported_ids') ?? '[]') as string[];
+
+    // ?retry=1 vem do push de dismiss — limpa o focusedId do localStorage imediatamente
+    if (retry && focusedId && stored.includes(focusedId)) {
+      const updated = stored.filter((id) => id !== focusedId);
+      localStorage.setItem('petmol_finder_reported_ids', JSON.stringify(updated));
+      setReportedIds(updated);
+      return;
+    }
+
+    if (stored.length === 0) return;
+    setReportedIds(stored);
+
+    // Checa com o backend quais foram descartados (requer login)
+    const token = getToken();
+    if (!token || stored.length === 0) return;
+
+    void (async () => {
+      const dismissed: string[] = [];
+      await Promise.allSettled(
+        stored.map(async (mpId) => {
+          try {
+            const res = await fetch(`${API_BASE_URL}/missing-pets/${mpId}/my-report-status`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) {
+              const data = await res.json() as { dismissed?: boolean };
+              if (data.dismissed) dismissed.push(mpId);
+            }
+          } catch { /* silent */ }
+        }),
+      );
+      if (dismissed.length > 0) {
+        const updated = stored.filter((id) => !dismissed.includes(id));
+        localStorage.setItem('petmol_finder_reported_ids', JSON.stringify(updated));
+        setReportedIds(updated);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (reportPhotos.length === 0 || !focusedId) {

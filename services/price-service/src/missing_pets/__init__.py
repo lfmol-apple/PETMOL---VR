@@ -391,7 +391,45 @@ def dismiss_found_report(
         raise HTTPException(status_code=403, detail="Sem permissão")
     report.dismissed = 1
     db.commit()
+
+    # Push para o finder: avisa que o report foi descartado e o pet ainda está desaparecido
+    if report.finder_user_id:
+        try:
+            subs = _load_subscriptions()
+            finder_sub = subs.get(str(report.finder_user_id))
+            if finder_sub:
+                _send_push(finder_sub, {
+                    "title": f"🔍 {mp.pet_name} ainda está desaparecido",
+                    "body": "O tutor não reconheceu as fotos. Talvez seja outro animal — mas o pet ainda precisa de ajuda!",
+                    "tag": f"dismissed-{report.id}",
+                    "renotify": False,
+                    "requireInteraction": False,
+                    "icon": "/icons/icon-192x192.png",
+                    "data": {"url": f"/achei-um-pet?id={mp.id}&retry=1"},
+                })
+        except Exception as e:
+            logger.error(f"Push dismiss falhou: {e}")
+
     return {"status": "dismissed"}
+
+
+@router.get("/{mp_id}/my-report-status")
+def my_report_status(
+    mp_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Finder verifica se seu report foi descartado pelo dono."""
+    user_id = str(current_user.id)
+    report = (
+        db.query(FoundReport)
+        .filter(FoundReport.missing_pet_id == mp_id, FoundReport.finder_user_id == user_id)
+        .order_by(FoundReport.created_at.desc())
+        .first()
+    )
+    if not report:
+        return {"found": False, "dismissed": False}
+    return {"found": True, "dismissed": bool(report.dismissed)}
 
 
 @router.get("/found-reports/{report_id}/photos")
