@@ -522,6 +522,16 @@ function HomePageInner() {
     missing_time: string | null; created_at: string | null; user_id: string;
   };
   const [nearbyAlerts, setNearbyAlerts] = useState<NearbyAlert[]>([]);
+  // IDs que o finder já tratou (reportou ou dispensou manualmente) — estado reativo
+  const [handledAlertIds, setHandledAlertIds] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const reported = JSON.parse(localStorage.getItem('petmol_finder_reported_ids') ?? '[]') as string[];
+      const dismissed = JSON.parse(localStorage.getItem('petmol_finder_dismissed_ids') ?? '[]') as string[];
+      return [...new Set([...reported, ...dismissed])];
+    } catch { return []; }
+  });
+
   const fetchNearbyAlerts = useCallback(async () => {
     try {
       const token = getToken();
@@ -532,6 +542,39 @@ function HomePageInner() {
       if (!r.ok) return;
       const list: NearbyAlert[] = await r.json();
       setNearbyAlerts(list);
+
+      // Checa se algum report reportado foi descartado pelo dono — se sim, remove do localStorage
+      // e volta a mostrar o banner para o finder poder tentar novamente
+      const reported = (() => {
+        try { return JSON.parse(localStorage.getItem('petmol_finder_reported_ids') ?? '[]') as string[]; }
+        catch { return [] as string[]; }
+      })();
+      if (reported.length > 0) {
+        const dismissed: string[] = [];
+        await Promise.allSettled(
+          reported.map(async (mpId) => {
+            try {
+              const res = await fetch(`${API_BASE_URL}/missing-pets/${mpId}/my-report-status`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (res.ok) {
+                const data = await res.json() as { dismissed?: boolean };
+                if (data.dismissed) dismissed.push(mpId);
+              }
+            } catch { /* silent */ }
+          }),
+        );
+        if (dismissed.length > 0) {
+          const updated = reported.filter((id) => !dismissed.includes(id));
+          localStorage.setItem('petmol_finder_reported_ids', JSON.stringify(updated));
+          setHandledAlertIds(() => {
+            try {
+              const manualDismissed = JSON.parse(localStorage.getItem('petmol_finder_dismissed_ids') ?? '[]') as string[];
+              return [...new Set([...updated, ...manualDismissed])];
+            } catch { return updated; }
+          });
+        }
+      }
     } catch { /* silent */ }
   }, []);
   useEffect(() => {
@@ -1826,14 +1869,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
         {/* Banner vermelho: pets sumidos na região (não são do usuário) */}
         {(() => {
-          const alreadyHandled = (() => {
-            try {
-              const reported = JSON.parse(localStorage.getItem('petmol_finder_reported_ids') ?? '[]') as string[];
-              const dismissed = JSON.parse(localStorage.getItem('petmol_finder_dismissed_ids') ?? '[]') as string[];
-              return [...reported, ...dismissed];
-            } catch { return [] as string[]; }
-          })();
-          const visibleAlerts = nearbyAlerts.filter(a => !alreadyHandled.includes(a.id));
+          const visibleAlerts = nearbyAlerts.filter(a => !handledAlertIds.includes(a.id));
           return visibleAlerts.length > 0 && (
           <div className="mb-3 space-y-2">
             {visibleAlerts.map((alert) => {
@@ -1871,7 +1907,9 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                         try {
                           const dismissed = JSON.parse(localStorage.getItem('petmol_finder_dismissed_ids') ?? '[]') as string[];
                           if (!dismissed.includes(alert.id)) {
-                            localStorage.setItem('petmol_finder_dismissed_ids', JSON.stringify([...dismissed, alert.id]));
+                            const updated = [...dismissed, alert.id];
+                            localStorage.setItem('petmol_finder_dismissed_ids', JSON.stringify(updated));
+                            setHandledAlertIds(prev => [...new Set([...prev, alert.id])]);
                           }
                         } catch { /* best effort */ }
                         setNearbyAlerts(prev => prev.filter(a => a.id !== alert.id));
