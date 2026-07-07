@@ -140,6 +140,8 @@ class FoundReportCreate(BaseModel):
     notes: Optional[str] = None
     finder_photos: List[str] = []
     finder_user_id: Optional[str] = None
+    pre_score: Optional[int] = None
+    pre_analysis: Optional[str] = None
 
 
 class PhotoAnalysisBody(BaseModel):
@@ -213,7 +215,9 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
         removed: list = []
         sent = 0
         skipped = 0
-        MAX_NO_LOCATION = 50
+        no_coord_sent = 0
+        MAX_NO_LOCATION = 50        # alertas sem localização
+        MAX_NO_COORD_SUB = 15       # assinantes sem coordenadas quando alerta TEM localização
 
         for user_id, subscription in subs.items():
             if user_id in excluded or user_id == str(mp.user_id):
@@ -222,19 +226,23 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
                 skipped += 1
                 continue
 
-            # Geo filter — se o alerta tem localização, só notifica quem também tem coordenadas no raio
+            # Geo filter
             if has_location:
                 sub_lat = subscription.get("lat") if isinstance(subscription, dict) else None
                 sub_lng = subscription.get("lng") if isinstance(subscription, dict) else None
                 if sub_lat is None or sub_lng is None:
-                    # Assinante sem coordenadas — localização desconhecida, não notificar
-                    skipped += 1
-                    continue
-                dist = _haversine_km(mp.lat, mp.lng, sub_lat, sub_lng)
-                if dist > radius:
-                    print(f"[broadcast]   skip {user_id[:8]} dist={dist:.1f}km > {radius}km", flush=True)
-                    skipped += 1
-                    continue
+                    # Assinante sem coordenadas — localização desconhecida
+                    # Permite até MAX_NO_COORD_SUB para não cortar alcance completamente
+                    if no_coord_sent >= MAX_NO_COORD_SUB:
+                        skipped += 1
+                        continue
+                    no_coord_sent += 1
+                else:
+                    dist = _haversine_km(mp.lat, mp.lng, sub_lat, sub_lng)
+                    if dist > radius:
+                        print(f"[broadcast]   skip {user_id[:8]} dist={dist:.1f}km > {radius}km", flush=True)
+                        skipped += 1
+                        continue
 
             ok, invalid = _send_push(subscription, payload)
             print(f"[broadcast]   user={user_id[:8]} ok={ok} invalid={invalid}", flush=True)
@@ -720,6 +728,27 @@ def _analyze_photo_compatibility(pet_photo_url: str, finder_photos_b64: list) ->
     return 0, ""
 
 
+def _push_compat_score(score: int, analysis: str, owner_user_id, pet_name: str, report_id: str) -> None:
+    """Envia push com % de compatibilidade ao dono quando o score já é conhecido (via pré-análise)."""
+    try:
+        subs = _load_subscriptions()
+        owner_sub = subs.get(str(owner_user_id))
+        if not owner_sub:
+            return
+        emoji = "✅" if score >= 70 else "⚠️" if score >= 40 else "❓"
+        _send_push(owner_sub, {
+            "title": f"{emoji} Análise de foto: {score}% compatível",
+            "body": f"{pet_name}: {analysis or 'Confira as fotos na tela inicial.'}",
+            "tag": f"compat-{report_id}",
+            "renotify": False,
+            "requireInteraction": False,
+            "icon": "/icons/icon-192x192.png",
+            "data": {"url": "/home"},
+        })
+    except Exception as e:
+        logger.error(f"Push compatibilidade falhou: {e}")
+
+
 def _push_owner_found(mp: MissingPet, finder_contact: str, finder_location: str | None, mp_id: str) -> None:
     """Envia push imediato ao dono quando alguém reporta ter encontrado o pet."""
     try:
@@ -795,6 +824,9 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
                 "compatibility_score": existing.compatibility_score,
                 "compatibility_analysis": existing.compatibility_analysis}
 
+    # Se o frontend já rodou a pré-análise Gemini, reusar o score — evita duas chamadas
+    has_pre_score = body.pre_score is not None and body.pre_score > 0
+
     report = FoundReport(
         id=str(uuid.uuid4()),
         missing_pet_id=mp_id,
@@ -803,6 +835,8 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
         notes=body.notes,
         finder_photos=json.dumps(body.finder_photos) if body.finder_photos else None,
         finder_user_id=body.finder_user_id,
+        compatibility_score=body.pre_score if has_pre_score else None,
+        compatibility_analysis=body.pre_analysis if has_pre_score else None,
         created_at=datetime.now(timezone.utc),
     )
     db.add(report)
@@ -816,8 +850,15 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
         daemon=True,
     ).start()
 
-    # Gemini Vision em background — analisa e depois envia segundo push com %
-    if body.finder_photos and mp.photo_url:
+    if has_pre_score:
+        # Score já conhecido — envia push com % imediatamente
+        threading.Thread(
+            target=_push_compat_score,
+            args=(body.pre_score, body.pre_analysis or "", mp.user_id, mp.pet_name, report_id),
+            daemon=True,
+        ).start()
+    elif body.finder_photos and mp.photo_url:
+        # Sem pré-análise — roda Gemini em background
         threading.Thread(
             target=_analyze_and_save,
             args=(report_id, mp.photo_url, body.finder_photos, mp.user_id, mp.pet_name, mp_id),
@@ -827,6 +868,6 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
     return {
         "id": report_id,
         "status": "reported",
-        "compatibility_score": None,
-        "compatibility_analysis": None,
+        "compatibility_score": body.pre_score if has_pre_score else None,
+        "compatibility_analysis": body.pre_analysis if has_pre_score else None,
     }

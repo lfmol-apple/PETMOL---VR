@@ -189,13 +189,17 @@ function AcheiUmPetInner() {
           notes: reportNotes.trim() || null,
           finder_photos: reportPhotos,
           finder_user_id: finderUserId,
+          pre_score: preScore,
+          pre_analysis: preAnalysis || null,
         }),
       });
       if (res.ok) {
         const data = await res.json() as { compatibility_score?: number | null; compatibility_analysis?: string | null };
-        if (data.compatibility_score != null) {
-          setCompatScore(data.compatibility_score);
-          setCompatAnalysis(data.compatibility_analysis ?? '');
+        const finalScore = data.compatibility_score ?? preScore;
+        const finalAnalysis = data.compatibility_analysis ?? preAnalysis;
+        if (finalScore != null) {
+          setCompatScore(finalScore);
+          setCompatAnalysis(finalAnalysis ?? '');
         }
         setReportedIds(ids => [...ids, petId]);
         setReportingId(null);
