@@ -542,7 +542,15 @@ function HomePageInner() {
   }, [fetchNearbyAlerts]);
 
   // Alertas ATIVOS criados pelo próprio usuário (pets sumidos do dono)
+  type AlertReach = { notified_active: number; new_in_radius: number; radius_km: number };
   const [ownMissingAlerts, setOwnMissingAlerts] = useState<{id: string; pet_id: string | null; pet_name: string}[]>([]);
+  const [alertReach, setAlertReach] = useState<Record<string, AlertReach>>({});
+  const [editingAlertId, setEditingAlertId] = useState<string | null>(null);
+  const [editContact, setEditContact] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editCharacteristics, setEditCharacteristics] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editResult, setEditResult] = useState<{newly_notified: number} | null>(null);
   const fetchOwnMissingAlerts = useCallback(async () => {
     try {
       const token = getToken();
@@ -550,7 +558,17 @@ function HomePageInner() {
       const r = await fetch(`${API_BASE_URL}/missing-pets/my-active`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (r.ok) setOwnMissingAlerts(await r.json());
+      if (r.ok) {
+        const alerts = await r.json() as {id: string; pet_id: string | null; pet_name: string}[];
+        setOwnMissingAlerts(alerts);
+        // Busca reach para cada alerta ativo
+        for (const a of alerts) {
+          fetch(`${API_BASE_URL}/missing-pets/${a.id}/reach`, { headers: { Authorization: `Bearer ${token}` } })
+            .then(res => res.ok ? res.json() : null)
+            .then(data => { if (data) setAlertReach(prev => ({ ...prev, [a.id]: data as AlertReach })); })
+            .catch(() => {/* silent */});
+        }
+      }
     } catch { /* silent */ }
   }, []);
   useEffect(() => {
@@ -1888,7 +1906,9 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                 <div className="space-y-4">
                   {/* Banner: pet do próprio usuário com alerta ativo */}
                   {ownMissingAlerts.some(a => a.pet_id === selectedPetId) && (() => {
-                    const alert = ownMissingAlerts.find(a => a.pet_id === selectedPetId)!;
+                    const missingAlert = ownMissingAlerts.find(a => a.pet_id === selectedPetId)!;
+                    const reach = alertReach[missingAlert.id];
+                    const isEditing = editingAlertId === missingAlert.id;
                     return (
                       <div className="rounded-[24px] border border-rose-400/50 bg-gradient-to-br from-rose-600 to-rose-700 px-4 py-3.5 shadow-lg shadow-rose-900/30">
                         <div className="flex items-center gap-3">
@@ -1897,27 +1917,122 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                             <p className="text-[14px] font-black text-white leading-tight">
                               {currentPet.pet_name} está com alerta ativo
                             </p>
-                            <p className="text-[11px] text-rose-200 mt-0.5">A comunidade está sendo notificada na região</p>
+                            {reach ? (
+                              <p className="text-[11px] text-rose-100 mt-0.5">
+                                <span className="font-bold">{reach.notified_active}</span> pessoa{reach.notified_active !== 1 ? 's' : ''} com o recado no celular
+                                {reach.new_in_radius > 0 && <span className="text-rose-200"> · {reach.new_in_radius} nova{reach.new_in_radius !== 1 ? 's' : ''} no raio</span>}
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-rose-200 mt-0.5">A comunidade está sendo notificada na região</p>
+                            )}
                           </div>
                           <span className="flex-shrink-0 w-2 h-2 rounded-full bg-white animate-pulse" />
                         </div>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const token = getToken();
-                            if (!token) return;
-                            await fetch(`${API_BASE_URL}/missing-pets/${alert.id}/found`, {
-                              method: 'PATCH',
-                              headers: { Authorization: `Bearer ${token}` },
-                            });
-                            fetchOwnMissingAlerts();
-                            fetchFoundReports();
-                            fetchNearbyAlerts();
-                          }}
-                          className="mt-3 w-full rounded-xl border border-white/30 bg-white/15 py-2 text-center text-[13px] font-bold text-white active:scale-95 transition-transform"
-                        >
-                          Encontrei meu pet — encerrar alerta
-                        </button>
+
+                        {/* Editar alerta */}
+                        {isEditing ? (
+                          <div className="mt-3 space-y-2">
+                            <p className="text-[11px] font-bold text-rose-200 uppercase tracking-widest">Editar e reenviar</p>
+                            <input
+                              type="text"
+                              value={editContact}
+                              onChange={e => setEditContact(e.target.value)}
+                              placeholder="Telefone de contato"
+                              className="w-full rounded-xl bg-white/15 border border-white/20 px-3 py-2 text-[13px] text-white placeholder-white/40 outline-none focus:border-white/60"
+                            />
+                            <input
+                              type="text"
+                              value={editLocation}
+                              onChange={e => setEditLocation(e.target.value)}
+                              placeholder="Último local visto"
+                              className="w-full rounded-xl bg-white/15 border border-white/20 px-3 py-2 text-[13px] text-white placeholder-white/40 outline-none focus:border-white/60"
+                            />
+                            <textarea
+                              value={editCharacteristics}
+                              onChange={e => setEditCharacteristics(e.target.value)}
+                              placeholder="Características (coleira, manchas, comportamento...)"
+                              rows={2}
+                              className="w-full rounded-xl bg-white/15 border border-white/20 px-3 py-2 text-[13px] text-white placeholder-white/40 outline-none focus:border-white/60 resize-none"
+                            />
+                            {editResult && (
+                              <p className="text-[12px] text-emerald-200 font-semibold text-center">
+                                ✓ {editResult.newly_notified > 0 ? `${editResult.newly_notified} nova${editResult.newly_notified !== 1 ? 's' : ''} pessoa${editResult.newly_notified !== 1 ? 's' : ''} notificada${editResult.newly_notified !== 1 ? 's' : ''}!` : 'Atualizado — todos no raio já foram notificados'}
+                              </p>
+                            )}
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => { setEditingAlertId(null); setEditResult(null); }}
+                                className="flex-1 rounded-xl border border-white/20 py-2 text-center text-[12px] font-semibold text-white/60 active:scale-95 transition-transform"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                type="button"
+                                disabled={editSaving}
+                                onClick={async () => {
+                                  const token = getToken();
+                                  if (!token) return;
+                                  setEditSaving(true);
+                                  setEditResult(null);
+                                  try {
+                                    const r = await fetch(`${API_BASE_URL}/missing-pets/${missingAlert.id}`, {
+                                      method: 'PATCH',
+                                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                      body: JSON.stringify({
+                                        contact: editContact || null,
+                                        last_seen_location: editLocation || null,
+                                        characteristics: editCharacteristics || null,
+                                      }),
+                                    });
+                                    if (r.ok) {
+                                      const data = await r.json() as { newly_notified: number };
+                                      setEditResult(data);
+                                      fetchOwnMissingAlerts();
+                                    }
+                                  } catch { /* silent */ }
+                                  setEditSaving(false);
+                                }}
+                                className="flex-1 rounded-xl bg-white py-2 text-center text-[13px] font-black text-rose-600 active:scale-95 transition-transform disabled:opacity-50"
+                              >
+                                {editSaving ? 'Enviando...' : `Salvar e reenviar${reach?.new_in_radius ? ` (${reach.new_in_radius})` : ''}`}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingAlertId(missingAlert.id);
+                                setEditContact('');
+                                setEditLocation('');
+                                setEditCharacteristics('');
+                                setEditResult(null);
+                              }}
+                              className="flex-1 rounded-xl border border-white/30 bg-white/15 py-2 text-center text-[13px] font-bold text-white active:scale-95 transition-transform"
+                            >
+                              Editar e reenviar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const token = getToken();
+                                if (!token) return;
+                                await fetch(`${API_BASE_URL}/missing-pets/${missingAlert.id}/found`, {
+                                  method: 'PATCH',
+                                  headers: { Authorization: `Bearer ${token}` },
+                                });
+                                fetchOwnMissingAlerts();
+                                fetchFoundReports();
+                                fetchNearbyAlerts();
+                              }}
+                              className="flex-1 rounded-xl border border-white/30 bg-white/10 py-2 text-center text-[13px] font-semibold text-white/80 active:scale-95 transition-transform"
+                            >
+                              Encontrei meu pet
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}

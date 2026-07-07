@@ -146,6 +146,12 @@ class PhotoAnalysisBody(BaseModel):
     finder_photos: List[str] = []
 
 
+class MissingPetUpdate(BaseModel):
+    characteristics: Optional[str] = None
+    contact: Optional[str] = None
+    last_seen_location: Optional[str] = None
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _mp_to_dict(p: MissingPet) -> dict:
@@ -517,6 +523,75 @@ def mark_found(
 
 class PhotoUploadBody(BaseModel):
     photo_base64: str  # data:image/jpeg;base64,... or raw base64
+
+
+@router.get("/{mp_id}/reach")
+def alert_reach(
+    mp_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retorna quantas pessoas têm o push ativo na área e quantas novas podem receber."""
+    mp = db.query(MissingPet).filter(MissingPet.id == mp_id).first()
+    if not mp or str(mp.user_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Sem permissão")
+
+    subs = _load_subscriptions()
+    notified_data = _load_mp_notified()
+    already_notified_ids = set(notified_data.get(mp_id, {}).get("notified", []))
+    radius = mp.current_radius_km or 2.0
+    has_location = mp.lat is not None and mp.lng is not None
+
+    notified_active = 0   # já receberam E ainda têm subscrição válida
+    new_in_radius = 0     # novos no raio que ainda não receberam
+
+    for user_id, sub in subs.items():
+        if user_id == str(mp.user_id):
+            continue
+        in_radius = True
+        if has_location and isinstance(sub, dict):
+            sub_lat, sub_lng = sub.get("lat"), sub.get("lng")
+            if sub_lat is not None and sub_lng is not None:
+                dist = _haversine_km(mp.lat, mp.lng, sub_lat, sub_lng)
+                in_radius = dist <= radius
+        if in_radius:
+            if user_id in already_notified_ids:
+                notified_active += 1
+            else:
+                new_in_radius += 1
+
+    return {
+        "notified_active": notified_active,
+        "new_in_radius": new_in_radius,
+        "radius_km": radius,
+    }
+
+
+@router.patch("/{mp_id}")
+def update_missing_pet(
+    mp_id: str,
+    body: MissingPetUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Edita alerta ativo e re-envia push para novos usuários no raio."""
+    mp = db.query(MissingPet).filter(MissingPet.id == mp_id, MissingPet.status == "active").first()
+    if not mp:
+        raise HTTPException(status_code=404, detail="Alerta não encontrado")
+    if str(mp.user_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Sem permissão")
+
+    if body.characteristics is not None:
+        mp.characteristics = body.characteristics or None
+    if body.contact is not None:
+        mp.contact = body.contact
+    if body.last_seen_location is not None:
+        mp.last_seen_location = body.last_seen_location or None
+    db.commit()
+    db.refresh(mp)
+
+    newly_notified = _broadcast_missing_pet(mp)
+    return {"status": "updated", "newly_notified": newly_notified}
 
 
 @router.post("/upload-photo")
