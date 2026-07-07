@@ -522,13 +522,47 @@ function HomePageInner() {
     missing_time: string | null; created_at: string | null; user_id: string;
   };
   const [nearbyAlerts, setNearbyAlerts] = useState<NearbyAlert[]>([]);
-  // IDs que o finder já tratou (reportou ou dispensou manualmente) — estado reativo
+
+  const DISMISS_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
+
+  // Lê dismissed com TTL: Record<id, timestamp> — expira após 24h
+  function readDismissedIds(): string[] {
+    try {
+      const raw = localStorage.getItem('petmol_finder_dismissed_ids');
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as unknown;
+      // compatibilidade com formato antigo (string[])
+      if (Array.isArray(parsed) && (parsed.length === 0 || typeof parsed[0] === 'string')) {
+        return parsed as string[];
+      }
+      const map = parsed as Record<string, number>;
+      const now = Date.now();
+      return Object.entries(map).filter(([, ts]) => now - ts < DISMISS_TTL_MS).map(([id]) => id);
+    } catch { return []; }
+  }
+
+  function writeDismissedId(id: string): void {
+    try {
+      const raw = localStorage.getItem('petmol_finder_dismissed_ids');
+      let map: Record<string, number> = {};
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (!Array.isArray(parsed)) map = parsed as Record<string, number>;
+      }
+      map[id] = Date.now();
+      // limpa expirados ao gravar
+      const now = Date.now();
+      const clean = Object.fromEntries(Object.entries(map).filter(([, ts]) => now - ts < DISMISS_TTL_MS));
+      localStorage.setItem('petmol_finder_dismissed_ids', JSON.stringify(clean));
+    } catch { /* best effort */ }
+  }
+
+  // IDs que o finder já tratou (reportou ou dispensou) — estado reativo
   const [handledAlertIds, setHandledAlertIds] = useState<string[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
       const reported = JSON.parse(localStorage.getItem('petmol_finder_reported_ids') ?? '[]') as string[];
-      const dismissed = JSON.parse(localStorage.getItem('petmol_finder_dismissed_ids') ?? '[]') as string[];
-      return [...new Set([...reported, ...dismissed])];
+      return [...new Set([...reported, ...readDismissedIds()])];
     } catch { return []; }
   });
 
@@ -543,14 +577,13 @@ function HomePageInner() {
       const list: NearbyAlert[] = await r.json();
       setNearbyAlerts(list);
 
-      // Checa se algum report reportado foi descartado pelo dono — se sim, remove do localStorage
-      // e volta a mostrar o banner para o finder poder tentar novamente
+      // Checa se algum report foi descartado pelo dono — remove do localStorage e mostra banner de novo
       const reported = (() => {
         try { return JSON.parse(localStorage.getItem('petmol_finder_reported_ids') ?? '[]') as string[]; }
         catch { return [] as string[]; }
       })();
       if (reported.length > 0) {
-        const dismissed: string[] = [];
+        const ownerDismissed: string[] = [];
         await Promise.allSettled(
           reported.map(async (mpId) => {
             try {
@@ -559,23 +592,19 @@ function HomePageInner() {
               });
               if (res.ok) {
                 const data = await res.json() as { dismissed?: boolean };
-                if (data.dismissed) dismissed.push(mpId);
+                if (data.dismissed) ownerDismissed.push(mpId);
               }
             } catch { /* silent */ }
           }),
         );
-        if (dismissed.length > 0) {
-          const updated = reported.filter((id) => !dismissed.includes(id));
+        if (ownerDismissed.length > 0) {
+          const updated = reported.filter((id) => !ownerDismissed.includes(id));
           localStorage.setItem('petmol_finder_reported_ids', JSON.stringify(updated));
-          setHandledAlertIds(() => {
-            try {
-              const manualDismissed = JSON.parse(localStorage.getItem('petmol_finder_dismissed_ids') ?? '[]') as string[];
-              return [...new Set([...updated, ...manualDismissed])];
-            } catch { return updated; }
-          });
+          setHandledAlertIds([...new Set([...updated, ...readDismissedIds()])]);
         }
       }
     } catch { /* silent */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     fetchNearbyAlerts();
@@ -1904,14 +1933,8 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       type="button"
                       aria-label="Dispensar alerta"
                       onClick={() => {
-                        try {
-                          const dismissed = JSON.parse(localStorage.getItem('petmol_finder_dismissed_ids') ?? '[]') as string[];
-                          if (!dismissed.includes(alert.id)) {
-                            const updated = [...dismissed, alert.id];
-                            localStorage.setItem('petmol_finder_dismissed_ids', JSON.stringify(updated));
-                            setHandledAlertIds(prev => [...new Set([...prev, alert.id])]);
-                          }
-                        } catch { /* best effort */ }
+                        writeDismissedId(alert.id);
+                        setHandledAlertIds(prev => [...new Set([...prev, alert.id])]);
                         setNearbyAlerts(prev => prev.filter(a => a.id !== alert.id));
                       }}
                       className="flex-shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-white/80 text-sm font-bold active:scale-90 transition-transform"
