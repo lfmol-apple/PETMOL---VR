@@ -567,7 +567,7 @@ def _analyze_photo_compatibility(pet_photo_url: str, finder_photos_b64: list) ->
             return 0, ""
 
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        model = genai.GenerativeModel("gemini-2.5-flash")
 
         if pet_photo_url.startswith("http"):
             url = pet_photo_url
