@@ -12,6 +12,7 @@ import math
 import os
 import uuid
 import logging
+import threading
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -30,7 +31,10 @@ router = APIRouter(prefix="/missing-pets", tags=["Missing Pets"])
 
 # ── Notified tracking (evita renotificar quem já recebeu) ────────────────────
 
-_MP_NOTIFIED_FILE = os.path.join(os.path.dirname(__file__), "mp_notified.json")
+_MP_NOTIFIED_FILE = os.environ.get(
+    "MP_NOTIFIED_FILE",
+    os.path.join(os.path.dirname(__file__), "mp_notified.json"),
+)
 
 
 def _load_mp_notified() -> dict:
@@ -135,6 +139,10 @@ class FoundReportCreate(BaseModel):
     finder_photos: List[str] = []
 
 
+class PhotoAnalysisBody(BaseModel):
+    finder_photos: List[str] = []
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _mp_to_dict(p: MissingPet) -> dict:
@@ -159,7 +167,7 @@ def _mp_to_dict(p: MissingPet) -> dict:
     }
 
 
-def _broadcast_missing_pet(mp: MissingPet) -> None:
+def _broadcast_missing_pet(mp: MissingPet) -> int:
     """
     Push para usuários com subscrição ativa.
     - Nunca envia para o dono.
@@ -174,22 +182,21 @@ def _broadcast_missing_pet(mp: MissingPet) -> None:
         radius = mp.current_radius_km or 2.0
         has_location = mp.lat is not None and mp.lng is not None
 
-        site_url = "https://petmol.com.br"
-        photo_image = (
-            f"{site_url}{mp.photo_url}"
-            if mp.photo_url and mp.photo_url.startswith("/")
-            else (mp.photo_url or f"{site_url}/brand/notification-banner.png")
+        print(
+            f"[broadcast] pet={mp.id} owner={mp.user_id} raio={radius}km "
+            f"has_location={has_location} total_subs={len(subs)} excluded={len(excluded)}",
+            flush=True,
         )
+
         location_part = f"Visto em: {mp.last_seen_location}. " if mp.last_seen_location else ""
         payload = {
             "title": f"🚨 {mp.pet_name} pode estar na sua região!",
             "body": f"{location_part}Desaparecido desde {mp.missing_date or 'hoje'} às {mp.missing_time or '??:??'}. Toque para ajudar.",
             "tag": f"missing-pet-{mp.id}",
-            "renotify": False,
+            "renotify": True,
             "requireInteraction": True,
             "icon": "/icons/icon-192x192.png",
             "badge": "/icons/icon-72x72.png",
-            "image": photo_image,
             "data": {"url": f"/achei-um-pet?id={mp.id}"},
         }
 
@@ -200,7 +207,7 @@ def _broadcast_missing_pet(mp: MissingPet) -> None:
         MAX_NO_LOCATION = 50
 
         for user_id, subscription in subs.items():
-            if user_id in excluded:
+            if user_id in excluded or user_id == str(mp.user_id):
                 continue
             if not has_location and sent >= MAX_NO_LOCATION:
                 skipped += 1
@@ -213,10 +220,12 @@ def _broadcast_missing_pet(mp: MissingPet) -> None:
                 if sub_lat is not None and sub_lng is not None:
                     dist = _haversine_km(mp.lat, mp.lng, sub_lat, sub_lng)
                     if dist > radius:
+                        print(f"[broadcast]   skip {user_id[:8]} dist={dist:.1f}km > {radius}km", flush=True)
                         skipped += 1
                         continue
 
             ok, invalid = _send_push(subscription, payload)
+            print(f"[broadcast]   user={user_id[:8]} ok={ok} invalid={invalid}", flush=True)
             if invalid:
                 removed.append(user_id)
             elif ok:
@@ -231,12 +240,16 @@ def _broadcast_missing_pet(mp: MissingPet) -> None:
         if newly_notified:
             _mark_notified(mp.id, newly_notified)
 
-        logger.info(
-            f"Pet Sumido broadcast: {sent} enviados, {skipped} fora do raio, "
-            f"{len(removed)} removidos (pet={mp.id}, raio={radius}km)"
+        print(
+            f"[broadcast] DONE: {sent} enviados, {skipped} fora do raio, "
+            f"{len(removed)} removidos (pet={mp.id})",
+            flush=True,
         )
+        return sent
     except Exception as e:
+        print(f"[broadcast] ERRO: {e}", flush=True)
         logger.error(f"_broadcast_missing_pet error: {e}")
+    return 0
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
@@ -247,9 +260,27 @@ def create_missing_pet(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    user_id = str(current_user.id)
+
+    # Bloqueia se já existe alerta ativo para o mesmo pet — só pode reabrir após confirmar encontrado
+    existing_q = db.query(MissingPet).filter(
+        MissingPet.user_id == user_id,
+        MissingPet.status == "active",
+    )
+    if body.pet_id:
+        existing_q = existing_q.filter(MissingPet.pet_id == body.pet_id)
+    else:
+        existing_q = existing_q.filter(MissingPet.pet_name == body.pet_name)
+
+    if existing_q.first():
+        raise HTTPException(
+            status_code=409,
+            detail="Já existe um alerta ativo para este pet. Confirme que foi encontrado antes de criar um novo alerta.",
+        )
+
     mp = MissingPet(
         id=str(uuid.uuid4()),
-        user_id=str(current_user.id),
+        user_id=user_id,
         pet_id=body.pet_id,
         pet_name=body.pet_name,
         species=body.species,
@@ -269,8 +300,14 @@ def create_missing_pet(
     db.add(mp)
     db.commit()
     db.refresh(mp)
-    _broadcast_missing_pet(mp)
-    return {"id": mp.id, "status": "created"}
+    notified_count = _broadcast_missing_pet(mp)
+
+    # Re-broadcasts nas primeiras 3 horas para maximizar o alcance
+    for delay in [3600, 7200]:
+        t = threading.Thread(target=_delayed_rebroadcast, args=(mp.id, delay), daemon=True)
+        t.start()
+
+    return {"id": mp.id, "status": "created", "notified_count": notified_count}
 
 
 @router.get("")
@@ -279,6 +316,140 @@ def list_missing_pets(include_found: bool = False, db: Session = Depends(get_db)
     if not include_found:
         q = q.filter(MissingPet.status == "active")
     return [_mp_to_dict(p) for p in q.order_by(MissingPet.created_at.desc()).limit(200).all()]
+
+
+@router.get("/my-found-reports")
+def my_found_reports(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Retorna found_reports pendentes para os missing pets do usuário logado."""
+    user_id = str(current_user.id)
+    my_pets = (
+        db.query(MissingPet)
+        .filter(MissingPet.user_id == user_id, MissingPet.status == "active")
+        .all()
+    )
+    if not my_pets:
+        return []
+    my_pet_ids = [p.id for p in my_pets]
+    pet_map = {p.id: p for p in my_pets}
+    reports = (
+        db.query(FoundReport)
+        .filter(FoundReport.missing_pet_id.in_(my_pet_ids))
+        .order_by(FoundReport.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "report_id": r.id,
+            "missing_pet_id": r.missing_pet_id,
+            "pet_name": pet_map[r.missing_pet_id].pet_name,
+            "finder_contact": r.finder_contact,
+            "finder_location": r.finder_location,
+            "notes": r.notes,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "compatibility_score": r.compatibility_score,
+            "compatibility_analysis": r.compatibility_analysis,
+            "has_photos": bool(r.finder_photos),
+            "photo_count": len(json.loads(r.finder_photos)) if r.finder_photos else 0,
+        }
+        for r in reports
+        if r.missing_pet_id in pet_map
+    ]
+
+
+@router.get("/found-reports/{report_id}/photos")
+def get_found_report_photos(
+    report_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retorna as fotos enviadas pelo achador — acesso apenas para o dono do pet."""
+    report = db.query(FoundReport).filter(FoundReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report não encontrado")
+    mp = db.query(MissingPet).filter(MissingPet.id == report.missing_pet_id).first()
+    if not mp or str(mp.user_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Sem permissão")
+    photos = json.loads(report.finder_photos) if report.finder_photos else []
+    return {
+        "photos": photos,
+        "compatibility_score": report.compatibility_score,
+        "compatibility_analysis": report.compatibility_analysis,
+    }
+
+
+@router.get("/my-active")
+def my_active_alerts(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Alertas ativos criados pelo próprio usuário (seus pets desaparecidos)."""
+    pets = (
+        db.query(MissingPet)
+        .filter(MissingPet.user_id == str(current_user.id), MissingPet.status == "active")
+        .all()
+    )
+    return [{"id": p.id, "pet_id": p.pet_id, "pet_name": p.pet_name} for p in pets]
+
+
+@router.get("/my-alerts")
+def my_alerts(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Retorna alertas ativos onde o usuário logado foi notificado (estava no raio)."""
+    notified_data = _load_mp_notified()
+    user_id = str(current_user.id)
+    # IDs dos alertas onde este usuário foi notificado
+    notified_pet_ids = [
+        mp_id for mp_id, rec in notified_data.items()
+        if user_id in rec.get("notified", [])
+    ]
+    if not notified_pet_ids:
+        return []
+    pets = (
+        db.query(MissingPet)
+        .filter(MissingPet.id.in_(notified_pet_ids), MissingPet.status == "active")
+        .order_by(MissingPet.created_at.desc())
+        .all()
+    )
+    return [_mp_to_dict(p) for p in pets]
+
+
+@router.get("/history")
+def my_history(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Histórico de alertas encerrados — como dono e como finder."""
+    user_id = str(current_user.id)
+
+    # Pets do próprio usuário que já foram encontrados
+    owned_found = (
+        db.query(MissingPet)
+        .filter(MissingPet.user_id == user_id, MissingPet.status == "found")
+        .order_by(MissingPet.found_at.desc())
+        .limit(20)
+        .all()
+    )
+
+    # Pets de outros usuários onde o usuário foi notificado e já foram encontrados
+    notified_data = _load_mp_notified()
+    notified_pet_ids = [mp_id for mp_id, rec in notified_data.items() if user_id in rec.get("notified", [])]
+    helped_found = []
+    if notified_pet_ids:
+        helped_found = (
+            db.query(MissingPet)
+            .filter(MissingPet.id.in_(notified_pet_ids), MissingPet.status == "found", MissingPet.user_id != user_id)
+            .order_by(MissingPet.found_at.desc())
+            .limit(20)
+            .all()
+        )
+
+    def _fmt(p: MissingPet, role: str) -> dict:
+        return {
+            "id": p.id,
+            "pet_name": p.pet_name,
+            "species": p.species,
+            "found_at": p.found_at.isoformat() if p.found_at else None,
+            "last_seen_location": p.last_seen_location,
+            "role": role,
+        }
+
+    return (
+        [_fmt(p, "owner") for p in owned_found]
+        + [_fmt(p, "finder") for p in helped_found]
+    )
 
 
 @router.patch("/{mp_id}/found")
@@ -295,7 +466,160 @@ def mark_found(
     mp.status = "found"
     mp.found_at = datetime.now(timezone.utc)
     db.commit()
+
     return {"status": "found"}
+
+
+@router.post("/{mp_id}/analyze-photo")
+def analyze_photo(mp_id: str, body: PhotoAnalysisBody, db: Session = Depends(get_db)):
+    """Pré-análise de compatibilidade sem criar report — usado antes de enviar aviso."""
+    mp = db.query(MissingPet).filter(MissingPet.id == mp_id, MissingPet.status == "active").first()
+    if not mp or not mp.photo_url or not body.finder_photos:
+        return {"score": None, "analysis": None}
+    score, analysis = _analyze_photo_compatibility(mp.photo_url, body.finder_photos)
+    return {
+        "score": score if score > 0 else None,
+        "analysis": analysis if analysis else None,
+    }
+
+
+def _delayed_rebroadcast(mp_id: str, delay_seconds: int) -> None:
+    """Re-broadcast agendado para maximizar o alcance nas primeiras horas."""
+    import time
+    time.sleep(delay_seconds)
+    try:
+        from ..db import SessionLocal
+        db = SessionLocal()
+        try:
+            mp = db.query(MissingPet).filter(
+                MissingPet.id == mp_id, MissingPet.status == "active"
+            ).first()
+            if mp:
+                sent = _broadcast_missing_pet(mp)
+                print(f"[rebroadcast] delay={delay_seconds//3600}h pet={mp_id[:8]} sent={sent}", flush=True)
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"[rebroadcast] error: {e}")
+
+
+def _analyze_photo_compatibility(pet_photo_url: str, finder_photos_b64: list) -> tuple:
+    """Gemini Vision: compara até 2 fotos do achador com a foto de referência do pet."""
+    try:
+        import base64 as _b64
+        import urllib.request
+        import re
+        import google.generativeai as genai
+
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+        if not api_key or not finder_photos_b64:
+            return 0, ""
+
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-1.5-flash")
+
+        if pet_photo_url.startswith("http"):
+            url = pet_photo_url
+        else:
+            path = pet_photo_url.lstrip('/')
+            if path.startswith('uploads/'):
+                url = f"http://localhost:8000/{path}"
+            else:
+                url = f"http://localhost:8000/uploads/{path}"
+        with urllib.request.urlopen(url, timeout=15) as resp:
+            pet_bytes = resp.read()
+
+        pet_mime = "image/jpeg"
+        for ext, mime in [(".png", "image/png"), (".webp", "image/webp")]:
+            if pet_photo_url.lower().endswith(ext):
+                pet_mime = mime
+
+        parts = [{"inline_data": {"mime_type": pet_mime, "data": _b64.b64encode(pet_bytes).decode()}}]
+        n_fotos = min(len(finder_photos_b64), 2)
+        for b64 in finder_photos_b64[:n_fotos]:
+            raw = b64.split(",")[-1] if "," in b64 else b64
+            finder_bytes = _b64.b64decode(raw)
+            finder_mime = "image/jpeg"
+            if "data:" in b64 and ";" in b64:
+                finder_mime = b64.split(";")[0].replace("data:", "")
+            parts.append({"inline_data": {"mime_type": finder_mime, "data": _b64.b64encode(finder_bytes).decode()}})
+
+        extra = " A SEGUNDA e TERCEIRA são fotos tiradas por quem diz ter encontrado o pet." if n_fotos > 1 else " A SEGUNDA é foto tirada por quem diz ter encontrado o pet."
+        prompt = (
+            f"Você recebeu {n_fotos + 1} fotos. A PRIMEIRA é a foto do pet desaparecido (referência).{extra} "
+            "Compare: pelagem, cor, raça, porte, marcações, orelhas, focinho e demais traços visíveis. "
+            "Responda SOMENTE em JSON válido: {\"score\": <inteiro 0 a 100>, \"analysis\": \"<frase curta em português, máx 80 chars>\"} "
+            "onde score=100 = certamente o mesmo animal, score=0 = certamente diferente."
+        )
+        parts.append(prompt)
+
+        response = model.generate_content(parts)
+        text = response.text.strip()
+        m = re.search(r'\{[^}]+\}', text, re.DOTALL)
+        if m:
+            data = json.loads(m.group())
+            return int(data.get("score", 0)), str(data.get("analysis", ""))
+    except Exception as e:
+        logger.error(f"Gemini compat analysis failed: {e}")
+    return 0, ""
+
+
+def _push_owner_found(mp: MissingPet, finder_contact: str, finder_location: str | None, mp_id: str) -> None:
+    """Envia push imediato ao dono quando alguém reporta ter encontrado o pet."""
+    try:
+        subs = _load_subscriptions()
+        owner_sub = subs.get(str(mp.user_id))
+        if not owner_sub:
+            return
+        loc = f" em {finder_location}" if finder_location else ""
+        _send_push(owner_sub, {
+            "title": f"🎉 {mp.pet_name} foi encontrado!",
+            "body": f"Alguém encontrou seu pet{loc}. Contato: {finder_contact}. Toque para ver detalhes.",
+            "tag": f"found-report-{mp_id}",
+            "renotify": True,
+            "requireInteraction": True,
+            "icon": "/icons/icon-192x192.png",
+            "data": {"url": f"/home"},
+        })
+    except Exception as e:
+        logger.error(f"Push ao tutor falhou: {e}")
+
+
+def _analyze_and_save(report_id: str, mp_photo_url: str, finder_photos: list, owner_user_id: str, pet_name: str, mp_id: str) -> None:
+    """Roda Gemini em background e salva o score — depois envia push com o resultado."""
+    try:
+        from ..db import SessionLocal
+        score, analysis = _analyze_photo_compatibility(mp_photo_url, finder_photos)
+        if score <= 0:
+            return
+        db = SessionLocal()
+        try:
+            rep = db.query(FoundReport).filter(FoundReport.id == report_id).first()
+            if rep:
+                rep.compatibility_score = score
+                rep.compatibility_analysis = analysis
+                db.commit()
+        finally:
+            db.close()
+        # Segundo push com o % de compatibilidade
+        try:
+            subs = _load_subscriptions()
+            owner_sub = subs.get(str(owner_user_id))
+            if owner_sub:
+                emoji = "✅" if score >= 70 else "⚠️" if score >= 40 else "❓"
+                _send_push(owner_sub, {
+                    "title": f"{emoji} Análise de foto: {score}% compatível",
+                    "body": f"{pet_name}: {analysis or 'Confira as fotos na tela inicial.'}",
+                    "tag": f"compat-{report_id}",
+                    "renotify": False,
+                    "requireInteraction": False,
+                    "icon": "/icons/icon-192x192.png",
+                    "data": {"url": f"/home"},
+                })
+        except Exception as e:
+            logger.error(f"Push compatibilidade falhou: {e}")
+    except Exception as e:
+        logger.error(f"_analyze_and_save error: {e}")
 
 
 @router.post("/{mp_id}/report-found", status_code=201)
@@ -311,7 +635,9 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
         .first()
     )
     if existing:
-        return {"id": existing.id, "status": "already_reported"}
+        return {"id": existing.id, "status": "already_reported",
+                "compatibility_score": existing.compatibility_score,
+                "compatibility_analysis": existing.compatibility_analysis}
 
     report = FoundReport(
         id=str(uuid.uuid4()),
@@ -324,23 +650,26 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
     )
     db.add(report)
     db.commit()
+    report_id = report.id
 
-    # Push para o tutor
-    try:
-        subs = _load_subscriptions()
-        owner_sub = subs.get(str(mp.user_id))
-        if owner_sub:
-            loc = f" em {body.finder_location}" if body.finder_location else ""
-            _send_push(owner_sub, {
-                "title": f"🎉 {mp.pet_name} foi encontrado!",
-                "body": f"Alguém encontrou seu pet{loc}. Contato: {body.finder_contact}. Toque para confirmar.",
-                "tag": f"found-report-{mp_id}",
-                "renotify": True,
-                "requireInteraction": True,
-                "icon": "/icons/icon-192x192.png",
-                "data": {"url": f"/home?found_report={mp_id}"},
-            })
-    except Exception as e:
-        logger.error(f"Push ao tutor falhou: {e}")
+    # Push IMEDIATO para o dono (antes de qualquer análise)
+    threading.Thread(
+        target=_push_owner_found,
+        args=(mp, body.finder_contact.strip(), body.finder_location, mp_id),
+        daemon=True,
+    ).start()
 
-    return {"id": report.id, "status": "reported"}
+    # Gemini Vision em background — analisa e depois envia segundo push com %
+    if body.finder_photos and mp.photo_url:
+        threading.Thread(
+            target=_analyze_and_save,
+            args=(report_id, mp.photo_url, body.finder_photos, mp.user_id, mp.pet_name, mp_id),
+            daemon=True,
+        ).start()
+
+    return {
+        "id": report_id,
+        "status": "reported",
+        "compatibility_score": None,
+        "compatibility_analysis": None,
+    }

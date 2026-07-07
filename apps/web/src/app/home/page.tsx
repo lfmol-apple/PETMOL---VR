@@ -514,6 +514,58 @@ function HomePageInner() {
   const [showColeiraSheet, setShowColeiraSheet] = useState(false);
   const [showBanhoTosaSheet, setShowBanhoTosaSheet] = useState(false);
   const [showPetSumidoSheet, setShowPetSumidoSheet] = useState(false);
+
+  // Alertas de pets sumidos próximos (não são do usuário logado)
+  type NearbyAlert = {
+    id: string; pet_name: string; species: string | null;
+    last_seen_location: string | null; missing_date: string | null;
+    missing_time: string | null; created_at: string | null; user_id: string;
+  };
+  const [nearbyAlerts, setNearbyAlerts] = useState<NearbyAlert[]>([]);
+  const fetchNearbyAlerts = useCallback(async () => {
+    try {
+      const token = getToken();
+      if (!token) return;
+      const r = await fetch(`${API_BASE_URL}/missing-pets/my-alerts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) return;
+      const list: NearbyAlert[] = await r.json();
+      setNearbyAlerts(list);
+    } catch { /* silent */ }
+  }, []);
+  useEffect(() => {
+    fetchNearbyAlerts();
+    const iv = setInterval(fetchNearbyAlerts, 60_000);
+    window.addEventListener('focus', fetchNearbyAlerts);
+    return () => { clearInterval(iv); window.removeEventListener('focus', fetchNearbyAlerts); };
+  }, [fetchNearbyAlerts]);
+
+  // Reports de achado para os pets DO usuário logado (banner verde)
+  type FoundReportItem = {
+    report_id: string; missing_pet_id: string; pet_name: string;
+    finder_contact: string; finder_location: string | null;
+    notes: string | null; created_at: string | null;
+  };
+  const [foundReports, setFoundReports] = useState<FoundReportItem[]>([]);
+  const fetchFoundReports = useCallback(async () => {
+    try {
+      const token = getToken();
+      if (!token) return;
+      const r = await fetch(`${API_BASE_URL}/missing-pets/my-found-reports`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) return;
+      setFoundReports(await r.json());
+    } catch { /* silent */ }
+  }, []);
+  useEffect(() => {
+    fetchFoundReports();
+    const iv = setInterval(fetchFoundReports, 30_000);
+    window.addEventListener('focus', fetchFoundReports);
+    return () => { clearInterval(iv); window.removeEventListener('focus', fetchFoundReports); };
+  }, [fetchFoundReports]);
+
   const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   const [showMedicationSheet, setShowMedicationSheet] = useState(false);
   const [showFoodSheet, setShowFoodSheet] = useState(false);
@@ -1567,6 +1619,114 @@ function HomePageInner() {
                   ? 'Tentando reconectar'
                   : 'Sincronizado agora'}
             </div>
+          </div>
+        )}
+
+        {/* Banner verde: alguém encontrou seu pet! (para o dono) */}
+        {foundReports.length > 0 && (
+          <div className="mb-3 space-y-2">
+            {foundReports.map((rep) => (
+              <div
+                key={rep.report_id}
+                className="rounded-2xl border border-emerald-300 bg-gradient-to-br from-emerald-500 to-emerald-600 p-4 shadow-lg shadow-emerald-900/20"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-white/20 text-2xl">
+                    🎉
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-100">
+                      Alguém encontrou seu pet!
+                    </p>
+                    <h3 className="mt-0.5 text-[17px] font-black leading-tight text-white">
+                      {rep.pet_name} foi localizado
+                    </h3>
+                    {rep.finder_location && (
+                      <p className="mt-1 text-[12px] font-medium text-emerald-100">
+                        Local: {rep.finder_location}
+                      </p>
+                    )}
+                    {rep.notes && (
+                      <p className="mt-0.5 text-[12px] text-emerald-100 italic">&ldquo;{rep.notes}&rdquo;</p>
+                    )}
+                    <p className="mt-1 text-[13px] font-bold text-white">
+                      Contato: {rep.finder_contact}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <a
+                    href={`https://wa.me/55${rep.finder_contact.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 rounded-xl bg-white py-2.5 text-center text-[13px] font-black text-emerald-600 shadow-sm active:scale-95 transition-transform"
+                  >
+                    WhatsApp
+                  </a>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const token = getToken();
+                      if (!token) return;
+                      await fetch(`${API_BASE_URL}/missing-pets/${rep.missing_pet_id}/found`, {
+                        method: 'PATCH',
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+                      fetchFoundReports();
+                      fetchNearbyAlerts();
+                    }}
+                    className="flex-1 rounded-xl bg-white/20 border border-white/40 py-2.5 text-center text-[13px] font-black text-white shadow-sm active:scale-95 transition-transform"
+                  >
+                    Confirmar encontrado
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Banner vermelho: pets sumidos na região (não são do usuário) */}
+        {nearbyAlerts.length > 0 && (
+          <div className="mb-3 space-y-2">
+            {nearbyAlerts.map((alert) => {
+              const speciesLabel = alert.species === 'cat' ? 'Gato' : alert.species === 'dog' ? 'Cachorro' : 'Pet';
+              const missingInfo = alert.missing_date
+                ? `Desaparecido em ${alert.missing_date}${alert.missing_time ? ' às ' + alert.missing_time : ''}`
+                : 'Desaparecido recentemente';
+              return (
+                <div
+                  key={alert.id}
+                  className="rounded-2xl border border-rose-300 bg-gradient-to-br from-rose-500 to-rose-600 p-4 shadow-lg shadow-rose-900/20"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-white/20 text-2xl">
+                      {alert.species === 'cat' ? '🐱' : '🐶'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-rose-100">
+                        Alerta · {speciesLabel} desaparecido
+                      </p>
+                      <h3 className="mt-0.5 text-[17px] font-black leading-tight text-white">
+                        {alert.pet_name} pode estar na sua região!
+                      </h3>
+                      {alert.last_seen_location && (
+                        <p className="mt-1 text-[12px] font-medium text-rose-100">
+                          Visto em: {alert.last_seen_location}
+                        </p>
+                      )}
+                      <p className="mt-0.5 text-[11px] text-rose-200">{missingInfo}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/achei-um-pet?id=${alert.id}`)}
+                    className="mt-3 w-full rounded-xl bg-white py-2.5 text-[14px] font-black text-rose-600 shadow-sm active:scale-95 transition-transform"
+                  >
+                    Encontrei este pet
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
 

@@ -10,14 +10,13 @@ function isOwnHost(url: string): boolean {
 }
 
 function resolvePhotosBase(): string {
+  // NEXT_PUBLIC_PHOTOS_BASE_URL takes priority (e.g. "https://petmol.com.br/api")
+  // Fall back to NEXT_PUBLIC_API_BASE_URL which is "/api" in production — uploads live there
   const configured = String(
     process.env.NEXT_PUBLIC_PHOTOS_BASE_URL ||
     process.env.NEXT_PUBLIC_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
     '',
-  )
-    .replace(/\/api\/?$/, '')
-    .replace(/\/$/, '');
+  ).replace(/\/$/, '');
 
   if (configured) return configured;
   if (typeof window !== 'undefined') return window.location.origin;
