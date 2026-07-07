@@ -88,6 +88,7 @@ class FoundReport(Base):
     finder_photos = Column(Text, nullable=True)
     compatibility_score = Column(Integer, nullable=True)
     compatibility_analysis = Column(Text, nullable=True)
+    dismissed = Column(Integer, nullable=True, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
@@ -333,7 +334,7 @@ def my_found_reports(db: Session = Depends(get_db), current_user=Depends(get_cur
     pet_map = {p.id: p for p in my_pets}
     reports = (
         db.query(FoundReport)
-        .filter(FoundReport.missing_pet_id.in_(my_pet_ids))
+        .filter(FoundReport.missing_pet_id.in_(my_pet_ids), FoundReport.dismissed != 1)
         .order_by(FoundReport.created_at.desc())
         .all()
     )
@@ -354,6 +355,24 @@ def my_found_reports(db: Session = Depends(get_db), current_user=Depends(get_cur
         for r in reports
         if r.missing_pet_id in pet_map
     ]
+
+
+@router.patch("/found-reports/{report_id}/dismiss")
+def dismiss_found_report(
+    report_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Dono descarta o report — foto não bate com o pet."""
+    report = db.query(FoundReport).filter(FoundReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report não encontrado")
+    mp = db.query(MissingPet).filter(MissingPet.id == report.missing_pet_id).first()
+    if not mp or str(mp.user_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Sem permissão")
+    report.dismissed = 1
+    db.commit()
+    return {"status": "dismissed"}
 
 
 @router.get("/found-reports/{report_id}/photos")

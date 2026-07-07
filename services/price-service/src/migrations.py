@@ -188,6 +188,9 @@ def run_pg_migrations(engine: Engine) -> None:
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_product_reliable_catalog_key ON product_reliable_catalog (canonical_key)"))
 
+        # found_reports: dismiss flag (Jul 2026)
+        _pg_add_column_if_missing(conn, "found_reports", "dismissed", "INTEGER DEFAULT 0")
+
 
 def run_sqlite_migrations(engine: Engine) -> None:
     """Run idempotent migrations.

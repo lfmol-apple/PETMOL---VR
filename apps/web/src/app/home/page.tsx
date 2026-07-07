@@ -536,18 +536,56 @@ function HomePageInner() {
   }, []);
   useEffect(() => {
     fetchNearbyAlerts();
-    const iv = setInterval(fetchNearbyAlerts, 60_000);
+    const iv = setInterval(fetchNearbyAlerts, 15_000);
     window.addEventListener('focus', fetchNearbyAlerts);
     return () => { clearInterval(iv); window.removeEventListener('focus', fetchNearbyAlerts); };
   }, [fetchNearbyAlerts]);
+
+  // Alertas ATIVOS criados pelo próprio usuário (pets sumidos do dono)
+  const [ownMissingAlerts, setOwnMissingAlerts] = useState<{id: string; pet_id: string | null; pet_name: string}[]>([]);
+  const fetchOwnMissingAlerts = useCallback(async () => {
+    try {
+      const token = getToken();
+      if (!token) return;
+      const r = await fetch(`${API_BASE_URL}/missing-pets/my-active`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (r.ok) setOwnMissingAlerts(await r.json());
+    } catch { /* silent */ }
+  }, []);
+  useEffect(() => {
+    fetchOwnMissingAlerts();
+    const iv = setInterval(fetchOwnMissingAlerts, 15_000);
+    window.addEventListener('focus', fetchOwnMissingAlerts);
+    return () => { clearInterval(iv); window.removeEventListener('focus', fetchOwnMissingAlerts); };
+  }, [fetchOwnMissingAlerts]);
 
   // Reports de achado para os pets DO usuário logado (banner verde)
   type FoundReportItem = {
     report_id: string; missing_pet_id: string; pet_name: string;
     finder_contact: string; finder_location: string | null;
     notes: string | null; created_at: string | null;
+    compatibility_score: number | null; compatibility_analysis: string | null;
+    has_photos: boolean; photo_count: number;
+  };
+  type PhotosModalData = { photos: string[]; score: number | null; analysis: string | null };
+  const [photosModal, setPhotosModal] = useState<PhotosModalData | null>(null);
+  const [photosModalLoading, setPhotosModalLoading] = useState(false);
+
+  const openPhotosModal = async (reportId: string) => {
+    setPhotosModalLoading(true);
+    setPhotosModal(null);
+    try {
+      const token = getToken();
+      const r = await fetch(`${API_BASE_URL}/missing-pets/found-reports/${reportId}/photos`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (r.ok) setPhotosModal(await r.json() as PhotosModalData);
+    } catch { /* silent */ }
+    setPhotosModalLoading(false);
   };
   const [foundReports, setFoundReports] = useState<FoundReportItem[]>([]);
+  const [confirmedPetIds, setConfirmedPetIds] = useState<string[]>([]);
   const fetchFoundReports = useCallback(async () => {
     try {
       const token = getToken();
@@ -566,7 +604,7 @@ function HomePageInner() {
     return () => { clearInterval(iv); window.removeEventListener('focus', fetchFoundReports); };
   }, [fetchFoundReports]);
 
-  const [showVaccineSheet, setShowVaccineSheet] = useState(false);
+const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   const [showMedicationSheet, setShowMedicationSheet] = useState(false);
   const [showFoodSheet, setShowFoodSheet] = useState(false);
   const [foodSheetInitialMode, setFoodSheetInitialMode] = useState<'view' | 'buy'>('view');
@@ -1625,70 +1663,162 @@ function HomePageInner() {
         {/* Banner verde: alguém encontrou seu pet! (para o dono) */}
         {foundReports.length > 0 && (
           <div className="mb-3 space-y-2">
-            {foundReports.map((rep) => (
-              <div
-                key={rep.report_id}
-                className="rounded-2xl border border-emerald-300 bg-gradient-to-br from-emerald-500 to-emerald-600 p-4 shadow-lg shadow-emerald-900/20"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-white/20 text-2xl">
-                    🎉
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-100">
-                      Alguém encontrou seu pet!
-                    </p>
-                    <h3 className="mt-0.5 text-[17px] font-black leading-tight text-white">
-                      {rep.pet_name} foi localizado
-                    </h3>
-                    {rep.finder_location && (
-                      <p className="mt-1 text-[12px] font-medium text-emerald-100">
-                        Local: {rep.finder_location}
-                      </p>
-                    )}
-                    {rep.notes && (
-                      <p className="mt-0.5 text-[12px] text-emerald-100 italic">&ldquo;{rep.notes}&rdquo;</p>
-                    )}
-                    <p className="mt-1 text-[13px] font-bold text-white">
-                      Contato: {rep.finder_contact}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <a
-                    href={`https://wa.me/55${rep.finder_contact.replace(/\D/g, '')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 rounded-xl bg-white py-2.5 text-center text-[13px] font-black text-emerald-600 shadow-sm active:scale-95 transition-transform"
+            {foundReports.map((rep) => {
+              const isConfirmed = confirmedPetIds.includes(rep.missing_pet_id);
+              if (isConfirmed) {
+                return (
+                  <div
+                    key={rep.report_id}
+                    className="rounded-2xl border border-emerald-300 bg-gradient-to-br from-emerald-600 to-teal-700 p-5 shadow-lg shadow-emerald-900/20 text-center"
                   >
-                    WhatsApp
-                  </a>
+                    <div className="text-4xl mb-2">🐾</div>
+                    <h3 className="text-[18px] font-black text-white leading-tight">
+                      {rep.pet_name} voltou para casa!
+                    </h3>
+                    <p className="mt-1 text-[13px] text-emerald-100">
+                      A comunidade PETMOL fez a diferença. Quem estava no raio foi avisado.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmedPetIds(ids => ids.filter(id => id !== rep.missing_pet_id));
+                        fetchFoundReports();
+                        fetchNearbyAlerts();
+                      }}
+                      className="mt-3 rounded-xl bg-white/20 border border-white/40 px-6 py-2 text-[13px] font-bold text-white active:scale-95 transition-transform"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                );
+              }
+              return (
+                <div
+                  key={rep.report_id}
+                  className="rounded-2xl border border-emerald-300 bg-gradient-to-br from-emerald-500 to-emerald-600 p-4 shadow-lg shadow-emerald-900/20"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-white/20 text-2xl">
+                      🎉
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-100">
+                        Alguém encontrou seu pet!
+                      </p>
+                      <h3 className="mt-0.5 text-[17px] font-black leading-tight text-white">
+                        {rep.pet_name} foi localizado
+                      </h3>
+                      {rep.finder_location && (
+                        <p className="mt-1 text-[12px] font-medium text-emerald-100">
+                          Local: {rep.finder_location}
+                        </p>
+                      )}
+                      {rep.notes && (
+                        <p className="mt-0.5 text-[12px] text-emerald-100 italic">&ldquo;{rep.notes}&rdquo;</p>
+                      )}
+                      <p className="mt-1 text-[13px] font-bold text-white">
+                        Contato: {rep.finder_contact}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Score de compatibilidade — destaque grande */}
+                  {rep.compatibility_score != null && (
+                    <div className="mt-3 flex flex-col items-center gap-1.5">
+                      <div className={`w-24 h-24 rounded-full flex items-center justify-center ${
+                        rep.compatibility_score >= 70 ? 'bg-emerald-400/25' :
+                        rep.compatibility_score >= 40 ? 'bg-amber-400/25' : 'bg-rose-400/25'
+                      }`} style={{ border: '4px solid rgba(255,255,255,0.55)' }}>
+                        <span className="text-[36px] font-black text-white leading-none">{rep.compatibility_score}%</span>
+                      </div>
+                      <p className="text-[12px] text-emerald-100 font-semibold text-center">
+                        {rep.compatibility_score >= 70 ? 'Alta compatibilidade com a foto de referência' :
+                         rep.compatibility_score >= 40 ? 'Compatibilidade moderada — verifique as fotos' :
+                         'Baixa compatibilidade — confira as fotos para decidir'}
+                      </p>
+                    </div>
+                  )}
+
+                  {rep.has_photos && (
+                    <button
+                      type="button"
+                      onClick={() => void openPhotosModal(rep.report_id)}
+                      className="mt-2 flex items-center gap-2 w-full rounded-xl bg-white/20 border border-white/30 px-3 py-2.5 active:scale-95 transition-transform"
+                    >
+                      <span className="text-[18px]">📷</span>
+                      <span className="flex-1 text-left text-[13px] font-bold text-white">
+                        Ver {rep.photo_count === 1 ? '1 foto' : `${rep.photo_count} fotos`} do achador
+                      </span>
+                      <span className="text-white/50 text-[12px]">›</span>
+                    </button>
+                  )}
+
+                  <div className="mt-3 flex gap-2">
+                    <a
+                      href={`https://wa.me/55${rep.finder_contact.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 rounded-xl bg-white py-2.5 text-center text-[13px] font-black text-emerald-600 shadow-sm active:scale-95 transition-transform"
+                    >
+                      WhatsApp
+                    </a>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const token = getToken();
+                        if (!token) return;
+                        await fetch(`${API_BASE_URL}/missing-pets/${rep.missing_pet_id}/found`, {
+                          method: 'PATCH',
+                          headers: { Authorization: `Bearer ${token}` },
+                        });
+                        setConfirmedPetIds(ids => [...ids, rep.missing_pet_id]);
+                        setTimeout(() => {
+                          fetchFoundReports();
+                          fetchNearbyAlerts();
+                          fetchOwnMissingAlerts();
+                        }, 3500);
+                      }}
+                      className="flex-1 rounded-xl bg-white/20 border border-white/40 py-2.5 text-center text-[13px] font-black text-white shadow-sm active:scale-95 transition-transform"
+                    >
+                      Confirmar encontrado
+                    </button>
+                  </div>
+
+                  {/* Rejeitar report — foto não bate */}
                   <button
                     type="button"
                     onClick={async () => {
                       const token = getToken();
                       if (!token) return;
-                      await fetch(`${API_BASE_URL}/missing-pets/${rep.missing_pet_id}/found`, {
+                      await fetch(`${API_BASE_URL}/missing-pets/found-reports/${rep.report_id}/dismiss`, {
                         method: 'PATCH',
                         headers: { Authorization: `Bearer ${token}` },
                       });
                       fetchFoundReports();
-                      fetchNearbyAlerts();
                     }}
-                    className="flex-1 rounded-xl bg-white/20 border border-white/40 py-2.5 text-center text-[13px] font-black text-white shadow-sm active:scale-95 transition-transform"
+                    className="mt-2 w-full rounded-xl border border-white/20 py-2 text-center text-[12px] font-semibold text-white/60 active:scale-95 transition-transform"
                   >
-                    Confirmar encontrado
+                    Não é meu pet — descartar este aviso
                   </button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
         {/* Banner vermelho: pets sumidos na região (não são do usuário) */}
-        {nearbyAlerts.length > 0 && (
+        {(() => {
+          const alreadyHandled = (() => {
+            try {
+              const reported = JSON.parse(localStorage.getItem('petmol_finder_reported_ids') ?? '[]') as string[];
+              const dismissed = JSON.parse(localStorage.getItem('petmol_finder_dismissed_ids') ?? '[]') as string[];
+              return [...reported, ...dismissed];
+            } catch { return [] as string[]; }
+          })();
+          const visibleAlerts = nearbyAlerts.filter(a => !alreadyHandled.includes(a.id));
+          return visibleAlerts.length > 0 && (
           <div className="mb-3 space-y-2">
-            {nearbyAlerts.map((alert) => {
+            {visibleAlerts.map((alert) => {
               const speciesLabel = alert.species === 'cat' ? 'Gato' : alert.species === 'dog' ? 'Cachorro' : 'Pet';
               const missingInfo = alert.missing_date
                 ? `Desaparecido em ${alert.missing_date}${alert.missing_time ? ' às ' + alert.missing_time : ''}`
@@ -1716,6 +1846,22 @@ function HomePageInner() {
                       )}
                       <p className="mt-0.5 text-[11px] text-rose-200">{missingInfo}</p>
                     </div>
+                    <button
+                      type="button"
+                      aria-label="Dispensar alerta"
+                      onClick={() => {
+                        try {
+                          const dismissed = JSON.parse(localStorage.getItem('petmol_finder_dismissed_ids') ?? '[]') as string[];
+                          if (!dismissed.includes(alert.id)) {
+                            localStorage.setItem('petmol_finder_dismissed_ids', JSON.stringify([...dismissed, alert.id]));
+                          }
+                        } catch { /* best effort */ }
+                        setNearbyAlerts(prev => prev.filter(a => a.id !== alert.id));
+                      }}
+                      className="flex-shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-white/80 text-sm font-bold active:scale-90 transition-transform"
+                    >
+                      ×
+                    </button>
                   </div>
                   <button
                     type="button"
@@ -1728,7 +1874,8 @@ function HomePageInner() {
               );
             })}
           </div>
-        )}
+          );
+        })()}
 
         {/* Pet Management - if pets exist */}
         {pets.length > 0 ? (
@@ -1739,6 +1886,20 @@ function HomePageInner() {
               
               return (
                 <div className="space-y-4">
+                  {/* Banner: pet do próprio usuário com alerta ativo */}
+                  {ownMissingAlerts.some(a => a.pet_id === selectedPetId) && (
+                    <div className="rounded-[24px] border border-rose-400/50 bg-gradient-to-br from-rose-600 to-rose-700 px-4 py-3.5 flex items-center gap-3 shadow-lg shadow-rose-900/30">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-xl">🚨</div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[14px] font-black text-white leading-tight">
+                          {currentPet.pet_name} está com alerta ativo
+                        </p>
+                        <p className="text-[11px] text-rose-200 mt-0.5">A comunidade está sendo notificada na região</p>
+                      </div>
+                      <span className="flex-shrink-0 w-2 h-2 rounded-full bg-white animate-pulse" />
+                    </div>
+                  )}
+
                   {(() => {
                     const currentPetName = currentPet.pet_name || 'seu pet';
                     const attentionAlerts = _selectedPetActiveAlerts
@@ -2316,6 +2477,70 @@ function HomePageInner() {
         open={showEmergencySheet}
         onClose={() => setShowEmergencySheet(false)}
       />
+
+      {/* Modal de fotos do achador */}
+      {(photosModal || photosModalLoading) && (
+        <div className="fixed inset-0 z-[80] flex flex-col bg-black/80 backdrop-blur-sm" onClick={() => { setPhotosModal(null); }}>
+          <div
+            className="mt-auto bg-[#0F0D0B] rounded-t-[28px] max-h-[90dvh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-white/20" />
+            </div>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
+              <p className="font-black text-white text-[16px]">Fotos do achador</p>
+              <button
+                type="button"
+                onClick={() => setPhotosModal(null)}
+                className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/60"
+              >×</button>
+            </div>
+            <div className="px-5 py-5 space-y-4 pb-8">
+              {photosModalLoading ? (
+                <div className="flex justify-center py-10">
+                  <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : photosModal && (
+                <>
+                  {photosModal.score != null && (
+                    <div className={`rounded-2xl px-4 py-4 flex items-center gap-4 ${
+                      photosModal.score >= 70 ? 'bg-emerald-900/50 border border-emerald-600/40' :
+                      photosModal.score >= 40 ? 'bg-amber-900/50 border border-amber-600/40' :
+                      'bg-rose-900/50 border border-rose-600/40'
+                    }`}>
+                      <div className={`w-28 h-28 rounded-full flex items-center justify-center border-[3px] flex-shrink-0 ${
+                        photosModal.score >= 70 ? 'border-emerald-400 bg-emerald-800/50' :
+                        photosModal.score >= 40 ? 'border-amber-400 bg-amber-800/50' :
+                        'border-rose-400 bg-rose-800/50'
+                      }`}>
+                        <span className="text-[44px] font-black text-white leading-none">{photosModal.score}%</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[14px] font-black text-white leading-tight">
+                          {photosModal.score >= 70 ? 'Alta compatibilidade' :
+                           photosModal.score >= 40 ? 'Compatibilidade moderada' :
+                           'Baixa compatibilidade'}
+                        </p>
+                        {photosModal.analysis && (
+                          <p className="text-[12px] text-white/60 mt-1 leading-snug">{photosModal.analysis}</p>
+                        )}
+                        <p className="text-[11px] text-white/40 mt-1">Você decide se é o seu pet</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className={`grid gap-3 ${photosModal.photos.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    {photosModal.photos.map((photo, i) => (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img key={i} src={photo} alt={`Foto ${i + 1}`} className="w-full rounded-2xl object-cover border border-white/10" style={{ maxHeight: 340 }} />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
