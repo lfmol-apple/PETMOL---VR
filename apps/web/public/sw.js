@@ -17,7 +17,7 @@
  * }
  */
 
-const CACHE_NAME = 'petmol-shell-v2026-07-07c';
+const CACHE_NAME = 'petmol-shell-v2026-07-07d';
 const SHARE_CACHE = 'petmol-shared-files-v1';
 const SHELL_URLS = [
   '/',
