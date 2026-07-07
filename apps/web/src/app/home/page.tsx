@@ -1887,18 +1887,40 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
               return (
                 <div className="space-y-4">
                   {/* Banner: pet do próprio usuário com alerta ativo */}
-                  {ownMissingAlerts.some(a => a.pet_id === selectedPetId) && (
-                    <div className="rounded-[24px] border border-rose-400/50 bg-gradient-to-br from-rose-600 to-rose-700 px-4 py-3.5 flex items-center gap-3 shadow-lg shadow-rose-900/30">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-xl">🚨</div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[14px] font-black text-white leading-tight">
-                          {currentPet.pet_name} está com alerta ativo
-                        </p>
-                        <p className="text-[11px] text-rose-200 mt-0.5">A comunidade está sendo notificada na região</p>
+                  {ownMissingAlerts.some(a => a.pet_id === selectedPetId) && (() => {
+                    const alert = ownMissingAlerts.find(a => a.pet_id === selectedPetId)!;
+                    return (
+                      <div className="rounded-[24px] border border-rose-400/50 bg-gradient-to-br from-rose-600 to-rose-700 px-4 py-3.5 shadow-lg shadow-rose-900/30">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0 w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-xl">🚨</div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[14px] font-black text-white leading-tight">
+                              {currentPet.pet_name} está com alerta ativo
+                            </p>
+                            <p className="text-[11px] text-rose-200 mt-0.5">A comunidade está sendo notificada na região</p>
+                          </div>
+                          <span className="flex-shrink-0 w-2 h-2 rounded-full bg-white animate-pulse" />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const token = getToken();
+                            if (!token) return;
+                            await fetch(`${API_BASE_URL}/missing-pets/${alert.id}/found`, {
+                              method: 'PATCH',
+                              headers: { Authorization: `Bearer ${token}` },
+                            });
+                            fetchOwnMissingAlerts();
+                            fetchFoundReports();
+                            fetchNearbyAlerts();
+                          }}
+                          className="mt-3 w-full rounded-xl border border-white/30 bg-white/15 py-2 text-center text-[13px] font-bold text-white active:scale-95 transition-transform"
+                        >
+                          Encontrei meu pet — encerrar alerta
+                        </button>
                       </div>
-                      <span className="flex-shrink-0 w-2 h-2 rounded-full bg-white animate-pulse" />
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {(() => {
                     const currentPetName = currentPet.pet_name || 'seu pet';
