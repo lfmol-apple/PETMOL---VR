@@ -2596,7 +2596,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         return (
           <PetSumidoSheet
             pet={currentPet}
-            petPhotoUrl={alert.photo_url ?? currentPet.photo ?? null}
+            petPhotoUrl={alert.photo_url ? getPhotoUrl(alert.photo_url) : (currentPet.photo ? getPhotoUrl(currentPet.photo) : null)}
             editAlertId={editingAlertId}
             initialContact={alert.contact ?? ''}
             initialLocation={alert.last_seen_location ?? ''}
