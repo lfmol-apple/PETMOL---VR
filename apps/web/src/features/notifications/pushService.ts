@@ -7,6 +7,21 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
+async function _getLocSilently(): Promise<{ lat: number; lng: number } | null> {
+  try {
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return null;
+    const perm = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+    if (perm.state !== 'granted') return null;
+    return await new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+        () => resolve(null),
+        { timeout: 5000, maximumAge: 300_000 },
+      );
+    });
+  } catch { return null; }
+}
+
 // ── Subscription ────────────────────────────────────────────────────────────
 
 export async function subscribeToPush(token: string): Promise<boolean> {
@@ -30,13 +45,14 @@ export async function subscribeToPush(token: string): Promise<boolean> {
     applicationServerKey: _urlBase64ToUint8Array(publicKey) as unknown as BufferSource,
   });
 
+  const loc = await _getLocSilently();
   await fetch(`${API_BASE}/notifications/subscribe`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ subscription: subscription.toJSON() }),
+    body: JSON.stringify({ subscription: subscription.toJSON(), ...loc }),
   });
 
   return true;
@@ -86,10 +102,11 @@ export async function refreshSubscription(token: string): Promise<boolean> {
     applicationServerKey: _urlBase64ToUint8Array(publicKey) as unknown as BufferSource,
   });
 
+  const loc = await _getLocSilently();
   await fetch(`${API_BASE}/notifications/subscribe`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ subscription: subscription.toJSON() }),
+    body: JSON.stringify({ subscription: subscription.toJSON(), ...loc }),
   });
 
   return true;

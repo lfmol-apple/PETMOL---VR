@@ -65,11 +65,29 @@ async function fetchVapidPublicKey(): Promise<string> {
   return data.publicKey as string;
 }
 
+async function getLocationSilently(): Promise<{ lat: number; lng: number } | null> {
+  try {
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return null;
+    const perm = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+    if (perm.state !== 'granted') return null;
+    return await new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve(null),
+        { timeout: 5000, maximumAge: 300_000 },
+      );
+    });
+  } catch {
+    return null;
+  }
+}
+
 async function postSubscription(sub: PushSubscription): Promise<void> {
+  const loc = await getLocationSilently();
   const res = await fetch(`${API_BASE_URL}/notifications/subscribe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeader() },
-    body: JSON.stringify({ subscription: serializeSubscription(sub) }),
+    body: JSON.stringify({ subscription: serializeSubscription(sub), ...loc }),
   });
   if (!res.ok) {
     throw new Error(await readErrorMessage(res, 'Erro ao registrar subscription'));
