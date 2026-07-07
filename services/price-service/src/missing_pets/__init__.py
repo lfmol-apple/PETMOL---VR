@@ -89,6 +89,7 @@ class FoundReport(Base):
     compatibility_score = Column(Integer, nullable=True)
     compatibility_analysis = Column(Text, nullable=True)
     dismissed = Column(Integer, nullable=True, default=0)
+    finder_user_id = Column(String(36), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
@@ -138,6 +139,7 @@ class FoundReportCreate(BaseModel):
     finder_location: Optional[str] = None
     notes: Optional[str] = None
     finder_photos: List[str] = []
+    finder_user_id: Optional[str] = None
 
 
 class PhotoAnalysisBody(BaseModel):
@@ -486,6 +488,30 @@ def mark_found(
     mp.found_at = datetime.now(timezone.utc)
     db.commit()
 
+    # Push de agradecimento para quem encontrou o pet (se tiver user_id e subscrição)
+    try:
+        report = (
+            db.query(FoundReport)
+            .filter(FoundReport.missing_pet_id == mp_id, FoundReport.dismissed != 1)
+            .order_by(FoundReport.created_at.desc())
+            .first()
+        )
+        if report and report.finder_user_id:
+            subs = _load_subscriptions()
+            finder_sub = subs.get(str(report.finder_user_id))
+            if finder_sub:
+                _send_push(finder_sub, {
+                    "title": f"🎉 Você fez a diferença!",
+                    "body": f"O tutor de {mp.pet_name} confirmou que você encontrou o pet. Muito obrigado!",
+                    "tag": f"thanks-{mp_id}",
+                    "renotify": False,
+                    "requireInteraction": False,
+                    "icon": "/icons/icon-192x192.png",
+                    "data": {"url": "/home"},
+                })
+    except Exception as e:
+        logger.error(f"Push agradecimento falhou: {e}")
+
     return {"status": "found"}
 
 
@@ -697,6 +723,7 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
         finder_location=body.finder_location,
         notes=body.notes,
         finder_photos=json.dumps(body.finder_photos) if body.finder_photos else None,
+        finder_user_id=body.finder_user_id,
         created_at=datetime.now(timezone.utc),
     )
     db.add(report)

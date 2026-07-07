@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
+import { getToken } from '@/lib/auth-token';
 
 interface MissingPetRecord {
   id: string;
@@ -169,6 +170,16 @@ function AcheiUmPetInner() {
     if (!reportContact.trim()) return;
     setSubmitting(true);
     try {
+      // Pega user_id do token JWT (sub) se o achador estiver logado — para o push de agradecimento
+      let finderUserId: string | null = null;
+      try {
+        const token = getToken();
+        if (token) {
+          const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) as { sub?: string };
+          if (payload.sub) finderUserId = payload.sub;
+        }
+      } catch { /* JWT inválido — prossegue sem user_id */ }
+
       const res = await fetch(`${API_BASE_URL}/missing-pets/${petId}/report-found`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -177,6 +188,7 @@ function AcheiUmPetInner() {
           finder_location: reportLocation.trim() || null,
           notes: reportNotes.trim() || null,
           finder_photos: reportPhotos,
+          finder_user_id: finderUserId,
         }),
       });
       if (res.ok) {
