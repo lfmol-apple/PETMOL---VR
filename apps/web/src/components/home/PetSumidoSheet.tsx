@@ -101,7 +101,7 @@ export function PetSumidoSheet({
   const [alertBlocked, setAlertBlocked] = useState(false);
   const [notifiedCount, setNotifiedCount] = useState<number | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
-  const [liveRadius, setLiveRadius] = useState(() => calcAutoRadius(todayISO(), nowTime(), pet.species || 'dog'));
+  const [liveRadius, setLiveRadius] = useState(() => calcAutoRadius(initialMissingDate ?? todayISO(), initialMissingTime ?? nowTime(), pet.species || 'dog'));
   const [cep, setCep] = useState('');
   const [cepLoading, setCepLoading] = useState(false);
   const [cepError, setCepError] = useState('');
@@ -183,6 +183,7 @@ export function PetSumidoSheet({
             contact: contact.trim() || null,
             last_seen_location: lastSeenLocation.trim() || null,
             characteristics: characteristics.trim() || null,
+            radius_km: liveRadius.km,
           }),
         });
         if (patchRes.ok) {
