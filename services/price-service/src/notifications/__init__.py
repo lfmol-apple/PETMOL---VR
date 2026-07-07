@@ -198,6 +198,8 @@ def send_due_reminders() -> None:
 
 class SubscribeRequest(BaseModel):
     subscription: dict
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 
 class ReminderIn(BaseModel):
@@ -233,7 +235,12 @@ def get_vapid_public_key():
 @router.post("/subscribe")
 def subscribe(body: SubscribeRequest, current_user=Depends(get_current_user)):
     subs = _load_subscriptions()
-    subs[str(current_user.id)] = body.subscription
+    entry = {**body.subscription}
+    if body.lat is not None:
+        entry["lat"] = body.lat
+    if body.lng is not None:
+        entry["lng"] = body.lng
+    subs[str(current_user.id)] = entry
     _save_subscriptions(subs)
     return {"status": "subscribed"}
 

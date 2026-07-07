@@ -70,12 +70,26 @@ async function createSubscription(registration: ServiceWorkerRegistration): Prom
   });
 }
 
+async function getGpsCoords(): Promise<{ lat: number; lng: number } | null> {
+  if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return null;
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 300000 },
+    );
+  });
+}
+
 async function syncSubscription(subscription: PushSubscription): Promise<Response> {
+  const coords = await getGpsCoords();
   return fetch(`${API_BASE_URL}/notifications/subscribe`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({
       subscription: serializeSubscription(subscription),
+      lat: coords?.lat ?? null,
+      lng: coords?.lng ?? null,
     }),
   });
 }
