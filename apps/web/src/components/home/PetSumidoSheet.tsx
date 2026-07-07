@@ -50,6 +50,20 @@ function wrapText(
   return curY;
 }
 
+function calcAutoRadius(missingDate: string, missingTime: string, species: string) {
+  try {
+    const [yr, mo, dy] = missingDate.split('-').map(Number);
+    const [hh, mm] = (missingTime || '00:00').split(':').map(Number);
+    const missingAt = new Date(yr, mo - 1, dy, hh, mm);
+    const hoursElapsed = Math.max(0, (Date.now() - missingAt.getTime()) / 3600000);
+    const speedKmh = species === 'cat' ? 3 : 5;
+    const rawKm = Math.max(2, Math.ceil(hoursElapsed * speedKmh));
+    return { km: rawKm, hoursElapsed: Math.round(hoursElapsed * 10) / 10, speedKmh };
+  } catch {
+    return { km: 2, hoursElapsed: 0, speedKmh: 5 };
+  }
+}
+
 function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -73,6 +87,7 @@ export function PetSumidoSheet({ pet, petPhotoUrl, onClose, onGoHome }: PetSumid
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [alertSent, setAlertSent] = useState(false);
+  const [liveRadius, setLiveRadius] = useState(() => calcAutoRadius(todayISO(), nowTime(), pet.species || 'dog'));
   const [cep, setCep] = useState('');
   const [cepLoading, setCepLoading] = useState(false);
   const [cepError, setCepError] = useState('');
@@ -299,6 +314,7 @@ export function PetSumidoSheet({ pet, petPhotoUrl, onClose, onGoHome }: PetSumid
         last_seen_location: lastSeenLocation.trim() || null,
         lat: geoLat ?? null,
         lng: geoLng ?? null,
+        radius_km: liveRadius.km,
         missing_date: missingDate,
         missing_time: missingTime,
         photo_url: petPhotoUrl && !petPhotoUrl.startsWith('data:') ? petPhotoUrl : null,
@@ -446,17 +462,32 @@ export function PetSumidoSheet({ pet, petPhotoUrl, onClose, onGoHome }: PetSumid
                     type="date"
                     value={missingDate}
                     max={todayISO()}
-                    onChange={e => setMissingDate(e.target.value)}
+                    onChange={e => { setMissingDate(e.target.value); setLiveRadius(calcAutoRadius(e.target.value, missingTime, pet.species || 'dog')); }}
                     className="flex-1 rounded-xl border border-white/15 bg-white/8 px-3 py-3 text-base text-white outline-none focus:border-red-500/60 focus:ring-2 focus:ring-red-500/20 transition-all"
                     style={{ backgroundColor: 'rgba(255,255,255,0.06)', colorScheme: 'dark' }}
                   />
                   <input
                     type="time"
                     value={missingTime}
-                    onChange={e => setMissingTime(e.target.value)}
+                    onChange={e => { setMissingTime(e.target.value); setLiveRadius(calcAutoRadius(missingDate, e.target.value, pet.species || 'dog')); }}
                     className="w-[120px] rounded-xl border border-white/15 px-3 py-3 text-base text-white outline-none focus:border-red-500/60 focus:ring-2 focus:ring-red-500/20 transition-all"
                     style={{ backgroundColor: 'rgba(255,255,255,0.06)', colorScheme: 'dark' }}
                   />
+                </div>
+              </div>
+
+              {/* Raio calculado automaticamente */}
+              <div className="bg-amber-950/40 border border-amber-700/30 rounded-2xl px-4 py-3 flex items-center gap-3">
+                <span className="text-2xl flex-shrink-0">📡</span>
+                <div className="flex-1">
+                  <p className="text-[13px] font-black text-amber-300">
+                    Raio de notificação: <span className="text-amber-200">{liveRadius.km} km</span>
+                  </p>
+                  <p className="text-[11px] text-amber-500/70 leading-tight">
+                    {liveRadius.hoursElapsed > 0
+                      ? `${liveRadius.hoursElapsed}h desaparecido × ${liveRadius.speedKmh} km/h = área de busca`
+                      : 'Raio mínimo de 2 km — aumenta com o tempo'}
+                  </p>
                 </div>
               </div>
 

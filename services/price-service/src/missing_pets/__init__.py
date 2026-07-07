@@ -2,12 +2,14 @@
 Missing Pets — funcionalidade Pet Sumido do PETMOL.
 
 Endpoints:
-  POST   /missing-pets         — registrar pet desaparecido (auth obrigatória)
-  GET    /missing-pets         — listar todos (público)
-  GET    /missing-pets/all     — listar todos incluindo encontrados (público)
-  PATCH  /missing-pets/{id}/found — marcar como encontrado (auth, apenas dono)
+  POST   /missing-pets                   — registrar pet desaparecido (auth)
+  GET    /missing-pets                   — listar ativos (público)
+  PATCH  /missing-pets/{id}/found       — marcar como encontrado (dono)
+  POST   /missing-pets/{id}/report-found — achador reporta (sem auth)
 """
 import json
+import math
+import os
 import uuid
 import logging
 from datetime import datetime, timezone
@@ -26,6 +28,50 @@ from ..notifications import _load_subscriptions, _save_subscriptions, _send_push
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/missing-pets", tags=["Missing Pets"])
 
+# ── Notified tracking (evita renotificar quem já recebeu) ────────────────────
+
+_MP_NOTIFIED_FILE = os.path.join(os.path.dirname(__file__), "mp_notified.json")
+
+
+def _load_mp_notified() -> dict:
+    try:
+        with open(_MP_NOTIFIED_FILE) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _save_mp_notified(data: dict) -> None:
+    tmp = _MP_NOTIFIED_FILE + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(data, f)
+    os.replace(tmp, _MP_NOTIFIED_FILE)
+
+
+def _get_excluded_user_ids(mp_id: str, owner_id: str) -> set:
+    rec = _load_mp_notified().get(mp_id, {})
+    return set(rec.get("notified", [])) | {str(owner_id)}
+
+
+def _mark_notified(mp_id: str, user_ids: list) -> None:
+    data = _load_mp_notified()
+    rec = data.get(mp_id, {"notified": []})
+    rec["notified"] = list(set(rec.get("notified", []) + user_ids))
+    data[mp_id] = rec
+    _save_mp_notified(data)
+
+
+# ── Geo helper ───────────────────────────────────────────────────────────────
+
+def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlng = math.radians(lng2 - lng1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng / 2) ** 2
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+# ── Models ───────────────────────────────────────────────────────────────────
 
 class FoundReport(Base):
     __tablename__ = "found_reports"
@@ -58,18 +104,13 @@ class MissingPet(Base):
     missing_date = Column(String(20), nullable=True)
     missing_time = Column(String(10), nullable=True)
     photo_url = Column(Text, nullable=True)
-    status = Column(String(20), default="active")      # active | found
+    status = Column(String(20), default="active")
     current_radius_km = Column(Float, default=2.0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     found_at = Column(DateTime, nullable=True)
 
 
-class FoundReportCreate(BaseModel):
-    finder_contact: str
-    finder_location: Optional[str] = None
-    notes: Optional[str] = None
-    finder_photos: List[str] = []
-
+# ── Schemas ──────────────────────────────────────────────────────────────────
 
 class MissingPetCreate(BaseModel):
     pet_id: Optional[str] = None
@@ -81,10 +122,20 @@ class MissingPetCreate(BaseModel):
     last_seen_location: Optional[str] = None
     lat: Optional[float] = None
     lng: Optional[float] = None
+    radius_km: Optional[float] = 2.0
     missing_date: Optional[str] = None
     missing_time: Optional[str] = None
     photo_url: Optional[str] = None
 
+
+class FoundReportCreate(BaseModel):
+    finder_contact: str
+    finder_location: Optional[str] = None
+    notes: Optional[str] = None
+    finder_photos: List[str] = []
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _mp_to_dict(p: MissingPet) -> dict:
     return {
@@ -108,6 +159,88 @@ def _mp_to_dict(p: MissingPet) -> dict:
     }
 
 
+def _broadcast_missing_pet(mp: MissingPet) -> None:
+    """
+    Push para usuários com subscrição ativa.
+    - Nunca envia para o dono.
+    - Nunca renotifica quem já recebeu.
+    - Geo filter: se o alerta tem lat/lng e o subscriber tem lat/lng,
+      só notifica quem está dentro do raio.
+    - Sem localização: notifica todos (máx 50).
+    """
+    try:
+        subs = _load_subscriptions()
+        excluded = _get_excluded_user_ids(mp.id, mp.user_id)
+        radius = mp.current_radius_km or 2.0
+        has_location = mp.lat is not None and mp.lng is not None
+
+        site_url = "https://petmol.com.br"
+        photo_image = (
+            f"{site_url}{mp.photo_url}"
+            if mp.photo_url and mp.photo_url.startswith("/")
+            else (mp.photo_url or f"{site_url}/brand/notification-banner.png")
+        )
+        location_part = f"Visto em: {mp.last_seen_location}. " if mp.last_seen_location else ""
+        payload = {
+            "title": f"🚨 {mp.pet_name} pode estar na sua região!",
+            "body": f"{location_part}Desaparecido desde {mp.missing_date or 'hoje'} às {mp.missing_time or '??:??'}. Toque para ajudar.",
+            "tag": f"missing-pet-{mp.id}",
+            "renotify": False,
+            "requireInteraction": True,
+            "icon": "/icons/icon-192x192.png",
+            "badge": "/icons/icon-72x72.png",
+            "image": photo_image,
+            "data": {"url": f"/achei-um-pet?id={mp.id}"},
+        }
+
+        newly_notified: list = []
+        removed: list = []
+        sent = 0
+        skipped = 0
+        MAX_NO_LOCATION = 50
+
+        for user_id, subscription in subs.items():
+            if user_id in excluded:
+                continue
+            if not has_location and sent >= MAX_NO_LOCATION:
+                skipped += 1
+                continue
+
+            # Geo filter — só aplica se ambos têm coordenadas
+            if has_location and isinstance(subscription, dict):
+                sub_lat = subscription.get("lat")
+                sub_lng = subscription.get("lng")
+                if sub_lat is not None and sub_lng is not None:
+                    dist = _haversine_km(mp.lat, mp.lng, sub_lat, sub_lng)
+                    if dist > radius:
+                        skipped += 1
+                        continue
+
+            ok, invalid = _send_push(subscription, payload)
+            if invalid:
+                removed.append(user_id)
+            elif ok:
+                sent += 1
+                newly_notified.append(user_id)
+
+        if removed:
+            for uid in removed:
+                subs.pop(uid, None)
+            _save_subscriptions(subs)
+
+        if newly_notified:
+            _mark_notified(mp.id, newly_notified)
+
+        logger.info(
+            f"Pet Sumido broadcast: {sent} enviados, {skipped} fora do raio, "
+            f"{len(removed)} removidos (pet={mp.id}, raio={radius}km)"
+        )
+    except Exception as e:
+        logger.error(f"_broadcast_missing_pet error: {e}")
+
+
+# ── Endpoints ────────────────────────────────────────────────────────────────
+
 @router.post("", status_code=201)
 def create_missing_pet(
     body: MissingPetCreate,
@@ -130,56 +263,18 @@ def create_missing_pet(
         missing_time=body.missing_time,
         photo_url=body.photo_url,
         status="active",
-        current_radius_km=2.0,
+        current_radius_km=body.radius_km or 2.0,
         created_at=datetime.now(timezone.utc),
     )
     db.add(mp)
     db.commit()
     db.refresh(mp)
-
     _broadcast_missing_pet(mp)
-
     return {"id": mp.id, "status": "created"}
 
 
-def _broadcast_missing_pet(mp: MissingPet) -> None:
-    """Push notification para todos os usuários PETMOL com subscrição ativa."""
-    try:
-        subs = _load_subscriptions()
-        payload = {
-            "title": "🚨 Pet sumido perto de você!",
-            "body": f"{mp.pet_name} está desaparecido. Toque para ver e ajudar.",
-            "url": "/achei-um-pet",
-            "icon": "/icons/icon-192x192.png",
-            "badge": "/icons/icon-72x72.png",
-        }
-        removed: list[str] = []
-        sent = 0
-        for user_id, subscription in subs.items():
-            if user_id == mp.user_id:
-                continue
-            ok, invalid = _send_push(subscription, payload)
-            if invalid:
-                removed.append(user_id)
-            elif ok:
-                sent += 1
-
-        if removed:
-            for uid in removed:
-                subs.pop(uid, None)
-            _save_subscriptions(subs)
-
-        logger.info(f"Pet Sumido broadcast: {sent} enviados, {len(removed)} removidos (pet={mp.id})")
-    except Exception as e:
-        logger.error(f"_broadcast_missing_pet error: {e}")
-
-
 @router.get("")
-def list_missing_pets(
-    include_found: bool = False,
-    db: Session = Depends(get_db),
-):
-    """Público — lista pets desaparecidos."""
+def list_missing_pets(include_found: bool = False, db: Session = Depends(get_db)):
     q = db.query(MissingPet)
     if not include_found:
         q = q.filter(MissingPet.status == "active")
