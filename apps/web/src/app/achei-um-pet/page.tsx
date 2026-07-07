@@ -276,7 +276,17 @@ function AcheiUmPetInner() {
               <img src={pet.photo_url} alt="" className="w-full h-full object-cover opacity-10 blur-sm scale-105" />
             </div>
           )}
-          <div className="relative flex flex-col items-center justify-center flex-1 px-6 py-12 text-white text-center">
+          {/* Botão voltar no topo */}
+          <div className="relative z-10 flex items-center px-4 pt-safe pt-4">
+            <Link
+              href="/home"
+              className="flex items-center gap-1.5 text-white/80 text-[14px] font-semibold active:opacity-60 transition-opacity"
+            >
+              <span className="text-xl leading-none">‹</span>
+              Voltar
+            </Link>
+          </div>
+          <div className="relative flex flex-col items-center justify-center flex-1 px-6 py-8 text-white text-center">
             <div className="text-8xl mb-2" style={{ filter: 'drop-shadow(0 4px 24px rgba(0,0,0,0.3))' }}>🐾</div>
             <h1 className="text-[36px] font-black leading-tight mt-2">Que incrível!</h1>
             <p className="text-[17px] text-emerald-100 mt-3 leading-relaxed max-w-xs">
