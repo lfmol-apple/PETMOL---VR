@@ -613,8 +613,31 @@ function HomePageInner() {
     return () => { clearInterval(iv); window.removeEventListener('focus', fetchNearbyAlerts); };
   }, [fetchNearbyAlerts]);
 
-  // Compartilhar cuidado do pet
+  // Compartilhar cuidado do pet + gerenciar cuidadores
   const [shareLoading, setShareLoading] = useState(false);
+  type Caretaker = { user_id: string; name: string; joined_at: string };
+  const [caretakers, setCaretakers] = useState<Caretaker[]>([]);
+  const [removingCaretaker, setRemovingCaretaker] = useState<string | null>(null);
+
+  const fetchCaretakers = useCallback(async (petId: string) => {
+    try {
+      const token = getToken();
+      if (!token) return;
+      const res = await fetch(`${API_BASE_URL}/pets/${petId}/caretakers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setCaretakers(await res.json() as Caretaker[]);
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => {
+    if (currentPet && loggedUserId && (currentPet.owner_user_id ?? loggedUserId) === loggedUserId) {
+      fetchCaretakers(currentPet.pet_id);
+    } else {
+      setCaretakers([]);
+    }
+  }, [currentPet, loggedUserId, fetchCaretakers]);
+
   const handleSharePet = async () => {
     if (!currentPet || !loggedUserId) return;
     setShareLoading(true);
@@ -639,6 +662,21 @@ function HomePageInner() {
       // user cancelled share or error — silent
     } finally {
       setShareLoading(false);
+    }
+  };
+
+  const handleRemoveCaretaker = async (userId: string) => {
+    if (!currentPet) return;
+    setRemovingCaretaker(userId);
+    try {
+      const token = getToken();
+      await fetch(`${API_BASE_URL}/pets/${currentPet.pet_id}/caretakers/${userId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      setCaretakers(prev => prev.filter(c => c.user_id !== userId));
+    } catch { /* silent */ } finally {
+      setRemovingCaretaker(null);
     }
   };
 
@@ -2155,7 +2193,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
                   {/* Compartilhar cuidado — só para o dono do pet */}
                   {currentPet && loggedUserId && (currentPet.owner_user_id ?? loggedUserId) === loggedUserId && (
-                    <div className="px-4 pb-2">
+                    <div className="px-4 pb-2 flex flex-col gap-2">
                       <button
                         onClick={handleSharePet}
                         disabled={shareLoading}
@@ -2164,6 +2202,24 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                         <span className="text-base">🐾</span>
                         {shareLoading ? 'Gerando link...' : `Convidar família para cuidar de ${currentPet.pet_name}`}
                       </button>
+
+                      {caretakers.length > 0 && (
+                        <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 flex flex-col gap-1.5">
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Cuidadores ativos</p>
+                          {caretakers.map(c => (
+                            <div key={c.user_id} className="flex items-center justify-between">
+                              <span className="text-[13px] font-semibold text-slate-700">{c.name}</span>
+                              <button
+                                onClick={() => handleRemoveCaretaker(c.user_id)}
+                                disabled={removingCaretaker === c.user_id}
+                                className="text-[11px] text-rose-400 font-semibold px-2 py-0.5 rounded-lg active:opacity-60 disabled:opacity-40"
+                              >
+                                {removingCaretaker === c.user_id ? '...' : 'Revogar'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
