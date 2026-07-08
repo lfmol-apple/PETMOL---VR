@@ -207,7 +207,6 @@ export function HomePetDashboard({
       .filter((reminder) => {
         if (reminder.diff < 0) return false; // exclude overdue — go to "Precisa de atenção"
         if (reminder.diff === 0 && reminder.domain !== 'medication' && reminder.action_target !== 'health/medication') return false;
-        if (reminder.domain === 'grooming') return false;
         if (reminder.domain === 'food' && reminder.diff > 14) return false;
         return true;
       })
