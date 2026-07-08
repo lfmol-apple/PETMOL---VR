@@ -107,11 +107,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const emailVerified = request.cookies.get('petmol_ev')?.value;
-  if (emailVerified === '0' && pathname !== '/auth/check-email') {
-    return NextResponse.redirect(new URL('/auth/check-email', origin));
-  }
-
   return NextResponse.next();
 }
 

@@ -70,6 +70,52 @@ export default function ProfilePage() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [pushLoading, setPushLoading] = useState<"activate" | "deactivate" | "test" | null>(null);
   const [pushFeedback, setPushFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoStatus, setGeoStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('permissions' in navigator)) return;
+    navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+      setGeoStatus(result.state === 'granted' ? 'granted' : result.state === 'denied' ? 'denied' : 'unknown');
+      result.onchange = () => setGeoStatus(result.state === 'granted' ? 'granted' : result.state === 'denied' ? 'denied' : 'unknown');
+    }).catch(() => {});
+  }, []);
+
+  const handleRequestGeo = async () => {
+    setGeoLoading(true);
+    try {
+      const pos = await new Promise<GeolocationPosition>((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000 })
+      );
+      setGeoStatus('granted');
+      // Sincroniza coordenadas com a subscription existente no backend
+      const token = getToken();
+      if (token && 'serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          const keyBuf = sub.getKey('p256dh');
+          const authBuf = sub.getKey('auth');
+          const serialized = {
+            endpoint: sub.endpoint,
+            keys: {
+              p256dh: keyBuf ? btoa(String.fromCharCode(...new Uint8Array(keyBuf))) : '',
+              auth: authBuf ? btoa(String.fromCharCode(...new Uint8Array(authBuf))) : '',
+            },
+          };
+          await fetch(`${API_BASE_URL}/notifications/subscribe`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ subscription: serialized, lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          }).catch(() => {});
+        }
+      }
+    } catch {
+      setGeoStatus('denied');
+    } finally {
+      setGeoLoading(false);
+    }
+  };
   const [notificationConsents, setNotificationConsents] = useState({ health: true, operational: true, offers: false });
   const [checkinSaving, setCheckinSaving] = useState(false);
   const [checkinSaved, setCheckinSaved] = useState(false);
@@ -595,6 +641,42 @@ export default function ProfilePage() {
                         {pushPermissionLabel[permission]}
                       </span>
                     </div>
+
+                    {/* Geolocalização para alertas de pets sumidos */}
+                    {isSubscribed && (
+                      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-black text-slate-900">Localização para alertas</p>
+                            <p className="mt-0.5 text-xs text-slate-500 leading-relaxed">
+                              Necessária para receber alertas de pets sumidos perto de você.
+                            </p>
+                          </div>
+                          <span className={`ml-3 flex-shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
+                            geoStatus === 'granted' ? 'bg-emerald-50 text-emerald-700' :
+                            geoStatus === 'denied'  ? 'bg-rose-50 text-rose-700' :
+                                                      'bg-amber-50 text-amber-700'
+                          }`}>
+                            {geoStatus === 'granted' ? 'Ativa' : geoStatus === 'denied' ? 'Bloqueada' : 'Não definida'}
+                          </span>
+                        </div>
+                        {geoStatus !== 'granted' && (
+                          <button
+                            type="button"
+                            onClick={() => void handleRequestGeo()}
+                            disabled={geoLoading || geoStatus === 'denied'}
+                            className="mt-3 w-full rounded-xl bg-blue-600 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-all active:scale-[0.98] disabled:opacity-40"
+                          >
+                            {geoLoading ? 'Aguardando...' : geoStatus === 'denied' ? 'Permissão bloqueada — libere nas configurações do browser' : 'Compartilhar localização'}
+                          </button>
+                        )}
+                        {geoStatus === 'granted' && (
+                          <p className="mt-2 text-[11px] text-emerald-600 font-medium">
+                            Você vai receber alertas de pets sumidos na sua área.
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
                       <p className="text-sm font-black text-slate-900">Quais notificações deseja receber?</p>

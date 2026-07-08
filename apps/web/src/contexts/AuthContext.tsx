@@ -130,11 +130,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(data.access_token);
     }
     await fetchTutorData();
-    if (data.email_verified === false) {
-      if (typeof window !== 'undefined') {
-        window.location.replace('/auth/check-email');
-      }
-    }
   };
 
   const register = async (
