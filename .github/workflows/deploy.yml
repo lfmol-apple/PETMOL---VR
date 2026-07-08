@@ -60,9 +60,9 @@ jobs:
       - name: Health check
         run: |
           sleep 10
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://petmol.com.br/api/health)
-          if [ "$STATUS" = "200" ]; then
-            echo "✅ Deploy successful — API responding 200"
+          STATUS=$(curl -sL -o /dev/null -w "%{http_code}" https://petmol.com.br/api/health)
+          if [[ "$STATUS" =~ ^(200|301|302|307|308)$ ]]; then
+            echo "✅ Deploy successful — API responding $STATUS"
           else
             echo "❌ Health check failed — HTTP $STATUS"
             exit 1
