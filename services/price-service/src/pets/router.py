@@ -404,10 +404,10 @@ def get_invite_link(
     }
 
 
-@router.get("/pets/join/{token}")
-def get_invite_info(token: str, db: Session = Depends(get_db)):
+@router.get("/pets/join/{invite_token}")
+def get_invite_info(invite_token: str, db: Session = Depends(get_db)):
     """Público — retorna info do pet para a landing page do convite."""
-    pet = db.query(Pet).filter(Pet.invite_token == token).first()
+    pet = db.query(Pet).filter(Pet.invite_token == invite_token).first()
     if not pet:
         raise HTTPException(status_code=404, detail="Convite inválido")
     owner = db.query(User).filter(User.id == pet.user_id).first()
@@ -421,14 +421,14 @@ def get_invite_info(token: str, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/pets/join/{token}")
+@router.post("/pets/join/{invite_token}")
 def join_as_caretaker(
-    token: str,
+    invite_token: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Usuário autenticado entra como cuidador do pet via token."""
-    pet = db.query(Pet).filter(Pet.invite_token == token).first()
+    pet = db.query(Pet).filter(Pet.invite_token == invite_token).first()
     if not pet:
         raise HTTPException(status_code=404, detail="Convite inválido")
     if pet.user_id == current_user.id:
