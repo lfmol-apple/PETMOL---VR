@@ -38,15 +38,22 @@ jobs:
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP"
-          SCP="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o BatchMode=yes"
+          SSH="ssh $SSH_OPTS $VPS_USER@$VPS_IP"
+          SCP="scp $SSH_OPTS"
+
+          # Verify VPS is reachable before uploading
+          echo "=== Testing SSH connectivity ==="
+          $SSH "echo 'SSH OK — disk:' && df -h /opt/petmol 2>/dev/null || df -h / | tail -2"
 
           # Upload zip
+          echo "=== Uploading package ==="
           $SCP /tmp/PETMOL.zip "$VPS_USER@$VPS_IP:/opt/petmol/"
 
           # Apply on VPS
+          echo "=== Running apply script ==="
           $SSH "PETMOL_DEPLOY_SHA='$GIT_SHA' PETMOL_DEPLOY_BRANCH='$GIT_BRANCH' bash -s" \
             < deploy/sync/apply_on_vps.sh
 
