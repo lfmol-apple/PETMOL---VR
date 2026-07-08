@@ -22,5 +22,6 @@
     }
   ],
   "categories": ["business", "lifestyle", "shopping"],
-  "lang": "pt-BR"
+  "lang": "pt-BR",
+  "capture_links": "existing-client-navigate"
 }
