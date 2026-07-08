@@ -1,0 +1,62 @@
+name: Deploy → VPS
+
+on:
+  workflow_dispatch:  # manual trigger no GitHub
+  push:
+    branches: [PETMOL-VRED, main]
+
+jobs:
+  deploy:
+    name: Deploy to petmol.com.br
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/PETMOL-VRED' || github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create deployment package
+        run: |
+          zip -r /tmp/PETMOL.zip . \
+            --exclude "*.git*" \
+            --exclude "node_modules/*" \
+            --exclude ".next/*" \
+            --exclude "__pycache__/*" \
+            --exclude "*.pyc" \
+            --exclude ".venv/*" \
+            --exclude "uploads/*"
+          echo "Package size: $(du -sh /tmp/PETMOL.zip | cut -f1)"
+
+      - name: Upload and deploy
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          GIT_SHA: ${{ github.sha }}
+          GIT_BRANCH: ${{ github.ref_name }}
+        run: |
+          # Setup SSH
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null
+
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP"
+          SCP="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+
+          # Upload zip
+          $SCP /tmp/PETMOL.zip "$VPS_USER@$VPS_IP:/opt/petmol/"
+
+          # Apply on VPS
+          $SSH "PETMOL_DEPLOY_SHA='$GIT_SHA' PETMOL_DEPLOY_BRANCH='$GIT_BRANCH' bash -s" \
+            < deploy/sync/apply_on_vps.sh
+
+      - name: Health check
+        run: |
+          sleep 10
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://petmol.com.br/api/health)
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Deploy successful — API responding 200"
+          else
+            echo "❌ Health check failed — HTTP $STATUS"
+            exit 1
+          fi
