@@ -961,15 +961,7 @@ export default function ProfilePage() {
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3">
-                <a
-                  href={`https://wa.me/?text=${encodeURIComponent('Olá, preciso de ajuda com o PETMOL.')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[#0056D2] text-[10px] font-black uppercase tracking-[0.3em] hover:text-[#0047ad] transition-colors py-1"
-                >
-                  Ajuda via WhatsApp
-                </a>
-                <button
+<button
                   onClick={() => {
                     clearToken();
                     localStorage.clear();
