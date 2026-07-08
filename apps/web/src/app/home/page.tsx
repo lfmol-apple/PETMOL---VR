@@ -2205,23 +2205,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                         {shareLoading ? 'Gerando link...' : `Convidar família para cuidar de ${currentPet.pet_name}`}
                       </button>
 
-                      {caretakers.length > 0 && (
-                        <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 flex flex-col gap-1.5">
-                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Cuidadores ativos</p>
-                          {caretakers.map(c => (
-                            <div key={c.user_id} className="flex items-center justify-between">
-                              <span className="text-[13px] font-semibold text-slate-700">{c.name}</span>
-                              <button
-                                onClick={() => handleRemoveCaretaker(c.user_id)}
-                                disabled={removingCaretaker === c.user_id}
-                                className="text-[11px] text-rose-400 font-semibold px-2 py-0.5 rounded-lg active:opacity-60 disabled:opacity-40"
-                              >
-                                {removingCaretaker === c.user_id ? '...' : 'Revogar'}
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   )}
 

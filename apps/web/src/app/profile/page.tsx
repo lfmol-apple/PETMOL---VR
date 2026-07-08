@@ -67,7 +67,17 @@ export default function ProfilePage() {
   // Accordion states
   const [addrOpen, setAddrOpen] = useState(false);
   const [notifsOpen, setNotifsOpen] = useState(false);
+  const [familyOpen, setFamilyOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+
+  // Família & Cuidadores
+  type Caretaker = { user_id: string; name: string; joined_at: string };
+  type PetSummary = { id: string; name: string; species: string; user_id: string };
+  const [myPets, setMyPets] = useState<PetSummary[]>([]);
+  const [petCaretakers, setPetCaretakers] = useState<Record<string, Caretaker[]>>({});
+  const [familyLoading, setFamilyLoading] = useState(false);
+  const [shareLoading, setShareLoading] = useState<string | null>(null);
+  const [removingCaretaker, setRemovingCaretaker] = useState<string | null>(null);
   const [pushLoading, setPushLoading] = useState<"activate" | "deactivate" | "test" | null>(null);
   const [pushFeedback, setPushFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
@@ -158,6 +168,11 @@ export default function ProfilePage() {
       }, 300);
     }
   }, []);
+
+  useEffect(() => {
+    if (familyOpen && tutorData?.id) void fetchMyPetsAndCaretakers();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [familyOpen, tutorData?.id]);
 
   useEffect(() => {
     if (tutorData?.postal_code && editMode) {
@@ -303,6 +318,61 @@ export default function ProfilePage() {
   const handlePhoneChange = (value: string) => {
     const formatted = formatPhone(value);
     setTutorData(prev => prev ? { ...prev, phone: formatted } : null);
+  };
+
+  const fetchMyPetsAndCaretakers = async () => {
+    const token = getToken();
+    if (!token || !tutorData?.id) return;
+    setFamilyLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/pets`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const all = await res.json() as PetSummary[];
+      const owned = all.filter(p => p.user_id === tutorData.id);
+      setMyPets(owned);
+      const caretakerMap: Record<string, Caretaker[]> = {};
+      await Promise.all(owned.map(async (pet) => {
+        const r = await fetch(`${apiBase}/pets/${pet.id}/caretakers`, { headers: { Authorization: `Bearer ${token}` } });
+        if (r.ok) caretakerMap[pet.id] = await r.json() as Caretaker[];
+      }));
+      setPetCaretakers(caretakerMap);
+    } catch { /* silent */ } finally {
+      setFamilyLoading(false);
+    }
+  };
+
+  const handleSharePet = async (petId: string, petName: string) => {
+    const token = getToken();
+    if (!token) return;
+    setShareLoading(petId);
+    try {
+      const res = await fetch(`${apiBase}/pets/${petId}/invite-link`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error();
+      const { invite_url } = await res.json() as { invite_url: string };
+      if (navigator.share) {
+        await navigator.share({ title: `Cuide de ${petName} comigo 🐾`, text: `Entrei no PETMOL para cuidar de ${petName}. Quer ajudar também?`, url: invite_url });
+      } else {
+        await navigator.clipboard.writeText(invite_url);
+        showBlockingNotice('Link copiado! Cole no WhatsApp para convidar.');
+      }
+    } catch { /* user cancelled or error */ } finally {
+      setShareLoading(null);
+    }
+  };
+
+  const handleRemoveCaretaker = async (petId: string, userId: string) => {
+    const token = getToken();
+    if (!token) return;
+    setRemovingCaretaker(userId);
+    try {
+      await fetch(`${apiBase}/pets/${petId}/caretakers/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPetCaretakers(prev => ({ ...prev, [petId]: (prev[petId] ?? []).filter(c => c.user_id !== userId) }));
+    } catch { /* silent */ } finally {
+      setRemovingCaretaker(null);
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -749,6 +819,66 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
+                </div>
+              )}
+            </div>
+
+            {/* Família & Cuidadores */}
+            <div className={G}>
+              <button
+                type="button"
+                onClick={() => setFamilyOpen((v) => !v)}
+                className={`${ROW} flex w-full items-center justify-between group`}
+              >
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-widest transition-colors group-hover:text-blue-600">Família &amp; Cuidadores</span>
+                <span className={`text-slate-400 text-xs transition-transform ${familyOpen ? 'rotate-180 text-blue-600' : ''}`}>▾</span>
+              </button>
+
+              {familyOpen && (
+                <div className="bg-slate-50/50 p-4 space-y-4">
+                  {familyLoading ? (
+                    <p className="text-xs text-slate-400 text-center py-2">Carregando...</p>
+                  ) : myPets.length === 0 ? (
+                    <p className="text-xs text-slate-400 text-center py-2">Nenhum pet cadastrado.</p>
+                  ) : (
+                    myPets.map(pet => (
+                      <div key={pet.id} className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{pet.species === 'cat' ? '🐱' : '🐶'}</span>
+                            <span className="text-sm font-bold text-slate-800">{pet.name}</span>
+                          </div>
+                          <button
+                            onClick={() => void handleSharePet(pet.id, pet.name)}
+                            disabled={shareLoading === pet.id}
+                            className="text-[11px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl active:opacity-70 disabled:opacity-40 transition-opacity"
+                          >
+                            {shareLoading === pet.id ? 'Gerando...' : '+ Convidar'}
+                          </button>
+                        </div>
+
+                        {(petCaretakers[pet.id] ?? []).length === 0 ? (
+                          <p className="text-[11px] text-slate-400">Nenhum cuidador ainda.</p>
+                        ) : (
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cuidadores ativos</p>
+                            {(petCaretakers[pet.id] ?? []).map(c => (
+                              <div key={c.user_id} className="flex items-center justify-between py-1">
+                                <span className="text-[13px] font-semibold text-slate-700">{c.name}</span>
+                                <button
+                                  onClick={() => void handleRemoveCaretaker(pet.id, c.user_id)}
+                                  disabled={removingCaretaker === c.user_id}
+                                  className="text-[11px] text-rose-500 font-semibold px-2 py-0.5 rounded-lg active:opacity-60 disabled:opacity-40"
+                                >
+                                  {removingCaretaker === c.user_id ? '...' : 'Revogar'}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
             </div>
