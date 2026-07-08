@@ -224,12 +224,10 @@ EOF
 chown petmol:petmol "$APP_DIR/REVISION" 2>/dev/null || true
 
 # ============================================
-# Step 5: Restart services
+# Step 5: Restart services (always restart API; web only if changed)
 # ============================================
-if [ "$RESTART_API" = true ]; then
-    log "Restarting petmol-api..."
-    systemctl restart petmol-api
-fi
+log "Restarting petmol-api..."
+systemctl restart petmol-api
 
 if [ "$RESTART_WEB" = true ]; then
     log "Restarting petmol-web..."
@@ -237,70 +235,78 @@ if [ "$RESTART_WEB" = true ]; then
 fi
 
 # ============================================
-# Step 6: Health checks
+# Step 6: Health checks (non-fatal — logs on failure)
 # ============================================
 log "Running health checks..."
 TESTS_PASSED=0
 TESTS_FAILED=0
 
 # Test 1: API health
-API_HEALTH_CODE=$(wait_for_http "http://127.0.0.1:8000/health" '^200$' 20 2)
+API_HEALTH_CODE=$(wait_for_http "http://127.0.0.1:8000/health" '^200$' 20 2) || API_HEALTH_CODE="ERR"
 if [ "$API_HEALTH_CODE" = "200" ]; then
     pass "API health: OK"
-    ((++TESTS_PASSED))
+    TESTS_PASSED=$((TESTS_PASSED+1))
 else
     error "API health: HTTP ${API_HEALTH_CODE:-000}"
-    ((++TESTS_FAILED))
+    TESTS_FAILED=$((TESTS_FAILED+1))
+    warn "=== petmol-api journal (last 40 lines) ==="
+    journalctl -u petmol-api --no-pager -n 40 || true
+    warn "=== petmol-api status ==="
+    systemctl status petmol-api --no-pager -l || true
 fi
 
 # Test 2: API version
-API_VERSION=$(wait_for_body "http://127.0.0.1:8000/version" 'service' 10 1)
+API_VERSION=$(wait_for_body "http://127.0.0.1:8000/version" 'service' 10 1) || API_VERSION=""
 if echo "$API_VERSION" | grep -q "service"; then
     pass "API /version: OK — $API_VERSION"
-    ((++TESTS_PASSED))
+    TESTS_PASSED=$((TESTS_PASSED+1))
 else
     error "API /version: failed"
-    ((++TESTS_FAILED))
+    TESTS_FAILED=$((TESTS_FAILED+1))
 fi
 
 # Test 3: Suggest endpoint
-SUGGEST_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8000/suggest?q=racao&country=BR&limit=3")
+SUGGEST_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8000/suggest?q=racao&country=BR&limit=3") || SUGGEST_RESPONSE="ERR"
 if [ "$SUGGEST_RESPONSE" = "200" ]; then
     pass "/suggest: 200 OK"
-    ((++TESTS_PASSED))
+    TESTS_PASSED=$((TESTS_PASSED+1))
 else
     error "/suggest: HTTP $SUGGEST_RESPONSE (expected 200)"
-    ((++TESTS_FAILED))
+    TESTS_FAILED=$((TESTS_FAILED+1))
 fi
 
 # Test 4: Frontend home
-FRONTEND_RESPONSE=$(wait_for_http "http://127.0.0.1:3000/" '^(200|307|308)$' 20 2)
+FRONTEND_RESPONSE=$(wait_for_http "http://127.0.0.1:3000/" '^(200|307|308)$' 20 2) || FRONTEND_RESPONSE="ERR"
 if [ "$FRONTEND_RESPONSE" = "200" ] || [ "$FRONTEND_RESPONSE" = "307" ] || [ "$FRONTEND_RESPONSE" = "308" ]; then
     pass "Frontend: HTTP $FRONTEND_RESPONSE OK"
-    ((++TESTS_PASSED))
+    TESTS_PASSED=$((TESTS_PASSED+1))
 else
     error "Frontend: HTTP $FRONTEND_RESPONSE"
-    ((++TESTS_FAILED))
+    TESTS_FAILED=$((TESTS_FAILED+1))
+    warn "=== petmol-web journal (last 40 lines) ==="
+    journalctl -u petmol-web --no-pager -n 40 || true
+    warn "=== petmol-web status ==="
+    systemctl status petmol-web --no-pager -l || true
 fi
 
 # Test 5: sw.js (critical for push notifications)
-SW_RESPONSE=$(wait_for_http "http://127.0.0.1:3000/sw.js" '^200$' 10 1)
+SW_RESPONSE=$(wait_for_http "http://127.0.0.1:3000/sw.js" '^200$' 10 1) || SW_RESPONSE="ERR"
 if [ "$SW_RESPONSE" = "200" ]; then
     pass "sw.js: 200 OK"
-    ((++TESTS_PASSED))
+    TESTS_PASSED=$((TESTS_PASSED+1))
 else
     error "sw.js: HTTP $SW_RESPONSE (push notifications will not work)"
-    ((++TESTS_FAILED))
+    TESTS_FAILED=$((TESTS_FAILED+1))
 fi
 
 # Test 6: VAPID public key endpoint
-VAPID_RESPONSE=$(wait_for_http "http://127.0.0.1:8000/notifications/vapid-public-key" '^200$' 10 1)
+VAPID_RESPONSE=$(wait_for_http "http://127.0.0.1:8000/notifications/vapid-public-key" '^200$' 10 1) || VAPID_RESPONSE="ERR"
 if [ "$VAPID_RESPONSE" = "200" ]; then
     pass "VAPID key endpoint: 200 OK"
-    ((++TESTS_PASSED))
+    TESTS_PASSED=$((TESTS_PASSED+1))
 else
     error "VAPID key endpoint: HTTP $VAPID_RESPONSE"
-    ((++TESTS_FAILED))
+    TESTS_FAILED=$((TESTS_FAILED+1))
 fi
 
 # ============================================
@@ -313,6 +319,7 @@ if [ "$TESTS_FAILED" = "0" ]; then
 else
     error "⚠ $TESTS_FAILED/$((TESTS_PASSED + TESTS_FAILED)) tests failed"
     log "Passed: $TESTS_PASSED | Failed: $TESTS_FAILED"
+    exit 1
 fi
 log "============================================"
 
