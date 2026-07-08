@@ -21,6 +21,7 @@ const PUBLIC_PATHS = [
   '/auth/',
   '/invite/',
   '/achei-um-pet',
+  '/cuidar/',
 ];
 
 function isPublic(pathname: string): boolean {

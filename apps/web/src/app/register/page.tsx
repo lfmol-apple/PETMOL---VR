@@ -28,6 +28,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const { register } = useAuth();
   const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [redirectAfter, setRedirectAfter] = useState<string | null>(null);
   const [step, setStep] = useState(1);
 
   const [name, setName] = useState('');
@@ -60,6 +61,7 @@ export default function RegisterPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setInviteToken(params.get('invite'));
+    setRedirectAfter(params.get('redirect'));
     nameRef.current?.focus();
     setPushSupported(
       'Notification' in window &&
@@ -174,7 +176,11 @@ export default function RegisterPage() {
         } catch {
           // non-blocking
         }
-        setPostNotifRoute('/home');
+      }
+
+      const dest = redirectAfter || (inviteToken ? '/home' : null);
+      if (dest) {
+        setPostNotifRoute(dest);
       } else {
         trackV1Metric('register_completed', {});
         setPostNotifRoute('/welcome');
@@ -183,7 +189,7 @@ export default function RegisterPage() {
       if (pushSupported) {
         setStep(3);
       } else {
-        router.push(inviteToken ? '/home' : '/welcome');
+        router.push(dest || '/welcome');
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao criar conta.';
