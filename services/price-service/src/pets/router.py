@@ -3,7 +3,8 @@ from typing import Optional, List
 import json
 import secrets
 from datetime import date, datetime
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Response, status, UploadFile, File
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, selectinload
 
 from ..db import get_db
@@ -11,6 +12,8 @@ from .parasite_models import ParasiteControlRecord as _pcr  # noqa: F401 registe
 from .grooming_models import GroomingRecord as _gr  # noqa: F401 register
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
+from ..user_auth.security import create_access_token, hash_password
+from ..user_auth.router import COOKIE_NAME, _cookie_settings
 from .models import Pet
 from .caretaker_models import PetCaretaker
 from .schemas import PetCreate, PetOut, PetUpdate
@@ -487,3 +490,41 @@ def remove_caretaker(
         raise HTTPException(status_code=404, detail="Cuidador não encontrado")
     db.delete(row)
     db.commit()
+
+
+class GuestJoinBody(BaseModel):
+    name: str
+
+
+@router.post("/pets/join/{invite_token}/guest")
+def guest_join(
+    invite_token: str,
+    body: GuestJoinBody,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    """Cria conta leve (sem email/senha) e entra como cuidador via link de convite."""
+    pet = db.query(Pet).filter(Pet.invite_token == invite_token).first()
+    if not pet:
+        raise HTTPException(status_code=404, detail="Convite inválido")
+
+    guest_id = str(uuid.uuid4())
+    guest_email = f"guest_{guest_id}@petmol.guest"
+    guest = User(
+        id=guest_id,
+        name=body.name.strip() or "Cuidador",
+        email=guest_email,
+        hashed_password=hash_password(secrets.token_urlsafe(32)),
+        email_verified=True,
+    )
+    db.add(guest)
+    db.add(PetCaretaker(
+        id=str(uuid.uuid4()),
+        pet_id=pet.id,
+        user_id=guest_id,
+    ))
+    db.commit()
+
+    token = create_access_token(user_id=guest_id)
+    response.set_cookie(COOKIE_NAME, token, **_cookie_settings())
+    return {"access_token": token, "pet_name": pet.name, "user_id": guest_id}
