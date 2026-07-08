@@ -613,6 +613,35 @@ function HomePageInner() {
     return () => { clearInterval(iv); window.removeEventListener('focus', fetchNearbyAlerts); };
   }, [fetchNearbyAlerts]);
 
+  // Compartilhar cuidado do pet
+  const [shareLoading, setShareLoading] = useState(false);
+  const handleSharePet = async () => {
+    if (!currentPet || !loggedUserId) return;
+    setShareLoading(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/pets/${currentPet.pet_id}/invite-link`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error();
+      const { invite_url } = await res.json() as { invite_url: string };
+      if (navigator.share) {
+        await navigator.share({
+          title: `Cuide de ${currentPet.pet_name} comigo 🐾`,
+          text: `Entrei no PETMOL para cuidar de ${currentPet.pet_name}. Quer ajudar também?`,
+          url: invite_url,
+        });
+      } else {
+        await navigator.clipboard.writeText(invite_url);
+        alert('Link copiado! Cole no WhatsApp para convidar.');
+      }
+    } catch {
+      // user cancelled share or error — silent
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
   // Alertas ATIVOS criados pelo próprio usuário (pets sumidos do dono)
   type AlertReach = { notified_active: number; new_in_radius: number; radius_km: number };
   type OwnAlert = { id: string; pet_id: string | null; pet_name: string; contact: string; last_seen_location: string | null; characteristics: string | null; missing_date: string | null; missing_time: string | null; photo_url: string | null };
@@ -2124,6 +2153,19 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       selectedPetCareScore={_selectedPetCareScore}
                     />
 
+                  {/* Compartilhar cuidado — só para o dono do pet */}
+                  {currentPet && loggedUserId && (currentPet.owner_user_id ?? loggedUserId) === loggedUserId && (
+                    <div className="px-4 pb-2">
+                      <button
+                        onClick={handleSharePet}
+                        disabled={shareLoading}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-amber-200 bg-amber-50 text-amber-700 text-[13px] font-semibold active:opacity-70 disabled:opacity-40 transition-opacity"
+                      >
+                        <span className="text-base">🐾</span>
+                        {shareLoading ? 'Gerando link...' : `Convidar família para cuidar de ${currentPet.pet_name}`}
+                      </button>
+                    </div>
+                  )}
 
                   <HomePetDashboard
                     petEvents={petEvents}

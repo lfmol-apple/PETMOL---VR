@@ -263,12 +263,36 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
         if newly_notified:
             _mark_notified(mp.id, newly_notified)
 
+        # Notifica cuidadores do pet sempre (sem filtro de geo)
+        caretaker_sent = 0
+        if mp.pet_id:
+            try:
+                from ..pets.caretaker_models import PetCaretaker
+                from sqlalchemy.orm import Session as _Session
+                from ..db import SessionLocal
+                with SessionLocal() as _db:
+                    caretakers = _db.query(PetCaretaker).filter(PetCaretaker.pet_id == mp.pet_id).all()
+                    for c in caretakers:
+                        c_id = str(c.user_id)
+                        if c_id in excluded or c_id == str(mp.user_id):
+                            continue
+                        c_sub = subs.get(c_id)
+                        if not c_sub:
+                            continue
+                        ok, _ = _send_push(c_sub, payload)
+                        if ok:
+                            caretaker_sent += 1
+                            if c_id not in newly_notified:
+                                newly_notified.append(c_id)
+            except Exception as ce:
+                print(f"[broadcast] caretaker push error: {ce}", flush=True)
+
         print(
-            f"[broadcast] DONE: {sent} enviados, {skipped} fora do raio, "
+            f"[broadcast] DONE: {sent} geo + {caretaker_sent} cuidadores, {skipped} fora do raio, "
             f"{len(removed)} removidos (pet={mp.id})",
             flush=True,
         )
-        return sent
+        return sent + caretaker_sent
     except Exception as e:
         print(f"[broadcast] ERRO: {e}", flush=True)
         logger.error(f"_broadcast_missing_pet error: {e}")

@@ -1,6 +1,7 @@
 """API routes for pets."""
 from typing import Optional, List
 import json
+import secrets
 from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session, selectinload
@@ -11,6 +12,7 @@ from .grooming_models import GroomingRecord as _gr  # noqa: F401 register
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
 from .models import Pet
+from .caretaker_models import PetCaretaker
 from .schemas import PetCreate, PetOut, PetUpdate
 from .upload import save_pet_photo, delete_pet_photo
 from .vaccine_models import VaccineRecord
@@ -362,4 +364,126 @@ def delete_vaccine(
     vaccine.deleted_at = datetime.utcnow()
     vaccine.updated_at = datetime.utcnow()
     
+    db.commit()
+
+
+# ── Caretaker / invite endpoints ────────────────────────────────────────────
+
+def _resolve_photo_url(photo: str | None) -> str | None:
+    if not photo:
+        return None
+    if photo.startswith("http"):
+        return photo
+    clean = photo.lstrip("/")
+    if not clean.startswith("uploads/"):
+        clean = f"uploads/{clean}"
+    import os
+    base = os.environ.get("FRONTEND_URL", "https://petmol.com.br")
+    return f"{base}/{clean}"
+
+
+@router.get("/pets/{pet_id}/invite-link")
+def get_invite_link(
+    pet_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retorna (ou gera) o link fixo de convite para cuidadores do pet."""
+    pet = db.query(Pet).filter(Pet.id == pet_id, Pet.user_id == current_user.id).first()
+    if not pet:
+        raise HTTPException(status_code=404, detail="Pet não encontrado")
+    if not pet.invite_token:
+        pet.invite_token = secrets.token_urlsafe(20)
+        db.commit()
+        db.refresh(pet)
+    import os
+    base = os.environ.get("FRONTEND_URL", "https://petmol.com.br")
+    return {
+        "invite_url": f"{base}/cuidar/{pet.invite_token}",
+        "token": pet.invite_token,
+    }
+
+
+@router.get("/pets/join/{token}")
+def get_invite_info(token: str, db: Session = Depends(get_db)):
+    """Público — retorna info do pet para a landing page do convite."""
+    pet = db.query(Pet).filter(Pet.invite_token == token).first()
+    if not pet:
+        raise HTTPException(status_code=404, detail="Convite inválido")
+    owner = db.query(User).filter(User.id == pet.user_id).first()
+    return {
+        "pet_id": pet.id,
+        "pet_name": pet.name,
+        "species": pet.species,
+        "breed": pet.breed,
+        "photo_url": _resolve_photo_url(pet.photo),
+        "owner_name": (owner.name or "").split()[0] if owner else "",
+    }
+
+
+@router.post("/pets/join/{token}")
+def join_as_caretaker(
+    token: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Usuário autenticado entra como cuidador do pet via token."""
+    pet = db.query(Pet).filter(Pet.invite_token == token).first()
+    if not pet:
+        raise HTTPException(status_code=404, detail="Convite inválido")
+    if pet.user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Você já é o dono deste pet")
+    existing = db.query(PetCaretaker).filter(
+        PetCaretaker.pet_id == pet.id,
+        PetCaretaker.user_id == current_user.id,
+    ).first()
+    if existing:
+        return {"success": True, "message": f"Você já cuida de {pet.name}!"}
+    caretaker = PetCaretaker(
+        id=str(uuid.uuid4()),
+        pet_id=pet.id,
+        user_id=current_user.id,
+    )
+    db.add(caretaker)
+    db.commit()
+    return {"success": True, "message": f"Bem-vindo(a)! Agora você cuida de {pet.name} 🐾"}
+
+
+@router.get("/pets/{pet_id}/caretakers")
+def list_caretakers(
+    pet_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Lista cuidadores do pet (dono apenas)."""
+    pet = db.query(Pet).filter(Pet.id == pet_id, Pet.user_id == current_user.id).first()
+    if not pet:
+        raise HTTPException(status_code=404, detail="Pet não encontrado")
+    rows = db.query(PetCaretaker).filter(PetCaretaker.pet_id == pet_id).all()
+    result = []
+    for r in rows:
+        u = db.query(User).filter(User.id == r.user_id).first()
+        if u:
+            result.append({"user_id": r.user_id, "name": u.name, "email": u.email, "joined_at": r.joined_at.isoformat()})
+    return result
+
+
+@router.delete("/pets/{pet_id}/caretakers/{user_id}", status_code=204)
+def remove_caretaker(
+    pet_id: str,
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Dono remove um cuidador."""
+    pet = db.query(Pet).filter(Pet.id == pet_id, Pet.user_id == current_user.id).first()
+    if not pet:
+        raise HTTPException(status_code=404, detail="Pet não encontrado")
+    row = db.query(PetCaretaker).filter(
+        PetCaretaker.pet_id == pet_id,
+        PetCaretaker.user_id == user_id,
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Cuidador não encontrado")
+    db.delete(row)
     db.commit()

@@ -192,6 +192,23 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "found_reports", "dismissed", "INTEGER DEFAULT 0")
         _pg_add_column_if_missing(conn, "found_reports", "finder_user_id", "TEXT")
 
+        # pets: invite token for caretaker sharing (Jul 2026)
+        _pg_add_column_if_missing(conn, "pets", "invite_token", "VARCHAR(64)")
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_pets_invite_token ON pets (invite_token)"))
+
+        # pet_caretakers: users who co-care for a pet (Jul 2026)
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS pet_caretakers (
+                id         VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+                pet_id     VARCHAR(36) NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+                user_id    VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                joined_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE(pet_id, user_id)
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_pet_caretakers_pet_id ON pet_caretakers (pet_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_pet_caretakers_user_id ON pet_caretakers (user_id)"))
+
 
 def run_sqlite_migrations(engine: Engine) -> None:
     """Run idempotent migrations.

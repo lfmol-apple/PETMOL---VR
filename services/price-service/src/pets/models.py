@@ -26,6 +26,7 @@ class Pet(Base):
     neutered: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     health_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON com vacinas, parasitas, etc
     insurance_provider: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 'petlove' | 'doglife' | custom name
+    invite_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, unique=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
