@@ -630,14 +630,6 @@ function HomePageInner() {
     } catch { /* silent */ }
   }, []);
 
-  useEffect(() => {
-    if (currentPet && loggedUserId && (currentPet.owner_user_id ?? loggedUserId) === loggedUserId) {
-      fetchCaretakers(currentPet.pet_id);
-    } else {
-      setCaretakers([]);
-    }
-  }, [currentPet, loggedUserId, fetchCaretakers]);
-
   const handleSharePet = async () => {
     if (!currentPet || !loggedUserId) return;
     setShareLoading(true);
@@ -1034,6 +1026,16 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
   // Current pet based on selection
   const currentPet = pets.find(p => p.pet_id === selectedPetId) || pets[0];
+
+  // Carrega cuidadores sempre que o pet selecionado muda (só para o dono)
+  useEffect(() => {
+    if (currentPet && loggedUserId && (currentPet.owner_user_id ?? loggedUserId) === loggedUserId) {
+      fetchCaretakers(currentPet.pet_id);
+    } else {
+      setCaretakers([]);
+    }
+  }, [currentPet, loggedUserId, fetchCaretakers]);
+
   const currentPetIndex = useMemo(() => {
     if (pets.length === 0) return -1;
     const idx = pets.findIndex(p => p.pet_id === selectedPetId);
