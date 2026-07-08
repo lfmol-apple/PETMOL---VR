@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { subscribeToPush } from '@/lib/push';
+import { subscribeToPush } from '@/features/notifications/pushService';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 
