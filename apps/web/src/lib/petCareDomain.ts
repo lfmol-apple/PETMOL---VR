@@ -263,10 +263,65 @@ function processParasites(p: PetCareDomainParams): PetCareReminder[] {
   return result;
 }
 
-function processGrooming(_p: PetCareDomainParams): PetCareReminder[] {
-  // Push Engine V2 reset: banho/tosa não participa de pendências, alertas,
-  // score de cuidados ou superfícies de cobrança ativa da Home.
-  return [];
+function processGrooming(p: PetCareDomainParams): PetCareReminder[] {
+  if (!p.groomingRecords.length) return [];
+
+  const typeLabels: Record<string, string> = {
+    bath: 'Banho',
+    grooming: 'Tosa',
+    bath_grooming: 'Banho e Tosa',
+  };
+  const typeIcons: Record<string, string> = {
+    bath: '🛁',
+    grooming: '✂️',
+    bath_grooming: '🛁',
+  };
+
+  // Pega o registro mais recente por tipo
+  const latestByType = new Map<string, GroomingRecord>();
+  for (const g of p.groomingRecords) {
+    const existing = latestByType.get(g.type);
+    if (!existing || g.date > existing.date) {
+      latestByType.set(g.type, g);
+    }
+  }
+
+  const result: PetCareReminder[] = [];
+  for (const g of latestByType.values()) {
+    let nextDateStr: string | null = g.next_recommended_date ?? null;
+
+    if (!nextDateStr && g.frequency_days && g.frequency_days > 0) {
+      const lastDate = parseLocalDate(g.date);
+      if (lastDate) {
+        const derived = new Date(lastDate);
+        derived.setDate(derived.getDate() + g.frequency_days);
+        nextDateStr = dateToLocalISO(derived);
+      }
+    }
+
+    if (!nextDateStr) continue;
+    const nextDate = parseLocalDate(nextDateStr);
+    if (!nextDate) continue;
+
+    const diff = diffFromToday(nextDate);
+    const label = typeLabels[g.type] ?? 'Banho e Tosa';
+
+    result.push({
+      key: makeKey(p.pet_id, 'grooming', g.type, g.id, dateToLocalISO(nextDate)),
+      pet_id: p.pet_id,
+      pet_name: p.pet_name,
+      domain: 'grooming',
+      label,
+      icon: typeIcons[g.type] ?? '🛁',
+      due_date: dateToLocalISO(nextDate),
+      diff,
+      status: toStatus(diff),
+      action_target: 'health/grooming',
+      source_record_id: g.id,
+      is_derived: !g.next_recommended_date,
+    });
+  }
+  return result;
 }
 
 function processFood(p: PetCareDomainParams): PetCareReminder[] {
