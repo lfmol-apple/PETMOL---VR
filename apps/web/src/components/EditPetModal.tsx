@@ -297,6 +297,7 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const isMounted = useRef(false);
 
   const breeds = species === 'dog' ? DOG_BREEDS : species === 'cat' ? CAT_BREEDS : [];
@@ -308,6 +309,22 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
     if (!isMounted.current) { isMounted.current = true; return; }
     setQuery(''); onChange('');
   }, [species]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reposiciona o sheet acima do teclado virtual no Android
+  useEffect(() => {
+    if (!open) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      if (!wrapperRef.current) return;
+      wrapperRef.current.style.top = `${vv.offsetTop}px`;
+      wrapperRef.current.style.height = `${vv.height}px`;
+    };
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => { vv.removeEventListener('resize', update); vv.removeEventListener('scroll', update); };
+  }, [open]);
 
   const select = (breed: string) => { onChange(breed); setOpen(false); };
 
@@ -333,13 +350,15 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
 
       {open && (
         <div
-          className="fixed inset-0 z-[200] flex flex-col justify-end"
+          ref={wrapperRef}
+          className="fixed left-0 right-0 z-[200] flex flex-col justify-end"
+          style={{ top: 0, height: '100dvh' }}
           onClick={() => setOpen(false)}
         >
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
           <div
             className="relative bg-white rounded-t-3xl shadow-2xl flex flex-col animate-slideUp"
-            style={{ maxHeight: '74vh' }}
+            style={{ maxHeight: '92%' }}
             onClick={e => e.stopPropagation()}
           >
             <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
