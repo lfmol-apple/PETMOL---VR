@@ -34,7 +34,10 @@ export async function subscribeToPush(token: string): Promise<boolean> {
     return false;
   }
 
-  const registration = await navigator.serviceWorker.ready;
+  const swTimeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('SW not ready')), 8000)
+  );
+  const registration = await Promise.race([navigator.serviceWorker.ready, swTimeout]);
 
   const { publicKey } = await fetch(`${API_BASE}/notifications/vapid-public-key`).then(
     (r) => r.json()
@@ -61,7 +64,10 @@ export async function subscribeToPush(token: string): Promise<boolean> {
 export async function unsubscribeFromPush(token: string): Promise<void> {
   if (!("serviceWorker" in navigator)) return;
 
-  const registration = await navigator.serviceWorker.ready;
+  const registration = await Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('SW not ready')), 8000)),
+  ]);
   const subscription = await registration.pushManager.getSubscription();
   if (subscription) {
     await subscription.unsubscribe();
@@ -75,7 +81,10 @@ export async function unsubscribeFromPush(token: string): Promise<void> {
 
 export async function isSubscribed(): Promise<boolean> {
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
-  const registration = await navigator.serviceWorker.ready;
+  const registration = await Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('SW not ready')), 8000)),
+  ]);
   const sub = await registration.pushManager.getSubscription();
   return sub !== null;
 }
@@ -88,7 +97,10 @@ export async function refreshSubscription(token: string): Promise<boolean> {
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
   if (Notification.permission !== "granted") return false;
 
-  const registration = await navigator.serviceWorker.ready;
+  const registration = await Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('SW not ready')), 8000)),
+  ]);
 
   const existing = await registration.pushManager.getSubscription();
   if (existing) {
