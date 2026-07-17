@@ -154,6 +154,7 @@ export function MedicalVaultModal({
   const [openedCategory, setOpenedCategory] = useState<string | null>(null);
   const [eventsExpanded, setEventsExpanded] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportingZip, setExportingZip] = useState(false);
   const [localPending, setLocalPending] = useState<File[] | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -230,6 +231,41 @@ export function MedicalVaultModal({
       }
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleExportZip = async () => {
+    setExportingZip(true);
+    try {
+      const token = localStorage.getItem('petmol_token');
+      if (!token) { showAppToast('Sessão expirada. Faça login novamente.', { tone: 'warning' }); return; }
+      const res = await fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('backend_error');
+      const blob = await res.blob();
+      const safe = currentPet!.pet_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const file = new File([blob], `documentos-${safe}.zip`, { type: 'application/zip' });
+      if (
+        typeof navigator.share === 'function' &&
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [file] })
+      ) {
+        await navigator.share({ files: [file], title: `Documentos de ${currentPet!.pet_name}` });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `documentos-${safe}.zip`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        showAppToast('Não foi possível gerar o ZIP. Tente novamente.', { tone: 'warning' });
+      }
+    } finally {
+      setExportingZip(false);
     }
   };
 
@@ -494,22 +530,39 @@ export function MedicalVaultModal({
                 )}
               </div>
 
-              {/* Exportar PDF */}
-              <button
-                type="button"
-                onClick={handleExportPDF}
-                disabled={exporting}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-blue-200 bg-blue-50 hover:bg-blue-100 active:scale-[0.98] transition-all text-left disabled:opacity-60"
-                style={{ touchAction: 'manipulation' }}
-              >
-                <span className="text-lg">{exporting ? '⏳' : '📤'}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-blue-900 text-[14px]">
-                    {exporting ? 'Gerando PDF…' : 'Exportar e Compartilhar PDF'}
-                  </p>
-                </div>
-                <span className="text-blue-300 text-sm">›</span>
-              </button>
+              {/* Exportar */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportPDF}
+                  disabled={exporting}
+                  className="flex-1 flex items-center gap-2 px-3 py-3 rounded-2xl border border-blue-200 bg-blue-50 hover:bg-blue-100 active:scale-[0.98] transition-all disabled:opacity-60"
+                  style={{ touchAction: 'manipulation' }}
+                >
+                  <span className="text-lg">{exporting ? '⏳' : '📄'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-blue-900 text-[13px] leading-tight">
+                      {exporting ? 'Gerando…' : 'Exportar PDF'}
+                    </p>
+                    <p className="text-[10px] text-blue-500 mt-0.5">Histórico completo</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportZip}
+                  disabled={exportingZip}
+                  className="flex-1 flex items-center gap-2 px-3 py-3 rounded-2xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 active:scale-[0.98] transition-all disabled:opacity-60"
+                  style={{ touchAction: 'manipulation' }}
+                >
+                  <span className="text-lg">{exportingZip ? '⏳' : '🗜️'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-emerald-900 text-[13px] leading-tight">
+                      {exportingZip ? 'Compactando…' : 'Exportar ZIP'}
+                    </p>
+                    <p className="text-[10px] text-emerald-600 mt-0.5">Arquivos originais</p>
+                  </div>
+                </button>
+              </div>
             </div>
           )}
 

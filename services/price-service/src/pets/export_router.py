@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import io
+import re
+import zipfile
 from datetime import datetime, date
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from fpdf import FPDF
 from sqlalchemy.orm import Session
 
@@ -248,6 +252,90 @@ def export_pet_pdf(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="historico-{safe}.pdf"'},
+    )
+
+
+# ── ZIP export ────────────────────────────────────────────────────────────
+
+_FOLDER_LABELS: dict[str, str] = {
+    "exam":         "Exames",
+    "vaccine":      "Vacinas",
+    "prescription": "Receitas",
+    "report":       "Laudos",
+    "comprovante":  "Comprovantes",
+    "photo":        "Fotos",
+    "other":        "Outros",
+}
+
+def _safe_filename(name: str) -> str:
+    """Remove caracteres inválidos para nomes de arquivo dentro do zip."""
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name)
+    return name.strip()[:120]
+
+
+@router.get("/{pet_id}/export-zip")
+def export_pet_zip(
+    pet_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Exporta todos os documentos do pet em um ZIP organizado por categoria."""
+    from .document_router import DOCS_UPLOAD_DIR
+
+    pet = (
+        db.query(Pet)
+        .filter(Pet.id == pet_id, Pet.user_id == str(current_user.id))
+        .first()
+    )
+    if not pet:
+        raise HTTPException(status_code=404, detail="Pet não encontrado")
+
+    documents = (
+        db.query(PetDocument)
+        .filter(PetDocument.pet_id == pet_id, PetDocument.deleted_at.is_(None))
+        .order_by(PetDocument.document_date.desc().nullslast())
+        .all()
+    )
+
+    if not documents:
+        raise HTTPException(status_code=404, detail="Nenhum documento encontrado")
+
+    buf = io.BytesIO()
+    pet_safe = _safe_filename(pet.name or "pet")
+    root = f"{pet_safe}/"
+
+    # Contador por categoria para numerar arquivos
+    counters: dict[str, int] = {}
+
+    with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for doc in documents:
+            if not doc.storage_key:
+                continue
+
+            candidate = Path(doc.storage_key)
+            fpath = candidate if (candidate.is_absolute() and candidate.is_file()) else DOCS_UPLOAD_DIR / candidate.name
+            if not fpath.is_file():
+                continue
+
+            cat = doc.category or "other"
+            folder_label = _FOLDER_LABELS.get(cat, "Outros")
+            counters[cat] = counters.get(cat, 0) + 1
+            idx = counters[cat]
+
+            ext = fpath.suffix or ""
+            title = _safe_filename(doc.title or fpath.stem or "documento")
+            arcname = f"{root}{folder_label}/{idx:02d} - {title}{ext}"
+
+            zf.write(fpath, arcname)
+
+    buf.seek(0)
+    safe = pet_safe.lower().replace(" ", "-")
+    filename = f"documentos-{safe}.zip"
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
