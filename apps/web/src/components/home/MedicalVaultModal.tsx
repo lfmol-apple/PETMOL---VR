@@ -245,21 +245,39 @@ export function MedicalVaultModal({
       if (!res.ok) throw new Error('backend_error');
       const blob = await res.blob();
       const safe = currentPet!.pet_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      const file = new File([blob], `documentos-${safe}.zip`, { type: 'application/zip' });
+      const filename = `documentos-${safe}.zip`;
+      const url = URL.createObjectURL(blob);
+      const file = new File([blob], filename, { type: 'application/zip' });
+
+      // Tenta Web Share API com arquivo
       if (
         typeof navigator.share === 'function' &&
         typeof navigator.canShare === 'function' &&
         navigator.canShare({ files: [file] })
       ) {
-        await navigator.share({ files: [file], title: `Documentos de ${currentPet!.pet_name}` });
+        try {
+          await navigator.share({ files: [file], title: `Documentos de ${currentPet!.pet_name}` });
+          URL.revokeObjectURL(url);
+          return;
+        } catch (shareErr) {
+          if ((shareErr as Error).name === 'AbortError') { URL.revokeObjectURL(url); return; }
+          // Share falhou — cai no fallback abaixo
+        }
+      }
+
+      // iOS Safari: window.open com blob abre o sheet de compartilhamento/salvar
+      // Desktop/Android: âncora com download
+      if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        window.open(url, '_blank');
       } else {
-        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `documentos-${safe}.zip`;
+        a.download = filename;
+        document.body.appendChild(a);
         a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        document.body.removeChild(a);
       }
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         showAppToast('Não foi possível gerar o ZIP. Tente novamente.', { tone: 'warning' });
