@@ -224,6 +224,25 @@ EOF
 chown petmol:petmol "$APP_DIR/REVISION" 2>/dev/null || true
 
 # ============================================
+# Step 4.5: One-time reclassification (roda uma vez, flag impede repetição)
+# ============================================
+RECLASSIFY_FLAG="$REMOTE_DIR/.reclassify_baby_done"
+if [ ! -f "$RECLASSIFY_FLAG" ]; then
+    log "Reclassificando documentos do Baby com novo prompt Gemini..."
+    cd "$APP_DIR/services/price-service"
+    if [ -d ".venv" ] && [ -f "$APP_DIR/deploy/scripts/reclassify_pet_docs.py" ]; then
+        set -a; [ -f .env ] && source .env; set +a
+        cd "$APP_DIR"
+        .venv/bin/python deploy/scripts/reclassify_pet_docs.py --pet "Baby" \
+            && touch "$RECLASSIFY_FLAG" \
+            && log "Reclassificação do Baby concluída." \
+            || warn "Reclassificação falhou — será tentada novamente no próximo deploy."
+    else
+        warn "venv ou script não encontrado — pulando reclassificação."
+    fi
+fi
+
+# ============================================
 # Step 5: Restart services (always restart API; web only if changed)
 # ============================================
 log "Restarting petmol-api..."
