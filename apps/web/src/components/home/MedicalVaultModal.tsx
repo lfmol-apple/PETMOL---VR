@@ -518,33 +518,46 @@ export function MedicalVaultModal({
                 )}
               </div>
 
-              {/* ZIP pronto — card com link direto (funciona em iOS, Android e desktop) */}
+              {/* ZIP pronto */}
               {zipReadyUrl && (
-                <div className="mx-0 mb-1 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex flex-col gap-2">
+                <div className="mx-0 mb-1 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex flex-col gap-2.5">
                   <div className="flex items-center justify-between">
                     <p className="font-bold text-emerald-800 text-[13px]">📦 ZIP pronto — válido por 5 min</p>
                     <button onClick={() => setZipReadyUrl(null)} className="text-emerald-400 text-lg w-7 h-7 flex items-center justify-center" style={{ touchAction: 'manipulation' }}>✕</button>
                   </div>
-                  <div className="flex gap-2">
-                    <a
-                      href={zipReadyUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 text-white font-bold text-[13px] py-2.5 rounded-xl active:scale-[0.97] transition-transform"
+                  {/* Compartilhar via share sheet nativo (melhor no iPhone) */}
+                  {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+                    <button
+                      onClick={() => navigator.share({ url: zipReadyUrl, title: `Documentos de ${currentPet?.pet_name}` }).catch(() => {})}
+                      className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white font-bold text-[14px] py-3 rounded-xl active:scale-[0.97] transition-transform"
                       style={{ touchAction: 'manipulation' }}
                     >
-                      ⬇️ Baixar
-                    </a>
-                    {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
-                      <button
-                        onClick={() => navigator.share({ url: zipReadyUrl, title: `Documentos de ${currentPet?.pet_name}` }).catch(() => {})}
-                        className="flex-1 flex items-center justify-center gap-1.5 border border-emerald-300 text-emerald-700 font-bold text-[13px] py-2.5 rounded-xl bg-white active:scale-[0.97] transition-transform"
-                        style={{ touchAction: 'manipulation' }}
-                      >
-                        📤 Compartilhar
-                      </button>
-                    )}
-                  </div>
+                      📤 Compartilhar / Salvar
+                    </button>
+                  )}
+                  {/* Navegar direto para a URL (funciona no Safari fora do PWA) */}
+                  <button
+                    onClick={() => { window.location.href = zipReadyUrl; }}
+                    className="w-full flex items-center justify-center gap-2 border border-emerald-300 bg-white text-emerald-700 font-bold text-[14px] py-3 rounded-xl active:scale-[0.97] transition-transform"
+                    style={{ touchAction: 'manipulation' }}
+                  >
+                    ⬇️ Abrir / Baixar
+                  </button>
+                  {/* Copiar link — cola no Safari se tudo mais falhar */}
+                  <button
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(zipReadyUrl);
+                        showAppToast('Link copiado! Cole no Safari para baixar.', { tone: 'success' });
+                      } catch {
+                        showAppToast('Não foi possível copiar. Copie manualmente.', { tone: 'warning' });
+                      }
+                    }}
+                    className="w-full flex items-center justify-center gap-2 border border-gray-200 bg-white text-gray-500 text-[13px] py-2.5 rounded-xl active:scale-[0.97] transition-transform"
+                    style={{ touchAction: 'manipulation' }}
+                  >
+                    📋 Copiar link
+                  </button>
                 </div>
               )}
 
