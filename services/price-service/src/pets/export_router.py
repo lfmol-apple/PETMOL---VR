@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import hmac as _hmac
 import io
+import os
 import re
-import secrets
 import time
 import zipfile
 from datetime import datetime, date
@@ -26,15 +28,37 @@ from ..events.models import Event
 
 router = APIRouter(prefix="/pets", tags=["Pet Export"])
 
-# Token store para download sem auth (one-time, expira em 5 min)
-_ZIP_TOKENS: dict[str, tuple[str, float]] = {}  # token -> (pet_id, expires_at)
+# HMAC secret — stateless, funciona com múltiplos workers uvicorn
+_ZIP_HMAC_SECRET = os.environ.get("ZIP_HMAC_SECRET", "petmol-zip-dl-2024").encode()
+_ZIP_TOKEN_TTL = 300  # 5 min
 
 
-def _cleanup_zip_tokens() -> None:
-    now = time.time()
-    expired = [k for k, v in _ZIP_TOKENS.items() if v[1] < now]
-    for k in expired:
-        del _ZIP_TOKENS[k]
+def _make_zip_token(pet_id: str) -> str:
+    expires = int(time.time()) + _ZIP_TOKEN_TTL
+    payload = f"{pet_id}:{expires}"
+    sig = _hmac.new(_ZIP_HMAC_SECRET, payload.encode(), hashlib.sha256).hexdigest()[:24]
+    import base64
+    return base64.urlsafe_b64encode(f"{payload}:{sig}".encode()).decode().rstrip("=")
+
+
+def _verify_zip_token(token: str) -> str:
+    """Retorna pet_id se válido; levanta HTTPException caso contrário."""
+    import base64
+    try:
+        padded = token + "=" * (-len(token) % 4)
+        decoded = base64.urlsafe_b64decode(padded).decode()
+        pet_id, expires_str, sig = decoded.rsplit(":", 2)
+        payload = f"{pet_id}:{expires_str}"
+        expected = _hmac.new(_ZIP_HMAC_SECRET, payload.encode(), hashlib.sha256).hexdigest()[:24]
+        if not _hmac.compare_digest(sig, expected):
+            raise HTTPException(status_code=403, detail="Token inválido")
+        if int(time.time()) > int(expires_str):
+            raise HTTPException(status_code=403, detail="Token expirado")
+        return pet_id
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=403, detail="Token inválido ou expirado")
 
 
 @router.post("/{pet_id}/export-zip/token")
@@ -43,7 +67,7 @@ def create_zip_token(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Gera um token de download único (5 min) para o ZIP do pet."""
+    """Gera um token HMAC (5 min) para download público do ZIP."""
     pet = (
         db.query(Pet)
         .filter(Pet.id == pet_id, Pet.user_id == str(current_user.id))
@@ -52,10 +76,8 @@ def create_zip_token(
     if not pet:
         raise HTTPException(status_code=404, detail="Pet não encontrado")
 
-    _cleanup_zip_tokens()
-    token = secrets.token_urlsafe(32)
-    _ZIP_TOKENS[token] = (pet_id, time.time() + 300)
-    return {"token": token, "expires_in": 300}
+    token = _make_zip_token(pet_id)
+    return {"token": token, "expires_in": _ZIP_TOKEN_TTL}
 
 
 @router.get("/download/zip/{token}")
@@ -63,15 +85,10 @@ def download_zip_by_token(
     token: str,
     db: Session = Depends(get_db),
 ):
-    """Download público do ZIP usando token temporário."""
+    """Download público do ZIP usando token HMAC temporário."""
     from .document_router import DOCS_UPLOAD_DIR
 
-    entry = _ZIP_TOKENS.get(token)
-    if not entry or entry[1] < time.time():
-        raise HTTPException(status_code=403, detail="Token inválido ou expirado")
-
-    pet_id = entry[0]
-    del _ZIP_TOKENS[token]  # one-time use
+    pet_id = _verify_zip_token(token)
 
     pet = db.query(Pet).filter(Pet.id == pet_id).first()
     if not pet:
