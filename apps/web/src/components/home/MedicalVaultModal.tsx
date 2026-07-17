@@ -258,19 +258,47 @@ export function MedicalVaultModal({
     }
   };
 
-  // Passo 2 — chamado por gesto SÍNCRONO do usuário: share nativo funciona no iOS
-  const handleShareZip = () => {
+  // Passo 2 — chamado por gesto SÍNCRONO: tenta arquivo, cai para link se iOS não suportar ZIP
+  const handleShareZip = async () => {
     if (!zipFile) return;
+
+    // 1. Tenta compartilhar o arquivo direto (funciona em Android e alguns iOS)
     if (typeof navigator.share === 'function') {
-      navigator.share({ files: [zipFile], title: `Documentos de ${currentPet?.pet_name}` })
-        .catch((e) => { if ((e as Error).name !== 'AbortError') showAppToast('Não foi possível compartilhar.', { tone: 'warning' }); });
-    } else {
-      // Desktop: download via âncora
-      const url = URL.createObjectURL(zipFile);
-      const a = document.createElement('a');
-      a.href = url; a.download = zipFile.name;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      try {
+        await navigator.share({ files: [zipFile], title: `Documentos de ${currentPet?.pet_name}` });
+        return;
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') return;
+        // iOS não suporta ZIP via Web Share — continua para link
+      }
+    }
+
+    // 2. Gera link de download e compartilha a URL (funciona em todo iPhone)
+    try {
+      const token = localStorage.getItem('petmol_token');
+      if (!token) return;
+      const tokenRes = await fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip/token`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!tokenRes.ok) throw new Error();
+      const { token: dlToken } = await tokenRes.json();
+      const downloadUrl = `${window.location.origin}${API_BASE_URL}/pets/download/zip/${dlToken}`;
+
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ url: downloadUrl, title: `Documentos de ${currentPet?.pet_name}` });
+      } else {
+        // Desktop: download direto
+        const url = URL.createObjectURL(zipFile);
+        const a = document.createElement('a');
+        a.href = url; a.download = zipFile.name;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      }
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') {
+        showAppToast('Não foi possível compartilhar. Tente novamente.', { tone: 'warning' });
+      }
     }
   };
 

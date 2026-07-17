@@ -30,7 +30,7 @@ router = APIRouter(prefix="/pets", tags=["Pet Export"])
 
 # HMAC secret — stateless, funciona com múltiplos workers uvicorn
 _ZIP_HMAC_SECRET = os.environ.get("ZIP_HMAC_SECRET", "petmol-zip-dl-2024").encode()
-_ZIP_TOKEN_TTL = 300  # 5 min
+_ZIP_TOKEN_TTL = 1800  # 30 min
 
 
 def _make_zip_token(pet_id: str) -> str:
