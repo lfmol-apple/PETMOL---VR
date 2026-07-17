@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import io
 import re
+import secrets
+import time
 import zipfile
 from datetime import datetime, date
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
 from fpdf import FPDF
 from sqlalchemy.orm import Session
@@ -23,6 +25,97 @@ from .vaccine_models import VaccineRecord
 from ..events.models import Event
 
 router = APIRouter(prefix="/pets", tags=["Pet Export"])
+
+# Token store para download sem auth (one-time, expira em 5 min)
+_ZIP_TOKENS: dict[str, tuple[str, float]] = {}  # token -> (pet_id, expires_at)
+
+
+def _cleanup_zip_tokens() -> None:
+    now = time.time()
+    expired = [k for k, v in _ZIP_TOKENS.items() if v[1] < now]
+    for k in expired:
+        del _ZIP_TOKENS[k]
+
+
+@router.post("/{pet_id}/export-zip/token")
+def create_zip_token(
+    pet_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Gera um token de download único (5 min) para o ZIP do pet."""
+    pet = (
+        db.query(Pet)
+        .filter(Pet.id == pet_id, Pet.user_id == str(current_user.id))
+        .first()
+    )
+    if not pet:
+        raise HTTPException(status_code=404, detail="Pet não encontrado")
+
+    _cleanup_zip_tokens()
+    token = secrets.token_urlsafe(32)
+    _ZIP_TOKENS[token] = (pet_id, time.time() + 300)
+    return {"token": token, "expires_in": 300}
+
+
+@router.get("/download/zip/{token}")
+def download_zip_by_token(
+    token: str,
+    db: Session = Depends(get_db),
+):
+    """Download público do ZIP usando token temporário."""
+    from .document_router import DOCS_UPLOAD_DIR
+
+    entry = _ZIP_TOKENS.get(token)
+    if not entry or entry[1] < time.time():
+        raise HTTPException(status_code=403, detail="Token inválido ou expirado")
+
+    pet_id = entry[0]
+    del _ZIP_TOKENS[token]  # one-time use
+
+    pet = db.query(Pet).filter(Pet.id == pet_id).first()
+    if not pet:
+        raise HTTPException(status_code=404, detail="Pet não encontrado")
+
+    documents = (
+        db.query(PetDocument)
+        .filter(PetDocument.pet_id == pet_id, PetDocument.deleted_at.is_(None))
+        .order_by(PetDocument.document_date.desc().nullslast())
+        .all()
+    )
+    if not documents:
+        raise HTTPException(status_code=404, detail="Nenhum documento encontrado")
+
+    buf = io.BytesIO()
+    pet_safe = _safe_filename(pet.name or "pet")
+    root = f"{pet_safe}/"
+    counters: dict[str, int] = {}
+
+    with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for doc in documents:
+            if not doc.storage_key:
+                continue
+            candidate = Path(doc.storage_key)
+            fpath = candidate if (candidate.is_absolute() and candidate.is_file()) else DOCS_UPLOAD_DIR / candidate.name
+            if not fpath.is_file():
+                continue
+            cat = doc.category or "other"
+            folder_label = _FOLDER_LABELS.get(cat, "Outros")
+            counters[cat] = counters.get(cat, 0) + 1
+            idx = counters[cat]
+            ext = fpath.suffix or ""
+            title = _safe_filename(doc.title or fpath.stem or "documento")
+            arcname = f"{root}{folder_label}/{idx:02d} - {title}{ext}"
+            zf.write(fpath, arcname)
+
+    buf.seek(0)
+    safe = pet_safe.lower().replace(" ", "-")
+    filename = f"documentos-{safe}.zip"
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 # Tipos de eventos que ja aparecem em secoes dedicadas — nao repetem em Consultas
 _DEDUP_EVENT_TYPES = {

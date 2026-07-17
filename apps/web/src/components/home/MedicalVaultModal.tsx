@@ -155,6 +155,7 @@ export function MedicalVaultModal({
   const [eventsExpanded, setEventsExpanded] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportingZip, setExportingZip] = useState(false);
+  const [zipReadyUrl, setZipReadyUrl] = useState<string | null>(null);
   const [localPending, setLocalPending] = useState<File[] | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -236,52 +237,21 @@ export function MedicalVaultModal({
 
   const handleExportZip = async () => {
     setExportingZip(true);
+    setZipReadyUrl(null);
     try {
       const token = localStorage.getItem('petmol_token');
       if (!token) { showAppToast('Sessão expirada. Faça login novamente.', { tone: 'warning' }); return; }
-      const res = await fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip`, {
+      const res = await fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip/token`, {
+        method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('backend_error');
-      const blob = await res.blob();
-      const safe = currentPet!.pet_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      const filename = `documentos-${safe}.zip`;
-      const url = URL.createObjectURL(blob);
-      const file = new File([blob], filename, { type: 'application/zip' });
-
-      // Tenta Web Share API com arquivo
-      if (
-        typeof navigator.share === 'function' &&
-        typeof navigator.canShare === 'function' &&
-        navigator.canShare({ files: [file] })
-      ) {
-        try {
-          await navigator.share({ files: [file], title: `Documentos de ${currentPet!.pet_name}` });
-          URL.revokeObjectURL(url);
-          return;
-        } catch (shareErr) {
-          if ((shareErr as Error).name === 'AbortError') { URL.revokeObjectURL(url); return; }
-          // Share falhou — cai no fallback abaixo
-        }
-      }
-
-      // iOS Safari: window.open com blob abre o sheet de compartilhamento/salvar
-      // Desktop/Android: âncora com download
-      if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-        window.open(url, '_blank');
-      } else {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
-    } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        showAppToast('Não foi possível gerar o ZIP. Tente novamente.', { tone: 'warning' });
-      }
+      const { token: dlToken } = await res.json();
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const url = `${origin}${API_BASE_URL}/pets/download/zip/${dlToken}`;
+      setZipReadyUrl(url);
+    } catch {
+      showAppToast('Não foi possível gerar o ZIP. Tente novamente.', { tone: 'warning' });
     } finally {
       setExportingZip(false);
     }
@@ -547,6 +517,36 @@ export function MedicalVaultModal({
                   </div>
                 )}
               </div>
+
+              {/* ZIP pronto — card com link direto (funciona em iOS, Android e desktop) */}
+              {zipReadyUrl && (
+                <div className="mx-0 mb-1 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-emerald-800 text-[13px]">📦 ZIP pronto — válido por 5 min</p>
+                    <button onClick={() => setZipReadyUrl(null)} className="text-emerald-400 text-lg w-7 h-7 flex items-center justify-center" style={{ touchAction: 'manipulation' }}>✕</button>
+                  </div>
+                  <div className="flex gap-2">
+                    <a
+                      href={zipReadyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 text-white font-bold text-[13px] py-2.5 rounded-xl active:scale-[0.97] transition-transform"
+                      style={{ touchAction: 'manipulation' }}
+                    >
+                      ⬇️ Baixar
+                    </a>
+                    {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+                      <button
+                        onClick={() => navigator.share({ url: zipReadyUrl, title: `Documentos de ${currentPet?.pet_name}` }).catch(() => {})}
+                        className="flex-1 flex items-center justify-center gap-1.5 border border-emerald-300 text-emerald-700 font-bold text-[13px] py-2.5 rounded-xl bg-white active:scale-[0.97] transition-transform"
+                        style={{ touchAction: 'manipulation' }}
+                      >
+                        📤 Compartilhar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Exportar */}
               <div className="flex gap-2">
