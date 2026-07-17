@@ -1140,6 +1140,47 @@ class PatchDocumentRequest(BaseModel):
     notes: Optional[str] = None
 
 
+@router.post("/pets/{pet_id}/documents/{doc_id}/reclassify", response_model=PetDocumentOut)
+async def reclassify_document(
+    pet_id: str,
+    doc_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Re-executa a IA (Gemini) no documento e atualiza categoria, título, data e estabelecimento."""
+    _get_pet_or_404(db, user.id, pet_id)
+    doc = (
+        db.query(PetDocument)
+        .filter(PetDocument.id == doc_id, PetDocument.pet_id == pet_id, PetDocument.deleted_at.is_(None))
+        .first()
+    )
+    if not doc or not doc.storage_key:
+        raise HTTPException(status_code=404, detail="Documento não encontrado")
+
+    candidate = Path(doc.storage_key)
+    fpath = candidate if (candidate.is_absolute() and candidate.is_file()) else DOCS_UPLOAD_DIR / candidate.name
+    if not fpath.is_file():
+        raise HTTPException(status_code=422, detail="Arquivo não encontrado no disco")
+
+    content = fpath.read_bytes()
+    mime = doc.mime_type or "application/octet-stream"
+    filename = fpath.name
+
+    cat, detected_date, establishment, titulo = await _classify_from_content(content, mime, filename)
+
+    doc.category = cat
+    if detected_date:
+        doc.document_date = detected_date
+    if establishment:
+        doc.establishment_name = establishment
+    if titulo:
+        doc.title = titulo[:255]
+
+    db.commit()
+    db.refresh(doc)
+    return doc
+
+
 @router.patch("/pets/{pet_id}/documents/{doc_id}", response_model=PetDocumentOut)
 def patch_document(
     pet_id: str,

@@ -163,6 +163,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
   const [viewerTitle, setViewerTitle] = useState<string>('');
   const [viewerDocMimeType, setViewerDocMimeType] = useState<string>(''); // MIME type real (ex: application/pdf)
   const [viewerStorageKey, setViewerStorageKey] = useState<string>('');   // storage_key para extensão
+  const [reclassifyingId, setReclassifyingId] = useState<string | null>(null);
   const [viewerLoading, setViewerLoading] = useState(false);
   const [viewerError, setViewerError] = useState<string | null>(null);
   const [isIOS, setIsIOS] = useState(false);
@@ -781,6 +782,26 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
   };
 
   // ── Delete ────────────────────────────────────────────────────────────
+
+  const reclassifyDoc = async (doc: PetDocument) => {
+    const token = getToken();
+    if (!token || reclassifyingId) return;
+    setReclassifyingId(doc.id);
+    try {
+      const res = await fetch(`${API_BASE_URL}/pets/${petId}/documents/${doc.id}/reclassify`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setDocs((prev) => prev.map((d) => d.id === updated.id ? { ...d, ...updated } : d));
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setReclassifyingId(null);
+    }
+  };
 
   const handleDelete = async (docId: string) => {
     const token = getToken();
@@ -1940,8 +1961,17 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                       </p>
                     </div>
 
-                    {/* Edit is the only inline document action; delete lives inside edit. */}
+                    {/* Inline actions */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0 }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); reclassifyDoc(doc); }}
+                        disabled={reclassifyingId === doc.id}
+                        style={{ width: 36, height: 36, borderRadius: 10, background: 'none', border: 'none', fontSize: 14, color: '#a78bfa', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', WebkitTapHighlightColor: 'transparent', opacity: reclassifyingId === doc.id ? 0.5 : 1 } as React.CSSProperties}
+                        aria-label="Reclassificar com IA"
+                        title="Reclassificar com IA"
+                      >
+                        {reclassifyingId === doc.id ? '⏳' : '✨'}
+                      </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); startEdit(doc); setViewerEditOpen(true); }}
                         style={{ width: 36, height: 36, borderRadius: 10, background: 'none', border: 'none', fontSize: 15, color: '#d1d5db', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
