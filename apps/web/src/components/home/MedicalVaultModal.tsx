@@ -155,9 +155,6 @@ export function MedicalVaultModal({
   const [eventsExpanded, setEventsExpanded] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportingZip, setExportingZip] = useState(false);
-  const [zipFile, setZipFile] = useState<File | null>(null);
-  const [zipDownloadUrl, setZipDownloadUrl] = useState<string | null>(null);
-  const [zipReadyUrl, setZipReadyUrl] = useState<string | null>(null);
   const [localPending, setLocalPending] = useState<File[] | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -237,65 +234,47 @@ export function MedicalVaultModal({
     }
   };
 
-  // Passo 1 — background: baixa ZIP e gera token URL em paralelo (sem gesto necessário)
   const handleExportZip = async () => {
+    // Abre a aba AGORA — dentro do gesto, antes de qualquer await.
+    // iOS Safari só permite window.open em contexto síncrono de clique.
+    const newTab = typeof window !== 'undefined' ? window.open('', '_blank') : null;
+    if (newTab) {
+      newTab.document.body.style.fontFamily = 'sans-serif';
+      newTab.document.body.style.padding = '24px';
+      newTab.document.body.innerHTML = '<p>⏳ Gerando ZIP, aguarde…</p>';
+    }
+
     setExportingZip(true);
-    setZipFile(null);
-    setZipDownloadUrl(null);
     try {
-      const token = localStorage.getItem('petmol_token');
-      if (!token) { showAppToast('Sessão expirada. Faça login novamente.', { tone: 'warning' }); return; }
-      const [zipRes, tokenRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip/token`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
-      if (!zipRes.ok || !tokenRes.ok) throw new Error();
-      const [blob, { token: dlToken }] = await Promise.all([zipRes.blob(), tokenRes.json()]);
-      const safe = currentPet!.pet_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      setZipFile(new File([blob], `documentos-${safe}.zip`, { type: 'application/zip' }));
-      setZipDownloadUrl(`${window.location.origin}${API_BASE_URL}/pets/download/zip/${dlToken}`);
+      const authToken = localStorage.getItem('petmol_token');
+      if (!authToken) {
+        newTab?.close();
+        showAppToast('Sessão expirada. Faça login novamente.', { tone: 'warning' });
+        return;
+      }
+      const res = await fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip/token`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!res.ok) throw new Error();
+      const { token: dlToken } = await res.json();
+      const downloadUrl = `${window.location.origin}${API_BASE_URL}/pets/download/zip/${dlToken}`;
+
+      if (newTab) {
+        newTab.location.href = downloadUrl;
+      } else {
+        // Fallback para desktop (popup blocker fechou a aba)
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
     } catch {
+      newTab?.close();
       showAppToast('Não foi possível gerar o ZIP. Tente novamente.', { tone: 'warning' });
     } finally {
       setExportingZip(false);
-    }
-  };
-
-  // Passo 2 — SÍNCRONO: tudo pronto antes do toque, nenhum await entre gesto e share
-  const handleShareZip = () => {
-    if (!zipFile || !zipDownloadUrl) return;
-
-    if (typeof navigator.share !== 'function') {
-      // Desktop: download via âncora
-      const url = URL.createObjectURL(zipFile);
-      const a = document.createElement('a');
-      a.href = url; a.download = zipFile.name;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-      return;
-    }
-
-    // canShare() é síncrono — decide sem await qual caminho tomar
-    const canShareFile =
-      typeof navigator.canShare === 'function' && navigator.canShare({ files: [zipFile] });
-
-    if (canShareFile) {
-      // Android / alguns iOS: compartilha o arquivo direto
-      navigator.share({ files: [zipFile], title: `Documentos de ${currentPet?.pet_name}` })
-        .catch((e) => {
-          if ((e as Error).name === 'AbortError') return;
-          // Arquivo falhou mesmo com canShare=true — tenta URL
-          navigator.share({ url: zipDownloadUrl, title: `Documentos de ${currentPet?.pet_name}` }).catch(() => {});
-        });
-    } else {
-      // iOS não suporta ZIP — compartilha o link direto (abre sheet nativo com WhatsApp, AirDrop…)
-      navigator.share({ url: zipDownloadUrl, title: `Documentos de ${currentPet?.pet_name}` })
-        .catch((e) => { if ((e as Error).name !== 'AbortError') showAppToast('Não foi possível compartilhar.', { tone: 'warning' }); });
     }
   };
 
@@ -560,24 +539,6 @@ export function MedicalVaultModal({
                 )}
               </div>
 
-              {/* ZIP pronto — toque para compartilhar (gesto fresco = funciona no iOS) */}
-              {zipFile && (
-                <div className="mx-0 mb-1 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <p className="font-bold text-emerald-800 text-[13px]">📦 ZIP pronto!</p>
-                    <button onClick={() => setZipFile(null)} className="text-emerald-400 text-lg w-7 h-7 flex items-center justify-center" style={{ touchAction: 'manipulation' }}>✕</button>
-                  </div>
-                  <button
-                    onClick={handleShareZip}
-                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white font-bold text-[15px] py-3.5 rounded-xl active:scale-[0.97] transition-transform shadow-md shadow-emerald-500/20"
-                    style={{ touchAction: 'manipulation' }}
-                  >
-                    📤 Compartilhar agora
-                  </button>
-                  <p className="text-center text-[11px] text-emerald-600">AirDrop · WhatsApp · Email · Arquivos…</p>
-                </div>
-              )}
-
               {/* Exportar */}
               <div className="flex gap-2">
                 <button
@@ -602,13 +563,13 @@ export function MedicalVaultModal({
                   className="flex-1 flex items-center gap-2 px-3 py-3 rounded-2xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 active:scale-[0.98] transition-all disabled:opacity-60"
                   style={{ touchAction: 'manipulation' }}
                 >
-                  <span className="text-lg">{exportingZip ? '⏳' : zipFile ? '✅' : '🗜️'}</span>
+                  <span className="text-lg">{exportingZip ? '⏳' : '🗜️'}</span>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-emerald-900 text-[13px] leading-tight">
-                      {exportingZip ? 'Preparando…' : zipFile ? 'ZIP pronto!' : 'Exportar ZIP'}
+                      {exportingZip ? 'Gerando…' : 'Exportar ZIP'}
                     </p>
                     <p className="text-[10px] text-emerald-600 mt-0.5">
-                      {exportingZip ? 'Aguarde…' : zipFile ? 'Toque acima para compartilhar' : 'Arquivos originais'}
+                      {exportingZip ? 'Aguarde…' : 'Arquivos originais'}
                     </p>
                   </div>
                 </button>

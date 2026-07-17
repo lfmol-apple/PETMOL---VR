@@ -229,16 +229,18 @@ chown petmol:petmol "$APP_DIR/REVISION" 2>/dev/null || true
 RECLASSIFY_FLAG="$REMOTE_DIR/.reclassify_baby_done"
 if [ ! -f "$RECLASSIFY_FLAG" ]; then
     log "Reclassificando documentos do Baby com novo prompt Gemini..."
-    cd "$APP_DIR/services/price-service"
-    if [ -d ".venv" ] && [ -f "$APP_DIR/deploy/scripts/reclassify_pet_docs.py" ]; then
+    VENV_PYTHON="$APP_DIR/services/price-service/.venv/bin/python"
+    RECLASSIFY_SCRIPT="$APP_DIR/deploy/scripts/reclassify_pet_docs.py"
+    if [ -f "$VENV_PYTHON" ] && [ -f "$RECLASSIFY_SCRIPT" ]; then
+        cd "$APP_DIR/services/price-service"
         set -a; [ -f .env ] && source .env; set +a
         cd "$APP_DIR"
-        .venv/bin/python deploy/scripts/reclassify_pet_docs.py --pet "Baby" \
+        "$VENV_PYTHON" "$RECLASSIFY_SCRIPT" --pet "Baby" \
             && touch "$RECLASSIFY_FLAG" \
             && log "Reclassificação do Baby concluída." \
             || warn "Reclassificação falhou — será tentada novamente no próximo deploy."
     else
-        warn "venv ou script não encontrado — pulando reclassificação."
+        warn "venv ($VENV_PYTHON) ou script não encontrado — pulando."
     fi
 fi
 
