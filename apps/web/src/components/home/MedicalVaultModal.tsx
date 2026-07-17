@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, type Dispatch, type SetStateAction } from 'react';
+import { useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { AuthenticatedDocumentImage } from '@/components/AuthenticatedDocumentImage';
 import { PetDocumentVault } from '@/components/PetDocumentVault';
 import { API_BASE_URL } from '@/lib/api';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
@@ -153,6 +154,8 @@ export function MedicalVaultModal({
   const [openedCategory, setOpenedCategory] = useState<string | null>(null);
   const [eventsExpanded, setEventsExpanded] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [localPending, setLocalPending] = useState<File[] | undefined>(undefined);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!currentPet) return null;
 
@@ -222,6 +225,28 @@ export function MedicalVaultModal({
   const inVault = openedCategory !== null;
   const selectedFolder = DOC_FOLDERS.find((f) => f.id === openedCategory);
 
+  const lastVaccine = vaccines
+    .filter((v) => v.date_administered)
+    .sort((a, b) => (b.date_administered || '').localeCompare(a.date_administered || ''))[0];
+
+  const recentDocs = [...vetHistoryDocs]
+    .sort((a, b) => {
+      const da = a.document_date || a.created_at || '';
+      const db = b.document_date || b.created_at || '';
+      return db.localeCompare(da);
+    })
+    .slice(0, 5);
+
+  const isImageDoc = (doc: VetHistoryDocument) =>
+    Boolean(doc.mime_type?.startsWith('image/') ||
+    /\.(jpg|jpeg|png|webp)$/i.test(doc.storage_key || doc.file_name || ''));
+
+  const handleQuickUpload = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setLocalPending(Array.from(files));
+    setOpenedCategory('all');
+  };
+
   return (
     <ModalPortal>
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
@@ -266,7 +291,137 @@ export function MedicalVaultModal({
 
           {/* ─── HOME ──────────────────────────────────────────────────── */}
           {!inVault && (
-            <div className="p-4 space-y-4">
+            <div className="flex flex-col gap-4 p-4">
+
+              {/* Carteirinha hero */}
+              <div className="rounded-2xl bg-gradient-to-br from-violet-600 via-violet-700 to-purple-800 p-4 shadow-lg">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="text-violet-300 text-[10px] font-semibold uppercase tracking-widest">Carteirinha de Saúde</p>
+                    <p className="text-white text-xl font-bold mt-0.5 leading-tight">{currentPet.pet_name}</p>
+                    <p className="text-violet-300 text-xs mt-0.5">
+                      {currentPet.species === 'cat' ? 'Gato' : currentPet.species === 'dog' ? 'Cachorro' : currentPet.species || 'Pet'}
+                      {currentPet.breed ? ` · ${currentPet.breed}` : ''}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center text-2xl border border-white/20">
+                    {currentPet.species === 'cat' ? '🐱' : '🐶'}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1 bg-white/10 rounded-xl px-3 py-2 border border-white/10">
+                    <p className="text-violet-300 text-[9px] uppercase tracking-wide font-medium">Última vacina</p>
+                    <p className="text-white font-bold text-sm mt-0.5">
+                      {lastVaccine
+                        ? fmtDate(lastVaccine.date_administered)
+                        : '—'}
+                    </p>
+                  </div>
+                  <div className="flex-1 bg-white/10 rounded-xl px-3 py-2 border border-white/10">
+                    <p className="text-violet-300 text-[9px] uppercase tracking-wide font-medium">Documentos</p>
+                    <p className="text-white font-bold text-sm mt-0.5">{vetHistoryDocs.length} {vetHistoryDocs.length === 1 ? 'arquivo' : 'arquivos'}</p>
+                  </div>
+                  <div className="flex-1 bg-white/10 rounded-xl px-3 py-2 border border-white/10">
+                    <p className="text-violet-300 text-[9px] uppercase tracking-wide font-medium">Eventos</p>
+                    <p className="text-white font-bold text-sm mt-0.5">{allEvents.length}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pending share banner */}
+              {pendingFiles && pendingFiles.length > 0 && (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-emerald-50 border border-emerald-200">
+                  <span className="text-xl flex-shrink-0">📎</span>
+                  <p className="text-[13px] text-emerald-800 font-semibold leading-snug flex-1">
+                    {pendingFiles.length === 1
+                      ? '1 arquivo recebido — escolha uma pasta para salvar'
+                      : `${pendingFiles.length} arquivos recebidos — escolha uma pasta para salvar`}
+                  </p>
+                </div>
+              )}
+
+              {/* Botão adicionar */}
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  multiple
+                  className="sr-only"
+                  onChange={(e) => handleQuickUpload(e.target.files)}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-3.5 rounded-2xl bg-violet-600 hover:bg-violet-700 active:scale-[0.98] transition-all text-white text-[15px] font-bold flex items-center justify-center gap-2 shadow-md shadow-violet-500/25"
+                  style={{ touchAction: 'manipulation' }}
+                >
+                  <span className="text-xl">+</span>
+                  Adicionar documento
+                </button>
+              </div>
+
+              {/* Docs recentes */}
+              {recentDocs.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Recentes</p>
+                  <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                    {recentDocs.map((doc) => {
+                      const folder = DOC_FOLDERS.find((f) => f.id === (doc.category || 'other'));
+                      return (
+                        <button
+                          key={doc.id || doc.storage_key}
+                          type="button"
+                          onClick={() => setOpenedCategory(doc.category || 'other')}
+                          className="flex-shrink-0 w-[72px] flex flex-col rounded-xl overflow-hidden border border-slate-200 bg-white shadow-sm active:scale-[0.96] transition-transform"
+                          style={{ touchAction: 'manipulation' }}
+                        >
+                          {isImageDoc(doc) && currentPet.pet_id && doc.id ? (
+                            <AuthenticatedDocumentImage
+                              petId={currentPet.pet_id}
+                              docId={doc.id}
+                              alt={doc.title || 'Documento'}
+                              className="w-[72px] h-[72px] object-cover"
+                            />
+                          ) : (
+                            <div className="w-[72px] h-[72px] bg-slate-50 flex items-center justify-center text-3xl">
+                              {folder?.icon || '📄'}
+                            </div>
+                          )}
+                          <div className="px-1.5 py-1 bg-white">
+                            <p className="text-[9px] text-slate-500 truncate leading-tight">{doc.title || doc.file_name || 'Documento'}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Grade de pastas — 3 colunas */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Pastas</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {DOC_FOLDERS.map((folder) => {
+                    const count = vetHistoryDocs.filter((d) => (d.category || 'other') === folder.id).length;
+                    return (
+                      <button
+                        key={folder.id}
+                        type="button"
+                        onClick={() => setOpenedCategory(folder.id)}
+                        className={`flex flex-col items-center gap-1.5 py-4 px-2 rounded-2xl border transition-all active:scale-[0.96] hover:shadow-md ${folder.bg} ${folder.border}`}
+                        style={{ touchAction: 'manipulation' }}
+                      >
+                        <span className="text-2xl">{folder.icon}</span>
+                        <p className="font-semibold text-slate-900 text-[12px] leading-tight text-center">{folder.label}</p>
+                        <p className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${count > 0 ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-400'}`}>
+                          {count}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               {/* Eventos — collapsible */}
               <div className="rounded-2xl border border-indigo-200 bg-white overflow-hidden shadow-sm">
@@ -274,12 +429,13 @@ export function MedicalVaultModal({
                   type="button"
                   onClick={() => setEventsExpanded((v) => !v)}
                   className="w-full flex items-center gap-3 px-4 py-3.5 bg-indigo-50 hover:bg-indigo-100 transition-colors text-left"
+                  style={{ touchAction: 'manipulation' }}
                 >
                   <span className="text-xl">📋</span>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-indigo-900 text-[15px]">Eventos da vida {currentPet.pet_name.startsWith('de ') ? '' : 'de '}{currentPet.pet_name}</p>
+                    <p className="font-bold text-indigo-900 text-[14px]">Linha do tempo</p>
                     <p className="text-xs text-indigo-400 mt-0.5">
-                      {allEvents.length === 0 ? 'Nenhum evento registrado' : `${allEvents.length} evento${allEvents.length !== 1 ? 's' : ''} · toque para ver o histórico`}
+                      {allEvents.length === 0 ? 'Nenhum evento registrado' : `${allEvents.length} evento${allEvents.length !== 1 ? 's' : ''} · toque para expandir`}
                     </p>
                   </div>
                   <svg
@@ -290,7 +446,6 @@ export function MedicalVaultModal({
                   </svg>
                 </button>
 
-                {/* Full timeline (expanded) */}
                 {eventsExpanded && (
                   <div className="border-t border-slate-100">
                     {allEvents.length === 0 ? (
@@ -327,50 +482,19 @@ export function MedicalVaultModal({
                 )}
               </div>
 
-              {/* Pending share banner */}
-              {pendingFiles && pendingFiles.length > 0 && (
-                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-emerald-50 border border-emerald-200">
-                  <span className="text-xl flex-shrink-0">📎</span>
-                  <p className="text-[13px] text-emerald-800 font-semibold leading-snug flex-1">
-                    {pendingFiles.length === 1
-                      ? '1 arquivo recebido — escolha uma pasta para salvar'
-                      : `${pendingFiles.length} arquivos recebidos — escolha uma pasta para salvar`}
-                  </p>
-                </div>
-              )}
-
-              {/* Documents */}
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 px-1 mb-2">Documentos guardados</p>
-                <div className="grid grid-cols-2 gap-2.5">
-                  {DOC_FOLDERS.map((folder) => (
-                    <button
-                      key={folder.id}
-                      type="button"
-                      onClick={() => setOpenedCategory(folder.id)}
-                      className={`relative flex flex-col items-start gap-1.5 p-4 rounded-2xl border transition-all text-left active:scale-[0.97] hover:shadow-md ${folder.bg} ${folder.border}`}
-                    >
-                      <span className="text-2xl">{folder.icon}</span>
-                      <p className="font-bold text-slate-900 text-[13px] leading-tight">{folder.label}</p>
-                      <span className="absolute top-3 right-3 text-slate-300 text-xs">›</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Exportar PDF */}
               <button
                 type="button"
                 onClick={handleExportPDF}
                 disabled={exporting}
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border border-blue-200 bg-blue-50 hover:bg-blue-100 active:scale-[0.98] transition-all text-left disabled:opacity-60"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-blue-200 bg-blue-50 hover:bg-blue-100 active:scale-[0.98] transition-all text-left disabled:opacity-60"
+                style={{ touchAction: 'manipulation' }}
               >
-                <span className="text-xl">{exporting ? '⏳' : '📤'}</span>
+                <span className="text-lg">{exporting ? '⏳' : '📤'}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-blue-900 text-[15px]">
+                  <p className="font-bold text-blue-900 text-[14px]">
                     {exporting ? 'Gerando PDF…' : 'Exportar e Compartilhar PDF'}
                   </p>
-                  <p className="text-[11px] text-blue-700 mt-0.5">Vacinas, antiparasitários, banho & tosa, eventos e documentos</p>
                 </div>
                 <span className="text-blue-300 text-sm">›</span>
               </button>
@@ -385,8 +509,8 @@ export function MedicalVaultModal({
                 onDocsChanged={refreshDocuments}
                 initialCategory={openedCategory === 'all' ? 'all' : openedCategory ?? 'all'}
                 hideCategoryTabs={openedCategory !== 'all'}
-                pendingFiles={pendingFiles}
-                onFilesConsumed={onFilesConsumed}
+                pendingFiles={localPending ?? pendingFiles}
+                onFilesConsumed={() => { setLocalPending(undefined); onFilesConsumed?.(); }}
               />
             </div>
           )}
