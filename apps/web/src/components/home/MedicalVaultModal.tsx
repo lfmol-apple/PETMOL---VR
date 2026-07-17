@@ -156,6 +156,7 @@ export function MedicalVaultModal({
   const [exporting, setExporting] = useState(false);
   const [exportingZip, setExportingZip] = useState(false);
   const [zipFile, setZipFile] = useState<File | null>(null);
+  const [zipDownloadUrl, setZipDownloadUrl] = useState<string | null>(null);
   const [zipReadyUrl, setZipReadyUrl] = useState<string | null>(null);
   const [localPending, setLocalPending] = useState<File[] | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -236,21 +237,28 @@ export function MedicalVaultModal({
     }
   };
 
-  // Passo 1 — baixa o ZIP em background (pode demorar; não precisa de gesto)
+  // Passo 1 — background: baixa ZIP e gera token URL em paralelo (sem gesto necessário)
   const handleExportZip = async () => {
     setExportingZip(true);
     setZipFile(null);
-    setZipReadyUrl(null);
+    setZipDownloadUrl(null);
     try {
       const token = localStorage.getItem('petmol_token');
       if (!token) { showAppToast('Sessão expirada. Faça login novamente.', { tone: 'warning' }); return; }
-      const res = await fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('backend_error');
-      const blob = await res.blob();
+      const [zipRes, tokenRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip/token`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+      if (!zipRes.ok || !tokenRes.ok) throw new Error();
+      const [blob, { token: dlToken }] = await Promise.all([zipRes.blob(), tokenRes.json()]);
       const safe = currentPet!.pet_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
       setZipFile(new File([blob], `documentos-${safe}.zip`, { type: 'application/zip' }));
+      setZipDownloadUrl(`${window.location.origin}${API_BASE_URL}/pets/download/zip/${dlToken}`);
     } catch {
       showAppToast('Não foi possível gerar o ZIP. Tente novamente.', { tone: 'warning' });
     } finally {
@@ -258,47 +266,36 @@ export function MedicalVaultModal({
     }
   };
 
-  // Passo 2 — chamado por gesto SÍNCRONO: tenta arquivo, cai para link se iOS não suportar ZIP
-  const handleShareZip = async () => {
-    if (!zipFile) return;
+  // Passo 2 — SÍNCRONO: tudo pronto antes do toque, nenhum await entre gesto e share
+  const handleShareZip = () => {
+    if (!zipFile || !zipDownloadUrl) return;
 
-    // 1. Tenta compartilhar o arquivo direto (funciona em Android e alguns iOS)
-    if (typeof navigator.share === 'function') {
-      try {
-        await navigator.share({ files: [zipFile], title: `Documentos de ${currentPet?.pet_name}` });
-        return;
-      } catch (e) {
-        if ((e as Error).name === 'AbortError') return;
-        // iOS não suporta ZIP via Web Share — continua para link
-      }
+    if (typeof navigator.share !== 'function') {
+      // Desktop: download via âncora
+      const url = URL.createObjectURL(zipFile);
+      const a = document.createElement('a');
+      a.href = url; a.download = zipFile.name;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      return;
     }
 
-    // 2. Gera link de download e compartilha a URL (funciona em todo iPhone)
-    try {
-      const token = localStorage.getItem('petmol_token');
-      if (!token) return;
-      const tokenRes = await fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip/token`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!tokenRes.ok) throw new Error();
-      const { token: dlToken } = await tokenRes.json();
-      const downloadUrl = `${window.location.origin}${API_BASE_URL}/pets/download/zip/${dlToken}`;
+    // canShare() é síncrono — decide sem await qual caminho tomar
+    const canShareFile =
+      typeof navigator.canShare === 'function' && navigator.canShare({ files: [zipFile] });
 
-      if (typeof navigator.share === 'function') {
-        await navigator.share({ url: downloadUrl, title: `Documentos de ${currentPet?.pet_name}` });
-      } else {
-        // Desktop: download direto
-        const url = URL.createObjectURL(zipFile);
-        const a = document.createElement('a');
-        a.href = url; a.download = zipFile.name;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-      }
-    } catch (e) {
-      if ((e as Error).name !== 'AbortError') {
-        showAppToast('Não foi possível compartilhar. Tente novamente.', { tone: 'warning' });
-      }
+    if (canShareFile) {
+      // Android / alguns iOS: compartilha o arquivo direto
+      navigator.share({ files: [zipFile], title: `Documentos de ${currentPet?.pet_name}` })
+        .catch((e) => {
+          if ((e as Error).name === 'AbortError') return;
+          // Arquivo falhou mesmo com canShare=true — tenta URL
+          navigator.share({ url: zipDownloadUrl, title: `Documentos de ${currentPet?.pet_name}` }).catch(() => {});
+        });
+    } else {
+      // iOS não suporta ZIP — compartilha o link direto (abre sheet nativo com WhatsApp, AirDrop…)
+      navigator.share({ url: zipDownloadUrl, title: `Documentos de ${currentPet?.pet_name}` })
+        .catch((e) => { if ((e as Error).name !== 'AbortError') showAppToast('Não foi possível compartilhar.', { tone: 'warning' }); });
     }
   };
 
