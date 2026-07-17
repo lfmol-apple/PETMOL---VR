@@ -8,6 +8,37 @@ import type { PetWithHealth } from '@/features/pets/types';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { showAppToast, showBlockingNotice } from './userPromptChannel';
 
+const MAX_PX = 1600;
+const JPEG_QUALITY = 0.82;
+
+async function compressImageFile(file: File): Promise<File> {
+  if (!file.type.startsWith('image/')) return file;
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, MAX_PX / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob || blob.size >= file.size) { resolve(file); return; }
+          resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+        },
+        'image/jpeg',
+        JPEG_QUALITY,
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
 type HistoryTab = 'resumo' | 'detalhado';
 
 interface UseHomeHistoryDocumentUploadInput {
@@ -72,8 +103,9 @@ export function useHomeHistoryDocumentUpload({
 
     setInlineDocUploading(true);
     try {
+      const compressed = await Promise.all(inlineDocPendingFiles.map(compressImageFile));
       const form = new FormData();
-      inlineDocPendingFiles.forEach((file) => form.append('files', file));
+      compressed.forEach((file) => form.append('files', file));
       form.append('create_timeline_event', 'true');
       form.append('category', inlineDocCategory);
       if (inlineDocTitle.trim()) form.append('title', inlineDocTitle.trim());
