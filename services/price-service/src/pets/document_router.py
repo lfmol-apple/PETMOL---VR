@@ -685,24 +685,72 @@ _GEMINI_SUPPORTED_MIMES = {
 }
 
 
+def _keyword_score(text: str) -> tuple[str | None, int]:
+    """Retorna (categoria, score) baseado em keywords do texto extraído.
+    Score ≥ 3 indica sinal forte o suficiente para usar como desempate."""
+    if not text:
+        return None, 0
+    low = text.lower()
+    scores: dict[str, int] = {}
+    for category, keywords in _CONTENT_KEYWORDS:
+        hits = sum(1 for kw in keywords if kw in low)
+        if hits:
+            scores[category] = hits
+    if not scores:
+        return None, 0
+    best = max(scores, key=lambda c: scores[c])
+    return best, scores[best]
+
+
 def _gemini_classify_sync(
-    content: bytes, mime: str, filename: str, api_key: str
-) -> tuple[str, date_type | None, str | None, str | None] | None:
-    """Blocking Gemini call — run via asyncio.to_thread."""
+    content: bytes,
+    mime: str,
+    filename: str,
+    api_key: str,
+    extracted_text: str = "",
+    kw_hint: str | None = None,
+) -> tuple[str, date_type | None, str | None, str | None, str] | None:
+    """Blocking Gemini call — run via asyncio.to_thread.
+    Returns (categoria, data, estabelecimento, titulo, confianca)."""
     try:
         import google.generativeai as genai
+        import google.generativeai.types as _gtypes
         from datetime import datetime as _dt
 
         genai.configure(api_key=api_key)
-        model_name = (os.environ.get("GEMINI_MODEL") or "gemini-2.0-flash").strip()
+        model_name = (os.environ.get("GEMINI_MODEL") or "gemini-2.5-flash").strip()
         model = genai.GenerativeModel(model_name)
+
+        # Build prompt: texto extraído (se PDF) + hint de keywords (se retry) + prompt principal
+        prompt_parts: list[str] = []
+        if extracted_text.strip():
+            prompt_parts.append(
+                f"TEXTO EXTRAÍDO DO DOCUMENTO (use como referência principal para classificação):\n"
+                f"{extracted_text[:3000]}\n"
+                f"{'...(truncado)' if len(extracted_text) > 3000 else ''}"
+            )
+        if kw_hint:
+            prompt_parts.append(
+                f"ANÁLISE PRÉVIA: palavras-chave do documento sugerem categoria '{kw_hint}'. "
+                f"Confirme ou corrija com base no conteúdo completo."
+            )
+        prompt_parts.append(_GEMINI_PROMPT)
+        full_prompt = "\n\n---\n\n".join(prompt_parts)
 
         # Cap to 4 MB for inline data
         data_to_send = content[: 4 * 1024 * 1024]
         encoded = base64.b64encode(data_to_send).decode()
 
         part = {"inline_data": {"mime_type": mime, "data": encoded}}
-        response = model.generate_content([_GEMINI_PROMPT, part])
+
+        # thinking_budget=0 evita que o gemini-2.5 consuma tokens de output com raciocínio
+        gen_cfg: dict = {"temperature": 0.1, "max_output_tokens": 1024}
+        try:
+            gen_cfg["thinking_config"] = _gtypes.ThinkingConfig(thinking_budget=0)
+        except Exception:
+            pass
+
+        response = model.generate_content([full_prompt, part], generation_config=gen_cfg)
 
         raw = response.text.strip()
         # Strip markdown fences if Gemini wraps in ```json ... ```
@@ -732,12 +780,14 @@ def _gemini_classify_sync(
             titulo = None
 
         confianca = str(data.get("confianca", "media")).lower()
+        if confianca not in ("alta", "media", "baixa"):
+            confianca = "media"
 
         logger.info(
-            "[gemini-classify] file=%s → cat=%s date=%s est=%s titulo=%s confianca=%s",
-            filename, categoria, doc_date, est, titulo, confianca,
+            "[gemini-classify] file=%s model=%s → cat=%s confianca=%s titulo=%s",
+            filename, model_name, categoria, confianca, titulo,
         )
-        return categoria, doc_date, est, titulo
+        return categoria, doc_date, est, titulo, confianca
 
     except Exception as exc:
         logger.warning("[gemini-classify] failed for %s: %s", filename, exc)
@@ -747,26 +797,69 @@ def _gemini_classify_sync(
 async def _classify_from_content(
     content: bytes, mime: str, filename: str
 ) -> tuple[str, date_type | None, str | None, str | None]:
+    """Pipeline de classificação em camadas:
+    1. Extrai texto do PDF (pypdf)
+    2. Score por keywords → sinal forte usa como desempate
+    3. Gemini com texto extraído + hint (se disponível)
+    4. Se confiança baixa → retry Gemini com hint de keywords
+    5. Fallback local (pypdf + regex)
     """
-    Classifica documento com Gemini (se disponível) e fallback para pypdf+regex.
-    """
-    # DOCUMENT_AI_CLASSIFY_ENABLED: default false — IA só roda quando ligado explicitamente
-    ai_enabled = True
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if ai_enabled and api_key and mime in _GEMINI_SUPPORTED_MIMES:
+
+    # 1. Extrai texto do PDF para enriquecer o contexto do Gemini
+    extracted_text = ""
+    if mime == "application/pdf":
+        extracted_text = _extract_pdf_text(content)
+
+    # 2. Score por keywords no texto extraído
+    kw_category, kw_score = _keyword_score(extracted_text)
+
+    if api_key and mime in _GEMINI_SUPPORTED_MIMES:
+        # 3. Primeira chamada Gemini — com texto extraído
         try:
             result = await asyncio.wait_for(
-                asyncio.to_thread(_gemini_classify_sync, content, mime, filename, api_key),
-                timeout=15.0,
+                asyncio.to_thread(
+                    _gemini_classify_sync, content, mime, filename, api_key,
+                    extracted_text, None,
+                ),
+                timeout=20.0,
             )
-            if result is not None:
-                logger.info("[gemini-classify] success file=%s", filename)
-                return result
         except asyncio.TimeoutError:
-            logger.warning("[gemini-classify] timeout for %s, falling back to local", filename)
+            logger.warning("[gemini-classify] timeout (1ª tentativa) for %s", filename)
+            result = None
         except Exception as exc:
-            logger.warning("[gemini-classify] error for %s: %s, falling back to local", filename, exc)
+            logger.warning("[gemini-classify] error (1ª tentativa) for %s: %s", filename, exc)
+            result = None
 
+        if result is not None:
+            cat, doc_date, est, titulo, confianca = result
+
+            # Confiança boa → aceita direto
+            if confianca in ("alta", "media"):
+                return cat, doc_date, est, titulo
+
+            # 4. Confiança baixa: desempata com keywords se sinal forte
+            if kw_score >= 3 and kw_category and kw_category != cat:
+                logger.info(
+                    "[classify] baixa confiança Gemini (%s), keywords sugerem %s (score=%d) — retry",
+                    cat, kw_category, kw_score,
+                )
+                try:
+                    result2 = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            _gemini_classify_sync, content, mime, filename, api_key,
+                            extracted_text, kw_category,
+                        ),
+                        timeout=20.0,
+                    )
+                    if result2 is not None:
+                        return result2[:4]
+                except Exception:
+                    pass
+
+            return cat, doc_date, est, titulo
+
+    # 5. Fallback local (pypdf + regex + filename)
     return _classify_local(content, mime, filename)
 
 
