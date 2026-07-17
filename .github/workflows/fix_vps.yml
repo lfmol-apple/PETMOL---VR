@@ -20,18 +20,12 @@ jobs:
           SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP"
           
           $SSH "
+            echo '=== RECLASSIFICANDO DOCUMENTOS DO BABY ==='
+            cd /opt/petmol/app/services/price-service
+            source .venv/bin/activate
+            set -a; [ -f .env ] && source .env; set +a
+            cd /opt/petmol/app
+            python deploy/scripts/reclassify_pet_docs.py --pet 'Baby'
             echo '=== STATUS SERVICOS ==='
-            systemctl status petmol-api --no-pager -l | tail -20
-            echo '=== STATUS WEB ==='
-            systemctl status petmol-web --no-pager -l | tail -20
-            echo '=== RESTART ==='
-            systemctl restart petmol-api
-            sleep 5
-            systemctl restart petmol-web
-            sleep 8
-            echo '=== HEALTH CHECK ==='
-            curl -s http://localhost:8000/health || echo 'API FAIL'
-            curl -s -o /dev/null -w '%{http_code}' http://localhost:3000 || echo 'WEB FAIL'
-            echo '=== JOURNAL API ==='
-            journalctl -u petmol-api --since '5 minutes ago' --no-pager | tail -30
+            systemctl status petmol-api --no-pager -l | tail -10
           "
