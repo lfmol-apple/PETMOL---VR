@@ -566,13 +566,13 @@ export function VetHistoryModal({
               { id: 'other',        icon: '📎', label: 'Outros',    color: 'gray'   },
             ];
 
-            const folderColorClasses: Record<string, { bg: string; border: string; count: string }> = {
-              blue:   { bg: 'bg-blue-50',   border: 'border-blue-200',   count: 'bg-blue-100 text-blue-700'   },
-              green:  { bg: 'bg-green-50',  border: 'border-green-200',  count: 'bg-green-100 text-green-700'  },
-              purple: { bg: 'bg-purple-50', border: 'border-purple-200', count: 'bg-purple-100 text-purple-700' },
-              indigo: { bg: 'bg-indigo-50', border: 'border-indigo-200', count: 'bg-indigo-100 text-indigo-700' },
-              pink:   { bg: 'bg-pink-50',   border: 'border-pink-200',   count: 'bg-pink-100 text-pink-700'   },
-              gray:   { bg: 'bg-gray-50',   border: 'border-gray-200',   count: 'bg-gray-100 text-gray-600'   },
+            const folderColorClasses: Record<string, { bg: string; border: string; count: string; active: string }> = {
+              blue:   { bg: 'bg-blue-50',   border: 'border-blue-200',   count: 'bg-blue-100 text-blue-700',     active: 'bg-blue-600'   },
+              green:  { bg: 'bg-green-50',  border: 'border-green-200',  count: 'bg-green-100 text-green-700',   active: 'bg-green-600'  },
+              purple: { bg: 'bg-purple-50', border: 'border-purple-200', count: 'bg-purple-100 text-purple-700', active: 'bg-purple-600' },
+              indigo: { bg: 'bg-indigo-50', border: 'border-indigo-200', count: 'bg-indigo-100 text-indigo-700', active: 'bg-indigo-600' },
+              pink:   { bg: 'bg-pink-50',   border: 'border-pink-200',   count: 'bg-pink-100 text-pink-700',     active: 'bg-pink-600'   },
+              gray:   { bg: 'bg-gray-50',   border: 'border-gray-200',   count: 'bg-gray-100 text-gray-600',     active: 'bg-gray-500'   },
             };
 
             const docsByCategory: Record<string, VetHistoryDocument[]> = {};
@@ -584,62 +584,136 @@ export function VetHistoryModal({
 
             const totalDocs = vetHistoryDocs.length;
 
+            const lastVaccine = vaccines
+              .filter((v) => v.date_administered)
+              .sort((a, b) => (b.date_administered || '').localeCompare(a.date_administered || ''))[0];
+
+            const recentDocs = [...vetHistoryDocs]
+              .sort((a, b) => {
+                const da = a.document_date || a.created_at || '';
+                const db = b.document_date || b.created_at || '';
+                return db.localeCompare(da);
+              })
+              .slice(0, 5);
+
+            const isImageDoc = (doc: VetHistoryDocument) =>
+              doc.mime_type?.startsWith('image/') ||
+              /\.(jpg|jpeg|png|webp)$/i.test(doc.storage_key || doc.file_name || '');
+
             return (
-              <div className="p-4 space-y-4">
-                {totalDocs === 0 && (
-                  <div className="text-center py-6 px-4">
-                    <div className="text-4xl mb-2">📁</div>
-                    <p className="text-gray-500 text-sm">Nenhum documento guardado ainda.</p>
-                    <p className="text-gray-400 text-xs mt-1">Adicione exames, receitas e outros arquivos do seu pet.</p>
+              <div className="flex flex-col pb-4">
+                {/* Carteirinha hero */}
+                <div className="mx-4 mt-4 rounded-2xl bg-gradient-to-br from-violet-600 via-violet-700 to-purple-800 p-4 shadow-lg">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-violet-300 text-[10px] font-semibold uppercase tracking-widest">Carteirinha de Saúde</p>
+                      <p className="text-white text-xl font-bold mt-0.5 leading-tight">{currentPet.pet_name}</p>
+                      <p className="text-violet-300 text-xs mt-0.5">{currentPet.species === 'cat' ? 'Gato' : currentPet.species === 'dog' ? 'Cachorro' : currentPet.species || 'Pet'}</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center text-2xl border border-white/20">
+                      {currentPet.species === 'cat' ? '🐱' : '🐶'}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1 bg-white/10 rounded-xl px-3 py-2 border border-white/10">
+                      <p className="text-violet-300 text-[9px] uppercase tracking-wide font-medium">Última vacina</p>
+                      <p className="text-white font-bold text-sm mt-0.5">
+                        {lastVaccine
+                          ? new Date((lastVaccine.date_administered || '') + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit' })
+                          : '—'}
+                      </p>
+                    </div>
+                    <div className="flex-1 bg-white/10 rounded-xl px-3 py-2 border border-white/10">
+                      <p className="text-violet-300 text-[9px] uppercase tracking-wide font-medium">Documentos</p>
+                      <p className="text-white font-bold text-sm mt-0.5">{totalDocs} {totalDocs === 1 ? 'arquivo' : 'arquivos'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botão adicionar */}
+                <div className="px-4 mt-3">
+                  <button
+                    type="button"
+                    onClick={onOpenUpload}
+                    className="w-full py-3.5 rounded-2xl bg-violet-600 hover:bg-violet-700 active:scale-[0.98] transition-all text-white text-[15px] font-bold flex items-center justify-center gap-2 shadow-md shadow-violet-500/25"
+                    style={{ touchAction: 'manipulation' }}
+                  >
+                    <span className="text-xl">+</span>
+                    Adicionar documento
+                  </button>
+                </div>
+
+                {/* Recentes */}
+                {recentDocs.length > 0 && (
+                  <div className="mt-4 px-4">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Recentes</p>
+                    <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                      {recentDocs.map((doc) => {
+                        const cat = doc.category || 'other';
+                        const folder = DOC_FOLDERS.find((f) => f.id === cat);
+                        const docs = docsByCategory[cat] || [];
+                        const catIcon = folder?.icon || '📄';
+                        return (
+                          <button
+                            key={doc.id || doc.storage_key}
+                            type="button"
+                            onClick={() => folder && onOpenDocumentFolder({ cat, title: folder.label, icon: folder.icon, color: folder.color, docs })}
+                            className="flex-shrink-0 w-[72px] flex flex-col rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm active:scale-[0.96] transition-transform"
+                            style={{ touchAction: 'manipulation' }}
+                          >
+                            {isImageDoc(doc) && currentPet.pet_id && doc.id ? (
+                              <AuthenticatedDocumentImage
+                                petId={currentPet.pet_id}
+                                docId={doc.id}
+                                alt={doc.title || 'Documento'}
+                                className="w-[72px] h-[72px] object-cover"
+                              />
+                            ) : (
+                              <div className="w-[72px] h-[72px] bg-gray-50 flex items-center justify-center text-3xl">{catIcon}</div>
+                            )}
+                            <div className="px-1 py-1 bg-white">
+                              <p className="text-[9px] text-gray-500 truncate leading-tight">{doc.title || doc.file_name || 'Documento'}</p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
-                  {DOC_FOLDERS.map((folder) => {
-                    const docs = docsByCategory[folder.id] || [];
-                    const cls = folderColorClasses[folder.color] ?? folderColorClasses.gray;
-                    const isEmpty = docs.length === 0;
-                    return (
-                      <button
-                        key={folder.id}
-                        type="button"
-                        disabled={isEmpty}
-                        onClick={() => onOpenDocumentFolder({
-                          cat: folder.id,
-                          title: folder.label,
-                          icon: folder.icon,
-                          color: folder.color,
-                          docs,
-                        })}
-                        className={`relative flex flex-col items-start gap-2 p-4 rounded-2xl border transition-all text-left active:scale-[0.97] ${isEmpty ? 'opacity-40 cursor-default' : `${cls.bg} ${cls.border} hover:shadow-md`}`}
-                      >
-                        <span className="text-3xl">{folder.icon}</span>
-                        <div className="w-full">
-                          <p className="font-bold text-gray-900 text-[14px] leading-tight">{folder.label}</p>
-                          <p className={`mt-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full inline-block ${cls.count}`}>
-                            {docs.length === 0 ? 'Vazia' : `${docs.length} arquivo${docs.length !== 1 ? 's' : ''}`}
+                {/* Grade de pastas */}
+                <div className="px-4 mt-4">
+                  {totalDocs === 0 && (
+                    <p className="text-center text-gray-400 text-sm mb-3">Adicione exames, receitas e outros arquivos do seu pet.</p>
+                  )}
+                  <div className="grid grid-cols-3 gap-2">
+                    {DOC_FOLDERS.map((folder) => {
+                      const docs = docsByCategory[folder.id] || [];
+                      const cls = folderColorClasses[folder.color] ?? folderColorClasses.gray;
+                      const isEmpty = docs.length === 0;
+                      return (
+                        <button
+                          key={folder.id}
+                          type="button"
+                          disabled={isEmpty}
+                          onClick={() => onOpenDocumentFolder({ cat: folder.id, title: folder.label, icon: folder.icon, color: folder.color, docs })}
+                          className={`relative flex flex-col items-center justify-center gap-1.5 py-4 px-2 rounded-2xl border transition-all active:scale-[0.96] ${isEmpty ? 'opacity-35 cursor-default bg-gray-50 border-gray-200' : `${cls.bg} ${cls.border} hover:shadow-md`}`}
+                          style={{ touchAction: 'manipulation' }}
+                        >
+                          <span className="text-2xl">{folder.icon}</span>
+                          <p className="font-semibold text-gray-900 text-[12px] leading-tight text-center">{folder.label}</p>
+                          <p className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${isEmpty ? 'bg-gray-100 text-gray-400' : cls.count}`}>
+                            {docs.length === 0 ? '0' : `${docs.length}`}
                           </p>
-                        </div>
-                        {!isEmpty && (
-                          <span className="absolute top-3 right-3 text-gray-300 text-xs">›</span>
-                        )}
-                      </button>
-                    );
-                  })}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {totalDocs > 0 && (
+                    <p className="text-center text-xs text-gray-400 mt-3">{totalDocs} arquivo{totalDocs !== 1 ? 's' : ''} guardado{totalDocs !== 1 ? 's' : ''}</p>
+                  )}
                 </div>
-
-                <button
-                  type="button"
-                  onClick={onOpenUpload}
-                  className="w-full py-3.5 rounded-2xl bg-violet-600 hover:bg-violet-700 active:scale-[0.98] transition-all text-white text-[15px] font-bold flex items-center justify-center gap-2 shadow-md shadow-violet-500/20"
-                >
-                  <span className="text-lg">＋</span>
-                  Adicionar documento
-                </button>
-
-                {totalDocs > 0 && (
-                  <p className="text-center text-xs text-gray-400">{totalDocs} arquivo{totalDocs !== 1 ? 's' : ''} guardado{totalDocs !== 1 ? 's' : ''}</p>
-                )}
               </div>
             );
           })()}
