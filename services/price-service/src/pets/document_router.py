@@ -291,6 +291,35 @@ _DOC_EXTS  = {".doc", ".docx", ".odt", ".rtf", ".txt"}
 _SKIP_EXTS = {".ds_store", ".thumbs.db", ".ithmb"}
 
 
+_CATEGORY_DEFAULT_TITLES = {
+    "exam":         "Exame diagnóstico",
+    "vaccine":      "Registro de vacinação",
+    "prescription": "Receita veterinária",
+    "report":       "Laudo / Relatório clínico",
+    "comprovante":  "Comprovante",
+    "photo":        "Foto clínica",
+    "other":        "Documento veterinário",
+}
+
+_GENERIC_STEMS = {
+    "image", "img", "photo", "foto", "scan", "doc", "document", "arquivo",
+    "file", "untitled", "sem_titulo", "documento", "picture", "pic",
+}
+
+
+def _smart_title(ai_title: str | None, category: str, fname: str) -> str:
+    """Retorna titulo da IA se útil; senão gera um baseado na categoria."""
+    if ai_title:
+        return ai_title[:255]
+    stem = Path(fname).stem.lower().replace("-", "_").replace(" ", "_")
+    # Stem genérico (ex: "image_65", "img_20240101") → usa título da categoria
+    base = stem.split("_")[0] if "_" in stem else stem
+    if base in _GENERIC_STEMS or stem.startswith(("img_", "dsc", "pic_", "photo_", "foto_")):
+        return _CATEGORY_DEFAULT_TITLES.get(category, "Documento veterinário")
+    # Stem descritivo → usa como está, capitalizado
+    return Path(fname).stem[:255]
+
+
 def _category_from_filename(name: str) -> str:
     """Classifica categoria pelo nome/extensão do arquivo."""
     low = name.lower().replace("-", "_").replace(" ", "_")
@@ -564,74 +593,86 @@ def _classify_local(content: bytes, mime: str, filename: str) -> tuple[str, date
 # ── Gemini AI classification ──────────────────────────────────────────────────
 
 _GEMINI_PROMPT = """\
-Você é um sistema especializado em identificar documentos veterinários e pet médicos.
-Use TODOS os sinais disponíveis: texto extraído (OCR), layout visual, selos, carimbos, adesivos, logotipos, tabelas, cabeçalho e rodapé.
+Você é um especialista em documentação veterinária brasileira. Sua tarefa é classificar e extrair metadados de documentos médicos de animais de companhia.
 
-Retorne JSON válido com 4 chaves:
-{"categoria": "...", "data": "YYYY-MM-DD ou null", "estabelecimento": "nome ou null", "titulo": "descrição curta ou null"}
+Use TODOS os sinais: texto (legível ou não), padrões visuais, layout, cores, selos, carimbos, logotipos, tabelas.
+Para imagens onde o texto é ilegível (foto tirada com celular, baixa resolução), baseie-se no PADRÃO VISUAL.
 
-═══ CATEGORIA ═══
-Escolha UMA das 7 opções abaixo:
+Retorne SOMENTE JSON válido com 5 chaves:
+{"categoria": "...", "data": "YYYY-MM-DD ou null", "estabelecimento": "nome ou null", "titulo": "...", "confianca": "alta|media|baixa"}
 
-"exam"
-→ Documentos com tabela de resultados laboratoriais ou imagens diagnósticas.
-→ Inclui: hemograma, bioquímica sérica, urinálise, coproparasitológico, antibiograma, cultivo, citologia de FNAB/material coletado, ultrassonografia, laudo ultrassonográfico, radiografia, laudo radiológico, ecocardiograma, laudo ecocardiográfico, tomografia, ressonância, endoscopia, eletrocardiograma, pressão arterial.
-→ Sinal visual: colunas "Resultado" e "Valor de Referência", imagem de ultrassom/raio-X/eco.
+═══════════════════════════════════════════
+ÁRVORЕ DE DECISÃO — siga nesta ordem:
+═══════════════════════════════════════════
 
-"vaccine"
-→ Registro de vacinação ou carteirinha de vacinas.
-→ Inclui: carteirinha/caderneta de vacinação, adesivos/selos de vacina colados (com lote, laboratório, validade, data de aplicação), comprovante de vacinação antirrábica, V8, V10, V4, polivalente, tricat, leucofelina, giardia, calendário vacinal preenchido, QR code de vacina antirrábica.
-→ Sinal visual: adesivos coloridos com nome da vacina, campo "Próxima dose:", tabela com histórico de doses.
+1. É uma IMAGEM DE EXAME DIAGNÓSTICO POR IMAGEM?
+   → Reconhecimento VISUAL (mesmo sem texto legível):
+   • Ultrassom/eco: imagem em escala de cinza com padrão de ondas/ecos, fan-shaped ou retangular, fundo preto, overlay de texto do equipamento
+   • Raio-X: alto contraste preto/branco, estruturas ósseas ou torácicas visíveis
+   • Ecocardiograma: câmaras cardíacas em escala de cinza, possivelmente com Doppler colorido
+   • Tomografia/RM: cortes transversais com estruturas internas em cinza
+   → Se reconhecer qualquer um desses padrões = "exam", mesmo sem OCR
+   → titulo: descreva a região corporal se visível: "Ultrassonografia abdominal", "Radiografia torácica", "Ecocardiograma", etc.
 
-"prescription"
-→ Receita médica veterinária com lista de medicamentos e posologia.
-→ Inclui: receituário veterinário, prescrição médica, lista de medicamentos (nome, dose em mg/kg ou UI, frequência, duração), assinatura com CRMV do prescritor.
-→ Sinal visual: cabeçalho "Receita Veterinária / Receituário", lista numerada de medicamentos com dosagem.
+2. É uma RECEITA MÉDICA VETERINÁRIA?
+   → TODOS os critérios abaixo devem estar presentes:
+   (a) lista de medicamentos com nome comercial/genérico
+   (b) posologia: dose (mg, ml, comprimidos) + frequência + duração
+   (c) assinatura do veterinário + número do CRMV
+   → Se medicamentos aparecem apenas em contexto de relatório de internação, alta ou anamnese → NÃO é receita → use "report"
+   → titulo: inclua o medicamento principal: "Receita – Amoxicilina 500mg", "Receita – Prednisona + Metronidazol"
 
-"report"
-→ Documento clínico narrativo ou certificado veterinário.
-→ Inclui: laudo clínico descritivo, histopatológico, anátomo-patológico, evolução clínica, prontuário, atestado de saúde, atestado de higidez, atestado para viagem, declaração veterinária, certificado veterinário.
-→ NÃO use para exames com tabela de resultados (mesmo que tenham "laudo" no título) → use "exam".
-→ Sinal visual: texto corrido descritivo com termos como "conclusão:", "diagnóstico:", "macroscopia:", "impressão diagnóstica:".
+3. É um EXAME LABORATORIAL?
+   → Presença de tabela com: parâmetro | resultado | valor de referência
+   → Ou resultado textual de cultura, antibiograma, parasitologia, citologia
+   → titulo: "Hemograma completo", "Bioquímica sérica", "Urinálise", "Coproparasitológico", etc.
 
-"comprovante"
-→ Documento financeiro, administrativo ou de confirmação de serviço.
-→ Inclui: nota fiscal de serviços (NF-e, NFS-e, DANFE), recibo de pagamento, fatura de consulta ou internação, orçamento de procedimento, boletim de alta hospitalar, guia de encaminhamento, comprovante de agendamento.
-→ Sinal visual: CNPJ do estabelecimento em destaque, campos "Valor Total:", "Desconto:", "Forma de Pagamento:", logotipo de estabelecimento + valores monetários.
+4. É uma CARTEIRINHA / REGISTRO DE VACINA?
+   → Adesivos/selos de vacinas com lote + fabricante + data de aplicação, ou calendário vacinal preenchido
+   → titulo: "Carteirinha de vacinação", "Vacina V10 – 3ª dose", "Comprovante antirrábica"
 
-"photo"
-→ Fotografia clínica sem texto diagnóstico relevante.
-→ Inclui: foto de lesão, ferida ou região do corpo do animal, imagem cirúrgica, antes/depois de tratamento, foto de acompanhamento dermatológico.
-→ Sinal visual: imagem predominantemente visual, pouco ou nenhum texto clínico estruturado.
+5. É um LAUDO / RELATÓRIO CLÍNICO NARRATIVO?
+   → Texto corrido descritivo escrito por veterinário: anamnese, achados, diagnóstico, prognóstico, conclusão
+   → Inclui: laudo histopatológico, atestado de saúde, prontuário, boletim de alta, relatório de internação
+   → NÃO use se o documento tiver tabela de resultados com valores de referência → use "exam"
+   → titulo: "Laudo histopatológico", "Atestado de saúde", "Relatório de alta hospitalar", etc.
 
-"other"
-→ Qualquer documento que não se enquadre nas categorias acima (folheto, brochura, documento genérico não veterinário).
+6. É um COMPROVANTE / DOCUMENTO FINANCEIRO?
+   → Nota fiscal (NF-e, NFS-e, DANFE, CNPJ em destaque), recibo, orçamento, fatura com valores monetários
+   → titulo: "Nota fiscal serviços veterinários", "Recibo de consulta", "Orçamento cirurgia"
 
-Regras de desempate:
-• Carteirinha/caderneta com selos de vacinas aplicados → "vaccine" (não "comprovante")
-• Laudo cujo título é "ultrassonografia", "radiografia" ou "ecocardiograma" → "exam"
-• Atestado, declaração ou certificado narrativo → "report"
-• Nota fiscal (CNPJ, DANFE, valores monetários, tributos) → "comprovante"
-• Fotografia de animal sem texto clínico → "photo"
+7. É uma FOTO CLÍNICA DO ANIMAL?
+   → Imagem predominantemente fotográfica do animal, lesão, ferida, acompanhamento
+   → SEM sobreposição de texto diagnóstico estruturado
+   → titulo: "Foto clínica", "Registro de lesão cutânea", "Acompanhamento pós-cirúrgico"
+
+8. Nenhum dos anteriores → "other"
+   → titulo: descreva o que vê, ex: "Documento não identificado", "Formulário administrativo"
 
 ═══ DATA ═══
-Procure a data de REALIZAÇÃO ou EMISSÃO (não validade, vencimento, retorno ou próxima dose).
-Priorize rótulos: "Data:", "Realizado em:", "Emitido em:", "Data do exame:", "Data de atendimento:", "Emissão:", "Data da consulta:".
-Formatos: dd/mm/aaaa, dd-mm-aaaa, dd.mm.aaaa, dd/mm/aa → retorne YYYY-MM-DD.
-Se não encontrar, retorne null.
+Procure a data de REALIZAÇÃO ou EMISSÃO (não validade, vencimento ou próxima dose).
+Rótulos comuns: "Data:", "Realizado em:", "Emitido em:", "Data do exame:", "Data de atendimento:", "Emissão:".
+Formatos: dd/mm/aaaa, dd-mm-aaaa, dd.mm.aaaa, dd/mm/aa → retorne YYYY-MM-DD. Sem data: null.
 
 ═══ ESTABELECIMENTO ═══
-Procure o nome da clínica, hospital veterinário, laboratório, petshop ou centro médico onde foi realizado.
-Locais mais comuns: cabeçalho da página (topo, geralmente em negrito ou letras maiores), ao lado do CNPJ, ao lado do CRMV, logotipo, rodapé.
-Padrões típicos: "Clínica Veterinária X", "Hospital Veterinário X", "Lab. X", "Pet Center X", "Centro Veterinário X", "HVET X".
-Ignore nomes de tutores, proprietários ou pacientes. Se não encontrar, retorne null.
+Nome da clínica, hospital veterinário, laboratório ou petshop. Geralmente no cabeçalho ou ao lado do CNPJ/CRMV.
+Ignore nomes de tutores e pacientes. Sem identificação clara: null.
 
-═══ TITULO ═══
-Descreva o documento em poucas palavras (máx 60 caracteres).
-Exemplos: "Hemograma completo", "Receita – Amoxicilina 250mg", "Vacina V10 – 2ª dose", "NF-e serviços veterinários", "Ultrassonografia abdominal", "Atestado de saúde para viagem", "Laudo histopatológico".
-Se não for possível identificar claramente, retorne null.
+═══ TITULO (OBRIGATÓRIO) ═══
+SEMPRE retorne um titulo — nunca null.
+• Máximo 60 caracteres.
+• Seja específico: inclua tipo de exame, medicamento principal, nome da vacina, região corporal.
+• Se o texto for ilegível mas o padrão visual for reconhecível: "Ultrassonografia (imagem)", "Radiografia (imagem)", etc.
+• Se absolutamente nada for identificável: "Documento veterinário".
+Bons exemplos: "Hemograma completo", "Receita – Doxiciclina 100mg", "Vacina V10 – 2ª dose",
+"Ultrassonografia abdominal", "Laudo histopatológico", "Nota fiscal – consulta", "Radiografia torácica".
 
-Responda SOMENTE o JSON.\
+═══ CONFIANÇA ═══
+"alta": padrão visual ou texto inequívoco
+"media": classificação razoável mas com alguma ambiguidade
+"baixa": pouco texto legível, imagem de baixa qualidade ou documento atípico
+
+Responda SOMENTE o JSON, sem markdown.\
 """
 
 _GEMINI_SUPPORTED_MIMES = {
@@ -686,11 +727,17 @@ def _gemini_classify_sync(
         if not est or str(est).lower() in ("null", "none", ""):
             est = None
 
+        titulo: str | None = data.get("titulo")
+        if not titulo or str(titulo).lower() in ("null", "none", ""):
+            titulo = None
+
+        confianca = str(data.get("confianca", "media")).lower()
+
         logger.info(
-            "[gemini-classify] file=%s → cat=%s date=%s est=%s",
-            filename, categoria, doc_date, est,
+            "[gemini-classify] file=%s → cat=%s date=%s est=%s titulo=%s confianca=%s",
+            filename, categoria, doc_date, est, titulo, confianca,
         )
-        return categoria, doc_date, est, data.get('titulo')
+        return categoria, doc_date, est, titulo
 
     except Exception as exc:
         logger.warning("[gemini-classify] failed for %s: %s", filename, exc)
@@ -853,7 +900,7 @@ async def _extract_zip(
                 doc = PetDocument(
                     pet_id=pet_id,
                     kind="file",
-                    title=item.get("title") or Path(item["fname"]).stem[:255],
+                    title=_smart_title(item.get("title"), item["cat"], item["fname"]),
                     source="upload",
                     storage_key=storage_key,
                     mime_type=item["mime"],
@@ -1359,7 +1406,7 @@ async def upload_documents(
     # ── 3ª passagem: persistir ────────────────────────────────────────────
     for item in batch_items:
         storage_key = _save_bytes_to_disk(item["content"], item["fname"])
-        final_title     = _form_title or item.get("title") or Path(item["fname"]).stem[:255]
+        final_title     = _form_title or _smart_title(item.get("title"), item.get("category") or "other", item["fname"])
         final_category  = _form_category or item.get("category")
         final_date      = _form_date or item.get("doc_date")
         final_establish = _form_establish or item.get("establishment")
