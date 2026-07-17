@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { AuthenticatedDocumentImage } from '@/components/AuthenticatedDocumentImage';
 import { PetDocumentVault } from '@/components/PetDocumentVault';
 import { API_BASE_URL } from '@/lib/api';
@@ -156,6 +156,18 @@ export function MedicalVaultModal({
   const [exporting, setExporting] = useState(false);
   const [localPending, setLocalPending] = useState<File[] | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!currentPet?.pet_id) return;
+    const token = localStorage.getItem('petmol_token');
+    if (!token) return;
+    fetch(`${API_BASE_URL}/pets/${currentPet.pet_id}/documents`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => { if (Array.isArray(data)) setVetHistoryDocs(data); })
+      .catch(() => {});
+  }, [currentPet?.pet_id, setVetHistoryDocs]);
 
   if (!currentPet) return null;
 
