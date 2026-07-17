@@ -241,15 +241,38 @@ export function MedicalVaultModal({
     try {
       const token = localStorage.getItem('petmol_token');
       if (!token) { showAppToast('Sessão expirada. Faça login novamente.', { tone: 'warning' }); return; }
-      const res = await fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip/token`, {
-        method: 'POST',
+
+      // Baixa o arquivo ZIP
+      const res = await fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('backend_error');
-      const { token: dlToken } = await res.json();
+      const blob = await res.blob();
+      const safe = currentPet!.pet_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const filename = `documentos-${safe}.zip`;
+      const file = new File([blob], filename, { type: 'application/zip' });
+
+      // Tenta compartilhar o arquivo diretamente (iOS 15+, Android Chrome)
+      // Não usa canShare() pois é conservador demais com ZIP
+      if (typeof navigator.share === 'function') {
+        try {
+          await navigator.share({ files: [file], title: `Documentos de ${currentPet!.pet_name}` });
+          return;
+        } catch (shareErr) {
+          if ((shareErr as Error).name === 'AbortError') return; // usuário cancelou
+          // Share não suportou o arquivo — gera link de fallback
+        }
+      }
+
+      // Fallback: gera token de download e mostra card com opções
+      const tokenRes = await fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip/token`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!tokenRes.ok) throw new Error('backend_error');
+      const { token: dlToken } = await tokenRes.json();
       const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      const url = `${origin}${API_BASE_URL}/pets/download/zip/${dlToken}`;
-      setZipReadyUrl(url);
+      setZipReadyUrl(`${origin}${API_BASE_URL}/pets/download/zip/${dlToken}`);
     } catch {
       showAppToast('Não foi possível gerar o ZIP. Tente novamente.', { tone: 'warning' });
     } finally {
