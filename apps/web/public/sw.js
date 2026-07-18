@@ -17,7 +17,7 @@
  * }
  */
 
-const CACHE_NAME = 'petmol-shell-v2026-07-18a';
+const CACHE_NAME = 'petmol-shell-v2026-07-18b';
 const SHARE_CACHE = 'petmol-shared-files-v1';
 const SHELL_URLS = [
   '/',
@@ -127,6 +127,14 @@ self.addEventListener('notificationclick', (event) => {
       ? actionUrls[action]
       : null;
   const rawUrl = actionUrl || event.notification.data?.url || '/home';
+
+  // URLs externas (wa.me, tel:, etc.) abrem diretamente sem normalizar nem persistir deeplink.
+  const isExternal = /^https?:\/\//.test(rawUrl) && !rawUrl.startsWith(self.location.origin);
+  if (isExternal) {
+    event.waitUntil(clients.openWindow ? clients.openWindow(rawUrl) : Promise.resolve());
+    return;
+  }
+
   const targetUrl = normalizeNotificationClickUrl(rawUrl);
 
   // Persiste o intent no Cache API para o app ler ao montar.
