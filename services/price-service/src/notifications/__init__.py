@@ -135,40 +135,42 @@ def _build_deep_link(reminder_type: str, pet_id: Optional[str]) -> str:
 
 
 _TYPE_CONFIG: dict = {
-    "medication": {
-        "action_label": "✅ Registrar dose",
-        "action_id": "register",
-        "fallback_body": "Toque para registrar a dose no PETMOL.",
-    },
-    "vaccine": {
-        "action_label": "📋 Ver vacina",
-        "action_id": "view",
-        "fallback_body": "Agende o reforço vacinal com seu veterinário.",
-    },
+    # ── Produtos: lembrete para COMPRAR ──
     "food": {
         "action_label": "🛒 Comprar ração",
         "action_id": "buy",
-        "fallback_body": "O estoque de ração está acabando. Hora de reabastecer!",
+        "fallback_body": "Hora de comprar ração. O estoque está acabando!",
     },
     "dewormer": {
-        "action_label": "✅ Registrar vermifugação",
-        "action_id": "register",
-        "fallback_body": "Está na hora da vermifugação. Toque para registrar.",
+        "action_label": "🛒 Comprar vermífugo",
+        "action_id": "buy",
+        "fallback_body": "Hora de comprar o vermífugo para o seu pet.",
     },
     "flea": {
-        "action_label": "✅ Registrar antipulgas",
-        "action_id": "register",
-        "fallback_body": "Está na hora de aplicar o antipulgas. Toque para registrar.",
+        "action_label": "🛒 Comprar antipulgas",
+        "action_id": "buy",
+        "fallback_body": "Hora de comprar o antipulgas para o seu pet.",
     },
     "collar": {
-        "action_label": "✅ Registrar coleira",
+        "action_label": "🛒 Comprar coleira",
+        "action_id": "buy",
+        "fallback_body": "Hora de comprar a coleira antipulgas para o seu pet.",
+    },
+    # ── Serviços/ações: lembrete para FAZER ──
+    "medication": {
+        "action_label": "✅ Registrar dose",
         "action_id": "register",
-        "fallback_body": "Está na hora de trocar a coleira antipulgas. Toque para registrar.",
+        "fallback_body": "Hora de dar o medicamento para o seu pet. Toque para registrar a dose.",
+    },
+    "vaccine": {
+        "action_label": "📅 Agendar consulta",
+        "action_id": "view",
+        "fallback_body": "Hora de levar ao veterinário para a vacina. Agende a consulta!",
     },
     "grooming": {
-        "action_label": "📅 Ver agendamento",
+        "action_label": "📅 Agendar serviço",
         "action_id": "view",
-        "fallback_body": "Está quase na hora do serviço de higiene. Agende já!",
+        "fallback_body": "Hora de agendar o banho e/ou tosa no pet shop.",
     },
 }
 

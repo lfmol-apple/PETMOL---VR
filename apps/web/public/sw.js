@@ -91,8 +91,7 @@ function normalizePushPayload(payload) {
       .filter(Boolean)
     : [];
 
-  const titleBase = rawTitle || 'PETMOL';
-  const title = titleBase.startsWith('🐾') ? titleBase : `🐾 ${titleBase}`;
+  const title = rawTitle || 'PETMOL';
 
   let autoCloseMs = Number(source.autoCloseMs || 0);
   if (!Number.isFinite(autoCloseMs) || autoCloseMs < 0) autoCloseMs = 0;

@@ -500,7 +500,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
         dispatchFoodPlanUpdated();
         if (refreshed?.recommendedAlertDate) {
           const t = getToken();
-          if (t) void scheduleFoodReminder({ pet_id: pet.pet_id, type: 'food', title: '🥣 Hora de comprar ração', body: `Estoque de ${refreshed.brand || 'ração'} previsto para acabar`, remind_at: buildRemindAt(refreshed.recommendedAlertDate, refreshed.reminderTime ?? '09:00') }, t);
+          if (t) void scheduleFoodReminder({ pet_id: pet.pet_id, type: 'food', title: `🛒 Comprar ração de ${pet.pet_name}`, body: `O estoque de ${refreshed.brand || 'ração'} de ${pet.pet_name} está acabando. Hora de comprar!`, remind_at: buildRemindAt(refreshed.recommendedAlertDate, refreshed.reminderTime ?? '09:00') }, t);
         }
         showSuccessAndReturnToMain('Compra registrada');
       }
@@ -543,7 +543,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
         dispatchFoodPlanUpdated();
         if (refreshed?.recommendedAlertDate) {
           const t = getToken();
-          if (t) void scheduleFoodReminder({ pet_id: pet.pet_id, type: 'food', title: '🥣 Hora de comprar ração', body: `Estoque de ${refreshed.brand || 'ração'} previsto para acabar`, remind_at: buildRemindAt(refreshed.recommendedAlertDate, refreshed.reminderTime ?? '09:00') }, t);
+          if (t) void scheduleFoodReminder({ pet_id: pet.pet_id, type: 'food', title: `🛒 Comprar ração de ${pet.pet_name}`, body: `O estoque de ${refreshed.brand || 'ração'} de ${pet.pet_name} está acabando. Hora de comprar!`, remind_at: buildRemindAt(refreshed.recommendedAlertDate, refreshed.reminderTime ?? '09:00') }, t);
         }
         showSuccessAndReturnToMain('Previsão ajustada');
       }

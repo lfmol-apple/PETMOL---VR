@@ -200,7 +200,7 @@ export function GroomingItemSheet({
                 pet_id: petId,
                 type: 'grooming',
                 title: `${icon} ${label}: ${petName || 'seu pet'}`,
-                body: `Está quase na hora do ${label.toLowerCase()} de ${petName || 'seu pet'}. Agende o serviço!`,
+                body: `Hora de agendar o ${label.toLowerCase()} de ${petName || 'seu pet'} no pet shop!`,
                 remind_at: remindAt,
               }, t);
             }
@@ -306,7 +306,7 @@ export function GroomingItemSheet({
                 pet_id: petId,
                 type: 'grooming',
                 title: `${icon} ${label}: ${petName || 'seu pet'}`,
-                body: `Está quase na hora do ${label.toLowerCase()} de ${petName || 'seu pet'}. Agende o serviço!`,
+                body: `Hora de agendar o ${label.toLowerCase()} de ${petName || 'seu pet'} no pet shop!`,
                 remind_at: remindAt2,
               }, t);
             }
