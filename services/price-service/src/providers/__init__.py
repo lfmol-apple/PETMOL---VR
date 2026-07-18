@@ -21,6 +21,9 @@ from .places import (
     PlaceDetails,
 )
 
+# MercadoLivre provider (ativado via ENABLE_ML_PROVIDER=true)
+from .mercadolivre import mercadolivre_provider, MercadoLivreProvider
+
 __all__ = [
     # Base
     "CatalogProvider",
@@ -30,9 +33,13 @@ __all__ = [
     "ProviderError",
     "get_global_errors",
     "clear_global_errors",
-    
+
     # Places
     "google_places_provider",
     "PlacePrediction",
     "PlaceDetails",
+
+    # MercadoLivre
+    "mercadolivre_provider",
+    "MercadoLivreProvider",
 ]
