@@ -123,7 +123,7 @@ export function PriceCompareList({ query, petId, label }: PriceCompareListProps)
                 control_type: null,
                 product_name: null,
               });
-              void openHomeShoppingPartner(partner.id);
+              void openHomeShoppingPartner(partner.id, query);
             }}
             className="w-full flex items-center gap-4 p-4 border border-gray-200 rounded-2xl bg-white hover:bg-gray-50 active:scale-[0.98] transition-all text-left"
           >
