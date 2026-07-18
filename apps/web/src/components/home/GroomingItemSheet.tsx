@@ -76,6 +76,15 @@ function WhatsAppIcon({ className }: { className?: string }) {
   );
 }
 
+function resolveRemindAt(nextDateStr: string, daysBefore: number, time: string): string | null {
+  const now = new Date();
+  for (const d of [daysBefore, 3, 1, 0]) {
+    const candidate = buildRemindAt(d > 0 ? subtractDays(nextDateStr, d) : nextDateStr, time);
+    if (new Date(candidate) > now) return candidate;
+  }
+  return null;
+}
+
 function computeStatus(nextDate?: string | null) {
   const diff = diffDays(nextDate);
   if (diff === null) return { label: 'Sem agendamento', bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400' };
@@ -225,8 +234,8 @@ export function GroomingItemSheet({
           const freq = parseInt(addForm.frequency_days, 10) || FREQ_DEFAULTS[addForm.type];
           const nextDate = addDays(addForm.date, freq);
           const daysBefore = parseInt(addForm.reminder_days, 10) || 3;
-          const remindAt = buildRemindAt(subtractDays(nextDate, daysBefore), addForm.reminder_time || '09:00');
-          if (new Date(remindAt) > new Date()) {
+          const remindAt = resolveRemindAt(nextDate, daysBefore, addForm.reminder_time || '09:00');
+          if (remindAt) {
             const t = getToken();
             if (t) {
               const { icon, label } = groomingLabel(addForm.type);
@@ -337,8 +346,8 @@ export function GroomingItemSheet({
           const editFreq2 = parseInt(editForm.frequency_days, 10) || FREQ_DEFAULTS[editForm.type];
           const nextDate2 = addDays(editForm.date, editFreq2);
           const daysBefore2 = parseInt(editForm.reminder_days, 10) || 3;
-          const remindAt2 = buildRemindAt(subtractDays(nextDate2, daysBefore2), editForm.reminder_time || '09:00');
-          if (new Date(remindAt2) > new Date()) {
+          const remindAt2 = resolveRemindAt(nextDate2, daysBefore2, editForm.reminder_time || '09:00');
+          if (remindAt2) {
             const t = getToken();
             if (t) {
               const { icon, label } = groomingLabel(editForm.type);
