@@ -20,6 +20,7 @@ interface VetHistoryModalProps {
   setHistoricoTab: (tab: HistoryTab) => void;
   vaccines: VaccineRecord[];
   parasiteControls: ParasiteControl[];
+  groomingRecords: GroomingRecord[];
   petEvents: PetEventRecord[];
   vetHistoryDocs: VetHistoryDocument[];
   onClose: () => void;
@@ -38,6 +39,7 @@ export function VetHistoryModal({
   setHistoricoTab,
   vaccines,
   parasiteControls,
+  groomingRecords,
   petEvents,
   vetHistoryDocs,
   onClose,
@@ -98,7 +100,7 @@ export function VetHistoryModal({
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden pb-20">
           {historicoTab === 'resumo' && (() => {
-            const grAll = (currentPet?.health_data?.grooming_records || []).map((g: GroomingRecord) => ({ date: g.date, label: g.type === 'bath' ? t('grooming.bath') : g.type === 'grooming' ? t('grooming.grooming') : t('grooming.bath_plus_grooming'), icon: '🛁' }));
+            const grAll = groomingRecords.map((g: GroomingRecord) => ({ date: g.date, label: g.type === 'bath' ? t('grooming.bath') : g.type === 'grooming' ? t('grooming.grooming') : t('grooming.bath_plus_grooming'), icon: '🛁' }));
             const vcAll = vaccines.filter((v) => v.date_administered).map((v) => ({ date: v.date_administered, label: v.vaccine_name || t('common.vaccine'), icon: '💉' }));
             const paAll = parasiteControls.map((p: ParasiteControl) => ({ date: p.date_applied, label: p.type === 'dewormer' ? t('event.type.dewormer') : p.type === 'flea_tick' ? t('event.type.flea_tick') : t('event.type.parasite_control'), icon: '🦟' }));
             const dcAll = vetHistoryDocs.filter((d) => d.document_date || d.created_at).map((d) => ({ date: d.document_date || d.created_at?.split('T')[0], label: d.title || 'Documento', icon: '📄', evId: d.event_id || null }));
@@ -187,7 +189,7 @@ export function VetHistoryModal({
           {historicoTab === 'detalhado' && (
             <div className="p-3 sm:p-6">
               {(() => {
-                const groomingEvents = (currentPet?.health_data?.grooming_records || []).map((g: GroomingRecord) => ({
+                const groomingEvents = groomingRecords.map((g: GroomingRecord) => ({
                   type: 'grooming' as const,
                   icon: '🛁',
                   color: 'teal',

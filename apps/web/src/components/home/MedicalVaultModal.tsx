@@ -31,6 +31,7 @@ interface MedicalVaultModalProps {
   setVetHistoryDocs: Dispatch<SetStateAction<VetHistoryDocument[]>>;
   vaccines?: VaccineRecord[];
   parasiteControls?: ParasiteControl[];
+  groomingRecords?: GroomingRecord[];
   petEvents?: PetEventRecord[];
   vetHistoryDocs?: VetHistoryDocument[];
   pendingFiles?: File[];
@@ -148,6 +149,7 @@ export function MedicalVaultModal({
   setVetHistoryDocs,
   vaccines = [],
   parasiteControls,
+  groomingRecords,
   petEvents = [],
   vetHistoryDocs = [],
   pendingFiles,
@@ -175,7 +177,7 @@ export function MedicalVaultModal({
   if (!currentPet) return null;
 
   const parasites  = parasiteControls ?? currentPet.health_data?.parasite_controls ?? [];
-  const grooming   = currentPet.health_data?.grooming_records   ?? [];
+  const grooming   = groomingRecords  ?? currentPet.health_data?.grooming_records  ?? [];
   const allEvents  = buildAllEvents(vaccines, parasites, grooming, petEvents);
 
   // Group by year for expanded view
