@@ -131,11 +131,7 @@ export function MedicationItemSheet({
   const [justSaved, setJustSaved] = useState(false);
   const [medHistoryExpanded, setMedHistoryExpanded] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
-  const [expandedTreatmentId, setExpandedTreatmentId] = useState<string | null>(null);
-  const [actionDate, setActionDate] = useState(localTodayISO());
-  const [actionNotes, setActionNotes] = useState('');
-  const [confirmingDoseId, setConfirmingDoseId] = useState<string | null>(null);
-  const [confirmingEarlier, setConfirmingEarlier] = useState(false);
+  const [selectedDatesMap, setSelectedDatesMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     void onRefresh();
@@ -576,83 +572,6 @@ export function MedicationItemSheet({
                 </div>
               )}
 
-              {/* Primary CTA */}
-              {nextActive ? (
-                <div className="rounded-3xl border border-purple-100 bg-purple-50/70 p-4 space-y-3">
-                  <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-purple-700">Cuidado de hoje</p>
-                    <p className="mt-1 text-lg font-black text-gray-900 break-words">{nextActive.title}</p>
-                    <p className="mt-0.5 text-sm text-purple-800/70">Registre a dose para manter o tratamento em dia.</p>
-                  </div>
-                  {confirmingDoseId === nextActive.id ? (
-                    <div className="space-y-2">
-                      <p className="text-[13px] font-semibold text-purple-900 text-center">
-                        Você deu a dose de <span className="font-black">{nextActive.title}</span>?
-                      </p>
-                      {confirmingEarlier && (
-                        <input
-                          type="date"
-                          className="w-full border border-purple-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
-                          value={actionDate}
-                          max={localTodayISO()}
-                          onChange={e => setActionDate(e.target.value)}
-                        />
-                      )}
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          disabled={saving}
-                          onClick={() => { handleApplyDose(nextActive.id, 'apply', confirmingEarlier ? actionDate : localTodayISO()); setConfirmingDoseId(null); setConfirmingEarlier(false); }}
-                          className="py-3 rounded-xl bg-purple-600 text-white text-[13px] font-bold disabled:opacity-50"
-                        >
-                          {confirmingEarlier ? 'Registrar' : 'Sim, agora'}
-                        </button>
-                        {!confirmingEarlier ? (
-                          <button
-                            type="button"
-                            onClick={() => { setConfirmingEarlier(true); setActionDate(localTodayISO()); }}
-                            className="py-3 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 text-[13px] font-semibold"
-                          >
-                            Foi mais cedo
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setConfirmingEarlier(false)}
-                            className="py-3 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 text-[13px] font-semibold"
-                          >
-                            Voltar
-                          </button>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => { setConfirmingDoseId(null); setConfirmingEarlier(false); }}
-                        className="w-full text-center text-[12px] text-gray-400 py-1"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={saving && applyingId === nextActive.id}
-                      onClick={() => setConfirmingDoseId(nextActive.id)}
-                      className="w-full py-4 rounded-2xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-[15px] font-bold shadow-md shadow-purple-500/20 disabled:opacity-50 transition-colors"
-                    >
-                      {saving && applyingId === nextActive.id ? 'Registrando...' : 'Registrar dose'}
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <button
-                  onClick={openAdd}
-                  className="w-full py-4 rounded-2xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-[15px] font-bold shadow-md shadow-purple-500/20 transition-colors"
-                >
-                  Registrar medicação
-                </button>
-              )}
-
               {/* Empty state */}
               {medications.length === 0 && (
                 <div className="rounded-2xl border border-gray-100 bg-gray-50 p-8 text-center">
@@ -662,15 +581,14 @@ export function MedicationItemSheet({
                 </div>
               )}
 
-              {/* Daily application section */}
+              {/* Active treatments — date grid */}
               {active.length > 0 && (
-                <div className="rounded-2xl border border-purple-200 bg-purple-50/70 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-purple-100">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-purple-700">
-                      Tratamentos em andamento · {active.length}
-                    </p>
-                  </div>
+                <div className="space-y-3">
                   {active.map(ev => {
+                    const todayStr = localTodayISO();
+                    const startDateStr = (ev.scheduled_at || todayStr).split('T')[0];
+                    const startDate = createLocalDate(startDateStr);
+
                     let totalDays = 0;
                     let appliedDates: string[] = [];
                     let skippedDates: string[] = [];
@@ -680,179 +598,152 @@ export function MedicationItemSheet({
                       appliedDates = Array.isArray(ex.applied_dates) ? ex.applied_dates as string[] : [];
                       skippedDates = Array.isArray(ex.skipped_dates) ? ex.skipped_dates as string[] : [];
                     } catch {}
-                    const todayStr = localTodayISO();
-                    const pct = totalDays > 0 ? Math.min(100, Math.round(appliedDates.length / totalDays * 100)) : 0;
-                    const isOpen = expandedTreatmentId === ev.id;
-                    const isBusy = saving && applyingId === ev.id;
-                    const startDate = createLocalDate((ev.scheduled_at || todayStr).split('T')[0]);
-                    const nowDay = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();
-                    const daysSinceStart = Math.max(0, Math.floor((nowDay.getTime() - startDate.getTime()) / 86400000));
-                    const recentDays: string[] = [];
-                    for (let i = daysSinceStart; i >= 0; i--) {
-                      const d = new Date(nowDay);
-                      d.setDate(d.getDate() - i);
-                      recentDays.push(dateToLocalISO(d));
+
+                    if (!totalDays) return null;
+
+                    const allDayDates: string[] = [];
+                    for (let i = 0; i < totalDays; i++) {
+                      const d = new Date(startDate);
+                      d.setDate(d.getDate() + i);
+                      allDayDates.push(dateToLocalISO(d));
                     }
-                    const selectedDate = isOpen ? actionDate : todayStr;
+
+                    const pct = Math.min(100, Math.round(appliedDates.length / totalDays * 100));
+                    const daysLeft = totalDays - appliedDates.length;
+                    const selectedDate = selectedDatesMap[ev.id] ?? todayStr;
                     const alreadyDone = appliedDates.includes(selectedDate);
                     const alreadySkipped = skippedDates.includes(selectedDate);
+                    const isBusy = saving && applyingId === ev.id;
+                    const selectedDayLabel = selectedDate.slice(8) + '/' + selectedDate.slice(5, 7);
 
                     return (
-                      <div key={ev.id} className="border-b border-purple-100 last:border-b-0">
-                        {/* Clickable header */}
-                        <button
-                          onClick={() => {
-                            setExpandedTreatmentId(isOpen ? null : ev.id);
-                            setActionDate(todayStr);
-                            setActionNotes('');
-                          }}
-                          className="w-full flex items-center gap-2 px-4 py-3 text-left active:scale-[0.99] transition-all"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-purple-900 truncate">{ev.title}</p>
-                          </div>
-                          {totalDays > 0 && (
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
-                              appliedDates.includes(todayStr) ? 'bg-green-100 text-green-700' : 'bg-purple-200 text-purple-700'
-                            }`}>
-                              Dia {appliedDates.length} de {totalDays}
-                            </span>
-                          )}
-                          <span className="text-gray-300 text-xs ml-1">{isOpen ? '▲' : '▼'}</span>
-                        </button>
-
-                        {/* Progress bar */}
-                        {totalDays > 0 && (
-                          <div className="mx-4 mb-2">
-                            <div className="h-1.5 bg-purple-200 rounded-full overflow-hidden">
-                              <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                      <div key={ev.id} className="rounded-2xl border border-purple-200 bg-white shadow-sm overflow-hidden">
+                        {/* Compact header */}
+                        <div className="px-4 pt-3 pb-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[13px] font-bold text-gray-900 leading-tight">{ev.title}</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">
+                                {appliedDates.length}/{totalDays} doses · {fmtDate(startDateStr)}
+                                {ev.professional_name ? ` · ${ev.professional_name}` : ''}
+                              </p>
                             </div>
-                            <p className="text-[10px] text-gray-400 mt-0.5">
-                              Dia {appliedDates.length} de {totalDays}
-                              {totalDays > appliedDates.length ? ` · Faltam ${totalDays - appliedDates.length} dias` : ' · Concluído'}
-                            </p>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                appliedDates.includes(todayStr) ? 'bg-green-100 text-green-700' : daysLeft <= 3 ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'
+                              }`}>
+                                {appliedDates.includes(todayStr) ? '✓ Hoje' : daysLeft === 0 ? 'Último' : `${daysLeft}d`}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => openEdit(ev)}
+                                className="w-7 h-7 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-xs hover:bg-gray-200 transition-colors"
+                                title="Editar"
+                              >✏️</button>
+                            </div>
                           </div>
-                        )}
+                          <div className="mt-2">
+                            <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-purple-400 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                            </div>
+                            <p className="text-[10px] text-gray-400 mt-0.5">{pct}% · {appliedDates.length} de {totalDays} doses</p>
+                          </div>
+                        </div>
 
-                        {/* CTA inline — visível sem precisar expandir */}
-                        {!isOpen && (
-                          <div className="mx-4 mb-3 flex gap-2">
-                            {appliedDates.includes(todayStr) ? (
-                              <>
-                                <div className="flex-1 rounded-xl border border-green-200 bg-green-50 py-2.5 text-sm font-semibold text-green-700 text-center">
-                                  ✓ Aplicada hoje
-                                </div>
+                        {/* Full date grid */}
+                        <div className="px-3 pb-3 border-t border-gray-50 pt-2">
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                            Toque um dia para registrar
+                          </p>
+                          <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                            {allDayDates.map((dateStr, idx) => {
+                              const isApplied = appliedDates.includes(dateStr);
+                              const isSkipped = skippedDates.includes(dateStr);
+                              const isToday = dateStr === todayStr;
+                              const isFuture = dateStr > todayStr;
+                              const isPast = dateStr < todayStr;
+                              const isMissed = isPast && !isApplied && !isSkipped;
+                              const isSelected = dateStr === selectedDate;
+
+                              let cls = '';
+                              if (isApplied) {
+                                cls = isSelected ? 'bg-green-500 text-white ring-2 ring-offset-1 ring-green-700' : 'bg-green-400 text-white';
+                              } else if (isSkipped) {
+                                cls = isSelected ? 'bg-amber-400 text-white ring-2 ring-offset-1 ring-amber-600' : 'bg-amber-300 text-white opacity-80';
+                              } else if (isToday) {
+                                cls = isSelected ? 'bg-purple-500 text-white ring-2 ring-offset-1 ring-purple-700 shadow-sm' : 'bg-purple-100 text-purple-700 border-2 border-purple-400';
+                              } else if (isMissed) {
+                                cls = isSelected ? 'bg-red-100 text-red-500 border border-red-300 ring-2 ring-offset-1 ring-red-400' : 'bg-red-50 text-red-400 border border-red-200';
+                              } else {
+                                cls = 'bg-gray-50 text-gray-300 border border-gray-100';
+                              }
+
+                              return (
                                 <button
+                                  key={dateStr}
                                   type="button"
-                                  onClick={() => openEdit(ev)}
-                                  className="rounded-xl border border-purple-200 bg-white px-3 py-2.5 text-xs font-semibold text-purple-700 transition-colors hover:bg-purple-50 active:scale-95"
-                                >✏️</button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  type="button"
-                                  disabled={isBusy}
-                                  onClick={() => handleApplyDose(ev.id, 'apply', todayStr)}
-                                  className="flex-1 rounded-xl border border-purple-200 bg-white py-2.5 text-sm font-semibold text-purple-700 active:scale-95 transition-all disabled:opacity-40"
+                                  disabled={isFuture}
+                                  onClick={() => setSelectedDatesMap(prev => ({ ...prev, [ev.id]: dateStr }))}
+                                  className={`aspect-square rounded-full text-[10px] font-bold transition-all active:scale-90 flex flex-col items-center justify-center ${cls} ${isFuture ? 'cursor-default' : 'cursor-pointer'}`}
                                 >
-                                  {isBusy ? '...' : 'Registrar dose'}
+                                  <span>{idx + 1}</span>
+                                  {isApplied && <span className="text-[7px] leading-none">✓</span>}
+                                  {isSkipped && <span className="text-[7px] leading-none">↷</span>}
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setExpandedTreatmentId(ev.id);
-                                    setActionDate(todayStr);
-                                    setActionNotes('');
-                                  }}
-                                  className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-50 active:scale-95"
-                                  title="Ver histórico"
-                                >⋯</button>
-                                <button
-                                  type="button"
-                                  onClick={() => openEdit(ev)}
-                                  className="rounded-xl border border-purple-200 bg-white px-3 py-2.5 text-xs font-semibold text-purple-700 transition-colors hover:bg-purple-50 active:scale-95"
-                                >✏️</button>
-                              </>
-                            )}
+                              );
+                            })}
                           </div>
-                        )}
+                        </div>
 
-                        {/* Expanded: day calendar */}
-                        {isOpen && (
-                          <div className="px-4 pb-4 pt-1 bg-white/70 border-t border-purple-100">
-                            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Últimos dias</p>
-                            <div className="flex gap-1 flex-wrap mb-3">
-                              {recentDays.map(d => {
-                                const done = appliedDates.includes(d);
-                                const skipped = skippedDates.includes(d);
-                                const isSel = d === selectedDate;
-                                const dayNum = parseInt(d.split('-')[2]);
-                                return (
-                                  <button
-                                    key={d}
-                                    onClick={() => { setActionDate(d); setActionNotes(''); }}
-                                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all active:scale-90 flex flex-col items-center justify-center ${
-                                      isSel
-                                        ? done ? 'bg-green-500 text-white' : skipped ? 'bg-amber-500 text-white' : 'bg-purple-500 text-white'
-                                        : done ? 'bg-green-100 text-green-700 border border-green-200'
-                                        : skipped ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                                        : 'bg-gray-100 text-gray-500 border border-gray-200'
-                                    }`}
-                                  >
-                                    <span>{dayNum}</span>
-                                    {(done || skipped) && <span className="text-[8px]">{done ? '✓' : '↷'}</span>}
-                                  </button>
-                                );
-                              })}
+                        {/* Action area for selected date */}
+                        <div className="mx-3 mb-3 rounded-xl overflow-hidden border border-gray-100">
+                          {alreadyDone ? (
+                            <>
+                              <div className="flex items-center gap-1.5 px-3 py-2.5 bg-green-50">
+                                <span className="text-green-500 text-sm">✓</span>
+                                <p className="text-sm text-green-700 font-semibold flex-1">Dose de {selectedDayLabel} registrada</p>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() => handleApplyDose(ev.id, 'remove', selectedDate)}
+                                className="w-full text-sm font-semibold text-red-500 py-2 border-t border-green-100 bg-white active:bg-red-50 transition-all disabled:opacity-40"
+                              >{isBusy ? '...' : '🗑 Desfazer'}</button>
+                            </>
+                          ) : alreadySkipped ? (
+                            <>
+                              <div className="flex items-center gap-1.5 px-3 py-2.5 bg-amber-50">
+                                <span className="text-amber-500 text-sm">↷</span>
+                                <p className="text-sm text-amber-700 font-semibold flex-1">Dia {selectedDayLabel} marcado como pulado</p>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() => handleApplyDose(ev.id, 'unskip', selectedDate)}
+                                className="w-full text-sm font-semibold text-amber-700 py-2 border-t border-amber-100 bg-white active:bg-amber-50 transition-all disabled:opacity-40"
+                              >{isBusy ? '...' : 'Desfazer pulado'}</button>
+                            </>
+                          ) : (
+                            <div>
+                              <button
+                                type="button"
+                                disabled={isBusy || selectedDate > todayStr}
+                                onClick={() => handleApplyDose(ev.id, 'apply', selectedDate)}
+                                className="w-full text-[14px] font-bold py-3 bg-purple-600 text-white active:scale-[0.98] transition-all disabled:opacity-40"
+                              >
+                                {isBusy ? 'Registrando...' : selectedDate === todayStr ? '✓ Registrar dose de hoje' : `✓ Registrar – dia ${selectedDayLabel}`}
+                              </button>
+                              <div className="flex gap-2 p-2">
+                                <button
+                                  type="button"
+                                  disabled={isBusy || selectedDate > todayStr}
+                                  onClick={() => handleApplyDose(ev.id, 'skip', selectedDate)}
+                                  className="flex-1 text-xs font-semibold py-2 rounded-xl bg-white border border-amber-200 text-amber-700 active:scale-95 transition-all disabled:opacity-40"
+                                >{isBusy ? '...' : '↷ Pular'}</button>
+                              </div>
                             </div>
-
-                            {alreadyDone ? (
-                              <div className="rounded-lg border border-green-200 bg-green-50 overflow-hidden">
-                                <div className="flex items-center gap-1.5 px-2.5 py-2">
-                                  <span className="text-green-500">✓</span>
-                                  <p className="text-sm text-green-700 font-semibold flex-1">
-                                    Dose de {selectedDate.slice(8)}/{selectedDate.slice(5, 7)} registrada
-                                  </p>
-                                </div>
-                                <button
-                                  disabled={isBusy}
-                                  onClick={() => handleApplyDose(ev.id, 'remove', selectedDate)}
-                                  className="w-full text-sm font-semibold text-red-500 py-1.5 border-t border-green-200 bg-white/60 active:bg-red-50 transition-all disabled:opacity-40"
-                                >{isBusy ? '...' : '🗑 Desfazer'}</button>
-                              </div>
-                            ) : alreadySkipped ? (
-                              <div className="rounded-lg border border-amber-200 bg-amber-50 overflow-hidden">
-                                <div className="flex items-center gap-1.5 px-2.5 py-2">
-                                  <span className="text-amber-500">↷</span>
-                                  <p className="text-sm text-amber-700 font-semibold flex-1">
-                                    Dia {selectedDate.slice(8)}/{selectedDate.slice(5, 7)} marcado como pulado
-                                  </p>
-                                </div>
-                                <button
-                                  disabled={isBusy}
-                                  onClick={() => handleApplyDose(ev.id, 'unskip', selectedDate)}
-                                  className="w-full text-sm font-semibold text-amber-700 py-1.5 border-t border-amber-200 bg-white/70 active:bg-amber-100 transition-all disabled:opacity-40"
-                                >{isBusy ? '...' : 'Desfazer pulado'}</button>
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                <button
-                                  disabled={isBusy}
-                                  onClick={() => handleApplyDose(ev.id, 'apply', selectedDate)}
-                                  className="w-full text-[15px] font-bold py-3.5 rounded-2xl bg-purple-500 text-white shadow-md active:scale-95 transition-all disabled:opacity-40"
-                                >{isBusy ? '...' : 'Registrar dose'}</button>
-                                <div className="flex gap-2">
-                                  <button
-                                    disabled={isBusy || selectedDate > todayStr}
-                                    onClick={() => handleApplyDose(ev.id, 'skip', selectedDate)}
-                                    className="flex-1 text-sm font-semibold py-2.5 rounded-xl bg-amber-100 text-amber-700 border border-amber-200 active:scale-95 transition-all disabled:opacity-40"
-                                  >{isBusy ? '...' : '↷ Pular'}</button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -887,17 +778,15 @@ export function MedicationItemSheet({
               )}
 
               <div className="grid grid-cols-2 gap-2">
-                {nextActive && (
-                  <button
-                    onClick={openAdd}
-                    className="w-full py-3 rounded-2xl border border-purple-200 bg-white text-sm font-semibold text-purple-700 hover:bg-purple-50 active:scale-95 transition-all"
-                  >
-                    Nova medicação
-                  </button>
-                )}
+                <button
+                  onClick={openAdd}
+                  className="w-full py-3 rounded-2xl border border-purple-200 bg-white text-sm font-semibold text-purple-700 hover:bg-purple-50 active:scale-95 transition-all"
+                >
+                  Nova medicação
+                </button>
                 <button
                   onClick={() => setMode('buy')}
-                  className={`${nextActive ? '' : 'col-span-2'} w-full py-3 rounded-2xl border border-blue-200 bg-white text-sm font-semibold text-blue-700 hover:bg-blue-50 active:scale-95 transition-all`}
+                  className="w-full py-3 rounded-2xl border border-blue-200 bg-white text-sm font-semibold text-blue-700 hover:bg-blue-50 active:scale-95 transition-all"
                 >
                   Comprar medicamento
                 </button>
