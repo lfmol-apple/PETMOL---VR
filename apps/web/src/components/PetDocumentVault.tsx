@@ -3,7 +3,7 @@ import { getToken } from '@/lib/auth-token';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { AuthenticatedDocumentImage } from '@/components/AuthenticatedDocumentImage';
 import { API_BASE_URL } from '@/lib/api';
-import { buildDocumentFilename, fetchDocumentBlob, triggerBrowserDownload } from '@/lib/documentFile';
+import { buildDocumentFilename, fetchDocumentBlob, shareOrDownload, triggerBrowserDownload } from '@/lib/documentFile';
 import { useI18n } from '@/lib/I18nContext';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { groupVaultDocumentsByMonth } from '@/components/petDocuments/vaultHelpers';
@@ -1155,19 +1155,11 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
                     const filename = buildDocumentFilename(viewerTitle || 'documento', viewerDocMimeType, viewerStorageKey);
                     try {
                       const blob = await fetch(viewerUrl).then((r) => r.blob());
-                      const file = new File([blob], filename, { type: viewerDocMimeType || blob.type });
-                      if (
-                        typeof navigator.share === 'function' &&
-                        typeof navigator.canShare === 'function' &&
-                        navigator.canShare({ files: [file] })
-                      ) {
-                        await navigator.share({ files: [file], title: viewerTitle || 'Documento' });
-                      } else {
+                      await shareOrDownload(blob, filename, viewerTitle || 'Documento');
+                    } catch (err) {
+                      if ((err as Error)?.name !== 'AbortError') {
                         triggerBrowserDownload(viewerUrl, filename);
                       }
-                    } catch {
-                      // Cancelado pelo usuário ou não suportado — fallback silencioso
-                      triggerBrowserDownload(viewerUrl, filename);
                     }
                   }}
                   style={{

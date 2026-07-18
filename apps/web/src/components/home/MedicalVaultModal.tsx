@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 import { AuthenticatedDocumentImage } from '@/components/AuthenticatedDocumentImage';
 import { PetDocumentVault } from '@/components/PetDocumentVault';
 import { API_BASE_URL } from '@/lib/api';
+import { shareOrDownload } from '@/lib/documentFile';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
 import type { VaccineRecord } from '@/lib/petHealth';
 import type { VetHistoryDocument } from '@/lib/types/homeForms';
@@ -235,20 +236,10 @@ export function MedicalVaultModal({
   };
 
   const handleExportZip = async () => {
-    // Abre a aba AGORA — dentro do gesto, antes de qualquer await.
-    // iOS Safari só permite window.open em contexto síncrono de clique.
-    const newTab = typeof window !== 'undefined' ? window.open('', '_blank') : null;
-    if (newTab) {
-      newTab.document.body.style.fontFamily = 'sans-serif';
-      newTab.document.body.style.padding = '24px';
-      newTab.document.body.innerHTML = '<p>⏳ Gerando ZIP, aguarde…</p>';
-    }
-
     setExportingZip(true);
     try {
       const authToken = localStorage.getItem('petmol_token');
       if (!authToken) {
-        newTab?.close();
         showAppToast('Sessão expirada. Faça login novamente.', { tone: 'warning' });
         return;
       }
@@ -260,19 +251,16 @@ export function MedicalVaultModal({
       const { token: dlToken } = await res.json();
       const downloadUrl = `${window.location.origin}${API_BASE_URL}/pets/download/zip/${dlToken}`;
 
-      if (newTab) {
-        newTab.location.href = downloadUrl;
-      } else {
-        // Fallback para desktop (popup blocker fechou a aba)
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+      // Baixa o ZIP como blob e usa shareOrDownload — funciona no iOS e no desktop
+      const zipRes = await fetch(downloadUrl);
+      if (!zipRes.ok) throw new Error();
+      const blob = await zipRes.blob();
+      const safe = currentPet!.pet_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'pet';
+      await shareOrDownload(blob, `documentos-${safe}.zip`, `Documentos de ${currentPet!.pet_name}`);
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError') {
+        showAppToast('Não foi possível gerar o ZIP. Tente novamente.', { tone: 'warning' });
       }
-    } catch {
-      newTab?.close();
-      showAppToast('Não foi possível gerar o ZIP. Tente novamente.', { tone: 'warning' });
     } finally {
       setExportingZip(false);
     }

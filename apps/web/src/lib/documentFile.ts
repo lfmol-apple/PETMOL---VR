@@ -48,3 +48,34 @@ export function triggerBrowserDownload(blobUrl: string, filename: string): void 
   link.click();
   link.remove();
 }
+
+/**
+ * Compartilha ou baixa um blob. Preferencia:
+ * 1. navigator.share com arquivo (iOS share sheet, AirDrop, etc.)
+ * 2. <a download> com blob URL (desktop)
+ * Sempre libera o blob URL após uso.
+ */
+export async function shareOrDownload(
+  blob: Blob,
+  filename: string,
+  title?: string,
+): Promise<void> {
+  const file = new File([blob], filename, { type: blob.type });
+
+  const canShare =
+    typeof navigator.share === 'function' &&
+    typeof navigator.canShare === 'function' &&
+    navigator.canShare({ files: [file] });
+
+  if (canShare) {
+    await navigator.share({ files: [file], title: title ?? filename });
+    return;
+  }
+
+  const blobUrl = URL.createObjectURL(blob);
+  try {
+    triggerBrowserDownload(blobUrl, filename);
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
+  }
+}
