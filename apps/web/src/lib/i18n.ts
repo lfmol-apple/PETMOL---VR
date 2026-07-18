@@ -9135,12 +9135,12 @@ export const translations: Record<string, TranslationEntry> = {
     'fr': 'Trouvez des plans de santé', 'it': 'Trova piani sanitari'
   },
   'home.history_docs': {
-    'pt-BR': 'Histórico & Docs', 'en': 'History & Docs', 'es': 'Historial & Docs',
-    'fr': 'Historique & Docs', 'it': 'Storico & Doc'
+    'pt-BR': 'Caderneta', 'en': 'Health Record', 'es': 'Libreta',
+    'fr': 'Carnet', 'it': 'Libretto'
   },
   'home.history_docs.desc': {
-    'pt-BR': 'Timeline · exames · laudos · docs', 'en': 'Timeline · exams · reports · docs', 'es': 'Línea de tiempo · exámenes · informes · docs',
-    'fr': 'Chronologie · examens · rapports · docs', 'it': 'Cronologia · esami · referti · doc'
+    'pt-BR': 'Vacinas · exames · laudos · documentos', 'en': 'Vaccines · exams · reports · docs', 'es': 'Vacunas · exámenes · informes · docs',
+    'fr': 'Vaccins · examens · rapports · docs', 'it': 'Vaccini · esami · referti · doc'
   },
 
   // ── Tipos de Evento ──────────────────────────────────────────────────────────
@@ -9171,8 +9171,8 @@ export const translations: Record<string, TranslationEntry> = {
 
   // ── Histórico & Documentos panel ─────────────────────────────────────────────
   'hist.title': {
-    'pt-BR': 'Histórico & Documentos', 'en': 'History & Documents', 'es': 'Historial & Documentos',
-    'fr': 'Historique & Documents', 'it': 'Storico & Documenti'
+    'pt-BR': 'Caderneta do Pet', 'en': 'Health Record', 'es': 'Libreta del Pet',
+    'fr': 'Carnet de Santé', 'it': 'Libretto del Pet'
   },
   'hist.tab_summary': {
     'pt-BR': 'Resumo', 'en': 'Summary', 'es': 'Resumen',
