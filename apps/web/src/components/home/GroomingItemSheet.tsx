@@ -240,13 +240,18 @@ export function GroomingItemSheet({
             if (t) {
               const { icon, label } = groomingLabel(addForm.type);
               const petshopName = addForm.location?.trim();
+              const petshopPhone = addForm.location_phone?.trim();
+              const waUrl = petshopPhone
+                ? buildWhatsAppUrl(petshopPhone, `Olá${petshopName ? `, ${petshopName}` : ''}! Quero agendar ${label.toLowerCase()} para ${petName || 'meu pet'} 🐾 Quando teria disponibilidade?`)
+                : undefined;
               void scheduleUniqueReminder({
                 pet_id: petId,
                 type: 'grooming',
                 title: `${icon} ${label}: ${petName || 'seu pet'}`,
                 body: petshopName
-                  ? `Hora de agendar com ${petshopName}! Abra o PETMOL para ir direto ao WhatsApp.`
+                  ? `Hora de agendar com ${petshopName}! Toque para abrir o WhatsApp direto.`
                   : `Hora de agendar o ${label.toLowerCase()} de ${petName || 'seu pet'} no pet shop!`,
+                url: waUrl,
                 remind_at: remindAt,
               }, t);
             }
@@ -352,13 +357,18 @@ export function GroomingItemSheet({
             if (t) {
               const { icon, label } = groomingLabel(editForm.type);
               const petshopName2 = editForm.location?.trim();
+              const petshopPhone2 = editForm.location_phone?.trim();
+              const waUrl2 = petshopPhone2
+                ? buildWhatsAppUrl(petshopPhone2, `Olá${petshopName2 ? `, ${petshopName2}` : ''}! Quero agendar ${label.toLowerCase()} para ${petName || 'meu pet'} 🐾 Quando teria disponibilidade?`)
+                : undefined;
               void scheduleUniqueReminder({
                 pet_id: petId,
                 type: 'grooming',
                 title: `${icon} ${label}: ${petName || 'seu pet'}`,
                 body: petshopName2
-                  ? `Hora de agendar com ${petshopName2}! Abra o PETMOL para ir direto ao WhatsApp.`
+                  ? `Hora de agendar com ${petshopName2}! Toque para abrir o WhatsApp direto.`
                   : `Hora de agendar o ${label.toLowerCase()} de ${petName || 'seu pet'} no pet shop!`,
+                url: waUrl2,
                 remind_at: remindAt2,
               }, t);
             }

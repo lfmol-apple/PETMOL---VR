@@ -99,6 +99,7 @@ class Reminder(Base):
     type        = Column(String(50), nullable=False)
     title       = Column(String(255), nullable=False)
     body        = Column(Text, nullable=True)
+    url         = Column(Text, nullable=True)
     remind_at   = Column(DateTime(timezone=True), nullable=False, index=True)
     sent        = Column(Boolean, default=False, nullable=False)
     retry_count = Column(Integer, default=0, nullable=False)
@@ -212,9 +213,19 @@ def send_due_reminders() -> None:
 
             deep_url = _build_deep_link(reminder.type, reminder.pet_id)
             cfg = _TYPE_CONFIG.get(reminder.type, {})
-            action_label = cfg.get("action_label", "Abrir PETMOL")
-            action_id = cfg.get("action_id", "open")
             body = reminder.body or cfg.get("fallback_body", "Toque para ver detalhes no PETMOL.")
+
+            # Se o lembrete tem URL customizada (ex: wa.me), usá-la como destino principal
+            custom_url = reminder.url
+            is_whatsapp = custom_url and custom_url.startswith("https://wa.me")
+            main_url = custom_url if custom_url else deep_url
+
+            if is_whatsapp:
+                action_label = "📱 Agendar no WhatsApp"
+                action_id = "whatsapp"
+            else:
+                action_label = cfg.get("action_label", "Abrir PETMOL")
+                action_id = cfg.get("action_id", "open")
 
             payload = {
                 "title": reminder.title,
@@ -229,9 +240,9 @@ def send_due_reminders() -> None:
                     {"action": "dismiss", "title": "Dispensar"},
                 ],
                 "data": {
-                    "url": deep_url,
+                    "url": main_url,
                     "action_urls": {
-                        action_id: deep_url,
+                        action_id: main_url,
                         "dismiss": "/home",
                     },
                     "pet_id": reminder.pet_id or "",
@@ -276,6 +287,7 @@ class ReminderIn(BaseModel):
     type:      str
     title:     str
     body:      Optional[str] = None
+    url:       Optional[str] = None
     remind_at: str  # ISO 8601
 
 
@@ -367,6 +379,7 @@ def create_reminder(body: ReminderIn, current_user=Depends(get_current_user)):
             type=body.type,
             title=body.title,
             body=body.body,
+            url=body.url,
             remind_at=remind_at,
         )
         db.add(r)

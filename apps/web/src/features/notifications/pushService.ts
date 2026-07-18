@@ -140,6 +140,7 @@ export interface CreateReminderPayload {
   type: ReminderType;
   title: string;
   body?: string;
+  url?: string;
   remind_at: string; // ISO 8601
 }
 
