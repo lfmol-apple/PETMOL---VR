@@ -617,7 +617,7 @@ export function MedicationItemSheet({
                     const selectedDayLabel = selectedDate.slice(8) + '/' + selectedDate.slice(5, 7);
 
                     return (
-                      <div key={ev.id} className="rounded-2xl border border-purple-200 bg-white shadow-sm overflow-hidden">
+                      <div key={ev.id} className="rounded-2xl border border-purple-200 bg-white shadow-sm">
                         {/* Compact header */}
                         <div className="px-4 pt-3 pb-2">
                           <div className="flex items-start justify-between gap-2">
@@ -643,19 +643,19 @@ export function MedicationItemSheet({
                             </div>
                           </div>
                           <div className="mt-2">
-                            <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-purple-400 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                            <div className="h-1 bg-purple-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                             </div>
                             <p className="text-[10px] text-gray-400 mt-0.5">{pct}% · {appliedDates.length} de {totalDays} doses</p>
                           </div>
                         </div>
 
-                        {/* Full date grid */}
-                        <div className="px-3 pb-3 border-t border-gray-50 pt-2">
-                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                        {/* Full date grid — flex-wrap para não cortar */}
+                        <div className="px-3 pb-3 border-t border-purple-50 pt-2.5">
+                          <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-wide mb-2">
                             Toque um dia para registrar
                           </p>
-                          <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                          <div className="flex flex-wrap gap-1">
                             {allDayDates.map((dateStr, idx) => {
                               const isApplied = appliedDates.includes(dateStr);
                               const isSkipped = skippedDates.includes(dateStr);
@@ -667,15 +667,23 @@ export function MedicationItemSheet({
 
                               let cls = '';
                               if (isApplied) {
-                                cls = isSelected ? 'bg-green-500 text-white ring-2 ring-offset-1 ring-green-700' : 'bg-green-400 text-white';
+                                cls = isSelected
+                                  ? 'bg-green-500 text-white border-2 border-green-700'
+                                  : 'bg-green-500 text-white';
                               } else if (isSkipped) {
-                                cls = isSelected ? 'bg-amber-400 text-white ring-2 ring-offset-1 ring-amber-600' : 'bg-amber-300 text-white opacity-80';
+                                cls = isSelected
+                                  ? 'bg-amber-400 text-white border-2 border-amber-600'
+                                  : 'bg-amber-200 text-amber-700';
                               } else if (isToday) {
-                                cls = isSelected ? 'bg-purple-500 text-white ring-2 ring-offset-1 ring-purple-700 shadow-sm' : 'bg-purple-100 text-purple-700 border-2 border-purple-400';
+                                cls = isSelected
+                                  ? 'bg-purple-600 text-white border-2 border-purple-800 shadow-sm'
+                                  : 'bg-white text-purple-700 border-2 border-purple-500';
                               } else if (isMissed) {
-                                cls = isSelected ? 'bg-red-100 text-red-500 border border-red-300 ring-2 ring-offset-1 ring-red-400' : 'bg-red-50 text-red-400 border border-red-200';
+                                cls = isSelected
+                                  ? 'bg-gray-200 text-gray-600 border-2 border-gray-400'
+                                  : 'bg-gray-100 text-gray-400 border border-gray-200';
                               } else {
-                                cls = 'bg-gray-50 text-gray-300 border border-gray-100';
+                                cls = 'bg-gray-50 text-gray-200 border border-gray-100';
                               }
 
                               return (
@@ -684,11 +692,11 @@ export function MedicationItemSheet({
                                   type="button"
                                   disabled={isFuture}
                                   onClick={() => setSelectedDatesMap(prev => ({ ...prev, [ev.id]: dateStr }))}
-                                  className={`aspect-square rounded-full text-[10px] font-bold transition-all active:scale-90 flex flex-col items-center justify-center ${cls} ${isFuture ? 'cursor-default' : 'cursor-pointer'}`}
+                                  className={`w-8 h-8 rounded-full text-[11px] font-bold transition-all active:scale-90 flex flex-col items-center justify-center flex-shrink-0 ${cls} ${isFuture ? 'cursor-default opacity-40' : 'cursor-pointer'}`}
                                 >
-                                  <span>{idx + 1}</span>
-                                  {isApplied && <span className="text-[7px] leading-none">✓</span>}
-                                  {isSkipped && <span className="text-[7px] leading-none">↷</span>}
+                                  <span className="leading-none">{idx + 1}</span>
+                                  {isApplied && <span className="text-[7px] leading-none mt-px">✓</span>}
+                                  {isSkipped && <span className="text-[7px] leading-none mt-px">↷</span>}
                                 </button>
                               );
                             })}
