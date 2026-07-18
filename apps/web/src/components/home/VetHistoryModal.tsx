@@ -19,6 +19,7 @@ interface VetHistoryModalProps {
   historicoTab: HistoryTab;
   setHistoricoTab: (tab: HistoryTab) => void;
   vaccines: VaccineRecord[];
+  parasiteControls: ParasiteControl[];
   petEvents: PetEventRecord[];
   vetHistoryDocs: VetHistoryDocument[];
   onClose: () => void;
@@ -36,6 +37,7 @@ export function VetHistoryModal({
   historicoTab,
   setHistoricoTab,
   vaccines,
+  parasiteControls,
   petEvents,
   vetHistoryDocs,
   onClose,
@@ -98,7 +100,7 @@ export function VetHistoryModal({
           {historicoTab === 'resumo' && (() => {
             const grAll = (currentPet?.health_data?.grooming_records || []).map((g: GroomingRecord) => ({ date: g.date, label: g.type === 'bath' ? t('grooming.bath') : g.type === 'grooming' ? t('grooming.grooming') : t('grooming.bath_plus_grooming'), icon: '🛁' }));
             const vcAll = vaccines.filter((v) => v.date_administered).map((v) => ({ date: v.date_administered, label: v.vaccine_name || t('common.vaccine'), icon: '💉' }));
-            const paAll = (currentPet?.health_data?.parasite_controls || []).map((p: ParasiteControl) => ({ date: p.date_applied, label: p.type === 'dewormer' ? t('event.type.dewormer') : p.type === 'flea_tick' ? t('event.type.flea_tick') : t('event.type.parasite_control'), icon: '🦟' }));
+            const paAll = parasiteControls.map((p: ParasiteControl) => ({ date: p.date_applied, label: p.type === 'dewormer' ? t('event.type.dewormer') : p.type === 'flea_tick' ? t('event.type.flea_tick') : t('event.type.parasite_control'), icon: '🦟' }));
             const dcAll = vetHistoryDocs.filter((d) => d.document_date || d.created_at).map((d) => ({ date: d.document_date || d.created_at?.split('T')[0], label: d.title || 'Documento', icon: '📄', evId: d.event_id || null }));
             const evAllIcons: Record<string, string> = { consulta: '🩺', retorno: '🔁', exame_lab: '🔬', exame_imagem: '📷', cirurgia: '✂️', odonto: '🦷', medicacao: '💊', emergencia: '🚨', racao: '🥣', outro: '📝' };
             const seenEvIds = new Set<string>();
@@ -209,7 +211,7 @@ export function VetHistoryModal({
                     cost: 0,
                   }));
 
-                const parasiteEvents = (currentPet?.health_data?.parasite_controls || []).map((p: ParasiteControl) => {
+                const parasiteEvents = parasiteControls.map((p: ParasiteControl) => {
                   let icon = '🦟';
                   let title = t('event.type.parasite_control');
 

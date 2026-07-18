@@ -2431,6 +2431,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           historicoTab={historicoTab}
           setHistoricoTab={setHistoricoTab}
           vaccines={vaccines}
+          parasiteControls={parasiteControls}
           petEvents={petEvents}
           vetHistoryDocs={vetHistoryDocs}
           onClose={closeVetHistoryModal}
