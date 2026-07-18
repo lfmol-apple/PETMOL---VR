@@ -353,7 +353,7 @@ export function useParasiteManagement({
             const parasiteToken = getToken();
             if (parasiteToken) {
               const pushType = (parasiteFormData.type === 'flea_tick' ? 'flea' : parasiteFormData.type) as 'dewormer' | 'flea' | 'collar';
-              void scheduleUniqueReminder({ pet_id: currentPet.pet_id, type: pushType, title: `Antiparasitário: ${parasiteFormData.product_name}`, body: `Próxima aplicação: ${parasiteNextDue}`, remind_at: remindAt }, parasiteToken);
+              void scheduleUniqueReminder({ pet_id: currentPet.pet_id, type: pushType, title: `🛡️ ${parasiteFormData.product_name}`, body: `Hora de reaplicar antiparasitário em ${currentPet.pet_name}. Próxima aplicação: ${parasiteNextDue}.`, remind_at: remindAt }, parasiteToken);
             }
           }
         }

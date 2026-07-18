@@ -252,7 +252,7 @@ export function useVaccineManagement({
             if (new Date(remindAt) > new Date()) {
               const editToken = getToken();
               if (editToken) {
-                void scheduleUniqueReminder({ pet_id: currentPet.pet_id, type: 'vaccine', title: `Reforço: ${vaccineFormData.vaccine_name}`, body: `Próxima dose: ${editNextDate}`, remind_at: remindAt }, editToken);
+                void scheduleUniqueReminder({ pet_id: currentPet.pet_id, type: 'vaccine', title: `💉 Reforço: ${vaccineFormData.vaccine_name}`, body: `${currentPet.pet_name} tem reforço vacinal em ${editNextDate}. Agende com o veterinário!`, remind_at: remindAt }, editToken);
               }
             }
           }
@@ -360,7 +360,7 @@ export function useVaccineManagement({
         if (newNextDate && newDaysBefore > 0) {
           const remindAt = buildRemindAt(subtractDays(newNextDate, newDaysBefore), newTime);
           if (new Date(remindAt) > new Date()) {
-            void scheduleUniqueReminder({ pet_id: currentPet.pet_id, type: 'vaccine', title: `Reforço: ${createdVaccine.vaccine_name}`, body: `Próxima dose: ${newNextDate}`, remind_at: remindAt }, savedToken);
+            void scheduleUniqueReminder({ pet_id: currentPet.pet_id, type: 'vaccine', title: `💉 Reforço: ${createdVaccine.vaccine_name}`, body: `${currentPet.pet_name} tem reforço vacinal em ${newNextDate}. Agende com o veterinário!`, remind_at: remindAt }, savedToken);
           }
         }
       }

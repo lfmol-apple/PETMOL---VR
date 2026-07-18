@@ -338,7 +338,7 @@ export function MedicationItemSheet({
               const dateStr = addDays(form.reminder_date, day);
               if (dateStr < todayStr) continue;
               for (const time of times) {
-                payloads.push({ pet_id: petId, type: 'medication', title, body: 'Hora da medicação', remind_at: buildRemindAt(dateStr, time) });
+                payloads.push({ pet_id: petId, type: 'medication', title, body: `Hora de dar ${form.title.trim()} para ${petName}. Toque para registrar a dose.`, remind_at: buildRemindAt(dateStr, time) });
               }
             }
 

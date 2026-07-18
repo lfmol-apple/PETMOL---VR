@@ -314,7 +314,7 @@ export function ParasiteItemSheet({
 
         const pushType = (type === 'flea_tick' ? 'flea' : type) as 'dewormer' | 'flea' | 'collar';
         void scheduleUniqueReminder(
-          { pet_id: petId, type: pushType, title: `${cfg.icon} ${cfg.title}`, body: `Verificar ${applyForm.product_name}`, remind_at: buildRemindAt(addDays(computedNext, -(parseInt(applyForm.reminder_days) || 3)), applyForm.reminder_time) },
+          { pet_id: petId, type: pushType, title: `${cfg.icon} ${cfg.title}`, body: `Hora de reaplicar ${applyForm.product_name} em ${petName || 'seu pet'}. Toque para registrar.`, remind_at: buildRemindAt(addDays(computedNext, -(parseInt(applyForm.reminder_days) || 3)), applyForm.reminder_time) },
           token!
         );
         setMode('view');
@@ -392,7 +392,7 @@ export function ParasiteItemSheet({
         const nextDue = addDays(editForm.date_applied, parseInt(editForm.frequency_days, 10) || cfg.defaultFrequency);
         const pushType = (type === 'flea_tick' ? 'flea' : type) as 'dewormer' | 'flea' | 'collar';
         void scheduleUniqueReminder(
-          { pet_id: petId, type: pushType, title: `${cfg.icon} ${cfg.title}`, body: `Verificar ${editForm.product_name}`, remind_at: buildRemindAt(addDays(nextDue, -(parseInt(editForm.reminder_days) || 3)), editForm.reminder_time) },
+          { pet_id: petId, type: pushType, title: `${cfg.icon} ${cfg.title}`, body: `Hora de reaplicar ${editForm.product_name} em ${petName || 'seu pet'}. Toque para registrar.`, remind_at: buildRemindAt(addDays(nextDue, -(parseInt(editForm.reminder_days) || 3)), editForm.reminder_time) },
           token!
         );
         setMode('view');

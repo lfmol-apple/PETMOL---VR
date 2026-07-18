@@ -133,6 +133,46 @@ def _build_deep_link(reminder_type: str, pet_id: Optional[str]) -> str:
     return f"/home?{params}"
 
 
+_TYPE_CONFIG: dict = {
+    "medication": {
+        "icon": "/icons/icon-192x192.png",
+        "badge": "/icons/badge-mono.png",
+        "action_label": "📋 Registrar dose",
+        "action_id": "register",
+    },
+    "vaccine": {
+        "icon": "/icons/icon-192x192.png",
+        "badge": "/icons/badge-mono.png",
+        "action_label": "📋 Ver vacina",
+        "action_id": "view",
+    },
+    "food": {
+        "icon": "/icons/icon-192x192.png",
+        "badge": "/icons/badge-mono.png",
+        "action_label": "🛒 Comprar ração",
+        "action_id": "buy",
+    },
+    "dewormer": {
+        "icon": "/icons/icon-192x192.png",
+        "badge": "/icons/badge-mono.png",
+        "action_label": "📋 Ver detalhes",
+        "action_id": "view",
+    },
+    "flea": {
+        "icon": "/icons/icon-192x192.png",
+        "badge": "/icons/badge-mono.png",
+        "action_label": "📋 Ver detalhes",
+        "action_id": "view",
+    },
+    "collar": {
+        "icon": "/icons/icon-192x192.png",
+        "badge": "/icons/badge-mono.png",
+        "action_label": "📋 Ver detalhes",
+        "action_id": "view",
+    },
+}
+
+
 # ── Scheduler job ────────────────────────────────────────────────────────────
 
 def send_due_reminders() -> None:
@@ -150,21 +190,47 @@ def send_due_reminders() -> None:
         subscriptions = _load_subscriptions()
         changed = False
 
+        # Dedup: para cada (user_id, pet_id, type, remind_at), enviar apenas uma vez
+        # e marcar todos os duplicados como enviados (evita push duplo por dados herdados)
+        seen: set = set()
+
         for reminder in due:
+            dedup_key = (reminder.user_id, reminder.pet_id or "", reminder.type, reminder.remind_at)
+            is_duplicate = dedup_key in seen
+            seen.add(dedup_key)
+
             sub = subscriptions.get(str(reminder.user_id))
-            if not sub:
-                logger.info(f"Reminder {reminder.id}: sem subscription para user {reminder.user_id} — consumindo")
+            if not sub or is_duplicate:
+                if is_duplicate:
+                    logger.info(f"Reminder {reminder.id}: duplicado suprimido — marcado como enviado")
+                else:
+                    logger.info(f"Reminder {reminder.id}: sem subscription para user {reminder.user_id} — consumindo")
                 reminder.sent = True
                 continue
 
             deep_url = _build_deep_link(reminder.type, reminder.pet_id)
+            cfg = _TYPE_CONFIG.get(reminder.type, {})
+            action_label = cfg.get("action_label", "Abrir PETMOL")
+            action_id = cfg.get("action_id", "open")
+
             payload = {
                 "title": reminder.title,
-                "body": reminder.body or "",
-                "tag": f"reminder-{reminder.id}",
+                "body": reminder.body or "Toque para ver detalhes no PETMOL.",
+                "icon": cfg.get("icon", "/icons/icon-192x192.png"),
+                "badge": cfg.get("badge", "/icons/badge-mono.png"),
+                "tag": f"petmol-{reminder.type}-{reminder.pet_id or 'x'}",
+                "renotify": True,
                 "requireInteraction": True,
+                "actions": [
+                    {"action": action_id, "title": action_label},
+                    {"action": "dismiss", "title": "Dispensar"},
+                ],
                 "data": {
                     "url": deep_url,
+                    "action_urls": {
+                        action_id: deep_url,
+                        "dismiss": "/home",
+                    },
                     "pet_id": reminder.pet_id or "",
                     "type": reminder.type,
                 },
