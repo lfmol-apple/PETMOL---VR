@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 import { AuthenticatedDocumentImage } from '@/components/AuthenticatedDocumentImage';
 import { PetDocumentVault } from '@/components/PetDocumentVault';
 import { API_BASE_URL } from '@/lib/api';
-import { shareOrDownload } from '@/lib/documentFile';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
 import type { VaccineRecord } from '@/lib/petHealth';
 import type { VetHistoryDocument } from '@/lib/types/homeForms';
@@ -251,16 +250,12 @@ export function MedicalVaultModal({
       const { token: dlToken } = await res.json();
       const downloadUrl = `${window.location.origin}${API_BASE_URL}/pets/download/zip/${dlToken}`;
 
-      // Baixa o ZIP como blob e usa shareOrDownload — funciona no iOS e no desktop
-      const zipRes = await fetch(downloadUrl);
-      if (!zipRes.ok) throw new Error();
-      const blob = await zipRes.blob();
-      const safe = currentPet!.pet_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'pet';
-      await shareOrDownload(blob, `documentos-${safe}.zip`, `Documentos de ${currentPet!.pet_name}`);
-    } catch (err) {
-      if ((err as Error)?.name !== 'AbortError') {
-        showAppToast('Não foi possível gerar o ZIP. Tente novamente.', { tone: 'warning' });
-      }
+      // Navega direto para a URL — o servidor envia Content-Disposition: attachment,
+      // o browser faz o download sem carregar o ZIP na memória do app.
+      // No iOS 16.4+ (PWA e Safari), exibe "Salvar nos Arquivos" sem sair do app.
+      window.location.href = downloadUrl;
+    } catch {
+      showAppToast('Não foi possível gerar o ZIP. Tente novamente.', { tone: 'warning' });
     } finally {
       setExportingZip(false);
     }
