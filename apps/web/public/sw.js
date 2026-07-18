@@ -184,6 +184,8 @@ self.addEventListener('activate', (event) => {
       .keys()
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
       .then(() => clients.claim())
+      .then(() => clients.matchAll({ type: 'window' }))
+      .then((all) => all.forEach((client) => client.navigate(client.url)))
   );
 });
 
