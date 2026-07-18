@@ -118,6 +118,7 @@ _TYPE_TO_MODAL = {
     "dewormer":   ("parasites", "dewormer"),
     "flea":       ("parasites", "flea_tick"),
     "collar":     ("parasites", "collar"),
+    "grooming":   ("grooming",  None),
 }
 
 
@@ -135,40 +136,39 @@ def _build_deep_link(reminder_type: str, pet_id: Optional[str]) -> str:
 
 _TYPE_CONFIG: dict = {
     "medication": {
-        "icon": "/icons/icon-192x192.png",
-        "badge": "/icons/badge-mono.png",
-        "action_label": "📋 Registrar dose",
+        "action_label": "✅ Registrar dose",
         "action_id": "register",
+        "fallback_body": "Toque para registrar a dose no PETMOL.",
     },
     "vaccine": {
-        "icon": "/icons/icon-192x192.png",
-        "badge": "/icons/badge-mono.png",
         "action_label": "📋 Ver vacina",
         "action_id": "view",
+        "fallback_body": "Agende o reforço vacinal com seu veterinário.",
     },
     "food": {
-        "icon": "/icons/icon-192x192.png",
-        "badge": "/icons/badge-mono.png",
         "action_label": "🛒 Comprar ração",
         "action_id": "buy",
+        "fallback_body": "O estoque de ração está acabando. Hora de reabastecer!",
     },
     "dewormer": {
-        "icon": "/icons/icon-192x192.png",
-        "badge": "/icons/badge-mono.png",
-        "action_label": "📋 Ver detalhes",
-        "action_id": "view",
+        "action_label": "✅ Registrar vermifugação",
+        "action_id": "register",
+        "fallback_body": "Está na hora da vermifugação. Toque para registrar.",
     },
     "flea": {
-        "icon": "/icons/icon-192x192.png",
-        "badge": "/icons/badge-mono.png",
-        "action_label": "📋 Ver detalhes",
-        "action_id": "view",
+        "action_label": "✅ Registrar antipulgas",
+        "action_id": "register",
+        "fallback_body": "Está na hora de aplicar o antipulgas. Toque para registrar.",
     },
     "collar": {
-        "icon": "/icons/icon-192x192.png",
-        "badge": "/icons/badge-mono.png",
-        "action_label": "📋 Ver detalhes",
+        "action_label": "✅ Registrar coleira",
+        "action_id": "register",
+        "fallback_body": "Está na hora de trocar a coleira antipulgas. Toque para registrar.",
+    },
+    "grooming": {
+        "action_label": "📅 Ver agendamento",
         "action_id": "view",
+        "fallback_body": "Está quase na hora do serviço de higiene. Agende já!",
     },
 }
 
@@ -212,10 +212,11 @@ def send_due_reminders() -> None:
             cfg = _TYPE_CONFIG.get(reminder.type, {})
             action_label = cfg.get("action_label", "Abrir PETMOL")
             action_id = cfg.get("action_id", "open")
+            body = reminder.body or cfg.get("fallback_body", "Toque para ver detalhes no PETMOL.")
 
             payload = {
                 "title": reminder.title,
-                "body": reminder.body or "Toque para ver detalhes no PETMOL.",
+                "body": body,
                 "icon": cfg.get("icon", "/icons/icon-192x192.png"),
                 "badge": cfg.get("badge", "/icons/badge-mono.png"),
                 "tag": f"petmol-{reminder.type}-{reminder.pet_id or 'x'}",

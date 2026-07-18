@@ -132,7 +132,8 @@ export type ReminderType =
   | "vaccine"
   | "dewormer"
   | "flea"
-  | "collar";
+  | "collar"
+  | "grooming";
 
 export interface CreateReminderPayload {
   pet_id?: string;

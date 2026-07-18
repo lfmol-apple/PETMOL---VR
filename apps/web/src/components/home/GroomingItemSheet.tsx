@@ -8,8 +8,15 @@ import { ModalPortal } from '@/components/ModalPortal';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
+import { scheduleUniqueReminder, buildRemindAt, subtractDays } from '@/features/notifications/pushService';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+function groomingLabel(type: string): { icon: string; label: string } {
+  if (type === 'bath') return { icon: '🛁', label: 'Banho' };
+  if (type === 'grooming') return { icon: '✂️', label: 'Tosa' };
+  return { icon: '🛁✂️', label: 'Banho e Tosa' };
+}
+
 function addDays(dateStr: string, days: number): string {
   const [y, m, d] = dateStr.split('-').map(Number);
   const dt = new Date(y, m - 1, d);
@@ -179,6 +186,27 @@ export function GroomingItemSheet({
       });
 
       if (res.ok) {
+        // Agendar lembrete de push para próximo serviço
+        try {
+          const freq = parseInt(addForm.frequency_days, 10) || FREQ_DEFAULTS[addForm.type];
+          const nextDate = addDays(addForm.date, freq);
+          const daysBefore = parseInt(addForm.reminder_days, 10) || 3;
+          const remindAt = buildRemindAt(subtractDays(nextDate, daysBefore), addForm.reminder_time || '09:00');
+          if (new Date(remindAt) > new Date()) {
+            const t = getToken();
+            if (t) {
+              const { icon, label } = groomingLabel(addForm.type);
+              void scheduleUniqueReminder({
+                pet_id: petId,
+                type: 'grooming',
+                title: `${icon} ${label}: ${petName || 'seu pet'}`,
+                body: `Está quase na hora do ${label.toLowerCase()} de ${petName || 'seu pet'}. Agende o serviço!`,
+                remind_at: remindAt,
+              }, t);
+            }
+          }
+        } catch { /* push é best-effort */ }
+
         // Track hygiene product usage for recurring suggestions
         const productName = addForm.product_name.trim();
         if (productName) {
@@ -264,6 +292,27 @@ export function GroomingItemSheet({
       });
 
       if (res.ok) {
+        // Agendar lembrete de push para próximo serviço
+        try {
+          const editFreq2 = parseInt(editForm.frequency_days, 10) || FREQ_DEFAULTS[editForm.type];
+          const nextDate2 = addDays(editForm.date, editFreq2);
+          const daysBefore2 = parseInt(editForm.reminder_days, 10) || 3;
+          const remindAt2 = buildRemindAt(subtractDays(nextDate2, daysBefore2), editForm.reminder_time || '09:00');
+          if (new Date(remindAt2) > new Date()) {
+            const t = getToken();
+            if (t) {
+              const { icon, label } = groomingLabel(editForm.type);
+              void scheduleUniqueReminder({
+                pet_id: petId,
+                type: 'grooming',
+                title: `${icon} ${label}: ${petName || 'seu pet'}`,
+                body: `Está quase na hora do ${label.toLowerCase()} de ${petName || 'seu pet'}. Agende o serviço!`,
+                remind_at: remindAt2,
+              }, t);
+            }
+          }
+        } catch { /* push é best-effort */ }
+
         showToast('✅ Registro atualizado!');
         setMode('view');
         setEditRecord(null);
