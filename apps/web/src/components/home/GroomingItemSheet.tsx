@@ -62,6 +62,20 @@ const FREQ_DEFAULTS: Record<GroomingType, number> = {
   bath_grooming: 30,
 };
 
+function buildWhatsAppUrl(phone: string, message: string): string {
+  const digits = phone.replace(/\D/g, '');
+  const normalized = digits.startsWith('55') ? digits : `55${digits}`;
+  return `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
+}
+
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+    </svg>
+  );
+}
+
 function computeStatus(nextDate?: string | null) {
   const diff = diffDays(nextDate);
   if (diff === null) return { label: 'Sem agendamento', bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400' };
@@ -122,6 +136,7 @@ export function GroomingItemSheet({
     date: localTodayISO(),
     type: 'bath_grooming' as GroomingType,
     location: '',
+    location_phone: '',
     cost: '',
     notes: '',
     product_name: '',
@@ -137,6 +152,7 @@ export function GroomingItemSheet({
     date: '',
     type: 'bath_grooming' as GroomingType,
     location: '',
+    location_phone: '',
     cost: '',
     notes: '',
     product_name: '',
@@ -145,6 +161,23 @@ export function GroomingItemSheet({
     reminder_days: '3',
     reminder_time: '09:00',
   });
+  const [justSavedPhone, setJustSavedPhone] = useState<string | null>(null);
+
+  // ── Start add (pre-fill from last record) ────────────────────────────────
+  function startAdd() {
+    const lastWithContact = sorted.find(r => r.location || r.location_phone);
+    setAddForm(f => ({
+      ...f,
+      date: localTodayISO(),
+      cost: '',
+      notes: '',
+      product_name: '',
+      barcode: '',
+      location: lastWithContact?.location || '',
+      location_phone: lastWithContact?.location_phone || '',
+    }));
+    setMode('add');
+  }
 
   // ── Toast ─────────────────────────────────────────────────────────────────
   function showToast(msg: string) {
@@ -175,6 +208,7 @@ export function GroomingItemSheet({
           type: addForm.type,
           date: addForm.date,
           location: addForm.location || null,
+          location_phone: addForm.location_phone || null,
           cost: addForm.cost ? parseFloat(addForm.cost) : null,
           notes: finalNotes,
           next_recommended_date: nextRec,
@@ -196,11 +230,14 @@ export function GroomingItemSheet({
             const t = getToken();
             if (t) {
               const { icon, label } = groomingLabel(addForm.type);
+              const petshopName = addForm.location?.trim();
               void scheduleUniqueReminder({
                 pet_id: petId,
                 type: 'grooming',
                 title: `${icon} ${label}: ${petName || 'seu pet'}`,
-                body: `Hora de agendar o ${label.toLowerCase()} de ${petName || 'seu pet'} no pet shop!`,
+                body: petshopName
+                  ? `Hora de agendar com ${petshopName}! Abra o PETMOL para ir direto ao WhatsApp.`
+                  : `Hora de agendar o ${label.toLowerCase()} de ${petName || 'seu pet'} no pet shop!`,
                 remind_at: remindAt,
               }, t);
             }
@@ -221,7 +258,8 @@ export function GroomingItemSheet({
           } catch { /* silent */ }
         }
         setMode('view');
-        setAddForm(f => ({ ...f, date: localTodayISO(), cost: '', notes: '', location: '', product_name: '', barcode: '' }));
+        setJustSavedPhone(addForm.location_phone || null);
+        setAddForm(f => ({ ...f, date: localTodayISO(), cost: '', notes: '', product_name: '', barcode: '' }));
         await onRefresh();
         setJustSaved(true);
       } else {
@@ -247,6 +285,7 @@ export function GroomingItemSheet({
       date: rec.date,
       type: rec.type,
       location: rec.location || '',
+      location_phone: rec.location_phone || '',
       cost: rec.cost != null ? String(rec.cost) : '',
       notes: cleanNotes,
       product_name: productName,
@@ -281,6 +320,7 @@ export function GroomingItemSheet({
           date: editForm.date,
           type: editForm.type,
           location: editForm.location || null,
+          location_phone: editForm.location_phone || null,
           cost: editForm.cost ? parseFloat(editForm.cost) : null,
           notes: finalNotes,
           next_recommended_date: addDays(editForm.date, editFreq),
@@ -302,11 +342,14 @@ export function GroomingItemSheet({
             const t = getToken();
             if (t) {
               const { icon, label } = groomingLabel(editForm.type);
+              const petshopName2 = editForm.location?.trim();
               void scheduleUniqueReminder({
                 pet_id: petId,
                 type: 'grooming',
                 title: `${icon} ${label}: ${petName || 'seu pet'}`,
-                body: `Hora de agendar o ${label.toLowerCase()} de ${petName || 'seu pet'} no pet shop!`,
+                body: petshopName2
+                  ? `Hora de agendar com ${petshopName2}! Abra o PETMOL para ir direto ao WhatsApp.`
+                  : `Hora de agendar o ${label.toLowerCase()} de ${petName || 'seu pet'} no pet shop!`,
                 remind_at: remindAt2,
               }, t);
             }
@@ -315,6 +358,7 @@ export function GroomingItemSheet({
 
         showToast('✅ Registro atualizado!');
         setMode('view');
+        setJustSavedPhone(editForm.location_phone || null);
         setEditRecord(null);
         await onRefresh();
         setJustSaved(true);
@@ -372,6 +416,17 @@ export function GroomingItemSheet({
               <h3 className="text-xl font-bold text-gray-900 mb-1">Higiene registrada!</h3>
               <p className="text-sm text-gray-500">O prontuário do pet foi atualizado.</p>
             </div>
+            {justSavedPhone && (
+              <a
+                href={buildWhatsAppUrl(justSavedPhone, `Olá! Quero agendar banho e tosa para ${petName || 'meu pet'} 🐾 Quando teria disponibilidade?`)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full rounded-2xl bg-[#25D366] py-3.5 text-[15px] font-black text-white shadow-md shadow-green-500/20 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+              >
+                <WhatsAppIcon className="w-5 h-5" />
+                Agendar agora no WhatsApp
+              </a>
+            )}
             <button
               onClick={() => onGoHome?.()}
               className="w-full rounded-2xl bg-blue-600 py-3.5 text-[15px] font-black text-white shadow-md shadow-blue-500/20 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
@@ -474,6 +529,12 @@ export function GroomingItemSheet({
                         <p className="font-semibold text-gray-800 truncate">{last.location}</p>
                       </div>
                     )}
+                    {last.location_phone && (
+                      <div>
+                        <p className="text-[11px] text-gray-400 font-medium">WhatsApp</p>
+                        <p className="font-semibold text-gray-800 truncate">{last.location_phone}</p>
+                      </div>
+                    )}
                     {last.cost != null && (
                       <div>
                         <p className="text-[11px] text-gray-400 font-medium">Valor</p>
@@ -515,11 +576,27 @@ export function GroomingItemSheet({
                 </div>
               )}
 
+              {/* WhatsApp CTA */}
+              {last?.location_phone && (
+                <a
+                  href={buildWhatsAppUrl(
+                    last.location_phone,
+                    `Olá${last.location ? `, ${last.location}` : ''}! Quero agendar ${TYPE_LABELS[last.type].replace(/^[^\s]+ /, '')} para ${petName || 'meu pet'} 🐾 Quando teria disponibilidade?`,
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2.5 w-full py-4 rounded-2xl bg-[#25D366] hover:bg-[#20c05b] text-white text-[15px] font-black shadow-md shadow-green-500/20 active:scale-[0.98] transition-all"
+                >
+                  <WhatsAppIcon className="w-5 h-5" />
+                  Agendar no WhatsApp{last.location ? ` · ${last.location}` : ''}
+                </a>
+              )}
+
               {/* Main CTA */}
               {last ? (
                 <div className="space-y-2">
                   <button
-                    onClick={() => setMode('add')}
+                    onClick={startAdd}
                     className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-[15px] font-bold shadow-md shadow-emerald-500/20 transition-colors"
                   >
                     Registrar banho/tosa
@@ -534,7 +611,7 @@ export function GroomingItemSheet({
                 </div>
               ) : (
                 <button
-                  onClick={() => setMode('add')}
+                  onClick={startAdd}
                   className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-[15px] font-bold shadow-md transition-colors"
                 >
                   Registrar banho/tosa
@@ -650,15 +727,49 @@ export function GroomingItemSheet({
                 </select>
               </div>
 
-              <div>
-                <label className={labelCls}>Local (opcional)</label>
-                <input
-                  type="text"
-                  className={inputCls}
-                  placeholder="Ex: Petshop Feliz, em casa"
-                  value={addForm.location}
-                  onChange={e => setAddForm(f => ({ ...f, location: e.target.value }))}
-                />
+              <div className="rounded-2xl border border-green-100 bg-green-50/60 p-4 space-y-3">
+                <p className="text-[11px] font-bold text-green-700 uppercase tracking-wider">Petshop</p>
+                <datalist id={`grooming-loc-${petId}`}>
+                  {[...new Set(groomingRecords.filter(r => r.location).map(r => r.location!))].map(loc => (
+                    <option key={loc} value={loc} />
+                  ))}
+                </datalist>
+                <div>
+                  <label className={labelCls}>Nome do local</label>
+                  <input
+                    type="text"
+                    list={`grooming-loc-${petId}`}
+                    className={inputCls}
+                    placeholder="Ex: Banho & Tosa da Ana, Cobasi..."
+                    value={addForm.location}
+                    onChange={e => setAddForm(f => ({ ...f, location: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>WhatsApp para agendamento</label>
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <WhatsAppIcon className="w-4 h-4 text-[#25D366]" />
+                    </div>
+                    <input
+                      type="tel"
+                      className={`${inputCls} pl-9`}
+                      placeholder="(11) 99999-9999"
+                      value={addForm.location_phone}
+                      onChange={e => setAddForm(f => ({ ...f, location_phone: e.target.value }))}
+                    />
+                  </div>
+                  {addForm.location_phone && (
+                    <a
+                      href={buildWhatsAppUrl(addForm.location_phone, `Olá! Quero agendar banho e tosa para ${petName || 'meu pet'} 🐾`)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1.5 inline-flex items-center gap-1 text-xs font-bold text-[#25D366]"
+                    >
+                      Testar este número ›
+                    </a>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -763,14 +874,49 @@ export function GroomingItemSheet({
                 />
               </div>
 
-              <div>
-                <label className={labelCls}>Local</label>
-                <input
-                  type="text"
-                  className={inputCls}
-                  value={editForm.location}
-                  onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))}
-                />
+              <div className="rounded-2xl border border-green-100 bg-green-50/60 p-4 space-y-3">
+                <p className="text-[11px] font-bold text-green-700 uppercase tracking-wider">Petshop</p>
+                <datalist id={`grooming-loc-edit-${petId}`}>
+                  {[...new Set(groomingRecords.filter(r => r.location).map(r => r.location!))].map(loc => (
+                    <option key={loc} value={loc} />
+                  ))}
+                </datalist>
+                <div>
+                  <label className={labelCls}>Nome do local</label>
+                  <input
+                    type="text"
+                    list={`grooming-loc-edit-${petId}`}
+                    className={inputCls}
+                    placeholder="Ex: Banho & Tosa da Ana, Cobasi..."
+                    value={editForm.location}
+                    onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>WhatsApp para agendamento</label>
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <WhatsAppIcon className="w-4 h-4 text-[#25D366]" />
+                    </div>
+                    <input
+                      type="tel"
+                      className={`${inputCls} pl-9`}
+                      placeholder="(11) 99999-9999"
+                      value={editForm.location_phone}
+                      onChange={e => setEditForm(f => ({ ...f, location_phone: e.target.value }))}
+                    />
+                  </div>
+                  {editForm.location_phone && (
+                    <a
+                      href={buildWhatsAppUrl(editForm.location_phone, `Olá! Quero agendar banho e tosa para ${petName || 'meu pet'} 🐾`)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1.5 inline-flex items-center gap-1 text-xs font-bold text-[#25D366]"
+                    >
+                      Testar este número ›
+                    </a>
+                  )}
+                </div>
               </div>
 
               <div>
