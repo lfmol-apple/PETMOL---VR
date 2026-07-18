@@ -20,6 +20,7 @@ const CONFIG = {
     title: 'Vermífugo',
     icon: '🪱',
     ctaLabel: 'Aplicar agora',
+    buyLabel: 'Comprar Vermífugo',
     defaultFrequency: 90,
     applicationForm: 'oral' as const,
     productHint: 'Ex: Drontal, Milbemax, Verm-X',
@@ -33,6 +34,7 @@ const CONFIG = {
     title: 'Antipulgas / Carrapatos',
     icon: '🛡️',
     ctaLabel: 'Aplicar agora',
+    buyLabel: 'Comprar Antipulgas',
     defaultFrequency: 30,
     applicationForm: 'topical' as const,
     productHint: 'Ex: Bravecto, Nexgard, Simparica',
@@ -46,6 +48,7 @@ const CONFIG = {
     title: 'Coleira Antiparasitária',
     icon: '📿',
     ctaLabel: 'Troquei hoje',
+    buyLabel: 'Comprar Coleira',
     defaultFrequency: 120,
     applicationForm: 'collar' as const,
     productHint: 'Ex: Seresto, Scalibor, Foresto',
@@ -586,24 +589,23 @@ export function ParasiteItemSheet({
                 </div>
               )}
 
-              {/* Ação principal — Registrar aplicação (Resolver) */}
+              {/* Ação principal — Comprar */}
               <button
-                onClick={() => setMode('apply')}
-                className={`w-full py-4 rounded-2xl text-[16px] font-black shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 ${cfg.colorBtn}`}
+                onClick={() => setMode('buy')}
+                className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white text-[16px] font-black shadow-lg shadow-amber-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5"
               >
-                Registrar aplicação
+                <span>🛒</span>
+                {cfg.buyLabel}
               </button>
 
-              {/* Ação secundária — Comprar novamente (menor peso visual) */}
-              {current && (
-                <button
-                  onClick={() => setMode('buy')}
-                  className="w-full py-3 rounded-2xl bg-white border border-sky-200 text-sky-700 text-[13px] font-semibold active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                >
-                  <span>🛒</span>
-                  Comprar novamente
-                </button>
-              )}
+              {/* Ação secundária — Registrar aplicação */}
+              <button
+                onClick={() => setMode('apply')}
+                className="w-full py-3 rounded-2xl bg-white border border-gray-200 text-gray-600 text-[14px] font-semibold active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              >
+                <span>✅</span>
+                Registrar aplicação
+              </button>
 
               {/* Ação terciária — Editar (mínimo peso visual) */}
               {current && (

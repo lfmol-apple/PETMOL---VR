@@ -1016,19 +1016,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             </>
                           ) : (
                             <>
-                              <div className="rounded-3xl border border-blue-100 bg-blue-50/70 p-3 space-y-2">
-                                <button type="button"
-                                  onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
-                                  className="w-full py-4 min-h-[52px] rounded-2xl bg-blue-600 text-white text-[16px] font-black shadow-lg shadow-blue-500/25 hover:bg-blue-700 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
-                                >
-                                  <span className="text-xl">✏️</span>
-                                  Editar plano de alimentação
-                                </button>
-                                <p className="px-1 text-[12px] leading-snug text-blue-900/70">
-                                  Ajuste ração, pacote, consumo e alerta. Este é o controle que mantém a previsão confiável.
-                                </p>
-                              </div>
-
                               <button type="button"
                                 onClick={() => {
                                   trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
@@ -1038,6 +1025,14 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               >
                                 <span className="text-xl">🛒</span>
                                 Comprar novamente
+                              </button>
+
+                              <button type="button"
+                                onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
+                                className="w-full py-3 min-h-[48px] rounded-2xl bg-white border border-gray-200 text-gray-600 text-[14px] font-semibold hover:bg-gray-50 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                              >
+                                <span>✏️</span>
+                                Editar plano de alimentação
                               </button>
                             </>
                           )}
