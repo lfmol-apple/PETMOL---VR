@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     # Feature flags - countries with price comparison enabled
     prices_enabled_countries: str = "BR,AR,MX,CO,CL"
 
+    # Feature flag — ativa busca real via MercadoLivreProvider em /search
+    # Padrão false: comportamento idêntico ao atual (candidates=[])
+    enable_ml_provider: bool = False
+
     # Database - usa caminho relativo que funciona local e produção
     database_url: str = f"sqlite:///{os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'petmol.db'))}"
 

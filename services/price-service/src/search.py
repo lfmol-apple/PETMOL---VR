@@ -55,6 +55,21 @@ async def search_offers_async(query: SearchQuery, force: bool = False) -> Search
     # except Exception as e:
     #     print(f"[search] Aggregation error: {e}")
     #     candidates = []
+
+    # MercadoLivre provider — ativado via ENABLE_ML_PROVIDER=true
+    if settings.enable_ml_provider:
+        try:
+            from .providers.mercadolivre import mercadolivre_provider
+            candidates = await mercadolivre_provider.search(
+                query=query.query,
+                country=query.country_code,
+                product_type="food",
+                limit=query.limit * 2,
+            )
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error(f"[search] ML provider error: {exc}")
+            candidates = []
     
     # Convert candidates to Offer objects
     offers = []
