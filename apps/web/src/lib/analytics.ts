@@ -157,5 +157,5 @@ export function clearEvents(): void {
 
 // Initialize global track function
 if (typeof window !== 'undefined') {
-  (window as { track: typeof track }).track = track;
+  (window as unknown as { track: typeof track }).track = track;
 }

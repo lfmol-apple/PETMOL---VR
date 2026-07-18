@@ -36,7 +36,7 @@ class GoogleMapsLoader {
     }
 
     // Already loaded
-    if (this.state === 'loaded' && typeof window.google !== 'undefined') {
+    if (this.state === 'loaded' && typeof (window as unknown as Record<string, unknown>).google !== 'undefined') {
       return Promise.resolve();
     }
 
@@ -51,7 +51,7 @@ class GoogleMapsLoader {
       // Check if script already exists
       const existingScript = document.getElementById(GOOGLE_MAPS_SCRIPT_ID);
       if (existingScript) {
-        if (typeof window.google !== 'undefined') {
+        if (typeof (window as unknown as Record<string, unknown>).google !== 'undefined') {
           this.state = 'loaded';
           this.notifyListeners(true);
           resolve();
@@ -89,7 +89,7 @@ class GoogleMapsLoader {
    * Check if Google Maps is loaded
    */
   isLoaded(): boolean {
-    return this.state === 'loaded' && typeof window.google !== 'undefined';
+    return this.state === 'loaded' && typeof (window as unknown as Record<string, unknown>).google !== 'undefined';
   }
 
   /**
