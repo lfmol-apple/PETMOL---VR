@@ -9,6 +9,7 @@ import { type HomeInactiveEligibleControlId } from '@/lib/homeControlPreferences
 interface AppleControlButtonsProps {
   onHealthClick: () => void;
   onDocumentosClick: () => void;
+  petName?: string;
   onAlimentacaoClick?: () => void;
   onBanhoTosaClick?: () => void;
   onMedicacaoClick?: () => void;
@@ -56,6 +57,7 @@ function AlertDot({ tone = 'critical' }: { tone?: ControlTone }) {
 export function AppleControlButtons({
   onHealthClick,
   onDocumentosClick,
+  petName,
   onAlimentacaoClick,
   onPetSumidoClick,
   hasFoodData,
@@ -149,16 +151,18 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onDocumentosClick}
-            className="group w-full relative overflow-hidden rounded-2xl border border-slate-200 bg-white/80 p-3 min-h-[52px] shadow-sm shadow-slate-900/5 transition-all duration-300 hover:shadow-md active:scale-[0.98] flex items-center gap-2.5"
+            className="group w-full relative overflow-hidden rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 to-purple-50 p-3 min-h-[52px] shadow-sm shadow-violet-900/5 transition-all duration-300 hover:shadow-md hover:from-violet-100 hover:to-purple-100 active:scale-[0.98] flex items-center gap-2.5"
           >
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 transition-transform group-hover:scale-105">
-              <span className="pointer-events-none text-lg">📁</span>
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-violet-100 transition-transform group-hover:scale-105">
+              <span className="pointer-events-none text-lg">📓</span>
             </div>
             <div className="min-w-0 flex-1 text-left">
-              <h3 className="truncate text-[14px] sm:text-base font-bold leading-tight text-slate-800">Guarda de Documentos/Eventos</h3>
-              <p className="mt-0.5 text-[10px] sm:text-xs font-semibold leading-[1.15] text-slate-500">Documentos, exames, receitas e eventos do pet</p>
+              <h3 className="truncate text-[14px] sm:text-base font-bold leading-tight text-violet-900">
+                {petName ? `Caderneta de ${petName}` : 'Caderneta do Pet'}
+              </h3>
+              <p className="mt-0.5 text-[10px] sm:text-xs font-semibold leading-[1.15] text-violet-600/80">Vacinas · exames · laudos · documentos</p>
             </div>
-            <span className="text-lg text-slate-300 transition-transform group-hover:translate-x-1">›</span>
+            <span className="text-lg text-violet-300 transition-transform group-hover:translate-x-1">›</span>
           </button>
 
           <button

@@ -313,6 +313,7 @@ export function HomePetDashboard({
       <AppleControlButtons
         onHealthClick={onOpenHealth}
         onDocumentosClick={onOpenDocuments}
+        petName={currentPet.pet_name}
         onAlimentacaoClick={onOpenFood}
         onBanhoTosaClick={onOpenGrooming}
         onMedicacaoClick={onOpenMedication}

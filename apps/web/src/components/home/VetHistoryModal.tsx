@@ -62,10 +62,10 @@ export function VetHistoryModal({
         <div className="bg-gradient-to-r from-violet-500 to-purple-500 text-white p-3 sm:p-4 flex-shrink-0">
           <div className="flex items-center justify-between mb-2 sm:mb-3">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <span className="text-xl sm:text-2xl flex-shrink-0">🩺</span>
+              <span className="text-xl sm:text-2xl flex-shrink-0">📓</span>
               <div className="min-w-0">
-                <h2 className="text-base sm:text-xl font-bold truncate">{t('hist.title')}</h2>
-                <p className="text-violet-100 text-xs sm:text-sm truncate">{currentPet?.pet_name}</p>
+                <h2 className="text-base sm:text-xl font-bold truncate">Caderneta de {currentPet?.pet_name}</h2>
+                <p className="text-violet-100 text-xs sm:text-sm truncate">Documentos e histórico de saúde</p>
               </div>
             </div>
             <button
