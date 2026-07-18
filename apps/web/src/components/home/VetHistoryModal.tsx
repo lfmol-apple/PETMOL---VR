@@ -59,18 +59,20 @@ export function VetHistoryModal({
     <ModalPortal>
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-50 animate-fadeIn">
       <div className="w-full max-w-4xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden overflow-x-hidden flex flex-col bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 animate-scaleIn">
-        <div className="bg-gradient-to-r from-violet-500 to-purple-500 text-white p-3 sm:p-4 flex-shrink-0">
+        <div className="bg-white border-b border-violet-100 p-3 sm:p-4 flex-shrink-0">
           <div className="flex items-center justify-between mb-2 sm:mb-3">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <span className="text-xl sm:text-2xl flex-shrink-0">📓</span>
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-violet-100">
+                <span className="text-xl sm:text-2xl">📓</span>
+              </div>
               <div className="min-w-0">
-                <h2 className="text-base sm:text-xl font-bold truncate">Caderneta de {currentPet?.pet_name}</h2>
-                <p className="text-violet-100 text-xs sm:text-sm truncate">Documentos e histórico de saúde</p>
+                <h2 className="text-base sm:text-xl font-bold truncate text-slate-900">Caderneta de {currentPet?.pet_name}</h2>
+                <p className="text-slate-500 text-xs sm:text-sm truncate">Documentos e histórico de saúde</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="w-11 h-11 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-xl text-white text-xl transition-colors"
+              className="w-11 h-11 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-500 text-xl transition-colors"
               aria-label="Fechar"
             >
               ✕
@@ -79,19 +81,19 @@ export function VetHistoryModal({
           <div className="flex gap-2">
             <button
               onClick={() => setHistoricoTab('resumo')}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${historicoTab === 'resumo' ? 'bg-white text-violet-700 shadow' : 'bg-white/20 text-white hover:bg-white/30'}`}
+              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${historicoTab === 'resumo' ? 'bg-violet-50 text-violet-700 shadow-sm border border-violet-200' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               📋 {t('hist.tab_summary')}
             </button>
             <button
               onClick={() => setHistoricoTab('detalhado')}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${historicoTab === 'detalhado' ? 'bg-white text-violet-700 shadow' : 'bg-white/20 text-white hover:bg-white/30'}`}
+              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${historicoTab === 'detalhado' ? 'bg-violet-50 text-violet-700 shadow-sm border border-violet-200' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               🗂 {t('hist.tab_detailed')}
             </button>
             <button
               onClick={() => setHistoricoTab('documentos')}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${historicoTab === 'documentos' ? 'bg-white text-violet-700 shadow' : 'bg-white/20 text-white hover:bg-white/30'}`}
+              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${historicoTab === 'documentos' ? 'bg-violet-50 text-violet-700 shadow-sm border border-violet-200' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               📁 Arquivos
             </button>
