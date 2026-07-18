@@ -3,13 +3,13 @@ name: Deploy → VPS
 on:
   workflow_dispatch:  # manual trigger no GitHub
   push:
-    branches: [PETMOL-VRED, main]
+    branches: [main]
 
 jobs:
   deploy:
     name: Deploy to petmol.com.br
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/PETMOL-VRED' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - uses: actions/checkout@v4
