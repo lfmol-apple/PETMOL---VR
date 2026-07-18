@@ -235,6 +235,18 @@ function HomePageInner() {
   const [forceCheckin, setForceCheckin] = useState(false);
   // Ref que sempre aponta para a função de refresh mais recente (evita closure stale no event listener)
   const refreshAllRef = useRef<() => void>(() => {});
+  // Deep link vindo do Cache API (escrito pelo SW no notificationclick — iOS não passa query params via openWindow)
+  const cachedDeepLinkRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('caches' in window)) return;
+    caches.open('petmol-deeplink-v1').then(async (cache) => {
+      const resp = await cache.match('/__petmol_deeplink');
+      if (!resp) return;
+      const { url, ts } = await resp.json() as { url: string; ts: number };
+      await cache.delete('/__petmol_deeplink');
+      if (Date.now() - ts < 30_000) cachedDeepLinkRef.current = url;
+    }).catch(() => {});
+  }, []);
 
   // Check-up inicial banner
   const [checkupBanner, setCheckupBanner] = useState<{ petName: string; pendingCount: number } | null>(null);
@@ -1600,13 +1612,22 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   // ── Deep link: abre modal via query string ao montar (ex.: push notification) ──
   // URL pattern: /home?modal=vaccines&petId=<id>
   // Suportado: vaccines | parasites | medication | eventos | grooming | health | food
+  // Fallback: lê do Cache API (escrito pelo SW — necessário no iOS onde openWindow ignora query params)
   useEffect(() => {
     if (!pets.length) return; // aguarda os pets carregarem
-    const modal = searchParams.get('modal');
+
+    // Resolve params: URL (caminho padrão) ou cache do SW (fallback iOS/Android)
+    let params = searchParams as Pick<URLSearchParams, 'get'>;
+    if (!searchParams.get('modal') && cachedDeepLinkRef.current) {
+      params = new URLSearchParams(cachedDeepLinkRef.current.split('?')[1] ?? '');
+      cachedDeepLinkRef.current = null;
+    }
+
+    const modal = params.get('modal');
     if (!modal) return;
     closeAllTransientModals();
 
-    const requestedPetId = searchParams.get('petId');
+    const requestedPetId = params.get('petId');
     const resolvedPetId = requestedPetId && pets.some((pet) => pet.pet_id === requestedPetId)
       ? requestedPetId
       : selectedPetId && pets.some((pet) => pet.pet_id === selectedPetId)
@@ -1617,19 +1638,19 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
       setSelectedPetId(resolvedPetId);
     }
 
-    const eventId = searchParams.get('eventId') || undefined;
-    const itemName = searchParams.get('itemName') || undefined;
-    const pushFoodAction = searchParams.get('push_food_action') || searchParams.get('push_action');
-    const mode = searchParams.get('mode');
-    const wantsBuyMode = searchParams.get('action') === 'buy' || searchParams.get('buy') === '1' || mode === 'buy';
+    const eventId = params.get('eventId') || undefined;
+    const itemName = params.get('itemName') || undefined;
+    const pushFoodAction = params.get('push_food_action') || params.get('push_action');
+    const mode = params.get('mode');
+    const wantsBuyMode = params.get('action') === 'buy' || params.get('buy') === '1' || mode === 'buy';
     const forcePushChoice =
-      searchParams.get('choice') === '1' ||
-      searchParams.get('push_sheet') === '1' ||
+      params.get('choice') === '1' ||
+      params.get('push_sheet') === '1' ||
       modal === 'push' ||
       modal === 'push-action' ||
       modal === 'push_action';
-    const legacyPushType = searchParams.get('type') as ActionSheetType | null;
-    const parasiteSubtype = searchParams.get('subtype') || searchParams.get('category') || searchParams.get('type');
+    const legacyPushType = params.get('type') as ActionSheetType | null;
+    const parasiteSubtype = params.get('subtype') || params.get('category') || params.get('type');
     const explicitPushActionType = (() => {
       if (!forcePushChoice) return null;
       if (legacyPushType && ['food', 'medication', 'vaccines', 'parasites', 'grooming'].includes(legacyPushType)) {
@@ -1653,7 +1674,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     const legacyPushDestination = explicitPushActionType
       ? { kind: 'push-action-sheet' as const, actionSheetType: explicitPushActionType }
       : null;
-    const destination = legacyPushDestination ?? resolveHomeDeepLinkDestination(modal, searchParams.get('tab'), parasiteSubtype);
+    const destination = legacyPushDestination ?? resolveHomeDeepLinkDestination(modal, params.get('tab'), parasiteSubtype);
     if (destination?.kind === 'push-action-sheet' && resolvedPetId) {
       if (forcePushChoice) {
         setPushActionSheet({

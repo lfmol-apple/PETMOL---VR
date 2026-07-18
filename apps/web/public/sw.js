@@ -130,19 +130,32 @@ self.addEventListener('notificationclick', (event) => {
   const rawUrl = actionUrl || event.notification.data?.url || '/home';
   const targetUrl = normalizeNotificationClickUrl(rawUrl);
 
-  event.waitUntil(
-    clients
-      .matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
-        for (const client of clientList) {
-          if (client.url.includes(self.location.origin) && 'focus' in client && 'navigate' in client) {
-            return client.focus().then(() => client.navigate(targetUrl));
-          }
-        }
-        if (clients.openWindow) {
-          return clients.openWindow(targetUrl);
-        }
+  // Persiste o intent no Cache API para o app ler ao montar.
+  // Necessário no iOS onde openWindow ignora query params e abre start_url.
+  const persistIntent = caches.open('petmol-deeplink-v1').then((cache) =>
+    cache.put(
+      '/__petmol_deeplink',
+      new Response(JSON.stringify({ url: rawUrl, ts: Date.now() }), {
+        headers: { 'Content-Type': 'application/json' },
       })
+    )
+  );
+
+  event.waitUntil(
+    persistIntent.then(() =>
+      clients
+        .matchAll({ type: 'window', includeUncontrolled: true })
+        .then((clientList) => {
+          for (const client of clientList) {
+            if (client.url.includes(self.location.origin) && 'focus' in client && 'navigate' in client) {
+              return client.focus().then(() => client.navigate(targetUrl));
+            }
+          }
+          if (clients.openWindow) {
+            return clients.openWindow(targetUrl);
+          }
+        })
+    )
   );
 });
 
