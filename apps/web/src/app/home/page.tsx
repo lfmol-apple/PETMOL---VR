@@ -2405,6 +2405,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           setShowMedicalVault={setShowMedicalVault}
           setVetHistoryDocs={setVetHistoryDocs}
           vaccines={vaccines}
+          parasiteControls={parasiteControls}
           petEvents={petEvents}
           vetHistoryDocs={vetHistoryDocs}
           pendingFiles={sharedFiles}
