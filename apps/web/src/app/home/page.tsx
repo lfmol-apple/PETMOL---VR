@@ -237,6 +237,9 @@ function HomePageInner() {
   const refreshAllRef = useRef<() => void>(() => {});
   // Deep link vindo do Cache API (escrito pelo SW no notificationclick — iOS não passa query params via openWindow)
   const cachedDeepLinkRef = useRef<string | null>(null);
+  const [deepLinkTrigger, setDeepLinkTrigger] = useState(0);
+
+  // Leitura na montagem (app aberto do zero via notificação)
   useEffect(() => {
     if (typeof window === 'undefined' || !('caches' in window)) return;
     caches.open('petmol-deeplink-v1').then(async (cache) => {
@@ -244,8 +247,33 @@ function HomePageInner() {
       if (!resp) return;
       const { url, ts } = await resp.json() as { url: string; ts: number };
       await cache.delete('/__petmol_deeplink');
-      if (Date.now() - ts < 30_000) cachedDeepLinkRef.current = url;
+      if (Date.now() - ts < 30_000) {
+        cachedDeepLinkRef.current = url;
+        setDeepLinkTrigger((t) => t + 1);
+      }
     }).catch(() => {});
+  }, []);
+
+  // Leitura ao voltar ao foco (app estava em segundo plano — client.navigate() pode não atualizar searchParams)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('caches' in window)) return;
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      // Se client.navigate() funcionou, a URL já tem ?modal=... — não precisa do cache
+      if (new URLSearchParams(window.location.search).get('modal')) return;
+      caches.open('petmol-deeplink-v1').then(async (cache) => {
+        const resp = await cache.match('/__petmol_deeplink');
+        if (!resp) return;
+        const { url, ts } = await resp.json() as { url: string; ts: number };
+        await cache.delete('/__petmol_deeplink');
+        if (Date.now() - ts < 30_000) {
+          cachedDeepLinkRef.current = url;
+          setDeepLinkTrigger((t) => t + 1);
+        }
+      }).catch(() => {});
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
   // Check-up inicial banner
@@ -1710,7 +1738,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
     // limpa query string via router para que useSearchParams perceba a mudança
     router.replace('/home', { scroll: false });
-  }, [applyFoodPushAction, applyHomeSurfaceResolution, pets, selectedPetId, searchParams, router]);
+  }, [applyFoodPushAction, applyHomeSurfaceResolution, pets, selectedPetId, searchParams, router, deepLinkTrigger]);
 
 
   // Fetch documents when vet history modal opens
