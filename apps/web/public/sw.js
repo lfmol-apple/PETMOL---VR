@@ -17,11 +17,9 @@
  * }
  */
 
-const CACHE_NAME = 'petmol-shell-v2026-07-19e';
+const CACHE_NAME = 'petmol-shell-v2026-07-19f';
 const SHARE_CACHE = 'petmol-shared-files-v1';
 const SHELL_URLS = [
-  '/',
-  '/home',
   '/manifest.webmanifest',
   '/icons/icon-192x192.png',
 ];
@@ -269,20 +267,10 @@ self.addEventListener('fetch', (event) => {
   ) {
     event.respondWith(
       fetch(event.request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => undefined);
-          return response;
-        })
-        .catch(() =>
-          caches.match(event.request)
-            .then((cached) => cached || caches.match('/home'))
-            .then((cached) => cached || caches.match('/'))
-            .then((cached) => cached || new Response('PETMOL offline', {
-              status: 200,
-              headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-            }))
-        )
+        .catch(() => new Response('PETMOL offline', {
+          status: 200,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        }))
     );
   }
 });
