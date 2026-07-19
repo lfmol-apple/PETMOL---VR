@@ -2011,7 +2011,71 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
         @keyframes vaultFabIn { from { transform: scale(0.6); opacity: 0 } to { transform: scale(1); opacity: 1 } }
         @keyframes vaultFadeIn { from { opacity: 0 } to { opacity: 1 } }
         @keyframes vaultSlideUp { from { transform: translateY(100%) } to { transform: translateY(0) } }
+        @keyframes vaultProgressSweep {
+          0% { transform: translateX(-105%) }
+          55% { transform: translateX(25%) }
+          100% { transform: translateX(105%) }
+        }
       `}</style>
+      {uploading && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 260,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            background: 'rgba(15,23,42,0.28)',
+            backdropFilter: 'blur(3px)',
+            WebkitBackdropFilter: 'blur(3px)',
+            pointerEvents: 'auto',
+            animation: 'vaultFadeIn 0.18s ease',
+          } as React.CSSProperties}
+        >
+          <div
+            style={{
+              width: 'min(320px, 82vw)',
+              borderRadius: 18,
+              padding: '18px 18px 16px',
+              background: 'rgba(255,255,255,0.96)',
+              boxShadow: '0 18px 48px rgba(15,23,42,0.22)',
+              border: '1px solid rgba(226,232,240,0.9)',
+            } as React.CSSProperties}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 } as React.CSSProperties}>
+              <span style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>Processando documento</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>IA</span>
+            </div>
+            <div
+              style={{
+                position: 'relative',
+                height: 8,
+                overflow: 'hidden',
+                borderRadius: 999,
+                background: '#e5edf8',
+              } as React.CSSProperties}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '72%',
+                  borderRadius: 999,
+                  background: 'linear-gradient(90deg, #60a5fa 0%, #2563eb 48%, #0f766e 100%)',
+                  animation: 'vaultProgressSweep 1.15s ease-in-out infinite',
+                } as React.CSSProperties}
+              />
+            </div>
+            <p style={{ margin: '10px 0 0', fontSize: 12, lineHeight: 1.35, color: '#64748b' }}>
+              Lendo foto, data e informações do atendimento.
+            </p>
+          </div>
+        </div>
+      )}
       <button
         onClick={() => setFabOpen(true)}
         disabled={uploading}
@@ -2031,7 +2095,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
         } as React.CSSProperties}
         aria-label="Adicionar documento"
       >
-        {uploading ? '⏳' : '+'}
+        +
       </button>
 
       {/* FAB bottom sheet */}
