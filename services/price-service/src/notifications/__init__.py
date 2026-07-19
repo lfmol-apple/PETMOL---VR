@@ -19,6 +19,7 @@ from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 from ..db import Base, SessionLocal, engine
 from ..user_auth.deps import get_current_user
 from ..config import get_settings
+from ..family.models import FamilyGroup, FamilyMember
 from ..pets.access import get_accessible_pet_or_404
 from ..pets.caretaker_models import PetCaretaker
 from ..pets.models import Pet
@@ -217,6 +218,13 @@ def send_due_reminders() -> None:
                     recipient_ids.add(str(pet.user_id))
                     caretakers = db.query(PetCaretaker).filter(PetCaretaker.pet_id == reminder.pet_id).all()
                     recipient_ids.update(str(c.user_id) for c in caretakers)
+                    family_members = (
+                        db.query(FamilyMember)
+                        .join(FamilyGroup, FamilyGroup.id == FamilyMember.group_id)
+                        .filter(FamilyGroup.owner_id == str(pet.user_id))
+                        .all()
+                    )
+                    recipient_ids.update(str(m.user_id) for m in family_members)
 
             recipient_subs = [(uid, subscriptions.get(uid)) for uid in recipient_ids]
             recipient_subs = [(uid, sub) for uid, sub in recipient_subs if sub]

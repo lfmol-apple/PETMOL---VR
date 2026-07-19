@@ -25,6 +25,7 @@ from ..db import Base, get_db
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
 from ..notifications import _load_subscriptions, _save_subscriptions, _send_push
+from ..family.models import FamilyGroup, FamilyMember
 from ..pets.access import accessible_pets_query, get_accessible_pet_or_404
 
 logger = logging.getLogger(__name__)
@@ -297,17 +298,28 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
                 subs.pop(uid, None)
             _save_subscriptions(subs)
 
-        # Notifica cuidadores do pet sempre (sem filtro de geo)
+        # Notifica cuidadores e familiares do pet sempre (sem filtro de geo)
         caretaker_sent = 0
         if mp.pet_id:
             try:
                 from ..pets.caretaker_models import PetCaretaker
+                from ..pets.models import Pet
                 from sqlalchemy.orm import Session as _Session
                 from ..db import SessionLocal
                 with SessionLocal() as _db:
+                    family_user_ids: set[str] = set()
+                    pet = _db.query(Pet).filter(Pet.id == mp.pet_id).first()
+                    if pet:
+                        family_members = (
+                            _db.query(FamilyMember)
+                            .join(FamilyGroup, FamilyGroup.id == FamilyMember.group_id)
+                            .filter(FamilyGroup.owner_id == str(pet.user_id))
+                            .all()
+                        )
+                        family_user_ids.update(str(m.user_id) for m in family_members)
                     caretakers = _db.query(PetCaretaker).filter(PetCaretaker.pet_id == mp.pet_id).all()
-                    for c in caretakers:
-                        c_id = str(c.user_id)
+                    target_user_ids = {str(c.user_id) for c in caretakers} | family_user_ids
+                    for c_id in target_user_ids:
                         if c_id in excluded or c_id == str(mp.user_id) or c_id in newly_notified:
                             continue
                         c_sub = subs.get(c_id)

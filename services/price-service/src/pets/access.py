@@ -3,19 +3,32 @@ from fastapi import HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from ..family.models import FamilyGroup, FamilyMember
 from .caretaker_models import PetCaretaker
 from .models import Pet
 
 
 def accessible_pets_query(db: Session, user_id: str):
     """Pets owned by the user or linked through family/caretaker sharing."""
+    family_owner_ids = (
+        db.query(FamilyGroup.owner_id)
+        .join(FamilyMember, FamilyMember.group_id == FamilyGroup.id)
+        .filter(FamilyMember.user_id == user_id)
+        .subquery()
+    )
     return (
         db.query(Pet)
         .outerjoin(
             PetCaretaker,
             (PetCaretaker.pet_id == Pet.id) & (PetCaretaker.user_id == user_id),
         )
-        .filter(or_(Pet.user_id == user_id, PetCaretaker.user_id == user_id))
+        .filter(
+            or_(
+                Pet.user_id == user_id,
+                PetCaretaker.user_id == user_id,
+                Pet.user_id.in_(family_owner_ids),
+            )
+        )
         .distinct()
     )
 

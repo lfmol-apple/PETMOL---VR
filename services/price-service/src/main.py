@@ -327,11 +327,9 @@ app.include_router(notifications_router)
 # Some deployments forward /api/* without stripping the prefix (direct access).
 app.include_router(notifications_router, prefix="/api")
 
-# Family sharing router — SILENCIADO: desativar compartilhamento entre contas.
-# Para reativar: descomentar as 3 linhas abaixo.
-# from .family import family_router
-# app.include_router(family_router)
-# app.include_router(family_router, prefix="/api")
+from .family import family_router
+app.include_router(family_router)
+app.include_router(family_router, prefix="/api")
 
 # Include health events router
 from .health import router as health_router
