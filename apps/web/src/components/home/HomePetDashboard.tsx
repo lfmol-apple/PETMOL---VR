@@ -202,7 +202,7 @@ export function HomePetDashboard({
       : null;
 
   return (
-    <div className="relative px-2 pt-2 pb-6 space-y-4">
+    <div className="relative px-2 pt-1 pb-4 space-y-3 sm:pt-2 sm:pb-6 sm:space-y-4">
       <AppleControlButtons
         onHealthClick={onOpenHealth}
         onDocumentosClick={onOpenDocuments}

@@ -2224,13 +2224,13 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
                   {/* Compartilhar cuidado — só para o dono do pet */}
                   {currentPet && loggedUserId && (currentPet.owner_user_id ?? loggedUserId) === loggedUserId && (
-                    <div className="px-4 pb-2 flex flex-col gap-2">
+                    <div className="flex flex-col gap-2 px-3 pb-1 sm:px-4 sm:pb-2">
                       <button
                         onClick={handleSharePet}
                         disabled={shareLoading}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-amber-200 bg-amber-50 text-amber-700 text-[13px] font-semibold active:opacity-70 disabled:opacity-40 transition-opacity"
+                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-700 transition-opacity active:opacity-70 disabled:opacity-40 sm:rounded-2xl sm:py-2.5 sm:text-[13px]"
                       >
-                        <span className="text-base">🐾</span>
+                        <span className="text-sm sm:text-base">🐾</span>
                         {shareLoading ? 'Gerando link...' : `Convidar família para cuidar de ${currentPet.pet_name}`}
                       </button>
 

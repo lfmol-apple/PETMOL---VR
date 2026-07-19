@@ -174,11 +174,13 @@ export function HomePetHeader({
   const hasVisibleAttention = selectedPetNeedsAttention && topAttentionPetCount > 0;
 
   return (
-    <>    <div className="px-4 pt-4 space-y-3">
+    <>    <div className="px-3 pt-2 space-y-2 sm:px-4 sm:pt-4 sm:space-y-3">
       {/* Container da Foto + Navegação Estilo Apple */}
       <div
-        className="relative group rounded-[28px] overflow-hidden shadow-xl shadow-blue-500/10 border border-white/50 ring-1 ring-black/5 bg-gradient-to-br from-blue-400 to-purple-500 aspect-square"
+        className="relative group mx-auto w-full overflow-hidden rounded-[22px] border border-white/50 bg-gradient-to-br from-blue-400 to-purple-500 shadow-lg shadow-blue-500/10 ring-1 ring-black/5 sm:rounded-[28px]"
         style={{
+          aspectRatio: '1.25 / 1',
+          maxHeight: 'min(33dvh, 285px)',
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
           transform: 'translate3d(0,0,0)',
@@ -232,12 +234,12 @@ export function HomePetHeader({
         )}
 
         {/* Bell de eventos futuros — canto superior esquerdo */}
-        <div className="absolute top-3 left-3 z-20">
+        <div className="absolute left-2.5 top-2.5 z-20 sm:left-3 sm:top-3">
           <button
             type="button"
             onClick={onOpenUpcoming}
             aria-label="Próximos eventos"
-            className="relative w-10 h-10 flex items-center justify-center rounded-full bg-black/30 backdrop-blur-md border border-white/40 text-white shadow-lg transition-all hover:bg-black/50 active:scale-90"
+            className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/40 bg-black/30 text-white shadow-lg backdrop-blur-md transition-all hover:bg-black/50 active:scale-90 sm:h-10 sm:w-10"
           >
             <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5" aria-hidden="true">
               <path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2Zm6-6V11a6 6 0 0 0-5-5.92V4a1 1 0 0 0-2 0v1.08A6 6 0 0 0 6 11v5l-1.29 1.29A1 1 0 0 0 5 19h14a1 1 0 0 0 .71-1.71L18 16Z" />
@@ -251,10 +253,10 @@ export function HomePetHeader({
         </div>
 
         {/* Botões de ação no canto inferior direito */}
-        <div className="absolute bottom-3 right-3 flex gap-2 z-20">
+        <div className="absolute bottom-2.5 right-2.5 z-20 flex gap-2 sm:bottom-3 sm:right-3">
           <button
             onClick={onOpenAddPetModal}
-            className="flex items-center justify-center w-9 h-9 bg-white/20 backdrop-blur-md text-white rounded-full transition-all border border-white/40 hover:bg-white/40 active:scale-90 shadow-lg"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/40 bg-white/20 text-white shadow-lg backdrop-blur-md transition-all hover:bg-white/40 active:scale-90 sm:h-9 sm:w-9"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
@@ -262,7 +264,7 @@ export function HomePetHeader({
           </button>
           <button
             onClick={onOpenEditPetModal}
-            className="flex items-center justify-center w-9 h-9 bg-white/20 backdrop-blur-md text-white rounded-full transition-all border border-white/40 hover:bg-white/40 active:scale-90 shadow-lg"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/40 bg-white/20 text-white shadow-lg backdrop-blur-md transition-all hover:bg-white/40 active:scale-90 sm:h-9 sm:w-9"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -274,26 +276,26 @@ export function HomePetHeader({
       </div>
 
       {/* Dados de Identidade do Pet (Abaixo da Foto) */}
-      <div className="px-1.5 pb-2">
+      <div className="px-1 pb-1 sm:px-1.5 sm:pb-2">
         <div className="flex flex-col">
           {/* Nome do Pet e Badge de Status (Alinhados na mesma linha) */}
-          <div className="flex flex-wrap items-center justify-between gap-2 w-full pr-1">
+          <div className="flex w-full items-center justify-between gap-2 pr-1">
             <button
               ref={nameButtonRef}
               onClick={onTogglePetSelector}
-              className="group min-w-0 flex items-center gap-2 -ml-1 pl-1.5 pr-2.5 py-1.5 rounded-2xl hover:bg-slate-100/50 transition-all active:scale-95 text-left"
+              className="group -ml-1 flex min-w-0 items-center gap-1.5 rounded-2xl py-1 pl-1.5 pr-2 text-left transition-all hover:bg-slate-100/50 active:scale-95 sm:gap-2 sm:py-1.5 sm:pr-2.5"
             >
               <span className="min-w-0">
-                <h2 className="min-w-0 break-words text-2xl sm:text-3xl font-black text-slate-900 tracking-tighter leading-none group-hover:text-blue-600 transition-colors">
+                <h2 className="min-w-0 truncate text-[28px] font-black leading-none tracking-tight text-slate-900 transition-colors group-hover:text-blue-600 sm:text-3xl">
                   {currentPet.pet_name}
                 </h2>
                 {pets.length > 1 && (
-                  <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-blue-700 shadow-sm ring-1 ring-blue-100 group-hover:bg-blue-50">
+                  <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-blue-700 shadow-sm ring-1 ring-blue-100 group-hover:bg-blue-50 sm:mt-1">
                     Trocar pet
                   </span>
                 )}
               </span>
-              <div className={`w-6 h-6 flex-shrink-0 rounded-full bg-slate-100 flex items-center justify-center transition-transform duration-300 ${showPetSelector ? 'rotate-180 bg-blue-100 text-blue-600' : 'text-slate-400'}`}>
+              <div className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 transition-transform duration-300 ${showPetSelector ? 'rotate-180 bg-blue-100 text-blue-600' : 'text-slate-400'}`}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
                 </svg>
@@ -303,14 +305,14 @@ export function HomePetHeader({
             {/* Badge de atenção — alinhado à direita com o nome */}
             <div
               onClick={hasVisibleAttention ? onOpenTopAttentionModal : undefined}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border shadow-sm transition-all ${
+              className={`inline-flex max-w-[52%] flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-sm transition-all ${
                 hasVisibleAttention
                   ? 'bg-rose-50 border-rose-200 text-rose-700 cursor-pointer hover:bg-rose-100 active:scale-95'
                   : 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default'
               }`}
             >
               <div className={`w-1.5 h-1.5 rounded-full ${hasVisibleAttention ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
-              <span className="text-[10px] font-bold tracking-wide">
+              <span className="truncate text-[10px] font-bold tracking-wide">
                 {hasVisibleAttention
                   ? `${topAttentionPetCount} ${topAttentionPetCount === 1 ? 'pet' : 'pets'} com atenção`
                   : 'Em dia'}
@@ -320,13 +322,13 @@ export function HomePetHeader({
           
           {/* Chips de dados do pet */}
           {petChips.length > 0 && (
-            <div className="mt-2 ml-1 flex flex-wrap gap-1.5">
+            <div className="mt-1.5 ml-1 flex flex-nowrap gap-1.5 overflow-hidden sm:mt-2 sm:flex-wrap">
               {petChips.map((chip) => (
                 <span
                   key={chip}
-                  className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-bold text-slate-600 leading-none"
+                  className="inline-flex min-w-0 flex-shrink items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold leading-none text-slate-600 sm:px-2.5 sm:py-1 sm:text-[11px]"
                 >
-                  {chip}
+                  <span className="truncate">{chip}</span>
                 </span>
               ))}
             </div>
