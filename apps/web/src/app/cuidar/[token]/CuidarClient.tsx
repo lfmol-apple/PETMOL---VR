@@ -7,6 +7,20 @@ import { subscribeToPush } from '@/features/notifications/pushService';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data = await res.json() as { detail?: string; message?: string };
+      return data.detail || data.message || fallback;
+    }
+    const text = (await res.text()).trim();
+    return text || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 type PetInfo = {
   pet_id: string;
   pet_name: string;
@@ -60,8 +74,7 @@ export default function CuidarClient({ token, initial }: { token: string; initia
       if (res.ok) {
         setJoined(true);
       } else {
-        const d = await res.json() as { detail?: string };
-        setError(d.detail ?? 'Erro ao entrar');
+        setError(await readErrorMessage(res, 'Erro ao entrar'));
       }
     } catch {
       setError('Erro de conexão. Tente novamente.');
@@ -87,8 +100,7 @@ export default function CuidarClient({ token, initial }: { token: string; initia
         setAuthToken(d.access_token);
         setJoined(true);
       } else {
-        const d = await res.json() as { detail?: string };
-        setError(d.detail ?? 'Erro ao entrar');
+        setError(await readErrorMessage(res, 'Erro ao entrar'));
       }
     } catch {
       setError('Erro de conexão. Tente novamente.');

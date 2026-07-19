@@ -512,10 +512,12 @@ def guest_join(
     guest_email = f"guest_{guest_id}@petmol.guest"
     guest = User(
         id=guest_id,
-        name=body.name.strip() or "Cuidador",
+        name=(body.name.strip() or "Cuidador")[:120],
         email=guest_email,
-        hashed_password=hash_password(secrets.token_urlsafe(32)),
+        password_hash=hash_password(secrets.token_urlsafe(32)),
         email_verified=True,
+        terms_accepted=True,
+        terms_version="guest",
     )
     db.add(guest)
     db.add(PetCaretaker(
