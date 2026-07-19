@@ -56,6 +56,7 @@ export default function CuidarClient({ token, initial }: { token: string; initia
   const [accountError, setAccountError] = useState('');
 
   const nameRef = useRef<HTMLInputElement>(null);
+  const autoJoinAttemptedRef = useRef(false);
   const redirectParam = encodeURIComponent(`/cuidar/${token}`);
 
   useEffect(() => {
@@ -70,6 +71,12 @@ export default function CuidarClient({ token, initial }: { token: string; initia
         .finally(() => setLoading(false));
     }
   }, [token, initial]);
+
+  useEffect(() => {
+    if (!authToken || loading || invalid || joined || joining || autoJoinAttemptedRef.current) return;
+    autoJoinAttemptedRef.current = true;
+    void handleAuthenticatedJoin(authToken);
+  }, [authToken, loading, invalid, joined, joining]);
 
   async function handleAuthenticatedJoin(tok: string) {
     setJoining(true);

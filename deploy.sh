@@ -41,6 +41,7 @@ deploy_api() {
     --exclude='*.pyc' \
     --exclude='.venv' \
     --exclude='.env*' \
+    --exclude='petmol.db*' \
     --exclude='uploads/' \
     -e "ssh -i ~/.ssh/id_ed25519" \
     "$APP_LOCAL/services/price-service/" \

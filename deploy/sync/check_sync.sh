@@ -58,6 +58,7 @@ RSYNC_DIFF="$(rsync -anic --delete \
     --exclude '.env.production' \
     --exclude '.secrets' \
     --exclude '.venv' \
+    --exclude 'services/price-service/petmol.db*' \
     --exclude 'node_modules' \
     --exclude '.next' \
     --exclude 'services/price-service/uploads' \
