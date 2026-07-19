@@ -25,6 +25,7 @@ from ..db import Base, get_db
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
 from ..notifications import _load_subscriptions, _save_subscriptions, _send_push
+from ..pets.access import accessible_pets_query, get_accessible_pet_or_404
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/missing-pets", tags=["Missing Pets"])
@@ -181,6 +182,42 @@ def _mp_to_dict(p: MissingPet) -> dict:
     }
 
 
+def _accessible_pet_ids(db: Session, user_id: str) -> list[str]:
+    return [str(p.id) for p in accessible_pets_query(db, user_id).all()]
+
+
+def _can_access_missing_pet(db: Session, user_id: str, mp: MissingPet) -> bool:
+    if str(mp.user_id) == str(user_id):
+        return True
+    if not mp.pet_id:
+        return False
+    try:
+        get_accessible_pet_or_404(db, str(user_id), str(mp.pet_id))
+        return True
+    except HTTPException:
+        return False
+
+
+def _ensure_missing_pet_access(db: Session, user_id: str, mp: MissingPet | None) -> MissingPet:
+    if not mp:
+        raise HTTPException(status_code=404, detail="Alerta não encontrado")
+    if not _can_access_missing_pet(db, str(user_id), mp):
+        raise HTTPException(status_code=403, detail="Sem permissão")
+    return mp
+
+
+def _family_missing_pets_query(db: Session, user_id: str, status: str | None = None):
+    pet_ids = _accessible_pet_ids(db, user_id)
+    q = db.query(MissingPet)
+    if status:
+        q = q.filter(MissingPet.status == status)
+    if pet_ids:
+        q = q.filter((MissingPet.user_id == str(user_id)) | (MissingPet.pet_id.in_(pet_ids)))
+    else:
+        q = q.filter(MissingPet.user_id == str(user_id))
+    return q
+
+
 def _broadcast_missing_pet(mp: MissingPet) -> int:
     """
     Push para usuários com subscrição ativa.
@@ -260,9 +297,6 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
                 subs.pop(uid, None)
             _save_subscriptions(subs)
 
-        if newly_notified:
-            _mark_notified(mp.id, newly_notified)
-
         # Notifica cuidadores do pet sempre (sem filtro de geo)
         caretaker_sent = 0
         if mp.pet_id:
@@ -274,7 +308,7 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
                     caretakers = _db.query(PetCaretaker).filter(PetCaretaker.pet_id == mp.pet_id).all()
                     for c in caretakers:
                         c_id = str(c.user_id)
-                        if c_id in excluded or c_id == str(mp.user_id):
+                        if c_id in excluded or c_id == str(mp.user_id) or c_id in newly_notified:
                             continue
                         c_sub = subs.get(c_id)
                         if not c_sub:
@@ -286,6 +320,9 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
                                 newly_notified.append(c_id)
             except Exception as ce:
                 print(f"[broadcast] caretaker push error: {ce}", flush=True)
+
+        if newly_notified:
+            _mark_notified(mp.id, newly_notified)
 
         print(
             f"[broadcast] DONE: {sent} geo + {caretaker_sent} cuidadores, {skipped} fora do raio, "
@@ -308,16 +345,27 @@ def create_missing_pet(
     current_user: User = Depends(get_current_user),
 ):
     user_id = str(current_user.id)
+    owner_user_id = user_id
+    pet_id = body.pet_id
+    pet_name = body.pet_name
+    species = body.species
+    breed = body.breed
+    photo_url = body.photo_url
+
+    if pet_id:
+        pet = get_accessible_pet_or_404(db, user_id, pet_id)
+        owner_user_id = str(pet.user_id)
+        pet_name = pet_name or pet.name
+        species = species or pet.species
+        breed = breed or pet.breed
+        photo_url = photo_url or pet.photo_url
 
     # Bloqueia se já existe alerta ativo para o mesmo pet — só pode reabrir após confirmar encontrado
-    existing_q = db.query(MissingPet).filter(
-        MissingPet.user_id == user_id,
-        MissingPet.status == "active",
-    )
-    if body.pet_id:
-        existing_q = existing_q.filter(MissingPet.pet_id == body.pet_id)
+    existing_q = db.query(MissingPet).filter(MissingPet.status == "active")
+    if pet_id:
+        existing_q = existing_q.filter(MissingPet.pet_id == pet_id)
     else:
-        existing_q = existing_q.filter(MissingPet.pet_name == body.pet_name)
+        existing_q = existing_q.filter(MissingPet.user_id == user_id, MissingPet.pet_name == pet_name)
 
     if existing_q.first():
         raise HTTPException(
@@ -327,11 +375,11 @@ def create_missing_pet(
 
     mp = MissingPet(
         id=str(uuid.uuid4()),
-        user_id=user_id,
-        pet_id=body.pet_id,
-        pet_name=body.pet_name,
-        species=body.species,
-        breed=body.breed,
+        user_id=owner_user_id,
+        pet_id=pet_id,
+        pet_name=pet_name,
+        species=species,
+        breed=breed,
         characteristics=body.characteristics,
         contact=body.contact,
         last_seen_location=body.last_seen_location,
@@ -339,7 +387,7 @@ def create_missing_pet(
         lng=body.lng,
         missing_date=body.missing_date,
         missing_time=body.missing_time,
-        photo_url=body.photo_url,
+        photo_url=photo_url,
         status="active",
         current_radius_km=body.radius_km or 2.0,
         created_at=datetime.now(timezone.utc),
@@ -367,13 +415,9 @@ def list_missing_pets(include_found: bool = False, db: Session = Depends(get_db)
 
 @router.get("/my-found-reports")
 def my_found_reports(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    """Retorna found_reports pendentes para os missing pets do usuário logado."""
+    """Retorna found_reports pendentes para pets que o usuário pode cuidar."""
     user_id = str(current_user.id)
-    my_pets = (
-        db.query(MissingPet)
-        .filter(MissingPet.user_id == user_id, MissingPet.status == "active")
-        .all()
-    )
+    my_pets = _family_missing_pets_query(db, user_id, "active").all()
     if not my_pets:
         return []
     my_pet_ids = [p.id for p in my_pets]
@@ -414,8 +458,7 @@ def dismiss_found_report(
     if not report:
         raise HTTPException(status_code=404, detail="Report não encontrado")
     mp = db.query(MissingPet).filter(MissingPet.id == report.missing_pet_id).first()
-    if not mp or str(mp.user_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="Sem permissão")
+    _ensure_missing_pet_access(db, str(current_user.id), mp)
     report.dismissed = 1
     db.commit()
 
@@ -470,8 +513,7 @@ def get_found_report_photos(
     if not report:
         raise HTTPException(status_code=404, detail="Report não encontrado")
     mp = db.query(MissingPet).filter(MissingPet.id == report.missing_pet_id).first()
-    if not mp or str(mp.user_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="Sem permissão")
+    _ensure_missing_pet_access(db, str(current_user.id), mp)
     photos = json.loads(report.finder_photos) if report.finder_photos else []
     return {
         "photos": photos,
@@ -482,12 +524,8 @@ def get_found_report_photos(
 
 @router.get("/my-active")
 def my_active_alerts(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Alertas ativos criados pelo próprio usuário (seus pets desaparecidos)."""
-    pets = (
-        db.query(MissingPet)
-        .filter(MissingPet.user_id == str(current_user.id), MissingPet.status == "active")
-        .all()
-    )
+    """Alertas ativos dos pets que o usuário pode cuidar."""
+    pets = _family_missing_pets_query(db, str(current_user.id), "active").all()
     return [{**_mp_to_dict(p), "pet_id": p.pet_id} for p in pets]
 
 
@@ -501,6 +539,10 @@ def my_alerts(db: Session = Depends(get_db), current_user=Depends(get_current_us
         mp_id for mp_id, rec in notified_data.items()
         if user_id in rec.get("notified", [])
     ]
+    family_alert_ids = [
+        p.id for p in _family_missing_pets_query(db, user_id, "active").all()
+    ]
+    notified_pet_ids = list(set(notified_pet_ids + family_alert_ids))
     if not notified_pet_ids:
         return []
     pets = (
@@ -517,10 +559,9 @@ def my_history(db: Session = Depends(get_db), current_user=Depends(get_current_u
     """Histórico de alertas encerrados — como dono e como finder."""
     user_id = str(current_user.id)
 
-    # Pets do próprio usuário que já foram encontrados
-    owned_found = (
-        db.query(MissingPet)
-        .filter(MissingPet.user_id == user_id, MissingPet.status == "found")
+    # Pets da família que já foram encontrados
+    family_found = (
+        _family_missing_pets_query(db, user_id, "found")
         .order_by(MissingPet.found_at.desc())
         .limit(20)
         .all()
@@ -531,9 +572,15 @@ def my_history(db: Session = Depends(get_db), current_user=Depends(get_current_u
     notified_pet_ids = [mp_id for mp_id, rec in notified_data.items() if user_id in rec.get("notified", [])]
     helped_found = []
     if notified_pet_ids:
+        family_found_ids = [p.id for p in family_found]
         helped_found = (
             db.query(MissingPet)
-            .filter(MissingPet.id.in_(notified_pet_ids), MissingPet.status == "found", MissingPet.user_id != user_id)
+            .filter(
+                MissingPet.id.in_(notified_pet_ids),
+                MissingPet.status == "found",
+                MissingPet.user_id != user_id,
+                ~MissingPet.id.in_(family_found_ids) if family_found_ids else True,
+            )
             .order_by(MissingPet.found_at.desc())
             .limit(20)
             .all()
@@ -550,7 +597,7 @@ def my_history(db: Session = Depends(get_db), current_user=Depends(get_current_u
         }
 
     return (
-        [_fmt(p, "owner") for p in owned_found]
+        [_fmt(p, "family") for p in family_found]
         + [_fmt(p, "finder") for p in helped_found]
     )
 
@@ -562,10 +609,7 @@ def mark_found(
     current_user: User = Depends(get_current_user),
 ):
     mp = db.query(MissingPet).filter(MissingPet.id == mp_id).first()
-    if not mp:
-        raise HTTPException(status_code=404, detail="Alerta não encontrado")
-    if str(mp.user_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="Sem permissão")
+    _ensure_missing_pet_access(db, str(current_user.id), mp)
     mp.status = "found"
     mp.found_at = datetime.now(timezone.utc)
     db.commit()
@@ -609,8 +653,7 @@ def alert_reach(
 ):
     """Retorna quantas pessoas têm o push ativo na área e quantas novas podem receber."""
     mp = db.query(MissingPet).filter(MissingPet.id == mp_id).first()
-    if not mp or str(mp.user_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="Sem permissão")
+    _ensure_missing_pet_access(db, str(current_user.id), mp)
 
     subs = _load_subscriptions()
     notified_data = _load_mp_notified()
@@ -653,10 +696,7 @@ def update_missing_pet(
 ):
     """Edita alerta ativo e re-envia push para novos usuários no raio."""
     mp = db.query(MissingPet).filter(MissingPet.id == mp_id, MissingPet.status == "active").first()
-    if not mp:
-        raise HTTPException(status_code=404, detail="Alerta não encontrado")
-    if str(mp.user_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="Sem permissão")
+    _ensure_missing_pet_access(db, str(current_user.id), mp)
 
     if body.characteristics is not None:
         mp.characteristics = body.characteristics or None

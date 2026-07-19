@@ -19,6 +19,9 @@ from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 from ..db import Base, SessionLocal, engine
 from ..user_auth.deps import get_current_user
 from ..config import get_settings
+from ..pets.access import get_accessible_pet_or_404
+from ..pets.caretaker_models import PetCaretaker
+from ..pets.models import Pet
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
@@ -202,12 +205,25 @@ def send_due_reminders() -> None:
             is_duplicate = dedup_key in seen
             seen.add(dedup_key)
 
-            sub = subscriptions.get(str(reminder.user_id))
-            if not sub or is_duplicate:
+            if is_duplicate:
+                logger.info(f"Reminder {reminder.id}: duplicado suprimido — marcado como enviado")
+                reminder.sent = True
+                continue
+
+            recipient_ids = {str(reminder.user_id)}
+            if reminder.pet_id:
+                pet = db.query(Pet).filter(Pet.id == reminder.pet_id).first()
+                if pet:
+                    recipient_ids.add(str(pet.user_id))
+                    caretakers = db.query(PetCaretaker).filter(PetCaretaker.pet_id == reminder.pet_id).all()
+                    recipient_ids.update(str(c.user_id) for c in caretakers)
+
+            recipient_subs = [(uid, subscriptions.get(uid)) for uid in recipient_ids]
+            recipient_subs = [(uid, sub) for uid, sub in recipient_subs if sub]
+            if not recipient_subs:
+                logger.info(f"Reminder {reminder.id}: sem subscriptions para o pet/user — consumindo")
                 if is_duplicate:
                     logger.info(f"Reminder {reminder.id}: duplicado suprimido — marcado como enviado")
-                else:
-                    logger.info(f"Reminder {reminder.id}: sem subscription para user {reminder.user_id} — consumindo")
                 reminder.sent = True
                 continue
 
@@ -249,14 +265,24 @@ def send_due_reminders() -> None:
                     "type": reminder.type,
                 },
             }
-            ok, sub_invalid = _send_push(sub, payload)
-            logger.info(f"Reminder {reminder.id} ({reminder.type}): push={'ok' if ok else 'falhou'} retries={reminder.retry_count}")
-            if ok:
+            ok_count = 0
+            hard_fail = False
+            for recipient_id, sub in recipient_subs:
+                ok, sub_invalid = _send_push(sub, payload)
+                logger.info(
+                    f"Reminder {reminder.id} ({reminder.type}) user={recipient_id}: "
+                    f"push={'ok' if ok else 'falhou'} retries={reminder.retry_count}"
+                )
+                if ok:
+                    ok_count += 1
+                elif sub_invalid:
+                    subscriptions.pop(recipient_id, None)
+                    changed = True
+                else:
+                    hard_fail = True
+
+            if ok_count > 0 or not hard_fail:
                 reminder.sent = True
-            elif sub_invalid:
-                reminder.sent = True
-                subscriptions.pop(str(reminder.user_id), None)
-                changed = True
             else:
                 reminder.retry_count = (reminder.retry_count or 0) + 1
                 if reminder.retry_count >= _MAX_RETRY:
@@ -372,6 +398,8 @@ def list_reminders(current_user=Depends(get_current_user)):
 def create_reminder(body: ReminderIn, current_user=Depends(get_current_user)):
     db = SessionLocal()
     try:
+        if body.pet_id:
+            get_accessible_pet_or_404(db, str(current_user.id), body.pet_id)
         remind_at = datetime.fromisoformat(body.remind_at.replace("Z", "+00:00"))
         r = Reminder(
             user_id=str(current_user.id),

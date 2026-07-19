@@ -24,6 +24,7 @@ from .grooming_models import GroomingRecord
 from .models import Pet
 from .parasite_models import ParasiteControlRecord
 from .vaccine_models import VaccineRecord
+from .access import get_accessible_pet_or_404
 from ..events.models import Event
 
 router = APIRouter(prefix="/pets", tags=["Pet Export"])
@@ -68,13 +69,7 @@ def create_zip_token(
     current_user: User = Depends(get_current_user),
 ):
     """Gera um token HMAC (5 min) para download público do ZIP."""
-    pet = (
-        db.query(Pet)
-        .filter(Pet.id == pet_id, Pet.user_id == str(current_user.id))
-        .first()
-    )
-    if not pet:
-        raise HTTPException(status_code=404, detail="Pet não encontrado")
+    pet = get_accessible_pet_or_404(db, str(current_user.id), pet_id)
 
     token = _make_zip_token(pet_id)
     return {"token": token, "expires_in": _ZIP_TOKEN_TTL}
@@ -300,13 +295,7 @@ def export_pet_pdf(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    pet = (
-        db.query(Pet)
-        .filter(Pet.id == pet_id, Pet.user_id == str(current_user.id))
-        .first()
-    )
-    if not pet:
-        raise HTTPException(status_code=404, detail="Pet nao encontrado")
+    pet = get_accessible_pet_or_404(db, str(current_user.id), pet_id)
 
     # Data mínima válida: nascimento do pet (ou 2010 como piso absoluto)
     # Registros com data anterior a esse limite têm a data substituída por created_at,
@@ -341,7 +330,6 @@ def export_pet_pdf(
         db.query(Event)
         .filter(
             Event.pet_id == pet_id,
-            Event.user_id == str(current_user.id),
             Event.deleted_at.is_(None),
             Event.source != "document",
             Event.type.notin_(list(_DEDUP_EVENT_TYPES)),
@@ -397,13 +385,7 @@ def export_pet_zip(
     """Exporta todos os documentos do pet em um ZIP organizado por categoria."""
     from .document_router import DOCS_UPLOAD_DIR
 
-    pet = (
-        db.query(Pet)
-        .filter(Pet.id == pet_id, Pet.user_id == str(current_user.id))
-        .first()
-    )
-    if not pet:
-        raise HTTPException(status_code=404, detail="Pet não encontrado")
+    pet = get_accessible_pet_or_404(db, str(current_user.id), pet_id)
 
     documents = (
         db.query(PetDocument)
