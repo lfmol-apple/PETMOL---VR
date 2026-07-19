@@ -1,6 +1,7 @@
 import google.generativeai as genai
 import json
 import logging
+import os
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -10,7 +11,8 @@ class DocumentClassifier:
 
     def __init__(self, api_key: str):
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-pro') # Usando pro para tarefas de raciocínio mais complexas
+        model_name = (os.getenv("GEMINI_MODEL") or os.getenv("VISION_GEMINI_MODEL") or "gemini-2.5-flash").strip()
+        self.model = genai.GenerativeModel(model_name)
 
     async def classify_document(self, image_bytes: bytes) -> Dict[str, Any]:
         """Classifica e extrai metadados do documento enviado."""

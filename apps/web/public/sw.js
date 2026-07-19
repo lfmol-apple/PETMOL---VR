@@ -17,7 +17,7 @@
  * }
  */
 
-const CACHE_NAME = 'petmol-shell-v2026-07-20a';
+const CACHE_NAME = 'petmol-shell-v2026-07-19e';
 const SHARE_CACHE = 'petmol-shared-files-v1';
 const SHELL_URLS = [
   '/',
@@ -202,6 +202,12 @@ self.addEventListener('activate', (event) => {
       .keys()
       .then((keys) => Promise.all(keys.filter((key) => !KEEP.has(key)).map((key) => caches.delete(key))))
       .then(() => clients.claim())
+      .then(() => {
+        // Força reload em todas as abas/janelas ao ativar novo SW
+        return self.clients.matchAll({ type: 'window' }).then((all) => {
+          all.forEach((client) => client.postMessage({ type: 'PETMOL_SW_UPDATED' }));
+        });
+      })
   );
 });
 

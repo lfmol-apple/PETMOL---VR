@@ -1422,7 +1422,7 @@ async def upload_documents(
             _form_date = date_type.fromisoformat(document_date)
         except ValueError:
             pass
-    _VALID_CATEGORIES = {"exam", "vaccine", "prescription", "report", "photo", "other"}
+    _VALID_CATEGORIES = {"exam", "vaccine", "prescription", "report", "comprovante", "photo", "other"}
     _form_category  = category if category in _VALID_CATEGORIES else None
     _form_establish = establishment_name.strip() if establishment_name and establishment_name.strip() else None
     _form_title     = title.strip()[:255] if title and title.strip() else None

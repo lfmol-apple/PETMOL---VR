@@ -30,6 +30,8 @@ import { MedicationItemSheet } from '@/components/home/MedicationItemSheet';
 import { FoodItemSheet } from '@/components/home/FoodItemSheet';
 import { GroomingItemSheet } from '@/components/home/GroomingItemSheet';
 import { PetSumidoSheet } from '@/components/home/PetSumidoSheet';
+import { UpcomingEventsSheet } from '@/components/home/UpcomingEventsSheet';
+import type { PetCareReminder } from '@/lib/petCareDomain';
 import { useMultipetInteractions } from '@/features/interactions/useMultipetInteractions';
 import type { PetInteractionItem } from '@/features/interactions/types';
 import { openHomeContextualCommerce, resolvePushActionSheetCommerceIntent } from '@/features/commerce/homeContextualCommerce';
@@ -312,6 +314,10 @@ function HomePageInner() {
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
     const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'PETMOL_SW_UPDATED') {
+        window.location.reload();
+        return;
+      }
       if (event.data?.type !== 'PETMOL_DEEPLINK') return;
       const { url, ts } = event.data as { url: string; ts: number };
       if (!url || Date.now() - (ts || 0) > 30_000) return;
@@ -320,6 +326,27 @@ function HomePageInner() {
     navigator.serviceWorker.addEventListener('message', handler);
     return () => navigator.serviceWorker.removeEventListener('message', handler);
   }, [applyDeepLinkUrl]);
+
+  // ── Checagem de versão — força reload quando novo deploy chega ─────────────
+  useEffect(() => {
+    const STORAGE_KEY = 'petmol_build_v';
+    const check = async () => {
+      try {
+        const res = await fetch('/version.json?t=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) return;
+        const { v } = await res.json() as { v: string };
+        const stored = sessionStorage.getItem(STORAGE_KEY);
+        if (!stored) { sessionStorage.setItem(STORAGE_KEY, v); return; }
+        if (stored !== v) {
+          sessionStorage.setItem(STORAGE_KEY, v);
+          window.location.reload();
+        }
+      } catch { /* offline — ignora */ }
+    };
+    check();
+    const iv = setInterval(check, 60_000);
+    return () => clearInterval(iv);
+  }, []);
 
   // ── Saúde da subscription de push ──────────────────────────────────────────
   // Sincroniza o endpoint atual do dispositivo com o servidor em cada mount.
@@ -432,6 +459,7 @@ function HomePageInner() {
     [pets, photoTimestamps],
   );
   const [homePossiblyStale, setHomePossiblyStale] = useState(false);
+  const [justSynced, setJustSynced] = useState(false);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editPetInitialSection, setEditPetInitialSection] = useState<'food' | 'grooming' | undefined>(undefined);
@@ -627,6 +655,8 @@ function HomePageInner() {
   const [showColeiraSheet, setShowColeiraSheet] = useState(false);
   const [showBanhoTosaSheet, setShowBanhoTosaSheet] = useState(false);
   const [showPetSumidoSheet, setShowPetSumidoSheet] = useState(false);
+  const [showUpcomingSheet, setShowUpcomingSheet] = useState(false);
+  const [allUpcomingReminders, setAllUpcomingReminders] = useState<PetCareReminder[]>([]);
 
   // Alertas de pets sumidos próximos (não são do usuário logado)
   type NearbyAlert = {
@@ -1076,7 +1106,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     enabled: Boolean(selectedPetId),
     debounceMs: 5_000,
     pollingMs: 60_000,
-    onSync: () => refreshAllRef.current(),
+    onSync: () => { refreshAllRef.current(); setJustSynced(true); setTimeout(() => setJustSynced(false), 3000); },
   });
   useEffect(() => {
     if (syncStatus === 'synced' && !possiblyStale) setHomePossiblyStale(false);
@@ -1912,7 +1942,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         </div>
       </div>
       <div className="max-w-2xl mx-auto px-4 py-4">
-        {pets.length > 0 && (
+        {pets.length > 0 && (syncStatus === 'offline' || syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale || justSynced) && (
           <div className="mb-3 flex justify-center">
             <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-sm ${
               syncStatus === 'offline'
@@ -1932,7 +1962,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                 ? 'Sem conexão'
                 : syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale
                   ? 'Tentando reconectar'
-                  : 'Sincronizado agora'}
+                  : 'Sincronizado'}
             </div>
           </div>
         )}
@@ -2313,6 +2343,8 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       onAlertSelect={handleTopAttentionSelect}
                       selectedPetNeedsAttention={_selectedPetNeedsAttention}
                       selectedPetCareScore={_selectedPetCareScore}
+                      upcomingCount={allUpcomingReminders.length}
+                      onOpenUpcoming={() => setShowUpcomingSheet(true)}
                     />
 
                   {/* Compartilhar cuidado — só para o dono do pet */}
@@ -2377,6 +2409,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     onOpenEvents={handleOpenEvents}
                     onOpenFamily={togglePetSelector}
                     onOpenPetSumido={() => setShowPetSumidoSheet(true)}
+                    onUpcomingCountChange={(_count, reminders) => setAllUpcomingReminders(reminders)}
                     onHealthItemClick={setHealthQuickAction}
                   />
                 </PetTabs>
@@ -2786,6 +2819,35 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           onClose={closeGroomingSheet}
           onGoHome={closeGroomingSheet}
           onRefresh={loadGroomingRecords}
+        />
+      )}
+
+      {showUpcomingSheet && currentPet && (
+        <UpcomingEventsSheet
+          open={showUpcomingSheet}
+          onClose={() => setShowUpcomingSheet(false)}
+          reminders={allUpcomingReminders}
+          petName={currentPet.pet_name}
+          onSelect={(r) => {
+            setShowUpcomingSheet(false);
+            const target = r.action_target;
+            if (QUICK_ACTION_TARGETS.has(target)) {
+              setHealthQuickAction({
+                action_target: target,
+                label: r.label,
+                pet_id: currentPet.pet_id,
+                pet_name: currentPet.pet_name,
+                status: 'upcoming',
+                source_record_id: r.source_record_id,
+              });
+            } else if (target === 'health/events') {
+              handleOpenEvents();
+            } else if (target === 'health/grooming') {
+              handleOpenGrooming();
+            } else if (target === 'health/food') {
+              handleOpenFood();
+            }
+          }}
         />
       )}
 

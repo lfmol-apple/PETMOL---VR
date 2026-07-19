@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { AuthenticatedDocumentImage } from '@/components/AuthenticatedDocumentImage';
 import { PetDocumentVault } from '@/components/PetDocumentVault';
 import { API_BASE_URL } from '@/lib/api';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
@@ -158,9 +157,19 @@ export function MedicalVaultModal({
   const [openedCategory, setOpenedCategory] = useState<string | null>(null);
   const [eventsExpanded, setEventsExpanded] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [exportingZip, setExportingZip] = useState(false);
+  type ZipPhase = 'idle' | 'generating' | 'downloading' | 'done';
+  const [zipPhase, setZipPhase] = useState<ZipPhase>('idle');
+  const [zipProgress, setZipProgress] = useState(0);
+  type PdfPhase = 'idle' | 'generating' | 'preview';
+  const [pdfPhase, setPdfPhase] = useState<PdfPhase>('idle');
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [pdfPages, setPdfPages] = useState<string[]>([]);
   const [localPending, setLocalPending] = useState<File[] | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfScrollRef = useRef<HTMLDivElement>(null);
+  const pdfContentRef = useRef<HTMLDivElement>(null);
+  const pdfZoomRef = useRef(1);
 
   useEffect(() => {
     if (!currentPet?.pet_id) return;
@@ -173,6 +182,111 @@ export function MedicalVaultModal({
       .then((data) => { if (Array.isArray(data)) setVetHistoryDocs(data); })
       .catch(() => {});
   }, [currentPet?.pet_id, setVetHistoryDocs]);
+
+  useEffect(() => {
+    const container = pdfScrollRef.current;
+    const content = pdfContentRef.current;
+    if (!container || !content || pdfPages.length === 0) return;
+
+    let scale = 1, tx = 0, ty = 0;
+    let pinchActive = false, pinchLastDist = 0, pinchLastMidX = 0, pinchLastMidY = 0;
+    let panActive = false, panBaseTx = 0, panBaseTy = 0, panBaseX = 0, panBaseY = 0;
+    let lastTap = 0;
+
+    const clampAndApply = (animated: boolean) => {
+      const cW = container.clientWidth;
+      const cH = container.clientHeight;
+      const elH = content.offsetHeight;
+      scale = Math.max(1, Math.min(5, scale));
+      if (scale <= 1.005) {
+        scale = 1; tx = 0;
+        ty = Math.min(0, Math.max(cH - elH, ty));
+      } else {
+        tx = Math.min(0, Math.max(cW - cW * scale, tx));
+        ty = Math.min(0, Math.max(cH - elH * scale, ty));
+      }
+      content.style.transition = animated ? 'transform 0.2s ease-out' : 'none';
+      content.style.transform = (scale === 1 && tx === 0 && ty === 0) ? 'none' : `translate(${tx}px,${ty}px) scale(${scale})`;
+      pdfZoomRef.current = scale;
+    };
+
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        pinchActive = true; panActive = false;
+        pinchLastDist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
+        const r = container.getBoundingClientRect();
+        pinchLastMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
+        pinchLastMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+      } else if (e.touches.length === 1 && !pinchActive) {
+        panActive = true;
+        panBaseTx = tx; panBaseTy = ty;
+        panBaseX = e.touches[0].clientX; panBaseY = e.touches[0].clientY;
+      }
+    };
+
+    const onMove = (e: TouchEvent) => {
+      if (pinchActive && e.touches.length >= 2) {
+        e.preventDefault();
+        const newDist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
+        const r = container.getBoundingClientRect();
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+        const f = newDist / pinchLastDist;
+        tx = midX - f * (midX - tx) + (midX - pinchLastMidX);
+        ty = midY - f * (midY - ty) + (midY - pinchLastMidY);
+        scale *= f;
+        pinchLastDist = newDist; pinchLastMidX = midX; pinchLastMidY = midY;
+        clampAndApply(false);
+      } else if (panActive && e.touches.length === 1 && !pinchActive) {
+        e.preventDefault();
+        tx = panBaseTx + (scale > 1.05 ? e.touches[0].clientX - panBaseX : 0);
+        ty = panBaseTy + (e.touches[0].clientY - panBaseY);
+        clampAndApply(false);
+      }
+    };
+
+    const onEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2 && pinchActive) {
+        pinchActive = false;
+        clampAndApply(true);
+        if (e.touches.length === 1) {
+          panActive = true;
+          panBaseTx = tx; panBaseTy = ty;
+          panBaseX = e.touches[0].clientX; panBaseY = e.touches[0].clientY;
+        }
+      } else if (e.touches.length === 0 && !pinchActive) {
+        panActive = false;
+        clampAndApply(true);
+        if (e.changedTouches.length === 1) {
+          const now = Date.now();
+          if (now - lastTap < 300) {
+            if (scale > 1.5) {
+              scale = 1; tx = 0; ty = 0;
+            } else {
+              const r = container.getBoundingClientRect();
+              const tapX = e.changedTouches[0].clientX - r.left;
+              const tapY = e.changedTouches[0].clientY - r.top;
+              scale = 2.5;
+              tx = tapX * (1 - 2.5);
+              ty = tapY * (1 - 2.5);
+            }
+            clampAndApply(true);
+          }
+          lastTap = now;
+        }
+      }
+    };
+
+    container.addEventListener('touchstart', onStart, { passive: false });
+    container.addEventListener('touchmove', onMove, { passive: false });
+    container.addEventListener('touchend', onEnd, { passive: true });
+    return () => {
+      container.removeEventListener('touchstart', onStart);
+      container.removeEventListener('touchmove', onMove);
+      container.removeEventListener('touchend', onEnd);
+    };
+  }, [pdfPages]);
 
   if (!currentPet) return null;
 
@@ -205,63 +319,181 @@ export function MedicalVaultModal({
 
   const handleExportPDF = async () => {
     setExporting(true);
+    setPdfPhase('generating');
     try {
       const token = localStorage.getItem('petmol_token');
-      if (!token) { showAppToast('Sessão expirada. Faça login novamente.', { tone: 'warning' }); return; }
+      if (!token) { showAppToast('Sessão expirada. Faça login novamente.', { tone: 'warning' }); setPdfPhase('idle'); return; }
       const res = await fetch(`${API_BASE_URL}/pets/${currentPet.pet_id}/export-pdf`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('backend_error');
       const blob = await res.blob();
-      const safe = currentPet.pet_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      const file = new File([blob], `historico-${safe}.pdf`, { type: 'application/pdf' });
-      if (
-        typeof navigator.share === 'function' &&
-        typeof navigator.canShare === 'function' &&
-        navigator.canShare({ files: [file] })
-      ) {
-        await navigator.share({ files: [file], title: `Histórico de ${currentPet.pet_name}` });
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `historico-${safe}.pdf`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      const url = URL.createObjectURL(blob);
+      setPdfBlob(blob);
+      setPdfBlobUrl(url);
+
+      // Render all pages via PDF.js so iOS shows every page at the correct width
+      try {
+        const pdfjs = await import('pdfjs-dist');
+        pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+          'pdfjs-dist/build/pdf.worker.min.mjs',
+          import.meta.url,
+        ).toString();
+        const arrayBuffer = await blob.arrayBuffer();
+        const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+        const targetWidth = window.innerWidth;
+        const dataUrls: string[] = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const baseVp = page.getViewport({ scale: 1 });
+          const scale = targetWidth / baseVp.width;
+          const vp = page.getViewport({ scale });
+          const canvas = document.createElement('canvas');
+          canvas.width = vp.width;
+          canvas.height = vp.height;
+          await page.render({ canvasContext: canvas.getContext('2d')!, viewport: vp, canvas }).promise;
+          dataUrls.push(canvas.toDataURL('image/jpeg', 0.92));
+        }
+        setPdfPages(dataUrls);
+      } catch (pdfErr) {
+        // Mostra erro temporariamente para diagnóstico
+        showAppToast('PDF.js: ' + String(pdfErr).slice(0, 80), { tone: 'warning' });
       }
+      setPdfPhase('preview');
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         showAppToast('Não foi possível gerar o PDF. Tente novamente.', { tone: 'warning' });
       }
+      setPdfPhase('idle');
     } finally {
       setExporting(false);
     }
   };
 
+  const handleSharePDF = async () => {
+    if (!pdfBlob || !pdfBlobUrl) return;
+    const safe = currentPet!.pet_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const fileName = `historico-${safe}.pdf`;
+    let shared = false;
+    try {
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      if (
+        typeof navigator.share === 'function' &&
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [file] })
+      ) {
+        await navigator.share({ files: [file], title: `Histórico de ${currentPet!.pet_name}` });
+        shared = true;
+      }
+    } catch (_) {}
+    if (!shared) {
+      const a = document.createElement('a');
+      a.href = pdfBlobUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    if (!pdfBlobUrl) return;
+    const safe = currentPet!.pet_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const a = document.createElement('a');
+    a.href = pdfBlobUrl;
+    a.download = `historico-${safe}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleClosePDFPreview = () => {
+    if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
+    setPdfBlob(null);
+    setPdfBlobUrl(null);
+    setPdfPages([]);
+    setPdfPhase('idle');
+    pdfZoomRef.current = 1;
+    if (pdfContentRef.current) { pdfContentRef.current.style.transform = 'none'; pdfContentRef.current.style.transition = 'none'; }
+  };
+
   const handleExportZip = async () => {
-    setExportingZip(true);
+    setZipPhase('generating');
+    setZipProgress(0);
     try {
       const authToken = localStorage.getItem('petmol_token');
       if (!authToken) {
         showAppToast('Sessão expirada. Faça login novamente.', { tone: 'warning' });
+        setZipPhase('idle');
         return;
       }
-      const res = await fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip/token`, {
+
+      const tokenRes = await fetch(`${API_BASE_URL}/pets/${currentPet!.pet_id}/export-zip/token`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${authToken}` },
       });
-      if (!res.ok) throw new Error();
-      const { token: dlToken } = await res.json();
+      if (!tokenRes.ok) throw new Error();
+      const { token: dlToken } = await tokenRes.json();
+
       const downloadUrl = `${window.location.origin}${API_BASE_URL}/pets/download/zip/${dlToken}`;
 
-      // Navega direto para a URL — o servidor envia Content-Disposition: attachment,
-      // o browser faz o download sem carregar o ZIP na memória do app.
-      // No iOS 16.4+ (PWA e Safari), exibe "Salvar nos Arquivos" sem sair do app.
-      window.location.href = downloadUrl;
-    } catch {
+      // Blocks while server builds the ZIP (generating phase); resolves when first bytes arrive
+      const response = await fetch(downloadUrl);
+      if (!response.ok) throw new Error();
+
+      setZipPhase('downloading');
+
+      const contentLength = response.headers.get('Content-Length');
+      const total = contentLength ? parseInt(contentLength, 10) : null;
+      const reader = response.body!.getReader();
+      const chunks: Uint8Array<ArrayBuffer>[] = [];
+      let received = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value as Uint8Array<ArrayBuffer>);
+        received += value.byteLength;
+        if (total) setZipProgress(Math.min(99, Math.round((received / total) * 100)));
+      }
+
+      setZipProgress(100);
+
+      const blob = new Blob(chunks, { type: 'application/zip' });
+      const safe = currentPet!.pet_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const fileName = `documentos-${safe}.zip`;
+
+      // Try Web Share API; any failure (including NotAllowedError after async gap) falls back to a.click()
+      let shared = false;
+      try {
+        const zipFile = new File([blob], fileName, { type: 'application/zip' });
+        if (
+          typeof navigator.share === 'function' &&
+          typeof navigator.canShare === 'function' &&
+          navigator.canShare({ files: [zipFile] })
+        ) {
+          await navigator.share({ files: [zipFile], title: `Documentos de ${currentPet!.pet_name}` });
+          shared = true;
+        }
+      } catch (_) {
+        // share failed or was cancelled — fall through to anchor download
+      }
+
+      if (!shared) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      }
+
+      setZipPhase('done');
+    } catch (err) {
       showAppToast('Não foi possível gerar o ZIP. Tente novamente.', { tone: 'warning' });
-    } finally {
-      setExportingZip(false);
+      setZipPhase('idle');
     }
   };
 
@@ -272,18 +504,6 @@ export function MedicalVaultModal({
   const lastVaccine = vaccines
     .filter((v) => v.date_administered)
     .sort((a, b) => (b.date_administered || '').localeCompare(a.date_administered || ''))[0];
-
-  const recentDocs = [...vetHistoryDocs]
-    .sort((a, b) => {
-      const da = a.document_date || a.created_at || '';
-      const db = b.document_date || b.created_at || '';
-      return db.localeCompare(da);
-    })
-    .slice(0, 5);
-
-  const isImageDoc = (doc: VetHistoryDocument) =>
-    Boolean(doc.mime_type?.startsWith('image/') ||
-    /\.(jpg|jpeg|png|webp)$/i.test(doc.storage_key || doc.file_name || ''));
 
   const handleQuickUpload = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -297,7 +517,7 @@ export function MedicalVaultModal({
       <div className="bg-white rounded-[32px] shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[92dvh] overflow-hidden flex flex-col">
 
         {/* ── Header ── */}
-        <div className="bg-white border-b border-violet-100 px-4 py-3 flex-shrink-0">
+        <div className="bg-white border-b border-blue-100 px-4 py-3 flex-shrink-0">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               {inVault && (
@@ -311,7 +531,7 @@ export function MedicalVaultModal({
                   </svg>
                 </button>
               )}
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-violet-100">
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-100">
                 <span className="text-xl">{inVault ? (selectedFolder?.icon ?? '🗂️') : '📓'}</span>
               </div>
               <div className="min-w-0">
@@ -338,42 +558,92 @@ export function MedicalVaultModal({
         </div>
 
         {/* ── Body ── */}
-        <div className="overflow-y-auto flex-1">
+        <div className="overflow-y-auto flex-1 flex flex-col">
+
+          {/* ─── ZIP progress / done — full-height centered overlay ── */}
+          {zipPhase !== 'idle' && !inVault && (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 gap-6 text-center">
+              {zipPhase === 'done' ? (
+                <>
+                  <div className="w-20 h-20 rounded-full bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center text-5xl">✅</div>
+                  <div>
+                    <p className="font-bold text-slate-900 text-xl">ZIP baixado!</p>
+                    <p className="text-slate-500 text-sm mt-1">Arquivo salvo no dispositivo</p>
+                  </div>
+                  <div className="flex flex-col gap-3 w-full max-w-xs">
+                    <button
+                      type="button"
+                      onClick={() => setZipPhase('idle')}
+                      className="w-full py-3 rounded-2xl border border-slate-300 bg-white text-slate-700 font-semibold text-[14px] hover:bg-slate-50 transition-colors"
+                      style={{ touchAction: 'manipulation' }}
+                    >
+                      Baixar novamente
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowMedicalVault(false)}
+                      className="w-full py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-[14px] transition-colors shadow-md shadow-blue-500/25"
+                      style={{ touchAction: 'manipulation' }}
+                    >
+                      ← Voltar ao início
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-20 h-20 rounded-full bg-blue-50 border-2 border-blue-200 flex items-center justify-center text-5xl">🗜️</div>
+                  <div>
+                    <p className="font-bold text-slate-900 text-xl">
+                      {zipPhase === 'generating' ? 'Gerando ZIP…' : `Baixando… ${zipProgress}%`}
+                    </p>
+                    <p className="text-slate-500 text-sm mt-1">
+                      {zipPhase === 'generating' ? 'Compactando seus documentos' : 'Não feche esta tela'}
+                    </p>
+                  </div>
+                  <div className={`w-full max-w-xs h-2.5 rounded-full overflow-hidden ${(zipPhase === 'generating' || zipProgress === 0) ? 'bg-blue-300 animate-pulse' : 'bg-slate-200'}`}>
+                    {zipProgress > 0 && (
+                      <div
+                        className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                        style={{ width: `${zipProgress}%` }}
+                      />
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {/* ─── HOME ──────────────────────────────────────────────────── */}
-          {!inVault && (
-            <div className="flex flex-col gap-4 p-4">
+          {!inVault && zipPhase === 'idle' && pdfPhase === 'idle' && (
+            <div className="flex flex-col gap-2 p-3">
 
               {/* Carteirinha hero */}
-              <div className="rounded-2xl bg-gradient-to-br from-violet-600 via-violet-700 to-purple-800 p-4 shadow-lg">
-                <div className="flex items-start justify-between mb-3">
+              <div className="rounded-2xl bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 p-2.5 shadow-md">
+                <div className="flex items-center justify-between mb-1.5">
                   <div>
-                    <p className="text-violet-300 text-[10px] font-semibold uppercase tracking-widest">Carteirinha de Saúde</p>
-                    <p className="text-white text-xl font-bold mt-0.5 leading-tight">{currentPet.pet_name}</p>
-                    <p className="text-violet-300 text-xs mt-0.5">
+                    <p className="text-white text-base font-bold leading-tight">{currentPet.pet_name}</p>
+                    <p className="text-blue-200 text-xs mt-0.5">
                       {currentPet.species === 'cat' ? 'Gato' : currentPet.species === 'dog' ? 'Cachorro' : currentPet.species || 'Pet'}
                       {currentPet.breed ? ` · ${currentPet.breed}` : ''}
                     </p>
                   </div>
-                  <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center text-2xl border border-white/20">
+                  <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center text-xl border border-white/20">
                     {currentPet.species === 'cat' ? '🐱' : '🐶'}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <div className="flex-1 bg-white/10 rounded-xl px-3 py-2 border border-white/10">
-                    <p className="text-violet-300 text-[9px] uppercase tracking-wide font-medium">Última vacina</p>
+                <div className="flex gap-1.5">
+                  <div className="flex-1 bg-white/10 rounded-xl px-2 py-1 border border-white/10">
+                    <p className="text-blue-200 text-[9px] uppercase tracking-wide font-medium">Última vacina</p>
                     <p className="text-white font-bold text-sm mt-0.5">
-                      {lastVaccine
-                        ? fmtDate(lastVaccine.date_administered)
-                        : '—'}
+                      {lastVaccine ? fmtDate(lastVaccine.date_administered) : '—'}
                     </p>
                   </div>
-                  <div className="flex-1 bg-white/10 rounded-xl px-3 py-2 border border-white/10">
-                    <p className="text-violet-300 text-[9px] uppercase tracking-wide font-medium">Documentos</p>
+                  <div className="flex-1 bg-white/10 rounded-xl px-2 py-1 border border-white/10">
+                    <p className="text-blue-200 text-[9px] uppercase tracking-wide font-medium">Documentos</p>
                     <p className="text-white font-bold text-sm mt-0.5">{vetHistoryDocs.length} {vetHistoryDocs.length === 1 ? 'arquivo' : 'arquivos'}</p>
                   </div>
-                  <div className="flex-1 bg-white/10 rounded-xl px-3 py-2 border border-white/10">
-                    <p className="text-violet-300 text-[9px] uppercase tracking-wide font-medium">Eventos</p>
+                  <div className="flex-1 bg-white/10 rounded-xl px-2 py-1 border border-white/10">
+                    <p className="text-blue-200 text-[9px] uppercase tracking-wide font-medium">Eventos</p>
                     <p className="text-white font-bold text-sm mt-0.5">{allEvents.length}</p>
                   </div>
                 </div>
@@ -404,7 +674,7 @@ export function MedicalVaultModal({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-3.5 rounded-2xl bg-violet-600 hover:bg-violet-700 active:scale-[0.98] transition-all text-white text-[15px] font-bold flex items-center justify-center gap-2 shadow-md shadow-violet-500/25"
+                  className="w-full py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] transition-all text-white text-[14px] font-bold flex items-center justify-center gap-2 shadow-md shadow-blue-500/25"
                   style={{ touchAction: 'manipulation' }}
                 >
                   <span className="text-xl">+</span>
@@ -412,66 +682,62 @@ export function MedicalVaultModal({
                 </button>
               </div>
 
-              {/* Docs recentes */}
-              {recentDocs.length > 0 && (
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Recentes</p>
-                  <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-                    {recentDocs.map((doc) => {
-                      const folder = DOC_FOLDERS.find((f) => f.id === (doc.category || 'other'));
+              {/* 4 categorias principais em destaque */}
+              {(() => {
+                const main = [
+                  { id: 'vaccine',      icon: '💉', label: 'Vacinas',   accent: 'text-green-700',  badge: 'bg-green-100 text-green-700',  card: 'bg-green-50 border-green-200'  },
+                  { id: 'exam',         icon: '🔬', label: 'Exames',    accent: 'text-blue-700',   badge: 'bg-blue-100 text-blue-700',    card: 'bg-blue-50 border-blue-200'    },
+                  { id: 'report',       icon: '📄', label: 'Laudos',    accent: 'text-indigo-700', badge: 'bg-indigo-100 text-indigo-700',card: 'bg-indigo-50 border-indigo-200'},
+                  { id: 'prescription', icon: '💊', label: 'Receitas',  accent: 'text-purple-700', badge: 'bg-purple-100 text-purple-700',card: 'bg-purple-50 border-purple-200'},
+                ] as const;
+                return (
+                  <div className="grid grid-cols-2 gap-2">
+                    {main.map((f) => {
+                      const docs = vetHistoryDocs.filter((d) => (d.category || 'other') === f.id);
+                      const recent = docs.slice().sort((a, b) => (b.document_date || b.created_at || '').localeCompare(a.document_date || a.created_at || '')).at(0);
                       return (
                         <button
-                          key={doc.id || doc.storage_key}
+                          key={f.id}
                           type="button"
-                          onClick={() => setOpenedCategory(doc.category || 'other')}
-                          className="flex-shrink-0 w-[72px] flex flex-col rounded-xl overflow-hidden border border-slate-200 bg-white shadow-sm active:scale-[0.96] transition-transform"
+                          onClick={() => setOpenedCategory(f.id)}
+                          className={`flex flex-col gap-1 p-2.5 rounded-2xl border transition-all active:scale-[0.97] hover:shadow-md text-left ${f.card}`}
                           style={{ touchAction: 'manipulation' }}
                         >
-                          {isImageDoc(doc) && currentPet.pet_id && doc.id ? (
-                            <AuthenticatedDocumentImage
-                              petId={currentPet.pet_id}
-                              docId={doc.id}
-                              alt={doc.title || 'Documento'}
-                              className="w-[72px] h-[72px] object-cover"
-                            />
-                          ) : (
-                            <div className="w-[72px] h-[72px] bg-slate-50 flex items-center justify-center text-3xl">
-                              {folder?.icon || '📄'}
-                            </div>
-                          )}
-                          <div className="px-1.5 py-1 bg-white">
-                            <p className="text-[9px] text-slate-500 truncate leading-tight">{doc.title || doc.file_name || 'Documento'}</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xl">{f.icon}</span>
+                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${docs.length > 0 ? f.badge : 'bg-slate-100 text-slate-400'}`}>
+                              {docs.length}
+                            </span>
                           </div>
+                          <p className={`font-black text-[13px] leading-tight ${f.accent}`}>{f.label}</p>
+                          <p className="text-[10px] text-slate-400 leading-tight truncate">
+                            {recent ? fmtDate(recent.document_date || recent.created_at) : 'Nenhum'}
+                          </p>
                         </button>
                       );
                     })}
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
-              {/* Grade de pastas — 3 colunas */}
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Pastas</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {DOC_FOLDERS.map((folder) => {
-                    const count = vetHistoryDocs.filter((d) => (d.category || 'other') === folder.id).length;
-                    return (
-                      <button
-                        key={folder.id}
-                        type="button"
-                        onClick={() => setOpenedCategory(folder.id)}
-                        className={`flex flex-col items-center gap-1.5 py-4 px-2 rounded-2xl border transition-all active:scale-[0.96] hover:shadow-md ${folder.bg} ${folder.border}`}
-                        style={{ touchAction: 'manipulation' }}
-                      >
-                        <span className="text-2xl">{folder.icon}</span>
-                        <p className="font-semibold text-slate-900 text-[12px] leading-tight text-center">{folder.label}</p>
-                        <p className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${count > 0 ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-400'}`}>
-                          {count}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
+              {/* Outros — comprovantes e outros em row compacta */}
+              <div className="grid grid-cols-2 gap-2">
+                {DOC_FOLDERS.filter((f) => f.id === 'comprovante' || f.id === 'other').map((folder) => {
+                  const count = vetHistoryDocs.filter((d) => (d.category || 'other') === folder.id).length;
+                  return (
+                    <button
+                      key={folder.id}
+                      type="button"
+                      onClick={() => setOpenedCategory(folder.id)}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-2xl border transition-all active:scale-[0.96] ${folder.bg} ${folder.border}`}
+                      style={{ touchAction: 'manipulation' }}
+                    >
+                      <span className="text-xl">{folder.icon}</span>
+                      <p className="font-semibold text-slate-700 text-[13px] flex-1 text-left">{folder.label}</p>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${count > 0 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'}`}>{count}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Eventos — collapsible */}
@@ -553,18 +819,13 @@ export function MedicalVaultModal({
                 <button
                   type="button"
                   onClick={handleExportZip}
-                  disabled={exportingZip}
-                  className="flex-1 flex items-center gap-2 px-3 py-3 rounded-2xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 active:scale-[0.98] transition-all disabled:opacity-60"
+                  className="flex-1 flex items-center gap-2 px-3 py-3 rounded-2xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 active:scale-[0.98] transition-all"
                   style={{ touchAction: 'manipulation' }}
                 >
-                  <span className="text-lg">{exportingZip ? '⏳' : '🗜️'}</span>
+                  <span className="text-lg">🗜️</span>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-emerald-900 text-[13px] leading-tight">
-                      {exportingZip ? 'Gerando…' : 'Exportar ZIP'}
-                    </p>
-                    <p className="text-[10px] text-emerald-600 mt-0.5">
-                      {exportingZip ? 'Aguarde…' : 'Arquivos originais'}
-                    </p>
+                    <p className="font-bold text-emerald-900 text-[13px] leading-tight">Exportar ZIP</p>
+                    <p className="text-[10px] text-emerald-600 mt-0.5">Arquivos originais</p>
                   </div>
                 </button>
               </div>
@@ -602,6 +863,100 @@ export function MedicalVaultModal({
 
       </div>
     </div>
+
+    {/* ── PDF full-screen viewer ── */}
+    {pdfPhase !== 'idle' && (
+      <div className="fixed inset-0 z-[60] flex flex-col bg-white">
+
+        {/* Top bar */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 bg-white flex-shrink-0">
+          <button
+            type="button"
+            onClick={handleClosePDFPreview}
+            className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors flex-shrink-0"
+            style={{ touchAction: 'manipulation' }}
+            aria-label="Voltar"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-5 h-5 text-slate-600">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-slate-900 text-sm truncate">Histórico de {currentPet.pet_name}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Histórico completo de saúde</p>
+          </div>
+        </div>
+
+        {/* Content */}
+        {pdfPhase === 'generating' ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8 text-center">
+            <div className="w-24 h-24 rounded-full bg-blue-50 border-2 border-blue-200 flex items-center justify-center text-6xl animate-pulse">📄</div>
+            <div>
+              <p className="font-bold text-slate-900 text-xl">Gerando PDF…</p>
+              <p className="text-slate-500 text-sm mt-2">Preparando o histórico de saúde</p>
+            </div>
+            <div className="w-64 h-2.5 rounded-full bg-blue-300 animate-pulse" />
+          </div>
+        ) : pdfPages.length > 0 ? (
+          <div
+            ref={pdfScrollRef}
+            className="flex-1 overflow-hidden bg-slate-100 relative"
+            style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' as const }}
+          >
+            <div ref={pdfContentRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transformOrigin: '0 0', willChange: 'transform' }}>
+              {pdfPages.map((src, i) => (
+                <img
+                  key={i}
+                  src={src}
+                  alt={`Página ${i + 1}`}
+                  style={{ width: '100%', display: 'block' }}
+                  draggable={false}
+                />
+              ))}
+            </div>
+          </div>
+        ) : pdfBlobUrl ? (
+          <iframe
+            src={pdfBlobUrl}
+            className="flex-1 w-full"
+            title={`Histórico de ${currentPet.pet_name}`}
+            style={{ border: 'none', minHeight: 0 }}
+          />
+        ) : null}
+
+        {/* Bottom actions */}
+        {pdfPhase === 'preview' && (
+          <div className="flex gap-3 p-4 border-t border-slate-200 bg-white flex-shrink-0">
+            <button
+              type="button"
+              onClick={handleSharePDF}
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl border border-blue-200 bg-blue-50 text-blue-700 font-bold text-[15px] hover:bg-blue-100 active:scale-[0.98] transition-all"
+              style={{ touchAction: 'manipulation' }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                <polyline points="16 6 12 2 8 6"/>
+                <line x1="12" y1="2" x2="12" y2="15"/>
+              </svg>
+              Compartilhar
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadPDF}
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold text-[15px] transition-all shadow-md shadow-blue-500/25"
+              style={{ touchAction: 'manipulation' }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Salvar
+            </button>
+          </div>
+        )}
+      </div>
+    )}
     </ModalPortal>
   );
 }

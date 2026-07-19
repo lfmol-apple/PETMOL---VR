@@ -39,6 +39,8 @@ interface HomePetHeaderProps {
   onAlertSelect: (alert: PetInteractionItem) => void;
   selectedPetNeedsAttention: boolean;
   selectedPetCareScore: number;
+  upcomingCount: number;
+  onOpenUpcoming: () => void;
 }
 
 export function HomePetHeader({
@@ -64,6 +66,8 @@ export function HomePetHeader({
   onAlertSelect,
   selectedPetNeedsAttention,
   selectedPetCareScore,
+  upcomingCount,
+  onOpenUpcoming,
 }: HomePetHeaderProps) {
   const { t } = useI18n();
   const nameButtonRef = useRef<HTMLButtonElement>(null);
@@ -227,8 +231,24 @@ export function HomePetHeader({
           </>
         )}
 
-        {/* Badge de Status de Saúde (PRESERVADO) */}
-        
+        {/* Bell de eventos futuros — canto superior esquerdo */}
+        <div className="absolute top-3 left-3 z-20">
+          <button
+            type="button"
+            onClick={onOpenUpcoming}
+            aria-label="Próximos eventos"
+            className="relative w-10 h-10 flex items-center justify-center rounded-full bg-black/30 backdrop-blur-md border border-white/40 text-white shadow-lg transition-all hover:bg-black/50 active:scale-90"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5" aria-hidden="true">
+              <path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2Zm6-6V11a6 6 0 0 0-5-5.92V4a1 1 0 0 0-2 0v1.08A6 6 0 0 0 6 11v5l-1.29 1.29A1 1 0 0 0 5 19h14a1 1 0 0 0 .71-1.71L18 16Z" />
+            </svg>
+            {upcomingCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 border-2 border-white text-[10px] font-black text-white flex items-center justify-center px-1 leading-none shadow-md tabular-nums">
+                {upcomingCount > 99 ? '99+' : upcomingCount}
+              </span>
+            )}
+          </button>
+        </div>
 
         {/* Botões de ação no canto inferior direito */}
         <div className="absolute bottom-3 right-3 flex gap-2 z-20">

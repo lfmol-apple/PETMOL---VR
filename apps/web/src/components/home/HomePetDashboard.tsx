@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { AppleControlButtons } from '@/components/AppleControlButtons';
-import { buildPetCareReminders, resolveCareCTA } from '@/lib/petCareDomain';
+import { buildPetCareReminders } from '@/lib/petCareDomain';
+import type { PetCareReminder } from '@/lib/petCareDomain';
 import type { PetEventRecord } from '@/lib/petEvents';
 import type { PetHealthProfile, VaccineRecord } from '@/lib/petHealth';
 import type { FeedingPlanEntry } from '@/lib/types/homeForms';
@@ -11,39 +12,15 @@ import { petDo } from '@/lib/petGender';
 
 type CardTone = 'neutral' | 'ok' | 'warning' | 'critical';
 
-const reminderMonths = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-
-const HEALTH_QUICK_TARGETS = new Set([
-  'health/vaccines', 'health/medication',
-  'health/parasites/dewormer', 'health/parasites/flea_tick',
-  'health/parasites/collar', 'health/parasites',
-]);
-
 function createLocalDate(dateStr: string): Date {
   if (!dateStr) return new Date();
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day);
 }
 
-function formatReminderDate(dateStr: string): string {
-  const date = createLocalDate(dateStr);
-  return `${date.getDate()} ${reminderMonths[date.getMonth()]}`;
-}
-
 function formatFoodDateShort(dateStr: string): string {
   const date = createLocalDate(dateStr);
   return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function formatReminderBadge(diff: number): string {
-  if (diff < 0) {
-    const days = Math.abs(diff);
-    if (days > 90) return 'revisão recomendada';
-    return days === 1 ? 'atrasado desde ontem' : `atrasado há ${days} dias`;
-  }
-  if (diff === 0) return 'hoje';
-  if (diff === 1) return 'amanhã';
-  return `em ${diff} dias`;
 }
 
 function diffDaysFromIso(isoDate: string): number | null {
@@ -65,13 +42,6 @@ function addDaysIso(startIso: string | null | undefined, days: number | null | u
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-function getReminderTone(diff: number): string {
-  if (diff < 0) return 'border-rose-200 bg-rose-50 text-rose-800 shadow-[0_0_12px_rgba(244,63,94,0.12)]';
-  if (diff === 0) return 'border-amber-300 bg-amber-50 text-amber-900 shadow-[0_0_12px_rgba(251,191,36,0.16)]';
-  if (diff <= 3) return 'border-amber-200 bg-amber-50 text-amber-800';
-  if (diff <= 7) return 'border-sky-200 bg-sky-50 text-sky-800';
-  return 'border-slate-200 bg-white text-slate-600';
-}
 
 interface HomePetDashboardProps {
   petEvents: PetEventRecord[];
@@ -120,6 +90,7 @@ interface HomePetDashboardProps {
   onOpenEvents: () => void;
   onOpenFamily?: () => void;
   onOpenPetSumido?: () => void;
+  onUpcomingCountChange?: (count: number, reminders: PetCareReminder[]) => void;
   onHealthItemClick?: (ctx: {
     action_target: string;
     label: string;
@@ -165,6 +136,7 @@ export function HomePetDashboard({
   onOpenEvents,
   onOpenFamily,
   onOpenPetSumido,
+  onUpcomingCountChange,
   onHealthItemClick,
 }: HomePetDashboardProps) {
 
@@ -177,61 +149,23 @@ export function HomePetDashboard({
         ? 'ok'
         : 'neutral';
   const alertHealth = colorHealth === 'warning' || colorHealth === 'critical' || alertVacinas || alertVermifugo || alertAntipulgas || alertColeira || alertMedicacao || alertGrooming;
-  const upcomingReminders = useMemo(() => {
+  const allUpcomingReminders = useMemo(() => {
     if (!currentPet?.pet_id) return [];
+    const reminders = buildPetCareReminders({
+      pet_id: currentPet.pet_id,
+      pet_name: currentPet.pet_name,
+      vaccines,
+      parasiteControls,
+      groomingRecords,
+      feedingPlan: feedingPlan[currentPet.pet_id] ?? null,
+      petEvents,
+    });
+    return reminders.filter((r) => r.diff >= 0).sort((a, b) => a.diff - b.diff);
+  }, [currentPet, vaccines, parasiteControls, groomingRecords, feedingPlan, petEvents]);
 
-    const reminders = buildPetCareReminders(
-      {
-        pet_id: currentPet.pet_id,
-        pet_name: currentPet.pet_name,
-        vaccines,
-        parasiteControls,
-        groomingRecords,
-        feedingPlan: feedingPlan[currentPet.pet_id] ?? null,
-        petEvents,
-      },
-    );
-
-    const careHandlers = {
-      onOpenVaccines,
-      onOpenVermifugo,
-      onOpenAntipulgas,
-      onOpenColeira,
-      onOpenGrooming,
-      onOpenFood,
-      onOpenMedication,
-      onOpenEvents,
-    };
-
-    return reminders
-      .filter((reminder) => {
-        if (reminder.diff < 0) return false; // exclude overdue — go to "Precisa de atenção"
-        if (reminder.diff === 0 && reminder.domain !== 'medication' && reminder.action_target !== 'health/medication') return false;
-        if (reminder.domain === 'food' && reminder.diff > 14) return false;
-        return true;
-      })
-      .sort((a, b) => a.diff - b.diff)
-      .map((reminder) => ({
-        ...reminder,
-        action: resolveCareCTA(reminder.action_target, careHandlers),
-      }));
-  }, [
-    currentPet,
-    vaccines,
-    parasiteControls,
-    groomingRecords,
-    feedingPlan,
-    petEvents,
-    onOpenHealth,
-    onOpenVaccines,
-    onOpenVermifugo,
-    onOpenAntipulgas,
-    onOpenColeira,
-    onOpenGrooming,
-    onOpenFood,
-    onOpenMedication,
-    onOpenEvents,
-  ]);
+  useEffect(() => {
+    onUpcomingCountChange?.(allUpcomingReminders.length, allUpcomingReminders);
+  }, [allUpcomingReminders, onUpcomingCountChange]);
   
   const hasFoodData = Object.keys(feedingPlan).length > 0 && (() => {
     const plan = feedingPlan[currentPet.pet_id];
@@ -269,47 +203,6 @@ export function HomePetDashboard({
 
   return (
     <div className="relative px-2 pt-2 pb-6 space-y-4">
-      {upcomingReminders.length > 0 && (
-        <section className="rounded-[20px] border border-white/70 bg-white/75 px-3 py-2.5 shadow-md shadow-slate-900/5 backdrop-blur-xl ring-1 ring-black/5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-1 mb-1.5">
-            Próximos 30 dias
-          </p>
-          <div className="divide-y divide-slate-100/60">
-            {upcomingReminders.map((reminder) => {
-              const handleClick = () => {
-                if (onHealthItemClick && HEALTH_QUICK_TARGETS.has(reminder.action_target)) {
-                  onHealthItemClick({
-                    action_target: reminder.action_target,
-                    label: reminder.label,
-                    pet_id: currentPet.pet_id,
-                    pet_name: currentPet.pet_name,
-                    status: 'upcoming',
-                    source_record_id: reminder.source_record_id,
-                  });
-                } else {
-                  reminder.action();
-                }
-              };
-              return (
-                <button
-                  key={reminder.key}
-                  onClick={handleClick}
-                  className="flex w-full items-center gap-2.5 py-2 px-1 text-left active:bg-slate-50 rounded-xl transition-colors"
-                >
-                  <span className="text-[18px] flex-shrink-0 leading-none">{reminder.icon}</span>
-                  <span className="flex-1 text-[13px] font-semibold text-slate-800 truncate leading-tight">
-                    {reminder.label}
-                  </span>
-                  <span className="text-[11px] font-medium text-slate-400 flex-shrink-0 tabular-nums">
-                    {reminder.diff === 0 ? 'ainda dá tempo' : `em ${reminder.diff} dia${reminder.diff !== 1 ? 's' : ''}`}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
       <AppleControlButtons
         onHealthClick={onOpenHealth}
         onDocumentosClick={onOpenDocuments}

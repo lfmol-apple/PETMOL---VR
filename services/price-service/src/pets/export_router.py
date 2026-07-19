@@ -125,13 +125,18 @@ def download_zip_by_token(
             arcname = f"{root}{folder_label}/{idx:02d} - {title}{ext}"
             zf.write(fpath, arcname)
 
+    buf.seek(0, 2)
+    zip_size = buf.tell()
     buf.seek(0)
     safe = pet_safe.lower().replace(" ", "-")
     filename = f"documentos-{safe}.zip"
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(zip_size),
+        },
     )
 
 # Tipos de eventos que ja aparecem em secoes dedicadas — nao repetem em Consultas

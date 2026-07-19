@@ -119,6 +119,29 @@ function autoDocTitle(category: string, dateISO: string, idx: number, total: num
   return dateBR ? `${base} ${dateBR}${seq}` : `${base}${seq}`;
 }
 
+const GENERIC_AI_TITLES = new Set([
+  'DOCUMENTO',
+  'DOCUMENTO VETERINÁRIO',
+  'DOCUMENTO VETERINARIO',
+  'DOCUMENTO NÃO IDENTIFICADO',
+  'DOCUMENTO NAO IDENTIFICADO',
+]);
+
+function normalizeDetectedTitle(title?: string | null): string | null {
+  const clean = (title || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return null;
+  if (GENERIC_AI_TITLES.has(clean.toUpperCase())) return null;
+  return clean.toUpperCase();
+}
+
+function firstDetectedValue<T>(items: T[], read: (item: T) => string | null | undefined): string | null {
+  for (const item of items) {
+    const value = read(item)?.trim();
+    if (value) return value;
+  }
+  return null;
+}
+
 // ── Main component ──────────────────────────────────────────────────────────
 
 export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategory, hideCategoryTabs, pendingFiles, onFilesConsumed }: PetDocumentVaultProps) {
@@ -516,29 +539,32 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
 
         const created: { id: string; title?: string; category?: string; icon?: string; mime_type?: string; document_date?: string; establishment_name?: string }[] = data.created || [];
 
-        // Always show BatchConfirm so user names & confirms the entire batch at once
+        // Always show BatchConfirm so user confirms the AI metadata for the batch.
         if (created.length > 0) {
-          const uploadDate = fileDate || localTodayISO();
+          const detectedDate = firstDetectedValue(created, (d) => d.document_date);
+          const detectedEstablishment = firstDetectedValue(created, (d) => d.establishment_name);
+          const sharedDate = detectedDate || fileDate || localTodayISO();
           const batchDocs: BatchDocItem[] = created.map((d, index) => {
             const cat = hideCategoryTabs && initialCategory ? initialCategory : (d.category || 'other');
+            const detectedTitle = normalizeDetectedTitle(d.title);
             return {
               id: d.id,
               title: d.title || '',
               category: d.category || 'other',
               icon: d.icon || '📄',
               mime_type: d.mime_type || null,
-              customTitle: autoDocTitle(cat, uploadDate, index, created.length),
+              customTitle: detectedTitle || autoDocTitle(cat, sharedDate, index, created.length),
               customCategory: cat,
-              isAutoTitle: true,
+              isAutoTitle: !detectedTitle,
             };
           });
 
           setBatchConfirm({
             docs: batchDocs,
-            detectedDate: null,
-            detectedEstablishment: null,
-            sharedDate: fileDate || localTodayISO(),
-            sharedEstablishment: '',  // never pre-fill from API — extraction is unreliable
+            detectedDate,
+            detectedEstablishment,
+            sharedDate,
+            sharedEstablishment: detectedEstablishment || '',
             saving: false,
           });
         }

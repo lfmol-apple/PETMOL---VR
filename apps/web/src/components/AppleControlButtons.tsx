@@ -83,7 +83,7 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onAlimentacaoClick}
-            className="group relative overflow-hidden rounded-2xl border border-amber-300 bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-200 p-3 min-h-[82px] shadow-sm shadow-amber-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+            className="group relative overflow-hidden rounded-2xl border border-amber-400 bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-200 p-3 min-h-[82px] shadow-sm shadow-amber-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
             {(!hasFoodData || shouldShowAlert(colorFood, alertFood)) && (
               <AlertDot tone={!hasFoodData ? 'critical' : colorFood} />
@@ -108,7 +108,7 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onHealthClick}
-            className="group relative overflow-hidden rounded-2xl border border-indigo-300 bg-gradient-to-br from-indigo-100 via-violet-100 to-violet-200 p-3 min-h-[82px] shadow-sm shadow-indigo-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+            className="group relative overflow-hidden rounded-2xl border border-indigo-400 bg-gradient-to-br from-indigo-100 via-violet-100 to-violet-200 p-3 min-h-[82px] shadow-sm shadow-indigo-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
             {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
             <span className="absolute right-2.5 top-2.5 text-[22px] opacity-90 pointer-events-none transition-transform group-hover:scale-105">🏥</span>
@@ -135,7 +135,7 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={() => setShowShoppingSheet(true)}
-            className="group relative overflow-hidden rounded-2xl border border-sky-300 bg-gradient-to-br from-sky-100 via-blue-100 to-blue-200 p-3 min-h-[82px] shadow-sm shadow-sky-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+            className="group relative overflow-hidden rounded-2xl border border-sky-400 bg-gradient-to-br from-sky-100 via-blue-100 to-blue-200 p-3 min-h-[82px] shadow-sm shadow-sky-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95"
           >
             <span className="absolute right-2.5 top-2.5 text-[22px] opacity-90 pointer-events-none transition-transform group-hover:scale-105">🛒</span>
             <div className="flex h-full flex-col justify-center pr-7 pt-3 text-left">
