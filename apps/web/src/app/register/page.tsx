@@ -16,6 +16,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DEFAULT_CHECKIN_DAYS = '3';
 const DEFAULT_CHECKIN_TIME = '09:00';
 
+function isSafeRedirect(value: string | null): value is string {
+  return Boolean(value && value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/login'));
+}
+
 function validateField(field: FieldKey, values: { name: string; email: string; password: string; termsAccepted: boolean }): string {
   if (field === 'name' && values.name.trim().length < 2) return 'Informe seu nome.';
   if (field === 'email' && !EMAIL_RE.test(values.email.trim())) return 'Informe um e-mail válido.';
@@ -193,6 +197,15 @@ export default function RegisterPage() {
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao criar conta.';
+      if (/email.*cadastrado|email.*existe|já cadastrado/i.test(message)) {
+        const params = new URLSearchParams();
+        const dest = isSafeRedirect(redirectAfter) ? redirectAfter : '/home';
+        params.set('redirect', dest);
+        params.set('email', email.trim());
+        params.set('reason', 'account-exists');
+        router.replace(`/login?${params.toString()}`);
+        return;
+      }
       setFieldValidation('email', message);
       focusField('email');
     } finally {
@@ -324,7 +337,7 @@ export default function RegisterPage() {
                 </button>
               </div>
               <p className="text-center text-sm text-slate-500">
-                Já tem conta? <Link href="/login" className="text-blue-600 font-bold hover:underline">Entrar</Link>
+                Já tem conta? <Link href={`/login${redirectAfter ? `?redirect=${encodeURIComponent(redirectAfter)}` : ''}`} className="text-blue-600 font-bold hover:underline">Entrar</Link>
               </p>
             </div>
           ) : (

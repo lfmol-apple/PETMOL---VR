@@ -9,16 +9,27 @@ const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 
+function isSafeRedirect(value: string): boolean {
+  return value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/login');
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [redirectTo, setRedirectTo] = useState('/home');
+  const [registerHref, setRegisterHref] = useState('/register');
   const { login, isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const raw = params.get('redirect') || '/home';
-    const safe = (raw === '/' || raw.startsWith('/login')) ? '/home' : raw;
+    const safe = isSafeRedirect(raw) ? raw : '/home';
     setRedirectTo(safe);
+    setRegisterHref(`/register?redirect=${encodeURIComponent(safe)}`);
+    const emailParam = params.get('email');
+    if (emailParam) setEmail(emailParam);
+    if (params.get('reason') === 'account-exists') {
+      setError('Este e-mail já tem conta no PETMOL. Entre para aceitar o convite.');
+    }
   }, []);
 
   useEffect(() => {
@@ -142,7 +153,7 @@ export default function LoginPage() {
             <p className="text-slate-500 text-sm font-medium">
               Ainda não tem conta?{' '}
             </p>
-            <Link href="/register" className="inline-block mt-2 text-[#0056D2] font-black uppercase tracking-widest text-sm hover:underline active:scale-95 transition-transform">
+            <Link href={registerHref} className="inline-block mt-2 text-[#0056D2] font-black uppercase tracking-widest text-sm hover:underline active:scale-95 transition-transform">
               Criar conta grátis
             </Link>
           </div>

@@ -351,7 +351,7 @@ export default function CuidarClient({ token, initial }: { token: string; initia
               href={`/register?redirect=${redirectParam}`}
               className="w-full rounded-2xl bg-blue-600 py-4 text-center text-base font-black text-white shadow-lg shadow-blue-600/20 active:opacity-80"
             >
-              Criar conta grátis e cuidar
+              Entrar ou criar conta grátis
             </Link>
             <button
               type="button"
