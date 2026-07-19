@@ -69,6 +69,11 @@ RSYNC_DIFF="$(rsync -anic --delete \
     --exclude '.pytest_cache' \
     --exclude '.DS_Store' \
     --exclude '._*' \
+    --exclude '.claude' \
+    --exclude 'analysis' \
+    --exclude 'functions/lib' \
+    --exclude 'services/product-suggest/dist' \
+    --exclude 'services/price-service/src/petmol_price_service.egg-info' \
     --exclude 'REVISION' \
     --exclude 'apps/web/tsconfig.tsbuildinfo' \
     "$VPS_USER@$VPS_IP:$REMOTE_DIR/app/" ./)"
