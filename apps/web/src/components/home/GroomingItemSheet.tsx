@@ -401,7 +401,7 @@ export function GroomingItemSheet({
   }
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
-  const inputCls = 'w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-300';
+  const inputCls = 'w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300';
   const labelCls = 'block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5';
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -438,7 +438,7 @@ export function GroomingItemSheet({
             )}
             <button
               onClick={() => onGoHome?.()}
-              className="w-full rounded-2xl bg-blue-600 py-3.5 text-[15px] font-black text-white shadow-md shadow-blue-500/20 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+              className="w-full rounded-2xl bg-violet-600 py-3.5 text-[15px] font-black text-white shadow-md shadow-violet-500/20 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
@@ -452,9 +452,9 @@ export function GroomingItemSheet({
         )}
 
         {/* Header */}
-        <div className="px-5 pt-4 pb-4 bg-white border-b border-emerald-100 flex-shrink-0">
+        <div className="px-5 pt-4 pb-4 bg-white border-b border-slate-100 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-3xl flex-shrink-0">
+            <div className="w-14 h-14 rounded-full overflow-hidden bg-violet-50 flex items-center justify-center text-3xl flex-shrink-0">
               {petPhotoSrc ? (
                 <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
               ) : (
@@ -462,10 +462,10 @@ export function GroomingItemSheet({
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-[17px] font-bold text-gray-900 leading-tight">Higiene e Petshop</h2>
+              <h2 className="text-[17px] font-bold text-slate-900 leading-tight">Higiene e Petshop</h2>
               {petName && (
                 <p className="mt-1.5">
-                  <span className="inline-flex max-w-full items-center px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-black tracking-[0.04em] whitespace-normal break-all leading-tight border border-emerald-100">
+                  <span className="inline-flex max-w-full items-center px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 text-xs font-semibold tracking-[0.02em] whitespace-normal break-all leading-tight border border-violet-100">
                     {petName}
                   </span>
                 </p>
@@ -518,36 +518,36 @@ export function GroomingItemSheet({
             <div className="p-5 space-y-4 pb-8">
               {/* Last service card */}
               {last ? (
-                <div className="rounded-2xl border border-sky-100 bg-sky-50 p-4 space-y-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-sky-700">Último serviço</p>
-                  <p className="text-[17px] font-bold text-gray-900">{TYPE_LABELS[last.type]}</p>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4 space-y-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-violet-500">Último serviço</p>
+                  <p className="text-[17px] font-bold text-slate-900">{TYPE_LABELS[last.type]}</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                     <div>
-                      <p className="text-[11px] text-gray-400 font-medium">Data</p>
-                      <p className="font-semibold text-gray-800">{fmtDate(last.date)}</p>
+                      <p className="text-[11px] text-slate-400 font-medium">Data</p>
+                      <p className="font-semibold text-slate-700">{fmtDate(last.date)}</p>
                     </div>
                     {nextDate && (
                       <div>
-                        <p className="text-[11px] text-gray-400 font-medium">Próximo</p>
+                        <p className="text-[11px] text-slate-400 font-medium">Próximo</p>
                         <p className={`font-semibold ${status.text}`}>{fmtDate(nextDate)}</p>
                       </div>
                     )}
                     {last.location && (
                       <div>
-                        <p className="text-[11px] text-gray-400 font-medium">Local</p>
-                        <p className="font-semibold text-gray-800 truncate">{last.location}</p>
+                        <p className="text-[11px] text-slate-400 font-medium">Local</p>
+                        <p className="font-semibold text-slate-700 truncate">{last.location}</p>
                       </div>
                     )}
                     {last.location_phone && (
                       <div>
-                        <p className="text-[11px] text-gray-400 font-medium">WhatsApp</p>
-                        <p className="font-semibold text-gray-800 truncate">{last.location_phone}</p>
+                        <p className="text-[11px] text-slate-400 font-medium">WhatsApp</p>
+                        <p className="font-semibold text-slate-700 truncate">{last.location_phone}</p>
                       </div>
                     )}
                     {last.cost != null && (
                       <div>
-                        <p className="text-[11px] text-gray-400 font-medium">Valor</p>
-                        <p className="font-semibold text-gray-800">R$ {last.cost.toFixed(2).replace('.', ',')}</p>
+                        <p className="text-[11px] text-slate-400 font-medium">Valor</p>
+                        <p className="font-semibold text-slate-700">R$ {last.cost.toFixed(2).replace('.', ',')}</p>
                       </div>
                     )}
                   </div>
@@ -558,20 +558,20 @@ export function GroomingItemSheet({
                     return (
                       <>
                         {productName && (
-                          <div className="flex items-center justify-between gap-2 border-t border-sky-100 pt-2">
-                            <p className="text-xs text-sky-700 font-semibold truncate">🧴 {productName}</p>
+                          <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
+                            <p className="text-xs text-violet-600 font-semibold truncate">🧴 {productName}</p>
                             <a
                               href={`https://www.google.com/search?tbm=shop&q=${encodeURIComponent(productName + ' pet')}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-[11px] font-bold text-sky-600 underline whitespace-nowrap flex-shrink-0"
+                              className="text-[11px] font-bold text-violet-500 underline whitespace-nowrap flex-shrink-0"
                             >
                               Ver produto
                             </a>
                           </div>
                         )}
                         {restNotes && (
-                          <p className="text-xs text-gray-500 italic border-t border-sky-100 pt-2">{restNotes}</p>
+                          <p className="text-xs text-slate-400 italic border-t border-slate-100 pt-2">{restNotes}</p>
                         )}
                       </>
                     );
@@ -606,14 +606,14 @@ export function GroomingItemSheet({
                 <div className="space-y-2">
                   <button
                     onClick={startAdd}
-                    className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-[15px] font-bold shadow-md shadow-emerald-500/20 transition-colors"
+                    className="w-full py-4 rounded-2xl bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white text-[15px] font-bold shadow-sm shadow-violet-500/20 transition-colors"
                   >
                     Registrar banho/tosa
                   </button>
                   <button
                     onClick={() => nextEditableRecord && startEdit(nextEditableRecord)}
                     disabled={!nextEditableRecord}
-                    className="w-full py-3 rounded-2xl bg-white border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 active:scale-95 transition-all"
+                    className="w-full py-3 rounded-2xl bg-white border border-slate-200 text-slate-500 text-sm font-medium hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-40"
                   >
                     Editar próximo
                   </button>
@@ -621,7 +621,7 @@ export function GroomingItemSheet({
               ) : (
                 <button
                   onClick={startAdd}
-                  className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-[15px] font-bold shadow-md transition-colors"
+                  className="w-full py-4 rounded-2xl bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white text-[15px] font-bold shadow-sm transition-colors"
                 >
                   Registrar banho/tosa
                 </button>
@@ -640,7 +640,7 @@ export function GroomingItemSheet({
                         key={rec.id}
                         className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3 shadow-sm"
                       >
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${!isHistory ? 'bg-sky-50' : 'bg-gray-50'}`}>
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${!isHistory ? 'bg-violet-50' : 'bg-slate-50'}`}>
                           {!isHistory ? '🛁' : '·'}
                         </div>
                         <div className="flex-1 min-w-0">
