@@ -401,8 +401,8 @@ export function GroomingItemSheet({
   }
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
-  const inputCls = 'w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300';
-  const labelCls = 'block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5';
+  const inputCls = 'w-full border border-[#E5E5EA] rounded-xl px-4 py-3 text-[15px] text-[#1C1C1E] bg-white focus:outline-none focus:ring-2 focus:ring-[#5856D6]/30 placeholder:text-[#C7C7CC]';
+  const labelCls = 'block text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider mb-1.5';
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -413,48 +413,57 @@ export function GroomingItemSheet({
 
       {/* Sheet */}
       <div
-        className="relative w-full max-w-lg bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 flex flex-col overflow-x-hidden overflow-y-hidden animate-scaleIn"
+        className="relative w-full max-w-lg bg-[#F2F2F7] rounded-[28px] shadow-2xl flex flex-col overflow-x-hidden overflow-y-hidden animate-scaleIn"
         style={{ maxHeight: '92dvh' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Success overlay */}
         {justSaved && (
-          <div className="absolute inset-0 bg-white z-20 flex flex-col items-center justify-center gap-6 text-center p-8 rounded-[32px]">
-            <div className="text-6xl">✅</div>
+          <div className="absolute inset-0 bg-[#F2F2F7] z-20 flex flex-col items-center justify-center gap-5 text-center p-8 rounded-[28px]">
+            <div className="w-16 h-16 rounded-full bg-[#34C759] flex items-center justify-center shadow-lg">
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
             <div>
-              <h3 className="text-xl font-bold text-gray-900 mb-1">Higiene registrada!</h3>
-              <p className="text-sm text-gray-500">O prontuário do pet foi atualizado.</p>
+              <h3 className="text-[19px] font-bold text-[#1C1C1E] mb-1">Higiene registrada</h3>
+              <p className="text-[14px] text-[#8E8E93]">Prontuário do pet atualizado.</p>
             </div>
             {justSavedPhone && (
               <a
                 href={buildWhatsAppUrl(justSavedPhone, `Olá! Quero agendar banho e tosa para ${petName || 'meu pet'} 🐾 Quando teria disponibilidade?`)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full rounded-2xl bg-[#25D366] py-3.5 text-[15px] font-black text-white shadow-md shadow-green-500/20 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                className="w-full bg-white rounded-2xl px-4 py-4 flex items-center gap-3 shadow-sm active:opacity-70 transition-opacity text-left"
               >
-                <WhatsAppIcon className="w-5 h-5" />
-                Agendar agora no WhatsApp
+                <div className="w-11 h-11 rounded-[12px] bg-[#25D366] flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <WhatsAppIcon className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] font-semibold text-[#1C1C1E]">Agendar via WhatsApp</p>
+                  <p className="text-[13px] text-[#8E8E93] truncate">Toque para abrir a conversa</p>
+                </div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 flex-shrink-0">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
               </a>
             )}
             <button
               onClick={() => onGoHome?.()}
-              className="w-full rounded-2xl bg-violet-600 py-3.5 text-[15px] font-black text-white shadow-md shadow-violet-500/20 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+              className="w-full py-[14px] rounded-[14px] bg-[#5856D6] text-white text-[16px] font-semibold active:opacity-80 transition-opacity"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
               Ir para a home
             </button>
-            <button onClick={() => setJustSaved(false)} className="text-sm text-gray-400 underline">
+            <button onClick={() => setJustSaved(false)} className="text-[14px] text-[#5856D6]">
               Ver prontuário
             </button>
           </div>
         )}
 
         {/* Header */}
-        <div className="px-5 pt-4 pb-4 bg-white border-b border-slate-100 flex-shrink-0">
+        <div className="px-5 pt-5 pb-4 bg-[#F2F2F7] flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-full overflow-hidden bg-violet-50 flex items-center justify-center text-3xl flex-shrink-0">
+            <div className="w-12 h-12 rounded-full overflow-hidden bg-[#E5E5EA] flex items-center justify-center text-2xl flex-shrink-0">
               {petPhotoSrc ? (
                 <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
               ) : (
@@ -462,13 +471,9 @@ export function GroomingItemSheet({
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-[17px] font-bold text-slate-900 leading-tight">Higiene e Petshop</h2>
+              <h2 className="text-[17px] font-bold text-[#1C1C1E] leading-tight">Higiene e Petshop</h2>
               {petName && (
-                <p className="mt-1.5">
-                  <span className="inline-flex max-w-full items-center px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 text-xs font-semibold tracking-[0.02em] whitespace-normal break-all leading-tight border border-violet-100">
-                    {petName}
-                  </span>
-                </p>
+                <p className="text-[13px] text-[#8E8E93] mt-0.5">{petName}</p>
               )}
             </div>
             {mode !== 'view' ? (
@@ -476,10 +481,10 @@ export function GroomingItemSheet({
                 type="button"
                 onClick={() => { setMode('view'); setEditRecord(null); }}
                 onTouchEnd={() => { setMode('view'); setEditRecord(null); }}
-                className="relative z-10 pointer-events-auto w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
+                className="w-8 h-8 rounded-full bg-[#E5E5EA] flex items-center justify-center flex-shrink-0 active:opacity-60"
                 aria-label="Voltar"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
                   <path d="M15 18l-6-6 6-6" />
                 </svg>
               </button>
@@ -487,10 +492,10 @@ export function GroomingItemSheet({
               <button
                 type="button"
                 onClick={onClose}
-                className="relative z-10 pointer-events-auto w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
+                className="w-8 h-8 rounded-full bg-[#E5E5EA] flex items-center justify-center flex-shrink-0 active:opacity-60"
                 aria-label="Fechar"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5">
                   <path d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -498,14 +503,8 @@ export function GroomingItemSheet({
           </div>
 
           {/* Status badge */}
-          <div className={`mt-3 inline-flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm font-semibold ${status.bg} ${status.text}`}>
-            {status.dot === 'bg-rose-500' ? (
-              <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm border border-white/50 flex-shrink-0">
-                !
-              </div>
-            ) : (
-              <span className={`w-2 h-2 rounded-full ${status.dot}`} />
-            )}
+          <div className={`mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[13px] font-medium ${status.bg} ${status.text}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
             {nextDate ? status.label : 'Sem agendamento'}
           </div>
         </div>
@@ -515,77 +514,76 @@ export function GroomingItemSheet({
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
           {mode === 'view' && (
-            <div className="p-5 space-y-4 pb-8">
-              {/* Last service card */}
+            <div className="px-4 pt-2 pb-8 space-y-3">
+
+              {/* Last service card — iOS grouped table */}
               {last ? (
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4 space-y-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-violet-500">Último serviço</p>
-                  <p className="text-[17px] font-bold text-slate-900">{TYPE_LABELS[last.type]}</p>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                    <div>
-                      <p className="text-[11px] text-slate-400 font-medium">Data</p>
-                      <p className="font-semibold text-slate-700">{fmtDate(last.date)}</p>
+                <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+                  <div className="px-4 pt-3 pb-2">
+                    <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider">Último serviço</p>
+                    <p className="text-[17px] font-semibold text-[#1C1C1E] mt-0.5">{TYPE_LABELS[last.type]}</p>
+                  </div>
+                  <div className="divide-y divide-[#F2F2F7]">
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <span className="text-[14px] text-[#8E8E93]">Data</span>
+                      <span className="text-[14px] font-medium text-[#1C1C1E]">{fmtDate(last.date)}</span>
                     </div>
                     {nextDate && (
-                      <div>
-                        <p className="text-[11px] text-slate-400 font-medium">Próximo</p>
-                        <p className={`font-semibold ${status.text}`}>{fmtDate(nextDate)}</p>
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <span className="text-[14px] text-[#8E8E93]">Próximo</span>
+                        <span className={`text-[14px] font-semibold ${status.text}`}>{fmtDate(nextDate)}</span>
                       </div>
                     )}
                     {last.location && (
-                      <div>
-                        <p className="text-[11px] text-slate-400 font-medium">Local</p>
-                        <p className="font-semibold text-slate-700 truncate">{last.location}</p>
-                      </div>
-                    )}
-                    {last.location_phone && (
-                      <div>
-                        <p className="text-[11px] text-slate-400 font-medium">WhatsApp</p>
-                        <p className="font-semibold text-slate-700 truncate">{last.location_phone}</p>
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <span className="text-[14px] text-[#8E8E93]">Local</span>
+                        <span className="text-[14px] font-medium text-[#1C1C1E] truncate max-w-[55%] text-right">{last.location}</span>
                       </div>
                     )}
                     {last.cost != null && (
-                      <div>
-                        <p className="text-[11px] text-slate-400 font-medium">Valor</p>
-                        <p className="font-semibold text-slate-700">R$ {last.cost.toFixed(2).replace('.', ',')}</p>
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <span className="text-[14px] text-[#8E8E93]">Valor</span>
+                        <span className="text-[14px] font-medium text-[#1C1C1E]">R$ {last.cost.toFixed(2).replace('.', ',')}</span>
                       </div>
                     )}
+                    {last.notes && (() => {
+                      const productMatch = last.notes.match(/^Produto:\s*([^\n(]+)/);
+                      const productName = productMatch ? productMatch[1].trim() : null;
+                      const restNotes = last.notes.replace(/^Produto:[^\n]*(\n)?/, '').trim();
+                      return (
+                        <>
+                          {productName && (
+                            <div className="flex items-center justify-between px-4 py-3">
+                              <span className="text-[14px] text-[#8E8E93]">Produto</span>
+                              <a
+                                href={`https://www.google.com/search?tbm=shop&q=${encodeURIComponent(productName + ' pet')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[14px] font-medium text-[#5856D6] truncate max-w-[55%] text-right"
+                              >
+                                {productName}
+                              </a>
+                            </div>
+                          )}
+                          {restNotes && (
+                            <div className="px-4 py-3">
+                              <p className="text-[13px] text-[#8E8E93] italic">{restNotes}</p>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
-                  {last.notes && (() => {
-                    const productMatch = last.notes.match(/^Produto:\s*([^\n(]+)/);
-                    const productName = productMatch ? productMatch[1].trim() : null;
-                    const restNotes = last.notes.replace(/^Produto:[^\n]*(\n)?/, '').trim();
-                    return (
-                      <>
-                        {productName && (
-                          <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
-                            <p className="text-xs text-violet-600 font-semibold truncate">🧴 {productName}</p>
-                            <a
-                              href={`https://www.google.com/search?tbm=shop&q=${encodeURIComponent(productName + ' pet')}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[11px] font-bold text-violet-500 underline whitespace-nowrap flex-shrink-0"
-                            >
-                              Ver produto
-                            </a>
-                          </div>
-                        )}
-                        {restNotes && (
-                          <p className="text-xs text-slate-400 italic border-t border-slate-100 pt-2">{restNotes}</p>
-                        )}
-                      </>
-                    );
-                  })()}
                 </div>
               ) : (
-                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-8 text-center">
+                <div className="bg-white rounded-2xl p-8 text-center shadow-sm">
                   <p className="text-4xl mb-3">🛁</p>
-                  <p className="text-sm font-semibold text-gray-600">Nenhum serviço registrado</p>
-                  <p className="text-xs text-gray-400 mt-1">Registre o primeiro serviço abaixo</p>
+                  <p className="text-[15px] font-semibold text-[#1C1C1E]">Nenhum serviço registrado</p>
+                  <p className="text-[13px] text-[#8E8E93] mt-1">Registre o primeiro serviço abaixo</p>
                 </div>
               )}
 
-              {/* WhatsApp CTA */}
+              {/* WhatsApp — iOS action row */}
               {last?.location_phone && (
                 <a
                   href={buildWhatsAppUrl(
@@ -594,89 +592,89 @@ export function GroomingItemSheet({
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2.5 w-full py-4 rounded-2xl bg-[#25D366] hover:bg-[#20c05b] text-white text-[15px] font-black shadow-md shadow-green-500/20 active:scale-[0.98] transition-all"
+                  className="flex items-center gap-3 bg-white rounded-2xl px-4 py-3.5 shadow-sm active:opacity-70 transition-opacity"
                 >
-                  <WhatsAppIcon className="w-5 h-5" />
-                  Agendar no WhatsApp{last.location ? ` · ${last.location}` : ''}
+                  <div className="w-11 h-11 rounded-[12px] bg-[#25D366] flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <WhatsAppIcon className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[15px] font-semibold text-[#1C1C1E]">Agendar via WhatsApp</p>
+                    {last.location && (
+                      <p className="text-[13px] text-[#8E8E93] truncate">{last.location}</p>
+                    )}
+                  </div>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 flex-shrink-0">
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
                 </a>
               )}
 
-              {/* Main CTA */}
-              {last ? (
-                <div className="space-y-2">
-                  <button
-                    onClick={startAdd}
-                    className="w-full py-4 rounded-2xl bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white text-[15px] font-bold shadow-sm shadow-violet-500/20 transition-colors"
-                  >
-                    Registrar banho/tosa
-                  </button>
-                  <button
-                    onClick={() => nextEditableRecord && startEdit(nextEditableRecord)}
-                    disabled={!nextEditableRecord}
-                    className="w-full py-3 rounded-2xl bg-white border border-slate-200 text-slate-500 text-sm font-medium hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-40"
-                  >
-                    Editar próximo
-                  </button>
-                </div>
-              ) : (
+              {/* Main CTAs */}
+              <div className="space-y-2 pt-1">
                 <button
                   onClick={startAdd}
-                  className="w-full py-4 rounded-2xl bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white text-[15px] font-bold shadow-sm transition-colors"
+                  className="w-full py-[14px] rounded-[14px] bg-[#5856D6] text-white text-[16px] font-semibold shadow-sm active:opacity-80 transition-opacity"
                 >
                   Registrar banho/tosa
                 </button>
-              )}
+                {last && (
+                  <button
+                    onClick={() => nextEditableRecord && startEdit(nextEditableRecord)}
+                    disabled={!nextEditableRecord}
+                    className="w-full py-3 text-[15px] font-medium text-[#5856D6] disabled:opacity-30 active:opacity-60 transition-opacity"
+                  >
+                    Editar próximo agendamento
+                  </button>
+                )}
+              </div>
 
               {/* History */}
               {sorted.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                <div>
+                  <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider px-1 mb-2">
                     Histórico ({sorted.length})
                   </p>
-                  {sorted.map((rec) => {
-                    const isHistory = hasLaterGroomingRecord(sorted, rec);
-                    return (
-                      <div
-                        key={rec.id}
-                        className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3 shadow-sm"
-                      >
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${!isHistory ? 'bg-violet-50' : 'bg-slate-50'}`}>
-                          {!isHistory ? '🛁' : '·'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-gray-800">{TYPE_LABELS[rec.type]}</p>
-                            {!isHistory && diffDays(rec.next_recommended_date) !== null && diffDays(rec.next_recommended_date)! < 0 && (
-                              <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm border border-white/50 flex-shrink-0">
-                                !
-                              </div>
-                            )}
+                  <div className="bg-white rounded-2xl overflow-hidden shadow-sm divide-y divide-[#F2F2F7]">
+                    {sorted.map((rec) => {
+                      const isHistory = hasLaterGroomingRecord(sorted, rec);
+                      return (
+                        <div key={rec.id} className="flex items-center gap-3 px-4 py-3">
+                          <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center text-[17px] flex-shrink-0 ${!isHistory ? 'bg-[#F2F2F7]' : 'bg-[#F2F2F7]'}`}>
+                            {TYPE_LABELS[rec.type].split(' ')[0]}
                           </div>
-                          <p className="text-xs text-gray-400">
-                            {fmtDate(rec.date)}
-                            {rec.cost != null ? ` · R$ ${rec.cost.toFixed(2).replace('.', ',')}` : ''}
-                            {rec.location ? ` · ${rec.location}` : ''}
-                          </p>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[14px] font-medium text-[#1C1C1E]">{TYPE_LABELS[rec.type].replace(/^[^\s]+ /, '')}</p>
+                            <p className="text-[12px] text-[#8E8E93]">
+                              {fmtDate(rec.date)}
+                              {rec.cost != null ? ` · R$ ${rec.cost.toFixed(2).replace('.', ',')}` : ''}
+                              {rec.location ? ` · ${rec.location}` : ''}
+                            </p>
+                          </div>
+                          <div className="flex gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => startEdit(rec)}
+                              className="w-8 h-8 rounded-full bg-[#F2F2F7] flex items-center justify-center active:opacity-60"
+                              aria-label="Editar"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(rec.id)}
+                              className="w-8 h-8 rounded-full bg-[#FFF1F0] flex items-center justify-center active:opacity-60"
+                              aria-label="Remover"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="#FF3B30" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex gap-1.5 flex-shrink-0">
-                          <button
-                            onClick={() => startEdit(rec)}
-                            className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-sm hover:bg-gray-200"
-                            aria-label="Editar"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => setConfirmDeleteId(rec.id)}
-                            className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-sm hover:bg-red-100"
-                            aria-label="Remover"
-                          >
-                            🗑
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -684,16 +682,17 @@ export function GroomingItemSheet({
 
           {/* ── ADD FORM ──────────────────────────────────────────────────── */}
           {mode === 'add' && (
-            <div className="p-5 pb-8 space-y-4">
+            <div className="px-4 pb-8 space-y-4 pt-2">
               <button
                 type="button"
                 onClick={() => setMode('view')}
                 onTouchEnd={() => setMode('view')}
-                className="flex items-center gap-2 text-gray-500 hover:text-gray-800 text-sm font-medium mb-1"
+                className="flex items-center gap-1 text-[#5856D6] text-[15px] font-medium mb-1"
               >
-                ‹ Voltar
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4"><path d="M15 18l-6-6 6-6"/></svg>
+                Voltar
               </button>
-              <h3 className="text-[16px] font-bold text-gray-900">Registrar serviço</h3>
+              <h3 className="text-[17px] font-bold text-[#1C1C1E]">Registrar serviço</h3>
 
               <div>
                 <label className={labelCls}>Produto utilizado (opcional)</label>
@@ -736,48 +735,52 @@ export function GroomingItemSheet({
                 </select>
               </div>
 
-              <div className="rounded-2xl border border-green-100 bg-green-50/60 p-4 space-y-3">
-                <p className="text-[11px] font-bold text-green-700 uppercase tracking-wider">Petshop</p>
+              <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+                <div className="px-4 pt-3 pb-1">
+                  <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider">Petshop</p>
+                </div>
                 <datalist id={`grooming-loc-${petId}`}>
                   {[...new Set(groomingRecords.filter(r => r.location).map(r => r.location!))].map(loc => (
                     <option key={loc} value={loc} />
                   ))}
                 </datalist>
-                <div>
-                  <label className={labelCls}>Nome do local</label>
-                  <input
-                    type="text"
-                    list={`grooming-loc-${petId}`}
-                    className={inputCls}
-                    placeholder="Ex: Banho & Tosa da Ana, Cobasi..."
-                    value={addForm.location}
-                    onChange={e => setAddForm(f => ({ ...f, location: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className={labelCls}>WhatsApp para agendamento</label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <WhatsAppIcon className="w-4 h-4 text-[#25D366]" />
-                    </div>
+                <div className="px-4 pb-3 space-y-3 pt-2">
+                  <div>
+                    <label className={labelCls}>Nome do local</label>
                     <input
-                      type="tel"
-                      className={`${inputCls} pl-9`}
-                      placeholder="(11) 99999-9999"
-                      value={addForm.location_phone}
-                      onChange={e => setAddForm(f => ({ ...f, location_phone: e.target.value }))}
+                      type="text"
+                      list={`grooming-loc-${petId}`}
+                      className={inputCls}
+                      placeholder="Ex: Banho & Tosa da Ana, Cobasi..."
+                      value={addForm.location}
+                      onChange={e => setAddForm(f => ({ ...f, location: e.target.value }))}
                     />
                   </div>
-                  {addForm.location_phone && (
-                    <a
-                      href={buildWhatsAppUrl(addForm.location_phone, `Olá! Quero agendar banho e tosa para ${petName || 'meu pet'} 🐾`)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1.5 inline-flex items-center gap-1 text-xs font-bold text-[#25D366]"
-                    >
-                      Testar este número ›
-                    </a>
-                  )}
+                  <div>
+                    <label className={labelCls}>WhatsApp para agendamento</label>
+                    <div className="relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <WhatsAppIcon className="w-4 h-4 text-[#25D366]" />
+                      </div>
+                      <input
+                        type="tel"
+                        className={`${inputCls} pl-9`}
+                        placeholder="(11) 99999-9999"
+                        value={addForm.location_phone}
+                        onChange={e => setAddForm(f => ({ ...f, location_phone: e.target.value }))}
+                      />
+                    </div>
+                    {addForm.location_phone && (
+                      <a
+                        href={buildWhatsAppUrl(addForm.location_phone, `Olá! Quero agendar banho e tosa para ${petName || 'meu pet'} 🐾`)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1.5 inline-flex items-center gap-1 text-[13px] font-medium text-[#25D366]"
+                      >
+                        Testar este número ›
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -817,25 +820,26 @@ export function GroomingItemSheet({
               <button
                 onClick={handleAdd}
                 disabled={saving || !addForm.date}
-                className="w-full py-4 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white text-[15px] font-bold shadow-md disabled:opacity-50"
+                className="w-full py-[14px] rounded-[14px] bg-[#5856D6] text-white text-[16px] font-semibold shadow-sm disabled:opacity-40 active:opacity-80 transition-opacity"
               >
-                {saving ? 'Salvando...' : '✅ Confirmar serviço'}
+                {saving ? 'Salvando...' : 'Confirmar serviço'}
               </button>
             </div>
           )}
 
           {/* ── EDIT FORM ─────────────────────────────────────────────────── */}
           {mode === 'edit' && editRecord && (
-            <div className="p-5 pb-8 space-y-4">
+            <div className="px-4 pb-8 space-y-4 pt-2">
               <button
                 type="button"
                 onClick={() => { setMode('view'); setEditRecord(null); }}
                 onTouchEnd={() => { setMode('view'); setEditRecord(null); }}
-                className="flex items-center gap-2 text-gray-500 hover:text-gray-800 text-sm font-medium mb-1"
+                className="flex items-center gap-1 text-[#5856D6] text-[15px] font-medium mb-1"
               >
-                ‹ Voltar
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4"><path d="M15 18l-6-6 6-6"/></svg>
+                Voltar
               </button>
-              <h3 className="text-[16px] font-bold text-gray-900">Editar registro</h3>
+              <h3 className="text-[17px] font-bold text-[#1C1C1E]">Editar registro</h3>
 
               <div>
                 <label className={labelCls}>Produto utilizado (opcional)</label>
@@ -883,48 +887,52 @@ export function GroomingItemSheet({
                 />
               </div>
 
-              <div className="rounded-2xl border border-green-100 bg-green-50/60 p-4 space-y-3">
-                <p className="text-[11px] font-bold text-green-700 uppercase tracking-wider">Petshop</p>
+              <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+                <div className="px-4 pt-3 pb-1">
+                  <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider">Petshop</p>
+                </div>
                 <datalist id={`grooming-loc-edit-${petId}`}>
                   {[...new Set(groomingRecords.filter(r => r.location).map(r => r.location!))].map(loc => (
                     <option key={loc} value={loc} />
                   ))}
                 </datalist>
-                <div>
-                  <label className={labelCls}>Nome do local</label>
-                  <input
-                    type="text"
-                    list={`grooming-loc-edit-${petId}`}
-                    className={inputCls}
-                    placeholder="Ex: Banho & Tosa da Ana, Cobasi..."
-                    value={editForm.location}
-                    onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className={labelCls}>WhatsApp para agendamento</label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <WhatsAppIcon className="w-4 h-4 text-[#25D366]" />
-                    </div>
+                <div className="px-4 pb-3 space-y-3 pt-2">
+                  <div>
+                    <label className={labelCls}>Nome do local</label>
                     <input
-                      type="tel"
-                      className={`${inputCls} pl-9`}
-                      placeholder="(11) 99999-9999"
-                      value={editForm.location_phone}
-                      onChange={e => setEditForm(f => ({ ...f, location_phone: e.target.value }))}
+                      type="text"
+                      list={`grooming-loc-edit-${petId}`}
+                      className={inputCls}
+                      placeholder="Ex: Banho & Tosa da Ana, Cobasi..."
+                      value={editForm.location}
+                      onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))}
                     />
                   </div>
-                  {editForm.location_phone && (
-                    <a
-                      href={buildWhatsAppUrl(editForm.location_phone, `Olá! Quero agendar banho e tosa para ${petName || 'meu pet'} 🐾`)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1.5 inline-flex items-center gap-1 text-xs font-bold text-[#25D366]"
-                    >
-                      Testar este número ›
-                    </a>
-                  )}
+                  <div>
+                    <label className={labelCls}>WhatsApp para agendamento</label>
+                    <div className="relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <WhatsAppIcon className="w-4 h-4 text-[#25D366]" />
+                      </div>
+                      <input
+                        type="tel"
+                        className={`${inputCls} pl-9`}
+                        placeholder="(11) 99999-9999"
+                        value={editForm.location_phone}
+                        onChange={e => setEditForm(f => ({ ...f, location_phone: e.target.value }))}
+                      />
+                    </div>
+                    {editForm.location_phone && (
+                      <a
+                        href={buildWhatsAppUrl(editForm.location_phone, `Olá! Quero agendar banho e tosa para ${petName || 'meu pet'} 🐾`)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1.5 inline-flex items-center gap-1 text-[13px] font-medium text-[#25D366]"
+                      >
+                        Testar este número ›
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -950,9 +958,9 @@ export function GroomingItemSheet({
               <button
                 onClick={handleSaveEdit}
                 disabled={saving}
-                className="w-full py-4 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white text-[15px] font-bold shadow-md disabled:opacity-50"
+                className="w-full py-[14px] rounded-[14px] bg-[#5856D6] text-white text-[16px] font-semibold shadow-sm disabled:opacity-40 active:opacity-80 transition-opacity"
               >
-                {saving ? 'Salvando...' : '✅ Salvar alterações'}
+                {saving ? 'Salvando...' : 'Salvar alterações'}
               </button>
             </div>
           )}
@@ -962,24 +970,24 @@ export function GroomingItemSheet({
 
         {/* ── Delete confirm ────────────────────────────────────────────────── */}
         {confirmDeleteId && (
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-5 z-10 rounded-3xl">
-            <div className="p-5 w-full max-w-xs bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 overflow-hidden">
-              <p className="text-base font-bold text-gray-900 mb-2">Remover registro?</p>
-              <p className="text-sm text-gray-500 mb-5">Essa ação não pode ser desfeita.</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setConfirmDeleteId(null)}
-                  className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={() => handleDelete(confirmDeleteId)}
-                  className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold text-sm"
-                >
-                  Remover
-                </button>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-end justify-center p-4 z-10 rounded-[28px]">
+            <div className="w-full max-w-sm bg-[#F2F2F7] rounded-[20px] overflow-hidden shadow-2xl">
+              <div className="px-4 pt-4 pb-3 text-center border-b border-[#E5E5EA]">
+                <p className="text-[13px] font-semibold text-[#1C1C1E]">Remover registro?</p>
+                <p className="text-[12px] text-[#8E8E93] mt-0.5">Essa ação não pode ser desfeita.</p>
               </div>
+              <button
+                onClick={() => handleDelete(confirmDeleteId)}
+                className="w-full py-3.5 text-[16px] font-semibold text-[#FF3B30] border-b border-[#E5E5EA] active:opacity-60 transition-opacity"
+              >
+                Remover
+              </button>
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="w-full py-3.5 text-[16px] font-semibold text-[#5856D6] active:opacity-60 transition-opacity"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         )}
