@@ -350,7 +350,11 @@ export default function ProfilePage() {
       if (!res.ok) throw new Error();
       const { invite_url } = await res.json() as { invite_url: string };
       if (navigator.share) {
-        await navigator.share({ title: `Cuide de ${petName} comigo 🐾`, text: `Entrei no PETMOL para cuidar de ${petName}. Quer ajudar também?`, url: invite_url });
+        await navigator.share({
+          title: `Cuide de ${petName} comigo 🐾`,
+          text: `Te convidei para cuidar de ${petName} no PETMOL. Abra o link, crie sua conta grátis ou entre, e ative os alertas para ajudar se precisar.`,
+          url: invite_url,
+        });
       } else {
         await navigator.clipboard.writeText(invite_url);
         showBlockingNotice('Link copiado! Cole no WhatsApp para convidar.');

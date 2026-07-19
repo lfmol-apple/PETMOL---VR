@@ -23,6 +23,12 @@ class UserCreate(BaseModel):
     country: Optional[str] = None
 
 
+class CompleteGuestAccountRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=6, max_length=128)
+    name: Optional[str] = Field(None, min_length=2, max_length=120)
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str

@@ -15,6 +15,7 @@ from ..db import get_db
 from ..rate_limit import rate_limiter
 from .models import EmailVerificationToken, PasswordResetToken, User
 from .schemas import (
+    CompleteGuestAccountRequest,
     LoginRequest,
     LoginResponse,
     PasswordResetConfirm,
@@ -310,6 +311,52 @@ def me(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não encontrado")
     
+    return user
+
+
+@router.post("/complete-guest", response_model=UserOut)
+def complete_guest_account(
+    payload: CompleteGuestAccountRequest,
+    authorization: Optional[str] = Header(default=None),
+    token: Optional[str] = Cookie(default=None, alias=COOKIE_NAME),
+    db: Session = Depends(get_db),
+):
+    auth_token = None
+    if authorization and authorization.startswith('Bearer '):
+        auth_token = authorization[7:]
+    elif token:
+        auth_token = token
+
+    if not auth_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Não autenticado")
+
+    token_data = decode_token(auth_token)
+    if not token_data or not token_data.user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
+
+    user = db.query(User).filter(User.id == token_data.user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não encontrado")
+
+    if not user.email.endswith("@petmol.guest"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Esta conta já está cadastrada.")
+
+    email = payload.email.lower()
+    existing = db.query(User).filter(User.email == email, User.id != user.id).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Este e-mail já está cadastrado.")
+
+    user.email = email
+    user.password_hash = hash_password(payload.password)
+    user.name = payload.name.strip() if payload.name and payload.name.strip() else user.name
+    user.email_verified = False
+    user.terms_accepted = True
+    user.terms_version = user.terms_version or "2026-02-03"
+    user.terms_accepted_at = user.terms_accepted_at or datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+
+    _send_verification_for_user(user, db)
     return user
 
 

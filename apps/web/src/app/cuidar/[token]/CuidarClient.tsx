@@ -44,11 +44,19 @@ export default function CuidarClient({ token, initial }: { token: string; initia
   const [password, setPassword] = useState('');
   const [joining, setJoining] = useState(false);
   const [joined, setJoined] = useState(false);
+  const [joinedAsGuest, setJoinedAsGuest] = useState(false);
   const [error, setError] = useState('');
   const [pushDone, setPushDone] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
+  const [accountName, setAccountName] = useState('');
+  const [accountEmail, setAccountEmail] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
+  const [accountSaving, setAccountSaving] = useState(false);
+  const [accountSaved, setAccountSaved] = useState(false);
+  const [accountError, setAccountError] = useState('');
 
   const nameRef = useRef<HTMLInputElement>(null);
+  const redirectParam = encodeURIComponent(`/cuidar/${token}`);
 
   useEffect(() => {
     const stored = typeof window !== 'undefined' ? localStorage.getItem('petmol_token') : null;
@@ -98,6 +106,8 @@ export default function CuidarClient({ token, initial }: { token: string; initia
         localStorage.setItem('petmol_token', d.access_token);
         document.cookie = `petmol_auth=${d.access_token};path=/;max-age=${60 * 60 * 24 * 30}`;
         setAuthToken(d.access_token);
+        setAccountName(name.trim());
+        setJoinedAsGuest(true);
         setJoined(true);
       } else {
         setError(await readErrorMessage(res, 'Erro ao entrar'));
@@ -143,6 +153,38 @@ export default function CuidarClient({ token, initial }: { token: string; initia
     }
   }
 
+  async function handleCompleteGuestAccount() {
+    const tok = authToken || localStorage.getItem('petmol_token');
+    if (!tok) return;
+    if (!accountEmail.trim() || accountPassword.length < 6) {
+      setAccountError('Informe e-mail e senha com pelo menos 6 caracteres.');
+      return;
+    }
+    setAccountSaving(true);
+    setAccountError('');
+    try {
+      const res = await fetch(`${API}/auth/complete-guest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
+        body: JSON.stringify({
+          name: accountName.trim() || undefined,
+          email: accountEmail.trim(),
+          password: accountPassword,
+        }),
+      });
+      if (res.ok) {
+        setAccountSaved(true);
+        setJoinedAsGuest(false);
+      } else {
+        setAccountError(await readErrorMessage(res, 'Não foi possível salvar seu acesso.'));
+      }
+    } catch {
+      setAccountError('Erro de conexão. Tente novamente.');
+    } finally {
+      setAccountSaving(false);
+    }
+  }
+
   const emoji = info?.species === 'cat' ? '🐱' : '🐶';
 
   if (loading) {
@@ -168,26 +210,104 @@ export default function CuidarClient({ token, initial }: { token: string; initia
 
   if (joined) {
     return (
-      <div className="min-h-dvh flex flex-col items-center justify-center bg-gradient-to-b from-amber-50 to-white px-6 text-center gap-5">
-        <span className="text-6xl">🐾</span>
-        <h1 className="text-2xl font-black text-slate-800">Você agora cuida de {info!.pet_name}!</h1>
-        <p className="text-slate-500 text-sm max-w-xs">
-          Ative as notificações para receber alertas se {info!.pet_name} sumir ou precisar de ajuda.
-        </p>
-        {!pushDone ? (
+      <div className="min-h-dvh bg-gradient-to-b from-amber-50 to-white px-5 py-8">
+        <div className="mx-auto flex w-full max-w-sm flex-col gap-4 text-center">
+          <span className="text-6xl">🐾</span>
+          <div>
+            <h1 className="text-2xl font-black text-slate-800">Você agora cuida de {info!.pet_name}!</h1>
+            <p className="mt-2 text-sm leading-relaxed text-slate-500">
+              O PETMOL já está liberado neste aparelho. Para funcionar bem no dia a dia, ative alertas e salve seu acesso.
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-white bg-white/90 p-4 text-left shadow-xl shadow-amber-900/5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-xl">🔔</div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-black text-slate-800">Receber alertas importantes</h2>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                  Avisos de pet sumido e cuidados chegam como notificação do app.
+                </p>
+                {!pushDone ? (
+                  <button
+                    onClick={handlePush}
+                    disabled={pushLoading}
+                    className="mt-3 w-full rounded-2xl bg-amber-400 py-3 text-sm font-black text-white active:opacity-80 disabled:opacity-50"
+                  >
+                    {pushLoading ? 'Ativando...' : 'Ativar notificações'}
+                  </button>
+                ) : (
+                  <p className="mt-3 text-sm font-bold text-emerald-600">Notificações ativas.</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {joinedAsGuest && !accountSaved && (
+            <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4 text-left shadow-xl shadow-blue-900/5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-xl">🔐</div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-sm font-black text-blue-950">Salve seu acesso</h2>
+                  <p className="mt-1 text-xs leading-relaxed text-blue-800/75">
+                    Se trocar de celular ou limpar o navegador, e-mail e senha recuperam o acesso a {info!.pet_name}.
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2">
+                    <input
+                      type="text"
+                      value={accountName}
+                      onChange={(e) => setAccountName(e.target.value)}
+                      placeholder="Seu nome"
+                      className="w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-200"
+                    />
+                    <input
+                      type="email"
+                      value={accountEmail}
+                      onChange={(e) => setAccountEmail(e.target.value)}
+                      placeholder="E-mail"
+                      className="w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-200"
+                    />
+                    <input
+                      type="password"
+                      value={accountPassword}
+                      onChange={(e) => setAccountPassword(e.target.value)}
+                      placeholder="Senha"
+                      className="w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-200"
+                    />
+                    {accountError && <p className="text-xs font-semibold text-rose-600">{accountError}</p>}
+                    <button
+                      onClick={handleCompleteGuestAccount}
+                      disabled={accountSaving}
+                      className="w-full rounded-2xl bg-blue-600 py-3 text-sm font-black text-white active:opacity-80 disabled:opacity-50"
+                    >
+                      {accountSaving ? 'Salvando...' : 'Salvar acesso'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {accountSaved && (
+            <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
+              Acesso salvo. Agora você pode entrar no PETMOL com seu e-mail e senha.
+            </p>
+          )}
+
+          <div className="rounded-3xl border border-slate-100 bg-white p-4 text-left">
+            <h2 className="text-sm font-black text-slate-800">Para ter o app no celular</h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              No iPhone, toque em compartilhar e escolha “Adicionar à Tela de Início”. No Android, abra o menu do navegador e toque em “Instalar app” ou “Adicionar à tela inicial”.
+            </p>
+          </div>
+
           <button
-            onClick={handlePush}
-            disabled={pushLoading}
-            className="w-full max-w-xs py-4 rounded-2xl bg-amber-400 text-white font-black text-base active:opacity-80 disabled:opacity-50"
+            onClick={() => router.push('/home')}
+            className="w-full rounded-2xl bg-slate-900 py-4 text-base font-black text-white active:opacity-80"
           >
-            {pushLoading ? 'Ativando...' : '🔔 Ativar notificações'}
+            Abrir o PETMOL
           </button>
-        ) : (
-          <p className="text-emerald-600 font-semibold text-sm">✅ Notificações ativas!</p>
-        )}
-        <button onClick={() => router.push('/home')} className="text-sm text-slate-400 underline">
-          Abrir o PETMOL
-        </button>
+        </div>
       </div>
     );
   }
@@ -211,7 +331,7 @@ export default function CuidarClient({ token, initial }: { token: string; initia
       <div className="flex-1 flex flex-col px-6 pt-5 pb-8 gap-4">
         <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3">
           <p className="text-amber-800 text-sm font-semibold leading-snug">
-            {emoji} Você vai receber alertas imediatos se {info!.pet_name} sumir — independente de onde estiver.
+            {emoji} Você vai ajudar nos alertas e cuidados de {info!.pet_name}. Para não perder o acesso, entre ou crie uma conta.
           </p>
         </div>
 
@@ -227,6 +347,24 @@ export default function CuidarClient({ token, initial }: { token: string; initia
           </button>
         ) : mode === 'guest' ? (
           <div className="flex flex-col gap-3">
+            <Link
+              href={`/register?redirect=${redirectParam}`}
+              className="w-full rounded-2xl bg-blue-600 py-4 text-center text-base font-black text-white shadow-lg shadow-blue-600/20 active:opacity-80"
+            >
+              Criar conta grátis e cuidar
+            </Link>
+            <button
+              type="button"
+              onClick={() => setMode('login')}
+              className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 text-center text-sm font-black text-slate-700 active:bg-slate-50"
+            >
+              Já tenho conta no PETMOL
+            </button>
+            <div className="my-1 flex items-center gap-3">
+              <div className="h-px flex-1 bg-slate-100" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">ou rápido</span>
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
             <input
               ref={nameRef}
               type="text"
@@ -240,16 +378,19 @@ export default function CuidarClient({ token, initial }: { token: string; initia
             <button
               onClick={handleGuestJoin}
               disabled={joining}
-              className="w-full py-4 rounded-2xl bg-amber-400 text-white font-black text-lg active:opacity-80 disabled:opacity-50"
+              className="w-full py-3.5 rounded-2xl bg-amber-400 text-white font-black text-base active:opacity-80 disabled:opacity-50"
             >
-              {joining ? 'Entrando...' : `Cuidar de ${info!.pet_name} 🐾`}
+              {joining ? 'Entrando...' : `Entrar só com meu nome`}
             </button>
-            <button onClick={() => setMode('login')} className="text-center text-sm text-slate-500">
-              Já tenho uma conta no PETMOL →
-            </button>
+            <p className="text-center text-[11px] leading-relaxed text-slate-400">
+              Modo rápido funciona neste navegador. Depois você poderá salvar e-mail e senha para não perder acesso.
+            </p>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
+            <div className="rounded-2xl bg-slate-50 px-4 py-3 text-center">
+              <p className="text-sm font-bold text-slate-700">Entre para aceitar o convite de {info!.pet_name}.</p>
+            </div>
             <input
               type="email"
               value={email}
@@ -273,8 +414,11 @@ export default function CuidarClient({ token, initial }: { token: string; initia
             >
               {joining ? 'Entrando...' : 'Entrar e cuidar 🐾'}
             </button>
+            <Link href={`/register?redirect=${redirectParam}`} className="text-center text-sm font-bold text-blue-600">
+              Criar conta grátis
+            </Link>
             <button onClick={() => setMode('guest')} className="text-center text-sm text-slate-500">
-              ← Entrar sem conta
+              ← Voltar
             </button>
           </div>
         )}
