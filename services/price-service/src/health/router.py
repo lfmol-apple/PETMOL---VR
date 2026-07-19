@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..user_auth.models import User
 from ..user_auth.deps import get_current_user
+from ..pets.access import get_accessible_pet_or_404
 from ..pets.models import Pet
 from ..pets.vaccine_models import VaccineRecord
 from ..events.models import Event
@@ -57,14 +58,8 @@ router = APIRouter(prefix="/health", tags=["health"])
 # ============================================================================
 
 def _check_pet_ownership(pet_id: str, user: User, db: Session) -> Pet:
-    """Validate that pet belongs to current user."""
-    pet = db.query(Pet).filter(Pet.id == pet_id, Pet.user_id == user.id).first()
-    if not pet:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Pet não encontrado ou não pertence ao usuário"
-        )
-    return pet
+    """Validate that pet is owned by or shared with current user."""
+    return get_accessible_pet_or_404(db, user.id, pet_id)
 
 
 def _vaccine_record_to_response(record: VaccineRecord) -> VaccineResponse:

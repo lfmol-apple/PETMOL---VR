@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
+from .access import get_accessible_pet_or_404
 from .models import Pet
 from .vaccine_models import VaccineRecord
 from .vaccine_schemas import (
@@ -29,15 +30,11 @@ def get_vaccines_for_sync(
     Busca todas as vacinas de um pet para sincronização.
     
     Retorna todas as vacinas (incluindo deletadas) com updated_at para Last-Write-Wins.
-    Apenas o dono do pet pode acessar.
+    Dono e cuidadores do pet podem acessar.
     """
-    # Verificar se o pet existe e pertence ao usuário
-    pet = db.query(Pet).filter(
-        Pet.id == pet_id,
-        Pet.user_id == str(current_user.id)
-    ).first()
-    
-    if not pet:
+    try:
+        get_accessible_pet_or_404(db, str(current_user.id), pet_id)
+    except HTTPException:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Pet não encontrado ou você não tem permissão para acessá-lo"
@@ -68,15 +65,11 @@ def sync_vaccines(
     - Compara updated_at para decidir qual versão manter
     - Cria novas vacinas se não existirem
     - Atualiza vacinas existentes se a versão recebida for mais recente
-    - Apenas o dono do pet pode sincronizar
+    - Dono e cuidadores do pet podem sincronizar
     """
-    # Verificar se o pet existe e pertence ao usuário
-    pet = db.query(Pet).filter(
-        Pet.id == pet_id,
-        Pet.user_id == str(current_user.id)
-    ).first()
-    
-    if not pet:
+    try:
+        get_accessible_pet_or_404(db, str(current_user.id), pet_id)
+    except HTTPException:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Pet não encontrado ou você não tem permissão para acessá-lo"

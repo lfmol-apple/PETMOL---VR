@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
+from .access import get_accessible_pet_or_404
 from .models import Pet
 from .grooming_models import GroomingRecord
 from .grooming_schemas import GroomingRecordCreate, GroomingRecordUpdate, GroomingRecordOut
@@ -16,10 +17,7 @@ router = APIRouter(prefix="/pets/{pet_id}/grooming", tags=["Grooming"])
 
 
 def _get_pet_owned(db: Session, pet_id: str, user: User) -> Pet:
-    pet = db.query(Pet).filter(Pet.id == pet_id, Pet.user_id == user.id).first()
-    if not pet:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pet não encontrado")
-    return pet
+    return get_accessible_pet_or_404(db, user.id, pet_id)
 
 
 def _serialize_reschedule_history(value) -> Optional[str]:

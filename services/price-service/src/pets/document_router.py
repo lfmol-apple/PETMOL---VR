@@ -33,6 +33,7 @@ from .document_schemas import (
     PetDocumentOut,
 )
 from .models import Pet
+from .access import get_accessible_pet_or_404
 
 logger = logging.getLogger(__name__)
 
@@ -102,10 +103,7 @@ IMPORT_TIMEOUT = 60.0
 # ── Auth helper ──────────────────────────────────────────────────────────────
 
 def _get_pet_or_404(db: Session, user_id: str, pet_id: str) -> Pet:
-    pet = db.query(Pet).filter(Pet.id == pet_id, Pet.user_id == user_id).first()
-    if not pet:
-        raise HTTPException(status_code=404, detail="Pet não encontrado")
-    return pet
+    return get_accessible_pet_or_404(db, user_id, pet_id)
 
 
 # ── URL masking ───────────────────────────────────────────────────────────────

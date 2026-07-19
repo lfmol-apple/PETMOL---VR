@@ -13,6 +13,7 @@ import logging
 from ..db import get_db
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
+from ..pets.access import accessible_pets_query, get_accessible_pet_or_404
 from ..pets.models import Pet
 
 logger = logging.getLogger(__name__)
@@ -311,8 +312,7 @@ async def get_pending_events(
     Inclui: vacinas, controle parasitário e medicamentos.
     """
     try:
-        # Buscar pets do usuário
-        pets = db.query(Pet).filter(Pet.user_id == current_user.id).all()
+        pets = accessible_pets_query(db, str(current_user.id)).all()
         
         all_events = []
         
@@ -351,14 +351,11 @@ async def confirm_event(
         logger.info(f"[Health] Request recebido: pet_id={request.pet_id} (type={type(request.pet_id).__name__}), event_id={request.event_id}, type={request.event_type}")
         logger.info(f"[Health] User: {current_user.id}, confirmed={request.confirmed}, reschedule_days={request.reschedule_days}")
         
-        # SILENCIADO: acesso familiar removido temporariamente — apenas dono do pet é aceito.
-        # Para reativar acesso familiar, restaurar o bloco FamilyMember abaixo.
-        # from ..family.models import FamilyGroup, FamilyMember
         logger.info(f"[Confirm] Buscando pet {request.pet_id} do user {current_user.id}")
-        pet = db.query(Pet).filter(Pet.id == request.pet_id, Pet.user_id == current_user.id).first()
-        
-        if not pet:
-            logger.error(f"[Health] ❌ Pet {request.pet_id} não encontrado ou não pertence ao usuário {current_user.id}")
+        try:
+            pet = get_accessible_pet_or_404(db, str(current_user.id), request.pet_id)
+        except HTTPException:
+            logger.error(f"[Health] ❌ Pet {request.pet_id} não encontrado para usuário {current_user.id}")
             raise HTTPException(status_code=404, detail="Pet não encontrado ou você não tem permissão para acessá-lo")
         
         logger.info(f"[Health] ✅ Pet encontrado: {pet.name} (id={pet.id})")

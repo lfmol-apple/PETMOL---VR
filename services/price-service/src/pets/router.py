@@ -1,5 +1,5 @@
 """API routes for pets."""
-from typing import Optional, List
+from typing import Optional
 import json
 import secrets
 from datetime import date, datetime
@@ -15,6 +15,7 @@ from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
 from ..user_auth.security import create_access_token, hash_password
 from ..user_auth.router import COOKIE_NAME, _cookie_settings
+from .access import accessible_pets_query, get_accessible_pet_or_404, get_owned_pet_or_404
 from .models import Pet
 from .caretaker_models import PetCaretaker
 from .schemas import PetCreate, PetOut, PetUpdate
@@ -34,37 +35,18 @@ def _parse_optional_date(value):
     return date.fromisoformat(str(value))
 
 
-def _get_accessible_owner_ids(user_id: str, db: Session) -> List[str]:
-    """Return list of user_ids whose pets the current user can access.
-    SILENCIADO: compartilhamento familiar desativado — retorna apenas o próprio usuário.
-    Para reativar acesso familiar, restaurar o bloco de FamilyMember abaixo.
-    """
-    # SILENCIADO — family lookup removido temporariamente
-    # from ..family.models import FamilyGroup, FamilyMember
-    # owner_ids = {user_id}
-    # memberships = db.query(FamilyMember).filter(FamilyMember.user_id == user_id).all()
-    # for m in memberships:
-    #     group = db.query(FamilyGroup).filter(FamilyGroup.id == m.group_id).first()
-    #     if group:
-    #         owner_ids.add(group.owner_id)
-    # return list(owner_ids)
-    return [user_id]
-
-
 @router.get("/pets", response_model=list[PetOut])
 def list_pets(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    owner_ids = _get_accessible_owner_ids(user.id, db)
     return (
-        db.query(Pet)
+        accessible_pets_query(db, user.id)
         .options(
             selectinload(Pet.vaccine_records),
             selectinload(Pet.parasite_control_records),
             selectinload(Pet.grooming_records),
         )
-        .filter(Pet.user_id.in_(owner_ids))
         .order_by(Pet.created_at.asc())
         .all()
     )
@@ -103,11 +85,7 @@ def create_pet(
 
 
 def _get_pet_or_404(db: Session, user_id: str, pet_id: str) -> Pet:
-    owner_ids = _get_accessible_owner_ids(user_id, db)
-    pet = db.query(Pet).filter(Pet.id == pet_id, Pet.user_id.in_(owner_ids)).first()
-    if not pet:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pet não encontrado")
-    return pet
+    return get_accessible_pet_or_404(db, user_id, pet_id)
 
 
 @router.get("/pets/{pet_id}", response_model=PetOut)
@@ -123,12 +101,12 @@ def get_pet(
             selectinload(Pet.parasite_control_records),
             selectinload(Pet.grooming_records),
         )
-        .filter(Pet.id == pet_id, Pet.user_id == user.id)
+        .filter(Pet.id == pet_id)
         .first()
     )
-    if not pet:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pet não encontrado")
-    return pet
+    if pet and (pet.user_id == user.id or db.query(PetCaretaker).filter(PetCaretaker.pet_id == pet.id, PetCaretaker.user_id == user.id).first()):
+        return pet
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pet não encontrado")
 
 
 @router.put("/pets/{pet_id}", response_model=PetOut)
@@ -158,7 +136,7 @@ def delete_pet(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    pet = _get_pet_or_404(db, user.id, pet_id)
+    pet = get_owned_pet_or_404(db, user.id, pet_id)
     
     # Deletar foto se existir
     if pet.photo:
@@ -272,13 +250,9 @@ def get_vaccine(
             detail="Vacina não encontrada"
         )
     
-    # Verificar se o pet pertence ao usuário
-    pet = db.query(Pet).filter(
-        Pet.id == vaccine.pet_id,
-        Pet.user_id == user.id
-    ).first()
-    
-    if not pet:
+    try:
+        _get_pet_or_404(db, user.id, vaccine.pet_id)
+    except HTTPException:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Você não tem permissão para acessar esta vacina"
@@ -306,13 +280,9 @@ def update_vaccine(
             detail="Vacina não encontrada"
         )
     
-    # Verificar se o pet pertence ao usuário
-    pet = db.query(Pet).filter(
-        Pet.id == vaccine.pet_id,
-        Pet.user_id == user.id
-    ).first()
-    
-    if not pet:
+    try:
+        _get_pet_or_404(db, user.id, vaccine.pet_id)
+    except HTTPException:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Você não tem permissão para editar esta vacina"
@@ -351,13 +321,9 @@ def delete_vaccine(
             detail="Vacina não encontrada"
         )
     
-    # Verificar se o pet pertence ao usuário
-    pet = db.query(Pet).filter(
-        Pet.id == vaccine.pet_id,
-        Pet.user_id == user.id
-    ).first()
-    
-    if not pet:
+    try:
+        _get_pet_or_404(db, user.id, vaccine.pet_id)
+    except HTTPException:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Você não tem permissão para deletar esta vacina"

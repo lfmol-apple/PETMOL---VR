@@ -3,36 +3,36 @@ Events router - CRUD completo para eventos de pets
 """
 import json
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 
 from ..db import get_db
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
+from ..pets.access import accessible_pets_query, get_accessible_pet_or_404
 from .models import Event
 from .schemas import EventCreate, EventUpdate, EventOut
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
 
-def _get_accessible_owner_ids(user_id: str, db: Session) -> List[str]:
-    """Retorna user_ids acessíveis.
-    SILENCIADO: compartilhamento familiar desativado — retorna apenas o próprio usuário.
-    Para reativar acesso familiar, restaurar o bloco de FamilyMember abaixo.
-    """
-    # SILENCIADO — family lookup removido temporariamente
-    # from ..family.models import FamilyGroup, FamilyMember
-    # owner_ids = {user_id}
-    # memberships = db.query(FamilyMember).filter(FamilyMember.user_id == user_id).all()
-    # for m in memberships:
-    #     group = db.query(FamilyGroup).filter(FamilyGroup.id == m.group_id).first()
-    #     if group:
-    #         owner_ids.add(group.owner_id)
-    # return list(owner_ids)
-    return [user_id]
+def _accessible_pet_ids(user_id: str, db: Session) -> list[str]:
+    return [pet.id for pet in accessible_pets_query(db, user_id).all()]
+
+
+def _get_accessible_event_or_404(db: Session, user_id: str, event_id: str) -> Event:
+    pet_ids = _accessible_pet_ids(user_id, db)
+    event = db.query(Event).filter(
+        Event.id == event_id,
+        Event.pet_id.in_(pet_ids),
+        Event.deleted_at.is_(None),
+    ).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento não encontrado")
+    return event
 
 
 @router.post("", response_model=EventOut, status_code=status.HTTP_201_CREATED)
@@ -42,6 +42,7 @@ def create_event(
     current_user: User = Depends(get_current_user)
 ):
     """Criar novo evento"""
+    pet = get_accessible_pet_or_404(db, str(current_user.id), payload.pet_id)
     
     # next_due_date: usa o valor direto se fornecido, senão calcula por frequency_days
     next_due_date = payload.next_due_date
@@ -49,7 +50,7 @@ def create_event(
         next_due_date = payload.scheduled_at + timedelta(days=payload.frequency_days)
     
     event = Event(
-        user_id=str(current_user.id),
+        user_id=str(pet.user_id),
         pet_id=payload.pet_id,
         type=payload.type,
         scheduled_at=payload.scheduled_at,
@@ -95,8 +96,8 @@ def list_events(
     current_user: User = Depends(get_current_user)
 ):
     """Listar eventos do usuário (inclui acesso familiar)"""
-    owner_ids = _get_accessible_owner_ids(str(current_user.id), db)
-    query = db.query(Event).filter(Event.user_id.in_(owner_ids), Event.deleted_at.is_(None))
+    pet_ids = _accessible_pet_ids(str(current_user.id), db)
+    query = db.query(Event).filter(Event.pet_id.in_(pet_ids), Event.deleted_at.is_(None))
     
     if pet_id:
         query = query.filter(Event.pet_id == pet_id)
@@ -127,20 +128,7 @@ def get_event(
     current_user: User = Depends(get_current_user)
 ):
     """Obter evento por ID"""
-    
-    event = db.query(Event).filter(
-        Event.id == event_id,
-        Event.user_id == str(current_user.id),
-        Event.deleted_at.is_(None),
-    ).first()
-    
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Evento não encontrado"
-        )
-    
-    return event
+    return _get_accessible_event_or_404(db, str(current_user.id), event_id)
 
 
 @router.patch("/{event_id}", response_model=EventOut)
@@ -151,18 +139,7 @@ def update_event(
     current_user: User = Depends(get_current_user)
 ):
     """Atualizar evento"""
-    
-    event = db.query(Event).filter(
-        Event.id == event_id,
-        Event.user_id == str(current_user.id),
-        Event.deleted_at.is_(None),
-    ).first()
-    
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Evento não encontrado"
-        )
+    event = _get_accessible_event_or_404(db, str(current_user.id), event_id)
     
     # Atualizar campos fornecidos
     update_data = payload.model_dump(exclude_unset=True)
@@ -189,17 +166,7 @@ def delete_event(
     current_user: User = Depends(get_current_user)
 ):
     """Deletar evento"""
-    
-    event = db.query(Event).filter(
-        Event.id == event_id,
-        Event.user_id == str(current_user.id)
-    ).first()
-    
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Evento não encontrado"
-        )
+    event = _get_accessible_event_or_404(db, str(current_user.id), event_id)
     
     event.deleted_at = datetime.utcnow()
     event.updated_at = datetime.utcnow()
@@ -215,17 +182,7 @@ def complete_event(
     current_user: User = Depends(get_current_user)
 ):
     """Marcar evento como concluído e criar próximo se recorrente"""
-    
-    event = db.query(Event).filter(
-        Event.id == event_id,
-        Event.user_id == str(current_user.id)
-    ).first()
-    
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Evento não encontrado"
-        )
+    event = _get_accessible_event_or_404(db, str(current_user.id), event_id)
     
     # Marcar como completo
     event.status = "completed"
@@ -284,14 +241,7 @@ def apply_dose(
     current_user: User = Depends(get_current_user)
 ):
     """Registrar uma dose administrada no tratamento"""
-
-    event = db.query(Event).filter(
-        Event.id == event_id,
-        Event.user_id == str(current_user.id)
-    ).first()
-
-    if not event:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento n\u00e3o encontrado")
+    event = _get_accessible_event_or_404(db, str(current_user.id), event_id)
 
     extra = json.loads(event.extra_data or '{}')
     applied_dates = extra.get('applied_dates', [])
@@ -364,14 +314,7 @@ def remove_dose(
     current_user: User = Depends(get_current_user)
 ):
     """Remover uma dose registrada incorretamente"""
-
-    event = db.query(Event).filter(
-        Event.id == event_id,
-        Event.user_id == str(current_user.id)
-    ).first()
-
-    if not event:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento não encontrado")
+    event = _get_accessible_event_or_404(db, str(current_user.id), event_id)
 
     extra = json.loads(event.extra_data or '{}')
     applied_dates = extra.get('applied_dates', [])
@@ -428,14 +371,7 @@ def skip_dose(
     current_user: User = Depends(get_current_user)
 ):
     """Marcar um dia como pulado no tratamento (não penaliza score de aderência)"""
-
-    event = db.query(Event).filter(
-        Event.id == event_id,
-        Event.user_id == str(current_user.id)
-    ).first()
-
-    if not event:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento não encontrado")
+    event = _get_accessible_event_or_404(db, str(current_user.id), event_id)
 
     extra = json.loads(event.extra_data or '{}')
     applied_dates = extra.get('applied_dates', [])
@@ -498,14 +434,7 @@ def unskip_dose(
     current_user: User = Depends(get_current_user)
 ):
     """Remover marcação de dia pulado"""
-
-    event = db.query(Event).filter(
-        Event.id == event_id,
-        Event.user_id == str(current_user.id)
-    ).first()
-
-    if not event:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento não encontrado")
+    event = _get_accessible_event_or_404(db, str(current_user.id), event_id)
 
     extra = json.loads(event.extra_data or '{}')
     skipped_dates = extra.get('skipped_dates', [])
@@ -548,9 +477,10 @@ def get_upcoming_summary(
     """Obter resumo de eventos próximos (para dashboard)"""
     
     end_date = datetime.utcnow() + timedelta(days=days)
+    pet_ids = _accessible_pet_ids(str(current_user.id), db)
     
     events = db.query(Event).filter(
-        Event.user_id == str(current_user.id),
+        Event.pet_id.in_(pet_ids),
         Event.status == "pending",
         Event.scheduled_at <= end_date
     ).order_by(Event.scheduled_at.asc()).limit(limit).all()
