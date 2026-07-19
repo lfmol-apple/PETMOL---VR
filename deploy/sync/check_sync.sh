@@ -53,6 +53,8 @@ fi
 
 RSYNC_DIFF="$(rsync -anic --delete \
     --exclude '.git' \
+    --exclude '.gitignore' \
+    --exclude '.github' \
     --exclude '.env' \
     --exclude '.env.local' \
     --exclude '.env.production' \
@@ -74,7 +76,14 @@ RSYNC_DIFF="$(rsync -anic --delete \
     --exclude 'functions/lib' \
     --exclude 'services/product-suggest/dist' \
     --exclude 'services/price-service/src/petmol_price_service.egg-info' \
+    --exclude 'services/price-service/tests' \
+    --exclude 'services/price-service/src/ongs' \
+    --exclude 'functions/.gitignore' \
+    --exclude 'services/price-service/.gitignore' \
+    --exclude 'services/price-service/.env.example' \
     --exclude 'REVISION' \
+    --exclude 'apps/web/public/version.json' \
+    --exclude 'apps/web/public/icons/.gitkeep' \
     --exclude 'apps/web/tsconfig.tsbuildinfo' \
     "$VPS_USER@$VPS_IP:$REMOTE_DIR/app/" ./)"
 
