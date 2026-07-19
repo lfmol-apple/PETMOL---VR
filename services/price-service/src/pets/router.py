@@ -5,6 +5,7 @@ import secrets
 from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, Response, status, UploadFile, File
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from ..db import get_db
@@ -520,12 +521,17 @@ def guest_join(
         terms_version="guest",
     )
     db.add(guest)
-    db.add(PetCaretaker(
-        id=str(uuid.uuid4()),
-        pet_id=pet.id,
-        user_id=guest_id,
-    ))
-    db.commit()
+    try:
+        db.flush()
+        db.add(PetCaretaker(
+            id=str(uuid.uuid4()),
+            pet_id=pet.id,
+            user_id=guest_id,
+        ))
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Não foi possível aceitar este convite. Tente novamente.") from exc
 
     token = create_access_token(user_id=guest_id)
     response.set_cookie(COOKIE_NAME, token, **_cookie_settings())
