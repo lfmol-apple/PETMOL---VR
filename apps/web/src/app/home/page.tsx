@@ -235,11 +235,25 @@ function HomePageInner() {
   const [forceCheckin, setForceCheckin] = useState(false);
   // Ref que sempre aponta para a função de refresh mais recente (evita closure stale no event listener)
   const refreshAllRef = useRef<() => void>(() => {});
-  // Deep link vindo do Cache API (escrito pelo SW no notificationclick — iOS não passa query params via openWindow)
+  // Deep link fallback: ref+trigger para casos onde router.push não pode ser chamado diretamente
   const cachedDeepLinkRef = useRef<string | null>(null);
   const [deepLinkTrigger, setDeepLinkTrigger] = useState(0);
 
-  // Leitura na montagem (app aberto do zero via notificação)
+  // ── Deep link via notificação push ──────────────────────────────────────────
+  // 4 mecanismos redundantes para cobrir todos os estados do app (ativo, background, frozen, recém-aberto).
+  // Todos chamam router.push() diretamente ao receber a URL, garantindo que searchParams atualize.
+
+  const applyDeepLinkUrl = useCallback((url: string) => {
+    try {
+      const parsed = new URL(url, window.location.origin);
+      router.push(parsed.pathname + parsed.search);
+    } catch {
+      cachedDeepLinkRef.current = url;
+      setDeepLinkTrigger((t) => t + 1);
+    }
+  }, [router]);
+
+  // 1. Leitura na montagem — cobre app aberto do zero via notificação (ou iOS onde openWindow ignora params)
   useEffect(() => {
     if (typeof window === 'undefined' || !('caches' in window)) return;
     caches.open('petmol-deeplink-v1').then(async (cache) => {
@@ -247,36 +261,41 @@ function HomePageInner() {
       if (!resp) return;
       const { url, ts } = await resp.json() as { url: string; ts: number };
       await cache.delete('/__petmol_deeplink');
-      if (Date.now() - ts < 30_000) {
-        cachedDeepLinkRef.current = url;
-        setDeepLinkTrigger((t) => t + 1);
-      }
+      if (Date.now() - ts < 30_000) applyDeepLinkUrl(url);
     }).catch(() => {});
-  }, []);
+  }, [applyDeepLinkUrl]);
 
-  // Leitura ao voltar ao foco (fallback: app estava em background e visibilitychange dispara)
+  // 2. visibilitychange + window.focus — cobre app vindo do background
+  // window.focus captura casos onde visibilitychange não dispara (ex.: notification shade no Android)
   useEffect(() => {
     if (typeof window === 'undefined' || !('caches' in window)) return;
-    const handleVisibility = () => {
-      if (document.visibilityState !== 'visible') return;
+    const readCache = async () => {
       if (new URLSearchParams(window.location.search).get('modal')) return;
-      caches.open('petmol-deeplink-v1').then(async (cache) => {
+      try {
+        const cache = await caches.open('petmol-deeplink-v1');
         const resp = await cache.match('/__petmol_deeplink');
         if (!resp) return;
         const { url, ts } = await resp.json() as { url: string; ts: number };
         await cache.delete('/__petmol_deeplink');
-        if (Date.now() - ts < 30_000) {
-          cachedDeepLinkRef.current = url;
-          setDeepLinkTrigger((t) => t + 1);
-        }
-      }).catch(() => {});
+        if (Date.now() - ts < 30_000) applyDeepLinkUrl(url);
+      } catch {}
     };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, []);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        readCache();
+        setTimeout(readCache, 600); // retry com delay para cobrir race condition
+      }
+    };
+    const onFocus = () => { readCache(); setTimeout(readCache, 600); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [applyDeepLinkUrl]);
 
-  // BroadcastChannel — recebe deep link do SW mesmo com app em background.
-  // Ao receber, faz router.push() para forçar atualização de searchParams e disparar o efeito.
+  // 3. BroadcastChannel — entrega ao app ativo (não frozen) sem depender de referência de cliente
   useEffect(() => {
     if (typeof window === 'undefined' || !('BroadcastChannel' in window)) return;
     const bc = new BroadcastChannel('petmol-deeplink');
@@ -284,16 +303,23 @@ function HomePageInner() {
       if (event.data?.type !== 'PETMOL_DEEPLINK') return;
       const { url, ts } = event.data as { url: string; ts: number };
       if (!url || Date.now() - (ts || 0) > 30_000) return;
-      try {
-        const parsed = new URL(url, window.location.origin);
-        router.push(parsed.pathname + parsed.search);
-      } catch {
-        cachedDeepLinkRef.current = url;
-        setDeepLinkTrigger((t) => t + 1);
-      }
+      applyDeepLinkUrl(url);
     };
     return () => bc.close();
-  }, [router]);
+  }, [applyDeepLinkUrl]);
+
+  // 4. postMessage do SW — entregue mesmo após a página sair do estado frozen (após client.focus())
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type !== 'PETMOL_DEEPLINK') return;
+      const { url, ts } = event.data as { url: string; ts: number };
+      if (!url || Date.now() - (ts || 0) > 30_000) return;
+      applyDeepLinkUrl(url);
+    };
+    navigator.serviceWorker.addEventListener('message', handler);
+    return () => navigator.serviceWorker.removeEventListener('message', handler);
+  }, [applyDeepLinkUrl]);
 
   // Check-up inicial banner
   const [checkupBanner, setCheckupBanner] = useState<{ petName: string; pendingCount: number } | null>(null);

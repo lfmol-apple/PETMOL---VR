@@ -166,6 +166,8 @@ self.addEventListener('notificationclick', (event) => {
       const existingClient = allClients.find((c) => c.url.startsWith(self.location.origin));
       if (existingClient && 'focus' in existingClient) {
         await existingClient.focus();
+        // postMessage após focus — entregue mesmo para página que estava frozen (recebe ao descongelar)
+        existingClient.postMessage({ type: 'PETMOL_DEEPLINK', url: rawUrl, ts: Date.now() });
       } else if (clients.openWindow) {
         await clients.openWindow(targetUrl);
       }
@@ -194,13 +196,12 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
+  const KEEP = new Set([CACHE_NAME, 'petmol-deeplink-v1', SHARE_CACHE]);
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => !KEEP.has(key)).map((key) => caches.delete(key))))
       .then(() => clients.claim())
-      .then(() => clients.matchAll({ type: 'window' }))
-      .then((all) => all.forEach((client) => client.navigate(client.url)))
   );
 });
 
