@@ -17,7 +17,7 @@
  * }
  */
 
-const CACHE_NAME = 'petmol-shell-v2026-07-19b';
+const CACHE_NAME = 'petmol-shell-v2026-07-19c';
 const SHARE_CACHE = 'petmol-shared-files-v1';
 const SHELL_URLS = [
   '/',
@@ -148,25 +148,12 @@ self.addEventListener('notificationclick', (event) => {
     )
   );
 
+  // clients.openWindow() no Android Chrome PWA foca a janela existente e navega
+  // para a URL (não abre nova aba). Funciona se app está aberto ou fechado.
+  // O cache persiste o deep link para iOS, onde openWindow ignora query params.
   event.waitUntil(
     persistIntent.then(() =>
-      clients
-        .matchAll({ type: 'window', includeUncontrolled: true })
-        .then((clientList) => {
-          for (const client of clientList) {
-            if (client.url.includes(self.location.origin) && 'focus' in client) {
-              // postMessage entrega o deep link independente de visibilitychange —
-              // cobre tanto app em background quanto app já visível (ex: painel aberto).
-              return client.focus().then(() => {
-                client.postMessage({ type: 'PETMOL_DEEPLINK', url: rawUrl, ts: Date.now() });
-              });
-            }
-          }
-          // App estava fechado: abre com a URL completa (home/page.tsx lê cache ou searchParams)
-          if (clients.openWindow) {
-            return clients.openWindow(targetUrl);
-          }
-        })
+      clients.openWindow ? clients.openWindow(targetUrl) : Promise.resolve()
     )
   );
 });
