@@ -17,7 +17,7 @@
  * }
  */
 
-const CACHE_NAME = 'petmol-shell-v2026-07-18b';
+const CACHE_NAME = 'petmol-shell-v2026-07-19a';
 const SHARE_CACHE = 'petmol-shared-files-v1';
 const SHELL_URLS = [
   '/',
@@ -154,10 +154,14 @@ self.addEventListener('notificationclick', (event) => {
         .matchAll({ type: 'window', includeUncontrolled: true })
         .then((clientList) => {
           for (const client of clientList) {
-            if (client.url.includes(self.location.origin) && 'focus' in client && 'navigate' in client) {
-              return client.focus().then(() => client.navigate(targetUrl));
+            if (client.url.includes(self.location.origin) && 'focus' in client) {
+              // Só foca — NÃO navega. client.navigate() faz hard-reload e
+              // apaga o estado do React antes do visibilitychange processar o cache.
+              // O handler de visibilitychange em home/page.tsx lê o cache e abre o sheet.
+              return client.focus();
             }
           }
+          // App estava fechado: abre com a URL completa (home/page.tsx lê o cache ou searchParams)
           if (clients.openWindow) {
             return clients.openWindow(targetUrl);
           }
