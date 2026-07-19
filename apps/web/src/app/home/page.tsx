@@ -275,19 +275,25 @@ function HomePageInner() {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
-  // Mensagem direta do SW via postMessage — cobre app visível e app em background
+  // BroadcastChannel — recebe deep link do SW mesmo com app em background.
+  // Ao receber, faz router.push() para forçar atualização de searchParams e disparar o efeito.
   useEffect(() => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
-    const handler = (event: MessageEvent) => {
+    if (typeof window === 'undefined' || !('BroadcastChannel' in window)) return;
+    const bc = new BroadcastChannel('petmol-deeplink');
+    bc.onmessage = (event: MessageEvent) => {
       if (event.data?.type !== 'PETMOL_DEEPLINK') return;
       const { url, ts } = event.data as { url: string; ts: number };
       if (!url || Date.now() - (ts || 0) > 30_000) return;
-      cachedDeepLinkRef.current = url;
-      setDeepLinkTrigger((t) => t + 1);
+      try {
+        const parsed = new URL(url, window.location.origin);
+        router.push(parsed.pathname + parsed.search);
+      } catch {
+        cachedDeepLinkRef.current = url;
+        setDeepLinkTrigger((t) => t + 1);
+      }
     };
-    navigator.serviceWorker.addEventListener('message', handler);
-    return () => navigator.serviceWorker.removeEventListener('message', handler);
-  }, []);
+    return () => bc.close();
+  }, [router]);
 
   // Check-up inicial banner
   const [checkupBanner, setCheckupBanner] = useState<{ petName: string; pendingCount: number } | null>(null);
