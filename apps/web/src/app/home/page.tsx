@@ -23,7 +23,6 @@ import { PushActionSheet, type ActionSheetType } from '@/components/PushActionSh
 import { HealthQuickActionSheet, type QuickActionContext } from '@/components/home/HealthQuickActionSheet';
 
 import { HomePetDashboard } from '@/components/home/HomePetDashboard';
-import { OverdueAlertsGrid } from '@/components/home/OverdueAlertsGrid';
 import { ParasiteItemSheet } from '@/components/home/ParasiteItemSheet';
 import { VaccineItemSheet } from '@/components/home/VaccineItemSheet';
 import { MedicationItemSheet } from '@/components/home/MedicationItemSheet';
@@ -378,8 +377,6 @@ function HomePageInner() {
 
   // Check-up inicial banner
   const [checkupBanner, setCheckupBanner] = useState<{ petName: string; pendingCount: number } | null>(null);
-  // Grade de alertas em atraso (expande o banner quando há múltiplos alertas)
-  const [showOverdueGrid, setShowOverdueGrid] = useState(false);
 
   // Files received via PWA Web Share Target (WhatsApp → PETMOL)
   const [sharedFiles, setSharedFiles] = useState<File[] | undefined>(undefined);
@@ -1208,7 +1205,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   const {
     topAttentionAlerts,
     topAttentionPetCount,
-    selectedPetActiveAlerts: _selectedPetActiveAlerts,
     selectedPetAllAlerts: _selectedPetAllAlerts,
     selectedPetCardAlerts,
     selectedPetCardColors,
@@ -1235,20 +1231,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     return Math.max(15, Math.min(100, proportional));
   }, [_selectedPetCareBreakdown]);
   const _selectedPetNeedsAttention = _selectedPetCareBreakdown.overdueItems > 0;
-  const selectedPetPrimaryAlert = useMemo(() => {
-    return [..._selectedPetActiveAlerts].sort((a, b) => {
-      const priorityDiff = (b.priority || 0) - (a.priority || 0);
-      if (priorityDiff !== 0) return priorityDiff;
-
-      const overdueDiff = (b.days_overdue || 0) - (a.days_overdue || 0);
-      if (overdueDiff !== 0) return overdueDiff;
-
-      if (a.status === b.status) return 0;
-      if (a.status === 'overdue') return -1;
-      if (b.status === 'overdue') return 1;
-      return 0;
-    })[0] ?? null;
-  }, [_selectedPetActiveAlerts]);
 
   const activeMedicationCount = useMemo(() => {
     return petEvents.filter(ev => {
@@ -1372,40 +1354,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     const destination = resolveTopAttentionDestination(interaction.action_target);
     if (destination) applyHomeSurfaceResolution(destination);
   }, [applyHomeSurfaceResolution, setSelectedPetId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleSelectedPetPrimaryAlertOpen = useCallback(() => {
-    if (!selectedPetPrimaryAlert) return;
-    if (QUICK_ACTION_TARGETS.has(selectedPetPrimaryAlert.action_target)) {
-      setHealthQuickAction({
-        action_target: selectedPetPrimaryAlert.action_target,
-        label: selectedPetPrimaryAlert.type_label,
-        pet_id: selectedPetPrimaryAlert.pet_id,
-        pet_name: selectedPetPrimaryAlert.pet_name,
-        status: selectedPetPrimaryAlert.status,
-        days_overdue: selectedPetPrimaryAlert.days_overdue,
-      });
-      return;
-    }
-    const destination = resolveTopAttentionDestination(selectedPetPrimaryAlert.action_target);
-    if (destination) applyHomeSurfaceResolution(destination);
-  }, [applyHomeSurfaceResolution, selectedPetPrimaryAlert]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleOverdueAlertClick = useCallback((alert: PetInteractionItem) => {
-    setShowOverdueGrid(false);
-    if (QUICK_ACTION_TARGETS.has(alert.action_target)) {
-      setHealthQuickAction({
-        action_target: alert.action_target,
-        label: alert.type_label,
-        pet_id: alert.pet_id,
-        pet_name: alert.pet_name,
-        status: alert.status,
-        days_overdue: alert.days_overdue,
-      });
-      return;
-    }
-    const destination = resolveTopAttentionDestination(alert.action_target);
-    if (destination) applyHomeSurfaceResolution(destination);
-  }, [applyHomeSurfaceResolution]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Callback do mini sheet: abre o sheet completo correspondente ao item
   const handleHealthQuickOpenDetails = useCallback(() => {
@@ -2234,79 +2182,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                           </button>
                         </div>
                       </div>
-                    );
-                  })()}
-
-                  {(() => {
-                    const currentPetName = currentPet.pet_name || 'seu pet';
-                    const attentionAlerts = _selectedPetActiveAlerts
-                      .filter((a) => a.status === 'overdue' || a.status === 'today')
-                      .sort((a, b) => ((b.priority || 0) - (a.priority || 0)) || ((b.days_overdue || 0) - (a.days_overdue || 0)));
-                    const hasAttention = attentionAlerts.length > 0 && Boolean(selectedPetPrimaryAlert);
-                    const hasOverdueAttention = attentionAlerts.some((a) => a.status === 'overdue');
-                    const hasMany = attentionAlerts.length > 1;
-                    const attentionTone = hasOverdueAttention ? 'overdue' : hasAttention ? 'today' : 'ok';
-
-                    if (showOverdueGrid && hasMany) {
-                      return (
-                        <OverdueAlertsGrid
-                          alerts={attentionAlerts}
-                          petName={currentPetName}
-                          onAlertClick={handleOverdueAlertClick}
-                          onClose={() => setShowOverdueGrid(false)}
-                        />
-                      );
-                    }
-
-                    return (
-                      <section
-                        className={`rounded-[24px] border px-4 py-3 shadow-lg shadow-slate-900/5 ${
-                          attentionTone === 'overdue'
-                            ? 'border-rose-200 bg-gradient-to-br from-rose-50 via-white to-amber-50'
-                            : attentionTone === 'today'
-                              ? 'border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50'
-                              : 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-sky-50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl text-xl ${
-                              attentionTone === 'overdue'
-                                ? 'bg-rose-100 text-rose-800'
-                                : attentionTone === 'today'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-emerald-100 text-emerald-800'
-                            }`}
-                          >
-                            {hasAttention ? '🧭' : '✓'}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h2 className="text-[17px] font-black leading-tight tracking-tight text-slate-900">
-                              {hasAttention
-                                ? `${currentPetName} tem ${attentionAlerts.length} ${attentionAlerts.length === 1 ? 'cuidado em aberto' : 'cuidados em aberto'}`
-                                : `${currentPetName} está em dia`}
-                            </h2>
-                            <p className="mt-0.5 text-[12px] font-medium leading-snug text-slate-600">
-                              {hasAttention
-                                ? 'Vamos colocar em dia juntos'
-                                : 'Veja o que vem pela frente'}
-                            </p>
-                          </div>
-                          {hasAttention && (
-                            <button
-                              type="button"
-                              onClick={hasMany ? () => setShowOverdueGrid(true) : handleSelectedPetPrimaryAlertOpen}
-                              className={`flex-shrink-0 rounded-xl px-3 py-2 text-[12px] font-bold transition-transform active:scale-95 ${
-                                attentionTone === 'overdue'
-                                  ? 'bg-rose-100 text-rose-800 hover:bg-rose-200'
-                                  : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-                              }`}
-                            >
-                              Ver lista
-                            </button>
-                          )}
-                        </div>
-                      </section>
                     );
                   })()}
 
