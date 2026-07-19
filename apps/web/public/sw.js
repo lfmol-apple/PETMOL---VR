@@ -17,7 +17,7 @@
  * }
  */
 
-const CACHE_NAME = 'petmol-shell-v2026-07-19a';
+const CACHE_NAME = 'petmol-shell-v2026-07-19b';
 const SHARE_CACHE = 'petmol-shared-files-v1';
 const SHELL_URLS = [
   '/',
@@ -155,13 +155,14 @@ self.addEventListener('notificationclick', (event) => {
         .then((clientList) => {
           for (const client of clientList) {
             if (client.url.includes(self.location.origin) && 'focus' in client) {
-              // Só foca — NÃO navega. client.navigate() faz hard-reload e
-              // apaga o estado do React antes do visibilitychange processar o cache.
-              // O handler de visibilitychange em home/page.tsx lê o cache e abre o sheet.
-              return client.focus();
+              // postMessage entrega o deep link independente de visibilitychange —
+              // cobre tanto app em background quanto app já visível (ex: painel aberto).
+              return client.focus().then(() => {
+                client.postMessage({ type: 'PETMOL_DEEPLINK', url: rawUrl, ts: Date.now() });
+              });
             }
           }
-          // App estava fechado: abre com a URL completa (home/page.tsx lê o cache ou searchParams)
+          // App estava fechado: abre com a URL completa (home/page.tsx lê cache ou searchParams)
           if (clients.openWindow) {
             return clients.openWindow(targetUrl);
           }

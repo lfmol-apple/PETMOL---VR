@@ -254,12 +254,11 @@ function HomePageInner() {
     }).catch(() => {});
   }, []);
 
-  // Leitura ao voltar ao foco (app estava em segundo plano — client.navigate() pode não atualizar searchParams)
+  // Leitura ao voltar ao foco (fallback: app estava em background e visibilitychange dispara)
   useEffect(() => {
     if (typeof window === 'undefined' || !('caches' in window)) return;
     const handleVisibility = () => {
       if (document.visibilityState !== 'visible') return;
-      // Se client.navigate() funcionou, a URL já tem ?modal=... — não precisa do cache
       if (new URLSearchParams(window.location.search).get('modal')) return;
       caches.open('petmol-deeplink-v1').then(async (cache) => {
         const resp = await cache.match('/__petmol_deeplink');
@@ -274,6 +273,20 @@ function HomePageInner() {
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
+
+  // Mensagem direta do SW via postMessage — cobre app visível e app em background
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type !== 'PETMOL_DEEPLINK') return;
+      const { url, ts } = event.data as { url: string; ts: number };
+      if (!url || Date.now() - (ts || 0) > 30_000) return;
+      cachedDeepLinkRef.current = url;
+      setDeepLinkTrigger((t) => t + 1);
+    };
+    navigator.serviceWorker.addEventListener('message', handler);
+    return () => navigator.serviceWorker.removeEventListener('message', handler);
   }, []);
 
   // Check-up inicial banner
