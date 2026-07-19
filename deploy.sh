@@ -39,6 +39,7 @@ deploy_api() {
   rsync -az --checksum \
     --exclude='__pycache__' \
     --exclude='*.pyc' \
+    --exclude='.venv' \
     --exclude='.env*' \
     --exclude='uploads/' \
     -e "ssh -i ~/.ssh/id_ed25519" \
