@@ -321,6 +321,34 @@ function HomePageInner() {
     return () => navigator.serviceWorker.removeEventListener('message', handler);
   }, [applyDeepLinkUrl]);
 
+  // ── Saúde da subscription de push ──────────────────────────────────────────
+  // Sincroniza o endpoint atual do dispositivo com o servidor em cada mount.
+  // Cobre o caso de iOS renovar o device token silenciosamente sem re-registrar.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'denied') {
+      showAppToast('Notificações bloqueadas. Ative em Ajustes → Notificações para receber lembretes.', { tone: 'warning' });
+      return;
+    }
+    if (Notification.permission !== 'granted') return;
+    (async () => {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (!sub) return;
+        const token = getToken();
+        if (!token) return;
+        const json = sub.toJSON() as { endpoint: string; keys?: { p256dh?: string; auth?: string } };
+        await fetch(`${API_BASE_URL}/notifications/subscribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ subscription: json }),
+        });
+      } catch {}
+    })();
+  }, []);
+
   // Check-up inicial banner
   const [checkupBanner, setCheckupBanner] = useState<{ petName: string; pendingCount: number } | null>(null);
   // Grade de alertas em atraso (expande o banner quando há múltiplos alertas)
