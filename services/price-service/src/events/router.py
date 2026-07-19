@@ -3,7 +3,7 @@ Events router - CRUD completo para eventos de pets
 """
 import json
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
