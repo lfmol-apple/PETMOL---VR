@@ -28,6 +28,9 @@ interface MissingPetRecord {
 type PhotoMatchResult = MissingPetRecord & {
   score: number;
   analysis: string | null;
+  confidence_level?: 'strong_candidate' | 'review_candidate' | 'weak_candidate' | 'unlikely' | 'unknown';
+  confidence_label?: string;
+  requires_human_confirmation?: boolean;
   distance_km: number | null;
 };
 
@@ -236,11 +239,11 @@ function AcheiUmPetInner() {
         body: JSON.stringify({ finder_photos: matchPhotos, limit: 20 }),
       });
       if (!res.ok) throw new Error('match_failed');
-      const data = await res.json() as { analyzed?: number; matches?: PhotoMatchResult[] };
+      const data = await res.json() as { analyzed?: number; matches?: PhotoMatchResult[]; message?: string | null };
       setMatchAnalyzed(data.analyzed ?? null);
       setMatchResults(data.matches ?? []);
       if (!data.matches || data.matches.length === 0) {
-        setMatchError('Não encontramos candidatos fortes. Você ainda pode olhar a lista abaixo.');
+        setMatchError(data.message || 'Não encontramos candidatos com confiança mínima. Você ainda pode olhar a lista abaixo.');
       }
     } catch {
       setMatchError('Não foi possível analisar a foto agora. Tente novamente.');
@@ -316,7 +319,7 @@ function AcheiUmPetInner() {
   if (focusedId) {
     const pet = pets.find(p => p.id === focusedId);
     const reported = reportedIds.includes(focusedId);
-    const whatsappMsg = pet ? encodeURIComponent(`Olá! Encontrei ${pet.pet_name} e já avisei pelo PETMOL. Posso te encontrar.`) : '';
+    const whatsappMsg = pet ? encodeURIComponent(`Olá! Vi um pet parecido com ${pet.pet_name} e já avisei pelo PETMOL. Posso te encontrar.`) : '';
     const whatsappHref = pet ? `https://wa.me/55${pet.contact.replace(/\D/g, '')}?text=${whatsappMsg}` : '#';
 
     // ── Tela de sucesso ──────────────────────────────────────────────────────
@@ -464,10 +467,10 @@ function AcheiUmPetInner() {
               {/* Chamada de ação */}
               <div>
                 <h2 className="text-[22px] font-black text-slate-900 leading-tight">
-                  Você encontrou {pet.pet_name}?
+                  Pode ser {pet.pet_name}?
                 </h2>
                 <p className="text-[14px] text-slate-500 mt-1">
-                  Deixe seu telefone. O tutor recebe a notificação na hora e entra em contato com você.
+                  Deixe seu telefone. O tutor recebe as fotos como possível match e confirma se é o pet.
                 </p>
               </div>
 
@@ -607,9 +610,9 @@ function AcheiUmPetInner() {
                         preScore! >= 70 ? 'text-emerald-800' :
                         preScore! >= 40 ? 'text-amber-800' : 'text-rose-800'
                       }`}>
-                        {preScore! >= 70 ? 'Alta compatibilidade — provavelmente é o mesmo pet!' :
-                         preScore! >= 40 ? 'Compatibilidade moderada — pode ser o mesmo pet' :
-                         'Baixa compatibilidade — pode não ser o mesmo pet'}
+                        {preScore! >= 90 ? 'Muito parecido — ainda precisa confirmação do tutor' :
+                         preScore! >= 75 ? 'Parecido — precisa confirmação humana' :
+                         'Baixa confiança — confira manualmente'}
                       </p>
                       {preAnalysis && <p className="text-[12px] text-slate-500 mt-1.5 leading-snug">{preAnalysis}</p>}
                     </>
@@ -625,7 +628,7 @@ function AcheiUmPetInner() {
                   disabled={!reportContact.trim() || submitting}
                   className="w-full py-4 rounded-2xl bg-emerald-500 text-white font-black text-[17px] shadow-lg shadow-emerald-200 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {submitting ? 'Enviando aviso...' : `Avisar tutor de ${pet.pet_name}`}
+                  {submitting ? 'Enviando aviso...' : `Enviar possível match para o tutor`}
                 </button>
 
                 <a
@@ -772,8 +775,8 @@ function AcheiUmPetInner() {
             <div className="mt-5 space-y-3">
               <div className="flex items-end justify-between gap-3">
                 <div>
-                  <p className="text-[12px] font-black uppercase tracking-widest text-emerald-200/70">Melhores candidatos</p>
-                  <p className="text-[12px] text-white/45">IA analisou {matchAnalyzed} alertas ativos com foto.</p>
+                  <p className="text-[12px] font-black uppercase tracking-widest text-emerald-200/70">Candidatos para revisar</p>
+                  <p className="text-[12px] text-white/45">IA analisou {matchAnalyzed} alertas. O tutor ainda precisa confirmar.</p>
                 </div>
                 <button
                   type="button"
@@ -805,14 +808,14 @@ function AcheiUmPetInner() {
                   <div className="min-w-0 flex-1 py-1">
                     <div className="flex items-center gap-2">
                       <span className={`rounded-full px-2.5 py-1 text-[12px] font-black ${
-                        pet.score >= 70 ? 'bg-emerald-400 text-emerald-950' :
-                        pet.score >= 40 ? 'bg-amber-300 text-amber-950' :
+                        pet.score >= 90 ? 'bg-emerald-400 text-emerald-950' :
+                        pet.score >= 75 ? 'bg-amber-300 text-amber-950' :
                         'bg-white/15 text-white/70'
                       }`}>
                         {pet.score}%
                       </span>
                       <span className="text-[11px] font-bold uppercase tracking-wide text-white/35">
-                        {pet.score >= 70 ? 'muito parecido' : pet.score >= 40 ? 'pode ser' : 'baixo'}
+                        {pet.confidence_label || (pet.score >= 90 ? 'muito parecido' : pet.score >= 75 ? 'precisa revisar' : 'baixa confiança')}
                       </span>
                     </div>
                     <p className="mt-2 truncate text-[20px] font-black leading-tight text-white">{pet.pet_name}</p>
@@ -820,6 +823,7 @@ function AcheiUmPetInner() {
                       {[pet.species === 'cat' ? 'Gato' : 'Cão', pet.breed].filter(Boolean).join(' · ')}
                     </p>
                     {pet.analysis && <p className="mt-1.5 line-clamp-2 text-[12px] leading-snug text-white/60">{pet.analysis}</p>}
+                    <p className="mt-1 text-[11px] font-semibold text-white/35">Não confirma sozinho. Toque e envie para o tutor revisar.</p>
                   </div>
                 </Link>
               ))}

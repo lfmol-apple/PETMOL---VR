@@ -15,6 +15,7 @@ import logging
 import threading
 import asyncio
 import base64 as _base64
+import io
 from datetime import datetime, timezone
 from typing import List, Optional, Any
 
@@ -189,6 +190,40 @@ def _mp_to_dict(p: MissingPet) -> dict:
         "current_radius_km": p.current_radius_km,
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "found_at": p.found_at.isoformat() if p.found_at else None,
+    }
+
+
+def _compatibility_level(score: int | None) -> str:
+    if score is None:
+        return "unknown"
+    if score >= 90:
+        return "strong_candidate"
+    if score >= 75:
+        return "review_candidate"
+    if score >= 50:
+        return "weak_candidate"
+    return "unlikely"
+
+
+def _compatibility_label(score: int | None) -> str:
+    level = _compatibility_level(score)
+    if level == "strong_candidate":
+        return "Muito parecido - confirme com cuidado"
+    if level == "review_candidate":
+        return "Parecido - precisa confirmação"
+    if level == "weak_candidate":
+        return "Baixa confiança - verifique manualmente"
+    if level == "unlikely":
+        return "Pouca semelhança"
+    return "Não foi possível avaliar bem"
+
+
+def _compatibility_payload(score: int | None, analysis: str | None = None) -> dict:
+    return {
+        "confidence_level": _compatibility_level(score),
+        "confidence_label": _compatibility_label(score),
+        "requires_human_confirmation": True,
+        "analysis": analysis or None,
     }
 
 
@@ -460,6 +495,7 @@ def my_found_reports(db: Session = Depends(get_db), current_user=Depends(get_cur
             "created_at": r.created_at.isoformat() if r.created_at else None,
             "compatibility_score": r.compatibility_score,
             "compatibility_analysis": r.compatibility_analysis,
+            **_compatibility_payload(r.compatibility_score, r.compatibility_analysis),
             "has_photos": bool(r.finder_photos),
             "photo_count": len(json.loads(r.finder_photos)) if r.finder_photos else 0,
         }
@@ -540,6 +576,7 @@ def get_found_report_photos(
         "photos": photos,
         "compatibility_score": report.compatibility_score,
         "compatibility_analysis": report.compatibility_analysis,
+        **_compatibility_payload(report.compatibility_score, report.compatibility_analysis),
     }
 
 
@@ -772,6 +809,21 @@ def match_missing_pets_by_photo(body: PhotoMatchBody, db: Session = Depends(get_
     if not body.finder_photos:
         raise HTTPException(status_code=400, detail="Envie ao menos uma foto")
 
+    try:
+        finder_photo_bytes = [_decode_finder_photo(photo) for photo in body.finder_photos[:2]]
+    except Exception:
+        raise HTTPException(status_code=400, detail="Não foi possível ler a foto enviada")
+
+    quality = _assess_finder_photos_quality(finder_photo_bytes)
+    if not quality.get("ok"):
+        return {
+            "analyzed": 0,
+            "total_active_with_photo": 0,
+            "matches": [],
+            "photo_quality": quality,
+            "message": quality.get("message"),
+        }
+
     max_candidates = max(1, min(int(body.limit or 20), 40))
     q = (
         db.query(MissingPet)
@@ -797,11 +849,11 @@ def match_missing_pets_by_photo(body: PhotoMatchBody, db: Session = Depends(get_
             continue
         analyzed += 1
         score, analysis = _analyze_photo_compatibility(mp.photo_url, body.finder_photos[:2], mp.characteristics)
-        if score <= 0:
+        if score < 50:
             continue
         item = _mp_to_dict(mp)
         item["score"] = score
-        item["analysis"] = analysis
+        item.update(_compatibility_payload(score, analysis))
         if body.lat is not None and body.lng is not None and mp.lat is not None and mp.lng is not None:
             item["distance_km"] = round(_haversine_km(body.lat, body.lng, mp.lat, mp.lng), 2)
         else:
@@ -812,6 +864,7 @@ def match_missing_pets_by_photo(body: PhotoMatchBody, db: Session = Depends(get_
     return {
         "analyzed": analyzed,
         "total_active_with_photo": len(candidates),
+        "photo_quality": quality,
         "matches": results[:8],
     }
 
@@ -822,10 +875,23 @@ def analyze_photo(mp_id: str, body: PhotoAnalysisBody, db: Session = Depends(get
     mp = db.query(MissingPet).filter(MissingPet.id == mp_id, MissingPet.status == "active").first()
     if not mp or not mp.photo_url or not body.finder_photos:
         return {"score": None, "analysis": None}
+    try:
+        quality = _assess_finder_photos_quality([_decode_finder_photo(photo) for photo in body.finder_photos[:2]])
+        if not quality.get("ok"):
+            return {
+                "score": None,
+                "analysis": quality.get("message"),
+                "photo_quality": quality,
+                **_compatibility_payload(None, quality.get("message")),
+            }
+    except Exception:
+        quality = None
     score, analysis = _analyze_photo_compatibility(mp.photo_url, body.finder_photos, mp.characteristics)
     return {
-        "score": score if score > 0 else None,
+        "score": score if score >= 50 else None,
         "analysis": analysis if analysis else None,
+        "photo_quality": quality,
+        **_compatibility_payload(score if score >= 50 else None, analysis),
     }
 
 
@@ -943,6 +1009,50 @@ def _decode_finder_photo(photo_b64: str) -> tuple[bytes, str]:
     return _base64.b64decode(raw), _mime_from_name_or_data(photo_b64)
 
 
+def _assess_finder_photo_quality(photo: tuple[bytes, str]) -> dict:
+    try:
+        from PIL import Image, ImageStat
+
+        image = Image.open(io.BytesIO(photo[0])).convert("L")
+        width, height = image.size
+        resized = image.resize((min(width, 256), max(1, round(height * min(width, 256) / max(width, 1)))))
+        stat = ImageStat.Stat(resized)
+        brightness = float(stat.mean[0])
+        contrast = float(stat.stddev[0])
+        warnings: list[str] = []
+        if width < 360 or height < 360:
+            warnings.append("foto pequena")
+        if brightness < 35:
+            warnings.append("foto muito escura")
+        if brightness > 225:
+            warnings.append("foto muito clara")
+        if contrast < 18:
+            warnings.append("baixo contraste")
+        return {
+            "ok": len(warnings) == 0,
+            "width": width,
+            "height": height,
+            "brightness": round(brightness, 1),
+            "contrast": round(contrast, 1),
+            "warnings": warnings,
+        }
+    except Exception as exc:
+        logger.warning(f"Photo quality assessment failed: {exc}")
+        return {"ok": True, "warnings": []}
+
+
+def _assess_finder_photos_quality(finder_photos: list[tuple[bytes, str]]) -> dict:
+    checks = [_assess_finder_photo_quality(photo) for photo in finder_photos]
+    blocking = [check for check in checks if not check.get("ok")]
+    warnings = sorted({warning for check in checks for warning in check.get("warnings", [])})
+    return {
+        "ok": not blocking,
+        "checks": checks,
+        "warnings": warnings,
+        "message": "Envie uma foto mais nítida, com boa luz e o pet visível." if blocking else None,
+    }
+
+
 def _load_reference_photo(photo_url: str) -> tuple[bytes, str]:
     import urllib.request
 
@@ -1057,6 +1167,13 @@ def _consensus_pet_match(results: list[dict]) -> tuple[int, str]:
     return score, analysis_source.get("analysis", "")
 
 
+def _valid_pet_match_results(results: list[Any]) -> list[dict]:
+    return [
+        r for r in results
+        if not isinstance(r, Exception) and isinstance(r, dict) and r.get("score") is not None
+    ]
+
+
 async def _analyze_reference_against_finders(
     reference: tuple[bytes, str],
     finder_photos: list[tuple[bytes, str]],
@@ -1074,7 +1191,11 @@ async def _analyze_reference_against_finders(
     for result in results:
         if isinstance(result, Exception):
             logger.warning(f"Pet compat engine failed: {result}")
-    return _consensus_pet_match(list(results))
+    score, analysis = _consensus_pet_match(list(results))
+    if len(tasks) >= 2 and len(_valid_pet_match_results(list(results))) < 2:
+        score = min(score, 74)
+        analysis = analysis or "Apenas uma IA conseguiu avaliar; confirme manualmente."
+    return score, analysis
 
 
 def _analyze_photo_compatibility(pet_photo_url, finder_photos_b64: list, characteristics: str | None = None) -> tuple:
@@ -1116,10 +1237,11 @@ def _push_compat_score(score: int, analysis: str, owner_user_id, pet_name: str, 
         owner_sub = subs.get(str(owner_user_id))
         if not owner_sub:
             return
-        emoji = "✅" if score >= 70 else "⚠️" if score >= 40 else "❓"
+        emoji = "🔎" if score >= 90 else "⚠️" if score >= 75 else "❓"
+        label = _compatibility_label(score)
         _send_push(owner_sub, {
-            "title": f"{emoji} Análise de foto: {score}% compatível",
-            "body": f"{pet_name}: {analysis or 'Confira as fotos na tela inicial.'}",
+            "title": f"{emoji} Possível match para {pet_name}",
+            "body": f"{score}% - {label}. Confira as fotos antes de confirmar.",
             "tag": f"compat-{report_id}",
             "renotify": False,
             "requireInteraction": False,
@@ -1131,7 +1253,7 @@ def _push_compat_score(score: int, analysis: str, owner_user_id, pet_name: str, 
 
 
 def _push_owner_found(mp: MissingPet, finder_contact: str, finder_location: str | None, mp_id: str) -> None:
-    """Envia push imediato ao dono quando alguém reporta ter encontrado o pet."""
+    """Envia push imediato ao dono quando alguém reporta possível localização do pet."""
     try:
         subs = _load_subscriptions()
         owner_sub = subs.get(str(mp.user_id))
@@ -1139,8 +1261,8 @@ def _push_owner_found(mp: MissingPet, finder_contact: str, finder_location: str 
             return
         loc = f" em {finder_location}" if finder_location else ""
         _send_push(owner_sub, {
-            "title": f"🎉 {mp.pet_name} foi encontrado!",
-            "body": f"Alguém encontrou seu pet{loc}. Contato: {finder_contact}. Toque para ver detalhes.",
+            "title": f"🔎 Possível localização de {mp.pet_name}",
+            "body": f"Alguém enviou um pet parecido{loc}. Contato: {finder_contact}. Confira antes de confirmar.",
             "tag": f"found-report-{mp_id}",
             "renotify": True,
             "requireInteraction": True,
@@ -1167,15 +1289,16 @@ def _analyze_and_save(report_id: str, mp_photo_url: str, finder_photos: list, ow
                 db.commit()
         finally:
             db.close()
-        # Segundo push com o % de compatibilidade
+        # Segundo push com a triagem de compatibilidade
         try:
             subs = _load_subscriptions()
             owner_sub = subs.get(str(owner_user_id))
             if owner_sub:
-                emoji = "✅" if score >= 70 else "⚠️" if score >= 40 else "❓"
+                emoji = "🔎" if score >= 90 else "⚠️" if score >= 75 else "❓"
+                label = _compatibility_label(score)
                 _send_push(owner_sub, {
-                    "title": f"{emoji} Análise de foto: {score}% compatível",
-                    "body": f"{pet_name}: {analysis or 'Confira as fotos na tela inicial.'}",
+                    "title": f"{emoji} Possível match para {pet_name}",
+                    "body": f"{score}% - {label}. Confira as fotos antes de confirmar.",
                     "tag": f"compat-{report_id}",
                     "renotify": False,
                     "requireInteraction": False,

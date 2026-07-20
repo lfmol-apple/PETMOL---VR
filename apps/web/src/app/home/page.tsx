@@ -851,9 +851,17 @@ function HomePageInner() {
     finder_contact: string; finder_location: string | null;
     notes: string | null; created_at: string | null;
     compatibility_score: number | null; compatibility_analysis: string | null;
+    confidence_level?: string; confidence_label?: string; requires_human_confirmation?: boolean;
     has_photos: boolean; photo_count: number;
   };
-  type PhotosModalData = { photos: string[]; score: number | null; analysis: string | null };
+  type PhotosModalData = {
+    photos: string[];
+    score: number | null;
+    analysis: string | null;
+    confidence_level?: string;
+    confidence_label?: string;
+    requires_human_confirmation?: boolean;
+  };
   const [photosModal, setPhotosModal] = useState<PhotosModalData | null>(null);
   const [photosModalLoading, setPhotosModalLoading] = useState(false);
 
@@ -1915,7 +1923,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           </div>
         )}
 
-        {/* Banner verde: alguém encontrou seu pet! (para o dono) */}
+        {/* Possível match enviado por um achador: tutor precisa confirmar */}
         {foundReports.length > 0 && (
           <div className="mb-3 space-y-2">
             {foundReports.map((rep) => {
@@ -1950,26 +1958,26 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
               return (
                 <div
                   key={rep.report_id}
-                  className="rounded-2xl border border-emerald-300 bg-gradient-to-br from-emerald-500 to-emerald-600 p-4 shadow-lg shadow-emerald-900/20"
+                  className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-500 to-orange-600 p-4 shadow-lg shadow-amber-900/20"
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-white/20 text-2xl">
-                      🎉
+                      🔎
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-100">
-                        Alguém encontrou seu pet!
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-amber-100">
+                        Possível match recebido
                       </p>
                       <h3 className="mt-0.5 text-[17px] font-black leading-tight text-white">
-                        {rep.pet_name} foi localizado
+                        Um pet parecido com {rep.pet_name}
                       </h3>
                       {rep.finder_location && (
-                        <p className="mt-1 text-[12px] font-medium text-emerald-100">
+                        <p className="mt-1 text-[12px] font-medium text-amber-100">
                           Local: {rep.finder_location}
                         </p>
                       )}
                       {rep.notes && (
-                        <p className="mt-0.5 text-[12px] text-emerald-100 italic">&ldquo;{rep.notes}&rdquo;</p>
+                        <p className="mt-0.5 text-[12px] text-amber-100 italic">&ldquo;{rep.notes}&rdquo;</p>
                       )}
                       <p className="mt-1 text-[13px] font-bold text-white">
                         Contato: {rep.finder_contact}
@@ -1981,16 +1989,19 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                   {rep.compatibility_score != null && (
                     <div className="mt-3 flex flex-col items-center gap-1.5">
                       <div className={`w-24 h-24 rounded-full flex items-center justify-center ${
-                        rep.compatibility_score >= 70 ? 'bg-emerald-400/25' :
-                        rep.compatibility_score >= 40 ? 'bg-amber-400/25' : 'bg-rose-400/25'
+                        rep.compatibility_score >= 90 ? 'bg-emerald-400/25' :
+                        rep.compatibility_score >= 75 ? 'bg-amber-400/25' : 'bg-white/15'
                       }`} style={{ border: '4px solid rgba(255,255,255,0.55)' }}>
                         <span className="text-[36px] font-black text-white leading-none">{rep.compatibility_score}%</span>
                       </div>
-                      <p className="text-[12px] text-emerald-100 font-semibold text-center">
-                        {rep.compatibility_score >= 70 ? 'Alta compatibilidade com a foto de referência' :
-                         rep.compatibility_score >= 40 ? 'Compatibilidade moderada — verifique as fotos' :
-                         'Baixa compatibilidade — confira as fotos para decidir'}
+                      <p className="text-[12px] text-amber-50 font-semibold text-center">
+                        {rep.confidence_label || (
+                          rep.compatibility_score >= 90 ? 'Muito parecido - confirme com cuidado' :
+                          rep.compatibility_score >= 75 ? 'Parecido - precisa confirmação' :
+                          'Baixa confiança - verifique manualmente'
+                        )}
                       </p>
+                      <p className="text-[11px] text-white/70 text-center">A IA não confirma sozinha. Revise as fotos antes de encerrar o alerta.</p>
                     </div>
                   )}
 
@@ -2013,7 +2024,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       href={`https://wa.me/55${rep.finder_contact.replace(/\D/g, '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 rounded-xl bg-white py-2.5 text-center text-[13px] font-black text-emerald-600 shadow-sm active:scale-95 transition-transform"
+                      className="flex-1 rounded-xl bg-white py-2.5 text-center text-[13px] font-black text-orange-700 shadow-sm active:scale-95 transition-transform"
                     >
                       WhatsApp
                     </a>
@@ -2035,7 +2046,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       }}
                       className="flex-1 rounded-xl bg-white/20 border border-white/40 py-2.5 text-center text-[13px] font-black text-white shadow-sm active:scale-95 transition-transform"
                     >
-                      Confirmar encontrado
+                      É meu pet
                     </button>
                   </div>
 
@@ -2053,7 +2064,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     }}
                     className="mt-2 w-full rounded-xl border border-white/20 py-2 text-center text-[12px] font-semibold text-white/60 active:scale-95 transition-transform"
                   >
-                    Não é meu pet — descartar este aviso
+                    Não parece ser meu pet — descartar este aviso
                   </button>
                 </div>
               );
@@ -2787,27 +2798,29 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                 <>
                   {photosModal.score != null && (
                     <div className={`rounded-2xl px-4 py-4 flex items-center gap-4 ${
-                      photosModal.score >= 70 ? 'bg-emerald-900/50 border border-emerald-600/40' :
-                      photosModal.score >= 40 ? 'bg-amber-900/50 border border-amber-600/40' :
+                      photosModal.score >= 90 ? 'bg-emerald-900/50 border border-emerald-600/40' :
+                      photosModal.score >= 75 ? 'bg-amber-900/50 border border-amber-600/40' :
                       'bg-rose-900/50 border border-rose-600/40'
                     }`}>
                       <div className={`w-28 h-28 rounded-full flex items-center justify-center border-[3px] flex-shrink-0 ${
-                        photosModal.score >= 70 ? 'border-emerald-400 bg-emerald-800/50' :
-                        photosModal.score >= 40 ? 'border-amber-400 bg-amber-800/50' :
+                        photosModal.score >= 90 ? 'border-emerald-400 bg-emerald-800/50' :
+                        photosModal.score >= 75 ? 'border-amber-400 bg-amber-800/50' :
                         'border-rose-400 bg-rose-800/50'
                       }`}>
                         <span className="text-[44px] font-black text-white leading-none">{photosModal.score}%</span>
                       </div>
                       <div className="flex-1">
                         <p className="text-[14px] font-black text-white leading-tight">
-                          {photosModal.score >= 70 ? 'Alta compatibilidade' :
-                           photosModal.score >= 40 ? 'Compatibilidade moderada' :
-                           'Baixa compatibilidade'}
+                          {photosModal.confidence_label || (
+                            photosModal.score >= 90 ? 'Muito parecido - confirme com cuidado' :
+                            photosModal.score >= 75 ? 'Parecido - precisa confirmação' :
+                            'Baixa confiança - revise manualmente'
+                          )}
                         </p>
                         {photosModal.analysis && (
                           <p className="text-[12px] text-white/60 mt-1 leading-snug">{photosModal.analysis}</p>
                         )}
-                        <p className="text-[11px] text-white/40 mt-1">Você decide se é o seu pet</p>
+                        <p className="text-[11px] text-white/40 mt-1">A IA faz triagem. Você decide se é o seu pet.</p>
                       </div>
                     </div>
                   )}
