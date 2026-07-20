@@ -101,6 +101,12 @@ function AcheiUmPetInner() {
   const [matchResults, setMatchResults] = useState<PhotoMatchResult[]>([]);
   const [matchAnalyzed, setMatchAnalyzed] = useState<number | null>(null);
   const [matchLocationStatus, setMatchLocationStatus] = useState<'idle' | 'requesting' | 'granted' | 'denied'>('idle');
+  const [matchCoords, setMatchCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [sightingSituation, setSightingSituation] = useState<'visto_no_local' | 'com_achador'>('visto_no_local');
+  const [sightingContact, setSightingContact] = useState('');
+  const [sightingNotes, setSightingNotes] = useState('');
+  const [sightingSubmitting, setSightingSubmitting] = useState(false);
+  const [sightingMessage, setSightingMessage] = useState('');
 
   // Inicializa reportedIds do localStorage e verifica dismissals no backend
   useEffect(() => {
@@ -223,6 +229,7 @@ function AcheiUmPetInner() {
       setMatchResults([]);
       setMatchAnalyzed(null);
       setMatchError('');
+      setSightingMessage('');
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -234,13 +241,16 @@ function AcheiUmPetInner() {
     return new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setMatchLocationStatus('granted');
-          resolve({
+          const found = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
-          });
+          };
+          setMatchCoords(found);
+          setMatchLocationStatus('granted');
+          resolve(found);
         },
         () => {
+          setMatchCoords(null);
           setMatchLocationStatus('denied');
           resolve(null);
         },
@@ -255,6 +265,7 @@ function AcheiUmPetInner() {
     setMatchError('');
     setMatchResults([]);
     setMatchAnalyzed(null);
+    setSightingMessage('');
     try {
       const finderLocation = await getFinderLocation();
       const res = await fetch(`${API_BASE_URL}/missing-pets/match-photo`, {
@@ -278,6 +289,39 @@ function AcheiUmPetInner() {
       setMatchError('Não foi possível analisar a foto agora. Tente novamente.');
     } finally {
       setMatchLoading(false);
+    }
+  };
+
+  const handleRegisterSighting = async () => {
+    if (matchPhotos.length === 0 || sightingSubmitting) return;
+    if (sightingSituation === 'com_achador' && !sightingContact.trim()) {
+      setMatchError('Informe um contato se o pet está com você.');
+      return;
+    }
+    setSightingSubmitting(true);
+    setMatchError('');
+    setSightingMessage('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/pet-sightings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          finder_photos: matchPhotos,
+          lat: matchCoords?.lat,
+          lng: matchCoords?.lng,
+          situation: sightingSituation,
+          contact: sightingContact.trim() || null,
+          notes: sightingNotes.trim() || null,
+        }),
+      });
+      const data = await res.json() as { message?: string; detail?: string };
+      if (!res.ok) throw new Error(data.detail || 'Não foi possível registrar o avistamento agora.');
+      setSightingMessage(data.message || 'Avistamento registrado para cruzamento futuro.');
+      setSightingNotes('');
+    } catch (err) {
+      setMatchError(err instanceof Error ? err.message : 'Erro de conexão. Tente novamente.');
+    } finally {
+      setSightingSubmitting(false);
     }
   };
 
@@ -749,6 +793,7 @@ function AcheiUmPetInner() {
                     setMatchResults([]);
                     setMatchAnalyzed(null);
                     setMatchError('');
+                    setSightingMessage('');
                   }}
                   className="absolute right-3 top-3 h-9 w-9 rounded-full bg-black/65 text-white text-xl leading-none backdrop-blur active:scale-95"
                 >
@@ -872,6 +917,66 @@ function AcheiUmPetInner() {
           {!matchLoading && matchError && (
             <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-500/10 px-4 py-3 text-[13px] font-semibold text-amber-100">
               {matchError}
+            </div>
+          )}
+
+          {!matchLoading && matchPhotos[0] && matchAnalyzed != null && matchResults.length === 0 && (
+            <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.06] p-4">
+              <p className="text-[15px] font-black text-white">Registrar para cruzar depois</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-white/45">
+                Se não achamos um candidato agora, salve este avistamento. Quando surgir um alerta compatível na região, o sistema cruza novamente.
+              </p>
+
+              <div className="mt-4 rounded-2xl bg-black/20 p-1.5">
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSightingSituation('visto_no_local')}
+                    className={`rounded-xl px-3 py-3 text-[12px] font-black transition-colors ${sightingSituation === 'visto_no_local' ? 'bg-white text-slate-950' : 'text-white/55'}`}
+                  >
+                    Vi no local
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSightingSituation('com_achador')}
+                    className={`rounded-xl px-3 py-3 text-[12px] font-black transition-colors ${sightingSituation === 'com_achador' ? 'bg-white text-slate-950' : 'text-white/55'}`}
+                  >
+                    Está comigo
+                  </button>
+                </div>
+              </div>
+
+              {sightingSituation === 'com_achador' && (
+                <input
+                  value={sightingContact}
+                  onChange={e => setSightingContact(e.target.value)}
+                  placeholder="WhatsApp ou e-mail para o tutor"
+                  className="mt-3 w-full rounded-2xl border border-white/12 bg-white/8 px-4 py-3.5 text-[14px] text-white outline-none placeholder-white/30"
+                />
+              )}
+
+              <textarea
+                value={sightingNotes}
+                onChange={e => setSightingNotes(e.target.value)}
+                rows={2}
+                placeholder="Observações: coleira, direção em que foi visto, condição do pet..."
+                className="mt-3 w-full resize-none rounded-2xl border border-white/12 bg-white/8 px-4 py-3.5 text-[14px] text-white outline-none placeholder-white/30"
+              />
+
+              {sightingMessage && (
+                <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-500/10 px-4 py-3 text-[13px] font-semibold text-emerald-100">
+                  {sightingMessage}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => void handleRegisterSighting()}
+                disabled={sightingSubmitting}
+                className="mt-3 w-full rounded-2xl bg-white py-3.5 text-[14px] font-black text-slate-950 transition-all active:scale-[0.98] disabled:opacity-60"
+              >
+                {sightingSubmitting ? 'Registrando...' : 'Registrar avistamento'}
+              </button>
             </div>
           )}
         </section>

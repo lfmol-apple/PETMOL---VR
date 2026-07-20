@@ -16,7 +16,7 @@ import threading
 import asyncio
 import base64 as _base64
 import io
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -24,7 +24,7 @@ from pydantic import BaseModel
 from sqlalchemy import Column, Integer, String, DateTime, Text, Float
 from sqlalchemy.orm import Session
 
-from ..db import Base, get_db
+from ..db import Base, get_db, SessionLocal
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
 from ..notifications import _load_subscriptions, _save_subscriptions, _send_push
@@ -33,6 +33,7 @@ from ..pets.access import accessible_pets_query, get_accessible_pet_or_404
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/missing-pets", tags=["Missing Pets"])
+sighting_router = APIRouter(prefix="/pet-sightings", tags=["Pet Sightings"])
 
 # ── Notified tracking (evita renotificar quem já recebeu) ────────────────────
 
@@ -133,6 +134,34 @@ class MissingPetPhotoFingerprint(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class PetSighting(Base):
+    __tablename__ = "pet_sightings"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    photo_urls = Column(Text, nullable=False)
+    lat = Column(Float, nullable=True)
+    lng = Column(Float, nullable=True)
+    location_text = Column(String(500), nullable=True)
+    situation = Column(String(30), nullable=False, default="visto_no_local")
+    contact = Column(String(200), nullable=True)
+    notes = Column(Text, nullable=True)
+    matched_missing_pet_id = Column(String(36), nullable=True, index=True)
+    compatibility_score = Column(Integer, nullable=True)
+    compatibility_analysis = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+class MissingPetFollower(Base):
+    __tablename__ = "missing_pet_followers"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    missing_pet_id = Column(String(36), nullable=False, index=True)
+    finder_user_id = Column(String(36), nullable=True, index=True)
+    finder_contact = Column(String(200), nullable=True, index=True)
+    source = Column(String(50), nullable=False, default="dismissed_report")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
 class MissingPetCreate(BaseModel):
@@ -171,6 +200,17 @@ class PhotoMatchBody(BaseModel):
     lng: Optional[float] = None
     radius_km: Optional[float] = 30.0
     limit: Optional[int] = 20
+
+
+class PetSightingCreate(BaseModel):
+    finder_photos: List[str] = []
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    cep: Optional[str] = None
+    location_text: Optional[str] = None
+    situation: str = "visto_no_local"
+    contact: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class MissingPetUpdate(BaseModel):
@@ -405,6 +445,213 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
     return 0
 
 
+def _save_sighting_photo(photo_b64: str) -> str:
+    photo_bytes, mime = _decode_finder_photo(photo_b64)
+    ext = "jpg"
+    if mime == "image/png":
+        ext = "png"
+    elif mime == "image/webp":
+        ext = "webp"
+    elif mime == "image/gif":
+        ext = "gif"
+    upload_dir = os.path.join(os.path.dirname(__file__), "..", "..", "uploads", "pet_sightings")
+    os.makedirs(upload_dir, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    path = os.path.join(upload_dir, filename)
+    with open(path, "wb") as fh:
+        fh.write(photo_bytes)
+    return f"/uploads/pet_sightings/{filename}"
+
+
+def _nearby_active_missing_pets(
+    db: Session,
+    lat: float | None,
+    lng: float | None,
+    radius_km: float = 30.0,
+    days: int = 30,
+    limit: int = 80,
+) -> list[MissingPet]:
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    q = (
+        db.query(MissingPet)
+        .filter(MissingPet.status == "active", MissingPet.photo_url.isnot(None))
+        .filter(MissingPet.created_at >= since)
+    )
+    if lat is None or lng is None:
+        return q.order_by(MissingPet.created_at.desc()).limit(min(limit, 40)).all()
+
+    radius_km = max(3.0, min(float(radius_km or 30.0), 100.0))
+    lat_delta = radius_km / 111.0
+    lng_base = 111.0 * max(math.cos(math.radians(lat)), 0.1)
+    lng_delta = radius_km / lng_base
+    candidates = (
+        q.filter(MissingPet.lat.isnot(None), MissingPet.lng.isnot(None))
+        .filter(MissingPet.lat >= lat - lat_delta, MissingPet.lat <= lat + lat_delta)
+        .filter(MissingPet.lng >= lng - lng_delta, MissingPet.lng <= lng + lng_delta)
+        .order_by(MissingPet.created_at.desc())
+        .limit(500)
+        .all()
+    )
+    candidates = [
+        p for p in candidates
+        if p.lat is not None and p.lng is not None and _haversine_km(lat, lng, p.lat, p.lng) <= radius_km
+    ]
+    return sorted(candidates, key=lambda p: _haversine_km(lat, lng, p.lat, p.lng))[:limit]
+
+
+def _create_found_report_from_sighting(
+    db: Session,
+    mp: MissingPet,
+    sighting: PetSighting,
+    score: int,
+    analysis: str,
+) -> FoundReport:
+    contact = (sighting.contact or "Avistamento público").strip()
+    existing = (
+        db.query(FoundReport)
+        .filter(FoundReport.missing_pet_id == mp.id, FoundReport.finder_contact == contact)
+        .first()
+    )
+    if existing:
+        return existing
+
+    report = FoundReport(
+        id=str(uuid.uuid4()),
+        missing_pet_id=mp.id,
+        finder_contact=contact,
+        finder_location=sighting.location_text,
+        notes=sighting.notes or f"Avistamento público: {sighting.situation}",
+        finder_photos=sighting.photo_urls,
+        compatibility_score=score,
+        compatibility_analysis=analysis,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(report)
+    sighting.matched_missing_pet_id = mp.id
+    sighting.compatibility_score = score
+    sighting.compatibility_analysis = analysis
+    db.commit()
+
+    if mp.user_id:
+        threading.Thread(
+            target=_push_owner_found,
+            args=(mp, contact, sighting.location_text, mp.id),
+            daemon=True,
+        ).start()
+        threading.Thread(
+            target=_push_compat_score,
+            args=(score, analysis or "", mp.user_id, mp.pet_name, report.id),
+            daemon=True,
+        ).start()
+    return report
+
+
+def _match_sighting_against_missing_pets(
+    db: Session,
+    sighting: PetSighting,
+    threshold: int = 75,
+) -> dict:
+    photos = json.loads(sighting.photo_urls) if sighting.photo_urls else []
+    if not photos:
+        return {"matched": False, "analyzed": 0}
+
+    candidates = _nearby_active_missing_pets(db, sighting.lat, sighting.lng)
+    finder_photo_bytes = []
+    for photo_url in photos[:2]:
+        try:
+            finder_photo_bytes.append(_load_reference_photo(photo_url))
+        except Exception as exc:
+            logger.warning(f"Sighting photo load failed ({photo_url}): {exc}")
+    candidates, visual_distances = _rank_candidates_by_visual_fingerprint(db, candidates, finder_photo_bytes)
+
+    best: tuple[MissingPet, int, str] | None = None
+    analyzed = 0
+    for mp in candidates[:40]:
+        if not mp.photo_url:
+            continue
+        analyzed += 1
+        score, analysis = _analyze_photo_compatibility(mp.photo_url, photos, mp.characteristics)
+        if score >= threshold and (best is None or score > best[1]):
+            best = (mp, score, analysis)
+        elif score >= 50 and visual_distances.get(mp.id, 999) <= 12 and (best is None or score > best[1]):
+            best = (mp, score, analysis)
+
+    if not best:
+        return {"matched": False, "analyzed": analyzed}
+
+    mp, score, analysis = best
+    report = _create_found_report_from_sighting(db, mp, sighting, score, analysis)
+    return {"matched": True, "analyzed": analyzed, "missing_pet_id": mp.id, "report_id": report.id}
+
+
+def _retro_match_recent_sightings_for_missing_pet(db: Session, mp: MissingPet) -> int:
+    if not mp.photo_url:
+        return 0
+    since = datetime.now(timezone.utc) - timedelta(days=30)
+    q = (
+        db.query(PetSighting)
+        .filter(PetSighting.created_at >= since, PetSighting.matched_missing_pet_id.is_(None))
+        .order_by(PetSighting.created_at.desc())
+        .limit(200)
+    )
+    sightings = q.all()
+    matched = 0
+    for sighting in sightings:
+        if mp.lat is not None and mp.lng is not None and sighting.lat is not None and sighting.lng is not None:
+            if _haversine_km(mp.lat, mp.lng, sighting.lat, sighting.lng) > 30:
+                continue
+        photos = json.loads(sighting.photo_urls) if sighting.photo_urls else []
+        if not photos:
+            continue
+        score, analysis = _analyze_photo_compatibility(mp.photo_url, photos, mp.characteristics)
+        if score >= 75:
+            _create_found_report_from_sighting(db, mp, sighting, score, analysis)
+            matched += 1
+    return matched
+
+
+def _retro_match_recent_sightings_for_missing_pet_id(mp_id: str) -> None:
+    db = SessionLocal()
+    try:
+        mp = db.query(MissingPet).filter(MissingPet.id == mp_id, MissingPet.status == "active").first()
+        if mp:
+            _retro_match_recent_sightings_for_missing_pet(db, mp)
+    except Exception as exc:
+        logger.error(f"Retroactive sighting match failed for {mp_id}: {exc}")
+    finally:
+        db.close()
+
+
+def _mark_finder_following_nearby_alerts(db: Session, report: FoundReport, mp: MissingPet) -> int:
+    targets = _nearby_active_missing_pets(db, mp.lat, mp.lng, radius_km=30, days=30, limit=80)
+    if not targets:
+        targets = [mp]
+    created = 0
+    for target in targets:
+        exists = (
+            db.query(MissingPetFollower)
+            .filter(
+                MissingPetFollower.missing_pet_id == target.id,
+                MissingPetFollower.finder_user_id == report.finder_user_id,
+                MissingPetFollower.finder_contact == report.finder_contact,
+            )
+            .first()
+        )
+        if exists:
+            continue
+        db.add(MissingPetFollower(
+            id=str(uuid.uuid4()),
+            missing_pet_id=target.id,
+            finder_user_id=report.finder_user_id,
+            finder_contact=report.finder_contact,
+            source="dismissed_report",
+            created_at=datetime.now(timezone.utc),
+        ))
+        created += 1
+    db.commit()
+    return created
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("", status_code=201)
@@ -471,6 +718,8 @@ def create_missing_pet(
         t = threading.Thread(target=_delayed_rebroadcast, args=(mp.id, delay), daemon=True)
         t.start()
 
+    threading.Thread(target=_retro_match_recent_sightings_for_missing_pet_id, args=(mp.id,), daemon=True).start()
+
     return {"id": mp.id, "status": "created", "notified_count": notified_count}
 
 
@@ -480,6 +729,74 @@ def list_missing_pets(include_found: bool = False, db: Session = Depends(get_db)
     if not include_found:
         q = q.filter(MissingPet.status == "active")
     return [_mp_to_dict(p) for p in q.order_by(MissingPet.created_at.desc()).limit(200).all()]
+
+
+@sighting_router.post("", status_code=201)
+def create_pet_sighting(body: PetSightingCreate, db: Session = Depends(get_db)):
+    """Registro público de avistamento livre, sem escolher alerta específico."""
+    if not body.finder_photos:
+        raise HTTPException(status_code=400, detail="Envie ao menos uma foto")
+
+    situation = (body.situation or "visto_no_local").strip()
+    if situation not in ("com_achador", "visto_no_local"):
+        raise HTTPException(status_code=400, detail="Situação inválida")
+    contact = (body.contact or "").strip()
+    if situation == "com_achador" and not contact:
+        raise HTTPException(status_code=400, detail="Informe um contato se o pet está com você")
+
+    try:
+        decoded = [_decode_finder_photo(photo) for photo in body.finder_photos[:3]]
+    except Exception:
+        raise HTTPException(status_code=400, detail="Não foi possível ler a foto enviada")
+    quality = _assess_finder_photos_quality(decoded[:1])
+    if not quality.get("ok"):
+        return {
+            "status": "rejected_photo_quality",
+            "matched": False,
+            "photo_quality": quality,
+            "message": quality.get("message"),
+        }
+
+    photo_urls = []
+    for photo in body.finder_photos[:3]:
+        try:
+            photo_urls.append(_save_sighting_photo(photo))
+        except Exception as exc:
+            logger.warning(f"Sighting photo save failed: {exc}")
+    if not photo_urls:
+        raise HTTPException(status_code=400, detail="Não foi possível salvar a foto enviada")
+
+    location_text = body.location_text
+    if not location_text and body.cep:
+        location_text = f"CEP {body.cep}"
+
+    sighting = PetSighting(
+        id=str(uuid.uuid4()),
+        photo_urls=json.dumps(photo_urls),
+        lat=body.lat,
+        lng=body.lng,
+        location_text=location_text,
+        situation=situation,
+        contact=contact or None,
+        notes=body.notes,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(sighting)
+    db.commit()
+    db.refresh(sighting)
+
+    match = _match_sighting_against_missing_pets(db, sighting)
+    return {
+        "id": sighting.id,
+        "status": "created",
+        "matched": bool(match.get("matched")),
+        "analyzed": match.get("analyzed", 0),
+        "message": (
+            "Encontramos um possível alerta e o tutor foi avisado para revisar."
+            if match.get("matched")
+            else "Avistamento registrado. Se um alerta compatível aparecer, o sistema poderá cruzar depois."
+        ),
+    }
 
 
 @router.get("/my-found-reports")
@@ -531,6 +848,7 @@ def dismiss_found_report(
     _ensure_missing_pet_access(db, str(current_user.id), mp)
     report.dismissed = 1
     db.commit()
+    following_count = _mark_finder_following_nearby_alerts(db, report, mp)
 
     # Push para o finder: avisa que o report foi descartado e o pet ainda está desaparecido
     if report.finder_user_id:
@@ -550,7 +868,7 @@ def dismiss_found_report(
         except Exception as e:
             logger.error(f"Push dismiss falhou: {e}")
 
-    return {"status": "dismissed"}
+    return {"status": "dismissed", "following_count": following_count}
 
 
 @router.get("/{mp_id}/my-report-status")
