@@ -99,6 +99,7 @@ function AcheiUmPetInner() {
   const [matchError, setMatchError] = useState('');
   const [matchResults, setMatchResults] = useState<PhotoMatchResult[]>([]);
   const [matchAnalyzed, setMatchAnalyzed] = useState<number | null>(null);
+  const [matchLocationStatus, setMatchLocationStatus] = useState<'idle' | 'requesting' | 'granted' | 'denied'>('idle');
 
   // Inicializa reportedIds do localStorage e verifica dismissals no backend
   useEffect(() => {
@@ -226,6 +227,27 @@ function AcheiUmPetInner() {
     e.target.value = '';
   };
 
+  const getFinderLocation = async (): Promise<{ lat: number; lng: number } | null> => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return null;
+    setMatchLocationStatus('requesting');
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setMatchLocationStatus('granted');
+          resolve({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        () => {
+          setMatchLocationStatus('denied');
+          resolve(null);
+        },
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 300000 },
+      );
+    });
+  };
+
   const handleRunPhotoMatch = async () => {
     if (matchPhotos.length === 0 || matchLoading) return;
     setMatchLoading(true);
@@ -233,10 +255,16 @@ function AcheiUmPetInner() {
     setMatchResults([]);
     setMatchAnalyzed(null);
     try {
+      const finderLocation = await getFinderLocation();
       const res = await fetch(`${API_BASE_URL}/missing-pets/match-photo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ finder_photos: matchPhotos, limit: 20 }),
+        body: JSON.stringify({
+          finder_photos: matchPhotos,
+          limit: 20,
+          radius_km: 30,
+          ...(finderLocation ? finderLocation : {}),
+        }),
       });
       if (!res.ok) throw new Error('match_failed');
       const data = await res.json() as { analyzed?: number; matches?: PhotoMatchResult[]; message?: string | null };
@@ -730,7 +758,7 @@ function AcheiUmPetInner() {
               <div className="rounded-3xl border-2 border-dashed border-emerald-300/30 bg-white/5 px-4 py-6 text-center">
                 <span className="block text-5xl">📸</span>
                 <span className="mt-3 block text-[18px] font-black text-white">Comece com uma foto do pet</span>
-                <span className="mt-1 block text-[12px] text-white/45">Use uma foto já tirada ou abra a câmera.</span>
+                <span className="mt-1 block text-[12px] text-white/45">Use uma foto já tirada ou abra a câmera. A localização ajuda a comparar primeiro com pets próximos.</span>
                 <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <button
                     type="button"
@@ -758,6 +786,13 @@ function AcheiUmPetInner() {
             >
               {matchLoading ? 'IA procurando candidatos...' : matchPhotos[0] ? 'Buscar pets parecidos' : 'Escolher foto da galeria'}
             </button>
+            {matchLocationStatus !== 'idle' && (
+              <p className="text-center text-[12px] text-white/45">
+                {matchLocationStatus === 'requesting' && 'Pedindo localização para reduzir falsos positivos...'}
+                {matchLocationStatus === 'granted' && 'Busca priorizando alertas próximos em até 30 km.'}
+                {matchLocationStatus === 'denied' && 'Busca sem localização: confira os candidatos com mais cuidado.'}
+              </p>
+            )}
           </div>
 
           {matchLoading && (
@@ -776,7 +811,7 @@ function AcheiUmPetInner() {
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <p className="text-[12px] font-black uppercase tracking-widest text-emerald-200/70">Candidatos para revisar</p>
-                  <p className="text-[12px] text-white/45">IA analisou {matchAnalyzed} alertas. O tutor ainda precisa confirmar.</p>
+                  <p className="text-[12px] text-white/45">IA analisou {matchAnalyzed} alertas{matchLocationStatus === 'granted' ? ' próximos' : ''}. O tutor ainda precisa confirmar.</p>
                 </div>
                 <button
                   type="button"

@@ -157,6 +157,7 @@ class PhotoMatchBody(BaseModel):
     finder_photos: List[str] = []
     lat: Optional[float] = None
     lng: Optional[float] = None
+    radius_km: Optional[float] = 30.0
     limit: Optional[int] = 20
 
 
@@ -825,20 +826,29 @@ def match_missing_pets_by_photo(body: PhotoMatchBody, db: Session = Depends(get_
         }
 
     max_candidates = max(1, min(int(body.limit or 20), 40))
-    q = (
-        db.query(MissingPet)
-        .filter(MissingPet.status == "active", MissingPet.photo_url.isnot(None))
-        .order_by(MissingPet.created_at.desc())
-        .limit(200)
-    )
-    candidates = q.all()
+    q = db.query(MissingPet).filter(MissingPet.status == "active", MissingPet.photo_url.isnot(None))
 
     if body.lat is not None and body.lng is not None:
+        radius_km = max(3.0, min(float(body.radius_km or 30.0), 100.0))
+        lat_delta = radius_km / 111.0
+        lng_base = 111.0 * max(math.cos(math.radians(body.lat)), 0.1)
+        lng_delta = radius_km / lng_base
+        q = (
+            q.filter(MissingPet.lat.isnot(None), MissingPet.lng.isnot(None))
+            .filter(MissingPet.lat >= body.lat - lat_delta, MissingPet.lat <= body.lat + lat_delta)
+            .filter(MissingPet.lng >= body.lng - lng_delta, MissingPet.lng <= body.lng + lng_delta)
+        )
+        geo_candidates = q.order_by(MissingPet.created_at.desc()).limit(500).all()
+
         def _distance(p: MissingPet) -> float:
-            if p.lat is None or p.lng is None:
-                return 999999.0
             return _haversine_km(body.lat, body.lng, p.lat, p.lng)
-        candidates = sorted(candidates, key=_distance)
+
+        candidates = sorted(
+            [p for p in geo_candidates if p.lat is not None and p.lng is not None and _distance(p) <= radius_km],
+            key=_distance,
+        )
+    else:
+        candidates = q.order_by(MissingPet.created_at.desc()).limit(200).all()
 
     results: list[dict] = []
     analyzed = 0
