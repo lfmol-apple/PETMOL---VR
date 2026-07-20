@@ -121,6 +121,18 @@ class MissingPet(Base):
     found_at = Column(DateTime, nullable=True)
 
 
+class MissingPetPhotoFingerprint(Base):
+    __tablename__ = "missing_pet_photo_fingerprints"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    missing_pet_id = Column(String(36), nullable=False, index=True)
+    photo_url = Column(Text, nullable=False)
+    dhash = Column(String(16), nullable=False, index=True)
+    width = Column(Integer, nullable=True)
+    height = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
 class MissingPetCreate(BaseModel):
@@ -828,6 +840,7 @@ def match_missing_pets_by_photo(body: PhotoMatchBody, db: Session = Depends(get_
     max_candidates = max(1, min(int(body.limit or 20), 40))
     q = db.query(MissingPet).filter(MissingPet.status == "active", MissingPet.photo_url.isnot(None))
 
+    geo_distances: dict[str, float] = {}
     if body.lat is not None and body.lng is not None:
         radius_km = max(3.0, min(float(body.radius_km or 30.0), 100.0))
         lat_delta = radius_km / 111.0
@@ -843,12 +856,21 @@ def match_missing_pets_by_photo(body: PhotoMatchBody, db: Session = Depends(get_
         def _distance(p: MissingPet) -> float:
             return _haversine_km(body.lat, body.lng, p.lat, p.lng)
 
-        candidates = sorted(
-            [p for p in geo_candidates if p.lat is not None and p.lng is not None and _distance(p) <= radius_km],
-            key=_distance,
-        )
+        candidates = [p for p in geo_candidates if p.lat is not None and p.lng is not None and _distance(p) <= radius_km]
+        geo_distances = {p.id: _distance(p) for p in candidates}
+        candidates = sorted(candidates, key=lambda p: geo_distances.get(p.id, 999999.0))
     else:
         candidates = q.order_by(MissingPet.created_at.desc()).limit(200).all()
+
+    candidates, visual_distances = _rank_candidates_by_visual_fingerprint(db, candidates, finder_photo_bytes)
+    if geo_distances:
+        candidates = sorted(
+            candidates,
+            key=lambda p: (
+                visual_distances.get(p.id, 999),
+                geo_distances.get(p.id, 999999.0),
+            ),
+        )
 
     results: list[dict] = []
     analyzed = 0
@@ -864,8 +886,10 @@ def match_missing_pets_by_photo(body: PhotoMatchBody, db: Session = Depends(get_
         item = _mp_to_dict(mp)
         item["score"] = score
         item.update(_compatibility_payload(score, analysis))
-        if body.lat is not None and body.lng is not None and mp.lat is not None and mp.lng is not None:
-            item["distance_km"] = round(_haversine_km(body.lat, body.lng, mp.lat, mp.lng), 2)
+        if mp.id in visual_distances:
+            item["visual_distance"] = visual_distances[mp.id]
+        if mp.id in geo_distances:
+            item["distance_km"] = round(geo_distances[mp.id], 2)
         else:
             item["distance_km"] = None
         results.append(item)
@@ -1017,6 +1041,109 @@ def _mime_from_name_or_data(value: str, default: str = "image/jpeg") -> str:
 def _decode_finder_photo(photo_b64: str) -> tuple[bytes, str]:
     raw = photo_b64.split(",", 1)[-1] if "," in photo_b64 else photo_b64
     return _base64.b64decode(raw), _mime_from_name_or_data(photo_b64)
+
+
+def _compute_photo_dhash(photo_bytes: bytes) -> dict:
+    """Small perceptual fingerprint used only to pre-rank candidates before AI."""
+    from PIL import Image, ImageOps
+
+    image = Image.open(io.BytesIO(photo_bytes))
+    image = ImageOps.exif_transpose(image)
+    width, height = image.size
+    gray = image.convert("L").resize((9, 8))
+    pixels = list(gray.getdata())
+    value = 0
+    for row in range(8):
+        for col in range(8):
+            left = pixels[row * 9 + col]
+            right = pixels[row * 9 + col + 1]
+            value = (value << 1) | (1 if left > right else 0)
+    return {"dhash": f"{value:016x}", "width": width, "height": height}
+
+
+def _hash_distance(hex_a: str | None, hex_b: str | None) -> int | None:
+    if not hex_a or not hex_b:
+        return None
+    try:
+        return (int(hex_a, 16) ^ int(hex_b, 16)).bit_count()
+    except Exception:
+        return None
+
+
+def _finder_photo_hashes(finder_photos: list[tuple[bytes, str]]) -> list[str]:
+    hashes: list[str] = []
+    for photo_bytes, _mime in finder_photos[:2]:
+        try:
+            hashes.append(str(_compute_photo_dhash(photo_bytes)["dhash"]))
+        except Exception as exc:
+            logger.warning(f"Finder photo fingerprint failed: {exc}")
+    return hashes
+
+
+def _get_or_create_photo_fingerprint(db: Session, mp: MissingPet) -> MissingPetPhotoFingerprint | None:
+    if not mp.photo_url:
+        return None
+    reference_urls = _normalize_reference_photo_urls(mp.photo_url)
+    if not reference_urls:
+        return None
+    photo_url = reference_urls[0]
+    existing = (
+        db.query(MissingPetPhotoFingerprint)
+        .filter(
+            MissingPetPhotoFingerprint.missing_pet_id == mp.id,
+            MissingPetPhotoFingerprint.photo_url == photo_url,
+        )
+        .first()
+    )
+    if existing:
+        return existing
+    try:
+        photo_bytes, _mime = _load_reference_photo(photo_url)
+        fingerprint = _compute_photo_dhash(photo_bytes)
+        row = MissingPetPhotoFingerprint(
+            id=str(uuid.uuid4()),
+            missing_pet_id=mp.id,
+            photo_url=photo_url,
+            dhash=str(fingerprint["dhash"]),
+            width=int(fingerprint.get("width") or 0) or None,
+            height=int(fingerprint.get("height") or 0) or None,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(row)
+        db.commit()
+        return row
+    except Exception as exc:
+        db.rollback()
+        logger.warning(f"Missing pet photo fingerprint failed ({mp.id}): {exc}")
+        return None
+
+
+def _rank_candidates_by_visual_fingerprint(
+    db: Session,
+    candidates: list[MissingPet],
+    finder_photos: list[tuple[bytes, str]],
+) -> tuple[list[MissingPet], dict[str, int]]:
+    finder_hashes = _finder_photo_hashes(finder_photos)
+    if not finder_hashes or not candidates:
+        return candidates, {}
+
+    distances: dict[str, int] = {}
+    for mp in candidates:
+        fingerprint = _get_or_create_photo_fingerprint(db, mp)
+        if not fingerprint:
+            continue
+        min_distance = min(
+            (d for d in (_hash_distance(finder_hash, fingerprint.dhash) for finder_hash in finder_hashes) if d is not None),
+            default=None,
+        )
+        if min_distance is not None:
+            distances[mp.id] = min_distance
+
+    if not distances:
+        return candidates, {}
+
+    ranked = sorted(candidates, key=lambda p: (distances.get(p.id, 999), p.created_at or datetime.min.replace(tzinfo=timezone.utc)))
+    return ranked, distances
 
 
 def _assess_finder_photo_quality(photo: tuple[bytes, str]) -> dict:

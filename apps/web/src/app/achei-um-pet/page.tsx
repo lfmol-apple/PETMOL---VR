@@ -32,6 +32,7 @@ type PhotoMatchResult = MissingPetRecord & {
   confidence_label?: string;
   requires_human_confirmation?: boolean;
   distance_km: number | null;
+  visual_distance?: number;
 };
 
 function formatDate(iso: string | null): string {
@@ -858,6 +859,9 @@ function AcheiUmPetInner() {
                       {[pet.species === 'cat' ? 'Gato' : 'Cão', pet.breed].filter(Boolean).join(' · ')}
                     </p>
                     {pet.analysis && <p className="mt-1.5 line-clamp-2 text-[12px] leading-snug text-white/60">{pet.analysis}</p>}
+                    {pet.visual_distance != null && (
+                      <p className="mt-1 text-[11px] font-semibold text-emerald-200/50">Pré-filtro visual aplicado</p>
+                    )}
                     <p className="mt-1 text-[11px] font-semibold text-white/35">Não confirma sozinho. Toque e envie para o tutor revisar.</p>
                   </div>
                 </Link>
