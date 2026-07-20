@@ -90,6 +90,7 @@ function AcheiUmPetInner() {
   const [preLoading, setPreLoading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const matchInputRef = useRef<HTMLInputElement>(null);
+  const matchCameraInputRef = useRef<HTMLInputElement>(null);
   const [matchPhotos, setMatchPhotos] = useState<string[]>([]);
   const [matchLoading, setMatchLoading] = useState(false);
   const [matchError, setMatchError] = useState('');
@@ -691,6 +692,13 @@ function AcheiUmPetInner() {
           <input
             ref={matchInputRef}
             type="file"
+            accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.bmp,.tiff,.tif,.avif,image/*"
+            className="hidden"
+            onChange={handleMatchPhotoCapture}
+          />
+          <input
+            ref={matchCameraInputRef}
+            type="file"
             accept="image/*"
             capture="environment"
             className="hidden"
@@ -716,15 +724,27 @@ function AcheiUmPetInner() {
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => matchInputRef.current?.click()}
-                className="min-h-44 rounded-3xl border-2 border-dashed border-emerald-300/30 bg-white/5 px-4 py-8 text-center active:scale-[0.99] transition-transform"
-              >
+              <div className="rounded-3xl border-2 border-dashed border-emerald-300/30 bg-white/5 px-4 py-6 text-center">
                 <span className="block text-5xl">📸</span>
-                <span className="mt-3 block text-[18px] font-black text-white">Fotografar pet encontrado</span>
-                <span className="mt-1 block text-[12px] text-white/45">ou escolher foto da galeria</span>
-              </button>
+                <span className="mt-3 block text-[18px] font-black text-white">Comece com uma foto do pet</span>
+                <span className="mt-1 block text-[12px] text-white/45">Use uma foto já tirada ou abra a câmera.</span>
+                <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => matchInputRef.current?.click()}
+                    className="rounded-2xl bg-emerald-500 px-4 py-3.5 text-[15px] font-black text-white shadow-lg shadow-emerald-950/30 active:scale-[0.98] transition-transform"
+                  >
+                    Escolher da galeria
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => matchCameraInputRef.current?.click()}
+                    className="rounded-2xl border border-white/15 bg-white/8 px-4 py-3.5 text-[15px] font-black text-white/80 active:scale-[0.98] transition-transform"
+                  >
+                    Tirar foto agora
+                  </button>
+                </div>
+              </div>
             )}
 
             <button
@@ -733,7 +753,7 @@ function AcheiUmPetInner() {
               disabled={matchLoading}
               className="w-full rounded-2xl bg-emerald-500 py-4 text-[16px] font-black text-white shadow-lg shadow-emerald-950/40 active:scale-[0.98] transition-all disabled:opacity-60"
             >
-              {matchLoading ? 'IA procurando candidatos...' : matchPhotos[0] ? 'Buscar pets parecidos' : 'Começar pela foto'}
+              {matchLoading ? 'IA procurando candidatos...' : matchPhotos[0] ? 'Buscar pets parecidos' : 'Escolher foto da galeria'}
             </button>
           </div>
 
