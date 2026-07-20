@@ -340,10 +340,14 @@ function AcheiUmPetInner() {
       <div className="min-h-screen bg-white flex flex-col">
 
         {/* Foto hero — ocupa topo da tela */}
-        <div className="relative w-full flex-shrink-0" style={{ height: '42vh', minHeight: 220, maxHeight: 340 }}>
+        <div className="relative w-full flex-shrink-0 bg-[#0E0C0B]" style={{ height: '46vh', minHeight: 280, maxHeight: 430 }}>
           {pet?.photo_url ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={resolvePetPhotoUrl(pet.photo_url) ?? ''} alt={pet?.pet_name ?? ''} className="w-full h-full object-cover" />
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={resolvePetPhotoUrl(pet.photo_url) ?? ''} alt="" className="absolute inset-0 w-full h-full object-cover opacity-35 blur-xl scale-110" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={resolvePetPhotoUrl(pet.photo_url) ?? ''} alt={pet?.pet_name ?? ''} className="relative z-[1] w-full h-full object-contain" />
+            </>
           ) : (
             <div className="w-full h-full bg-rose-50 flex items-center justify-center">
               <span className="text-8xl opacity-30">{pet?.species === 'cat' ? '🐱' : '🐶'}</span>
@@ -351,25 +355,25 @@ function AcheiUmPetInner() {
           )}
 
           {/* Gradiente sobre a foto */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/70" />
+          <div className="absolute inset-0 z-[2] bg-gradient-to-b from-black/40 via-transparent to-black/80" />
 
           {/* Botão voltar */}
           <Link
             href="/home"
-            className="absolute top-4 left-4 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white active:opacity-70"
+            className="absolute top-4 left-4 z-[3] w-10 h-10 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center text-white active:opacity-70"
           >
             <span className="text-xl leading-none">‹</span>
           </Link>
 
           {/* Badge urgência */}
-          <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-rose-600 text-white text-[11px] font-black px-3 py-1.5 rounded-full shadow-lg">
+          <div className="absolute top-4 right-4 z-[3] flex items-center gap-1.5 bg-rose-600 text-white text-[11px] font-black px-3 py-1.5 rounded-full shadow-lg">
             <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
             ALERTA ATIVO
           </div>
 
           {/* Nome do pet sobre a foto */}
           {!loading && pet && (
-            <div className="absolute bottom-0 inset-x-0 px-5 pb-4">
+            <div className="absolute bottom-0 inset-x-0 z-[3] px-5 pb-4">
               <p className="text-[11px] font-bold uppercase tracking-widest text-white/70 mb-0.5">
                 {pet.species === 'cat' ? 'Gato' : 'Cachorro'}{pet.breed ? ` · ${pet.breed}` : ''}
               </p>
@@ -746,7 +750,7 @@ function PetCard({
   const speciesEmoji = pet.species === 'cat' ? '🐈' : '🐕';
 
   return (
-    <div className={`relative rounded-3xl overflow-hidden border transition-all ${
+    <div className={`relative rounded-[28px] overflow-hidden border transition-all shadow-2xl shadow-black/25 ${
       isFound
         ? 'border-emerald-700/30 bg-emerald-950/20'
         : 'border-red-900/30 bg-[#160A08]'
@@ -754,63 +758,81 @@ function PetCard({
 
       {/* Found badge */}
       {isFound && (
-        <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 bg-emerald-600 text-white text-[11px] font-black px-3 py-1.5 rounded-full shadow-lg">
+        <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 bg-emerald-600 text-white text-[11px] font-black px-3 py-1.5 rounded-full shadow-lg">
           <span>✓</span> Encontrado com o PETMOL
         </div>
       )}
 
       {/* Photo */}
       {pet.photo_url ? (
-        <div className="relative w-full h-52 overflow-hidden">
+        <Link href={`/achei-um-pet?id=${pet.id}`} className="relative block w-full overflow-hidden bg-[#0E0C0B]" style={{ height: 'min(68vh, 520px)', minHeight: 360 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={resolvePetPhotoUrl(pet.photo_url) ?? ''}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover opacity-30 blur-xl scale-110"
+          />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={resolvePetPhotoUrl(pet.photo_url) ?? ''}
             alt={pet.pet_name}
-            className={`w-full h-full object-cover ${isFound ? 'opacity-50 grayscale' : ''}`}
+            className={`relative z-[1] w-full h-full object-contain ${isFound ? 'opacity-60 grayscale' : ''}`}
           />
-          <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#160A08] to-transparent" />
-        </div>
+          <div className="absolute inset-0 z-[2] bg-gradient-to-b from-black/30 via-transparent to-black/85" />
+          <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-[11px] font-black uppercase tracking-wide text-white backdrop-blur">
+            <span className={`h-2 w-2 rounded-full ${isFound ? 'bg-emerald-400' : 'bg-red-500 animate-pulse'}`} />
+            {isFound ? 'Encontrado' : 'Desaparecido'}
+          </div>
+          {!isFound && (
+            <div className="absolute top-3 right-3 z-10 rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-black text-red-700 shadow-lg">
+              {timeAgo(pet.created_at)}
+            </div>
+          )}
+          <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-4">
+            <p className="text-[12px] font-bold uppercase tracking-widest text-white/65">
+              {[pet.species === 'cat' ? 'Gato' : 'Cão', pet.breed].filter(Boolean).join(' · ')}
+            </p>
+            <h2 className={`mt-1 text-[34px] font-black leading-none ${isFound ? 'text-white/65 line-through' : 'text-white'}`} style={{ textShadow: '0 2px 16px rgba(0,0,0,0.55)' }}>
+              {pet.pet_name}
+            </h2>
+          </div>
+        </Link>
       ) : (
-        <div className={`w-full h-28 flex items-center justify-center ${isFound ? 'bg-slate-900/30' : 'bg-red-950/20'}`}>
+        <Link href={`/achei-um-pet?id=${pet.id}`} className={`block w-full h-72 flex items-center justify-center ${isFound ? 'bg-slate-900/30' : 'bg-red-950/20'}`}>
           <span className="text-6xl opacity-30">{speciesEmoji}</span>
-        </div>
+        </Link>
       )}
 
       {/* Content */}
       <div className="px-4 pt-3 pb-4 space-y-3">
 
-        {/* Name + time */}
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h2 className={`text-xl font-black leading-tight ${isFound ? 'text-white/50 line-through' : 'text-white'}`}>
-              {pet.pet_name}
-            </h2>
-            <p className="text-[12px] text-white/40 mt-0.5">
-              {[pet.species === 'cat' ? 'Gato' : 'Cão', pet.breed].filter(Boolean).join(' · ')}
-            </p>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-2xl bg-white/6 border border-white/8 px-3 py-2.5">
+            <p className="text-[10px] font-black uppercase tracking-widest text-white/35">Quando</p>
+            <p className="mt-0.5 text-[12px] font-bold text-white/75 leading-snug">{formatMissingDate(pet.missing_date, pet.missing_time)}</p>
           </div>
-          <span className="text-[11px] text-white/30 flex-shrink-0 mt-1">{timeAgo(pet.created_at)}</span>
-        </div>
-
-        {/* Missing date */}
-        <div className="flex items-center gap-1.5 text-[12px] text-white/50">
-          <span>🕐</span>
-          <span>Desapareceu {formatMissingDate(pet.missing_date, pet.missing_time)}</span>
+          <Link
+            href={`/achei-um-pet?id=${pet.id}`}
+            className="rounded-2xl bg-red-700/20 border border-red-500/25 px-3 py-2.5 active:scale-[0.98] transition-transform"
+          >
+            <p className="text-[10px] font-black uppercase tracking-widest text-red-200/70">Ver foto</p>
+            <p className="mt-0.5 text-[12px] font-black text-white leading-snug">Abrir detalhes</p>
+          </Link>
         </div>
 
         {/* Location */}
         {pet.last_seen_location && (
-          <div className="flex items-start gap-1.5 text-[12px] text-white/60">
+          <div className="flex items-start gap-2 rounded-2xl bg-white/5 px-3.5 py-3 text-[12px] text-white/68 border border-white/8">
             <span className="flex-shrink-0 mt-0.5">📍</span>
-            <span className="leading-snug">{pet.last_seen_location}</span>
+            <span className="leading-snug line-clamp-2">{pet.last_seen_location}</span>
           </div>
         )}
 
         {/* Characteristics */}
         {pet.characteristics && (
-          <div className="bg-white/5 rounded-2xl px-3.5 py-2.5 border border-white/8">
+          <div className="bg-white/5 rounded-2xl px-3.5 py-3 border border-white/8">
             <p className="text-[11px] font-bold text-white/40 uppercase tracking-wide mb-1">Características</p>
-            <p className="text-[13px] text-white/70 leading-relaxed">{pet.characteristics}</p>
+            <p className="text-[13px] text-white/70 leading-relaxed line-clamp-3">{pet.characteristics}</p>
           </div>
         )}
 
