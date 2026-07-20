@@ -342,17 +342,18 @@ export function MedicalVaultModal({
         const arrayBuffer = await blob.arrayBuffer();
         const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
         const targetWidth = window.innerWidth;
+        const dpr = Math.min(window.devicePixelRatio || 1, 3);
         const dataUrls: string[] = [];
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const baseVp = page.getViewport({ scale: 1 });
-          const scale = targetWidth / baseVp.width;
-          const vp = page.getViewport({ scale });
+          const cssScale = targetWidth / baseVp.width;
+          const vp = page.getViewport({ scale: cssScale * dpr });
           const canvas = document.createElement('canvas');
-          canvas.width = vp.width;
-          canvas.height = vp.height;
+          canvas.width = Math.round(vp.width);
+          canvas.height = Math.round(vp.height);
           await page.render({ canvasContext: canvas.getContext('2d')!, viewport: vp, canvas }).promise;
-          dataUrls.push(canvas.toDataURL('image/jpeg', 0.92));
+          dataUrls.push(canvas.toDataURL('image/jpeg', 0.95));
         }
         setPdfPages(dataUrls);
       } catch (pdfErr) {
