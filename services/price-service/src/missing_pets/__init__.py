@@ -97,6 +97,8 @@ class FoundReport(Base):
     finder_location = Column(String(500), nullable=True)
     notes = Column(Text, nullable=True)
     finder_photos = Column(Text, nullable=True)
+    finder_video_url = Column(Text, nullable=True)
+    proof_challenge = Column(String(160), nullable=True)
     compatibility_score = Column(Integer, nullable=True)
     compatibility_analysis = Column(Text, nullable=True)
     risk_level = Column(String(20), nullable=True)
@@ -217,6 +219,8 @@ class FoundReportCreate(BaseModel):
     finder_location: Optional[str] = None
     notes: Optional[str] = None
     finder_photos: List[str] = []
+    finder_video: Optional[str] = None
+    proof_challenge: Optional[str] = None
     finder_user_id: Optional[str] = None
     pre_score: Optional[int] = None
     pre_analysis: Optional[str] = None
@@ -1109,6 +1113,8 @@ def my_found_reports(db: Session = Depends(get_db), current_user=Depends(get_cur
             **_risk_payload(r),
             "has_photos": bool(r.finder_photos),
             "photo_count": len(json.loads(r.finder_photos)) if r.finder_photos else 0,
+            "has_video": bool(r.finder_video_url),
+            "proof_challenge": r.proof_challenge,
         }
         for r in reports
         if r.missing_pet_id in pet_map
@@ -1186,6 +1192,8 @@ def get_found_report_photos(
     photos = json.loads(report.finder_photos) if report.finder_photos else []
     return {
         "photos": photos,
+        "video_url": report.finder_video_url,
+        "proof_challenge": report.proof_challenge,
         "compatibility_score": report.compatibility_score,
         "compatibility_analysis": report.compatibility_analysis,
         **_compatibility_payload(report.compatibility_score, report.compatibility_analysis),
@@ -1644,6 +1652,37 @@ def _decode_finder_photo(photo_b64: str) -> tuple[bytes, str]:
     return _base64.b64decode(raw), _mime_from_name_or_data(photo_b64)
 
 
+def _decode_data_url(data_url: str, default_mime: str) -> tuple[bytes, str]:
+    mime = default_mime
+    raw = data_url
+    if data_url.startswith("data:") and "," in data_url:
+        header, raw = data_url.split(",", 1)
+        if ";" in header:
+            mime = header.replace("data:", "").split(";", 1)[0] or default_mime
+    return _base64.b64decode(raw), mime
+
+
+def _save_found_report_video(video_data_url: str) -> str:
+    raw, mime = _decode_data_url(video_data_url, "video/mp4")
+    max_bytes = int(os.environ.get("PETMOL_FOUND_VIDEO_MAX_BYTES", str(25 * 1024 * 1024)))
+    if len(raw) > max_bytes:
+        raise HTTPException(status_code=413, detail="Vídeo muito grande. Envie um vídeo curto, de até 10 segundos.")
+
+    ext_map = {
+        "video/mp4": "mp4",
+        "video/quicktime": "mov",
+        "video/webm": "webm",
+    }
+    ext = ext_map.get(mime, "mp4")
+    upload_dir = os.path.join(os.path.dirname(__file__), "..", "..", "uploads", "found_videos")
+    os.makedirs(upload_dir, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    path = os.path.join(upload_dir, filename)
+    with open(path, "wb") as fh:
+        fh.write(raw)
+    return f"/uploads/found_videos/{filename}"
+
+
 def _compute_photo_dhash(photo_bytes: bytes) -> dict:
     """Small perceptual fingerprint used only to pre-rank candidates before AI."""
     from PIL import Image, ImageOps
@@ -1901,6 +1940,8 @@ def _risk_payload(report: FoundReport) -> dict:
         "risk_label": (
             "Revisar antes de responder"
             if (report.risk_level == "review" or any(f in {"possible_generated_image", "reused_photo"} for f in flags))
+            else "Peça vídeo antes de avançar"
+            if "no_dynamic_video" in flags
             else "Atenção ao contato"
             if flags
             else "Sem sinais automáticos de risco"
@@ -2192,6 +2233,11 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
     # Se o frontend já rodou a pré-análise Gemini, reusar o score — evita duas chamadas
     has_pre_score = body.pre_score is not None and body.pre_score > 0
     risk_flags, photo_hashes = _finder_photo_risk_flags(db, body.finder_photos or [], body.finder_contact.strip())
+    finder_video_url = None
+    if body.finder_video:
+        finder_video_url = _save_found_report_video(body.finder_video)
+    else:
+        risk_flags.append("no_dynamic_video")
     risk_level = _risk_level_from_flags(risk_flags)
 
     report = FoundReport(
@@ -2201,6 +2247,8 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
         finder_location=body.finder_location,
         notes=body.notes,
         finder_photos=json.dumps(body.finder_photos) if body.finder_photos else None,
+        finder_video_url=finder_video_url,
+        proof_challenge=(body.proof_challenge or "").strip()[:160] or None,
         finder_user_id=body.finder_user_id,
         compatibility_score=body.pre_score if has_pre_score else None,
         compatibility_analysis=body.pre_analysis if has_pre_score else None,

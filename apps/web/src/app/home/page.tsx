@@ -59,6 +59,7 @@ import { vaccineInfo, commonVaccines } from '@/data/vaccineInfo';
 import { hasCompletedOnboarding } from '@/lib/ownerProfile';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
+import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { useAuth } from '@/contexts/AuthContext';
 import { petMolAPI } from '@/lib/api-client';
@@ -852,10 +853,12 @@ function HomePageInner() {
     notes: string | null; created_at: string | null;
     compatibility_score: number | null; compatibility_analysis: string | null;
     confidence_level?: string; confidence_label?: string; requires_human_confirmation?: boolean;
-    has_photos: boolean; photo_count: number;
+    has_photos: boolean; photo_count: number; has_video?: boolean; proof_challenge?: string | null;
   };
   type PhotosModalData = {
     photos: string[];
+    video_url?: string | null;
+    proof_challenge?: string | null;
     score: number | null;
     analysis: string | null;
     confidence_level?: string;
@@ -2005,15 +2008,17 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     </div>
                   )}
 
-                  {rep.has_photos && (
+                  {(rep.has_photos || rep.has_video) && (
                     <button
                       type="button"
                       onClick={() => void openPhotosModal(rep.report_id)}
                       className="mt-2 flex items-center gap-2 w-full rounded-xl bg-white/20 border border-white/30 px-3 py-2.5 active:scale-95 transition-transform"
                     >
-                      <span className="text-[18px]">📷</span>
+                      <span className="text-[18px]">{rep.has_video ? '🎥' : '📷'}</span>
                       <span className="flex-1 text-left text-[13px] font-bold text-white">
-                        Ver {rep.photo_count === 1 ? '1 foto' : `${rep.photo_count} fotos`} do achador
+                        {rep.has_video
+                          ? `Ver prova em vídeo${rep.has_photos ? ' e fotos' : ''}`
+                          : `Ver ${rep.photo_count === 1 ? '1 foto' : `${rep.photo_count} fotos`} do achador`}
                       </span>
                       <span className="text-white/50 text-[12px]">›</span>
                     </button>
@@ -2782,7 +2787,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
               <div className="w-10 h-1 rounded-full bg-white/20" />
             </div>
             <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
-              <p className="font-black text-white text-[16px]">Fotos do achador</p>
+              <p className="font-black text-white text-[16px]">Provas do achador</p>
               <button
                 type="button"
                 onClick={() => setPhotosModal(null)}
@@ -2822,6 +2827,24 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                         )}
                         <p className="text-[11px] text-white/40 mt-1">A IA faz triagem. Você decide se é o seu pet.</p>
                       </div>
+                    </div>
+                  )}
+                  {photosModal.video_url && (
+                    <div className="rounded-2xl border border-amber-500/40 bg-amber-950/40 p-3">
+                      <p className="mb-2 text-[12px] font-black uppercase tracking-widest text-amber-200">
+                        Prova dinâmica em vídeo
+                      </p>
+                      {photosModal.proof_challenge && (
+                        <p className="mb-2 text-[12px] leading-snug text-amber-100/80">
+                          Desafio pedido: {photosModal.proof_challenge}
+                        </p>
+                      )}
+                      <video
+                        src={resolvePetPhotoUrl(photosModal.video_url) ?? photosModal.video_url}
+                        controls
+                        playsInline
+                        className="max-h-[420px] w-full rounded-xl bg-black object-contain"
+                      />
                     </div>
                   )}
                   <div className={`grid gap-3 ${photosModal.photos.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>

@@ -191,6 +191,8 @@ def run_pg_migrations(engine: Engine) -> None:
         # found_reports: dismiss flag + finder identity (Jul 2026)
         _pg_add_column_if_missing(conn, "found_reports", "dismissed", "INTEGER DEFAULT 0")
         _pg_add_column_if_missing(conn, "found_reports", "finder_user_id", "TEXT")
+        _pg_add_column_if_missing(conn, "found_reports", "finder_video_url", "TEXT")
+        _pg_add_column_if_missing(conn, "found_reports", "proof_challenge", "TEXT")
         _pg_add_column_if_missing(conn, "found_reports", "risk_level", "TEXT")
         _pg_add_column_if_missing(conn, "found_reports", "risk_flags", "TEXT")
         conn.execute(text("""
@@ -592,6 +594,8 @@ def run_sqlite_migrations(engine: Engine) -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_product_reliable_catalog_key ON product_reliable_catalog (canonical_key)"))
 
         # missing_pets: public third-party reports + SEO pages (Jul 2026)
+        changed |= _sqlite_add_column_if_missing(conn, "found_reports", "finder_video_url", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "found_reports", "proof_challenge", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "found_reports", "risk_level", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "found_reports", "risk_flags", "TEXT")
         conn.execute(text("""

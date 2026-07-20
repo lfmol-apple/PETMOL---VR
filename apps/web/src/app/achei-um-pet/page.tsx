@@ -85,12 +85,15 @@ function AcheiUmPetInner() {
   const [reportCep, setReportCep] = useState('');
   const [cepLoading, setCepLoading] = useState(false);
   const [reportPhotos, setReportPhotos] = useState<string[]>([]);
+  const [reportVideo, setReportVideo] = useState('');
+  const [reportMediaError, setReportMediaError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [reportedIds, setReportedIds] = useState<string[]>([]);
   const [preAnalysis, setPreAnalysis] = useState<string>('');
   const [preConfidenceLabel, setPreConfidenceLabel] = useState('');
   const [preLoading, setPreLoading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const matchInputRef = useRef<HTMLInputElement>(null);
   const matchCameraInputRef = useRef<HTMLInputElement>(null);
   const [matchPhotos, setMatchPhotos] = useState<string[]>([]);
@@ -105,6 +108,7 @@ function AcheiUmPetInner() {
   const [sightingNotes, setSightingNotes] = useState('');
   const [sightingSubmitting, setSightingSubmitting] = useState(false);
   const [sightingMessage, setSightingMessage] = useState('');
+  const proofChallenge = 'Mostre o pet andando e diga: "PETMOL, prova de hoje".';
 
   // Inicializa reportedIds do localStorage e verifica dismissals no backend
   useEffect(() => {
@@ -212,6 +216,23 @@ function AcheiUmPetInner() {
     reader.onload = (evt) => {
       const result = evt.target?.result as string;
       setReportPhotos(prev => prev.length < 2 ? [...prev, result] : prev);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleVideoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) {
+      setReportMediaError('Envie um vídeo curto, de até 25 MB.');
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      setReportMediaError('');
+      setReportVideo(evt.target?.result as string);
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -331,6 +352,8 @@ function AcheiUmPetInner() {
     setReportCep('');
     setCepLoading(false);
     setReportPhotos([]);
+    setReportVideo('');
+    setReportMediaError('');
     setPreAnalysis('');
     setPreConfidenceLabel('');
     setPreLoading(false);
@@ -358,6 +381,8 @@ function AcheiUmPetInner() {
           finder_location: reportLocation.trim() || null,
           notes: reportNotes.trim() || null,
           finder_photos: reportPhotos,
+          finder_video: reportVideo || null,
+          proof_challenge: reportVideo ? proofChallenge : null,
           finder_user_id: finderUserId,
           pre_score: null,
           pre_analysis: null,
@@ -637,6 +662,45 @@ function AcheiUmPetInner() {
                     </button>
                   )}
                 </div>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-3">
+                <label className="block text-[12px] font-black text-amber-800 uppercase tracking-widest">
+                  Prova em vídeo contra golpe
+                </label>
+                <p className="mt-1 text-[12px] leading-snug text-amber-900/80">
+                  Grave até 10 segundos mostrando o pet se mexendo. {proofChallenge}
+                </p>
+                <input
+                  ref={videoInputRef}
+                  type="file"
+                  accept="video/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleVideoCapture}
+                />
+                {reportVideo ? (
+                  <div className="mt-3 overflow-hidden rounded-2xl border border-amber-300 bg-black">
+                    <video src={reportVideo} controls playsInline className="h-44 w-full object-contain" />
+                    <button
+                      type="button"
+                      onClick={() => setReportVideo('')}
+                      className="w-full bg-white px-3 py-2 text-[12px] font-black text-amber-800"
+                    >
+                      Remover vídeo
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => videoInputRef.current?.click()}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-3 text-[14px] font-black text-white active:scale-[0.98] transition-transform"
+                  >
+                    <span>🎥</span>
+                    Gravar prova curta
+                  </button>
+                )}
+                {reportMediaError && <p className="mt-2 text-[11px] font-bold text-red-600">{reportMediaError}</p>}
               </div>
 
               {/* Análise de compatibilidade — aparece quando há fotos */}
