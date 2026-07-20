@@ -108,7 +108,8 @@ function AcheiUmPetInner() {
   const [sightingNotes, setSightingNotes] = useState('');
   const [sightingSubmitting, setSightingSubmitting] = useState(false);
   const [sightingMessage, setSightingMessage] = useState('');
-  const proofChallenge = 'Mostre o pet andando e diga: "PETMOL, prova de hoje".';
+  const [proofChallenge, setProofChallenge] = useState<{ id: string; phrase: string; instructions: string; expires_at: string } | null>(null);
+  const [proofChallengeLoading, setProofChallengeLoading] = useState(false);
 
   // Inicializa reportedIds do localStorage e verifica dismissals no backend
   useEffect(() => {
@@ -178,6 +179,25 @@ function AcheiUmPetInner() {
     void run();
     return () => { cancelled = true; };
   }, [reportPhotos, focusedId]);
+
+  useEffect(() => {
+    if (!focusedId) return;
+    let cancelled = false;
+    async function loadProofChallenge() {
+      setProofChallengeLoading(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/missing-pets/${focusedId}/proof-challenge`, {
+          method: 'POST',
+        });
+        if (!cancelled && res.ok) {
+          setProofChallenge(await res.json());
+        }
+      } catch { /* silent */ }
+      if (!cancelled) setProofChallengeLoading(false);
+    }
+    void loadProofChallenge();
+    return () => { cancelled = true; };
+  }, [focusedId]);
 
   const fetchPets = useCallback(async () => {
     setLoading(true);
@@ -382,7 +402,8 @@ function AcheiUmPetInner() {
           notes: reportNotes.trim() || null,
           finder_photos: reportPhotos,
           finder_video: reportVideo || null,
-          proof_challenge: reportVideo ? proofChallenge : null,
+          proof_challenge: reportVideo ? proofChallenge?.phrase : null,
+          proof_challenge_id: reportVideo ? proofChallenge?.id : null,
           finder_user_id: finderUserId,
           pre_score: null,
           pre_analysis: null,
@@ -657,7 +678,12 @@ function AcheiUmPetInner() {
                   Prova em vídeo contra golpe
                 </label>
                 <p className="mt-1 text-[12px] leading-snug text-amber-900/80">
-                  Grave até 10 segundos mostrando o pet se mexendo. {proofChallenge}
+                  Grave até 10 segundos mostrando o pet se mexendo.
+                  {proofChallengeLoading
+                    ? ' Gerando código seguro...'
+                    : proofChallenge
+                      ? ` Diga no vídeo: "${proofChallenge.phrase}".`
+                      : ' Se o código não carregar, envie mesmo assim e o tutor pedirá nova prova.'}
                 </p>
                 <input
                   ref={videoInputRef}
@@ -685,7 +711,7 @@ function AcheiUmPetInner() {
                     className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-3 text-[14px] font-black text-white active:scale-[0.98] transition-transform"
                   >
                     <span>🎥</span>
-                    Gravar prova curta
+                    {proofChallenge ? `Gravar com código ${proofChallenge.phrase}` : 'Gravar prova curta'}
                   </button>
                 )}
                 {reportMediaError && <p className="mt-2 text-[11px] font-bold text-red-600">{reportMediaError}</p>}

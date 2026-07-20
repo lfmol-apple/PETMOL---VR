@@ -853,12 +853,17 @@ function HomePageInner() {
     notes: string | null; created_at: string | null;
     compatibility_score: number | null; compatibility_analysis: string | null;
     confidence_level?: string; confidence_label?: string; requires_human_confirmation?: boolean;
+    risk_level?: string; risk_label?: string; risk_flags?: string[]; proof_verified?: boolean;
     has_photos: boolean; photo_count: number; has_video?: boolean; proof_challenge?: string | null;
   };
   type PhotosModalData = {
     photos: string[];
     video_url?: string | null;
     proof_challenge?: string | null;
+    proof_verified?: boolean;
+    risk_level?: string;
+    risk_label?: string;
+    risk_flags?: string[];
     score: number | null;
     analysis: string | null;
     confidence_level?: string;
@@ -1988,6 +1993,28 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     </div>
                   </div>
 
+                  <div className="mt-3 rounded-2xl bg-white/15 border border-white/20 px-3 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[12px] font-black uppercase tracking-widest text-white">
+                        PETMOL Protege
+                      </p>
+                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${
+                        rep.proof_verified ? 'bg-emerald-300 text-emerald-950' : 'bg-amber-200 text-amber-950'
+                      }`}>
+                        {rep.proof_verified ? 'Prova dinâmica' : 'Pedir prova'}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] font-bold text-white/80">
+                      <span>{rep.has_video ? '✓ Vídeo enviado' : '• Sem vídeo'}</span>
+                      <span>{rep.proof_verified ? '✓ Código válido' : '• Código não validado'}</span>
+                      <span>{rep.has_photos ? '✓ Fotos anexadas' : '• Sem fotos'}</span>
+                      <span>{rep.risk_level === 'review' ? '⚠ Revisar risco' : '✓ Risco monitorado'}</span>
+                    </div>
+                    {rep.risk_label && (
+                      <p className="mt-2 text-[11px] leading-snug text-white/70">{rep.risk_label}</p>
+                    )}
+                  </div>
+
                   {/* Score de compatibilidade — destaque grande */}
                   {rep.compatibility_score != null && (
                     <div className="mt-3 flex flex-col items-center gap-1.5">
@@ -2054,6 +2081,22 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       É meu pet
                     </button>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const token = getToken();
+                      if (!token) return;
+                      await fetch(`${API_BASE_URL}/missing-pets/found-reports/${rep.report_id}/suspicious`, {
+                        method: 'PATCH',
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+                      fetchFoundReports();
+                    }}
+                    className="mt-2 w-full rounded-xl border border-red-200/30 bg-red-950/20 py-2 text-center text-[12px] font-semibold text-red-100 active:scale-95 transition-transform"
+                  >
+                    Marcar tentativa suspeita
+                  </button>
 
                   {/* Rejeitar report — foto não bate */}
                   <button
@@ -2801,6 +2844,19 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                 </div>
               ) : photosModal && (
                 <>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[12px] font-black uppercase tracking-widest text-white">PETMOL Protege</p>
+                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${
+                        photosModal.proof_verified ? 'bg-emerald-300 text-emerald-950' : 'bg-amber-200 text-amber-950'
+                      }`}>
+                        {photosModal.proof_verified ? 'Código validado' : 'Código pendente'}
+                      </span>
+                    </div>
+                    {photosModal.risk_label && (
+                      <p className="mt-2 text-[12px] leading-snug text-white/60">{photosModal.risk_label}</p>
+                    )}
+                  </div>
                   {photosModal.score != null && (
                     <div className={`rounded-2xl px-4 py-4 flex items-center gap-4 ${
                       photosModal.score >= 90 ? 'bg-emerald-900/50 border border-emerald-600/40' :

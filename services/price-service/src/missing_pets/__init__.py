@@ -99,6 +99,8 @@ class FoundReport(Base):
     finder_photos = Column(Text, nullable=True)
     finder_video_url = Column(Text, nullable=True)
     proof_challenge = Column(String(160), nullable=True)
+    proof_challenge_id = Column(String(36), nullable=True, index=True)
+    proof_verified = Column(Integer, nullable=True, default=0)
     compatibility_score = Column(Integer, nullable=True)
     compatibility_analysis = Column(Text, nullable=True)
     risk_level = Column(String(20), nullable=True)
@@ -155,6 +157,17 @@ class FoundReportPhotoFingerprint(Base):
     missing_pet_id = Column(String(36), nullable=False, index=True)
     finder_contact = Column(String(200), nullable=True, index=True)
     dhash = Column(String(16), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+class MissingPetProofChallenge(Base):
+    __tablename__ = "missing_pet_proof_challenges"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    missing_pet_id = Column(String(36), nullable=False, index=True)
+    phrase = Column(String(80), nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    used_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
@@ -221,6 +234,7 @@ class FoundReportCreate(BaseModel):
     finder_photos: List[str] = []
     finder_video: Optional[str] = None
     proof_challenge: Optional[str] = None
+    proof_challenge_id: Optional[str] = None
     finder_user_id: Optional[str] = None
     pre_score: Optional[int] = None
     pre_analysis: Optional[str] = None
@@ -1122,6 +1136,7 @@ def my_found_reports(db: Session = Depends(get_db), current_user=Depends(get_cur
             "photo_count": len(json.loads(r.finder_photos)) if r.finder_photos else 0,
             "has_video": bool(r.finder_video_url),
             "proof_challenge": r.proof_challenge,
+            "proof_verified": bool(r.proof_verified),
         }
         for r in reports
         if r.missing_pet_id in pet_map
@@ -1165,6 +1180,32 @@ def dismiss_found_report(
     return {"status": "dismissed", "following_count": following_count}
 
 
+@router.patch("/found-reports/{report_id}/suspicious")
+def mark_found_report_suspicious(
+    report_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    report = db.query(FoundReport).filter(FoundReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report não encontrado")
+    mp = db.query(MissingPet).filter(MissingPet.id == report.missing_pet_id).first()
+    _ensure_missing_pet_access(db, str(current_user.id), mp)
+    flags = []
+    if report.risk_flags:
+        try:
+            flags = json.loads(report.risk_flags)
+        except Exception:
+            flags = []
+    if "tutor_marked_suspicious" not in flags:
+        flags.append("tutor_marked_suspicious")
+    report.risk_flags = json.dumps(flags)
+    report.risk_level = "review"
+    report.dismissed = 1
+    db.commit()
+    return {"status": "marked_suspicious"}
+
+
 @router.get("/{mp_id}/my-report-status")
 def my_report_status(
     mp_id: str,
@@ -1201,6 +1242,7 @@ def get_found_report_photos(
         "photos": photos,
         "video_url": report.finder_video_url,
         "proof_challenge": report.proof_challenge,
+        "proof_verified": bool(report.proof_verified),
         "compatibility_score": report.compatibility_score,
         "compatibility_analysis": report.compatibility_analysis,
         **_compatibility_payload(report.compatibility_score, report.compatibility_analysis),
@@ -1517,6 +1559,29 @@ def match_missing_pets_by_photo(body: PhotoMatchBody, db: Session = Depends(get_
         "total_active_with_photo": len(candidates),
         "photo_quality": quality,
         "matches": results[:8],
+    }
+
+
+@router.post("/{mp_id}/proof-challenge")
+def create_found_pet_proof_challenge(mp_id: str, db: Session = Depends(get_db)):
+    """Emite um desafio dinâmico para vídeo antifraude do achador."""
+    mp = db.query(MissingPet).filter(MissingPet.id == mp_id, MissingPet.status == "active").first()
+    if not mp:
+        raise HTTPException(status_code=404, detail="Alerta não encontrado ou pet já foi encontrado")
+    challenge = MissingPetProofChallenge(
+        id=str(uuid.uuid4()),
+        missing_pet_id=mp_id,
+        phrase=_new_proof_phrase(),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(challenge)
+    db.commit()
+    return {
+        "id": challenge.id,
+        "phrase": challenge.phrase,
+        "expires_at": challenge.expires_at.isoformat(),
+        "instructions": f"Mostre o pet andando e diga: {challenge.phrase}.",
     }
 
 
@@ -1944,6 +2009,7 @@ def _risk_payload(report: FoundReport) -> dict:
     return {
         "risk_level": report.risk_level or _risk_level_from_flags(flags),
         "risk_flags": flags,
+        "proof_verified": bool(report.proof_verified),
         "risk_label": (
             "Revisar antes de responder"
             if (report.risk_level == "review" or any(f in {"possible_generated_image", "reused_photo"} for f in flags))
@@ -1954,6 +2020,48 @@ def _risk_payload(report: FoundReport) -> dict:
             else "Sem sinais automáticos de risco"
         ),
     }
+
+
+def _new_proof_phrase() -> str:
+    return f"PETMOL {secrets.randbelow(9000) + 1000}"
+
+
+def _validate_proof_challenge(
+    db: Session,
+    mp_id: str,
+    challenge_id: str | None,
+    phrase: str | None,
+    has_video: bool,
+) -> tuple[bool, list[str]]:
+    flags: list[str] = []
+    if not has_video:
+        flags.append("no_dynamic_video")
+        return False, flags
+    if not challenge_id:
+        flags.append("missing_dynamic_challenge")
+        return False, flags
+
+    challenge = (
+        db.query(MissingPetProofChallenge)
+        .filter(MissingPetProofChallenge.id == challenge_id, MissingPetProofChallenge.missing_pet_id == mp_id)
+        .first()
+    )
+    now = datetime.now(timezone.utc)
+    if not challenge:
+        flags.append("invalid_dynamic_challenge")
+        return False, flags
+    expires_at = challenge.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if challenge.used_at is not None or expires_at < now:
+        flags.append("expired_dynamic_challenge")
+        return False, flags
+    if (phrase or "").strip().upper() != challenge.phrase.strip().upper():
+        flags.append("mismatched_dynamic_challenge")
+        return False, flags
+
+    challenge.used_at = now
+    return True, flags
 
 
 def _load_reference_photo(photo_url: str) -> tuple[bytes, str]:
@@ -2243,8 +2351,14 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
     finder_video_url = None
     if body.finder_video:
         finder_video_url = _save_found_report_video(body.finder_video)
-    else:
-        risk_flags.append("no_dynamic_video")
+    proof_verified, proof_flags = _validate_proof_challenge(
+        db,
+        mp_id,
+        body.proof_challenge_id,
+        body.proof_challenge,
+        bool(finder_video_url),
+    )
+    risk_flags.extend(proof_flags)
     risk_level = _risk_level_from_flags(risk_flags)
 
     report = FoundReport(
@@ -2256,6 +2370,8 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
         finder_photos=json.dumps(body.finder_photos) if body.finder_photos else None,
         finder_video_url=finder_video_url,
         proof_challenge=(body.proof_challenge or "").strip()[:160] or None,
+        proof_challenge_id=body.proof_challenge_id,
+        proof_verified=1 if proof_verified else 0,
         finder_user_id=body.finder_user_id,
         compatibility_score=body.pre_score if has_pre_score else None,
         compatibility_analysis=body.pre_analysis if has_pre_score else None,
