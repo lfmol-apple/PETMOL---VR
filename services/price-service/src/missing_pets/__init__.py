@@ -2339,10 +2339,57 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
         .first()
     )
     if existing:
+        updated = False
+        risk_flags = []
+        if existing.risk_flags:
+            try:
+                risk_flags = json.loads(existing.risk_flags)
+            except Exception:
+                risk_flags = []
+        dynamic_proof_flags = {
+            "no_dynamic_video",
+            "missing_dynamic_challenge",
+            "invalid_dynamic_challenge",
+            "expired_dynamic_challenge",
+            "mismatched_dynamic_challenge",
+        }
+        if body.finder_photos:
+            existing.finder_photos = json.dumps(body.finder_photos)
+            photo_risk_flags, photo_hashes = _finder_photo_risk_flags(db, body.finder_photos, body.finder_contact.strip())
+            risk_flags = sorted(set(risk_flags + photo_risk_flags))
+            _store_found_report_photo_fingerprints(db, existing, photo_hashes)
+            updated = True
+        if body.finder_video:
+            finder_video_url = _save_found_report_video(body.finder_video)
+            proof_verified, proof_flags = _validate_proof_challenge(
+                db,
+                mp_id,
+                body.proof_challenge_id,
+                body.proof_challenge,
+                True,
+            )
+            existing.finder_video_url = finder_video_url
+            existing.proof_challenge = (body.proof_challenge or "").strip()[:160] or existing.proof_challenge
+            existing.proof_challenge_id = body.proof_challenge_id or existing.proof_challenge_id
+            existing.proof_verified = 1 if proof_verified else 0
+            risk_flags = [flag for flag in risk_flags if flag not in dynamic_proof_flags]
+            risk_flags = sorted(set(risk_flags + proof_flags))
+            updated = True
+        if body.finder_location:
+            existing.finder_location = body.finder_location
+            updated = True
+        if body.notes:
+            existing.notes = body.notes
+            updated = True
+        if updated:
+            existing.risk_flags = json.dumps(risk_flags)
+            existing.risk_level = _risk_level_from_flags(risk_flags)
+            db.commit()
         return {
             "id": existing.id,
-            "status": "already_reported",
+            "status": "updated_existing_report" if updated else "already_reported",
             **_compatibility_payload(existing.compatibility_score, existing.compatibility_analysis),
+            **_risk_payload(existing),
         }
 
     # Se o frontend já rodou a pré-análise Gemini, reusar o score — evita duas chamadas

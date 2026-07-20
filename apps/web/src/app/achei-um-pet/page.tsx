@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { API_BASE_URL } from '@/lib/api';
@@ -69,6 +69,7 @@ export default function AcheiUmPetPage() {
 }
 
 function AcheiUmPetInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const focusedId = searchParams.get('id');
   const retry = searchParams.get('retry') === '1';
@@ -180,24 +181,22 @@ function AcheiUmPetInner() {
     return () => { cancelled = true; };
   }, [reportPhotos, focusedId]);
 
+  const loadProofChallenge = useCallback(async (petId: string) => {
+    setProofChallengeLoading(true);
+    setProofChallenge(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/missing-pets/${petId}/proof-challenge`, {
+        method: 'POST',
+      });
+      if (res.ok) setProofChallenge(await res.json());
+    } catch { /* silent */ }
+    setProofChallengeLoading(false);
+  }, []);
+
   useEffect(() => {
     if (!focusedId) return;
-    let cancelled = false;
-    async function loadProofChallenge() {
-      setProofChallengeLoading(true);
-      try {
-        const res = await fetch(`${API_BASE_URL}/missing-pets/${focusedId}/proof-challenge`, {
-          method: 'POST',
-        });
-        if (!cancelled && res.ok) {
-          setProofChallenge(await res.json());
-        }
-      } catch { /* silent */ }
-      if (!cancelled) setProofChallengeLoading(false);
-    }
-    void loadProofChallenge();
-    return () => { cancelled = true; };
-  }, [focusedId]);
+    void loadProofChallenge(focusedId);
+  }, [focusedId, loadProofChallenge]);
 
   const fetchPets = useCallback(async () => {
     setLoading(true);
@@ -244,8 +243,8 @@ function AcheiUmPetInner() {
   const handleVideoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 25 * 1024 * 1024) {
-      setReportMediaError('Envie um vídeo curto, de até 25 MB.');
+    if (file.size > 8 * 1024 * 1024) {
+      setReportMediaError('Envie um vídeo curto, de até 8 MB. No iPhone, grave poucos segundos.');
       e.target.value = '';
       return;
     }
@@ -365,6 +364,10 @@ function AcheiUmPetInner() {
   };
 
   const handleOpenReport = (id: string) => {
+    if (!focusedId) {
+      router.push(`/achei-um-pet?id=${id}`);
+      return;
+    }
     setReportingId(id);
     setReportContact('');
     setReportLocation('');
@@ -377,6 +380,7 @@ function AcheiUmPetInner() {
     setPreAnalysis('');
     setPreConfidenceLabel('');
     setPreLoading(false);
+    void loadProofChallenge(id);
   };
 
   const handleSubmitReport = async (petId: string) => {
@@ -418,8 +422,13 @@ function AcheiUmPetInner() {
             localStorage.setItem('petmol_finder_reported_ids', JSON.stringify([...stored, petId]));
           }
         } catch { /* best effort */ }
+      } else {
+        const data = await res.json().catch(() => ({})) as { detail?: string };
+        setReportMediaError(data.detail || 'Não foi possível enviar. Tente um vídeo menor ou envie só as fotos.');
       }
-    } catch { /* silent */ }
+    } catch {
+      setReportMediaError('Erro de conexão. Tente novamente.');
+    }
     setSubmitting(false);
   };
 
