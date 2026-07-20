@@ -99,6 +99,8 @@ class FoundReport(Base):
     finder_photos = Column(Text, nullable=True)
     compatibility_score = Column(Integer, nullable=True)
     compatibility_analysis = Column(Text, nullable=True)
+    risk_level = Column(String(20), nullable=True)
+    risk_flags = Column(Text, nullable=True)
     dismissed = Column(Integer, nullable=True, default=0)
     finder_user_id = Column(String(36), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -141,6 +143,17 @@ class MissingPetPhotoFingerprint(Base):
     width = Column(Integer, nullable=True)
     height = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class FoundReportPhotoFingerprint(Base):
+    __tablename__ = "found_report_photo_fingerprints"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    found_report_id = Column(String(36), nullable=False, index=True)
+    missing_pet_id = Column(String(36), nullable=False, index=True)
+    finder_contact = Column(String(200), nullable=True, index=True)
+    dhash = Column(String(16), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
 class PetSighting(Base):
@@ -1093,6 +1106,7 @@ def my_found_reports(db: Session = Depends(get_db), current_user=Depends(get_cur
             "compatibility_score": r.compatibility_score,
             "compatibility_analysis": r.compatibility_analysis,
             **_compatibility_payload(r.compatibility_score, r.compatibility_analysis),
+            **_risk_payload(r),
             "has_photos": bool(r.finder_photos),
             "photo_count": len(json.loads(r.finder_photos)) if r.finder_photos else 0,
         }
@@ -1175,6 +1189,7 @@ def get_found_report_photos(
         "compatibility_score": report.compatibility_score,
         "compatibility_analysis": report.compatibility_analysis,
         **_compatibility_payload(report.compatibility_score, report.compatibility_analysis),
+        **_risk_payload(report),
     }
 
 
@@ -1469,7 +1484,7 @@ def match_missing_pets_by_photo(body: PhotoMatchBody, db: Session = Depends(get_
         if score < 50:
             continue
         item = _mp_to_dict(mp)
-        item["score"] = score
+        item["_internal_score"] = score
         item.update(_compatibility_payload(score, analysis))
         if mp.id in visual_distances:
             item["visual_distance"] = visual_distances[mp.id]
@@ -1479,7 +1494,9 @@ def match_missing_pets_by_photo(body: PhotoMatchBody, db: Session = Depends(get_
             item["distance_km"] = None
         results.append(item)
 
-    results.sort(key=lambda p: (p.get("score") or 0, -(p.get("distance_km") or 999999)), reverse=True)
+    results.sort(key=lambda p: (p.get("_internal_score") or 0, -(p.get("distance_km") or 999999)), reverse=True)
+    for item in results:
+        item.pop("_internal_score", None)
     return {
         "analyzed": analyzed,
         "total_active_with_photo": len(candidates),
@@ -1507,7 +1524,6 @@ def analyze_photo(mp_id: str, body: PhotoAnalysisBody, db: Session = Depends(get
         quality = None
     score, analysis = _analyze_photo_compatibility(mp.photo_url, body.finder_photos, mp.characteristics)
     return {
-        "score": score if score >= 50 else None,
         "analysis": analysis if analysis else None,
         "photo_quality": quality,
         **_compatibility_payload(score if score >= 50 else None, analysis),
@@ -1772,6 +1788,123 @@ def _assess_finder_photos_quality(finder_photos: list[tuple[bytes, str]]) -> dic
         "checks": checks,
         "warnings": warnings,
         "message": "Envie uma foto mais nítida, com boa luz e o pet visível." if blocking else None,
+    }
+
+
+def _photo_metadata_risk_flags(photo_bytes: bytes) -> list[str]:
+    flags: list[str] = []
+    try:
+        from PIL import Image
+
+        image = Image.open(io.BytesIO(photo_bytes))
+        software = ""
+        try:
+            exif = image.getexif()
+            software = str(exif.get(305, "") or "")
+        except Exception:
+            software = ""
+        info_text = " ".join(str(v) for v in image.info.values() if isinstance(v, (str, bytes)))[:2000]
+        combined = f"{software} {info_text}".lower()
+        suspicious_terms = [
+            "midjourney",
+            "stable diffusion",
+            "dall-e",
+            "dalle",
+            "firefly",
+            "comfyui",
+            "automatic1111",
+            "generative",
+            "ai generated",
+        ]
+        if any(term in combined for term in suspicious_terms):
+            flags.append("possible_generated_image")
+    except Exception as exc:
+        logger.warning(f"Photo metadata risk check failed: {exc}")
+    return flags
+
+
+def _finder_photo_risk_flags(db: Session, finder_photos: list[str], finder_contact: str) -> tuple[list[str], list[str]]:
+    decoded: list[tuple[bytes, str]] = []
+    for photo in finder_photos[:3]:
+        try:
+            decoded.append(_decode_finder_photo(photo))
+        except Exception:
+            continue
+
+    flags: set[str] = set()
+    hashes: list[str] = []
+    for photo_bytes, _mime in decoded:
+        for flag in _photo_metadata_risk_flags(photo_bytes):
+            flags.add(flag)
+        try:
+            hashes.append(str(_compute_photo_dhash(photo_bytes)["dhash"]))
+        except Exception as exc:
+            logger.warning(f"Finder risk fingerprint failed: {exc}")
+
+    if hashes:
+        reused = (
+            db.query(FoundReportPhotoFingerprint)
+            .filter(FoundReportPhotoFingerprint.dhash.in_(hashes))
+            .count()
+        )
+        if reused > 0:
+            flags.add("reused_photo")
+
+    clean_contact = (finder_contact or "").strip()
+    if clean_contact:
+        previous_reports = (
+            db.query(FoundReport)
+            .filter(FoundReport.finder_contact == clean_contact)
+            .count()
+        )
+        if previous_reports >= 3:
+            flags.add("repeated_contact")
+
+    return sorted(flags), hashes
+
+
+def _risk_level_from_flags(flags: list[str]) -> str:
+    high_flags = {"possible_generated_image", "reused_photo"}
+    if any(flag in high_flags for flag in flags):
+        return "review"
+    if flags:
+        return "attention"
+    return "normal"
+
+
+def _store_found_report_photo_fingerprints(
+    db: Session,
+    report: FoundReport,
+    hashes: list[str],
+) -> None:
+    for dhash in hashes[:3]:
+        db.add(FoundReportPhotoFingerprint(
+            id=str(uuid.uuid4()),
+            found_report_id=report.id,
+            missing_pet_id=report.missing_pet_id,
+            finder_contact=report.finder_contact,
+            dhash=dhash,
+            created_at=datetime.now(timezone.utc),
+        ))
+
+
+def _risk_payload(report: FoundReport) -> dict:
+    flags = []
+    if report.risk_flags:
+        try:
+            flags = json.loads(report.risk_flags)
+        except Exception:
+            flags = []
+    return {
+        "risk_level": report.risk_level or _risk_level_from_flags(flags),
+        "risk_flags": flags,
+        "risk_label": (
+            "Revisar antes de responder"
+            if (report.risk_level == "review" or any(f in {"possible_generated_image", "reused_photo"} for f in flags))
+            else "Atenção ao contato"
+            if flags
+            else "Sem sinais automáticos de risco"
+        ),
     }
 
 
@@ -2050,12 +2183,16 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
         .first()
     )
     if existing:
-        return {"id": existing.id, "status": "already_reported",
-                "compatibility_score": existing.compatibility_score,
-                "compatibility_analysis": existing.compatibility_analysis}
+        return {
+            "id": existing.id,
+            "status": "already_reported",
+            **_compatibility_payload(existing.compatibility_score, existing.compatibility_analysis),
+        }
 
     # Se o frontend já rodou a pré-análise Gemini, reusar o score — evita duas chamadas
     has_pre_score = body.pre_score is not None and body.pre_score > 0
+    risk_flags, photo_hashes = _finder_photo_risk_flags(db, body.finder_photos or [], body.finder_contact.strip())
+    risk_level = _risk_level_from_flags(risk_flags)
 
     report = FoundReport(
         id=str(uuid.uuid4()),
@@ -2067,9 +2204,12 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
         finder_user_id=body.finder_user_id,
         compatibility_score=body.pre_score if has_pre_score else None,
         compatibility_analysis=body.pre_analysis if has_pre_score else None,
+        risk_level=risk_level,
+        risk_flags=json.dumps(risk_flags),
         created_at=datetime.now(timezone.utc),
     )
     db.add(report)
+    _store_found_report_photo_fingerprints(db, report, photo_hashes)
     db.commit()
     report_id = report.id
 
@@ -2099,6 +2239,6 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
     return {
         "id": report_id,
         "status": "reported",
-        "compatibility_score": body.pre_score if has_pre_score else None,
-        "compatibility_analysis": body.pre_analysis if has_pre_score else None,
+        **_compatibility_payload(body.pre_score if has_pre_score else None, body.pre_analysis if has_pre_score else None),
+        "risk_level": risk_level,
     }

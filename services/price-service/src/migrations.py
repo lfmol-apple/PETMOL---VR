@@ -191,6 +191,22 @@ def run_pg_migrations(engine: Engine) -> None:
         # found_reports: dismiss flag + finder identity (Jul 2026)
         _pg_add_column_if_missing(conn, "found_reports", "dismissed", "INTEGER DEFAULT 0")
         _pg_add_column_if_missing(conn, "found_reports", "finder_user_id", "TEXT")
+        _pg_add_column_if_missing(conn, "found_reports", "risk_level", "TEXT")
+        _pg_add_column_if_missing(conn, "found_reports", "risk_flags", "TEXT")
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS found_report_photo_fingerprints (
+                id              TEXT PRIMARY KEY,
+                found_report_id TEXT NOT NULL,
+                missing_pet_id  TEXT NOT NULL,
+                finder_contact  TEXT,
+                dhash           TEXT NOT NULL,
+                created_at      TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_found_report_photo_fingerprints_report ON found_report_photo_fingerprints (found_report_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_found_report_photo_fingerprints_missing_pet ON found_report_photo_fingerprints (missing_pet_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_found_report_photo_fingerprints_dhash ON found_report_photo_fingerprints (dhash)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_found_report_photo_fingerprints_contact ON found_report_photo_fingerprints (finder_contact)"))
 
         # missing_pets: public third-party reports + SEO pages (Jul 2026)
         _pg_add_column_if_missing(conn, "missing_pets", "reporter_type", "TEXT DEFAULT 'tutor_app'")
@@ -574,6 +590,24 @@ def run_sqlite_migrations(engine: Engine) -> None:
             )
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_product_reliable_catalog_key ON product_reliable_catalog (canonical_key)"))
+
+        # missing_pets: public third-party reports + SEO pages (Jul 2026)
+        changed |= _sqlite_add_column_if_missing(conn, "found_reports", "risk_level", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "found_reports", "risk_flags", "TEXT")
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS found_report_photo_fingerprints (
+                id              TEXT PRIMARY KEY,
+                found_report_id TEXT NOT NULL,
+                missing_pet_id  TEXT NOT NULL,
+                finder_contact  TEXT,
+                dhash           TEXT NOT NULL,
+                created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_found_report_photo_fingerprints_report ON found_report_photo_fingerprints (found_report_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_found_report_photo_fingerprints_missing_pet ON found_report_photo_fingerprints (missing_pet_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_found_report_photo_fingerprints_dhash ON found_report_photo_fingerprints (dhash)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_found_report_photo_fingerprints_contact ON found_report_photo_fingerprints (finder_contact)"))
 
         # missing_pets: public third-party reports + SEO pages (Jul 2026)
         changed |= _sqlite_add_column_if_missing(conn, "missing_pets", "reporter_type", "TEXT DEFAULT 'tutor_app'")

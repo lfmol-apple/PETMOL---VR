@@ -26,7 +26,7 @@ interface MissingPetRecord {
 }
 
 type PhotoMatchResult = MissingPetRecord & {
-  score: number;
+  score?: number;
   analysis: string | null;
   confidence_level?: 'strong_candidate' | 'review_candidate' | 'weak_candidate' | 'unlikely' | 'unknown';
   confidence_label?: string;
@@ -87,10 +87,8 @@ function AcheiUmPetInner() {
   const [reportPhotos, setReportPhotos] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [reportedIds, setReportedIds] = useState<string[]>([]);
-  const [compatScore, setCompatScore] = useState<number | null>(null);
-  const [compatAnalysis, setCompatAnalysis] = useState<string>('');
-  const [preScore, setPreScore] = useState<number | null>(null);
   const [preAnalysis, setPreAnalysis] = useState<string>('');
+  const [preConfidenceLabel, setPreConfidenceLabel] = useState('');
   const [preLoading, setPreLoading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const matchInputRef = useRef<HTMLInputElement>(null);
@@ -153,13 +151,12 @@ function AcheiUmPetInner() {
 
   useEffect(() => {
     if (reportPhotos.length === 0 || !focusedId) {
-      setPreScore(null); setPreAnalysis('');
+      setPreAnalysis('');
       return;
     }
     let cancelled = false;
     const run = async () => {
       setPreLoading(true);
-      setPreScore(null);
       try {
         const res = await fetch(`${API_BASE_URL}/missing-pets/${focusedId}/analyze-photo`, {
           method: 'POST',
@@ -167,8 +164,9 @@ function AcheiUmPetInner() {
           body: JSON.stringify({ finder_photos: reportPhotos }),
         });
         if (!cancelled && res.ok) {
-          const d = await res.json() as { score?: number | null; analysis?: string | null };
-          if (d.score != null) { setPreScore(d.score); setPreAnalysis(d.analysis ?? ''); }
+          const d = await res.json() as { confidence_label?: string | null; analysis?: string | null };
+          setPreConfidenceLabel(d.confidence_label || 'Triagem concluída; o tutor precisa confirmar.');
+          setPreAnalysis(d.analysis ?? '');
         }
       } catch { /* silent */ }
       if (!cancelled) setPreLoading(false);
@@ -333,10 +331,8 @@ function AcheiUmPetInner() {
     setReportCep('');
     setCepLoading(false);
     setReportPhotos([]);
-    setCompatScore(null);
-    setCompatAnalysis('');
-    setPreScore(null);
     setPreAnalysis('');
+    setPreConfidenceLabel('');
     setPreLoading(false);
   };
 
@@ -363,18 +359,11 @@ function AcheiUmPetInner() {
           notes: reportNotes.trim() || null,
           finder_photos: reportPhotos,
           finder_user_id: finderUserId,
-          pre_score: preScore,
-          pre_analysis: preAnalysis || null,
+          pre_score: null,
+          pre_analysis: null,
         }),
       });
       if (res.ok) {
-        const data = await res.json() as { compatibility_score?: number | null; compatibility_analysis?: string | null };
-        const finalScore = data.compatibility_score ?? preScore;
-        const finalAnalysis = data.compatibility_analysis ?? preAnalysis;
-        if (finalScore != null) {
-          setCompatScore(finalScore);
-          setCompatAnalysis(finalAnalysis ?? '');
-        }
         setReportedIds(ids => [...ids, petId]);
         setReportingId(null);
         try {
@@ -423,17 +412,12 @@ function AcheiUmPetInner() {
               Você acabou de fazer a diferença na vida de uma família. O tutor de <strong className="text-white">{pet?.pet_name}</strong> já foi notificado.
             </p>
 
-            {/* Resultado de compatibilidade */}
-            {compatScore != null && (
-              <div className="mt-5 w-full max-w-xs bg-white/15 backdrop-blur-sm rounded-2xl px-5 py-5 border border-white/20 text-center">
-                <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-200 mb-3">Análise de IA</p>
-                <div className="w-28 h-28 rounded-full mx-auto flex items-center justify-center border-[4px] border-white/60 mb-3"
-                  style={{ background: compatScore >= 70 ? 'rgba(52,211,153,0.35)' : compatScore >= 40 ? 'rgba(251,191,36,0.35)' : 'rgba(239,68,68,0.35)' }}>
-                  <span className="text-[44px] font-black text-white leading-none">{compatScore}%</span>
-                </div>
-                <p className="text-[13px] text-white leading-snug">{compatAnalysis || 'Análise de compatibilidade concluída.'}</p>
-              </div>
-            )}
+            <div className="mt-5 w-full max-w-xs bg-white/15 backdrop-blur-sm rounded-2xl px-5 py-4 border border-white/20 text-center">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-200">Triagem enviada</p>
+              <p className="text-[13px] text-white/75 mt-2 leading-snug">
+                A IA ajuda a priorizar, mas só o tutor confirma se é o mesmo pet. Nunca combine pagamento antecipado.
+              </p>
+            </div>
 
             <div className="mt-8 w-full max-w-xs space-y-3">
               <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-5 py-4 text-left border border-white/20">
@@ -656,13 +640,8 @@ function AcheiUmPetInner() {
               </div>
 
               {/* Análise de compatibilidade — aparece quando há fotos */}
-              {(preLoading || preScore != null) && (
-                <div className={`rounded-2xl border px-4 py-5 text-center ${
-                  preLoading ? 'border-slate-200 bg-slate-50' :
-                  preScore! >= 70 ? 'border-emerald-200 bg-emerald-50' :
-                  preScore! >= 40 ? 'border-amber-200 bg-amber-50' :
-                  'border-rose-200 bg-rose-50'
-                }`}>
+              {(preLoading || preConfidenceLabel) && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-5 text-center">
                   {preLoading ? (
                     <div className="flex items-center gap-3 justify-center py-2">
                       <div className="w-10 h-10 rounded-full border-2 border-slate-200 border-t-slate-400 animate-spin flex-shrink-0" />
@@ -670,24 +649,16 @@ function AcheiUmPetInner() {
                     </div>
                   ) : (
                     <>
-                      <div className={`w-28 h-28 rounded-full mx-auto flex items-center justify-center mb-3 ${
-                        preScore! >= 70 ? 'bg-emerald-100' :
-                        preScore! >= 40 ? 'bg-amber-100' : 'bg-rose-100'
-                      }`} style={{ border: `4px solid ${preScore! >= 70 ? '#34d399' : preScore! >= 40 ? '#fbbf24' : '#f87171'}` }}>
-                        <span className={`text-[44px] font-black leading-none ${
-                          preScore! >= 70 ? 'text-emerald-700' :
-                          preScore! >= 40 ? 'text-amber-700' : 'text-rose-700'
-                        }`}>{preScore}%</span>
+                      <div className="w-20 h-20 rounded-full mx-auto flex items-center justify-center mb-3 bg-amber-100 border-4 border-amber-300">
+                        <span className="text-[34px]">🔎</span>
                       </div>
-                      <p className={`text-[15px] font-black ${
-                        preScore! >= 70 ? 'text-emerald-800' :
-                        preScore! >= 40 ? 'text-amber-800' : 'text-rose-800'
-                      }`}>
-                        {preScore! >= 90 ? 'Muito parecido — ainda precisa confirmação do tutor' :
-                         preScore! >= 75 ? 'Parecido — precisa confirmação humana' :
-                         'Baixa confiança — confira manualmente'}
+                      <p className="text-[15px] font-black text-amber-900">
+                        {preConfidenceLabel || 'Triagem concluída; o tutor precisa confirmar.'}
                       </p>
                       {preAnalysis && <p className="text-[12px] text-slate-500 mt-1.5 leading-snug">{preAnalysis}</p>}
+                      <p className="text-[11px] text-amber-800/80 mt-2 leading-snug">
+                        O resultado não é confirmação. Envie o aviso e aguarde o tutor.
+                      </p>
                     </>
                   )}
                 </div>
@@ -888,15 +859,11 @@ function AcheiUmPetInner() {
                   </div>
                   <div className="min-w-0 flex-1 py-1">
                     <div className="flex items-center gap-2">
-                      <span className={`rounded-full px-2.5 py-1 text-[12px] font-black ${
-                        pet.score >= 90 ? 'bg-emerald-400 text-emerald-950' :
-                        pet.score >= 75 ? 'bg-amber-300 text-amber-950' :
-                        'bg-white/15 text-white/70'
-                      }`}>
-                        {pet.score}%
+                      <span className="rounded-full bg-amber-300 px-2.5 py-1 text-[12px] font-black text-amber-950">
+                        Revisar
                       </span>
                       <span className="text-[11px] font-bold uppercase tracking-wide text-white/35">
-                        {pet.confidence_label || (pet.score >= 90 ? 'muito parecido' : pet.score >= 75 ? 'precisa revisar' : 'baixa confiança')}
+                        {pet.confidence_label || 'possível candidato'}
                       </span>
                     </div>
                     <p className="mt-2 truncate text-[20px] font-black leading-tight text-white">{pet.pet_name}</p>
