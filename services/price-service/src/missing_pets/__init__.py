@@ -152,6 +152,13 @@ class PhotoAnalysisBody(BaseModel):
     finder_photos: List[str] = []
 
 
+class PhotoMatchBody(BaseModel):
+    finder_photos: List[str] = []
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    limit: Optional[int] = 20
+
+
 class MissingPetUpdate(BaseModel):
     characteristics: Optional[str] = None
     contact: Optional[str] = None
@@ -757,6 +764,56 @@ def upload_missing_pet_photo(body: PhotoUploadBody):
     except Exception as e:
         logger.error(f"upload_missing_pet_photo error: {e}")
         raise HTTPException(status_code=500, detail="Erro ao salvar foto")
+
+
+@router.post("/match-photo")
+def match_missing_pets_by_photo(body: PhotoMatchBody, db: Session = Depends(get_db)):
+    """Compara fotos do achador contra alertas ativos e retorna os melhores candidatos."""
+    if not body.finder_photos:
+        raise HTTPException(status_code=400, detail="Envie ao menos uma foto")
+
+    max_candidates = max(1, min(int(body.limit or 20), 40))
+    q = (
+        db.query(MissingPet)
+        .filter(MissingPet.status == "active", MissingPet.photo_url.isnot(None))
+        .order_by(MissingPet.created_at.desc())
+        .limit(200)
+    )
+    candidates = q.all()
+
+    if body.lat is not None and body.lng is not None:
+        def _distance(p: MissingPet) -> float:
+            if p.lat is None or p.lng is None:
+                return 999999.0
+            return _haversine_km(body.lat, body.lng, p.lat, p.lng)
+        candidates = sorted(candidates, key=_distance)
+
+    results: list[dict] = []
+    analyzed = 0
+    for mp in candidates:
+        if analyzed >= max_candidates:
+            break
+        if not mp.photo_url:
+            continue
+        analyzed += 1
+        score, analysis = _analyze_photo_compatibility(mp.photo_url, body.finder_photos[:2], mp.characteristics)
+        if score <= 0:
+            continue
+        item = _mp_to_dict(mp)
+        item["score"] = score
+        item["analysis"] = analysis
+        if body.lat is not None and body.lng is not None and mp.lat is not None and mp.lng is not None:
+            item["distance_km"] = round(_haversine_km(body.lat, body.lng, mp.lat, mp.lng), 2)
+        else:
+            item["distance_km"] = None
+        results.append(item)
+
+    results.sort(key=lambda p: (p.get("score") or 0, -(p.get("distance_km") or 999999)), reverse=True)
+    return {
+        "analyzed": analyzed,
+        "total_active_with_photo": len(candidates),
+        "matches": results[:8],
+    }
 
 
 @router.post("/{mp_id}/analyze-photo")

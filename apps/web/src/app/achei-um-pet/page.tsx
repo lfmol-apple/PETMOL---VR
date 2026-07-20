@@ -25,6 +25,12 @@ interface MissingPetRecord {
   found_at: string | null;
 }
 
+type PhotoMatchResult = MissingPetRecord & {
+  score: number;
+  analysis: string | null;
+  distance_km: number | null;
+};
+
 function formatDate(iso: string | null): string {
   if (!iso) return '';
   try {
@@ -83,6 +89,12 @@ function AcheiUmPetInner() {
   const [preAnalysis, setPreAnalysis] = useState<string>('');
   const [preLoading, setPreLoading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const matchInputRef = useRef<HTMLInputElement>(null);
+  const [matchPhotos, setMatchPhotos] = useState<string[]>([]);
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [matchError, setMatchError] = useState('');
+  const [matchResults, setMatchResults] = useState<PhotoMatchResult[]>([]);
+  const [matchAnalyzed, setMatchAnalyzed] = useState<number | null>(null);
 
   // Inicializa reportedIds do localStorage e verifica dismissals no backend
   useEffect(() => {
@@ -193,6 +205,47 @@ function AcheiUmPetInner() {
     };
     reader.readAsDataURL(file);
     e.target.value = '';
+  };
+
+  const handleMatchPhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const result = evt.target?.result as string;
+      setMatchPhotos([result]);
+      setMatchResults([]);
+      setMatchAnalyzed(null);
+      setMatchError('');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleRunPhotoMatch = async () => {
+    if (matchPhotos.length === 0 || matchLoading) return;
+    setMatchLoading(true);
+    setMatchError('');
+    setMatchResults([]);
+    setMatchAnalyzed(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/missing-pets/match-photo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ finder_photos: matchPhotos, limit: 20 }),
+      });
+      if (!res.ok) throw new Error('match_failed');
+      const data = await res.json() as { analyzed?: number; matches?: PhotoMatchResult[] };
+      setMatchAnalyzed(data.analyzed ?? null);
+      setMatchResults(data.matches ?? []);
+      if (!data.matches || data.matches.length === 0) {
+        setMatchError('Não encontramos candidatos fortes. Você ainda pode olhar a lista abaixo.');
+      }
+    } catch {
+      setMatchError('Não foi possível analisar a foto agora. Tente novamente.');
+    } finally {
+      setMatchLoading(false);
+    }
   };
 
   const handleOpenReport = (id: string) => {
@@ -618,6 +671,147 @@ function AcheiUmPetInner() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+
+        {/* Photo-first matching */}
+        <section className="rounded-[28px] border border-emerald-500/25 bg-gradient-to-br from-emerald-950/70 via-[#10201A] to-[#0E0C0B] px-4 py-4 shadow-2xl shadow-black/30">
+          <div className="flex items-start gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-400/15 border border-emerald-300/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-2xl">📷</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-[21px] font-black text-white leading-tight">
+                Encontrou um pet?
+              </h1>
+              <p className="text-[13px] text-white/55 mt-1 leading-relaxed">
+                Tire uma foto e a IA procura os alertas mais parecidos para você.
+              </p>
+            </div>
+          </div>
+
+          <input
+            ref={matchInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleMatchPhotoCapture}
+          />
+
+          <div className="mt-4 grid gap-3">
+            {matchPhotos[0] ? (
+              <div className="relative overflow-hidden rounded-3xl border border-emerald-300/20 bg-black/30">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={matchPhotos[0]} alt="Foto enviada" className="w-full h-64 object-contain bg-black" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMatchPhotos([]);
+                    setMatchResults([]);
+                    setMatchAnalyzed(null);
+                    setMatchError('');
+                  }}
+                  className="absolute right-3 top-3 h-9 w-9 rounded-full bg-black/65 text-white text-xl leading-none backdrop-blur active:scale-95"
+                >
+                  ×
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => matchInputRef.current?.click()}
+                className="min-h-44 rounded-3xl border-2 border-dashed border-emerald-300/30 bg-white/5 px-4 py-8 text-center active:scale-[0.99] transition-transform"
+              >
+                <span className="block text-5xl">📸</span>
+                <span className="mt-3 block text-[18px] font-black text-white">Fotografar pet encontrado</span>
+                <span className="mt-1 block text-[12px] text-white/45">ou escolher foto da galeria</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={matchPhotos[0] ? handleRunPhotoMatch : () => matchInputRef.current?.click()}
+              disabled={matchLoading}
+              className="w-full rounded-2xl bg-emerald-500 py-4 text-[16px] font-black text-white shadow-lg shadow-emerald-950/40 active:scale-[0.98] transition-all disabled:opacity-60"
+            >
+              {matchLoading ? 'IA procurando candidatos...' : matchPhotos[0] ? 'Buscar pets parecidos' : 'Começar pela foto'}
+            </button>
+          </div>
+
+          {matchLoading && (
+            <div className="mt-4 rounded-2xl bg-white/6 border border-white/10 px-4 py-4">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+                <div className="h-full w-1/2 rounded-full bg-emerald-400 animate-pulse" />
+              </div>
+              <p className="mt-3 text-center text-[13px] font-semibold text-white/60">
+                Comparando a foto com os alertas ativos...
+              </p>
+            </div>
+          )}
+
+          {!matchLoading && matchAnalyzed != null && matchResults.length > 0 && (
+            <div className="mt-5 space-y-3">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-[12px] font-black uppercase tracking-widest text-emerald-200/70">Melhores candidatos</p>
+                  <p className="text-[12px] text-white/45">IA analisou {matchAnalyzed} alertas ativos com foto.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => matchInputRef.current?.click()}
+                  className="rounded-full bg-white/8 px-3 py-1.5 text-[12px] font-bold text-white/65 border border-white/10"
+                >
+                  Trocar foto
+                </button>
+              </div>
+
+              {matchResults.map((pet) => (
+                <Link
+                  key={pet.id}
+                  href={`/achei-um-pet?id=${pet.id}`}
+                  className="flex gap-3 rounded-3xl bg-white/8 border border-white/10 p-2.5 active:scale-[0.99] transition-transform"
+                >
+                  <div className="relative h-28 w-28 overflow-hidden rounded-2xl bg-black flex-shrink-0">
+                    {pet.photo_url ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={resolvePetPhotoUrl(pet.photo_url) ?? ''} alt="" className="absolute inset-0 h-full w-full object-cover opacity-35 blur-md scale-110" />
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={resolvePetPhotoUrl(pet.photo_url) ?? ''} alt={pet.pet_name} className="relative h-full w-full object-contain" />
+                      </>
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-4xl opacity-40">{pet.species === 'cat' ? '🐱' : '🐶'}</div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 py-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full px-2.5 py-1 text-[12px] font-black ${
+                        pet.score >= 70 ? 'bg-emerald-400 text-emerald-950' :
+                        pet.score >= 40 ? 'bg-amber-300 text-amber-950' :
+                        'bg-white/15 text-white/70'
+                      }`}>
+                        {pet.score}%
+                      </span>
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-white/35">
+                        {pet.score >= 70 ? 'muito parecido' : pet.score >= 40 ? 'pode ser' : 'baixo'}
+                      </span>
+                    </div>
+                    <p className="mt-2 truncate text-[20px] font-black leading-tight text-white">{pet.pet_name}</p>
+                    <p className="truncate text-[12px] text-white/45">
+                      {[pet.species === 'cat' ? 'Gato' : 'Cão', pet.breed].filter(Boolean).join(' · ')}
+                    </p>
+                    {pet.analysis && <p className="mt-1.5 line-clamp-2 text-[12px] leading-snug text-white/60">{pet.analysis}</p>}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {!matchLoading && matchError && (
+            <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-500/10 px-4 py-3 text-[13px] font-semibold text-amber-100">
+              {matchError}
+            </div>
+          )}
+        </section>
 
         {/* Hero */}
         <div className="bg-gradient-to-br from-red-950/60 via-[#1A0A08] to-[#0E0C0B] rounded-3xl border border-red-900/30 px-5 py-5">
