@@ -298,6 +298,13 @@ def _mp_to_dict(p: MissingPet) -> dict:
     }
 
 
+def _mp_to_public_dict(p: MissingPet) -> dict:
+    data = _mp_to_dict(p)
+    data.pop("contact", None)
+    data.pop("user_id", None)
+    return data
+
+
 def _compatibility_level(score: int | None) -> str:
     if score is None:
         return "unknown"
@@ -1012,7 +1019,7 @@ def list_missing_pets(include_found: bool = False, db: Session = Depends(get_db)
     q = db.query(MissingPet)
     if not include_found:
         q = q.filter(MissingPet.status == "active")
-    return [_mp_to_dict(p) for p in q.order_by(MissingPet.created_at.desc()).limit(200).all()]
+    return [_mp_to_public_dict(p) for p in q.order_by(MissingPet.created_at.desc()).limit(200).all()]
 
 
 @sighting_router.post("", status_code=201)
@@ -1491,7 +1498,7 @@ def match_missing_pets_by_photo(body: PhotoMatchBody, db: Session = Depends(get_
         score, analysis = _analyze_photo_compatibility(mp.photo_url, body.finder_photos[:2], mp.characteristics)
         if score < 50:
             continue
-        item = _mp_to_dict(mp)
+        item = _mp_to_public_dict(mp)
         item["_internal_score"] = score
         item.update(_compatibility_payload(score, analysis))
         if mp.id in visual_distances:
