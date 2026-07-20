@@ -13,8 +13,10 @@ import os
 import uuid
 import logging
 import threading
+import asyncio
+import base64 as _base64
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -763,7 +765,7 @@ def analyze_photo(mp_id: str, body: PhotoAnalysisBody, db: Session = Depends(get
     mp = db.query(MissingPet).filter(MissingPet.id == mp_id, MissingPet.status == "active").first()
     if not mp or not mp.photo_url or not body.finder_photos:
         return {"score": None, "analysis": None}
-    score, analysis = _analyze_photo_compatibility(mp.photo_url, body.finder_photos)
+    score, analysis = _analyze_photo_compatibility(mp.photo_url, body.finder_photos, mp.characteristics)
     return {
         "score": score if score > 0 else None,
         "analysis": analysis if analysis else None,
@@ -790,64 +792,263 @@ def _delayed_rebroadcast(mp_id: str, delay_seconds: int) -> None:
         logger.error(f"[rebroadcast] error: {e}")
 
 
-def _analyze_photo_compatibility(pet_photo_url: str, finder_photos_b64: list) -> tuple:
-    """Gemini Vision: compara até 2 fotos do achador com a foto de referência do pet."""
+def _run_async(coro):
+    """Run an async task from sync FastAPI/background contexts."""
     try:
-        import base64 as _b64
-        import urllib.request
-        import re
-        import google.generativeai as genai
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
 
-        api_key = os.environ.get("GEMINI_API_KEY", "")
-        if not api_key or not finder_photos_b64:
+    result: dict[str, Any] = {}
+    error: dict[str, BaseException] = {}
+
+    def _runner():
+        try:
+            result["value"] = asyncio.run(coro)
+        except BaseException as exc:
+            error["value"] = exc
+
+    t = threading.Thread(target=_runner)
+    t.start()
+    t.join()
+    if error:
+        raise error["value"]
+    return result.get("value")
+
+
+def _json_from_model_text(text: str) -> dict:
+    import re
+
+    cleaned = (text or "").strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    if cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    cleaned = cleaned.strip()
+
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        m = re.search(r"\{[\s\S]*\}", cleaned)
+        if not m:
+            raise
+        return json.loads(m.group())
+
+
+def _normalize_reference_photo_urls(pet_photo_url) -> list[str]:
+    if not pet_photo_url:
+        return []
+    if isinstance(pet_photo_url, (list, tuple)):
+        return [str(x).strip() for x in pet_photo_url if str(x).strip()]
+    value = str(pet_photo_url).strip()
+    if not value:
+        return []
+    if value.startswith("["):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                return [str(x).strip() for x in parsed if str(x).strip()]
+        except Exception:
+            pass
+    if "\n" in value:
+        return [x.strip() for x in value.splitlines() if x.strip()]
+    if "," in value and not value.startswith("data:"):
+        return [x.strip() for x in value.split(",") if x.strip()]
+    return [value]
+
+
+def _reference_url_to_fetch_url(photo_url: str) -> str:
+    if photo_url.startswith("http"):
+        return photo_url
+    path = photo_url.lstrip("/")
+    if path.startswith("uploads/"):
+        return f"http://localhost:8000/{path}"
+    return f"http://localhost:8000/uploads/{path}"
+
+
+def _mime_from_name_or_data(value: str, default: str = "image/jpeg") -> str:
+    lower = (value or "").lower()
+    if lower.startswith("data:") and ";" in lower:
+        return lower.split(";", 1)[0].replace("data:", "") or default
+    if lower.endswith(".png"):
+        return "image/png"
+    if lower.endswith(".webp"):
+        return "image/webp"
+    if lower.endswith(".gif"):
+        return "image/gif"
+    return default
+
+
+def _decode_finder_photo(photo_b64: str) -> tuple[bytes, str]:
+    raw = photo_b64.split(",", 1)[-1] if "," in photo_b64 else photo_b64
+    return _base64.b64decode(raw), _mime_from_name_or_data(photo_b64)
+
+
+def _load_reference_photo(photo_url: str) -> tuple[bytes, str]:
+    import urllib.request
+
+    url = _reference_url_to_fetch_url(photo_url)
+    with urllib.request.urlopen(url, timeout=15) as resp:
+        return resp.read(), _mime_from_name_or_data(photo_url)
+
+
+def _pet_match_prompt(n_finder_photos: int, characteristics: str | None) -> str:
+    finder_text = (
+        "As demais imagens são fotos tiradas por quem diz ter encontrado o pet."
+        if n_finder_photos > 1
+        else "A segunda imagem é a foto tirada por quem diz ter encontrado o pet."
+    )
+    characteristics_text = ""
+    if characteristics and characteristics.strip():
+        characteristics_text = (
+            " O tutor descreveu estas características adicionais do pet: "
+            f"{characteristics.strip()}. Considere isso na comparação, mas não ignore "
+            "o que vir das fotos se o texto divergir muito do que é visível."
+        )
+    return (
+        f"Você recebeu {n_finder_photos + 1} fotos. A primeira é foto de referência "
+        f"do pet desaparecido. {finder_text}{characteristics_text} "
+        "Compare pelagem, cor, raça, porte, marcações, orelhas, focinho, olhos e demais traços visíveis. "
+        "Use as características do tutor apenas como pista complementar. "
+        "Responda SOMENTE em JSON válido: "
+        "{\"score\": <inteiro 0 a 100>, \"analysis\": \"<frase curta em português, máx 80 chars>\"}. "
+        "score=100 significa certamente o mesmo animal; score=0 significa certamente diferente."
+    )
+
+
+async def _score_with_gemini(
+    reference: tuple[bytes, str],
+    finder_photos: list[tuple[bytes, str]],
+    characteristics: str | None,
+) -> dict:
+    import google.generativeai as genai
+
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY não configurada")
+
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-2.5-flash")
+    prompt = _pet_match_prompt(len(finder_photos), characteristics)
+    parts: list[Any] = [
+        prompt,
+        {"inline_data": {"mime_type": reference[1], "data": _base64.b64encode(reference[0]).decode()}},
+    ]
+    for photo_bytes, mime in finder_photos:
+        parts.append({"inline_data": {"mime_type": mime, "data": _base64.b64encode(photo_bytes).decode()}})
+
+    response = await asyncio.to_thread(model.generate_content, parts)
+    data = _json_from_model_text(response.text)
+    return {"engine": "gemini", "score": int(data.get("score", 0)), "analysis": str(data.get("analysis", ""))}
+
+
+async def _score_with_openai(
+    reference: tuple[bytes, str],
+    finder_photos: list[tuple[bytes, str]],
+    characteristics: str | None,
+) -> dict:
+    from openai import AsyncOpenAI
+
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY não configurada")
+
+    client = AsyncOpenAI(api_key=api_key)
+    prompt = _pet_match_prompt(len(finder_photos), characteristics)
+    content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+    all_photos = [reference] + finder_photos
+    for photo_bytes, mime in all_photos:
+        encoded = _base64.b64encode(photo_bytes).decode()
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:{mime};base64,{encoded}", "detail": "high"},
+        })
+
+    response = await client.chat.completions.create(
+        model=os.environ.get("PETMOL_OPENAI_VISION_MODEL", "gpt-4-turbo"),
+        messages=[{"role": "user", "content": content}],
+        max_tokens=400,
+        temperature=0.1,
+    )
+    data = _json_from_model_text(response.choices[0].message.content or "")
+    return {"engine": "gpt-4-vision", "score": int(data.get("score", 0)), "analysis": str(data.get("analysis", ""))}
+
+
+def _consensus_pet_match(results: list[dict]) -> tuple[int, str]:
+    valid = [
+        r for r in results
+        if not isinstance(r, Exception) and isinstance(r, dict) and r.get("score") is not None
+    ]
+    if not valid:
+        return 0, ""
+    for result in valid:
+        result["score"] = max(0, min(100, int(result.get("score") or 0)))
+
+    if len(valid) == 1:
+        return valid[0]["score"], valid[0].get("analysis", "")
+
+    valid = sorted(valid, key=lambda r: r["score"], reverse=True)
+    high, low = valid[0], valid[-1]
+    if abs(high["score"] - low["score"]) <= 15:
+        score = round(sum(r["score"] for r in valid) / len(valid))
+        analysis_source = high
+    else:
+        score = low["score"]
+        analysis_source = low
+    return score, analysis_source.get("analysis", "")
+
+
+async def _analyze_reference_against_finders(
+    reference: tuple[bytes, str],
+    finder_photos: list[tuple[bytes, str]],
+    characteristics: str | None,
+) -> tuple[int, str]:
+    tasks = []
+    if os.environ.get("GEMINI_API_KEY"):
+        tasks.append(_score_with_gemini(reference, finder_photos, characteristics))
+    if os.environ.get("OPENAI_API_KEY"):
+        tasks.append(_score_with_openai(reference, finder_photos, characteristics))
+    if not tasks:
+        return 0, ""
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for result in results:
+        if isinstance(result, Exception):
+            logger.warning(f"Pet compat engine failed: {result}")
+    return _consensus_pet_match(list(results))
+
+
+def _analyze_photo_compatibility(pet_photo_url, finder_photos_b64: list, characteristics: str | None = None) -> tuple:
+    """Compare pet photos with Gemini and OpenAI Vision, using conservative consensus."""
+    try:
+        if not finder_photos_b64:
             return 0, ""
 
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        reference_urls = _normalize_reference_photo_urls(pet_photo_url)
+        if not reference_urls:
+            return 0, ""
 
-        if pet_photo_url.startswith("http"):
-            url = pet_photo_url
-        else:
-            path = pet_photo_url.lstrip('/')
-            if path.startswith('uploads/'):
-                url = f"http://localhost:8000/{path}"
-            else:
-                url = f"http://localhost:8000/uploads/{path}"
-        with urllib.request.urlopen(url, timeout=15) as resp:
-            pet_bytes = resp.read()
+        finder_photos = [_decode_finder_photo(b64) for b64 in finder_photos_b64[:3]]
+        best_score = 0
+        best_analysis = ""
 
-        pet_mime = "image/jpeg"
-        for ext, mime in [(".png", "image/png"), (".webp", "image/webp")]:
-            if pet_photo_url.lower().endswith(ext):
-                pet_mime = mime
+        for reference_url in reference_urls:
+            try:
+                reference = _load_reference_photo(reference_url)
+                score, analysis = _run_async(
+                    _analyze_reference_against_finders(reference, finder_photos, characteristics)
+                )
+                if score > best_score:
+                    best_score = score
+                    best_analysis = analysis
+            except Exception as e:
+                logger.warning(f"Pet compat reference failed ({reference_url}): {e}")
 
-        parts = [{"inline_data": {"mime_type": pet_mime, "data": _b64.b64encode(pet_bytes).decode()}}]
-        n_fotos = min(len(finder_photos_b64), 2)
-        for b64 in finder_photos_b64[:n_fotos]:
-            raw = b64.split(",")[-1] if "," in b64 else b64
-            finder_bytes = _b64.b64decode(raw)
-            finder_mime = "image/jpeg"
-            if "data:" in b64 and ";" in b64:
-                finder_mime = b64.split(";")[0].replace("data:", "")
-            parts.append({"inline_data": {"mime_type": finder_mime, "data": _b64.b64encode(finder_bytes).decode()}})
-
-        extra = " A SEGUNDA e TERCEIRA são fotos tiradas por quem diz ter encontrado o pet." if n_fotos > 1 else " A SEGUNDA é foto tirada por quem diz ter encontrado o pet."
-        prompt = (
-            f"Você recebeu {n_fotos + 1} fotos. A PRIMEIRA é a foto do pet desaparecido (referência).{extra} "
-            "Compare: pelagem, cor, raça, porte, marcações, orelhas, focinho e demais traços visíveis. "
-            "Responda SOMENTE em JSON válido: {\"score\": <inteiro 0 a 100>, \"analysis\": \"<frase curta em português, máx 80 chars>\"} "
-            "onde score=100 = certamente o mesmo animal, score=0 = certamente diferente."
-        )
-        parts.append(prompt)
-
-        response = model.generate_content(parts)
-        text = response.text.strip()
-        m = re.search(r'\{[^}]+\}', text, re.DOTALL)
-        if m:
-            data = json.loads(m.group())
-            return int(data.get("score", 0)), str(data.get("analysis", ""))
+        return best_score, best_analysis
     except Exception as e:
-        logger.error(f"Gemini compat analysis failed: {e}")
+        logger.error(f"Pet compat analysis failed: {e}")
     return 0, ""
 
 
@@ -893,11 +1094,11 @@ def _push_owner_found(mp: MissingPet, finder_contact: str, finder_location: str 
         logger.error(f"Push ao tutor falhou: {e}")
 
 
-def _analyze_and_save(report_id: str, mp_photo_url: str, finder_photos: list, owner_user_id: str, pet_name: str, mp_id: str) -> None:
-    """Roda Gemini em background e salva o score — depois envia push com o resultado."""
+def _analyze_and_save(report_id: str, mp_photo_url: str, finder_photos: list, owner_user_id: str, pet_name: str, mp_id: str, characteristics: str | None = None) -> None:
+    """Roda análise de foto em background e salva o score — depois envia push com o resultado."""
     try:
         from ..db import SessionLocal
-        score, analysis = _analyze_photo_compatibility(mp_photo_url, finder_photos)
+        score, analysis = _analyze_photo_compatibility(mp_photo_url, finder_photos, characteristics)
         if score <= 0:
             return
         db = SessionLocal()
@@ -984,7 +1185,7 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
         # Sem pré-análise — roda Gemini em background
         threading.Thread(
             target=_analyze_and_save,
-            args=(report_id, mp.photo_url, body.finder_photos, mp.user_id, mp.pet_name, mp_id),
+            args=(report_id, mp.photo_url, body.finder_photos, mp.user_id, mp.pet_name, mp_id, mp.characteristics),
             daemon=True,
         ).start()
 
