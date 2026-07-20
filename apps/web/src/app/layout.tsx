@@ -36,8 +36,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'PETMOL - Carteirinha Digital e Gestão Completa do Seu Pet',
-  description: 'Carteirinha digital, controle de vacinas, histórico de saúde e agenda completa. O melhor app para cuidar do seu pet, tudo em um só lugar.',
+  title: 'PETMOL — Cuidado completo do seu pet: ração, vacinas e pet perdido',
+  description: 'Controle de ração, vacinas e saúde do seu pet, com alerta inteligente de pet perdido. Tudo em um só app.',
   keywords: ['pet', 'cachorro', 'gato', 'carteirinha digital', 'vacinas', 'saúde pet', 'agenda pet'],
   icons: {
     icon: [
@@ -58,8 +58,8 @@ export const metadata: Metadata = {
     'mobile-web-app-capable': 'yes',
   },
   openGraph: {
-    title: 'PETMOL - Cuidados do Seu Pet',
-    description: 'Carteirinha digital, vacinas e saúde para seu pet',
+    title: 'PETMOL — Cuidado completo do seu pet: ração, vacinas e pet perdido',
+    description: 'Controle de ração, vacinas e saúde do seu pet, com alerta inteligente de pet perdido. Tudo em um só app.',
     url: siteUrl,
     siteName: 'PETMOL',
     locale: 'pt_BR',

@@ -192,6 +192,26 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "found_reports", "dismissed", "INTEGER DEFAULT 0")
         _pg_add_column_if_missing(conn, "found_reports", "finder_user_id", "TEXT")
 
+        # missing_pets: public third-party reports + SEO pages (Jul 2026)
+        _pg_add_column_if_missing(conn, "missing_pets", "reporter_type", "TEXT DEFAULT 'tutor_app'")
+        _pg_add_column_if_missing(conn, "missing_pets", "reporter_contact", "TEXT")
+        _pg_add_column_if_missing(conn, "missing_pets", "access_token", "TEXT")
+        _pg_add_column_if_missing(conn, "missing_pets", "public_slug", "TEXT")
+        conn.execute(text('ALTER TABLE "missing_pets" ALTER COLUMN "user_id" DROP NOT NULL'))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_missing_pets_access_token ON missing_pets (access_token) WHERE access_token IS NOT NULL"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_missing_pets_public_slug ON missing_pets (public_slug) WHERE public_slug IS NOT NULL"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS public_missing_pet_submissions (
+                id             TEXT PRIMARY KEY,
+                missing_pet_id TEXT,
+                ip_address     TEXT NOT NULL,
+                user_agent     TEXT,
+                created_at     TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_public_missing_pet_submissions_ip ON public_missing_pet_submissions (ip_address)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_public_missing_pet_submissions_created ON public_missing_pet_submissions (created_at)"))
+
         # pets: invite token for caretaker sharing (Jul 2026)
         _pg_add_column_if_missing(conn, "pets", "invite_token", "VARCHAR(64)")
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_pets_invite_token ON pets (invite_token)"))
@@ -554,6 +574,25 @@ def run_sqlite_migrations(engine: Engine) -> None:
             )
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_product_reliable_catalog_key ON product_reliable_catalog (canonical_key)"))
+
+        # missing_pets: public third-party reports + SEO pages (Jul 2026)
+        changed |= _sqlite_add_column_if_missing(conn, "missing_pets", "reporter_type", "TEXT DEFAULT 'tutor_app'")
+        changed |= _sqlite_add_column_if_missing(conn, "missing_pets", "reporter_contact", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "missing_pets", "access_token", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "missing_pets", "public_slug", "TEXT")
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_missing_pets_access_token ON missing_pets (access_token)"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_missing_pets_public_slug ON missing_pets (public_slug)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS public_missing_pet_submissions (
+                id             TEXT PRIMARY KEY,
+                missing_pet_id TEXT,
+                ip_address     TEXT NOT NULL,
+                user_agent     TEXT,
+                created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_public_missing_pet_submissions_ip ON public_missing_pet_submissions (ip_address)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_public_missing_pet_submissions_created ON public_missing_pet_submissions (created_at)"))
 
         # `changed` is intentionally unused; kept for potential logging later.
         _ = changed

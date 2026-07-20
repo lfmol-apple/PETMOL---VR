@@ -16,10 +16,12 @@ import threading
 import asyncio
 import base64 as _base64
 import io
+import re
+import secrets
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import Column, Integer, String, DateTime, Text, Float
 from sqlalchemy.orm import Session
@@ -60,7 +62,10 @@ def _save_mp_notified(data: dict) -> None:
 
 def _get_excluded_user_ids(mp_id: str, owner_id: str) -> set:
     rec = _load_mp_notified().get(mp_id, {})
-    return set(rec.get("notified", [])) | {str(owner_id)}
+    excluded = set(rec.get("notified", []))
+    if owner_id:
+        excluded.add(str(owner_id))
+    return excluded
 
 
 def _mark_notified(mp_id: str, user_ids: list) -> None:
@@ -103,13 +108,17 @@ class MissingPet(Base):
     __tablename__ = "missing_pets"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String(36), nullable=False, index=True)
+    user_id = Column(String(36), nullable=True, index=True)
     pet_id = Column(String(36), nullable=True)
     pet_name = Column(String(200), nullable=False)
     species = Column(String(50), nullable=True)
     breed = Column(String(200), nullable=True)
     characteristics = Column(Text, nullable=True)
     contact = Column(String(100), nullable=False)
+    reporter_type = Column(String(30), nullable=True, default="tutor_app")
+    reporter_contact = Column(String(200), nullable=True)
+    access_token = Column(String(96), nullable=True, unique=True, index=True)
+    public_slug = Column(String(220), nullable=True, unique=True, index=True)
     last_seen_location = Column(String(500), nullable=True)
     lat = Column(Float, nullable=True)
     lng = Column(Float, nullable=True)
@@ -160,6 +169,16 @@ class MissingPetFollower(Base):
     finder_contact = Column(String(200), nullable=True, index=True)
     source = Column(String(50), nullable=False, default="dismissed_report")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class PublicMissingPetSubmission(Base):
+    __tablename__ = "public_missing_pet_submissions"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    missing_pet_id = Column(String(36), nullable=True, index=True)
+    ip_address = Column(String(80), nullable=False, index=True)
+    user_agent = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
@@ -213,6 +232,20 @@ class PetSightingCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class PublicMissingPetCreate(BaseModel):
+    pet_name: str
+    species: Optional[str] = None
+    breed: Optional[str] = None
+    characteristics: Optional[str] = None
+    reporter_contact: str
+    last_seen_location: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    missing_date: Optional[str] = None
+    missing_time: Optional[str] = None
+    photo_base64: Optional[str] = None
+
+
 class MissingPetUpdate(BaseModel):
     characteristics: Optional[str] = None
     contact: Optional[str] = None
@@ -233,6 +266,8 @@ def _mp_to_dict(p: MissingPet) -> dict:
         "breed": p.breed,
         "characteristics": p.characteristics,
         "contact": p.contact,
+        "reporter_type": p.reporter_type,
+        "public_slug": p.public_slug,
         "last_seen_location": p.last_seen_location,
         "lat": p.lat,
         "lng": p.lng,
@@ -280,12 +315,88 @@ def _compatibility_payload(score: int | None, analysis: str | None = None) -> di
     }
 
 
+def _slugify(value: str) -> str:
+    import unicodedata
+
+    normalized = unicodedata.normalize("NFKD", value or "")
+    ascii_value = normalized.encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-zA-Z0-9]+", "-", ascii_value).strip("-").lower()
+    return slug[:80] or "pet-perdido"
+
+
+def _unique_missing_pet_slug(db: Session, pet_name: str, location: str | None = None) -> str:
+    base_parts = [pet_name or "pet"]
+    public_region = _public_region(location)
+    if public_region:
+        base_parts.append(public_region.split(",", 1)[0])
+    base = _slugify("-".join(base_parts))
+    slug = base
+    for _ in range(20):
+        exists = db.query(MissingPet.id).filter(MissingPet.public_slug == slug).first()
+        if not exists:
+            return slug
+        slug = f"{base}-{secrets.token_hex(3)}"
+    return f"{base}-{secrets.token_hex(5)}"
+
+
+def _public_region(location: str | None) -> str | None:
+    if not location:
+        return None
+    parts = [p.strip() for p in location.split(",") if p.strip()]
+    if len(parts) >= 3:
+        return ", ".join(parts[-2:])
+    if len(parts) == 2:
+        return ", ".join(parts)
+    value = parts[0] if parts else location.strip()
+    if len(value) > 80:
+        return value[:80].rsplit(" ", 1)[0]
+    return value or None
+
+
+def _public_missing_pet_dict(p: MissingPet) -> dict:
+    return {
+        "id": p.id,
+        "slug": p.public_slug,
+        "pet_name": p.pet_name,
+        "species": p.species,
+        "breed": p.breed,
+        "characteristics": p.characteristics,
+        "region": _public_region(p.last_seen_location),
+        "missing_date": p.missing_date,
+        "missing_time": p.missing_time,
+        "photo_url": p.photo_url,
+        "status": p.status,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+        "found_at": p.found_at.isoformat() if p.found_at else None,
+    }
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",", 1)[0].strip()[:80]
+    return (request.client.host if request.client else "unknown")[:80]
+
+
+def _enforce_public_report_rate_limit(db: Session, request: Request) -> str:
+    ip = _client_ip(request)
+    since = datetime.now(timezone.utc) - timedelta(hours=1)
+    recent = (
+        db.query(PublicMissingPetSubmission)
+        .filter(PublicMissingPetSubmission.ip_address == ip, PublicMissingPetSubmission.created_at >= since)
+        .count()
+    )
+    if recent >= 5:
+        raise HTTPException(status_code=429, detail="Muitos envios deste endereço. Tente novamente mais tarde.")
+    return ip
+
+
 def _accessible_pet_ids(db: Session, user_id: str) -> list[str]:
     return [str(p.id) for p in accessible_pets_query(db, user_id).all()]
 
 
 def _can_access_missing_pet(db: Session, user_id: str, mp: MissingPet) -> bool:
-    if str(mp.user_id) == str(user_id):
+    if mp.user_id and str(mp.user_id) == str(user_id):
         return True
     if not mp.pet_id:
         return False
@@ -332,7 +443,7 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
         has_location = mp.lat is not None and mp.lng is not None
 
         print(
-            f"[broadcast] pet={mp.id} owner={mp.user_id} raio={radius}km "
+            f"[broadcast] pet={mp.id} owner={mp.user_id or 'public'} raio={radius}km "
             f"has_location={has_location} total_subs={len(subs)} excluded={len(excluded)}",
             flush=True,
         )
@@ -358,7 +469,7 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
         MAX_NO_COORD_SUB = 15       # assinantes sem coordenadas quando alerta TEM localização
 
         for user_id, subscription in subs.items():
-            if user_id in excluded or user_id == str(mp.user_id):
+            if user_id in excluded or (mp.user_id and user_id == str(mp.user_id)):
                 continue
             if not has_location and sent >= MAX_NO_LOCATION:
                 skipped += 1
@@ -417,7 +528,7 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
                     caretakers = _db.query(PetCaretaker).filter(PetCaretaker.pet_id == mp.pet_id).all()
                     target_user_ids = {str(c.user_id) for c in caretakers} | family_user_ids
                     for c_id in target_user_ids:
-                        if c_id in excluded or c_id == str(mp.user_id) or c_id in newly_notified:
+                        if c_id in excluded or (mp.user_id and c_id == str(mp.user_id)) or c_id in newly_notified:
                             continue
                         c_sub = subs.get(c_id)
                         if not c_sub:
@@ -461,6 +572,22 @@ def _save_sighting_photo(photo_b64: str) -> str:
     with open(path, "wb") as fh:
         fh.write(photo_bytes)
     return f"/uploads/pet_sightings/{filename}"
+
+
+def _save_missing_pet_photo_from_base64(photo_b64: str) -> str:
+    photo_bytes, mime = _decode_finder_photo(photo_b64)
+    ext = "jpg"
+    if mime == "image/png":
+        ext = "png"
+    elif mime == "image/webp":
+        ext = "webp"
+    upload_dir = os.path.join(os.path.dirname(__file__), "..", "..", "uploads", "pets")
+    os.makedirs(upload_dir, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    path = os.path.join(upload_dir, filename)
+    with open(path, "wb") as fh:
+        fh.write(photo_bytes)
+    return f"pets/{filename}"
 
 
 def _nearby_active_missing_pets(
@@ -704,6 +831,8 @@ def create_missing_pet(
         missing_date=body.missing_date,
         missing_time=body.missing_time,
         photo_url=photo_url,
+        reporter_type="tutor_app",
+        public_slug=_unique_missing_pet_slug(db, pet_name, body.last_seen_location),
         status="active",
         current_radius_km=body.radius_km or 2.0,
         created_at=datetime.now(timezone.utc),
@@ -721,6 +850,144 @@ def create_missing_pet(
     threading.Thread(target=_retro_match_recent_sightings_for_missing_pet_id, args=(mp.id,), daemon=True).start()
 
     return {"id": mp.id, "status": "created", "notified_count": notified_count}
+
+
+@router.post("/public-report", status_code=201)
+def create_public_missing_pet(
+    body: PublicMissingPetCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Registro público de pet perdido por terceiro/instituição, sem login."""
+    pet_name = (body.pet_name or "").strip()
+    contact = (body.reporter_contact or "").strip()
+    if not pet_name:
+        raise HTTPException(status_code=400, detail="Informe o nome ou identificação do pet")
+    if not contact:
+        raise HTTPException(status_code=400, detail="Informe um contato para acompanhamento")
+
+    ip = _enforce_public_report_rate_limit(db, request)
+    photo_url = None
+    if body.photo_base64:
+        try:
+            decoded = _decode_finder_photo(body.photo_base64)
+            quality = _assess_finder_photos_quality([decoded])
+            if not quality.get("ok"):
+                return {
+                    "status": "rejected_photo_quality",
+                    "photo_quality": quality,
+                    "message": quality.get("message"),
+                }
+            photo_url = _save_missing_pet_photo_from_base64(body.photo_base64)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Não foi possível ler a foto enviada")
+
+    token = secrets.token_urlsafe(32)
+    mp = MissingPet(
+        id=str(uuid.uuid4()),
+        user_id=None,
+        pet_id=None,
+        pet_name=pet_name,
+        species=body.species,
+        breed=body.breed,
+        characteristics=body.characteristics,
+        contact=contact,
+        reporter_type="public",
+        reporter_contact=contact,
+        access_token=token,
+        public_slug=_unique_missing_pet_slug(db, pet_name, body.last_seen_location),
+        last_seen_location=body.last_seen_location,
+        lat=body.lat,
+        lng=body.lng,
+        missing_date=body.missing_date,
+        missing_time=body.missing_time,
+        photo_url=photo_url,
+        status="active",
+        current_radius_km=30.0,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(mp)
+    db.flush()
+    db.add(PublicMissingPetSubmission(
+        id=str(uuid.uuid4()),
+        missing_pet_id=mp.id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        created_at=datetime.now(timezone.utc),
+    ))
+    db.commit()
+    db.refresh(mp)
+
+    notified_count = _broadcast_missing_pet(mp)
+    threading.Thread(target=_retro_match_recent_sightings_for_missing_pet_id, args=(mp.id,), daemon=True).start()
+
+    return {
+        "id": mp.id,
+        "status": "created",
+        "access_token": token,
+        "status_url": f"/reportar-pet-perdido?status={token}",
+        "public_url": f"/pet-perdido/{mp.public_slug}",
+        "notified_count": notified_count,
+    }
+
+
+@router.get("/status/{token}")
+def public_missing_pet_status(token: str, db: Session = Depends(get_db)):
+    mp = db.query(MissingPet).filter(MissingPet.access_token == token).first()
+    if not mp:
+        raise HTTPException(status_code=404, detail="Registro não encontrado")
+    reports = (
+        db.query(FoundReport)
+        .filter(FoundReport.missing_pet_id == mp.id, FoundReport.dismissed != 1)
+        .order_by(FoundReport.created_at.desc())
+        .limit(30)
+        .all()
+    )
+    return {
+        "missing_pet": _public_missing_pet_dict(mp),
+        "status": mp.status,
+        "public_url": f"/pet-perdido/{mp.public_slug}" if mp.public_slug else None,
+        "reports": [
+            {
+                "report_id": r.id,
+                "finder_location": r.finder_location,
+                "notes": r.notes,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "has_photos": bool(r.finder_photos),
+                "photo_count": len(json.loads(r.finder_photos)) if r.finder_photos else 0,
+                **_compatibility_payload(r.compatibility_score, r.compatibility_analysis),
+            }
+            for r in reports
+        ],
+    }
+
+
+@router.get("/public-cases")
+def public_missing_pet_cases(db: Session = Depends(get_db)):
+    pets = (
+        db.query(MissingPet)
+        .filter(MissingPet.public_slug.isnot(None))
+        .order_by(MissingPet.created_at.desc())
+        .limit(1000)
+        .all()
+    )
+    return [
+        {
+            "slug": p.public_slug,
+            "status": p.status,
+            "updated_at": (p.found_at or p.created_at).isoformat() if (p.found_at or p.created_at) else None,
+        }
+        for p in pets
+        if p.public_slug
+    ]
+
+
+@router.get("/public/{slug}")
+def public_missing_pet_by_slug(slug: str, db: Session = Depends(get_db)):
+    mp = db.query(MissingPet).filter(MissingPet.public_slug == slug).first()
+    if not mp:
+        raise HTTPException(status_code=404, detail="Pet perdido não encontrado")
+    return _public_missing_pet_dict(mp)
 
 
 @router.get("")
@@ -967,7 +1234,7 @@ def my_history(db: Session = Depends(get_db), current_user=Depends(get_current_u
             .filter(
                 MissingPet.id.in_(notified_pet_ids),
                 MissingPet.status == "found",
-                MissingPet.user_id != user_id,
+                (MissingPet.user_id.is_(None)) | (MissingPet.user_id != user_id),
                 ~MissingPet.id.in_(family_found_ids) if family_found_ids else True,
             )
             .order_by(MissingPet.found_at.desc())
@@ -1054,7 +1321,7 @@ def alert_reach(
     new_in_radius = 0     # novos no raio que ainda não receberam
 
     for user_id, sub in subs.items():
-        if user_id == str(mp.user_id):
+        if mp.user_id and user_id == str(mp.user_id):
             continue
         if has_location:
             sub_lat = sub.get("lat") if isinstance(sub, dict) else None
@@ -1688,6 +1955,8 @@ def _analyze_photo_compatibility(pet_photo_url, finder_photos_b64: list, charact
 def _push_compat_score(score: int, analysis: str, owner_user_id, pet_name: str, report_id: str) -> None:
     """Envia push com % de compatibilidade ao dono quando o score já é conhecido (via pré-análise)."""
     try:
+        if not owner_user_id:
+            return
         subs = _load_subscriptions()
         owner_sub = subs.get(str(owner_user_id))
         if not owner_sub:
@@ -1710,6 +1979,8 @@ def _push_compat_score(score: int, analysis: str, owner_user_id, pet_name: str, 
 def _push_owner_found(mp: MissingPet, finder_contact: str, finder_location: str | None, mp_id: str) -> None:
     """Envia push imediato ao dono quando alguém reporta possível localização do pet."""
     try:
+        if not mp.user_id:
+            return
         subs = _load_subscriptions()
         owner_sub = subs.get(str(mp.user_id))
         if not owner_sub:
@@ -1728,7 +1999,7 @@ def _push_owner_found(mp: MissingPet, finder_contact: str, finder_location: str 
         logger.error(f"Push ao tutor falhou: {e}")
 
 
-def _analyze_and_save(report_id: str, mp_photo_url: str, finder_photos: list, owner_user_id: str, pet_name: str, mp_id: str, characteristics: str | None = None) -> None:
+def _analyze_and_save(report_id: str, mp_photo_url: str, finder_photos: list, owner_user_id: str | None, pet_name: str, mp_id: str, characteristics: str | None = None) -> None:
     """Roda análise de foto em background e salva o score — depois envia push com o resultado."""
     try:
         from ..db import SessionLocal
@@ -1747,7 +2018,7 @@ def _analyze_and_save(report_id: str, mp_photo_url: str, finder_photos: list, ow
         # Segundo push com a triagem de compatibilidade
         try:
             subs = _load_subscriptions()
-            owner_sub = subs.get(str(owner_user_id))
+            owner_sub = subs.get(str(owner_user_id)) if owner_user_id else None
             if owner_sub:
                 emoji = "🔎" if score >= 90 else "⚠️" if score >= 75 else "❓"
                 label = _compatibility_label(score)
@@ -1803,13 +2074,14 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
     report_id = report.id
 
     # Push IMEDIATO para o dono (antes de qualquer análise)
-    threading.Thread(
-        target=_push_owner_found,
-        args=(mp, body.finder_contact.strip(), body.finder_location, mp_id),
-        daemon=True,
-    ).start()
+    if mp.user_id:
+        threading.Thread(
+            target=_push_owner_found,
+            args=(mp, body.finder_contact.strip(), body.finder_location, mp_id),
+            daemon=True,
+        ).start()
 
-    if has_pre_score:
+    if has_pre_score and mp.user_id:
         # Score já conhecido — envia push com % imediatamente
         threading.Thread(
             target=_push_compat_score,
