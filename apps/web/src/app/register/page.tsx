@@ -190,7 +190,7 @@ export default function RegisterPage() {
         setPostNotifRoute('/welcome');
       }
 
-      if (pushSupported) {
+      if (pushSupported && !dest?.startsWith('/cuidar/')) {
         setStep(3);
       } else {
         router.push(dest || '/welcome');

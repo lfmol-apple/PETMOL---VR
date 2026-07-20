@@ -787,8 +787,8 @@ function HomePageInner() {
           url: invite_url,
         });
       } else {
-        await navigator.clipboard.writeText(invite_url);
-        alert('Link copiado! Cole no WhatsApp para convidar.');
+        const msg = encodeURIComponent(`Te convidei para cuidar de ${currentPet.pet_name} no PETMOL 🐾\n${invite_url}`);
+        window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener');
       }
     } catch {
       // user cancelled share or error — silent
