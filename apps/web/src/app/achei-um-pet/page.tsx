@@ -385,6 +385,10 @@ function AcheiUmPetInner() {
 
   const handleSubmitReport = async (petId: string) => {
     if (!reportContact.trim()) return;
+    if (!reportVideo || !proofChallenge) {
+      setReportMediaError('Grave a prova em vídeo com o desafio PETMOL antes de avisar o tutor.');
+      return;
+    }
     setSubmitting(true);
     try {
       // Pega user_id do token JWT (sub) se o achador estiver logado — para o push de agradecimento
@@ -684,15 +688,15 @@ function AcheiUmPetInner() {
 
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-3">
                 <label className="block text-[12px] font-black text-amber-800 uppercase tracking-widest">
-                  Prova em vídeo contra golpe
+                  Prova obrigatória PETMOL Protege
                 </label>
                 <p className="mt-1 text-[12px] leading-snug text-amber-900/80">
-                  Grave até 10 segundos mostrando o pet se mexendo.
+                  Grave até 10 segundos. Sem este vídeo, o tutor não recebe o possível match.
                   {proofChallengeLoading
-                    ? ' Gerando código seguro...'
+                    ? ' Gerando desafio seguro...'
                     : proofChallenge
-                      ? ` Diga no vídeo: "${proofChallenge.phrase}".`
-                      : ' Se o código não carregar, envie mesmo assim e o tutor pedirá nova prova.'}
+                      ? ` ${proofChallenge.instructions}`
+                      : ' Aguarde o desafio carregar antes de gravar.'}
                 </p>
                 <input
                   ref={videoInputRef}
@@ -717,10 +721,11 @@ function AcheiUmPetInner() {
                   <button
                     type="button"
                     onClick={() => videoInputRef.current?.click()}
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-3 text-[14px] font-black text-white active:scale-[0.98] transition-transform"
+                    disabled={!proofChallenge}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-3 text-[14px] font-black text-white active:scale-[0.98] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span>🎥</span>
-                    {proofChallenge ? `Gravar com código ${proofChallenge.phrase}` : 'Gravar prova curta'}
+                    {proofChallenge ? 'Gravar prova PETMOL Protege' : 'Aguardando desafio...'}
                   </button>
                 )}
                 {reportMediaError && <p className="mt-2 text-[11px] font-bold text-red-600">{reportMediaError}</p>}
@@ -756,14 +761,14 @@ function AcheiUmPetInner() {
                 <button
                   type="button"
                   onClick={() => handleSubmitReport(focusedId)}
-                  disabled={!reportContact.trim() || submitting}
+                  disabled={!reportContact.trim() || !reportVideo || !proofChallenge || submitting}
                   className="w-full py-4 rounded-2xl bg-emerald-500 text-white font-black text-[17px] shadow-lg shadow-emerald-200 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {submitting ? 'Enviando aviso...' : `Enviar possível match para o tutor`}
+                  {submitting ? 'Enviando prova...' : `Enviar prova segura para o tutor`}
                 </button>
 
                 <p className="rounded-2xl bg-slate-50 px-4 py-3 text-center text-[12px] font-bold leading-snug text-slate-500">
-                  O telefone do tutor não é exibido por segurança. O tutor recebe seu aviso e decide o contato.
+                  O telefone do tutor não é exibido. O PETMOL entrega a prova, e o tutor decide se libera contato.
                 </p>
               </div>
             </>

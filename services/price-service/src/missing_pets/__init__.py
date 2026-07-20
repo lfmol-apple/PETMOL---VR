@@ -165,7 +165,7 @@ class MissingPetProofChallenge(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     missing_pet_id = Column(String(36), nullable=False, index=True)
-    phrase = Column(String(80), nullable=False)
+    phrase = Column(String(160), nullable=False)
     expires_at = Column(DateTime, nullable=False, index=True)
     used_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
@@ -1581,7 +1581,7 @@ def create_found_pet_proof_challenge(mp_id: str, db: Session = Depends(get_db)):
         "id": challenge.id,
         "phrase": challenge.phrase,
         "expires_at": challenge.expires_at.isoformat(),
-        "instructions": f"Mostre o pet andando e diga: {challenge.phrase}.",
+        "instructions": f"Grave um vídeo curto cumprindo este desafio: {challenge.phrase}.",
     }
 
 
@@ -2023,7 +2023,14 @@ def _risk_payload(report: FoundReport) -> dict:
 
 
 def _new_proof_phrase() -> str:
-    return f"PETMOL {secrets.randbelow(9000) + 1000}"
+    visual_actions = [
+        "mostre o pet andando por alguns segundos",
+        "mostre o rosto do pet e depois o corpo inteiro",
+        "mostre uma pata dianteira do pet",
+        "mostre o pet e vire a câmera rapidamente para o ambiente",
+        "mostre o pet de lado e depois de frente",
+    ]
+    return f"PETMOL {secrets.randbelow(9000) + 1000} - {secrets.choice(visual_actions)}"
 
 
 def _validate_proof_challenge(
@@ -2332,6 +2339,13 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
     mp = db.query(MissingPet).filter(MissingPet.id == mp_id, MissingPet.status == "active").first()
     if not mp:
         raise HTTPException(status_code=404, detail="Alerta não encontrado ou pet já foi encontrado")
+    if not body.finder_contact.strip():
+        raise HTTPException(status_code=400, detail="Contato do achador é obrigatório")
+    if not body.finder_video or not body.proof_challenge_id or not body.proof_challenge:
+        raise HTTPException(
+            status_code=422,
+            detail="Para proteger o tutor contra golpes, envie um vídeo curto com o desafio PETMOL antes de notificar.",
+        )
 
     existing = (
         db.query(FoundReport)

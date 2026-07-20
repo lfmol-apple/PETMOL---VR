@@ -2853,6 +2853,9 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                         {photosModal.proof_verified ? 'Código validado' : 'Código pendente'}
                       </span>
                     </div>
+                    <p className="mt-2 text-[12px] leading-snug text-white/65">
+                      Analise o vídeo antes de liberar contato. Não faça pagamento antecipado e não negocie fora do PETMOL.
+                    </p>
                     {photosModal.risk_label && (
                       <p className="mt-2 text-[12px] leading-snug text-white/60">{photosModal.risk_label}</p>
                     )}
@@ -2895,6 +2898,9 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                           Desafio pedido: {photosModal.proof_challenge}
                         </p>
                       )}
+                      <div className="mb-3 rounded-xl bg-black/20 px-3 py-2 text-[11px] font-semibold leading-snug text-amber-100/75">
+                        Confira se o pet aparece se mexendo, se o desafio foi cumprido e se o ambiente parece atual. Se algo parecer estranho, marque como suspeito.
+                      </div>
                       <video
                         src={resolvePetPhotoUrl(photosModal.video_url) ?? photosModal.video_url}
                         controls
