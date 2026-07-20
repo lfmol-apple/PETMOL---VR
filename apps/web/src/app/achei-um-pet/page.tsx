@@ -273,7 +273,7 @@ function AcheiUmPetInner() {
           {pet?.photo_url && (
             <div className="absolute inset-0 overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={pet.photo_url} alt="" className="w-full h-full object-cover opacity-10 blur-sm scale-105" />
+              <img src={resolvePetPhotoUrl(pet.photo_url) ?? ''} alt="" className="w-full h-full object-cover opacity-10 blur-sm scale-105" />
             </div>
           )}
           {/* Botão voltar no topo */}
@@ -764,7 +764,7 @@ function PetCard({
         <div className="relative w-full h-52 overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={pet.photo_url}
+            src={resolvePetPhotoUrl(pet.photo_url) ?? ''}
             alt={pet.pet_name}
             className={`w-full h-full object-cover ${isFound ? 'opacity-50 grayscale' : ''}`}
           />
