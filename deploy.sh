@@ -1,12 +1,15 @@
 #!/bin/bash
 # Deploy completo: sincroniza src local → VPS e rebuilda
-# Uso: bash deploy.sh [web|api|all]  (padrão: web)
+# Uso: bash deploy.sh [web|api|all|local-web]  (padrão: web)
+#   local-web: build local + upload GitHub release + instrução curl para VPS
+#              (fallback quando SSH está indisponível)
 set -e
 
 TARGET=${1:-web}
 VPS_HOST="147.93.33.24"
 VPS_USER="root"
 SSH_KEY="$HOME/.ssh/id_ed25519"
+VPS_SERVICE="petmol-web"  # nome do serviço systemd no VPS
 
 # Tenta porta 2222 (pós-hardening) primeiro, cai para 22 se não funcionar
 SSH_PORT=22
@@ -135,9 +138,52 @@ deploy_api() {
   echo "✅ Deploy API concluído."
 }
 
+deploy_local_web() {
+  echo "🏗️  Build local (modo sem SSH)..."
+  APP_WEB="$APP_LOCAL/apps/web"
+  TS=$(date -u +%s)
+  echo "{\"v\":\"$TS\"}" > "$APP_WEB/public/version.json"
+
+  cd "$APP_WEB" && npm run build
+
+  echo "📦 Empacotando standalone..."
+  TARBALL="/tmp/petmol-standalone-$TS.tar.gz"
+  tar -czf "$TARBALL" -C "$APP_WEB" .next/standalone
+  echo "Tamanho: $(du -sh "$TARBALL" | cut -f1)"
+
+  echo "⬆️  Criando GitHub Release..."
+  GITHUB_TOKEN=$(security find-internet-password -s github.com -w 2>/dev/null || echo "")
+  if [ -z "$GITHUB_TOKEN" ]; then
+    echo "❌ Token GitHub não encontrado no keychain. Configure gh auth login."
+    exit 1
+  fi
+
+  TAG="deploy-$(date +%Y%m%d-%H%M)"
+  GH_TOKEN="$GITHUB_TOKEN" gh release create "$TAG" "$TARBALL" \
+    --title "Deploy $(date '+%Y-%m-%d %H:%M')" \
+    --notes "Build local para produção" \
+    --repo lfmol-apple/PETMOL---VR 2>/dev/null
+
+  # Gerar URL de download temporária (válida ~1h)
+  ASSET_ID=$(GH_TOKEN="$GITHUB_TOKEN" gh release view "$TAG" \
+    --repo lfmol-apple/PETMOL---VR --json assets --jq '.assets[0].apiUrl | split("/") | last')
+  DOWNLOAD_URL=$(curl -sI \
+    -H "Authorization: token $GITHUB_TOKEN" \
+    -H "Accept: application/octet-stream" \
+    "https://api.github.com/repos/lfmol-apple/PETMOL---VR/releases/assets/$ASSET_ID" \
+    | grep "^location:" | tr -d '\r' | awk '{print $2}')
+
+  echo ""
+  echo "✅ Build pronto. Cole no console Hostinger (válido ~1h):"
+  echo ""
+  echo "curl -sL '$DOWNLOAD_URL' | tar -xzC /opt/petmol/app/apps/web && systemctl restart $VPS_SERVICE && echo DEPLOY_OK"
+  echo ""
+}
+
 case "$TARGET" in
   web) deploy_web ;;
   api) deploy_api ;;
   all) deploy_web; deploy_api ;;
-  *) echo "Uso: bash deploy.sh [web|api|all]"; exit 1 ;;
+  local-web) deploy_local_web ;;
+  *) echo "Uso: bash deploy.sh [web|api|all|local-web]"; exit 1 ;;
 esac
