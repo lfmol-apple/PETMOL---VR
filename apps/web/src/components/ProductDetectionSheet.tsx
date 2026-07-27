@@ -1963,7 +1963,6 @@ export function ProductDetectionSheetGold({
         }}
         className="w-full rounded-xl border-2 border-gray-200 px-4 py-3.5 text-base transition-colors focus:border-blue-400 focus:outline-none"
         placeholder="Digitar nome ou marca..."
-        autoFocus
       />
 
       {query.trim() && (
@@ -2012,12 +2011,15 @@ export function ProductDetectionSheetGold({
         );
 
         if (kbdBottom > 0) {
+          const overlayMaxH = typeof window !== 'undefined'
+            ? Math.max(160, window.innerHeight - kbdBottom - 72)
+            : 300;
           return (
             <div
               style={{ position: 'fixed', left: 0, right: 0, bottom: kbdBottom, zIndex: 201,
                 backgroundColor: 'white', boxShadow: '0 -4px 20px rgba(0,0,0,0.18)',
-                borderTop: '1px solid #e5e7eb', maxHeight: 220, overflowY: 'auto',
-                padding: '10px 20px 12px' }}
+                borderTop: '1px solid #e5e7eb', maxHeight: overlayMaxH, overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch', padding: '10px 20px 12px' }}
             >
               <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
                 {q ? 'Produtos comuns' : 'Escolha o produto'}
