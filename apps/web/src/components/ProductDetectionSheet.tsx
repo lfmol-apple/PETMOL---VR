@@ -529,6 +529,7 @@ export function ProductDetectionSheetGold({
   const [detectedBarcode, setDetectedBarcode] = useState('');
   const [scannerError, setScannerError] = useState<string | null>(null);
   const [manualBarcode, setManualBarcode] = useState('');
+  const [kbdBottom, setKbdBottom] = useState(0);
 
   const emitProductTelemetry = useCallback((eventType: string, payload: Record<string, unknown>) => {
     const enriched = {
@@ -967,6 +968,16 @@ export function ProductDetectionSheetGold({
   useEffect(() => {
     setHistory(loadScanHistory(petId, hint).slice(0, 5));
   }, [petId, hint]);
+
+  useEffect(() => {
+    if (step !== 'manual') { setKbdBottom(0); return; }
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setKbdBottom(Math.max(0, window.innerHeight - (vv.offsetTop + vv.height)));
+    vv.addEventListener('resize', update);
+    update();
+    return () => vv.removeEventListener('resize', update);
+  }, [step]);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -1943,13 +1954,25 @@ export function ProductDetectionSheetGold({
         </div>
       )}
 
-      {allowScanning && (
+      <input
+        type="text"
+        value={query}
+        onChange={event => setQuery(event.target.value)}
+        onKeyDown={event => {
+          if (event.key === 'Enter' && query.trim()) selectManual(query.trim());
+        }}
+        className="w-full rounded-xl border-2 border-gray-200 px-4 py-3.5 text-base transition-colors focus:border-blue-400 focus:outline-none"
+        placeholder="Digitar nome ou marca..."
+        autoFocus
+      />
+
+      {query.trim() && (
         <button
           type="button"
-          onClick={startScanner}
-          className="w-full rounded-2xl border border-blue-200 bg-blue-50 py-3.5 text-sm font-bold text-blue-900 transition-all active:scale-95"
+          onClick={() => selectManual(query.trim())}
+          className="w-full rounded-2xl bg-gray-900 py-4 font-bold text-white transition-all active:scale-95"
         >
-          📷 Voltar para escanear
+          Usar &ldquo;{query.trim()}&rdquo;
         </button>
       )}
 
@@ -1965,33 +1988,78 @@ export function ProductDetectionSheetGold({
             )
           : catalog;
         if (filtered.length === 0) return null;
+
+        const catalogItems = (compact: boolean) => (
+          <div className={compact ? 'space-y-1' : 'space-y-1.5'}>
+            {filtered.map((item, index) => (
+              <button
+                key={index}
+                type="button"
+                onMouseDown={() => selectManual(item.name)}
+                className={`w-full rounded-xl border border-gray-100 bg-white px-4 text-left shadow-sm transition-all active:scale-[0.98] ${compact ? 'py-2.5' : 'py-3'}`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex-shrink-0 text-xl">{CATEGORY_EMOJI[hint]}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-gray-800">{item.name}</p>
+                    {item.brand && <p className="truncate text-xs text-gray-400">{item.brand}</p>}
+                  </div>
+                  <span className="flex-shrink-0 text-lg text-gray-200">›</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        );
+
+        if (kbdBottom > 0) {
+          return (
+            <div
+              style={{ position: 'fixed', left: 0, right: 0, bottom: kbdBottom, zIndex: 201,
+                backgroundColor: 'white', boxShadow: '0 -4px 20px rgba(0,0,0,0.18)',
+                borderTop: '1px solid #e5e7eb', maxHeight: 220, overflowY: 'auto',
+                padding: '10px 20px 12px' }}
+            >
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                {q ? 'Produtos comuns' : 'Escolha o produto'}
+              </p>
+              {catalogItems(true)}
+            </div>
+          );
+        }
+
         return (
           <div>
             <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
               {q ? 'Produtos comuns' : 'Escolha ou busque o produto'}
             </p>
-            <div className="space-y-1.5">
-              {filtered.map((item, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => selectManual(item.name)}
-                  className="w-full rounded-xl border border-gray-100 bg-white px-4 py-3 text-left shadow-sm transition-all active:scale-[0.98]"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="flex-shrink-0 text-xl">{CATEGORY_EMOJI[hint]}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-gray-800">{item.name}</p>
-                      {item.brand && <p className="truncate text-xs text-gray-400">{item.brand}</p>}
-                    </div>
-                    <span className="flex-shrink-0 text-lg text-gray-200">›</span>
-                  </div>
-                </button>
-              ))}
-            </div>
+            {catalogItems(false)}
           </div>
         );
       })()}
+
+      {suggestions.length > 0 && (
+        <div>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+            {query.trim() ? 'Sugestões' : 'Usados recentemente'}
+          </p>
+          <div className="space-y-1.5">
+            {suggestions.map((suggestion, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => selectManual(suggestion)}
+                className="w-full rounded-xl border border-gray-100 bg-white px-4 py-3 text-left shadow-sm transition-all active:scale-[0.98]"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex-shrink-0 text-xl">{hint ? CATEGORY_EMOJI[hint] : '📦'}</span>
+                  <span className="flex-1 truncate text-sm font-medium text-gray-800">{suggestion}</span>
+                  <span className="flex-shrink-0 text-lg text-gray-200">›</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Buscar por código de barras</p>
@@ -2019,49 +2087,13 @@ export function ProductDetectionSheetGold({
         </div>
       </div>
 
-      <input
-        type="text"
-        value={query}
-        onChange={event => setQuery(event.target.value)}
-        onKeyDown={event => {
-          if (event.key === 'Enter' && query.trim()) selectManual(query.trim());
-        }}
-        className="w-full rounded-xl border-2 border-gray-200 px-4 py-3.5 text-base transition-colors focus:border-blue-400 focus:outline-none"
-        placeholder="Digitar nome ou marca..."
-        autoFocus
-      />
-
-      {suggestions.length > 0 && (
-        <div>
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
-            {query.trim() ? 'Sugestões' : 'Usados recentemente'}
-          </p>
-          <div className="space-y-1.5">
-            {suggestions.map((suggestion, index) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() => selectManual(suggestion)}
-                className="w-full rounded-xl border border-gray-100 bg-white px-4 py-3 text-left shadow-sm transition-all active:scale-[0.98]"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex-shrink-0 text-xl">{hint ? CATEGORY_EMOJI[hint] : '📦'}</span>
-                  <span className="flex-1 truncate text-sm font-medium text-gray-800">{suggestion}</span>
-                  <span className="flex-shrink-0 text-lg text-gray-200">›</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {query.trim() && (
+      {allowScanning && (
         <button
           type="button"
-          onClick={() => selectManual(query.trim())}
-          className="w-full rounded-2xl bg-gray-900 py-4 font-bold text-white transition-all active:scale-95"
+          onClick={startScanner}
+          className="w-full rounded-2xl border border-blue-200 bg-blue-50 py-3.5 text-sm font-bold text-blue-900 transition-all active:scale-95"
         >
-          Usar &ldquo;{query.trim()}&rdquo;
+          📷 Voltar para escanear
         </button>
       )}
     </div>
