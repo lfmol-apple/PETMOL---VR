@@ -175,9 +175,9 @@ deploy_local_web() {
 
   # Notificar VPS via webhook (zero interação do usuário)
   echo "🚀 Notificando VPS via webhook..."
-  WEBHOOK_RESP=$(curl -sf -X POST "$VPS_APP_URL/_hook" \
+  WEBHOOK_RESP=$(curl -s --max-time 15 -X POST "$VPS_APP_URL/webhook" \
     -H "Content-Type: application/json" \
-    -d "{\"token\":\"$DEPLOY_TOKEN\"}" 2>&1)
+    -d "{\"token\":\"$DEPLOY_TOKEN\"}" 2>&1 || true)
 
   if echo "$WEBHOOK_RESP" | grep -q '"ok":true'; then
     echo "✅ Deploy web concluído — VPS está atualizando em background."
