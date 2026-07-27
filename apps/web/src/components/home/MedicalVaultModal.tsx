@@ -156,6 +156,15 @@ export function MedicalVaultModal({
 }: MedicalVaultModalProps) {
   const [openedCategory, setOpenedCategory] = useState<string | null>(null);
   const [eventsExpanded, setEventsExpanded] = useState(false);
+
+  // Quando chega arquivo via WhatsApp share, entra automaticamente no vault
+  useEffect(() => {
+    if (pendingFiles && pendingFiles.length > 0 && openedCategory === null) {
+      setOpenedCategory('all');
+    }
+  // Só dispara quando pendingFiles muda — openedCategory é intencional fora das deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFiles]);
   const [exporting, setExporting] = useState(false);
   type ZipPhase = 'idle' | 'generating' | 'downloading' | 'done';
   const [zipPhase, setZipPhase] = useState<ZipPhase>('idle');

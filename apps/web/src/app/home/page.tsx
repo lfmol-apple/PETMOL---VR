@@ -385,11 +385,13 @@ function HomePageInner() {
   // Detect share target redirect and read files from Cache Storage
   useEffect(() => {
     if (!searchParams.get('petmol_share')) return;
-    router.replace('/home', { scroll: false });
+    // Limpa a URL DEPOIS de ler o cache para evitar race condition
     (async () => {
       try {
         const cache = await caches.open('petmol-shared-files-v1');
         const metaResp = await cache.match('/petmol-share/meta');
+        // URL limpa só aqui — SW já escreveu no cache antes de redirecionar
+        router.replace('/home', { scroll: false });
         if (!metaResp) return;
         const { count } = await metaResp.json() as { count: number };
         const files: File[] = [];
@@ -409,6 +411,7 @@ function HomePageInner() {
         }
       } catch {
         // silently ignore — user can still open Histórico manually
+        router.replace('/home', { scroll: false });
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps

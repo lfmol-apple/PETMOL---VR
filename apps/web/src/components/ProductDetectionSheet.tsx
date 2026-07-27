@@ -79,6 +79,49 @@ const STEP_TITLE: Record<Step, string> = {
   confirm: 'Confirmar produto',
 };
 
+type CuratedProduct = { name: string; brand?: string };
+
+const CURATED_CATALOG: Partial<Record<ProductCategory, CuratedProduct[]>> = {
+  antiparasite: [
+    { name: 'Bravecto', brand: 'MSD' },
+    { name: 'NexGard', brand: 'Boehringer' },
+    { name: 'Simparica', brand: 'Zoetis' },
+    { name: 'Frontline Plus', brand: 'Boehringer' },
+    { name: 'Advantage', brand: 'Elanco' },
+    { name: 'Revolution', brand: 'Zoetis' },
+    { name: 'Comfortis', brand: 'Elanco' },
+    { name: 'Credelio', brand: 'Elanco' },
+    { name: 'Vectra 3D', brand: 'Ceva' },
+  ],
+  dewormer: [
+    { name: 'Drontal Plus', brand: 'Elanco' },
+    { name: 'Milbemax', brand: 'Elanco' },
+    { name: 'Panacur', brand: 'MSD' },
+    { name: 'Canex Plus', brand: 'Virbac' },
+    { name: 'Selemax', brand: 'MSD' },
+    { name: 'Vermivet', brand: 'Biovet' },
+    { name: 'Drontal Gatos', brand: 'Elanco' },
+  ],
+  medication: [
+    { name: 'Vacina V8', brand: 'Polivalente' },
+    { name: 'Vacina V10', brand: 'Polivalente' },
+    { name: 'Vacina Antirrábica', brand: 'Polivalente' },
+    { name: 'Vanguard Plus 5', brand: 'Zoetis' },
+    { name: 'Vanguard Plus 10', brand: 'Zoetis' },
+    { name: 'Nobivac DHPPi', brand: 'MSD' },
+    { name: 'Defensor', brand: 'Zoetis' },
+    { name: 'Canigen DHPPi', brand: 'Virbac' },
+    { name: 'Versifel CVR', brand: 'Zoetis' },
+    { name: 'Leucogen', brand: 'Virbac' },
+  ],
+  collar: [
+    { name: 'Seresto', brand: 'Elanco' },
+    { name: 'Scalibor', brand: 'MSD' },
+    { name: 'Foresto', brand: 'Elanco' },
+    { name: 'Bolfo', brand: 'Bayer' },
+  ],
+};
+
 const ZXING_FORMATS = [
   BarcodeFormat.EAN_13,
   BarcodeFormat.EAN_8,
@@ -1909,6 +1952,46 @@ export function ProductDetectionSheetGold({
           📷 Voltar para escanear
         </button>
       )}
+
+      {(() => {
+        if (!hint) return null;
+        const catalog = CURATED_CATALOG[hint];
+        if (!catalog) return null;
+        const q = query.trim().toLowerCase();
+        const filtered = q
+          ? catalog.filter(item =>
+              item.name.toLowerCase().includes(q) ||
+              (item.brand?.toLowerCase().includes(q) ?? false),
+            )
+          : catalog;
+        if (filtered.length === 0) return null;
+        return (
+          <div>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              {q ? 'Produtos comuns' : 'Escolha ou busque o produto'}
+            </p>
+            <div className="space-y-1.5">
+              {filtered.map((item, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => selectManual(item.name)}
+                  className="w-full rounded-xl border border-gray-100 bg-white px-4 py-3 text-left shadow-sm transition-all active:scale-[0.98]"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex-shrink-0 text-xl">{CATEGORY_EMOJI[hint]}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-gray-800">{item.name}</p>
+                      {item.brand && <p className="truncate text-xs text-gray-400">{item.brand}</p>}
+                    </div>
+                    <span className="flex-shrink-0 text-lg text-gray-200">›</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Buscar por código de barras</p>

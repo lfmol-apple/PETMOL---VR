@@ -130,14 +130,28 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   },
 ];
 
+// URLs de busca diretas por parceiro — usadas quando não há afiliado configurado.
+// Sem proxy de handoff: abre direto no site da loja.
+const DIRECT_SEARCH_URLS: Record<HomeShoppingPartnerId, (q: string) => string> = {
+  cobasi:       (q) => `https://www.cobasi.com.br/busca?q=${encodeURIComponent(q)}`,
+  petz:         (q) => `https://www.petz.com.br/busca?q=${encodeURIComponent(q)}`,
+  petlove:      (q) => `https://www.petlove.com.br/busca?q=${encodeURIComponent(q)}`,
+  amazon:       (q) => `https://www.amazon.com.br/s?k=${encodeURIComponent(q)}`,
+  shopee:       (q) => `https://shopee.com.br/search?keyword=${encodeURIComponent(q)}`,
+  mercadolivre: (q) => `https://lista.mercadolivre.com.br/${encodeURIComponent(q)}`,
+  doglife:      (_q) => 'https://www.doglife.com.br',
+  araujo:       (q) => `https://www.araujo.com.br/busca?q=${encodeURIComponent(q)}`,
+};
+
 /**
  * Resolve a URL final de um parceiro para um produto específico.
- * Prioridade: link afiliado > directUrl > fallbackUrl > handoff proxy.
+ * Prioridade: link afiliado > URL de busca direta > directUrl > fallbackUrl.
+ * Sem proxy de handoff para não bloquear abertura no mobile.
  */
 export function resolvePartnerUrl(
   partner: HomeShoppingPartner,
   query: string,
-  leadId: string,
+  _leadId: string,
 ): string {
   const affId = AFF[partner.id];
 
@@ -146,32 +160,38 @@ export function resolvePartnerUrl(
     return partner.buildAffiliateUrl(query, affId);
   }
 
-  // Sem afiliado → comportamento anterior
-  if (partner.directUrl) return partner.directUrl;
+  // Sem afiliado → abre diretamente no site da loja (sem proxy)
+  const buildDirect = DIRECT_SEARCH_URLS[partner.id];
+  if (buildDirect) return buildDirect(query);
 
-  const fallback = encodeURIComponent(
-    partner.fallbackUrl
-      ? `${partner.fallbackUrl}/search?q=${encodeURIComponent(query)}`
-      : `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(query)}`,
-  );
-  return `/api/handoff/shopping?partner=${partner.id}&lead_id=${encodeURIComponent(leadId)}&fallback=${fallback}`;
+  if (partner.directUrl) return partner.directUrl;
+  if (partner.fallbackUrl) return partner.fallbackUrl;
+  return `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(query)}`;
 }
 
-export async function openHomeShoppingPartner(
+/**
+ * Abre o parceiro em nova aba.
+ * window.open deve ser chamado sincronamente dentro do gesto do usuário —
+ * por isso a analítica é disparada em background sem bloquear a abertura.
+ */
+export function openHomeShoppingPartner(
   partnerId: HomeShoppingPartnerId,
   query = 'pet shop',
-): Promise<void> {
+): void {
   const partner = HOME_SHOPPING_PARTNERS.find((entry) => entry.id === partnerId);
   if (!partner) return;
 
-  const leadId = await trackClick({
+  const url = resolvePartnerUrl(partner, query, '');
+
+  // Abre sincronamente (dentro do gesto do usuário) para evitar bloqueio de popup no mobile
+  window.open(url, '_blank', 'noopener,noreferrer');
+
+  // Analítica em background — não bloqueia a navegação
+  void trackClick({
     source: 'home',
     cta_type: 'shop_redirect',
     target: partner.id,
   });
-
-  const url = resolvePartnerUrl(partner, query, leadId);
-  window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 /**

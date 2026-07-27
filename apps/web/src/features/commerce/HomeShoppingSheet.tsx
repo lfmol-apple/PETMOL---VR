@@ -87,9 +87,9 @@ function StoreCard({ partner, onClose }: { partner: (typeof HOME_SHOPPING_PARTNE
     <button
       type="button"
       className="flex flex-col items-center gap-2.5 p-4 bg-white border border-gray-200 rounded-2xl hover:border-blue-200 hover:bg-blue-50/30 active:scale-[0.97] transition-all text-center shadow-sm"
-      onClick={async () => {
+      onClick={() => {
         onClose();
-        await openHomeShoppingPartner(partner.id);
+        openHomeShoppingPartner(partner.id);
       }}
     >
       <div className="w-14 h-14 rounded-2xl overflow-hidden flex items-center justify-center bg-gray-50 border border-gray-100 flex-shrink-0 p-1.5">
