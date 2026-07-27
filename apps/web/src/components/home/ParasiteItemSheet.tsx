@@ -154,7 +154,7 @@ export function ParasiteItemSheet({
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [historyExpanded, setHistoryExpanded] = useState(true);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
   const [historyShowAll, setHistoryShowAll] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
 
@@ -592,34 +592,6 @@ export function ParasiteItemSheet({
                 </div>
               )}
 
-              {/* Ação principal — Comprar */}
-              <button
-                onClick={() => setMode('buy')}
-                className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white text-[16px] font-black shadow-lg shadow-amber-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5"
-              >
-                <span>🛒</span>
-                {cfg.buyLabel}
-              </button>
-
-              {/* Ação secundária — Registrar aplicação */}
-              <button
-                onClick={() => setMode('apply')}
-                className="w-full py-3 rounded-2xl bg-white border border-gray-200 text-gray-600 text-[14px] font-semibold active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-              >
-                <span>✅</span>
-                Registrar aplicação
-              </button>
-
-              {/* Ação terciária — Editar (mínimo peso visual) */}
-              {current && (
-                <button
-                  onClick={() => startEdit(current)}
-                  className="w-full py-2 text-[11px] font-medium text-gray-400 hover:text-gray-600 transition-colors text-center"
-                >
-                  Editar registro
-                </button>
-              )}
-
               {/* History — collapsed accordion */}
               {sorted.length > 0 && (
                 <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
@@ -940,6 +912,36 @@ export function ParasiteItemSheet({
 
         </div>
         {/* End scrollable body */}
+
+        {/* ── Pinned action footer (view mode only) ─────────────────────────── */}
+        {mode === 'view' && (
+          <div className="flex-shrink-0 px-5 pt-3 pb-5 border-t border-gray-100 space-y-2 bg-white">
+            <button
+              onClick={() => setMode('buy')}
+              className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white text-[16px] font-black shadow-lg shadow-amber-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5"
+            >
+              <span>🛒</span>
+              {cfg.buyLabel}
+            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setMode('apply')}
+                className="flex-1 py-3 rounded-2xl bg-white border border-gray-200 text-gray-600 text-[14px] font-semibold active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              >
+                <span>✅</span>
+                Registrar
+              </button>
+              {current && (
+                <button
+                  onClick={() => startEdit(current)}
+                  className="px-4 py-3 rounded-2xl bg-white border border-gray-200 text-gray-400 text-[13px] font-medium active:scale-[0.98] transition-all"
+                >
+                  Editar
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── Delete confirm ────────────────────────────────────────────────── */}
         {confirmDeleteId && (
