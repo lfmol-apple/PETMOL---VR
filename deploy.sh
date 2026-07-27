@@ -9,7 +9,9 @@ TARGET=${1:-web}
 VPS_HOST="147.93.33.24"
 VPS_USER="root"
 SSH_KEY="$HOME/.ssh/id_ed25519"
-VPS_SERVICE="petmol-web"  # nome do serviço systemd no VPS
+VPS_SERVICE="petmol-web"
+VPS_APP_URL="https://www.petmol.com.br"
+DEPLOY_TOKEN="671d19c2fd603495066789d8300031fa94d28016a6f16b96"
 
 # Tenta porta 2222 (pós-hardening) primeiro, cai para 22 se não funcionar
 SSH_PORT=22
@@ -146,6 +148,13 @@ deploy_local_web() {
 
   cd "$APP_WEB" && npm run build
 
+  echo "📦 Copiando assets estáticos para standalone..."
+  STANDALONE="$APP_WEB/.next/standalone"
+  cp -r "$APP_WEB/.next/static" "$STANDALONE/apps/web/.next/static" 2>/dev/null || true
+  cp -r "$APP_WEB/public"       "$STANDALONE/apps/web/public"       2>/dev/null || true
+  # Garante version.json dentro do standalone
+  echo "{\"v\":\"$TS\"}" > "$STANDALONE/apps/web/public/version.json"
+
   echo "📦 Empacotando standalone..."
   TARBALL="/tmp/petmol-standalone-$TS.tar.gz"
   tar -czf "$TARBALL" -C "$APP_WEB" .next/standalone
@@ -164,20 +173,30 @@ deploy_local_web() {
     --notes "Build local para produção" \
     --repo lfmol-apple/PETMOL---VR 2>/dev/null
 
-  # Gerar URL de download temporária (válida ~1h)
-  ASSET_ID=$(GH_TOKEN="$GITHUB_TOKEN" gh release view "$TAG" \
-    --repo lfmol-apple/PETMOL---VR --json assets --jq '.assets[0].apiUrl | split("/") | last')
-  DOWNLOAD_URL=$(curl -sI \
-    -H "Authorization: token $GITHUB_TOKEN" \
-    -H "Accept: application/octet-stream" \
-    "https://api.github.com/repos/lfmol-apple/PETMOL---VR/releases/assets/$ASSET_ID" \
-    | grep "^location:" | tr -d '\r' | awk '{print $2}')
+  # Notificar VPS via webhook (zero interação do usuário)
+  echo "🚀 Notificando VPS via webhook..."
+  WEBHOOK_RESP=$(curl -sf -X POST "$VPS_APP_URL/_hook" \
+    -H "Content-Type: application/json" \
+    -d "{\"token\":\"$DEPLOY_TOKEN\"}" 2>&1)
 
-  echo ""
-  echo "✅ Build pronto. Cole no console Hostinger (válido ~1h):"
-  echo ""
-  echo "curl -sL '$DOWNLOAD_URL' | tar -xzC /opt/petmol/app/apps/web && systemctl restart $VPS_SERVICE && echo DEPLOY_OK"
-  echo ""
+  if echo "$WEBHOOK_RESP" | grep -q '"ok":true'; then
+    echo "✅ Deploy web concluído — VPS está atualizando em background."
+    echo "   Aguarde ~30s e verifique: curl -s $VPS_APP_URL/version.json"
+  else
+    # Fallback: gerar URL para console manual
+    echo "⚠️  Webhook não respondeu ($WEBHOOK_RESP). Gerando URL de download manual..."
+    ASSET_ID=$(GH_TOKEN="$GITHUB_TOKEN" gh release view "$TAG" \
+      --repo lfmol-apple/PETMOL---VR --json assets --jq '.assets[0].apiUrl | split("/") | last')
+    DOWNLOAD_URL=$(curl -sI \
+      -H "Authorization: token $GITHUB_TOKEN" \
+      -H "Accept: application/octet-stream" \
+      "https://api.github.com/repos/lfmol-apple/PETMOL---VR/releases/assets/$ASSET_ID" \
+      | grep "^location:" | tr -d '\r' | awk '{print $2}')
+    echo ""
+    echo "Cole no console Hostinger (válido ~1h):"
+    echo "curl -sL '$DOWNLOAD_URL' | tar -xzC /opt/petmol/app/apps/web && systemctl restart $VPS_SERVICE && echo DEPLOY_OK"
+    echo ""
+  fi
 }
 
 case "$TARGET" in
