@@ -12,14 +12,19 @@ const nextConfig = {
     // This helps with monorepo React issues
     externalDir: true,
   },
+  // Módulos Node.js que não devem ser incluídos no bundle do browser
+  serverExternalPackages: ['@napi-rs/canvas', 'canvas'],
   // Ignorar arquivos deprecated no build
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.module.rules.push({
       test: /\/_deprecated\//,
       loader: 'ignore-loader',
     });
-    // pdfjs-dist usa canvas opcionalmente — desabilitar no browser build
-    config.resolve.alias.canvas = false;
+    if (!isServer) {
+      // pdfjs-dist referencia canvas e @napi-rs/canvas opcionalmente — stub no browser
+      config.resolve.alias['canvas'] = false;
+      config.resolve.alias['@napi-rs/canvas'] = false;
+    }
     return config;
   },
   // Proxy para backend local funcionar no ngrok/mobile

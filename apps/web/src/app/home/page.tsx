@@ -3,33 +3,38 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '@/lib/I18nContext';
+import dynamic from 'next/dynamic';
+import type { ActionSheetType } from '@/components/PushActionSheet';
+import type { QuickActionContext } from '@/components/home/HealthQuickActionSheet';
 
-import { EditPetModal } from '@/components/EditPetModal';
-import { AddPetModal } from '../../components/AddPetModal';
-import { VaccineCardUpload } from '@/components/VaccineCardUpload';
-import { HealthModal } from '@/components/home/HealthModal';
-import { VaccineGuide } from '@/components/home/VaccineGuide';
-import { VaccineWorkflowModals } from '@/components/home/VaccineWorkflowModals';
-import { FeedbackModal } from '@/components/home/FeedbackModal';
-import { QuickAddVaccineModal } from '@/components/home/QuickAddVaccineModal';
-import { VetHistoryModal } from '@/components/home/VetHistoryModal';
-import { HistoryDocumentsOverlay } from '@/components/home/HistoryDocumentsOverlay';
-import { MedicalVaultModal } from '@/components/home/MedicalVaultModal';
-import { HomeNavigationModals } from '@/components/home/HomeNavigationModals';
+// Componentes visíveis ao abrir — carregamento imediato
 import { HomePetHeader } from '@/components/home/HomePetHeader';
-import { HomeEmergencySheet } from '@/components/home/HomeEmergencySheet';
-import { PetTabs } from '@/components/PetTabs';
-import { PushActionSheet, type ActionSheetType } from '@/components/PushActionSheet';
-import { HealthQuickActionSheet, type QuickActionContext } from '@/components/home/HealthQuickActionSheet';
-
 import { HomePetDashboard } from '@/components/home/HomePetDashboard';
-import { ParasiteItemSheet } from '@/components/home/ParasiteItemSheet';
-import { VaccineItemSheet } from '@/components/home/VaccineItemSheet';
-import { MedicationItemSheet } from '@/components/home/MedicationItemSheet';
-import { FoodItemSheet } from '@/components/home/FoodItemSheet';
-import { GroomingItemSheet } from '@/components/home/GroomingItemSheet';
-import { PetSumidoSheet } from '@/components/home/PetSumidoSheet';
-import { UpcomingEventsSheet } from '@/components/home/UpcomingEventsSheet';
+import { PetTabs } from '@/components/PetTabs';
+
+// Modais e sheets — carregados sob demanda (só quando o usuário abre)
+const EditPetModal = dynamic(() => import('@/components/EditPetModal').then(m => ({ default: m.EditPetModal })), { ssr: false });
+const AddPetModal = dynamic(() => import('../../components/AddPetModal').then(m => ({ default: m.AddPetModal })), { ssr: false });
+const VaccineCardUpload = dynamic(() => import('@/components/VaccineCardUpload').then(m => ({ default: m.VaccineCardUpload })), { ssr: false });
+const HealthModal = dynamic(() => import('@/components/home/HealthModal').then(m => ({ default: m.HealthModal })), { ssr: false });
+const VaccineGuide = dynamic(() => import('@/components/home/VaccineGuide').then(m => ({ default: m.VaccineGuide })), { ssr: false });
+const VaccineWorkflowModals = dynamic(() => import('@/components/home/VaccineWorkflowModals').then(m => ({ default: m.VaccineWorkflowModals })), { ssr: false });
+const FeedbackModal = dynamic(() => import('@/components/home/FeedbackModal').then(m => ({ default: m.FeedbackModal })), { ssr: false });
+const QuickAddVaccineModal = dynamic(() => import('@/components/home/QuickAddVaccineModal').then(m => ({ default: m.QuickAddVaccineModal })), { ssr: false });
+const VetHistoryModal = dynamic(() => import('@/components/home/VetHistoryModal').then(m => ({ default: m.VetHistoryModal })), { ssr: false });
+const HistoryDocumentsOverlay = dynamic(() => import('@/components/home/HistoryDocumentsOverlay').then(m => ({ default: m.HistoryDocumentsOverlay })), { ssr: false });
+const MedicalVaultModal = dynamic(() => import('@/components/home/MedicalVaultModal').then(m => ({ default: m.MedicalVaultModal })), { ssr: false });
+const HomeNavigationModals = dynamic(() => import('@/components/home/HomeNavigationModals').then(m => ({ default: m.HomeNavigationModals })), { ssr: false });
+const HomeEmergencySheet = dynamic(() => import('@/components/home/HomeEmergencySheet').then(m => ({ default: m.HomeEmergencySheet })), { ssr: false });
+const PushActionSheet = dynamic(() => import('@/components/PushActionSheet').then(m => ({ default: m.PushActionSheet })), { ssr: false });
+const HealthQuickActionSheet = dynamic(() => import('@/components/home/HealthQuickActionSheet').then(m => ({ default: m.HealthQuickActionSheet })), { ssr: false });
+const ParasiteItemSheet = dynamic(() => import('@/components/home/ParasiteItemSheet').then(m => ({ default: m.ParasiteItemSheet })), { ssr: false });
+const VaccineItemSheet = dynamic(() => import('@/components/home/VaccineItemSheet').then(m => ({ default: m.VaccineItemSheet })), { ssr: false });
+const MedicationItemSheet = dynamic(() => import('@/components/home/MedicationItemSheet').then(m => ({ default: m.MedicationItemSheet })), { ssr: false });
+const FoodItemSheet = dynamic(() => import('@/components/home/FoodItemSheet').then(m => ({ default: m.FoodItemSheet })), { ssr: false });
+const GroomingItemSheet = dynamic(() => import('@/components/home/GroomingItemSheet').then(m => ({ default: m.GroomingItemSheet })), { ssr: false });
+const PetSumidoSheet = dynamic(() => import('@/components/home/PetSumidoSheet').then(m => ({ default: m.PetSumidoSheet })), { ssr: false });
+const UpcomingEventsSheet = dynamic(() => import('@/components/home/UpcomingEventsSheet').then(m => ({ default: m.UpcomingEventsSheet })), { ssr: false });
 import type { PetCareReminder } from '@/lib/petCareDomain';
 import { useMultipetInteractions } from '@/features/interactions/useMultipetInteractions';
 import type { PetInteractionItem } from '@/features/interactions/types';
