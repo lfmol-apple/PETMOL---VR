@@ -141,72 +141,33 @@ deploy_api() {
 }
 
 deploy_local_web() {
-  echo "🏗️  Build local (modo sem SSH)..."
+  echo "🏗️  Build local..."
   APP_WEB="$APP_LOCAL/apps/web"
   TS=$(date -u +%s)
   echo "{\"v\":\"$TS\"}" > "$APP_WEB/public/version.json"
 
   cd "$APP_WEB" && npm run build
 
-  echo "📦 Copiando assets estáticos para standalone..."
   STANDALONE="$APP_WEB/.next/standalone"
-  cp -r "$APP_WEB/.next/static" "$STANDALONE/apps/web/.next/static" 2>/dev/null || true
-  cp -r "$APP_WEB/public"       "$STANDALONE/apps/web/public"       2>/dev/null || true
   echo "{\"v\":\"$TS\"}" > "$STANDALONE/apps/web/public/version.json"
 
   echo "📦 Empacotando standalone..."
   TARBALL="/tmp/petmol-standalone-$TS.tar.gz"
-  COPYFILE_DISABLE=1 tar -czf "$TARBALL" -C "$APP_WEB" .next/standalone
+  COPYFILE_DISABLE=1 tar -czf "$TARBALL" --no-xattrs -C "$APP_WEB" .next/standalone 2>/dev/null || \
+    COPYFILE_DISABLE=1 tar -czf "$TARBALL" -C "$APP_WEB" .next/standalone
   echo "Tamanho: $(du -sh "$TARBALL" | cut -f1)"
 
-  echo "⬆️  Criando GitHub Release..."
-  GITHUB_TOKEN=$(security find-internet-password -s github.com -w 2>/dev/null || echo "")
-  if [ -z "$GITHUB_TOKEN" ]; then
-    echo "❌ Token GitHub não encontrado no keychain. Configure gh auth login."
-    exit 1
-  fi
+  echo "🚀 Enviando para VPS via SSH..."
+  # SSH porta 22 (porta 2222 bloqueada externamente)
+  SSH_OPTS="-i $SSH_KEY -p 22 -o ConnectTimeout=30 -o BatchMode=yes -o StrictHostKeyChecking=no -o ServerAliveInterval=15"
 
-  TAG="deploy-$(date +%Y%m%d-%H%M)"
-  GH_TOKEN="$GITHUB_TOKEN" gh release create "$TAG" "$TARBALL" \
-    --title "Deploy $(date '+%Y-%m-%d %H:%M')" \
-    --notes "Build local para produção" \
-    --repo lfmol-apple/PETMOL---VR 2>/dev/null
+  # Envia o tarball diretamente via SSH + extrai + reinicia
+  cat "$TARBALL" | ssh $SSH_OPTS "root@$VPS_HOST" \
+    "tar -xzC /opt/petmol/app/apps/web && systemctl restart petmol-web && echo DEPLOY_OK"
 
-  echo "🚀 Notificando VPS via webhook..."
-  WEBHOOK_RESP=$(curl -s --max-time 15 -X POST "$VPS_APP_URL/webhook" \
-    -H "Content-Type: application/json" \
-    -d "{\"token\":\"$DEPLOY_TOKEN\"}" 2>&1 || true)
-
-  if echo "$WEBHOOK_RESP" | grep -q '"ok":true'; then
-    echo "✅ Deploy web concluído — VPS atualizando em background (download em 2 passos)."
-    echo "   Aguarde ~60s e verifique: curl -s $VPS_APP_URL/version.json"
-  else
-    # Bootstrap único: webhook antigo no VPS ainda usa deploy_pull.sh com hang
-    # Gera o comando correto de 2 passos que funciona mesmo com o CDN do GitHub
-    ASSET_ID=$(GH_TOKEN="$GITHUB_TOKEN" gh release view "$TAG" \
-      --repo lfmol-apple/PETMOL---VR --json assets --jq '.assets[0].apiUrl | split("/") | last' 2>/dev/null || echo "")
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "Bootstrap único necessário — cole no console Hostinger:"
-    echo ""
-    if [ -n "$ASSET_ID" ]; then
-      DL_URL=$(curl -sI \
-        -H "Authorization: token $GITHUB_TOKEN" \
-        -H "Accept: application/octet-stream" \
-        "https://api.github.com/repos/lfmol-apple/PETMOL---VR/releases/assets/$ASSET_ID" \
-        | grep -i "^location:" | tr -d '\r' | awk '{print $2}' 2>/dev/null || echo "")
-      if [ -n "$DL_URL" ]; then
-        echo "curl -fL '$DL_URL' | tar -xzC /opt/petmol/app/apps/web && systemctl restart petmol-web && echo DEPLOY_OK"
-      fi
-    fi
-    if [ -z "$DL_URL" ]; then
-      # Fallback: comando genérico que faz os 2 passos no próprio VPS
-      echo "T=\"$GITHUB_TOKEN\"; ID=\$(curl -sf --max-time 15 -H \"Authorization: token \$T\" https://api.github.com/repos/lfmol-apple/PETMOL---VR/releases/latest | python3 -c \"import sys,json;print(json.load(sys.stdin)['assets'][0]['id'])\"); U=\$(curl -sfI --max-time 15 -H \"Authorization: token \$T\" -H \"Accept: application/octet-stream\" \"https://api.github.com/repos/lfmol-apple/PETMOL---VR/releases/assets/\$ID\" | grep -i '^location:' | tr -d '\r' | awk '{print \$2}'); curl -fL --max-time 300 \"\$U\" | tar -xzC /opt/petmol/app/apps/web && systemctl restart petmol-web && echo DEPLOY_OK"
-    fi
-    echo ""
-    echo "Após este comando, todos os deploys futuros serão automáticos."
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  fi
+  echo "✅ Deploy web concluído."
+  echo "   Versão: curl -s $VPS_APP_URL/version.json"
+  rm -f "$TARBALL"
 }
 
 case "$TARGET" in
