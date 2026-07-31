@@ -179,14 +179,18 @@ class VisionService:
         if not blobs:
             return ai_brand
         blob_text = " ".join(blobs).lower()
-        for known in VisionService._KNOWN_BRANDS_ORDERED:
-            if known in blob_text:
-                ai_norm = (ai_brand or "").lower()
-                if known not in ai_norm and ai_norm not in known:
-                    logger.info("[OCR Brand Override] AI said %r but OCR blobs have %r — using OCR brand", ai_brand, known)
-                    return known
-                break
-        return ai_brand
+        found_brands = [known for known in VisionService._KNOWN_BRANDS_ORDERED if known in blob_text]
+        if not found_brands:
+            return ai_brand
+        ai_norm = (ai_brand or "").lower()
+        # If ai_brand agrees with ANY brand actually present in the blobs, trust it —
+        # don't override just because a different known brand also appears earlier
+        # in the priority list (e.g. from a neighboring product's text).
+        if any(known in ai_norm or ai_norm in known for known in found_brands):
+            return ai_brand
+        override = found_brands[0]
+        logger.info("[OCR Brand Override] AI said %r but OCR blobs have %r — using OCR brand", ai_brand, override)
+        return override
 
     @staticmethod
     def _normalize_text_blobs(value: Any) -> List[str]:
@@ -399,20 +403,38 @@ Se a imagem for realmente ilegível:
             raw_text_blobs = raw_text_blobs[:12]
             brand = self._ocr_brand_override(brand, raw_text_blobs)
 
-            # Hallucination guard: product_name must be grounded in the observed text
-            if product_name and raw_text_blobs:
+            # Hallucination guard: product_name and brand must be grounded in the
+            # observed text. raw_text_blobs comes from the same model call, so a
+            # self-consistent hallucination (model invents a blob matching its own
+            # wrong answer) can still slip through — but this catches the common
+            # case where the model's structured fields drift from what it actually
+            # transcribed.
+            if raw_text_blobs:
                 blob_corpus = " ".join(raw_text_blobs).lower()
-                name_tokens = [t for t in product_name.lower().split() if len(t) >= 4]
-                if len(name_tokens) >= 2:
-                    found_count = sum(1 for t in name_tokens if t in blob_corpus)
-                    coverage = found_count / len(name_tokens)
-                    if coverage < 0.3:
-                        logger.info(
-                            "[Hallucination Guard] product_name=%r coverage=%.0f%% vs blobs — clearing",
-                            product_name, coverage * 100,
-                        )
-                        product_name = None
-                        result["confidence"] = float(result.get("confidence") or 0.0) * 0.5
+
+                if product_name:
+                    name_tokens = [t for t in product_name.lower().split() if len(t) >= 4]
+                    if len(name_tokens) >= 2:
+                        coverage = sum(1 for t in name_tokens if t in blob_corpus) / len(name_tokens)
+                        if coverage < 0.3:
+                            logger.info(
+                                "[Hallucination Guard] product_name=%r coverage=%.0f%% vs blobs — clearing",
+                                product_name, coverage * 100,
+                            )
+                            product_name = None
+                            result["confidence"] = float(result.get("confidence") or 0.0) * 0.5
+
+                if brand:
+                    brand_tokens = [t for t in brand.lower().split() if len(t) >= 4]
+                    if brand_tokens:
+                        coverage = sum(1 for t in brand_tokens if t in blob_corpus) / len(brand_tokens)
+                        if coverage < 0.3:
+                            logger.info(
+                                "[Hallucination Guard] brand=%r coverage=%.0f%% vs blobs — clearing",
+                                brand, coverage * 100,
+                            )
+                            brand = None
+                            result["confidence"] = float(result.get("confidence") or 0.0) * 0.5
 
             species = self._normalize_species(result.get("species"))
             life_stage = self._normalize_life_stage(result.get("life_stage"))
