@@ -132,6 +132,16 @@ const ZXING_FORMATS = [
   BarcodeFormat.ITF,
 ];
 
+// Retail-only, checksum-protected formats. Used for the single-shot photo
+// pre-scan (no live framing by the user), where CODE_128/CODE_39/ITF are too
+// prone to false-positive decodes off busy packaging art.
+const RETAIL_BARCODE_FORMATS = [
+  BarcodeFormat.EAN_13,
+  BarcodeFormat.EAN_8,
+  BarcodeFormat.UPC_A,
+  BarcodeFormat.UPC_E,
+];
+
 interface PhotoProductIdentifyResponse {
   found: boolean;
   product_name?: string | null;
@@ -398,12 +408,17 @@ async function tryReadBarcodeFromPhoto(file: File): Promise<string | null> {
     if (!ctx) { bitmap.close(); return null; }
     ctx.drawImage(bitmap, 0, 0, w, h);
     bitmap.close();
+    // TRY_HARDER is deliberately off here: this runs once on a static photo
+    // that may show neighboring products or busy packaging art, unlike the
+    // live scanner where the user is actively framing a barcode. A missed
+    // read just falls through to the AI pipeline; a forced false read skips
+    // it (and its hallucination guard) entirely.
     const hints = new Map<DecodeHintType, unknown>([
-      [DecodeHintType.POSSIBLE_FORMATS, ZXING_FORMATS],
-      [DecodeHintType.TRY_HARDER, true],
+      [DecodeHintType.POSSIBLE_FORMATS, RETAIL_BARCODE_FORMATS],
     ]);
     const reader = new BrowserMultiFormatReader(hints);
     const result = reader.decodeFromCanvas(canvas);
+    if (!RETAIL_BARCODE_FORMATS.includes(result.getBarcodeFormat())) return null;
     const barcode = result.getText().replace(/\D/g, '');
     return /^\d{8,14}$/.test(barcode) ? barcode : null;
   } catch {
