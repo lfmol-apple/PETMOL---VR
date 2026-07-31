@@ -5,6 +5,7 @@ Handles communication with Google Gemini AI for image analysis
 
 import google.generativeai as genai
 from typing import List, Dict, Any, Optional
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -28,7 +29,29 @@ class VisionService:
         "temperature": 0,
         "response_mime_type": "application/json",
     }
-    
+    OCR_GENERATION_CONFIG = {
+        "temperature": 0,
+        "response_mime_type": "application/json",
+    }
+    OCR_ONLY_PROMPT = """Transcreva literalmente todo texto legível nesta imagem.
+
+Isto é uma tarefa de OCR pura — NÃO identifique produto, marca, categoria ou
+qualquer outra informação. Apenas transcreva o que está fisicamente escrito
+na imagem, exatamente como aparece.
+
+Regras:
+- Liste cada bloco de texto legível como um item separado do array.
+- Transcreva exatamente como está escrito, incluindo maiúsculas/minúsculas,
+  acentos e números. NÃO corrija erros de grafia nem complete palavras cortadas.
+- Inclua texto de qualquer tamanho: título principal, subtítulos, selos,
+  ícones com texto, tabelas, letras miúdas.
+- NÃO infira ou complete texto que não esteja legível — omita-o.
+- Se não houver texto legível, retorne uma lista vazia.
+
+Responda APENAS com JSON válido neste formato:
+{"text_blocks": ["texto 1", "texto 2", ...]}
+"""
+
     def __init__(self, api_key: str):
         """
         Inicializa o serviço com a chave API do Google
@@ -101,6 +124,36 @@ class VisionService:
         if text.startswith("```"):
             return text.replace("```", "").strip()
         return text
+
+    async def _extract_independent_text(self, image_bytes: bytes) -> List[str]:
+        """OCR-only pass, isolated from product identification.
+
+        This call has no framing about brands, products, or pet items at all —
+        it only ever sees a transcription task. That independence is the whole
+        point: the product-identification call's own `raw_text_blobs` field is
+        produced by the same call that infers brand/product_name, so at
+        temperature=0 a confident wrong guess reliably reproduces "supporting"
+        blobs that agree with itself. Cross-checking against text extracted by
+        a call that was never asked to identify anything closes that loophole.
+        """
+        try:
+            image_part = {
+                "mime_type": self._detect_mime_type(image_bytes),
+                "data": image_bytes,
+            }
+            response = await self._generate_content_with_model_fallback(
+                self.OCR_ONLY_PROMPT,
+                image_part,
+                generation_config=self.OCR_GENERATION_CONFIG,
+            )
+            payload = json.loads(self._strip_json_fences(response.text))
+            blocks = payload.get("text_blocks") if isinstance(payload, dict) else None
+            if not isinstance(blocks, list):
+                return []
+            return self._normalize_text_blobs(blocks)
+        except Exception as exc:
+            logger.info("[Independent OCR] failed, guard will skip cross-check: %s", exc)
+            return []
 
     @staticmethod
     def _normalize_optional_str(value: Any) -> Optional[str]:
@@ -383,10 +436,17 @@ Se a imagem for realmente ilegível:
                 "data": image_bytes,
             }
 
-            response = await self._generate_content_with_model_fallback(
-                prompt,
-                image_part,
-                generation_config=self.PRODUCT_PHOTO_GENERATION_CONFIG,
+            # Run product identification and independent OCR concurrently — the
+            # OCR call never sees any product/brand framing, so it can't
+            # self-consistently hallucinate "evidence" for the identification
+            # call's guess the way a single call's own raw_text_blobs can.
+            response, independent_blobs = await asyncio.gather(
+                self._generate_content_with_model_fallback(
+                    prompt,
+                    image_part,
+                    generation_config=self.PRODUCT_PHOTO_GENERATION_CONFIG,
+                ),
+                self._extract_independent_text(image_bytes),
             )
             response_text = self._strip_json_fences(response.text)
             result = json.loads(response_text)
@@ -401,21 +461,26 @@ Se a imagem for realmente ilegível:
             line = self._normalize_optional_str(result.get("line"))
             variant = self._normalize_optional_str(result.get("variant"))
             flavor = self._normalize_optional_str(result.get("flavor"))
-            raw_text_blobs = self._normalize_text_blobs(result.get("raw_text_blobs"))
+            self_reported_blobs = self._normalize_text_blobs(result.get("raw_text_blobs"))
             visible_text = self._normalize_optional_str(result.get("visible_text"))
-            if visible_text and visible_text not in raw_text_blobs:
-                raw_text_blobs.append(visible_text)
-            raw_text_blobs = raw_text_blobs[:12]
-            brand = self._ocr_brand_override(brand, raw_text_blobs)
+            if visible_text and visible_text not in self_reported_blobs:
+                self_reported_blobs.append(visible_text)
+            self_reported_blobs = self_reported_blobs[:12]
 
-            # Hallucination guard: product_name and brand must be grounded in the
-            # observed text. raw_text_blobs comes from the same model call, so a
-            # self-consistent hallucination (model invents a blob matching its own
-            # wrong answer) can still slip through — but this catches the common
-            # case where the model's structured fields drift from what it actually
-            # transcribed.
-            if raw_text_blobs:
-                blob_corpus = " ".join(raw_text_blobs).lower()
+            # The identification call's own raw_text_blobs can self-confirm its
+            # own wrong guess (same call, same reasoning chain) — so it must not
+            # leak into ANY brand-matching corpus, backend or client-side. The
+            # independent OCR pass (no product/brand framing at all) is the
+            # trusted corpus everywhere downstream, including what's sent to the
+            # client. Fall back to the self-reported blobs only if independent
+            # OCR came back empty (e.g. transient failure) — strictly weaker,
+            # but better than no grounding at all.
+            raw_text_blobs = independent_blobs[:16] if independent_blobs else self_reported_blobs
+            trusted_corpus_blobs = raw_text_blobs
+            brand = self._ocr_brand_override(brand, trusted_corpus_blobs)
+
+            if trusted_corpus_blobs:
+                blob_corpus = " ".join(trusted_corpus_blobs).lower()
 
                 if product_name:
                     name_tokens = [t for t in product_name.lower().split() if len(t) >= 4]
@@ -423,7 +488,7 @@ Se a imagem for realmente ilegível:
                         coverage = sum(1 for t in name_tokens if t in blob_corpus) / len(name_tokens)
                         if coverage < 0.3:
                             logger.info(
-                                "[Hallucination Guard] product_name=%r coverage=%.0f%% vs blobs — clearing",
+                                "[Hallucination Guard] product_name=%r coverage=%.0f%% vs independent OCR — clearing",
                                 product_name, coverage * 100,
                             )
                             product_name = None
@@ -435,7 +500,7 @@ Se a imagem for realmente ilegível:
                         coverage = sum(1 for t in brand_tokens if t in blob_corpus) / len(brand_tokens)
                         if coverage < 0.3:
                             logger.info(
-                                "[Hallucination Guard] brand=%r coverage=%.0f%% vs blobs — clearing",
+                                "[Hallucination Guard] brand=%r coverage=%.0f%% vs independent OCR — clearing",
                                 brand, coverage * 100,
                             )
                             brand = None
