@@ -125,7 +125,7 @@ Responda APENAS com JSON válido neste formato:
             return text.replace("```", "").strip()
         return text
 
-    async def _extract_independent_text(self, image_bytes: bytes) -> List[str]:
+    async def _extract_independent_text(self, image_bytes: bytes) -> tuple[List[str], Optional[str]]:
         """OCR-only pass, isolated from product identification.
 
         This call has no framing about brands, products, or pet items at all —
@@ -135,6 +135,10 @@ Responda APENAS com JSON válido neste formato:
         temperature=0 a confident wrong guess reliably reproduces "supporting"
         blobs that agree with itself. Cross-checking against text extracted by
         a call that was never asked to identify anything closes that loophole.
+
+        Returns (blobs, raw_response_text) — the raw text is kept for the
+        temporary diagnostic dump (VisionService debug monitor) and is not
+        otherwise used.
         """
         try:
             image_part = {
@@ -146,14 +150,15 @@ Responda APENAS com JSON válido neste formato:
                 image_part,
                 generation_config=self.OCR_GENERATION_CONFIG,
             )
-            payload = json.loads(self._strip_json_fences(response.text))
+            raw_text = response.text
+            payload = json.loads(self._strip_json_fences(raw_text))
             blocks = payload.get("text_blocks") if isinstance(payload, dict) else None
             if not isinstance(blocks, list):
-                return []
-            return self._normalize_text_blobs(blocks)
+                return [], raw_text
+            return self._normalize_text_blobs(blocks), raw_text
         except Exception as exc:
             logger.info("[Independent OCR] failed, guard will skip cross-check: %s", exc)
-            return []
+            return [], f"ERROR: {exc}"
 
     @staticmethod
     def _normalize_optional_str(value: Any) -> Optional[str]:
@@ -440,7 +445,7 @@ Se a imagem for realmente ilegível:
             # OCR call never sees any product/brand framing, so it can't
             # self-consistently hallucinate "evidence" for the identification
             # call's guess the way a single call's own raw_text_blobs can.
-            response, independent_blobs = await asyncio.gather(
+            response, (independent_blobs, independent_raw_text) = await asyncio.gather(
                 self._generate_content_with_model_fallback(
                     prompt,
                     image_part,
@@ -450,6 +455,12 @@ Se a imagem for realmente ilegível:
             )
             response_text = self._strip_json_fences(response.text)
             result = json.loads(response_text)
+            # Temporary diagnostic fields — surfaced via the token-gated debug
+            # dump endpoint only, not exposed to the client response model.
+            # TODO: remove once the brand-hallucination investigation is closed.
+            result["_debug_identification_raw"] = response_text
+            result["_debug_ocr_raw"] = independent_raw_text
+            result["_debug_ocr_blobs"] = independent_blobs
 
             allowed_categories = {"food", "medication", "antiparasite", "dewormer", "collar", "hygiene", "other"}
             category = result.get("category")

@@ -25,3 +25,12 @@ def list_product_photo_events(user_id: str, limit: int = 20) -> list[dict[str, A
     with _lock:
         events = list(_events_by_user.get(user_id, ()))
     return events[:safe_limit]
+
+
+def list_all_recent_events(limit: int = 20) -> list[dict[str, Any]]:
+    """Cross-user recent events, newest first. Temporary diagnostic use only —
+    backs the token-gated debug-dump endpoint. TODO: remove alongside it."""
+    with _lock:
+        all_events = [event for events in _events_by_user.values() for event in events]
+    all_events.sort(key=lambda e: e.get("timestamp") or "", reverse=True)
+    return all_events[: max(1, limit)]

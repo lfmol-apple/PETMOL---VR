@@ -16,7 +16,7 @@ import time
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
 from .service import VisionService
-from .monitor import list_product_photo_events, record_product_photo_event
+from .monitor import list_product_photo_events, list_all_recent_events, record_product_photo_event
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +152,12 @@ def _build_product_photo_monitor_event(*, pet_id: str, hint: Optional[str], imag
         "visible_text_preview": visible_text[:180] if visible_text else None,
         "error_type": error_type,
         "error_message": error_message[:180] if error_message else None,
+        # Temporary diagnostic fields for the brand-hallucination investigation —
+        # only surfaced via the token-gated /vision/monitor/debug-dump endpoint.
+        # TODO: remove once closed.
+        "_debug_identification_raw": payload.get("_debug_identification_raw"),
+        "_debug_ocr_raw": payload.get("_debug_ocr_raw"),
+        "_debug_ocr_blobs": payload.get("_debug_ocr_blobs"),
     }
 
 
@@ -169,6 +175,24 @@ async def get_recent_product_photo_results(
         error_count=sum(1 for item in items if item.get("return_type") == "error"),
         items=[ProductPhotoMonitorEntry(**item) for item in items],
     )
+
+
+# Temporary, token-gated, cross-user diagnostic dump for the brand-hallucination
+# investigation — bypasses per-user auth so it can be fetched directly while
+# debugging without needing the tester's own session. Returns the full raw
+# Gemini responses from both the identification call and the independent OCR
+# call. TODO: remove this endpoint once the investigation is closed.
+_DEBUG_DUMP_TOKEN = "86c72925dee5fbefc0a57c92153c34ea1ca53793fb5d1f9c"
+
+
+@router.get("/monitor/debug-dump")
+async def debug_dump_product_photo_events(
+    token: str = Query(...),
+    limit: int = Query(default=10, ge=1, le=50),
+):
+    if token != _DEBUG_DUMP_TOKEN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="invalid token")
+    return {"items": list_all_recent_events(limit=limit)}
 
 
 @router.post("/extract-vaccine-card", response_model=ExtractVaccineCardResponse)
