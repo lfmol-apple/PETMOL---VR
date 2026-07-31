@@ -1,8 +1,13 @@
 #!/bin/bash
-# Deploy completo: sincroniza src local → VPS e rebuilda
+# DEPLOY PRIMÁRIO: git push origin <branch> — dispara .github/workflows/deploy.yml
+# (GitHub Actions builda e envia via SSH a partir de runners na nuvem, sem
+# depender da rede/IP da máquina local). Esse é o caminho usado em produção.
+#
+# Este script é só para deploys manuais/emergenciais quando o push automático
+# não é uma opção (ex: testar algo rápido antes de commitar).
 # Uso: bash deploy.sh [web|api|all|local-web]  (padrão: web)
-#   local-web: build local + upload GitHub release + instrução curl para VPS
-#              (fallback quando SSH está indisponível)
+#   local-web: build local + envio direto via SSH (fallback de emergência,
+#              exige que a porta 22 do VPS esteja acessível da máquina local)
 set -e
 
 TARGET=${1:-web}
@@ -11,14 +16,8 @@ VPS_USER="root"
 SSH_KEY="$HOME/.ssh/id_ed25519"
 VPS_SERVICE="petmol-web"
 VPS_APP_URL="https://www.petmol.com.br"
-DEPLOY_TOKEN="671d19c2fd603495066789d8300031fa94d28016a6f16b96"
 
-# Tenta porta 2222 (pós-hardening) primeiro, cai para 22 se não funcionar
 SSH_PORT=22
-if ssh -i "$SSH_KEY" -p 2222 -o ConnectTimeout=5 -o BatchMode=yes "$VPS_USER@$VPS_HOST" "exit" 2>/dev/null; then
-  SSH_PORT=2222
-fi
-
 VPS="$VPS_USER@$VPS_HOST"
 APP_REMOTE="/opt/petmol/app"
 APP_LOCAL="$(cd "$(dirname "$0")" && pwd)"
@@ -55,44 +54,6 @@ rsync_retry() {
     "$@"
 }
 
-# Quando SSH conectar pela 1ª vez, hardening automático (porta 22 → 2222)
-# Idempotente: só age se a porta ainda for 22
-harden_ssh_if_needed() {
-  if [ "$SSH_PORT" -eq 22 ]; then
-    echo "🔒 Aplicando hardening SSH (porta 22 → 2222)..."
-    ssh -i "$SSH_KEY" -p 22 -o ConnectTimeout=15 -o BatchMode=yes "$VPS" bash <<'REMOTE'
-# Só executa se Port ainda for 22
-if ! grep -q '^Port 2222' /etc/ssh/sshd_config; then
-  # Remove Port existente, adiciona as configs corretas
-  sed -i 's/^#*Port .*//' /etc/ssh/sshd_config
-  sed -i 's/^#*UseDNS .*//' /etc/ssh/sshd_config
-  sed -i 's/^#*MaxStartups .*//' /etc/ssh/sshd_config
-
-  cat >> /etc/ssh/sshd_config <<EOF
-
-# PETMOL hardening — adicionado automaticamente
-Port 2222
-UseDNS no
-MaxStartups 50:30:100
-EOF
-
-  # Abre porta 2222 no firewall ANTES de reiniciar SSH
-  ufw allow 2222/tcp comment "SSH hardened"
-  ufw delete allow 22/tcp 2>/dev/null || true
-  ufw delete allow OpenSSH 2>/dev/null || true
-
-  # Reinicia SSH — a sessão atual (porta 22) se mantém até fechar
-  systemctl restart ssh
-  echo "✅ SSH hardening aplicado. Próximos deploys usarão porta 2222."
-else
-  echo "ℹ️  SSH já está na porta 2222."
-fi
-REMOTE
-    SSH_PORT=2222
-    echo "✅ SSH hardening concluído. Deploys futuros usarão porta 2222."
-  fi
-}
-
 deploy_web() {
   echo "🔄 Sincronizando arquivos web..."
   TS=$(date -u +%s)
@@ -100,9 +61,6 @@ deploy_web() {
 
   # Garante conectividade com retry
   ssh_retry "$VPS" "exit"
-
-  # Aplica hardening SSH se ainda estiver na porta 22
-  harden_ssh_if_needed
 
   rsync_retry \
     --exclude='.next' \
@@ -126,7 +84,6 @@ deploy_web() {
 deploy_api() {
   echo "🔄 Sincronizando API..."
   ssh_retry "$VPS" "exit"
-  harden_ssh_if_needed
   rsync_retry \
     --exclude='__pycache__' \
     --exclude='*.pyc' \
