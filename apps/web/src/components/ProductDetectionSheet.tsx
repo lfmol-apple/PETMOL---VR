@@ -384,6 +384,33 @@ async function compressImageForAnalysis(file: File): Promise<File> {
   });
 }
 
+async function tryReadBarcodeFromPhoto(file: File): Promise<string | null> {
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const MAX_DIM = 1920;
+    const ratio = Math.min(1, MAX_DIM / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * ratio));
+    const h = Math.max(1, Math.round(bitmap.height * ratio));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { bitmap.close(); return null; }
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const hints = new Map<DecodeHintType, unknown>([
+      [DecodeHintType.POSSIBLE_FORMATS, ZXING_FORMATS],
+      [DecodeHintType.TRY_HARDER, true],
+    ]);
+    const reader = new BrowserMultiFormatReader(hints);
+    const result = reader.decodeFromCanvas(canvas);
+    const barcode = result.getText().replace(/\D/g, '');
+    return /^\d{8,14}$/.test(barcode) ? barcode : null;
+  } catch {
+    return null;
+  }
+}
+
 function validateProductPhotoFile(file: File): string | null {
   if (!file.type.startsWith('image/')) {
     return 'photo_invalid_type';
@@ -1365,10 +1392,18 @@ export function ProductDetectionSheetGold({
       return;
     }
 
-    const url = URL.createObjectURL(file);
-    setPhotoUrl(url);
     setScannerError(null);
     setStep('photo-processing');
+
+    // ZXing barcode scan on submitted photo — free, instant, 100% accurate when barcode readable
+    const photoBarcode = await tryReadBarcodeFromPhoto(file);
+    if (photoBarcode) {
+      await resolveDetectedBarcode(photoBarcode);
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    setPhotoUrl(url);
 
     // Pipeline único para todos os tipos (consistência com versão estável)
     const identifiedFromPhoto = await identifyProductFromPhoto(file, undefined);

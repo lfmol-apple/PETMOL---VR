@@ -399,6 +399,21 @@ Se a imagem for realmente ilegível:
             raw_text_blobs = raw_text_blobs[:12]
             brand = self._ocr_brand_override(brand, raw_text_blobs)
 
+            # Hallucination guard: product_name must be grounded in the observed text
+            if product_name and raw_text_blobs:
+                blob_corpus = " ".join(raw_text_blobs).lower()
+                name_tokens = [t for t in product_name.lower().split() if len(t) >= 4]
+                if len(name_tokens) >= 2:
+                    found_count = sum(1 for t in name_tokens if t in blob_corpus)
+                    coverage = found_count / len(name_tokens)
+                    if coverage < 0.3:
+                        logger.info(
+                            "[Hallucination Guard] product_name=%r coverage=%.0f%% vs blobs — clearing",
+                            product_name, coverage * 100,
+                        )
+                        product_name = None
+                        result["confidence"] = float(result.get("confidence") or 0.0) * 0.5
+
             species = self._normalize_species(result.get("species"))
             life_stage = self._normalize_life_stage(result.get("life_stage"))
 
