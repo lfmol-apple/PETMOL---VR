@@ -15,7 +15,7 @@ import {
   type ScannedProduct,
   type ScanHistoryEntry,
 } from '@/lib/productScanner';
-import { saveLocalProduct } from '@/features/product-detection/cache';
+import { saveLocalProduct, clearLocalProduct } from '@/features/product-detection/cache';
 import { trackEvent } from '@/lib/analytics/storage';
 import {
   confirmProductLookup,
@@ -1604,7 +1604,10 @@ export function ProductDetectionSheetGold({
     }
 
     if (step === 'confirm') {
-      if (confirmed?.barcode) rejectedBarcodesRef.current.add(confirmed.barcode);
+      if (confirmed?.barcode) {
+        rejectedBarcodesRef.current.add(confirmed.barcode);
+        clearLocalProduct(confirmed.barcode);
+      }
       clearPendingScannedProduct();
       setConfirmed(null);
       setFromHistory(false);
@@ -2353,7 +2356,10 @@ export function ProductDetectionSheetGold({
         <button
           type="button"
           onClick={() => {
-            if (confirmed?.barcode) rejectedBarcodesRef.current.add(confirmed.barcode);
+            if (confirmed?.barcode) {
+        rejectedBarcodesRef.current.add(confirmed.barcode);
+        clearLocalProduct(confirmed.barcode);
+      }
             clearPendingScannedProduct();
             setConfirmed(null);
             setFromHistory(false);

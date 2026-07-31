@@ -309,13 +309,19 @@ function levenshtein(a: string, b: string): number {
 
 export function fuzzyMatchBrandDetails(text: string): BrandMatch | undefined {
   const n = norm(text);
-  // exact substring match first (fastest)
-  for (const brand of KNOWN_BRANDS) {
-    if (n.includes(norm(brand))) return { brand, mode: 'exact' };
+  // Exact substring match: collect ALL brands present, not just the first hit in
+  // KNOWN_BRANDS order — a short/generic entry earlier in the list (e.g. "hill's")
+  // must not win over a longer, more specific brand that's also genuinely present
+  // (e.g. "premier") just because of list ordering.
+  const exactMatches = KNOWN_BRANDS.filter(brand => n.includes(norm(brand)));
+  if (exactMatches.length > 0) {
+    exactMatches.sort((a, b) => b.length - a.length);
+    return { brand: exactMatches[0], mode: 'exact' };
   }
-  // 1-edit-distance fuzzy for brands ≥ 6 chars
+  // 1-edit-distance fuzzy for brands ≥ 9 chars only — short fragments (5-6 chars)
+  // are too likely to false-positive against unrelated text within edit distance 1.
   for (const brand of KNOWN_BRANDS) {
-    if (brand.length < 6) continue;
+    if (brand.length < 9) continue;
     const nb = norm(brand);
     for (let i = 0; i <= n.length - nb.length + 1; i++) {
       if (levenshtein(n.slice(i, i + nb.length), nb) <= 1) {

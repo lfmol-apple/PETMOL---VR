@@ -312,6 +312,14 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
       // (e.g. "Hill's Science Diet Puppy" scoring high in a "royal canin" search)
       score -= 0.5;
     }
+  } else if (candidateBrand) {
+    // We have no brand signal of our own (cleared by the hallucination guard, or
+    // never detected), but the candidate carries a specific named brand. Matching
+    // on species/weight/life-stage alone and silently adopting that brand is how
+    // a Premier bag turns into "Hill's Science Diet" — those fields are shared by
+    // dozens of products. Penalize hard enough that weak matches fall below the
+    // acceptance threshold instead of being confidently confirmed.
+    score -= 0.35;
   }
 
   const species = normalizeSpeciesToken(payload.species);

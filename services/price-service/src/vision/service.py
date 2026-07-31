@@ -185,10 +185,15 @@ class VisionService:
         ai_norm = (ai_brand or "").lower()
         # If ai_brand agrees with ANY brand actually present in the blobs, trust it —
         # don't override just because a different known brand also appears earlier
-        # in the priority list (e.g. from a neighboring product's text).
-        if any(known in ai_norm or ai_norm in known for known in found_brands):
+        # in the priority list (e.g. from a neighboring product's text). An empty
+        # ai_norm never "agrees" — that would otherwise vacuously match every
+        # found brand (since "" is a substring of everything) and discard a
+        # legitimate OCR-detected brand whenever the AI simply didn't provide one.
+        if ai_norm and any(known in ai_norm or ai_norm in known for known in found_brands):
             return ai_brand
-        override = found_brands[0]
+        # Prefer the most specific (longest) match rather than whichever known
+        # brand happens to sit first in the priority list.
+        override = max(found_brands, key=len)
         logger.info("[OCR Brand Override] AI said %r but OCR blobs have %r — using OCR brand", ai_brand, override)
         return override
 

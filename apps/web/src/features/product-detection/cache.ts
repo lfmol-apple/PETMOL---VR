@@ -1,6 +1,6 @@
 import type { ResolvedProduct } from './types';
 
-const CACHE_KEY = 'petmol_barcode_cache_v1';
+const CACHE_KEY = 'petmol_barcode_cache_v2';
 const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 interface CacheEntry {
