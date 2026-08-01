@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/I18nContext';
 import { isPetQuery } from '@/lib/petLexicon';
@@ -74,12 +75,12 @@ function ErrorContent() {
       )}
       
       <div className="flex flex-col sm:flex-row gap-3 justify-center">
-        <a 
+        <Link
           href="/"
           className="inline-block px-6 py-3 bg-gradient-to-r from-[#0056D2] to-violet-600 text-white rounded-xl font-medium hover:scale-105 transition-all text-center"
         >
           {t('handoff.error.actions.back')}
-        </a>
+        </Link>
         <button
           onClick={() => window.history.back()}
           className="inline-block px-6 py-3 bg-slate-100 text-slate-700 rounded-xl font-medium hover:bg-slate-200 transition-colors"

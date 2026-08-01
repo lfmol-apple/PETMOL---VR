@@ -56,7 +56,7 @@ export function PetTabs({ pets, selectedPetId, onPetChange, children }: PetTabsP
   }, [currentIndex, prevIndex, pets]);
 
   // Usamos PanEnd em vez de DragEnd para evitar alteração física contínua no DOM durante o toque
-  const handlePanEnd = (event: any, info: PanInfo) => {
+  const handlePanEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const target = event?.target as HTMLElement | null;
     if (target?.closest('button, a, input, textarea, select, [role="button"], [data-no-swipe="true"]')) {
       return;

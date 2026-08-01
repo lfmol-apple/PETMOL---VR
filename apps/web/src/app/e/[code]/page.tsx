@@ -6,6 +6,7 @@
  */
 
 import { headers } from 'next/headers';
+import Link from 'next/link';
 import { EmergencyShare } from '@/lib/shares/shareStorage';
 import { t, type Locale } from '@/lib/i18n';
 
@@ -77,10 +78,10 @@ export default async function EmergencyPage({ params }: EmergencyPageProps) {
       {/* Premium top bar */}
       <div className="max-w-2xl mx-auto mb-4">
         <div className="bg-white/90 backdrop-blur-sm rounded-2xl px-4 h-12 flex items-center justify-between shadow-sm">
-          <a href="/" className="flex items-center gap-2 text-primary-600 font-semibold text-sm hover:text-primary-700">
+          <Link href="/" className="flex items-center gap-2 text-primary-600 font-semibold text-sm hover:text-primary-700">
             <span>←</span>
             <span>🐾 PETMOL</span>
-          </a>
+          </Link>
           <span className="text-xs font-semibold text-red-600 uppercase tracking-wide">Emergência</span>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { API_BASE_URL } from '@/lib/api';
 import FunnelCTAs from './FunnelCTAs';
@@ -83,10 +84,10 @@ export default async function PublicRGPage({ params }: { params: Promise<{ id: s
       {/* Premium top bar */}
       <div className="fixed top-0 left-0 right-0 z-10 bg-white/90 backdrop-blur-sm border-b border-slate-200 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-2 text-primary-600 font-semibold text-sm hover:text-primary-700">
+          <Link href="/" className="flex items-center gap-2 text-primary-600 font-semibold text-sm hover:text-primary-700">
             <span>←</span>
             <span>🐾 PETMOL</span>
-          </a>
+          </Link>
           <span className="text-sm font-medium text-slate-700">Carteirinha Digital</span>
           <span className="text-xs text-slate-400">{data.pet_name}</span>
         </div>

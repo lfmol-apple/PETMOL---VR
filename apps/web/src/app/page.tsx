@@ -108,7 +108,7 @@ export default function LandingPage() {
       {/* Social proof */}
       <section className="px-5 pb-10">
         <div className="rounded-3xl bg-slate-50 border border-slate-100 p-6 text-center">
-          <p className="text-2xl font-black text-slate-900">"Finalmente um app de pet<br />que funciona de verdade."</p>
+          <p className="text-2xl font-black text-slate-900">&quot;Finalmente um app de pet<br />que funciona de verdade.&quot;</p>
           <p className="mt-3 text-sm text-slate-500">Feito para quem trata pet como família.</p>
         </div>
       </section>

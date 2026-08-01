@@ -97,7 +97,7 @@ export default function TermsPage() {
 
           <h2>10. Limitação de Responsabilidade</h2>
           <p>
-            O PETMOL é fornecido "como está" e "conforme disponível". Não garantimos que o serviço será ininterrupto, seguro ou livre de erros. Em nenhuma circunstância seremos responsáveis por:
+            O PETMOL é fornecido &quot;como está&quot; e &quot;conforme disponível&quot;. Não garantimos que o serviço será ininterrupto, seguro ou livre de erros. Em nenhuma circunstância seremos responsáveis por:
           </p>
           <ul>
             <li>Danos diretos, indiretos, incidentais ou consequenciais</li>

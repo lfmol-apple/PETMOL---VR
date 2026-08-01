@@ -6,6 +6,7 @@
  */
 
 import { headers } from 'next/headers';
+import Link from 'next/link';
 import { VetShareToken } from '@/lib/shares/shareStorage';
 import { PetHealthProfile } from '@/lib/health/syncStorage';
 import { t, type Locale } from '@/lib/i18n';
@@ -89,10 +90,10 @@ export default async function VetSharePage({ params }: VetSharePageProps) {
       {/* Premium top bar */}
       <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-sm border-b border-slate-200 shadow-sm mb-6">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-2 text-primary-600 font-semibold text-sm hover:text-primary-700">
+          <Link href="/" className="flex items-center gap-2 text-primary-600 font-semibold text-sm hover:text-primary-700">
             <span>←</span>
             <span>🐾 PETMOL</span>
-          </a>
+          </Link>
           <span className="text-sm font-medium text-slate-700">{tr('vet_share.header.title')}</span>
           <span className="text-xs text-slate-400">Vet Share</span>
         </div>

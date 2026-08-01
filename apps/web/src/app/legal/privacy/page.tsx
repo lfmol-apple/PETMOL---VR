@@ -139,7 +139,7 @@ export default function PrivacyPage() {
           <ul>
             <li><strong>Acesso:</strong> Solicitar cópia dos seus dados</li>
             <li><strong>Correção:</strong> Atualizar dados incorretos ou incompletos</li>
-            <li><strong>Exclusão:</strong> Solicitar remoção dos seus dados ("direito ao esquecimento")</li>
+            <li><strong>Exclusão:</strong> Solicitar remoção dos seus dados (&quot;direito ao esquecimento&quot;)</li>
             <li><strong>Portabilidade:</strong> Receber seus dados em formato estruturado</li>
             <li><strong>Revogação:</strong> Retirar consentimento a qualquer momento</li>
             <li><strong>Oposição:</strong> Opor-se a determinados usos dos seus dados</li>

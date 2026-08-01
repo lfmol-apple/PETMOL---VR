@@ -35,7 +35,7 @@ export interface TutorCreateDTO {
   country?: string;
 }
 
-export interface TutorUpdateDTO extends Partial<TutorCreateDTO> {}
+export type TutorUpdateDTO = Partial<TutorCreateDTO>;
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
