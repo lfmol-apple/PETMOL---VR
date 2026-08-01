@@ -258,7 +258,15 @@ fi
 # Step 5: Restart services
 # ============================================
 log "Restarting petmol-api..."
-systemctl restart petmol-api
+# `sudo` here isn't optional cosmetics: the petmol user restarting a system
+# unit without it depends on polkit granting org.freedesktop.systemd1
+# non-interactively for that session, and that grant is inconsistent across
+# SSH session types — it silently failed with "Interactive authentication
+# required" during manual recovery of this exact deploy, while automated
+# CI sessions had been working. petmol has passwordless NOPASSWD:ALL sudo
+# configured, so this removes the polkit dependency entirely instead of
+# hoping the session type cooperates.
+sudo systemctl restart petmol-api
 
 # Always restart petmol-web, not just when RESTART_WEB (source changed) —
 # version.json is regenerated on every deploy so clients auto-reload onto
@@ -268,7 +276,7 @@ systemctl restart petmol-api
 # only backend files changed). This is a cheap process restart, not a
 # rebuild, so the cost of doing it unconditionally is negligible.
 log "Restarting petmol-web..."
-systemctl restart petmol-web
+sudo systemctl restart petmol-web
 
 # ============================================
 # Step 6: Health checks (non-fatal — logs on failure)
