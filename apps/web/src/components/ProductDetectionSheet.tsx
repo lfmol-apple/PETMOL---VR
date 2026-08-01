@@ -559,7 +559,34 @@ export function ProductDetectionSheetGold({
         : 'entry';
   const [step, setStep] = useState<Step>(initialStep);
   const [confirmed, setConfirmed] = useState<ScannedProduct | null>(null);
+  const [isEditingProduct, setIsEditingProduct] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editBrand, setEditBrand] = useState('');
+  const [editWeight, setEditWeight] = useState('');
+  // A new scan result (different product identity) should never inherit a
+  // stale open edit form from whatever was being corrected before it.
+  useEffect(() => {
+    setIsEditingProduct(false);
+  }, [confirmed?.barcode, confirmed?.name]);
   const [fromHistory, setFromHistory] = useState(false);
+  const [photoProcessingProgress, setPhotoProcessingProgress] = useState(0);
+  // The AI photo identification is a single opaque request (10-30s, no
+  // streaming/incremental signal to report real progress from) — this fakes
+  // a progress bar that races toward 92% and then creeps, so the wait feels
+  // bounded instead of a bare spinner. Time constant (8s) tuned to real
+  // production durations, where most calls finish in 10-20s.
+  useEffect(() => {
+    if (step !== 'photo-processing') {
+      setPhotoProcessingProgress(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const interval = setInterval(() => {
+      const elapsedSeconds = (Date.now() - startedAt) / 1000;
+      setPhotoProcessingProgress(92 * (1 - Math.exp(-elapsedSeconds / 8)));
+    }, 200);
+    return () => clearInterval(interval);
+  }, [step]);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [cameraFailed, setCameraFailed] = useState(false);
   const [query, setQuery] = useState('');
@@ -1532,35 +1559,40 @@ export function ProductDetectionSheetGold({
     });
   };
 
-  const handleConfirm = () => {
-    if (!confirmed) return;
+  const handleConfirm = (productOverride?: ScannedProduct) => {
+    const product = productOverride ?? confirmed;
+    if (!product) return;
 
-    if (confirmed.barcode && confirmed.found) {
-      saveLocalProduct(confirmed.barcode, {
-        barcode: confirmed.barcode,
-        name: confirmed.name,
-        brand: confirmed.brand,
-        weight: confirmed.weight,
-        category: confirmed.category,
+    if (product.barcode && product.found) {
+      saveLocalProduct(product.barcode, {
+        barcode: product.barcode,
+        name: product.name,
+        brand: product.brand,
+        weight: product.weight,
+        category: product.category,
         source: 'cache',
       });
       // Aplicar memória de correção: se o tutor corrigiu este nome antes, sugerir o valor correto
-      const previousCorrection = findLocalCorrection(confirmed.name, confirmed.category);
-      if (previousCorrection && previousCorrection !== confirmed.name) {
+      const previousCorrection = findLocalCorrection(product.name, product.category);
+      if (previousCorrection && previousCorrection !== product.name) {
         // Não forçar — apenas registrar que havia uma correção prévia; o tutor já confirmou este nome
       }
     }
     // Sempre grava o aprendizado, com ou sem barcode — a maioria das
     // confirmações vem de foto (ração), e antes disso ficavam presas só no
     // localStorage do celular, nunca alimentando a base compartilhada.
+    // ai_suggested_name continua sendo o nome ORIGINAL sugerido pela IA
+    // (aiSuggestedNameRef nunca é atualizado após a correção manual), então
+    // uma correção aqui é detectada corretamente no backend como correction,
+    // não como uma nova confirmation "do zero".
     void submitLearningConfirmation({
-      barcode: confirmed.barcode,
-      name: confirmed.name,
-      brand: confirmed.brand,
-      category: confirmed.category,
-      manufacturer: confirmed.manufacturer,
-      presentation: confirmed.presentation ?? confirmed.weight,
-      weight: confirmed.weight,
+      barcode: product.barcode,
+      name: product.name,
+      brand: product.brand,
+      category: product.category,
+      manufacturer: product.manufacturer,
+      presentation: product.presentation ?? product.weight,
+      weight: product.weight,
       species: speciesRef.current,
       life_stage: lifeStageRef.current,
       decision_source: decisionSourceRef.current,
@@ -1575,16 +1607,16 @@ export function ProductDetectionSheetGold({
       pet_id: petId,
     });
 
-    saveToScanHistory({ barcode: confirmed.barcode, product: confirmed, petId, category: confirmed.category });
+    saveToScanHistory({ barcode: product.barcode, product, petId, category: product.category });
     emitProductTelemetry('confirmed', {
       origin: decisionSourceRef.current,
       result: decisionResultTypeRef.current,
       score: decisionScoreRef.current ?? aiConfidenceRef.current ?? null,
-      category: confirmed.category,
-      brand: confirmed.brand ?? null,
+      category: product.category,
+      brand: product.brand ?? null,
       confirmed_by_tutor: true,
     });
-    onProductConfirmed(confirmed);
+    onProductConfirmed(product);
   };
 
   const canGoBack = step !== 'entry' && step !== 'resolving' && step !== 'photo-processing';
@@ -1956,6 +1988,14 @@ export function ProductDetectionSheetGold({
         />
       )}
       <div className="h-12 w-12 rounded-full border-4 border-emerald-400 border-t-transparent animate-spin" />
+      <div className="w-full max-w-xs">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+          <div
+            className="h-full rounded-full bg-emerald-400 transition-all duration-200 ease-out"
+            style={{ width: `${Math.min(photoProcessingProgress, 100)}%` }}
+          />
+        </div>
+      </div>
       <div className="text-center">
         <p className="font-semibold text-gray-800">Analisando a foto...</p>
           <p className="mt-1 text-sm text-gray-400">Lendo código e embalagem para identificar o produto</p>
@@ -2344,14 +2384,94 @@ export function ProductDetectionSheetGold({
           </div>
         )}
 
+        {isEditingProduct && (
+          <div className="space-y-3 rounded-2xl border-2 border-blue-200 bg-blue-50 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-blue-700">Corrigir produto</p>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-500">Nome</label>
+              <input
+                type="text"
+                value={editName}
+                onChange={event => setEditName(event.target.value)}
+                className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none"
+                placeholder="Nome do produto"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-500">Marca</label>
+              <input
+                type="text"
+                value={editBrand}
+                onChange={event => setEditBrand(event.target.value)}
+                className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none"
+                placeholder="Marca"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-gray-500">Peso</label>
+              <input
+                type="text"
+                value={editWeight}
+                onChange={event => setEditWeight(event.target.value)}
+                className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none"
+                placeholder="Ex: 15 kg"
+              />
+            </div>
+          </div>
+        )}
       </div>
       <div className="flex-shrink-0 border-t border-gray-100 bg-white px-5 py-4 space-y-3">
+        {isEditingProduct ? (
+          <>
+            <button
+              type="button"
+              disabled={!editName.trim()}
+              onClick={() => {
+                if (!confirmed || !editName.trim()) return;
+                const corrected: ScannedProduct = {
+                  ...confirmed,
+                  name: editName.trim(),
+                  brand: editBrand.trim() || undefined,
+                  weight: editWeight.trim() || undefined,
+                };
+                setConfirmed(corrected);
+                setIsEditingProduct(false);
+                handleConfirm(corrected);
+              }}
+              className="w-full rounded-2xl bg-blue-600 py-4 text-base font-bold text-white shadow-md transition-all active:scale-95 disabled:opacity-40"
+            >
+              💾 Salvar correção
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsEditingProduct(false)}
+              className="w-full rounded-xl border border-gray-200 py-3 text-sm font-semibold text-gray-600 transition-all active:scale-95"
+            >
+              Cancelar
+            </button>
+          </>
+        ) : (
+          <>
         <button
           type="button"
-          onClick={handleConfirm}
+          onClick={() => handleConfirm()}
           className="w-full rounded-2xl bg-emerald-500 py-4 text-base font-bold text-white shadow-md transition-all active:scale-95"
         >
           ✓ Está certo — usar este produto
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            if (!confirmed) return;
+            setEditName(confirmed.name ?? '');
+            setEditBrand(confirmed.brand ?? '');
+            setEditWeight(confirmed.weight ?? '');
+            setIsEditingProduct(true);
+          }}
+          className="w-full rounded-xl border border-blue-200 bg-blue-50 py-3 text-sm font-semibold text-blue-700 transition-all active:scale-95"
+        >
+          ✏️ Não está certo? Corrigir
         </button>
 
         <button
@@ -2371,6 +2491,8 @@ export function ProductDetectionSheetGold({
         >
           Não, escolher outro
         </button>
+          </>
+        )}
       </div>
       </div>
     );
