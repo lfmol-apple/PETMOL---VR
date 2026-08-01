@@ -193,6 +193,12 @@ def run_pg_migrations(engine: Engine) -> None:
         # match/promote against
         _pg_add_column_if_missing(conn, "product_reliable_catalog", "flavor", "TEXT")
 
+        # product_reliable_catalog: port + neutered (Aug 2026) — confirmed
+        # scans already carry these (vision extraction + scoring), but
+        # nothing persisted them into the promoted catalog
+        _pg_add_column_if_missing(conn, "product_reliable_catalog", "port", "TEXT")
+        _pg_add_column_if_missing(conn, "product_reliable_catalog", "neutered", "BOOLEAN")
+
         # found_reports: dismiss flag + finder identity (Jul 2026)
         _pg_add_column_if_missing(conn, "found_reports", "dismissed", "INTEGER DEFAULT 0")
         _pg_add_column_if_missing(conn, "found_reports", "finder_user_id", "TEXT")
@@ -614,6 +620,10 @@ def run_sqlite_migrations(engine: Engine) -> None:
 
         # product_reliable_catalog: flavor (Aug 2026)
         changed |= _sqlite_add_column_if_missing(conn, "product_reliable_catalog", "flavor", "TEXT")
+
+        # product_reliable_catalog: port + neutered (Aug 2026)
+        changed |= _sqlite_add_column_if_missing(conn, "product_reliable_catalog", "port", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "product_reliable_catalog", "neutered", "BOOLEAN")
 
         # missing_pets: public third-party reports + SEO pages (Jul 2026)
         changed |= _sqlite_add_column_if_missing(conn, "found_reports", "finder_video_url", "TEXT")

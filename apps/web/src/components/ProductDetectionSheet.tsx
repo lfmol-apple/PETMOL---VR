@@ -161,6 +161,8 @@ interface PhotoProductIdentifyResponse {
   life_stage?: string | null;
   line?: string | null;
   flavor?: string | null;
+  port?: string | null;
+  neutered?: boolean | null;
   visible_text?: string | null;
   raw_text_blobs?: string[] | null;
 }
@@ -176,6 +178,8 @@ interface PhotoIdentifyOutcome {
   species?: string;
   lifeStage?: string;
   flavor?: string;
+  port?: string;
+  neutered?: boolean;
   detectedWeight?: string;
   detectedBrand?: string;
   assistedConfirmation?: boolean;
@@ -541,6 +545,8 @@ export function ProductDetectionSheetGold({
   const speciesRef = useRef<string | undefined>(undefined);
   const lifeStageRef = useRef<string | undefined>(undefined);
   const flavorRef = useRef<string | undefined>(undefined);
+  const portRef = useRef<string | undefined>(undefined);
+  const neuteredRef = useRef<boolean | undefined>(undefined);
   const detectedWeightRef = useRef<string | undefined>(undefined);
   const detectedBrandRef = useRef<string | undefined>(undefined);
   const strongTermsRef = useRef<string[]>([]);
@@ -636,6 +642,8 @@ export function ProductDetectionSheetGold({
     speciesRef.current = undefined;
     lifeStageRef.current = undefined;
     flavorRef.current = undefined;
+    portRef.current = undefined;
+    neuteredRef.current = undefined;
     detectedWeightRef.current = undefined;
     detectedBrandRef.current = undefined;
     strongTermsRef.current = [];
@@ -768,6 +776,8 @@ export function ProductDetectionSheetGold({
           species: payload.species?.trim() || undefined,
           lifeStage: payload.life_stage?.trim() || undefined,
           flavor: payload.flavor?.trim() || undefined,
+        port: payload.port?.trim() || undefined,
+        neutered: typeof payload.neutered === 'boolean' ? payload.neutered : undefined,
           detectedWeight,
           detectedBrand: resolvedBrand || undefined,
           assistedConfirmation: assistedConfirmation || fallbackTerms.strongTerms.length > 0,
@@ -800,6 +810,8 @@ export function ProductDetectionSheetGold({
         species: payload.species?.trim() || undefined,
         lifeStage: payload.life_stage?.trim() || undefined,
         flavor: payload.flavor?.trim() || undefined,
+        port: payload.port?.trim() || undefined,
+        neutered: typeof payload.neutered === 'boolean' ? payload.neutered : undefined,
         detectedWeight: detectedWeight ?? resolved.product.weight,
         detectedBrand: resolved.product.brand || payload.brand?.trim(),
         assistedConfirmation: assistedConfirmation || resolved.assistedConfirmation,
@@ -1261,6 +1273,8 @@ export function ProductDetectionSheetGold({
       speciesRef.current = undefined;
       lifeStageRef.current = undefined;
       flavorRef.current = undefined;
+      portRef.current = undefined;
+      neuteredRef.current = undefined;
       detectedWeightRef.current = final.weight;
       detectedBrandRef.current = final.brand;
       strongTermsRef.current = [];
@@ -1496,6 +1510,8 @@ export function ProductDetectionSheetGold({
       speciesRef.current = identifiedFromPhoto.species;
       lifeStageRef.current = identifiedFromPhoto.lifeStage;
       flavorRef.current = identifiedFromPhoto.flavor;
+      portRef.current = identifiedFromPhoto.port;
+      neuteredRef.current = identifiedFromPhoto.neutered;
       detectedWeightRef.current = identifiedFromPhoto.detectedWeight ?? photoProduct.weight;
       detectedBrandRef.current = identifiedFromPhoto.detectedBrand ?? photoProduct.brand;
       strongTermsRef.current = identifiedFromPhoto.strongTerms ?? [];
@@ -1606,6 +1622,8 @@ export function ProductDetectionSheetGold({
       species: speciesRef.current,
       life_stage: lifeStageRef.current,
       flavor: flavorRef.current,
+      port: portRef.current,
+      neutered: neuteredRef.current,
       decision_source: decisionSourceRef.current,
       decision_score: decisionScoreRef.current ?? aiConfidenceRef.current,
       decision_result: decisionResultTypeRef.current,
