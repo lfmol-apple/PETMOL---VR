@@ -431,14 +431,36 @@ async function searchInternalCatalogCandidate(
     if (!query.trim()) continue;
     try {
       const params = new URLSearchParams({ q: query, type, limit: '8' });
-      const response = await fetch(`${API_BASE_URL}/catalog/search/v2?${params.toString()}`, {
+      const staticFetch = fetch(`${API_BASE_URL}/catalog/search/v2?${params.toString()}`, {
         method: 'GET',
         headers: { Accept: 'application/json' },
         signal: AbortSignal.timeout(2400),
       });
+      // Real Cobasi catalog, merged in ONLY for food — it keeps itself
+      // current (variants we've never manually catalogued, like "Urinary
+      // Small Dog" vs the generic "Urinary S/O"), closing the gap without
+      // hand-curating every SKU. Scoped to food for now: for
+      // antiparasite/medication, the "kg" in a real product title is the
+      // PET's dosing-weight range, not the product's own package weight —
+      // mixing that into weight-matching would be actively misleading
+      // until that's parsed separately.
+      const cobasiFetch = category === 'food'
+        ? fetch(`${API_BASE_URL}/commerce/product-candidates?${new URLSearchParams({ q: query, limit: '6' }).toString()}`, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          signal: AbortSignal.timeout(2400),
+        }).catch(() => null)
+        : Promise.resolve(null);
+
+      const [response, cobasiResponse] = await Promise.all([staticFetch, cobasiFetch]);
       if (!response.ok) continue;
       const data = (await response.json()) as CatalogSearchApiResponse;
-      for (const candidate of data.candidates ?? []) {
+      let cobasiCandidates: CatalogSearchApiCandidate[] = [];
+      if (cobasiResponse?.ok) {
+        const cobasiData = (await cobasiResponse.json()) as CatalogSearchApiResponse;
+        cobasiCandidates = cobasiData.candidates ?? [];
+      }
+      for (const candidate of [...(data.candidates ?? []), ...cobasiCandidates]) {
         const packSizes = formatPackSizes(candidate.pack_sizes);
         const candidateFields = extractFoodFields({
           brand: candidate.brand,

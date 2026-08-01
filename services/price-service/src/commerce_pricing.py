@@ -16,8 +16,9 @@ propagam — o chamador sempre recebe None nesses casos e cai de volta para
 o link de busca normal, sem quebrar a experiência.
 """
 import logging
+import re
 import urllib.parse
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 from cachetools import TTLCache
@@ -31,6 +32,7 @@ _COBASI_SEARCH_URL = "https://www.cobasi.com.br/api/catalog_system/pub/products/
 _COBASI_TIMEOUT = 6.0
 
 _cache: TTLCache = TTLCache(maxsize=500, ttl=get_settings().commerce_pricing_cache_ttl)
+_candidates_cache: TTLCache = TTLCache(maxsize=500, ttl=get_settings().commerce_pricing_cache_ttl)
 
 
 class ProductPriceResult(BaseModel):
@@ -109,3 +111,132 @@ async def _fetch_cobasi_price_uncached(query: str) -> ProductPriceResult:
     except Exception as exc:
         logger.info("[commerce_pricing] cobasi lookup failed query=%r error=%s", query, exc)
         return ProductPriceResult(found=False)
+
+
+# ── Múltiplos candidatos (reconhecimento por foto) ─────────────────────────
+# A mesma API, mas devolvendo até N produtos em vez de só o primeiro, no
+# formato que o resolver do frontend já sabe pontuar (CatalogSearchApiCandidate
+# em resolver.ts) — isso alimenta o MESMO pipeline de scoring já validado
+# (marca, porte, castrado, conflito terapêutico, tokens de identidade), só
+# que com um catálogo de produtos que a Cobasi mantém atualizado sozinha, em
+# vez de depender de cadastrarmos cada ração manualmente.
+
+_WEIGHT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(kg|g)\b", re.IGNORECASE)
+
+
+def _extract_pack_sizes(text: str) -> list[dict]:
+    match = _WEIGHT_RE.search(text)
+    if not match:
+        return []
+    try:
+        value = float(match.group(1).replace(",", "."))
+    except ValueError:
+        return []
+    return [{"value": value, "unit": match.group(2).lower()}]
+
+
+def _infer_species(text: str) -> Optional[str]:
+    lowered = text.lower()
+    if "gato" in lowered or "felin" in lowered:
+        return "cat"
+    if "cão" in lowered or "caes" in lowered or "cães" in lowered or "canin" in lowered or "canine" in lowered:
+        return "dog"
+    return None
+
+
+def _infer_life_stage(text: str) -> Optional[str]:
+    lowered = text.lower()
+    if "filhote" in lowered or "puppy" in lowered or "kitten" in lowered:
+        return "puppy"
+    if "sênior" in lowered or "senior" in lowered or "mature" in lowered or "idoso" in lowered:
+        return "senior"
+    if "adulto" in lowered or "adult" in lowered:
+        return "adult"
+    return None
+
+
+def _infer_port(text: str) -> Optional[str]:
+    lowered = text.lower()
+    if "mini" in lowered:
+        return "mini"
+    if "pequeno" in lowered or "pequena" in lowered or "small" in lowered:
+        return "pequeno"
+    if "médio" in lowered or "medio" in lowered or "media" in lowered or "medium" in lowered:
+        return "medio"
+    if "gigante" in lowered or "giant" in lowered:
+        return "gigante"
+    if "grande" in lowered or "large" in lowered:
+        return "grande"
+    return None
+
+
+def _cobasi_product_to_candidate(product: dict) -> Optional[dict]:
+    name = product.get("productName")
+    brand = product.get("brand")
+    if not name or not brand:
+        return None
+    link_text = product.get("linkText")
+    text = f"{name} {product.get('productTitle') or ''}"
+    items = product.get("items") or []
+    pack_sizes = _extract_pack_sizes(name)
+    if not pack_sizes and items:
+        pack_sizes = _extract_pack_sizes(items[0].get("nameComplete") or items[0].get("name") or "")
+    return {
+        "source": "cobasi",
+        "title": name,
+        "brand": brand,
+        "variant": None,
+        "species": _infer_species(text),
+        "life_stage": _infer_life_stage(text),
+        "port": _infer_port(text),
+        "neutered": None,
+        "pack_sizes": pack_sizes,
+        "url": f"https://www.cobasi.com.br/{link_text}/p" if link_text else None,
+    }
+
+
+async def search_cobasi_candidates(query: str, limit: int = 6) -> list[dict]:
+    query = (query or "").strip()
+    if not query:
+        return []
+
+    key = f"{limit}:{_cache_key(query)}"
+    cached = _candidates_cache.get(key)
+    if cached is not None:
+        return cached
+
+    result = await _search_cobasi_candidates_uncached(query, limit)
+    _candidates_cache[key] = result
+    return result
+
+
+async def _search_cobasi_candidates_uncached(query: str, limit: int) -> list[dict]:
+    settings = get_settings()
+    if not settings.commerce_pricing_enabled:
+        return []
+
+    url = _COBASI_SEARCH_URL.format(query=urllib.parse.quote(query))
+    try:
+        async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
+            response = await client.get(
+                url,
+                params={"_from": 0, "_to": max(0, limit - 1)},
+                headers={"Accept": "application/json"},
+            )
+        if response.status_code not in (200, 206):
+            logger.info("[commerce_pricing] cobasi candidates status=%s query=%r", response.status_code, query)
+            return []
+
+        products: Any = response.json()
+        if not isinstance(products, list):
+            return []
+
+        candidates: list[dict] = []
+        for product in products[:limit]:
+            candidate = _cobasi_product_to_candidate(product)
+            if candidate:
+                candidates.append(candidate)
+        return candidates
+    except Exception as exc:
+        logger.info("[commerce_pricing] cobasi candidates lookup failed query=%r error=%s", query, exc)
+        return []

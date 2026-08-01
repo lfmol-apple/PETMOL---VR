@@ -1310,6 +1310,21 @@ async def commerce_product_price(
     return await fetch_cobasi_price(q)
 
 
+@app.get("/commerce/product-candidates", tags=["Catalog"])
+async def commerce_product_candidates(
+    q: str = Query(..., min_length=2, max_length=150, description="Product search query"),
+    limit: int = Query(6, ge=1, le=10),
+):
+    """
+    Candidatos reais da Cobasi no mesmo formato de /catalog/search/v2, para
+    o resolver de fotos (apps/web) mesclar com o catálogo estático — ver
+    commerce_pricing.py para detalhes e limitações.
+    """
+    from .commerce_pricing import search_cobasi_candidates
+    candidates = await search_cobasi_candidates(q, limit=limit)
+    return {"candidates": candidates, "query": q}
+
+
 @app.get("/catalog/normalize", response_model=NormalizeResult, tags=["Catalog"])
 async def normalize_catalog_candidate(
     source: str = Query(..., description="Source of the candidate (ml, amazon, etc.)"),
