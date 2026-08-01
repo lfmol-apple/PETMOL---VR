@@ -255,15 +255,20 @@ if [ ! -f "$RECLASSIFY_FLAG" ]; then
 fi
 
 # ============================================
-# Step 5: Restart services (always restart API; web only if changed)
+# Step 5: Restart services
 # ============================================
 log "Restarting petmol-api..."
 systemctl restart petmol-api
 
-if [ "$RESTART_WEB" = true ]; then
-    log "Restarting petmol-web..."
-    systemctl restart petmol-web
-fi
+# Always restart petmol-web, not just when RESTART_WEB (source changed) —
+# version.json is regenerated on every deploy so clients auto-reload onto
+# whatever's live, and the running Next.js standalone process needs a
+# restart to actually pick that up (empirically: manually overwriting the
+# file on disk without restarting still served a 404, on a deploy where
+# only backend files changed). This is a cheap process restart, not a
+# rebuild, so the cost of doing it unconditionally is negligible.
+log "Restarting petmol-web..."
+systemctl restart petmol-web
 
 # ============================================
 # Step 6: Health checks (non-fatal — logs on failure)
