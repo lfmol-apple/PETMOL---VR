@@ -46,6 +46,7 @@ class ProductLookupConfirmRequest(BaseModel):
     species: Optional[str] = Field(None, max_length=16)
     life_stage: Optional[str] = Field(None, max_length=16)
     weight: Optional[str] = Field(None, max_length=32)
+    flavor: Optional[str] = Field(None, max_length=255)
     probable_name: Optional[str] = Field(None, max_length=255)
     visible_text: Optional[str] = None
     ocr_raw_text: Optional[str] = None
@@ -193,6 +194,7 @@ async def confirm_product_lookup(
             species=payload.species,
             life_stage=payload.life_stage,
             weight=payload.weight,
+            flavor=payload.flavor,
             ai_confidence=payload.confidence if payload.confidence < 1.0 else None,
             probable_name=payload.probable_name,
             visible_text=payload.visible_text,

@@ -188,6 +188,11 @@ def run_pg_migrations(engine: Engine) -> None:
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_product_reliable_catalog_key ON product_reliable_catalog (canonical_key)"))
 
+        # product_reliable_catalog: flavor (Aug 2026) — real corrections were
+        # folding flavor into canonical_name only, with no structured field to
+        # match/promote against
+        _pg_add_column_if_missing(conn, "product_reliable_catalog", "flavor", "TEXT")
+
         # found_reports: dismiss flag + finder identity (Jul 2026)
         _pg_add_column_if_missing(conn, "found_reports", "dismissed", "INTEGER DEFAULT 0")
         _pg_add_column_if_missing(conn, "found_reports", "finder_user_id", "TEXT")
@@ -606,6 +611,9 @@ def run_sqlite_migrations(engine: Engine) -> None:
             )
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_product_reliable_catalog_key ON product_reliable_catalog (canonical_key)"))
+
+        # product_reliable_catalog: flavor (Aug 2026)
+        changed |= _sqlite_add_column_if_missing(conn, "product_reliable_catalog", "flavor", "TEXT")
 
         # missing_pets: public third-party reports + SEO pages (Jul 2026)
         changed |= _sqlite_add_column_if_missing(conn, "found_reports", "finder_video_url", "TEXT")

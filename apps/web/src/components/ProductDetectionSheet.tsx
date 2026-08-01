@@ -175,6 +175,7 @@ interface PhotoIdentifyOutcome {
   visibleText?: string;
   species?: string;
   lifeStage?: string;
+  flavor?: string;
   detectedWeight?: string;
   detectedBrand?: string;
   assistedConfirmation?: boolean;
@@ -539,6 +540,7 @@ export function ProductDetectionSheetGold({
   const rawTextBlobsRef = useRef<string[]>([]);
   const speciesRef = useRef<string | undefined>(undefined);
   const lifeStageRef = useRef<string | undefined>(undefined);
+  const flavorRef = useRef<string | undefined>(undefined);
   const detectedWeightRef = useRef<string | undefined>(undefined);
   const detectedBrandRef = useRef<string | undefined>(undefined);
   const strongTermsRef = useRef<string[]>([]);
@@ -563,6 +565,9 @@ export function ProductDetectionSheetGold({
   const [editName, setEditName] = useState('');
   const [editBrand, setEditBrand] = useState('');
   const [editWeight, setEditWeight] = useState('');
+  const [editSpecies, setEditSpecies] = useState('');
+  const [editLifeStage, setEditLifeStage] = useState('');
+  const [editFlavor, setEditFlavor] = useState('');
   // A new scan result (different product identity) should never inherit a
   // stale open edit form from whatever was being corrected before it.
   useEffect(() => {
@@ -630,6 +635,7 @@ export function ProductDetectionSheetGold({
     rawTextBlobsRef.current = [];
     speciesRef.current = undefined;
     lifeStageRef.current = undefined;
+    flavorRef.current = undefined;
     detectedWeightRef.current = undefined;
     detectedBrandRef.current = undefined;
     strongTermsRef.current = [];
@@ -761,6 +767,7 @@ export function ProductDetectionSheetGold({
           rawTextBlobs,
           species: payload.species?.trim() || undefined,
           lifeStage: payload.life_stage?.trim() || undefined,
+          flavor: payload.flavor?.trim() || undefined,
           detectedWeight,
           detectedBrand: resolvedBrand || undefined,
           assistedConfirmation: assistedConfirmation || fallbackTerms.strongTerms.length > 0,
@@ -792,6 +799,7 @@ export function ProductDetectionSheetGold({
         rawTextBlobs,
         species: payload.species?.trim() || undefined,
         lifeStage: payload.life_stage?.trim() || undefined,
+        flavor: payload.flavor?.trim() || undefined,
         detectedWeight: detectedWeight ?? resolved.product.weight,
         detectedBrand: resolved.product.brand || payload.brand?.trim(),
         assistedConfirmation: assistedConfirmation || resolved.assistedConfirmation,
@@ -1252,6 +1260,7 @@ export function ProductDetectionSheetGold({
       rawTextBlobsRef.current = [];
       speciesRef.current = undefined;
       lifeStageRef.current = undefined;
+      flavorRef.current = undefined;
       detectedWeightRef.current = final.weight;
       detectedBrandRef.current = final.brand;
       strongTermsRef.current = [];
@@ -1486,6 +1495,7 @@ export function ProductDetectionSheetGold({
       rawTextBlobsRef.current = identifiedFromPhoto.rawTextBlobs ?? [];
       speciesRef.current = identifiedFromPhoto.species;
       lifeStageRef.current = identifiedFromPhoto.lifeStage;
+      flavorRef.current = identifiedFromPhoto.flavor;
       detectedWeightRef.current = identifiedFromPhoto.detectedWeight ?? photoProduct.weight;
       detectedBrandRef.current = identifiedFromPhoto.detectedBrand ?? photoProduct.brand;
       strongTermsRef.current = identifiedFromPhoto.strongTerms ?? [];
@@ -1595,6 +1605,7 @@ export function ProductDetectionSheetGold({
       weight: product.weight,
       species: speciesRef.current,
       life_stage: lifeStageRef.current,
+      flavor: flavorRef.current,
       decision_source: decisionSourceRef.current,
       decision_score: decisionScoreRef.current ?? aiConfidenceRef.current,
       decision_result: decisionResultTypeRef.current,
@@ -2310,81 +2321,7 @@ export function ProductDetectionSheetGold({
     return (
       <div className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 overflow-y-auto overscroll-contain p-5 space-y-4">
-        {fromHistory && (
-          <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
-            <span className="text-xl">⭐</span>
-            <p className="text-sm font-semibold text-blue-800">Parece ser este produto que você já usa!</p>
-          </div>
-        )}
-
-        {photoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={photoUrl}
-            alt="Embalagem"
-            className="max-h-40 w-full rounded-xl border border-gray-100 bg-gray-50 object-contain"
-          />
-        )}
-
-        <div className={`space-y-3 rounded-2xl border-2 p-5 ${showAutoFound ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
-          <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">
-            {fromHistory ? 'Produto reconhecido' : showAutoFound ? '✓ Encontrei este produto' : 'Confirmação assistida'}
-          </p>
-          <div>
-            <p className="text-xl font-bold leading-tight text-gray-900">{confirmed.name || 'Produto identificado'}</p>
-            {confirmed.brand && confirmed.brand !== confirmed.name && (
-              <p className="mt-0.5 text-sm text-gray-500">{confirmed.brand}</p>
-            )}
-            {confirmed.weight && <p className="mt-0.5 text-sm text-gray-400">{confirmed.weight}</p>}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xl">{CATEGORY_EMOJI[confirmed.category]}</span>
-            <span className="text-sm text-gray-600">{CATEGORY_LABELS[confirmed.category]}</span>
-            {confirmed.barcode && (
-              <span className="ml-auto font-mono text-[10px] text-gray-300">#{confirmed.barcode.slice(-6)}</span>
-            )}
-          </div>
-        </div>
-
-        {!fromHistory && (productNameRef.current || speciesRef.current || lifeStageRef.current || detectedWeightRef.current || rawTextBlobsRef.current.length > 0 || strongTermsRef.current.length > 0 || mediumTermsRef.current.length > 0 || weakTermsRef.current.length > 0 || termConflictsRef.current.length > 0) && (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Confirmação assistida</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {productNameRef.current && <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">Nome: {productNameRef.current}</span>}
-              {confirmed.brand && <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">Marca: {confirmed.brand}</span>}
-              {speciesRef.current && <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">Espécie: {speciesRef.current}</span>}
-              {lifeStageRef.current && <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">Fase: {lifeStageRef.current}</span>}
-              {detectedWeightRef.current && <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">Peso: {detectedWeightRef.current}</span>}
-            </div>
-            {strongTermsRef.current.length > 0 && (
-              <p className="mt-3 text-xs leading-relaxed text-slate-600">
-                Termos fortes: {strongTermsRef.current.join(' • ')}
-              </p>
-            )}
-            {mediumTermsRef.current.length > 0 && (
-              <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                Termos médios: {mediumTermsRef.current.join(' • ')}
-              </p>
-            )}
-            {weakTermsRef.current.length > 0 && (
-              <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                Termos fracos: {weakTermsRef.current.slice(0, 4).join(' • ')}
-              </p>
-            )}
-            {termConflictsRef.current.length > 0 && (
-              <p className="mt-3 text-xs font-semibold leading-relaxed text-rose-600">
-                Conflito detectado: {termConflictsRef.current.join(' • ')}
-              </p>
-            )}
-            {rawTextBlobsRef.current.length > 0 && (
-              <p className="mt-3 text-xs leading-relaxed text-slate-500">
-                Texto lido: {rawTextBlobsRef.current.slice(0, 4).join(' • ')}
-              </p>
-            )}
-          </div>
-        )}
-
-        {isEditingProduct && (
+        {isEditingProduct ? (
           <div className="space-y-3 rounded-2xl border-2 border-blue-200 bg-blue-50 p-4">
             <p className="text-[11px] font-bold uppercase tracking-wider text-blue-700">Corrigir produto</p>
             <div>
@@ -2395,6 +2332,7 @@ export function ProductDetectionSheetGold({
                 onChange={event => setEditName(event.target.value)}
                 className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none"
                 placeholder="Nome do produto"
+                autoFocus
               />
             </div>
             <div>
@@ -2417,7 +2355,87 @@ export function ProductDetectionSheetGold({
                 placeholder="Ex: 15 kg"
               />
             </div>
+            {confirmed.category === 'food' && (
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-gray-500">Sabor</label>
+                <input
+                  type="text"
+                  value={editFlavor}
+                  onChange={event => setEditFlavor(event.target.value)}
+                  className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none"
+                  placeholder="Ex: Frango e Cenoura"
+                />
+              </div>
+            )}
+            {confirmed.category === 'food' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-gray-500">Espécie</label>
+                  <select
+                    value={editSpecies}
+                    onChange={event => setEditSpecies(event.target.value)}
+                    className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none"
+                  >
+                    <option value="">Não sei</option>
+                    <option value="dog">Cão</option>
+                    <option value="cat">Gato</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-gray-500">Fase</label>
+                  <select
+                    value={editLifeStage}
+                    onChange={event => setEditLifeStage(event.target.value)}
+                    className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none"
+                  >
+                    <option value="">Não sei</option>
+                    <option value="puppy">Filhote</option>
+                    <option value="adult">Adulto</option>
+                    <option value="senior">Sênior</option>
+                    <option value="all">Todas as idades</option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
+        ) : (
+          <>
+            {fromHistory && (
+              <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                <span className="text-xl">⭐</span>
+                <p className="text-sm font-semibold text-blue-800">Parece ser este produto que você já usa!</p>
+              </div>
+            )}
+
+            {photoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={photoUrl}
+                alt="Embalagem"
+                className="max-h-40 w-full rounded-xl border border-gray-100 bg-gray-50 object-contain"
+              />
+            )}
+
+            <div className={`space-y-3 rounded-2xl border-2 p-5 ${showAutoFound ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">
+                {fromHistory ? 'Produto reconhecido' : showAutoFound ? '✓ Encontrei este produto' : 'Confirmação assistida'}
+              </p>
+              <div>
+                <p className="text-xl font-bold leading-tight text-gray-900">{confirmed.name || 'Produto identificado'}</p>
+                {confirmed.brand && confirmed.brand !== confirmed.name && (
+                  <p className="mt-0.5 text-sm text-gray-500">{confirmed.brand}</p>
+                )}
+                {confirmed.weight && <p className="mt-0.5 text-sm text-gray-400">{confirmed.weight}</p>}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{CATEGORY_EMOJI[confirmed.category]}</span>
+                <span className="text-sm text-gray-600">{CATEGORY_LABELS[confirmed.category]}</span>
+                {confirmed.barcode && (
+                  <span className="ml-auto font-mono text-[10px] text-gray-300">#{confirmed.barcode.slice(-6)}</span>
+                )}
+              </div>
+            </div>
+          </>
         )}
       </div>
       <div className="flex-shrink-0 border-t border-gray-100 bg-white px-5 py-4 space-y-3">
@@ -2428,12 +2446,28 @@ export function ProductDetectionSheetGold({
               disabled={!editName.trim()}
               onClick={() => {
                 if (!confirmed || !editName.trim()) return;
+                const trimmedFlavor = editFlavor.trim();
+                // The flavor field is separate for editing convenience, but the
+                // displayed/searched name should still carry it — same
+                // reconciliation the catalog matcher already does when a
+                // flavor isn't reflected in a candidate's title.
+                const nameWithFlavor = trimmedFlavor && !editName.toLowerCase().includes(trimmedFlavor.toLowerCase())
+                  ? `${editName.trim()} ${trimmedFlavor}`
+                  : editName.trim();
                 const corrected: ScannedProduct = {
                   ...confirmed,
-                  name: editName.trim(),
+                  name: nameWithFlavor,
                   brand: editBrand.trim() || undefined,
                   weight: editWeight.trim() || undefined,
                 };
+                // handleConfirm reads species/life_stage/flavor off these refs,
+                // not off the product object — keep them in sync with what was
+                // corrected.
+                if (confirmed.category === 'food') {
+                  speciesRef.current = editSpecies || undefined;
+                  lifeStageRef.current = editLifeStage || undefined;
+                  flavorRef.current = trimmedFlavor || undefined;
+                }
                 setConfirmed(corrected);
                 setIsEditingProduct(false);
                 handleConfirm(corrected);
@@ -2467,6 +2501,9 @@ export function ProductDetectionSheetGold({
             setEditName(confirmed.name ?? '');
             setEditBrand(confirmed.brand ?? '');
             setEditWeight(confirmed.weight ?? '');
+            setEditSpecies(speciesRef.current ?? '');
+            setEditLifeStage(lifeStageRef.current ?? '');
+            setEditFlavor(flavorRef.current ?? '');
             setIsEditingProduct(true);
           }}
           className="w-full rounded-xl border border-blue-200 bg-blue-50 py-3 text-sm font-semibold text-blue-700 transition-all active:scale-95"

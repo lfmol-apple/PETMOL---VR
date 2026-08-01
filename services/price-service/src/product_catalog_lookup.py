@@ -145,6 +145,7 @@ class ProductReliableCatalog(Base):
     species: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     life_stage: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     weight: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    flavor: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     confirmation_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     correction_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -538,6 +539,7 @@ def save_confirmed_product_to_catalog(
     species: Optional[str] = None,
     life_stage: Optional[str] = None,
     weight: Optional[str] = None,
+    flavor: Optional[str] = None,
     ai_confidence: Optional[float] = None,
     pet_id: Optional[str] = None,
     probable_name: Optional[str] = None,
@@ -649,6 +651,7 @@ def save_confirmed_product_to_catalog(
                 species=_safe_text(species),
                 life_stage=_safe_text(life_stage),
                 weight=_safe_text(weight),
+                flavor=_safe_text(flavor),
                 confirmation_count=0,
                 correction_count=0,
             )
@@ -673,6 +676,7 @@ def save_confirmed_product_to_catalog(
         reliable.species = reliable.species or _safe_text(species)
         reliable.life_stage = reliable.life_stage or _safe_text(life_stage)
         reliable.weight = reliable.weight or _safe_text(weight)
+        reliable.flavor = reliable.flavor or _safe_text(flavor)
         new_confirmation_count = int(reliable.confirmation_count or 0) + (1 if tutor_confirmed else 0)
         new_correction_count = int(reliable.correction_count or 0) + (1 if was_corrected else 0)
         reliable.confirmation_count = new_confirmation_count
