@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     # Padrão false: comportamento idêntico ao atual (candidates=[])
     enable_ml_provider: bool = False
 
+    # Preço real da Cobasi (API pública de catálogo VTEX) para a Loja do Baby.
+    # Cache longo de propósito — reduz volume de chamadas à Cobasi (evitar
+    # bloqueio) e o preço não precisa ser por segundo para o caso de uso.
+    commerce_pricing_enabled: bool = True
+    commerce_pricing_cache_ttl: int = 21600  # 6 horas
+
     # Database - usa caminho relativo que funciona local e produção
     database_url: str = f"sqlite:///{os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'petmol.db'))}"
 

@@ -1298,6 +1298,18 @@ async def search_catalog_v2(
     )
 
 
+@app.get("/commerce/product-price", tags=["Catalog"])
+async def commerce_product_price(
+    q: str = Query(..., min_length=2, max_length=150, description="Product search query"),
+):
+    """
+    Preço real de um produto na Cobasi (Loja do Baby, seção "Comprar
+    novamente") — ver commerce_pricing.py para detalhes e limitações.
+    """
+    from .commerce_pricing import fetch_cobasi_price
+    return await fetch_cobasi_price(q)
+
+
 @app.get("/catalog/normalize", response_model=NormalizeResult, tags=["Catalog"])
 async def normalize_catalog_candidate(
     source: str = Query(..., description="Source of the candidate (ml, amazon, etc.)"),

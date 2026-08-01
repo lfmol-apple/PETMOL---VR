@@ -6,6 +6,7 @@ import { trackClick } from '@/lib/analytics/click';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import type { PetCareReminder } from '@/lib/petCareDomain';
 import { HOME_SHOPPING_PARTNERS, openHomeShoppingPartner, type HomeShoppingPartner, type HomeShoppingPartnerId } from './homeShoppingPartners';
+import { fetchProductPrice, formatBRLPrice, type ProductPriceResult } from './productPricing';
 import {
   buildReorderCards,
   buildRecommendedCategories,
@@ -15,6 +16,7 @@ import {
   buildServiceMapsUrl,
   SERVICE_CATEGORIES,
   QUICK_BUY_PARTNERS,
+  type ReorderCard,
   type StoreCategoryOption,
   type ServiceCategory,
 } from './petStoreContent';
@@ -158,29 +160,24 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                     {reorderCards.map((card) => {
                       const pickerKey = `reorder:${card.id}`;
                       return (
-                        <div key={card.id} className="p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm">
-                          <div className="flex items-center gap-3">
-                            <span className="text-2xl flex-shrink-0">{card.icon}</span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[13px] font-bold text-gray-900 leading-tight truncate">{card.label}</p>
-                              <p className={`text-[11px] mt-0.5 font-semibold ${card.urgencyTone === 'overdue' ? 'text-rose-600' : card.urgencyTone === 'today' ? 'text-amber-600' : 'text-gray-400'}`}>
-                                {card.urgencyText}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
-                              className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[12px] font-bold px-3 py-1.5 active:scale-95 transition-all"
-                            >
-                              🛒 Comprar
-                            </button>
-                          </div>
-                          {quickBuyFor === pickerKey && (
-                            <QuickBuyRow
-                              onPick={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, label: card.label })}
-                            />
-                          )}
-                        </div>
+                        <ReorderCardItem
+                          key={card.id}
+                          card={card}
+                          isPickerOpen={quickBuyFor === pickerKey}
+                          onTogglePicker={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
+                          onQuickBuy={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, label: card.label })}
+                          onDirectBuy={(price) => {
+                            onClose();
+                            if (price.url) window.open(price.url, '_blank', 'noopener,noreferrer');
+                            void trackClick({
+                              source: 'home',
+                              cta_type: 'shop_reorder_buy_direct',
+                              target: 'cobasi',
+                              pet_id: currentPet.pet_id,
+                              metadata: { domain: card.domain, label: card.label, price: price.price },
+                            });
+                          }}
+                        />
                       );
                     })}
                   </div>
@@ -307,6 +304,71 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+interface ReorderCardItemProps {
+  card: ReorderCard;
+  isPickerOpen: boolean;
+  onTogglePicker: () => void;
+  onQuickBuy: (partnerId: HomeShoppingPartnerId) => void;
+  onDirectBuy: (price: ProductPriceResult) => void;
+}
+
+// Busca o preço real (Cobasi) ao montar. Enquanto carrega ou quando não
+// encontrado, cai no comportamento anterior (escolha entre 3 lojas sem
+// preço) — nunca trava a experiência esperando a Cobasi responder.
+function ReorderCardItem({ card, isPickerOpen, onTogglePicker, onQuickBuy, onDirectBuy }: ReorderCardItemProps) {
+  const [price, setPrice] = useState<ProductPriceResult | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setPrice(null);
+    fetchProductPrice(card.searchQuery).then((result) => {
+      if (!cancelled) {
+        setPrice(result);
+        setLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [card.searchQuery]);
+
+  const hasRealPrice = Boolean(price?.found && typeof price.price === 'number' && price.url);
+
+  return (
+    <div className="p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm">
+      <div className="flex items-center gap-3">
+        <span className="text-2xl flex-shrink-0">{card.icon}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-bold text-gray-900 leading-tight truncate">{card.label}</p>
+          <p className={`text-[11px] mt-0.5 font-semibold ${card.urgencyTone === 'overdue' ? 'text-rose-600' : card.urgencyTone === 'today' ? 'text-amber-600' : 'text-gray-400'}`}>
+            {card.urgencyText}
+          </p>
+          {loading && <p className="text-[10px] mt-1 text-gray-300">Buscando preço...</p>}
+          {!loading && hasRealPrice && price && (
+            <p className="text-[12px] mt-1 font-bold text-emerald-700">
+              {formatBRLPrice(price.price as number)} na Cobasi
+              {typeof price.list_price === 'number' && price.list_price > (price.price ?? 0) && (
+                <span className="ml-1.5 text-[10px] font-semibold text-gray-400 line-through">{formatBRLPrice(price.list_price)}</span>
+              )}
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => (hasRealPrice && price ? onDirectBuy(price) : onTogglePicker())}
+          className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[12px] font-bold px-3 py-1.5 active:scale-95 transition-all disabled:opacity-50"
+        >
+          🛒 Comprar
+        </button>
+      </div>
+      {!hasRealPrice && isPickerOpen && <QuickBuyRow onPick={onQuickBuy} />}
     </div>
   );
 }
