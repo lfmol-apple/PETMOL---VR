@@ -457,12 +457,19 @@ export function extractFoodFields(rawInput: string | StructuredFoodInput): FoodF
 export function buildFoodSearchQueries(rawInput: string | StructuredFoodInput): string[] {
   const input = toStructuredInput(rawInput);
   const fields = extractFoodFields(input);
+  // dominantTerms.strongTerms/mediumTerms used to be included here as their own
+  // brandless queries (e.g. "adult senior dog"). A generic regulatory disclaimer
+  // ("Complete food for adult dogs") that ships on nearly every bag regardless of
+  // actual life stage gets classified as a "adult" dominant term, so that query
+  // carried no brand anchor at all and matched whatever off-brand product the
+  // catalog ranked highest for those generic words (Dog Chow, Royal Canin, Hill's
+  // Science Diet) — confirmed against production logs. Every other query here
+  // always leads with fields.brand, so removed the brandless ones instead of
+  // trying to patch the dominant-terms classification.
   const queries = compactParts([
     [fields.brand, fields.productName, fields.line, fields.variant, fields.flavor, fields.weight].filter(Boolean).join(' '),
     [fields.brand, fields.productName, fields.species, fields.lifeStage, fields.weight].filter(Boolean).join(' '),
     [fields.brand, fields.line, fields.variant, fields.species, fields.weight].filter(Boolean).join(' '),
-    fields.dominantTerms.strongTerms.join(' '),
-    fields.dominantTerms.mediumTerms.join(' '),
     fields.searchQuery,
     ...fields.rawTextBlobs.slice(0, 4),
   ]);
