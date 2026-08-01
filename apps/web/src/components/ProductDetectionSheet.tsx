@@ -668,8 +668,11 @@ export function ProductDetectionSheetGold({
         rawTextBlobs,
       });
       const fallbackTerms = fallbackFields.dominantTerms;
-      // OCR-corrected brand: extractFoodFields already applies override when OCR conflicts with AI
-      const resolvedBrand = fallbackFields.brand || payload.brand?.trim();
+      // Backend-verified brand first — extractFoodFields itself now trusts
+      // payload.brand internally too, so fallbackFields.brand should already
+      // match it whenever payload.brand is present; kept in this order for
+      // clarity and as a defensive backstop.
+      const resolvedBrand = payload.brand?.trim() || fallbackFields.brand;
 
       if (!resolved) {
         if (!hasUsefulProductPartial(payload)) {

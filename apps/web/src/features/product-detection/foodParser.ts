@@ -377,17 +377,21 @@ export function extractFoodFields(rawInput: string | StructuredFoodInput): FoodF
       .join(' '),
   );
   const ocrBrandMatch = pureOcrText ? fuzzyMatchBrandDetails(pureOcrText) : undefined;
-  const brandMatch = (() => {
-    if (!input.brand?.trim()) return ocrBrandMatch ?? fuzzyMatchBrandDetails(sanitized);
-    if (ocrBrandMatch?.mode === 'exact') {
-      const aiBrandNorm = norm(input.brand);
-      const ocrBrandNorm = norm(ocrBrandMatch.brand);
-      if (!ocrBrandNorm.includes(aiBrandNorm) && !aiBrandNorm.includes(ocrBrandNorm)) {
-        return ocrBrandMatch; // OCR brand overrides AI hallucination
-      }
-    }
-    return { brand: normalizeWhitespace(input.brand), mode: 'exact' as const };
-  })();
+  // input.brand is the backend-verified brand — it already passed through an
+  // independent-OCR hallucination guard server-side. This function used to
+  // let ocrBrandMatch (a plain fuzzy match against rawTextBlobs, which can
+  // contain a neighboring product's text — "Quatree"/"Dog Chow" from a
+  // shelf photo, not the product actually being scanned) OVERRIDE it
+  // whenever the two merely differed. That override is exactly what kept
+  // turning correct results (e.g. "FORMULA NATURAL") back into contamination
+  // from an adjacent bag, even after fixing every OUTER call site that reads
+  // this function's output — because buildFoodSearchQueries calls this
+  // function again internally, rebuilding the catalog search query around
+  // the wrong brand before scoring ever gets a chance to matter. Only fall
+  // back to the OCR guess when there's no verified brand at all.
+  const brandMatch = input.brand?.trim()
+    ? { brand: normalizeWhitespace(input.brand), mode: 'exact' as const }
+    : (ocrBrandMatch ?? fuzzyMatchBrandDetails(sanitized));
   const brand = brandMatch?.brand;
   const productName = compactParts([input.productName, input.probableName])[0];
   const line = input.line?.trim()
