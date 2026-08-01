@@ -238,6 +238,11 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   const [reminderTime, setReminderTime]           = useState<string | null>(null);
   const [showFoodPhotoFlow, setShowFoodPhotoFlow] = useState(false);
   const [foodPhotoEntry, setFoodPhotoEntry] = useState<'camera' | 'gallery' | null>(null);
+  // "Editar plano" numa ração já cadastrada pulava direto pro formulário
+  // manual — só o cadastro inicial oferecia foto. Reabrir a câmera aqui
+  // deixa o tutor trocar de embalagem/sabor sem redigitar tudo, reusando o
+  // mesmo fluxo (handleFoodProductConfirmed já pré-preenche o formulário).
+  const [showEditPlanChoice, setShowEditPlanChoice] = useState(false);
   const successMessageTimerRef                    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollBodyRef                               = useRef<HTMLDivElement>(null);
 
@@ -341,6 +346,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
 
   const handleClose = useCallback(() => {
     clearPendingScannedProduct();
+    setShowEditPlanChoice(false);
     onClose();
   }, [onClose]);
 
@@ -1026,7 +1032,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               </button>
 
                               <button type="button"
-                                onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
+                                onClick={() => setShowEditPlanChoice(true)}
                                 className="w-full py-4 min-h-[52px] rounded-2xl bg-white border border-gray-200 text-[16px] font-bold text-gray-600 hover:bg-gray-50 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
                               >
                                 <span className="text-xl">✏️</span>
@@ -1047,13 +1053,43 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               </button>
 
                               <button type="button"
-                                onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
+                                onClick={() => setShowEditPlanChoice(true)}
                                 className="w-full py-3 min-h-[48px] rounded-2xl bg-white border border-gray-200 text-gray-600 text-[14px] font-semibold hover:bg-gray-50 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
                               >
                                 <span>✏️</span>
                                 Editar plano de alimentação
                               </button>
                             </>
+                          )}
+
+                          {/* Escolha: fotografar a nova embalagem (pré-preenche o
+                              formulário) ou seguir direto pro form manual. */}
+                          {showEditPlanChoice && (
+                            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-2">
+                              <p className="text-[13px] font-semibold text-gray-700">Como quer atualizar o plano?</p>
+                              <button
+                                type="button"
+                                onClick={() => { setShowEditPlanChoice(false); openFoodPhotoFlow(); }}
+                                className="w-full flex items-center justify-center gap-2.5 py-3 min-h-[44px] rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-[14px] font-black shadow-md shadow-blue-500/20 active:scale-[0.98] transition-all"
+                              >
+                                <span className="text-lg">📷</span>
+                                Fotografar nova embalagem
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setShowEditPlanChoice(false); setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
+                                className="w-full py-2.5 min-h-[40px] rounded-xl text-[13px] font-semibold text-gray-500 hover:text-gray-700 hover:bg-white active:scale-[0.98] transition-all"
+                              >
+                                ✏️ Editar manualmente
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowEditPlanChoice(false)}
+                                className="w-full py-1.5 text-[12px] font-medium text-gray-400 hover:text-gray-600 transition-colors"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
                           )}
 
                           {/* 4. Ajustes rápidos */}
