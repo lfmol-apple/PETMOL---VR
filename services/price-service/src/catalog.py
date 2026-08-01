@@ -42,6 +42,8 @@ class CatalogProduct(BaseModel):
     variant: Optional[str] = None
     species: str  # "dog", "cat", "all"
     life_stage: str  # "puppy", "adult", "senior", "all"
+    port: Optional[str] = None  # "mini", "pequeno", "medio", "grande", "gigante", "all"
+    neutered: Optional[bool] = None
     pack_sizes: List[PackSize] = []
     barcodes: List[str] = []  # EAN-13/UPC codes
     image_url: Optional[str] = None
@@ -403,6 +405,11 @@ def _load_phase1_food_catalog() -> List[CatalogProduct]:
         else:
             name_parts = [item.get("brand"), line, variant]
         name = " ".join(p for p in name_parts if p)
+        # "neutered" isn't a separate field in the Fase 1 data yet — infer it
+        # from "castrado"/"castrados" appearing in the variant/line text
+        # (e.g. Premier "Ambientes Internos Castrados Pequeno Adultos").
+        neutered_text = f"{item.get('variant') or ''} {line or ''}".lower()
+        neutered = True if "castrad" in neutered_text else None
         try:
             products.append(CatalogProduct(
                 id=f"phase1-{item['id']}",
@@ -411,6 +418,8 @@ def _load_phase1_food_catalog() -> List[CatalogProduct]:
                 variant=item.get("variant"),
                 species=item["species"],
                 life_stage=item.get("life_stage") or "all",
+                port=item.get("port"),
+                neutered=neutered,
                 pack_sizes=[PackSize(value=item["weight_kg"], unit="kg")] if item.get("weight_kg") else [],
                 barcodes=[item["barcode"]] if item.get("barcode") else [],
                 image_url=item.get("image_url"),
@@ -475,6 +484,9 @@ def _product_to_candidate(product: CatalogProduct, source: str = "catalog") -> D
         "brand": product.brand,
         "variant": product.variant,
         "species": product.species,
+        "life_stage": product.life_stage,
+        "port": product.port,
+        "neutered": product.neutered,
         "pack_sizes": [{"value": ps.value, "unit": ps.unit} for ps in product.pack_sizes],
         "image_url": product.image_url,
         "price": None,  # Catalog doesn't have prices

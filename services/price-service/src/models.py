@@ -155,6 +155,9 @@ class CatalogCandidate(BaseModel):
     brand: Optional[str] = None
     variant: Optional[str] = None
     species: Optional[str] = None  # "dog", "cat", "unknown"
+    life_stage: Optional[str] = None
+    port: Optional[str] = None  # "mini", "pequeno", "medio", "grande", "gigante", "all"
+    neutered: Optional[bool] = None
     pack_sizes: List[CatalogPackSize] = []
     image_url: Optional[str] = None
     price: Optional[float] = None

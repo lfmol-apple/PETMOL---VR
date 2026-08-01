@@ -45,6 +45,8 @@ export interface ProductPhotoVisionPayload {
   reason?: string | null;
   species?: string | null;
   life_stage?: string | null;
+  port?: string | null;
+  neutered?: boolean | null;
   line?: string | null;
   flavor?: string | null;
   visible_text?: string | null;
@@ -77,6 +79,9 @@ interface CatalogSearchApiCandidate {
   brand?: string | null;
   variant?: string | null;
   species?: string | null;
+  life_stage?: string | null;
+  port?: string | null;
+  neutered?: boolean | null;
   pack_sizes?: Array<{ value: number; unit: string }>;
 }
 
@@ -354,6 +359,33 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
   if (lifeStage === 'puppy' && /(filhote|puppy|kitten|junior)/.test(title)) score += 0.1;
   if (lifeStage === 'adult' && /(adult|adulto)/.test(title)) score += 0.1;
   if (lifeStage === 'senior' && /(senior|sênior|mature)/.test(title)) score += 0.1;
+
+  // Port (breed size — mini/pequeno/medio/grande/gigante) is real, specific
+  // signal the catalog carries per-line but was never compared against
+  // before: a Premier "Ambientes Internos" bag (port=pequeno, matching the
+  // "PEQUENO" callout on the actual package) has nothing to distinguish it
+  // from "Nattu" (no port data) on brand/species/weight alone. A candidate
+  // with no port data is neutral (most catalog entries don't have this yet,
+  // absence isn't evidence of being wrong); an explicit different port is a
+  // real mismatch.
+  const port = payload.port?.toLowerCase();
+  const candidatePort = candidate.port?.toLowerCase();
+  if (port && candidatePort && candidatePort !== 'all') {
+    const candidatePortParts = candidatePort.split('_');
+    if (candidatePortParts.includes(port)) {
+      score += 0.12;
+    } else {
+      score -= 0.15;
+    }
+  }
+
+  // Neutered ("castrado") is a real, deliberate SKU split for some lines
+  // (Premier "Ambientes Internos Castrados", Royal Canin "Sterilised") — a
+  // mismatch here (we know the pack says castrado, candidate is specifically
+  // for non-neutered animals or vice versa) means it's the wrong variant.
+  if (typeof payload.neutered === 'boolean' && typeof candidate.neutered === 'boolean') {
+    score += payload.neutered === candidate.neutered ? 0.08 : -0.12;
+  }
 
   // payload.product_name/line name the SPECIFIC line (e.g. "Ambientes
   // Internos", "Gastrointestinal") — the words that actually distinguish

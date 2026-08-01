@@ -67,6 +67,8 @@ class IdentifyProductPhotoResponse(BaseModel):
     reason: Optional[str] = None
     species: Optional[str] = None
     life_stage: Optional[str] = None
+    port: Optional[str] = None
+    neutered: Optional[bool] = None
     line: Optional[str] = None
     flavor: Optional[str] = None
     visible_text: Optional[str] = None

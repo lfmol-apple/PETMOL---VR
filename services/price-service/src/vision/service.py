@@ -335,6 +335,41 @@ Responda APENAS com JSON válido neste formato:
         return aliases.get(normalized)
 
     @staticmethod
+    def _normalize_port(value: Any) -> Optional[str]:
+        text = VisionService._normalize_optional_str(value)
+        if not text:
+            return None
+        normalized = text.lower()
+        aliases = {
+            "mini": "mini",
+            "toy": "mini",
+            "x-small": "mini",
+            "xsmall": "mini",
+            "pequeno": "pequeno",
+            "pequena": "pequeno",
+            "pequenas": "pequeno",
+            "pequenos": "pequeno",
+            "small": "pequeno",
+            "mini e pequeno": "pequeno",
+            "medio": "medio",
+            "médio": "medio",
+            "media": "medio",
+            "média": "medio",
+            "medias": "medio",
+            "médias": "medio",
+            "medium": "medio",
+            "grande": "grande",
+            "grandes": "grande",
+            "large": "grande",
+            "gigante": "gigante",
+            "gigantes": "gigante",
+            "giant": "gigante",
+            "all": "all",
+            "todos os portes": "all",
+        }
+        return aliases.get(normalized)
+
+    @staticmethod
     def _build_probable_name(
         brand: Optional[str],
         product_name: Optional[str],
@@ -421,6 +456,8 @@ Regras:
 11. Responda APENAS JSON válido, sem texto extra.
 12. Se houver MAIS DE UM produto/embalagem visível na foto (ex: prateleira com vários sacos lado a lado), identifique e extraia campos APENAS do produto em PRIMEIRO PLANO / MAIS CENTRALIZADO / MAIOR NA IMAGEM. NUNCA combine texto de embalagens diferentes no mesmo resultado — cada campo (especialmente `flavor`) deve vir EXCLUSIVAMENTE da embalagem principal. Se não conseguir determinar com certeza a qual embalagem um texto de sabor pertence, deixe `flavor` como null em vez de adivinhar — errar o sabor é pior do que omiti-lo.
 13. Defina `multiple_products_detected: true` sempre que houver mais de uma embalagem de produto claramente visível na foto (mesmo que você tenha conseguido identificar a principal corretamente). Isso é usado para sugerir ao usuário que tire uma foto mais próxima/isolada da próxima vez — não afeta os outros campos, que devem continuar refletindo o produto principal.
+14. Extraia `port` (porte do animal a que a ração se destina — mini/pequeno/médio/grande/gigante) SEMPRE que a embalagem indicar isso, seja no nome da linha ("Raças Pequenas"), em texto solto ("PEQUENO", "PORTES MÉDIO E GRANDE") ou em ícones/selos. Isso é uma informação crítica para dosagem — não deixe de capturar só porque não está no nome principal do produto.
+15. Extraia `neutered` (true/false/null) quando a embalagem indicar claramente que é uma fórmula para animais castrados ("CASTRADOS", "STERILISED", "NEUTERED") — true se indicado, false se a embalagem indicar explicitamente "não castrado" (raro), null se não houver informação sobre isso.
 
 Formato JSON obrigatório:
 {{
@@ -430,6 +467,8 @@ Formato JSON obrigatório:
   "category": "food",
   "species": "dog",
   "life_stage": "adult",
+  "port": "pequeno",
+  "neutered": true,
     "weight_value": 15,
     "weight_unit": "kg",
     "variant": "Raças Pequenas",
@@ -443,6 +482,8 @@ Formato JSON obrigatório:
 
 Valores válidos para species: "dog", "cat", "other", null
 Valores válidos para life_stage: "puppy", "adult", "senior", "all", null
+Valores válidos para port: "mini", "pequeno", "medio", "grande", "gigante", "all", null
+Valores válidos para neutered: true, false, null
 Se não souber um campo, use null. NÃO invente.
 
 Se a imagem for realmente ilegível:
@@ -568,6 +609,8 @@ Se a imagem for realmente ilegível:
 
             species = self._normalize_species(result.get("species"))
             life_stage = self._normalize_life_stage(result.get("life_stage"))
+            port = self._normalize_port(result.get("port"))
+            neutered = result.get("neutered") if isinstance(result.get("neutered"), bool) else None
 
             weight_value = self._normalize_weight_value(result.get("weight_value"))
             weight_unit = self._normalize_weight_unit(result.get("weight_unit"))
@@ -633,6 +676,8 @@ Se a imagem for realmente ilegível:
 
             result["species"] = species
             result["life_stage"] = life_stage
+            result["port"] = port
+            result["neutered"] = neutered
 
             result["line"] = line
             result["flavor"] = flavor
