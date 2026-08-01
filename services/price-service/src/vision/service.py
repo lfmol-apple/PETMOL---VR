@@ -155,7 +155,14 @@ Responda APENAS com JSON válido neste formato:
             blocks = payload.get("text_blocks") if isinstance(payload, dict) else None
             if not isinstance(blocks, list):
                 return [], raw_text
-            return self._normalize_text_blobs(blocks), raw_text
+            # Unlike the identification call's self-curated raw_text_blobs (which
+            # the prompt asks to prioritize brand/name first), this OCR pass has
+            # no such ordering — it transcribes in whatever order the model reads
+            # the image, so packaging with a lot of marketing copy or an
+            # overlapping shipping label can easily push the brand/name past a
+            # tight cap. Keep a much larger window; this is the trusted grounding
+            # corpus, cost of a few extra short strings is worth not losing it.
+            return self._normalize_text_blobs(blocks, limit=40), raw_text
         except Exception as exc:
             logger.info("[Independent OCR] failed, guard will skip cross-check: %s", exc)
             return [], f"ERROR: {exc}"
@@ -232,14 +239,24 @@ Responda APENAS com JSON válido neste formato:
     ]
 
     @staticmethod
-    def _ocr_brand_override(ai_brand: Optional[str], blobs: List[str]) -> Optional[str]:
-        """Return OCR-detected brand if blobs contain a known brand that differs from ai_brand."""
+    def _ocr_brand_override(ai_brand: Optional[str], blobs: List[str]) -> tuple[Optional[str], bool]:
+        """Return (brand, grounded) — grounded=True when the brand was matched
+        against the OCR'd _KNOWN_BRANDS_ORDERED whitelist (either the AI's own
+        guess agreed with a brand actually present in the blobs, or it was
+        overridden to one that is). Callers should treat grounded=True brands
+        as already validated and skip any further exact-substring coverage
+        check against them — that check is a fragile match against a single
+        specific OCR spelling (e.g. AI says "PremierR", blobs say "PremierPet"
+        elsewhere — same brand, different transcription noise on a stylized
+        logo, but no exact substring in common) whereas the whitelist match
+        here is corpus-wide and tolerant of exactly that kind of noise.
+        """
         if not blobs:
-            return ai_brand
+            return ai_brand, False
         blob_text = " ".join(blobs).lower()
         found_brands = [known for known in VisionService._KNOWN_BRANDS_ORDERED if known in blob_text]
         if not found_brands:
-            return ai_brand
+            return ai_brand, False
         ai_norm = (ai_brand or "").lower()
         # If ai_brand agrees with ANY brand actually present in the blobs, trust it —
         # don't override just because a different known brand also appears earlier
@@ -248,15 +265,15 @@ Responda APENAS com JSON válido neste formato:
         # found brand (since "" is a substring of everything) and discard a
         # legitimate OCR-detected brand whenever the AI simply didn't provide one.
         if ai_norm and any(known in ai_norm or ai_norm in known for known in found_brands):
-            return ai_brand
+            return ai_brand, True
         # Prefer the most specific (longest) match rather than whichever known
         # brand happens to sit first in the priority list.
         override = max(found_brands, key=len)
         logger.info("[OCR Brand Override] AI said %r but OCR blobs have %r — using OCR brand", ai_brand, override)
-        return override
+        return override, True
 
     @staticmethod
-    def _normalize_text_blobs(value: Any) -> List[str]:
+    def _normalize_text_blobs(value: Any, limit: int = 12) -> List[str]:
         if value is None:
             return []
         raw_items = value if isinstance(value, list) else [value]
@@ -273,7 +290,7 @@ Responda APENAS com JSON válido neste formato:
             text = re.sub(r"\s+", " ", text)
             if text not in normalized:
                 normalized.append(text)
-        return normalized[:12]
+        return normalized[:limit]
 
     @staticmethod
     def _normalize_species(value: Any) -> Optional[str]:
@@ -341,7 +358,18 @@ Responda APENAS com JSON válido neste formato:
             weight,
         ]
         compact = [str(part).strip() for part in parts if part and str(part).strip()]
-        return " ".join(compact) or None
+        # The AI often fills product_name and line with the same value (e.g. a
+        # sub-brand printed once on the pack ends up in both fields) — dedupe
+        # by normalized text so "PremierPet Formula Formula ..." doesn't happen.
+        seen_normalized = set()
+        deduped = []
+        for part in compact:
+            key = re.sub(r"\s+", " ", part).strip().lower()
+            if key in seen_normalized:
+                continue
+            seen_normalized.add(key)
+            deduped.append(part)
+        return " ".join(deduped) or None
 
     async def identify_product_from_image(
         self,
@@ -391,6 +419,7 @@ Regras:
 9. Para medication: retorne nome comercial OU princípio ativo + concentração se legível.
 10. Só retorne found=false e todos os campos relevantes null/vazios quando a imagem estiver realmente ilegível ou sem embalagem.
 11. Responda APENAS JSON válido, sem texto extra.
+12. Se houver MAIS DE UM produto/embalagem visível na foto (ex: prateleira com vários sacos lado a lado), identifique e extraia campos APENAS do produto em PRIMEIRO PLANO / MAIS CENTRALIZADO / MAIOR NA IMAGEM. NUNCA combine texto de embalagens diferentes no mesmo resultado — cada campo (especialmente `flavor`) deve vir EXCLUSIVAMENTE da embalagem principal. Se não conseguir determinar com certeza a qual embalagem um texto de sabor pertence, deixe `flavor` como null em vez de adivinhar — errar o sabor é pior do que omiti-lo.
 
 Formato JSON obrigatório:
 {{
@@ -486,9 +515,9 @@ Se a imagem for realmente ilegível:
             # client. Fall back to the self-reported blobs only if independent
             # OCR came back empty (e.g. transient failure) — strictly weaker,
             # but better than no grounding at all.
-            raw_text_blobs = independent_blobs[:16] if independent_blobs else self_reported_blobs
+            raw_text_blobs = independent_blobs if independent_blobs else self_reported_blobs
             trusted_corpus_blobs = raw_text_blobs
-            brand = self._ocr_brand_override(brand, trusted_corpus_blobs)
+            brand, brand_grounded = self._ocr_brand_override(brand, trusted_corpus_blobs)
 
             if trusted_corpus_blobs:
                 blob_corpus = " ".join(trusted_corpus_blobs).lower()
@@ -505,7 +534,14 @@ Se a imagem for realmente ilegível:
                             product_name = None
                             result["confidence"] = float(result.get("confidence") or 0.0) * 0.5
 
-                if brand:
+                # Brands already grounded via the known-brand whitelist match
+                # above went through a corpus-wide, noise-tolerant check — an
+                # exact-substring recheck here would only catch OCR spelling
+                # drift on the SAME brand (e.g. AI says "PremierR", blobs say
+                # "PremierPet" — no literal substring in common) and wrongly
+                # clear a correct answer. Only run this backstop for brands
+                # that were never matched against the whitelist at all.
+                if brand and not brand_grounded:
                     brand_tokens = [t for t in brand.lower().split() if len(t) >= 4]
                     if brand_tokens:
                         coverage = sum(1 for t in brand_tokens if t in blob_corpus) / len(brand_tokens)

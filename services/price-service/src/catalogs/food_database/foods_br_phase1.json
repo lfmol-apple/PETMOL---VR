@@ -2,7 +2,7 @@
   "schema_version": "2.0",
   "phase": "phase1_ai_compiled",
   "note": "Matriz de marca/linha/variante/sabor/peso (1 item = 1 SKU real) compilada por IA a partir de conhecimento geral do mercado brasileiro de racoes. NAO contem codigo de barras, foto oficial ou peso/preco verificados linha a linha -- esses campos ficam null ate a Fase 2/3 (coleta e verificacao contra fontes reais). Ver campo confidence: 'low' = marca regional/menos conhecida, nomes de linha nao confirmados, tratar como esqueleto a verificar antes de usar para reconhecimento automatico.",
-  "total": 1368,
+  "total": 1370,
   "items": [
     {
       "brand": "Royal Canin",
@@ -3613,6 +3613,44 @@
       "confidence": "high",
       "verified": false,
       "id": "premier-pet-fórmula-fórmula-raças-grandes-e-gigantes-adultos-frango-20kg"
+    },
+    {
+      "brand": "Premier Pet",
+      "manufacturer": "Premier Pet",
+      "line": "Fórmula",
+      "variant": "Fórmula Raças Grandes e Gigantes Adultos Cordeiro e Cenoura",
+      "species": "dog",
+      "life_stage": "adult",
+      "port": "grande_gigante",
+      "category": "super_premium",
+      "indication": null,
+      "weight_kg": 15,
+      "barcode": null,
+      "image_url": null,
+      "official_url": null,
+      "source": "ai_compiled_phase1",
+      "confidence": "high",
+      "verified": false,
+      "id": "premier-pet-fórmula-fórmula-raças-grandes-e-gigantes-adultos-cordeiro-e-cenoura-15kg"
+    },
+    {
+      "brand": "Premier Pet",
+      "manufacturer": "Premier Pet",
+      "line": "Fórmula",
+      "variant": "Fórmula Raças Grandes e Gigantes Adultos Cordeiro e Cenoura",
+      "species": "dog",
+      "life_stage": "adult",
+      "port": "grande_gigante",
+      "category": "super_premium",
+      "indication": null,
+      "weight_kg": 20,
+      "barcode": null,
+      "image_url": null,
+      "official_url": null,
+      "source": "ai_compiled_phase1",
+      "confidence": "high",
+      "verified": false,
+      "id": "premier-pet-fórmula-fórmula-raças-grandes-e-gigantes-adultos-cordeiro-e-cenoura-20kg"
     },
     {
       "brand": "Premier Pet",

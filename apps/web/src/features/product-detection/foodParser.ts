@@ -535,6 +535,10 @@ export function buildPartialFoodName(
           ? 'Todas as idades'
           : resolvedLifeStage || undefined;
 
+  // The AI often fills productName and line (or other fields) with the same
+  // value — e.g. a sub-brand printed once on the pack ends up in both —
+  // so dedupe by normalized text to avoid "PremierPet Formula Formula ...".
+  const seenParts = new Set<string>();
   const parts = [
     resolvedBrand,
     resolvedProductName,
@@ -546,7 +550,13 @@ export function buildPartialFoodName(
     normalizedWeight,
   ]
     .filter(Boolean)
-    .map(part => normalizeWhitespace(String(part)));
+    .map(part => normalizeWhitespace(String(part)))
+    .filter(part => {
+      const key = part.toLowerCase();
+      if (seenParts.has(key)) return false;
+      seenParts.add(key);
+      return true;
+    });
 
   if (parts.length === 0 && structuredInput.probableName?.trim()) {
     parts.push(normalizeWhitespace(structuredInput.probableName).slice(0, 80));

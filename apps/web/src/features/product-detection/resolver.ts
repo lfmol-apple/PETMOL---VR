@@ -111,6 +111,24 @@ function normalizeText(value?: string | null): string | undefined {
   return text ? text : undefined;
 }
 
+// The AI often fills two different fields (e.g. product_name and line) with
+// the same text — a sub-brand printed once on the pack ends up duplicated —
+// so every name-composition path joins parts through this to avoid results
+// like "PremierPet Formula Formula ...".
+function joinUniqueParts(parts: Array<string | null | undefined>): string {
+  const seen = new Set<string>();
+  return parts
+    .filter((part): part is string => Boolean(part))
+    .filter(part => {
+      const key = part.trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(' ')
+    .trim();
+}
+
 function normalizeCategory(category?: string | null, hint?: ProductCategory): ProductCategory {
   if (category && ALLOWED_CATEGORIES.includes(category as ProductCategory)) {
     return category as ProductCategory;
@@ -253,15 +271,15 @@ function normalizeLifeStageToken(value?: string | null): string | undefined {
 }
 
 function composeGenericName(payload: ProductPhotoVisionPayload): string | undefined {
-  const parts = [
+  const joined = joinUniqueParts([
     normalizeText(payload.brand),
     normalizeText(payload.product_name),
     normalizeText(payload.line),
     normalizeText(payload.variant ?? payload.size),
     normalizeText(payload.flavor),
     normalizeWeight(payload),
-  ].filter(Boolean);
-  if (parts.length > 0) return parts.join(' ');
+  ]);
+  if (joined) return joined;
   return normalizeRawTextBlobs(payload)[0]?.slice(0, 80);
 }
 
@@ -561,14 +579,14 @@ export async function resolvePhotoProductCandidate(
     fuzzyBrand = fields.brandMatchMode === 'fuzzy';
     weight = weight ?? fields.weight;
     const finalBrand = brand ?? fields.brand;
-    name = [finalBrand, fields.productName, fields.line, fields.variant, payload.species ?? fields.species, payload.life_stage ?? fields.lifeStage, weight]
-      .filter(Boolean)
-      .join(' ')
-      .trim() || undefined;
+    name = joinUniqueParts([
+      finalBrand, fields.productName, fields.line, fields.variant,
+      payload.species ?? fields.species, payload.life_stage ?? fields.lifeStage, weight,
+    ]) || undefined;
   }
 
   if (!name) {
-    const genericPartial = [
+    const genericPartial = joinUniqueParts([
       brand,
       normalizeText(payload.product_name),
       normalizeText(payload.line),
@@ -577,7 +595,7 @@ export async function resolvePhotoProductCandidate(
       normalizeText(payload.species),
       normalizeText(payload.life_stage),
       weight,
-    ].filter(Boolean).join(' ').trim();
+    ]);
     if (genericPartial) {
       name = genericPartial;
       origin = origin === 'ia' ? origin : 'partial_name';

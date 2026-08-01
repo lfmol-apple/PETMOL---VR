@@ -122,17 +122,20 @@ for variant, ind in rc_vet:
 
 # --- Premier Pet ---
 premier_formula_base = [
-    ("Fórmula Raças Grandes e Gigantes Adultos", "grande_gigante", "adult", [15, 20]),
-    ("Fórmula Raças Médias Adultos", "medio", "adult", [10.1, 15]),
-    ("Fórmula Raças Pequenas Adultos", "pequeno", "adult", [1, 3, 10.1]),
-    ("Fórmula Filhotes Raças Grandes", "grande", "puppy", [15]),
-    ("Fórmula Filhotes Raças Pequenas", "pequeno", "puppy", [1, 3, 10.1]),
-    ("Fórmula Sênior Raças Pequenas", "pequeno", "senior", [1, 3, 10.1]),
-    ("Fórmula Light Raças Pequenas", "pequeno", "adult", [1, 3, 10.1]),
+    # confirmado via OCR independente em teste real: essa linha vem em pelo
+    # menos Carne, Frango e Cordeiro e Cenoura
+    ("Fórmula Raças Grandes e Gigantes Adultos", "grande_gigante", "adult", [15, 20],
+     ["Carne", "Frango", "Cordeiro e Cenoura"]),
+    ("Fórmula Raças Médias Adultos", "medio", "adult", [10.1, 15], FLAVORS_BASIC),
+    ("Fórmula Raças Pequenas Adultos", "pequeno", "adult", [1, 3, 10.1], FLAVORS_BASIC),
+    ("Fórmula Filhotes Raças Grandes", "grande", "puppy", [15], FLAVORS_BASIC),
+    ("Fórmula Filhotes Raças Pequenas", "pequeno", "puppy", [1, 3, 10.1], FLAVORS_BASIC),
+    ("Fórmula Sênior Raças Pequenas", "pequeno", "senior", [1, 3, 10.1], FLAVORS_BASIC),
+    ("Fórmula Light Raças Pequenas", "pequeno", "adult", [1, 3, 10.1], FLAVORS_BASIC),
 ]
-for variant, port, stage, w in premier_formula_base:
+for variant, port, stage, w, flavors in premier_formula_base:
     add_flavors("Premier Pet", "Premier Pet", "Fórmula", variant, "dog", stage, port,
-                "super_premium", None, w, flavors=FLAVORS_BASIC)
+                "super_premium", None, w, flavors=flavors)
 
 premier_racas = [
     "Labrador Adultos", "Golden Retriever Adultos", "Poodle Adultos", "Yorkshire Adultos",

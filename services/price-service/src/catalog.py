@@ -392,7 +392,14 @@ def _load_phase1_food_catalog() -> List[CatalogProduct]:
 
     products: List[CatalogProduct] = []
     for item in data.get("items", []):
-        name_parts = [item.get("brand"), item.get("line"), item.get("variant")]
+        # variant sometimes already starts with line (e.g. line="Fórmula",
+        # variant="Fórmula Raças Grandes..." from the generator's own data) —
+        # skip line in that case so the composed name doesn't repeat it.
+        line, variant = item.get("line"), item.get("variant")
+        if line and variant and variant.strip().lower().startswith(line.strip().lower()):
+            name_parts = [item.get("brand"), variant]
+        else:
+            name_parts = [item.get("brand"), line, variant]
         name = " ".join(p for p in name_parts if p)
         try:
             products.append(CatalogProduct(
