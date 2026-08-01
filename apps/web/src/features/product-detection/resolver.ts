@@ -387,17 +387,41 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
     score += payload.neutered === candidate.neutered ? 0.08 : -0.12;
   }
 
-  // payload.product_name/line name the SPECIFIC line (e.g. "Ambientes
-  // Internos", "Gastrointestinal") — the words that actually distinguish
-  // which product this is, unlike brand/species/weight/life-stage which are
-  // shared by dozens of SKUs and already scored above. If we have specific
-  // identity tokens but the candidate shares NONE of them, the catalog is
-  // very likely just missing this exact line, and a generic same-brand/
-  // same-weight product only scored high by accident (e.g. a Premier
-  // "Ambientes Internos" bag matching "Premier Nattu Adulto" purely on
-  // brand+species+weight). Penalize hard so it falls below the acceptance
+  // payload.product_name/line/variant name the SPECIFIC line (e.g. "Ambientes
+  // Internos", "Gastrointestinal", "Labrador") — the words that actually
+  // distinguish which product this is, unlike brand/species/weight/life-stage
+  // which are shared by dozens of SKUs and already scored above. If we have
+  // specific identity tokens but the candidate shares NONE of them, the
+  // catalog is very likely just missing this exact line, and a generic
+  // same-brand/same-weight product only scored high by accident (e.g. a
+  // Premier "Ambientes Internos" bag matching "Premier Nattu Adulto" purely
+  // on brand+species+weight). Penalize hard so it falls below the acceptance
   // threshold instead of confidently substituting a different real product.
-  const identityTokens = tokenize([payload.product_name, payload.line].filter(Boolean).join(' '));
+  //
+  // Two real production misses this missed before:
+  //  1. `variant` wasn't included at all — a scan with product_name="Premier"
+  //     (the AI just repeating the brand, not a real product name) and
+  //     variant="Labrador" (the actual distinguishing word) had NO identity
+  //     signal, so a same-brand/same-weight "Premier Nattu Adulto" matched
+  //     with nothing to stop it.
+  //  2. Brand tokens weren't excluded — when product_name IS just the brand
+  //     name repeated, every same-brand candidate's own text trivially
+  //     contains that word too (brand is always in candidateTokens), so
+  //     `.some(...)` was satisfied by the brand alone and the check silently
+  //     did nothing, for every candidate, regardless of actual line match.
+  //     Exclude tokens from BOTH payload.brand ("PremierPet") and
+  //     candidate.brand ("Premier") — the two sides can spell the same
+  //     brand differently (with/without "Pet"), so only stripping one side
+  //     still leaves the other's brand word free to satisfy the overlap
+  //     check on its own (confirmed: stripping only payload.brand still let
+  //     "premier" from candidate.brand pass this check for every Premier
+  //     candidate regardless of line).
+  const brandTokens = new Set([
+    ...tokenize(normalizeText(payload.brand) ?? ''),
+    ...tokenize(normalizeText(candidate.brand) ?? ''),
+  ]);
+  const identityTokens = tokenize([payload.product_name, payload.line, payload.variant].filter(Boolean).join(' '))
+    .filter(t => !brandTokens.has(t));
   if (identityTokens.length > 0 && !identityTokens.some(t => candidateTokens.has(t))) {
     score -= 0.45;
   }
