@@ -142,7 +142,10 @@ export async function submitLearningConfirmation(payload: LearningConfirmPayload
 
   const token = getToken();
   if (!token) return;
-  if (!code || code.length < 8) return;
+  // No barcode requirement here anymore: most confirmations come from photo
+  // scans (food) with no GTIN at all — the backend now accepts those too,
+  // recording them in ProductLearningEvent/ProductReliableCatalog without a
+  // barcode-keyed ProductCatalog row.
 
   try {
     await fetch(`${API_BASE_URL}/api/product-lookup/confirm`, {

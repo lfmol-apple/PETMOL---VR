@@ -18,7 +18,6 @@ import {
 import { saveLocalProduct, clearLocalProduct } from '@/features/product-detection/cache';
 import { trackEvent } from '@/lib/analytics/storage';
 import {
-  confirmProductLookup,
   resolvePhotoProductCandidate,
   scoreGtinResolution,
   type ProductDetectionConfidence,
@@ -1540,39 +1539,31 @@ export function ProductDetectionSheetGold({
       if (previousCorrection && previousCorrection !== confirmed.name) {
         // Não forçar — apenas registrar que havia uma correção prévia; o tutor já confirmou este nome
       }
-      void submitLearningConfirmation({
-        barcode: confirmed.barcode,
-        name: confirmed.name,
-        brand: confirmed.brand,
-        category: confirmed.category,
-        manufacturer: confirmed.manufacturer,
-        presentation: confirmed.presentation ?? confirmed.weight,
-        weight: confirmed.weight,
-        species: speciesRef.current,
-        life_stage: lifeStageRef.current,
-        decision_source: decisionSourceRef.current,
-        decision_score: decisionScoreRef.current ?? aiConfidenceRef.current,
-        decision_result: decisionResultTypeRef.current,
-        ai_suggested_name: aiSuggestedNameRef.current,
-        ai_confidence: aiConfidenceRef.current ?? decisionScoreRef.current,
-        probable_name: probableNameRef.current,
-        visible_text: visibleTextRef.current,
-        ocr_raw_text: visibleTextRef.current,
-        tutor_confirmed: true,
-        pet_id: petId,
-      });
-    } else {
-      // Produto sem barcode confirmado (AI/manual sem GTIN): usar confirmProductLookup legacy
-      void confirmProductLookup({
-        barcode: confirmed.barcode,
-        name: confirmed.name,
-        brand: confirmed.brand,
-        category: confirmed.category,
-        manufacturer: confirmed.manufacturer,
-        presentation: confirmed.presentation ?? confirmed.weight,
-        source: 'user_confirmed',
-      });
     }
+    // Sempre grava o aprendizado, com ou sem barcode — a maioria das
+    // confirmações vem de foto (ração), e antes disso ficavam presas só no
+    // localStorage do celular, nunca alimentando a base compartilhada.
+    void submitLearningConfirmation({
+      barcode: confirmed.barcode,
+      name: confirmed.name,
+      brand: confirmed.brand,
+      category: confirmed.category,
+      manufacturer: confirmed.manufacturer,
+      presentation: confirmed.presentation ?? confirmed.weight,
+      weight: confirmed.weight,
+      species: speciesRef.current,
+      life_stage: lifeStageRef.current,
+      decision_source: decisionSourceRef.current,
+      decision_score: decisionScoreRef.current ?? aiConfidenceRef.current,
+      decision_result: decisionResultTypeRef.current,
+      ai_suggested_name: aiSuggestedNameRef.current,
+      ai_confidence: aiConfidenceRef.current ?? decisionScoreRef.current,
+      probable_name: probableNameRef.current,
+      visible_text: visibleTextRef.current,
+      ocr_raw_text: visibleTextRef.current,
+      tutor_confirmed: true,
+      pet_id: petId,
+    });
 
     saveToScanHistory({ barcode: confirmed.barcode, product: confirmed, petId, category: confirmed.category });
     emitProductTelemetry('confirmed', {

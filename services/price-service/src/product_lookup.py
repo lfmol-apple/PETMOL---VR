@@ -165,14 +165,22 @@ async def confirm_product_lookup(
         code = normalize_gtin(payload.code or "")
         logger.info("[product-lookup] confirm received code=%s name=%s", code, payload.name)
 
-        if not 8 <= len(code) <= 14:
+        # A barcode is no longer required: most confirmations come from photo
+        # scans with no GTIN at all, and those were previously silently
+        # dropped here — the confirmation never reached ProductLearningEvent/
+        # ProductCorrectionEvent/ProductReliableCatalog, so the shared catalog
+        # never learned from them. When a code IS present it must still be a
+        # valid-length GTIN; when absent, we skip the barcode-keyed
+        # ProductCatalog write but still record the learning signal.
+        has_code = bool(code)
+        if has_code and not 8 <= len(code) <= 14:
             return _not_found(code, "validation", "código inválido")
         if not payload.name or not payload.name.strip():
             return _not_found(code, "validation", "nome obrigatório")
 
         row = save_confirmed_product_to_catalog(
             db,
-            gtin=code,
+            gtin=code if has_code else None,
             name=payload.name.strip(),
             brand=payload.brand.strip() if payload.brand else None,
             category=payload.category,
@@ -195,6 +203,22 @@ async def confirm_product_lookup(
             pet_id=payload.pet_id,
         )
         db.commit()
+
+        if not has_code:
+            logger.info("[product-lookup] confirm (no barcode) saved to learning tables name=%s", payload.name)
+            return ProductLookupResponse(
+                code="",
+                found=True,
+                name=payload.name.strip(),
+                brand=payload.brand,
+                category=payload.category,
+                manufacturer=payload.manufacturer,
+                presentation=payload.presentation,
+                source="learning_only",
+                confidence=1.0,
+                suggest_manual_registration=False,
+            )
+
         db.refresh(row)
         response = get_product_from_cache(db, code)
         if not response:

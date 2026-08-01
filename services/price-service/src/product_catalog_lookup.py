@@ -524,7 +524,7 @@ def save_product_to_catalog(db: Session, gtin: str, candidate: Optional[CatalogC
 def save_confirmed_product_to_catalog(
     db: Session,
     *,
-    gtin: str,
+    gtin: Optional[str],
     name: str,
     brand: Optional[str],
     category: Optional[str],
@@ -546,7 +546,7 @@ def save_confirmed_product_to_catalog(
     decision_score: Optional[float] = None,
     decision_result: Optional[str] = None,
     tutor_confirmed: bool = True,
-) -> ProductCatalog:
+) -> Optional[ProductCatalog]:
     raw_payload: dict[str, Any] = {
         "name": name,
         "brand": brand,
@@ -575,14 +575,23 @@ def save_confirmed_product_to_catalog(
         source_confidence=1.0,
         raw_payload=raw_payload,
     )
-    row = save_product_to_catalog(db, gtin, candidate)
+    # A confirmation with no barcode (the common case for photo-based food
+    # scans) skips the GTIN-keyed ProductCatalog row entirely — writing one
+    # with an empty barcode_normalized would collide every barcode-less
+    # confirmation onto the same unique-constrained row. It still records
+    # the learning signal below (ProductCorrectionEvent/ProductLearningEvent/
+    # ProductReliableCatalog are all keyed by name+brand+category, not GTIN).
+    row: Optional[ProductCatalog] = None
+    normalized_gtin = normalize_gtin(gtin) if gtin else None
+    if normalized_gtin:
+        row = save_product_to_catalog(db, normalized_gtin, candidate)
 
     # Registrar evento de correção quando tutor mudou o nome sugerido pela IA
     was_corrected = ai_suggested_name and ai_suggested_name.strip().lower() != name.strip().lower()
     if was_corrected:
         try:
             correction = ProductCorrectionEvent(
-                barcode_normalized=normalize_gtin(gtin),
+                barcode_normalized=normalized_gtin,
                 suggested_name=ai_suggested_name,
                 corrected_name=name,
                 decision_source=decision_source,
@@ -602,7 +611,7 @@ def save_confirmed_product_to_catalog(
 
     try:
         learning_event = ProductLearningEvent(
-            barcode_normalized=normalize_gtin(gtin),
+            barcode_normalized=normalized_gtin,
             ocr_raw_text=_safe_text(ocr_raw_text),
             visible_text=_safe_text(visible_text),
             probable_name=_safe_text(probable_name),
@@ -654,7 +663,6 @@ def save_confirmed_product_to_catalog(
             aliases.add(probable_name.strip())
         aliases.add(name.strip())
 
-        normalized_gtin = normalize_gtin(gtin)
         if normalized_gtin:
             gtins.add(normalized_gtin)
 
