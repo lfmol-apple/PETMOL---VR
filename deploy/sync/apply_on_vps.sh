@@ -254,6 +254,15 @@ if [ ! -f "$RECLASSIFY_FLAG" ]; then
     fi
 fi
 
+# When this whole script runs as root (automated GitHub Actions deploy uses
+# a root SSH key), the reclassify step above compiles __pycache__/*.pyc as
+# root — even on failure, since Python writes the bytecode cache before the
+# import error surfaces. Those root-owned files then block `rsync --delete`
+# on the next deploy that runs as `petmol` (manual recovery). Re-chown here,
+# after the reclassify step, since the earlier chown (before Step 4.5) runs
+# too early to catch this.
+chown -R petmol:petmol "$APP_DIR" 2>/dev/null || true
+
 # ============================================
 # Step 5: Restart services
 # ============================================
