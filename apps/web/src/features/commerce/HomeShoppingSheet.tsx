@@ -9,16 +9,11 @@ import { HOME_SHOPPING_PARTNERS, openHomeShoppingPartner, type HomeShoppingPartn
 import { fetchProductPrice, formatBRLPrice, type ProductPriceResult } from './productPricing';
 import {
   buildReorderCards,
-  buildRecommendedCategories,
-  buildPromoDestinations,
   STORE_CATEGORIES,
   buildStoreCategoryQuery,
-  buildServiceMapsUrl,
-  SERVICE_CATEGORIES,
   QUICK_BUY_PARTNERS,
   type ReorderCard,
   type StoreCategoryOption,
-  type ServiceCategory,
 } from './petStoreContent';
 
 interface HomeShoppingSheetProps {
@@ -28,6 +23,10 @@ interface HomeShoppingSheetProps {
   buyableReminders: PetCareReminder[];
 }
 
+// Tela enxuta de propósito: "Comprar novamente" (com preço real quando
+// disponível) é a seção que importa de verdade — uma tela mais longa com
+// categorias genéricas e promoções não-personalizadas só cansava o tutor
+// antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
 export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
   const [browsingPartner, setBrowsingPartner] = useState<HomeShoppingPartner | null>(null);
   // Nenhuma loja fixa por padrão: uma busca de verdade mostrou que uma loja
@@ -46,8 +45,6 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   }, [open, currentPet.pet_id]);
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
-  const recommended = useMemo(() => buildRecommendedCategories(currentPet), [currentPet]);
-  const promos = useMemo(() => buildPromoDestinations(), []);
 
   if (!open) return null;
 
@@ -78,16 +75,6 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
       pet_id: currentPet.pet_id,
       metadata: { category: category.id },
     });
-  }
-
-  function handleService(service: ServiceCategory) {
-    void trackClick({
-      source: 'home',
-      cta_type: 'shop_service_click',
-      target: service.id,
-      pet_id: currentPet.pet_id,
-    });
-    window.open(buildServiceMapsUrl(service), '_blank', 'noopener,noreferrer');
   }
 
   return (
@@ -190,64 +177,6 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                 )}
               </div>
 
-              {/* ⭐ Recomendado para o Baby */}
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">⭐ Recomendado para {petName || 'o pet'}</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {recommended.map((cat) => {
-                    const pickerKey = `recommended:${cat.id}`;
-                    return (
-                      <div key={cat.id} className="p-4 bg-white border border-gray-200 rounded-2xl shadow-sm">
-                        <button
-                          type="button"
-                          onClick={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
-                          className="w-full flex items-center gap-2.5 text-left"
-                        >
-                          <span className="text-xl flex-shrink-0">{cat.icon}</span>
-                          <span className="text-[13px] font-bold text-gray-900 leading-tight">{cat.label}</span>
-                        </button>
-                        {quickBuyFor === pickerKey && (
-                          <QuickBuyRow
-                            onPick={(partnerId) => handleQuickBuy(partnerId, cat.searchQuery, 'shop_recommendation_click', { category: cat.id })}
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 🔥 Promoções */}
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🔥 Promoções</p>
-                <div className="space-y-2">
-                  {promos.map((promo) => {
-                    const pickerKey = `promo:${promo.id}`;
-                    return (
-                      <div key={promo.id} className="p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm">
-                        <button
-                          type="button"
-                          onClick={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
-                          className="w-full flex items-center gap-3 text-left"
-                        >
-                          <span className="text-2xl flex-shrink-0">{promo.icon}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-bold text-gray-900 leading-tight">{promo.label}</p>
-                            <p className="text-[11px] text-gray-400 mt-0.5">{promo.description}</p>
-                          </div>
-                          <span className="flex-shrink-0 text-lg text-gray-300">›</span>
-                        </button>
-                        {quickBuyFor === pickerKey && (
-                          <QuickBuyRow
-                            onPick={(partnerId) => handleQuickBuy(partnerId, promo.searchQuery, 'shop_promo_click', { promo: promo.id })}
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
               {/* 🏪 Lojas */}
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🏪 Lojas</p>
@@ -282,24 +211,6 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                   ))}
                 </div>
               </div>
-
-              {/* ✂️ Serviços */}
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">✂️ Serviços</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {SERVICE_CATEGORIES.map((service) => (
-                    <button
-                      key={service.id}
-                      type="button"
-                      onClick={() => handleService(service)}
-                      className="flex items-center gap-2.5 p-4 bg-white border border-gray-200 rounded-2xl hover:border-blue-200 hover:bg-blue-50/30 active:scale-[0.97] transition-all text-left shadow-sm"
-                    >
-                      <span className="text-xl flex-shrink-0">{service.icon}</span>
-                      <span className="text-[13px] font-bold text-gray-900 leading-tight">{service.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </>
           )}
         </div>
@@ -318,7 +229,9 @@ interface ReorderCardItemProps {
 
 // Busca o preço real (Cobasi) ao montar. Enquanto carrega ou quando não
 // encontrado, cai no comportamento anterior (escolha entre 3 lojas sem
-// preço) — nunca trava a experiência esperando a Cobasi responder.
+// preço) — nunca trava a experiência esperando a Cobasi responder. Quando
+// há preço real E ele está abaixo do preço de tabela, isso É a promoção —
+// só de itens que o Baby realmente usa, sem seção genérica separada.
 function ReorderCardItem({ card, isPickerOpen, onTogglePicker, onQuickBuy, onDirectBuy }: ReorderCardItemProps) {
   const [price, setPrice] = useState<ProductPriceResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -339,13 +252,23 @@ function ReorderCardItem({ card, isPickerOpen, onTogglePicker, onQuickBuy, onDir
   }, [card.searchQuery]);
 
   const hasRealPrice = Boolean(price?.found && typeof price.price === 'number' && price.url);
+  const hasDiscount = Boolean(
+    hasRealPrice && price && typeof price.list_price === 'number' && price.list_price > (price.price ?? 0),
+  );
 
   return (
-    <div className="p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm">
+    <div className={`p-3.5 bg-white border rounded-2xl shadow-sm ${hasDiscount ? 'border-orange-300' : 'border-gray-200'}`}>
       <div className="flex items-center gap-3">
         <span className="text-2xl flex-shrink-0">{card.icon}</span>
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-bold text-gray-900 leading-tight truncate">{card.label}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-[13px] font-bold text-gray-900 leading-tight truncate">{card.label}</p>
+            {hasDiscount && (
+              <span className="flex-shrink-0 rounded-full bg-orange-100 text-orange-700 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5">
+                🔥 Oferta
+              </span>
+            )}
+          </div>
           <p className={`text-[11px] mt-0.5 font-semibold ${card.urgencyTone === 'overdue' ? 'text-rose-600' : card.urgencyTone === 'today' ? 'text-amber-600' : 'text-gray-400'}`}>
             {card.urgencyText}
           </p>
@@ -353,8 +276,8 @@ function ReorderCardItem({ card, isPickerOpen, onTogglePicker, onQuickBuy, onDir
           {!loading && hasRealPrice && price && (
             <p className="text-[12px] mt-1 font-bold text-emerald-700">
               {formatBRLPrice(price.price as number)} na Cobasi
-              {typeof price.list_price === 'number' && price.list_price > (price.price ?? 0) && (
-                <span className="ml-1.5 text-[10px] font-semibold text-gray-400 line-through">{formatBRLPrice(price.list_price)}</span>
+              {hasDiscount && (
+                <span className="ml-1.5 text-[10px] font-semibold text-gray-400 line-through">{formatBRLPrice(price.list_price as number)}</span>
               )}
             </p>
           )}

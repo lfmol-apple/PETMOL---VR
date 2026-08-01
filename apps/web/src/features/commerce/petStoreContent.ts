@@ -1,5 +1,5 @@
 import type { PetCareReminder, CareReminderDomain } from '@/lib/petCareDomain';
-import type { PetHealthProfile, PetSpecies } from '@/lib/petHealth';
+import type { PetSpecies } from '@/lib/petHealth';
 import { HOME_SHOPPING_PARTNERS, type HomeShoppingPartnerId } from './homeShoppingPartners';
 
 // ── "❤️ Comprar novamente" ──────────────────────────────────────────────────
@@ -63,111 +63,10 @@ export function buildReorderCards(reminders: PetCareReminder[]): ReorderCard[] {
     }));
 }
 
-// ── "⭐ Recomendado para o Baby" ────────────────────────────────────────────
-// Sugestão de CATEGORIA (não produto/preço específico) priorizada por
-// espécie/idade/porte/condições — nada aqui inventa um produto ou review.
-export interface RecommendedCategory {
-  id: string;
-  icon: string;
-  label: string;
-  searchQuery: string;
-}
-
-interface CategoryRule {
-  id: string;
-  icon: string;
-  label: string;
-  species?: PetSpecies[]; // undefined = qualquer espécie
-  basePriority: number;
-  boost?: (ctx: PetRecommendationContext) => number;
-}
-
-interface PetRecommendationContext {
-  species: PetSpecies;
-  ageYears: number | null;
-  hasChronicConditions: boolean;
-}
-
-const CATEGORY_RULES: CategoryRule[] = [
-  { id: 'petiscos', icon: '🦴', label: 'Petiscos', basePriority: 10 },
-  { id: 'brinquedos', icon: '🧸', label: 'Brinquedos', basePriority: 20 },
-  {
-    id: 'mordedores', icon: '🦷', label: 'Mordedores', species: ['dog'], basePriority: 60,
-    boost: (ctx) => (ctx.ageYears !== null && ctx.ageYears < 1 ? -50 : 0),
-  },
-  {
-    id: 'tapete-higienico', icon: '🧻', label: 'Tapete higiênico', species: ['cat', 'dog'], basePriority: 50,
-    boost: (ctx) => (ctx.species === 'cat' ? -40 : 0),
-  },
-  { id: 'shampoo', icon: '🧴', label: 'Shampoo', basePriority: 30 },
-  { id: 'escova', icon: '🪮', label: 'Escova', basePriority: 40 },
-  {
-    id: 'caminha', icon: '🛏️', label: 'Caminha', basePriority: 45,
-    boost: (ctx) => (ctx.ageYears !== null && ctx.ageYears >= 7 ? -20 : 0) + (ctx.hasChronicConditions ? -10 : 0),
-  },
-];
-
-function calculateAgeYears(birthDate?: string): number | null {
-  if (!birthDate) return null;
-  const [y, m, d] = birthDate.split('-').map(Number);
-  if (!y) return null;
-  const birth = new Date(y, (m || 1) - 1, d || 1);
-  const now = new Date();
-  let age = now.getFullYear() - birth.getFullYear();
-  const monthDiff = now.getMonth() - birth.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) age -= 1;
-  return age;
-}
-
 function speciesQueryLabel(species: PetSpecies): string {
   if (species === 'dog') return 'cachorro';
   if (species === 'cat') return 'gato';
   return 'pet';
-}
-
-export function buildRecommendedCategories(pet: PetHealthProfile): RecommendedCategory[] {
-  const species = pet.species;
-  const ctx: PetRecommendationContext = {
-    species,
-    ageYears: calculateAgeYears(pet.birth_date),
-    hasChronicConditions: (pet.chronic_conditions?.length ?? 0) > 0,
-  };
-
-  return CATEGORY_RULES
-    .filter((rule) => !rule.species || rule.species.includes(species))
-    .map((rule) => ({
-      rule,
-      priority: rule.basePriority + (rule.boost ? rule.boost(ctx) : 0),
-    }))
-    .sort((a, b) => a.priority - b.priority)
-    .map(({ rule }) => ({
-      id: rule.id,
-      icon: rule.icon,
-      label: rule.label,
-      searchQuery: `${rule.label} ${speciesQueryLabel(species)}`,
-    }));
-}
-
-// ── "🔥 Promoções" ──────────────────────────────────────────────────────────
-// Sem pipeline real de preço/desconto conectado hoje (feeds/awin.py e
-// cityads.py existem no backend mas nunca foram ligados a um endpoint) — v1
-// linka por marca/categoria via afiliado, sem % inventado.
-export interface PromoDestination {
-  id: string;
-  icon: string;
-  label: string;
-  description: string;
-  searchQuery: string;
-}
-
-const PROMO_DESTINATIONS: PromoDestination[] = [
-  { id: 'racao', icon: '🥣', label: 'Ração', description: 'Ver ofertas de ração', searchQuery: 'ração promoção' },
-  { id: 'antiparasitario', icon: '💊', label: 'Antiparasitários', description: 'Ver ofertas de antipulgas e vermífugos', searchQuery: 'antipulgas vermífugo promoção' },
-  { id: 'brinquedos', icon: '🧸', label: 'Brinquedos', description: 'Ver ofertas de brinquedos', searchQuery: 'brinquedo pet promoção' },
-];
-
-export function buildPromoDestinations(): PromoDestination[] {
-  return PROMO_DESTINATIONS;
 }
 
 // ── "🏪 Lojas" → drill-down de categoria por loja ──────────────────────────
@@ -188,29 +87,6 @@ export const STORE_CATEGORIES: StoreCategoryOption[] = [
 
 export function buildStoreCategoryQuery(category: StoreCategoryOption, species: PetSpecies): string {
   return `${category.label} ${speciesQueryLabel(species)}`;
-}
-
-// ── "✂️ Serviços" ────────────────────────────────────────────────────────
-// Sem monetização ainda (comissão/lead/assinatura/destaque ficam pra depois,
-// conforme o usuário já confirmou) — v1 é só navegação.
-export interface ServiceCategory {
-  id: string;
-  icon: string;
-  label: string;
-  mapsQuery: string;
-}
-
-export const SERVICE_CATEGORIES: ServiceCategory[] = [
-  { id: 'banho-tosa', icon: '✂️', label: 'Banho e tosa', mapsQuery: 'banho e tosa pet perto de mim' },
-  { id: 'veterinarios', icon: '🩺', label: 'Veterinários', mapsQuery: 'veterinário perto de mim' },
-  { id: 'hospitais-24h', icon: '🏨', label: 'Hospitais 24h', mapsQuery: 'hospital veterinário 24 horas perto de mim' },
-  { id: 'hotel', icon: '🏠', label: 'Hotel para pets', mapsQuery: 'hotel para pets perto de mim' },
-  { id: 'creche', icon: '🐾', label: 'Creche', mapsQuery: 'creche para pets perto de mim' },
-  { id: 'adestramento', icon: '🎓', label: 'Adestramento', mapsQuery: 'adestrador de cães perto de mim' },
-];
-
-export function buildServiceMapsUrl(service: ServiceCategory): string {
-  return `https://www.google.com/maps/search/${encodeURIComponent(service.mapsQuery)}`;
 }
 
 export { HOME_SHOPPING_PARTNERS };
