@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { AppleControlButtons } from '@/components/AppleControlButtons';
+import { HomeShoppingSheet } from '@/features/commerce/HomeShoppingSheet';
 import { buildPetCareReminders } from '@/lib/petCareDomain';
 import type { PetCareReminder } from '@/lib/petCareDomain';
 import type { PetEventRecord } from '@/lib/petEvents';
@@ -149,9 +150,9 @@ export function HomePetDashboard({
         ? 'ok'
         : 'neutral';
   const alertHealth = colorHealth === 'warning' || colorHealth === 'critical' || alertVacinas || alertVermifugo || alertAntipulgas || alertColeira || alertMedicacao || alertGrooming;
-  const allUpcomingReminders = useMemo(() => {
+  const reminders = useMemo(() => {
     if (!currentPet?.pet_id) return [];
-    const reminders = buildPetCareReminders({
+    return buildPetCareReminders({
       pet_id: currentPet.pet_id,
       pet_name: currentPet.pet_name,
       vaccines,
@@ -160,8 +161,14 @@ export function HomePetDashboard({
       feedingPlan: feedingPlan[currentPet.pet_id] ?? null,
       petEvents,
     });
-    return reminders.filter((r) => r.diff >= 0).sort((a, b) => a.diff - b.diff);
   }, [currentPet, vaccines, parasiteControls, groomingRecords, feedingPlan, petEvents]);
+
+  const allUpcomingReminders = useMemo(
+    () => reminders.filter((r) => r.diff >= 0).sort((a, b) => a.diff - b.diff),
+    [reminders],
+  );
+
+  const [showShoppingSheet, setShowShoppingSheet] = useState(false);
 
   useEffect(() => {
     onUpcomingCountChange?.(allUpcomingReminders.length, allUpcomingReminders);
@@ -207,11 +214,13 @@ export function HomePetDashboard({
         onHealthClick={onOpenHealth}
         onDocumentosClick={onOpenDocuments}
         petName={currentPet.pet_name}
+        petSex={currentPet.sex}
         onAlimentacaoClick={onOpenFood}
         onBanhoTosaClick={onOpenGrooming}
         onMedicacaoClick={onOpenMedication}
         onFamilyClick={onOpenFamily}
         onPetSumidoClick={onOpenPetSumido}
+        onShoppingClick={() => setShowShoppingSheet(true)}
         hasFoodData={hasFoodData}
         foodTitle={foodTitle}
         foodHeadline={foodHeadline ?? undefined}
@@ -224,6 +233,12 @@ export function HomePetDashboard({
         colorGrooming={colorGrooming}
         colorFood={colorFood}
         colorMedicacao={colorMedicacao}
+      />
+      <HomeShoppingSheet
+        open={showShoppingSheet}
+        onClose={() => setShowShoppingSheet(false)}
+        currentPet={currentPet}
+        buyableReminders={reminders}
       />
     </div>
   );
