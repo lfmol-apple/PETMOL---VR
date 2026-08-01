@@ -325,6 +325,18 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
     score += overlap / queryTokens.length;
   }
 
+  // Trust real/verified data over the hand-curated static catalog: every
+  // wrong-product-substitution bug found this session (Nattu, Dog Chow,
+  // hidden pack-size variants...) came from the static Fase 1 catalog being
+  // an approximation with real gaps — a live Cobasi listing or a candidate
+  // promoted from an actual confirmed scan (source="catalog_promoted", see
+  // catalog.py) are both real data, not guesswork, so a close tie should
+  // favor them instead of the static entry by default. Modest bonus — it
+  // should break near-ties, not override a genuinely stronger static match.
+  if (candidate.source === 'cobasi' || candidate.source === 'catalog_promoted') {
+    score += 0.12;
+  }
+
   const brand = normalizeText(payload.brand)?.toLowerCase();
   const candidateBrand = normalizeText(candidate.brand)?.toLowerCase();
   if (brand && candidateBrand) {

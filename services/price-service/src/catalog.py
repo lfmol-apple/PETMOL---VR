@@ -688,7 +688,14 @@ def search_catalog_candidates(
         if count >= MAX_VARIANTS_PER_PRODUCT:
             continue
         seen_products[key] = count + 1
-        candidates.append(_product_to_candidate(product, "catalog"))
+        # Promoted entries (id="reliable-{row.id}", from _load_promoted_products)
+        # came from a real confirmed scan, not hand-curated guesswork — tag
+        # them distinctly so the caller can trust them (and real Cobasi data)
+        # over the static Fase 1 catalog, which has been the actual source of
+        # every wrong-product-substitution bug found this session (Nattu,
+        # Dog Chow, missing pack-size variants...).
+        source = "catalog_promoted" if product.id.startswith("reliable-") else "catalog_static"
+        candidates.append(_product_to_candidate(product, source))
         if len(candidates) >= limit:
             break
 
