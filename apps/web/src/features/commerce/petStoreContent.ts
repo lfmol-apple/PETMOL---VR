@@ -8,13 +8,12 @@ import { HOME_SHOPPING_PARTNERS, type HomeShoppingPartnerId } from './homeShoppi
 // inventado. Só os domínios que correspondem a algo que se compra de novo.
 const BUYABLE_DOMAINS: CareReminderDomain[] = ['food', 'parasite', 'medication'];
 
-// Loja padrão pro clique de "Comprar" (fluxo de 1 toque, sem picker) — pet
-// shops especializados primeiro, marketplaces gerais como fallback.
-// resolvePartnerUrl já cai para busca direta no site quando não há afiliado
-// configurado para o parceiro, então a ordem não trava nada mesmo sem afiliado.
-const DEFAULT_REORDER_PARTNER_PRIORITY: HomeShoppingPartnerId[] = [
-  'petz', 'cobasi', 'petlove', 'amazon', 'mercadolivre',
-];
+// Lojas oferecidas no toque em "Comprar" — em vez de travar sempre na mesma
+// loja (o que a busca real mostrou não ser confiável: uma loja específica
+// pode simplesmente não ter o produto), o tutor escolhe entre 3 pet shops
+// especializados. resolvePartnerUrl já cai para busca direta no site quando
+// não há afiliado configurado, então a lista funciona mesmo sem afiliado.
+export const QUICK_BUY_PARTNERS: HomeShoppingPartnerId[] = ['petz', 'cobasi', 'petlove'];
 
 export interface ReorderCard {
   id: string;
@@ -24,7 +23,6 @@ export interface ReorderCard {
   urgencyText: string;
   urgencyTone: 'overdue' | 'today' | 'upcoming';
   searchQuery: string;
-  partnerId: HomeShoppingPartnerId;
   domain: CareReminderDomain;
 }
 
@@ -33,6 +31,21 @@ function formatUrgencyText(domain: CareReminderDomain, diff: number): string {
   if (diff < 0) return domain === 'food' ? 'Pode ter acabado' : `${verb} há ${Math.abs(diff)} dia${Math.abs(diff) === 1 ? '' : 's'}`;
   if (diff === 0) return `${verb} hoje`;
   return `${verb} em ${diff} dia${diff === 1 ? '' : 's'}`;
+}
+
+// petCareDomain.ts's `label` field is NOT always a real product name: for
+// the food domain it's a fixed UI string ("Compra de ração"), never
+// something a store search engine can match — only `sublabel` (the brand)
+// is real there. For parasite/medication, `label` IS the real product name
+// (product_name / event title) when the tutor filled it in, so keep the
+// query short and specific instead of padding it with the generic category
+// sublabel ("Antipulgas e carrapatos") — verbose queries were coming back
+// with zero results on real store search (confirmed by the user).
+function buildReminderSearchQuery(r: PetCareReminder): string {
+  if (r.domain === 'food') {
+    return r.sublabel ? `${r.sublabel} ração` : 'ração pet';
+  }
+  return r.label?.trim() || r.sublabel || 'produto pet';
 }
 
 export function buildReorderCards(reminders: PetCareReminder[]): ReorderCard[] {
@@ -45,8 +58,7 @@ export function buildReorderCards(reminders: PetCareReminder[]): ReorderCard[] {
       sublabel: r.sublabel,
       urgencyText: formatUrgencyText(r.domain, r.diff),
       urgencyTone: r.status,
-      searchQuery: [r.sublabel, r.label].filter(Boolean).join(' ').trim() || r.label,
-      partnerId: DEFAULT_REORDER_PARTNER_PRIORITY[0],
+      searchQuery: buildReminderSearchQuery(r),
       domain: r.domain,
     }));
 }

@@ -14,9 +14,7 @@ import {
   buildStoreCategoryQuery,
   buildServiceMapsUrl,
   SERVICE_CATEGORIES,
-  type ReorderCard,
-  type RecommendedCategory,
-  type PromoDestination,
+  QUICK_BUY_PARTNERS,
   type StoreCategoryOption,
   type ServiceCategory,
 } from './petStoreContent';
@@ -28,17 +26,18 @@ interface HomeShoppingSheetProps {
   buyableReminders: PetCareReminder[];
 }
 
-// Loja padrão para os cliques de 1 toque (Recomendado/Promoções) — mesma
-// lógica de fallback de homeShoppingPartners.resolvePartnerUrl garante que
-// funciona mesmo sem afiliado configurado ainda.
-const DEFAULT_PARTNER_ID: HomeShoppingPartnerId = 'petz';
-
 export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
   const [browsingPartner, setBrowsingPartner] = useState<HomeShoppingPartner | null>(null);
+  // Nenhuma loja fixa por padrão: uma busca de verdade mostrou que uma loja
+  // específica pode simplesmente não ter o produto (zero resultado). Em vez
+  // de comprometer com uma só, tocar em "Comprar" expande esta escolha
+  // rápida entre 3 pet shops — identificada pela mesma chave usada no card.
+  const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
       setBrowsingPartner(null);
+      setQuickBuyFor(null);
       return;
     }
     void trackClick({ source: 'home', cta_type: 'shop_sheet_view', pet_id: currentPet.pet_id });
@@ -53,39 +52,15 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   const petName = currentPet.pet_name;
   const title = petName ? `Loja ${petDo(currentPet)} ${petName}` : 'Loja do Pet';
 
-  function handleBuyReorder(card: ReorderCard) {
+  function handleQuickBuy(partnerId: HomeShoppingPartnerId, searchQuery: string, ctaType: string, metadata: Record<string, unknown>) {
     onClose();
-    openHomeShoppingPartner(card.partnerId, card.searchQuery);
+    openHomeShoppingPartner(partnerId, searchQuery);
     void trackClick({
       source: 'home',
-      cta_type: 'shop_reorder_click',
-      target: card.partnerId,
+      cta_type: ctaType,
+      target: partnerId,
       pet_id: currentPet.pet_id,
-      metadata: { domain: card.domain, label: card.label },
-    });
-  }
-
-  function handleRecommended(cat: RecommendedCategory) {
-    onClose();
-    openHomeShoppingPartner(DEFAULT_PARTNER_ID, cat.searchQuery);
-    void trackClick({
-      source: 'home',
-      cta_type: 'shop_recommendation_click',
-      target: DEFAULT_PARTNER_ID,
-      pet_id: currentPet.pet_id,
-      metadata: { category: cat.id },
-    });
-  }
-
-  function handlePromo(promo: PromoDestination) {
-    onClose();
-    openHomeShoppingPartner(DEFAULT_PARTNER_ID, promo.searchQuery);
-    void trackClick({
-      source: 'home',
-      cta_type: 'shop_promo_click',
-      target: DEFAULT_PARTNER_ID,
-      pet_id: currentPet.pet_id,
-      metadata: { promo: promo.id },
+      metadata,
     });
   }
 
@@ -180,25 +155,34 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">❤️ Comprar novamente</p>
                 {reorderCards.length > 0 ? (
                   <div className="space-y-2">
-                    {reorderCards.map((card) => (
-                      <button
-                        key={card.id}
-                        type="button"
-                        onClick={() => handleBuyReorder(card)}
-                        className="w-full flex items-center gap-3 p-3.5 bg-white border border-gray-200 rounded-2xl hover:border-rose-200 hover:bg-rose-50/30 active:scale-[0.98] transition-all text-left shadow-sm"
-                      >
-                        <span className="text-2xl flex-shrink-0">{card.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-bold text-gray-900 leading-tight truncate">{card.label}</p>
-                          <p className={`text-[11px] mt-0.5 font-semibold ${card.urgencyTone === 'overdue' ? 'text-rose-600' : card.urgencyTone === 'today' ? 'text-amber-600' : 'text-gray-400'}`}>
-                            {card.urgencyText}
-                          </p>
+                    {reorderCards.map((card) => {
+                      const pickerKey = `reorder:${card.id}`;
+                      return (
+                        <div key={card.id} className="p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl flex-shrink-0">{card.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[13px] font-bold text-gray-900 leading-tight truncate">{card.label}</p>
+                              <p className={`text-[11px] mt-0.5 font-semibold ${card.urgencyTone === 'overdue' ? 'text-rose-600' : card.urgencyTone === 'today' ? 'text-amber-600' : 'text-gray-400'}`}>
+                                {card.urgencyText}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
+                              className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[12px] font-bold px-3 py-1.5 active:scale-95 transition-all"
+                            >
+                              🛒 Comprar
+                            </button>
+                          </div>
+                          {quickBuyFor === pickerKey && (
+                            <QuickBuyRow
+                              onPick={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, label: card.label })}
+                            />
+                          )}
                         </div>
-                        <span className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[12px] font-bold px-3 py-1.5">
-                          🛒 Comprar
-                        </span>
-                      </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-gray-200 p-4 text-center">
@@ -213,17 +197,26 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">⭐ Recomendado para {petName || 'o pet'}</p>
                 <div className="grid grid-cols-2 gap-3">
-                  {recommended.map((cat) => (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => handleRecommended(cat)}
-                      className="flex items-center gap-2.5 p-4 bg-white border border-gray-200 rounded-2xl hover:border-blue-200 hover:bg-blue-50/30 active:scale-[0.97] transition-all text-left shadow-sm"
-                    >
-                      <span className="text-xl flex-shrink-0">{cat.icon}</span>
-                      <span className="text-[13px] font-bold text-gray-900 leading-tight">{cat.label}</span>
-                    </button>
-                  ))}
+                  {recommended.map((cat) => {
+                    const pickerKey = `recommended:${cat.id}`;
+                    return (
+                      <div key={cat.id} className="p-4 bg-white border border-gray-200 rounded-2xl shadow-sm">
+                        <button
+                          type="button"
+                          onClick={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
+                          className="w-full flex items-center gap-2.5 text-left"
+                        >
+                          <span className="text-xl flex-shrink-0">{cat.icon}</span>
+                          <span className="text-[13px] font-bold text-gray-900 leading-tight">{cat.label}</span>
+                        </button>
+                        {quickBuyFor === pickerKey && (
+                          <QuickBuyRow
+                            onPick={(partnerId) => handleQuickBuy(partnerId, cat.searchQuery, 'shop_recommendation_click', { category: cat.id })}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -231,21 +224,30 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🔥 Promoções</p>
                 <div className="space-y-2">
-                  {promos.map((promo) => (
-                    <button
-                      key={promo.id}
-                      type="button"
-                      onClick={() => handlePromo(promo)}
-                      className="w-full flex items-center gap-3 p-3.5 bg-white border border-gray-200 rounded-2xl hover:border-orange-200 hover:bg-orange-50/30 active:scale-[0.98] transition-all text-left shadow-sm"
-                    >
-                      <span className="text-2xl flex-shrink-0">{promo.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-bold text-gray-900 leading-tight">{promo.label}</p>
-                        <p className="text-[11px] text-gray-400 mt-0.5">{promo.description}</p>
+                  {promos.map((promo) => {
+                    const pickerKey = `promo:${promo.id}`;
+                    return (
+                      <div key={promo.id} className="p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm">
+                        <button
+                          type="button"
+                          onClick={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
+                          className="w-full flex items-center gap-3 text-left"
+                        >
+                          <span className="text-2xl flex-shrink-0">{promo.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-bold text-gray-900 leading-tight">{promo.label}</p>
+                            <p className="text-[11px] text-gray-400 mt-0.5">{promo.description}</p>
+                          </div>
+                          <span className="flex-shrink-0 text-lg text-gray-300">›</span>
+                        </button>
+                        {quickBuyFor === pickerKey && (
+                          <QuickBuyRow
+                            onPick={(partnerId) => handleQuickBuy(partnerId, promo.searchQuery, 'shop_promo_click', { promo: promo.id })}
+                          />
+                        )}
                       </div>
-                      <span className="flex-shrink-0 text-lg text-gray-300">›</span>
-                    </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -305,6 +307,27 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function QuickBuyRow({ onPick }: { onPick: (partnerId: HomeShoppingPartnerId) => void }) {
+  return (
+    <div className="mt-2.5 flex gap-2" onClick={(e) => e.stopPropagation()}>
+      {QUICK_BUY_PARTNERS.map((partnerId) => {
+        const partner = HOME_SHOPPING_PARTNERS.find((p) => p.id === partnerId);
+        if (!partner) return null;
+        return (
+          <button
+            key={partnerId}
+            type="button"
+            onClick={() => onPick(partnerId)}
+            className="flex-1 rounded-xl border border-gray-200 bg-gray-50 py-2 text-[12px] font-bold text-gray-700 hover:bg-white hover:border-emerald-300 active:scale-95 transition-all"
+          >
+            {partner.name}
+          </button>
+        );
+      })}
     </div>
   );
 }
