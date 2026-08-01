@@ -71,6 +71,7 @@ class IdentifyProductPhotoResponse(BaseModel):
     flavor: Optional[str] = None
     visible_text: Optional[str] = None
     raw_text_blobs: List[str] = Field(default_factory=list)
+    multiple_products_detected: bool = False
 
 
 class ProductPhotoMonitorEntry(BaseModel):

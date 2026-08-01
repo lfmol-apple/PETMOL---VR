@@ -420,6 +420,7 @@ Regras:
 10. Só retorne found=false e todos os campos relevantes null/vazios quando a imagem estiver realmente ilegível ou sem embalagem.
 11. Responda APENAS JSON válido, sem texto extra.
 12. Se houver MAIS DE UM produto/embalagem visível na foto (ex: prateleira com vários sacos lado a lado), identifique e extraia campos APENAS do produto em PRIMEIRO PLANO / MAIS CENTRALIZADO / MAIOR NA IMAGEM. NUNCA combine texto de embalagens diferentes no mesmo resultado — cada campo (especialmente `flavor`) deve vir EXCLUSIVAMENTE da embalagem principal. Se não conseguir determinar com certeza a qual embalagem um texto de sabor pertence, deixe `flavor` como null em vez de adivinhar — errar o sabor é pior do que omiti-lo.
+13. Defina `multiple_products_detected: true` sempre que houver mais de uma embalagem de produto claramente visível na foto (mesmo que você tenha conseguido identificar a principal corretamente). Isso é usado para sugerir ao usuário que tire uma foto mais próxima/isolada da próxima vez — não afeta os outros campos, que devem continuar refletindo o produto principal.
 
 Formato JSON obrigatório:
 {{
@@ -436,6 +437,7 @@ Formato JSON obrigatório:
     "line": "Linha específica (ex: Veterinary Diet, Natural)",
     "raw_text_blobs": ["Royal Canin", "Mini Adult", "Cães Adultos", "1,5 kg"],
   "confidence": 0.92,
+  "multiple_products_detected": false,
     "reason": "Resumo curto do que foi lido na embalagem"
 }}
 
@@ -507,16 +509,27 @@ Se a imagem for realmente ilegível:
                 self_reported_blobs.append(visible_text)
             self_reported_blobs = self_reported_blobs[:12]
 
-            # The identification call's own raw_text_blobs can self-confirm its
-            # own wrong guess (same call, same reasoning chain) — so it must not
-            # leak into ANY brand-matching corpus, backend or client-side. The
-            # independent OCR pass (no product/brand framing at all) is the
-            # trusted corpus everywhere downstream, including what's sent to the
-            # client. Fall back to the self-reported blobs only if independent
-            # OCR came back empty (e.g. transient failure) — strictly weaker,
-            # but better than no grounding at all.
-            raw_text_blobs = independent_blobs if independent_blobs else self_reported_blobs
-            trusted_corpus_blobs = raw_text_blobs
+            # Two different jobs need two different corpora here, confirmed by a
+            # real shelf photo with neighboring Premier bags (Renal, Obesidade)
+            # next to the actual Gastrointestinal product in frame:
+            #
+            # - Grounding brand/product_name (guard below) wants the INDEPENDENT
+            #   OCR pass: it has no product framing, so it can't self-confirm a
+            #   hallucination — completeness matters more than precision here,
+            #   since we're only asking "does this text appear ANYWHERE".
+            # - Everything downstream that reasons about what THIS product is
+            #   (dominant-terms/therapeutic-conflict detection on the client,
+            #   result["raw_text_blobs"]) wants the IDENTIFICATION call's own
+            #   blobs instead: prompt rule 12 tells that call to only report
+            #   fields for the foreground/primary package, so on a multi-bag
+            #   shelf photo it correctly omits "RENAL"/"OBESIDADE" from
+            #   neighboring bags — the independent OCR pass has no such
+            #   filtering by design and picks up neighboring text indiscriminately,
+            #   which was making the client see contradictory therapeutic terms
+            #   (renal AND gastrointestinal at once) and reject the correct
+            #   catalog match in favor of a generic fallback.
+            trusted_corpus_blobs = independent_blobs if independent_blobs else self_reported_blobs
+            raw_text_blobs = self_reported_blobs if self_reported_blobs else independent_blobs
             brand, brand_grounded = self._ocr_brand_override(brand, trusted_corpus_blobs)
 
             if trusted_corpus_blobs:
@@ -602,6 +615,7 @@ Se a imagem for realmente ilegível:
 
             result["found"] = bool(result.get("found") or product_name or name or useful_partial)
             result["confidence"] = float(result.get("confidence") or 0.0)
+            result["multiple_products_detected"] = bool(result.get("multiple_products_detected"))
             result["product_name"] = product_name
             result["name"] = name
             result["probable_name"] = probable_name
