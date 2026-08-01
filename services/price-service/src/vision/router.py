@@ -109,7 +109,15 @@ class ProductPhotoMonitorResponse(BaseModel):
     items: List[ProductPhotoMonitorEntry]
 
 
-PHOTO_AI_TIMEOUT_SECONDS = float(os.getenv("VISION_PRODUCT_TIMEOUT_SECONDS", "22"))
+# This wraps the WHOLE identify_product_from_image call (identification +
+# independent OCR, run concurrently via asyncio.gather) — it must stay above
+# the Gemini SDK's own per-call timeout (30s, service.py's
+# request_options={"timeout": 30}), or this outer wrapper cuts the request
+# off before Gemini's own timeout ever gets a chance to matter. It was left
+# at 22s when the inner timeout was raised from 20s to 30s, silently
+# reintroducing the same "às vezes falha" pattern this was supposed to fix
+# (confirmed in production: a real request timed out here at ~22s).
+PHOTO_AI_TIMEOUT_SECONDS = float(os.getenv("VISION_PRODUCT_TIMEOUT_SECONDS", "35"))
 
 
 def _build_product_photo_monitor_event(*, pet_id: str, hint: Optional[str], image_size_mb: float, duration_ms: int, result: Optional[dict] = None, error_type: Optional[str] = None, error_message: Optional[str] = None) -> dict:
