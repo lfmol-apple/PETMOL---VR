@@ -664,19 +664,30 @@ def search_catalog_candidates(
     # Sort by score descending
     scored.sort(key=lambda x: x[0], reverse=True)
 
-    # Dedupe by (brand, name): the catalog has one CatalogProduct per pack
-    # weight, so without this the top-N slots fill up with several weight
-    # variants of the SAME product, crowding out other distinct products
-    # that would otherwise rank well enough to be considered (e.g. the
-    # correct line simply never appearing among the candidates the caller's
-    # own re-scoring gets to evaluate).
-    seen_products: set[tuple[str, str]] = set()
+    # Cap (don't fully dedupe) by (brand, name): the catalog has one
+    # CatalogProduct per pack weight, so a hard 1-per-product dedupe here
+    # was silently discarding the ONLY pack-size variant whose weight
+    # actually matches what the AI read off the package — e.g. a real scan
+    # of "Royal Canin Veterinary Diet Urinary S/O 7,5kg" only ever got the
+    # catalog's 2kg entry back (confirmed in production: three real
+    # variants exist — 2kg/7.5kg/10.1kg — but only the first-sorted one
+    # ever reached the caller), because search_catalog_candidates' own
+    # token-overlap scoring doesn't look at weight at all, so all three
+    # variants tied on score and the dedupe kept an arbitrary one. The
+    # caller's own scoring (resolver.ts's scoreCatalogCandidate) DOES score
+    # weight — it just never got the chance to see the matching variant.
+    # Allowing a few variants through keeps the original goal (one
+    # product's pack sizes shouldn't fill every slot and crowd out other
+    # distinct products) while no longer hiding the correct pack size.
+    MAX_VARIANTS_PER_PRODUCT = 3
+    seen_products: dict[tuple[str, str], int] = {}
     candidates = []
     for _, product in scored:
         key = (product.brand.lower(), product.name.lower())
-        if key in seen_products:
+        count = seen_products.get(key, 0)
+        if count >= MAX_VARIANTS_PER_PRODUCT:
             continue
-        seen_products.add(key)
+        seen_products[key] = count + 1
         candidates.append(_product_to_candidate(product, "catalog"))
         if len(candidates) >= limit:
             break
