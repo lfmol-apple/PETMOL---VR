@@ -54,6 +54,7 @@ uploads/
 
 # Exceções — arquivos JSON versionados explicitamente
 !services/price-service/data/base_mestre_pet.json
+!services/price-service/src/catalogs/food_database/*.json
 !shared/**/*.json
 !package.json
 !package-lock.json
