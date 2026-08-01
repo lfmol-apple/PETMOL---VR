@@ -15,7 +15,7 @@ Trivago-style incremental catalog:
 NO mock/demo/scraping.
 """
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel
 import hashlib
 import json
@@ -24,6 +24,10 @@ import os
 import re
 import unicodedata
 import uuid
+
+from sqlalchemy import select
+
+from .db import SessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -442,6 +446,92 @@ CATALOGS = {
 }
 
 
+# ========================================
+# Promoted catalog: real user confirmations feeding back into search
+# ========================================
+# Confirming a photo scan result (ProductReliableCatalog, written by
+# save_confirmed_product_to_catalog in product_catalog_lookup.py) used to be a
+# dead end — nothing ever read that table back, so confirmed scans never
+# improved what later scans of the SAME product matched against. This merges
+# confirmed entries into the searchable catalog at query time, refreshed on a
+# short TTL (module-level cache, not per-request DB hits — BR_CATALOG itself
+# stays static/in-memory as before).
+_PROMOTION_MIN_CONFIRMATIONS = int(os.environ.get("CATALOG_PROMOTION_MIN_CONFIRMATIONS", "1"))
+_PROMOTED_CACHE_TTL = timedelta(seconds=120)
+_promoted_cache: Dict[str, Any] = {"loaded_at": None, "products": []}
+
+_WEIGHT_STR_RE = re.compile(r"^\s*(\d+(?:[,.]\d+)?)\s*(kg|g)\s*$", re.IGNORECASE)
+
+
+def _weight_str_to_pack_sizes(weight: Optional[str]) -> List[PackSize]:
+    if not weight:
+        return []
+    match = _WEIGHT_STR_RE.match(weight)
+    if not match:
+        return []
+    try:
+        value = float(match.group(1).replace(",", "."))
+    except ValueError:
+        return []
+    return [PackSize(value=value, unit=match.group(2).lower())]
+
+
+def _load_promoted_products(force: bool = False) -> List[CatalogProduct]:
+    """Real, user-confirmed products (confirmation_count >= threshold) from
+    ProductReliableCatalog, converted into searchable CatalogProduct entries.
+
+    Entries without a brand are skipped — CatalogProduct requires one, and a
+    brandless confirmation is too weak a signal to search against safely
+    (see the brand-anchoring fixes in the frontend's catalog scoring)."""
+    now = datetime.now(timezone.utc)
+    loaded_at = _promoted_cache["loaded_at"]
+    if not force and loaded_at is not None and now - loaded_at < _PROMOTED_CACHE_TTL:
+        return _promoted_cache["products"]
+
+    from .product_catalog_lookup import ProductReliableCatalog
+
+    products: List[CatalogProduct] = []
+    db = SessionLocal()
+    try:
+        rows = db.scalars(
+            select(ProductReliableCatalog).where(
+                ProductReliableCatalog.confirmation_count >= _PROMOTION_MIN_CONFIRMATIONS
+            )
+        ).all()
+        for row in rows:
+            if not row.brand or not row.canonical_name:
+                continue
+            gtins: List[str] = []
+            try:
+                gtins = json.loads(row.gtins_json) if row.gtins_json else []
+            except (json.JSONDecodeError, TypeError):
+                gtins = []
+            products.append(CatalogProduct(
+                id=f"reliable-{row.id}",
+                name=row.canonical_name,
+                brand=row.brand,
+                variant=None,
+                species=row.species or "all",
+                life_stage=row.life_stage or "all",
+                port=None,
+                neutered=None,
+                pack_sizes=_weight_str_to_pack_sizes(row.weight),
+                barcodes=[g for g in gtins if isinstance(g, str)],
+                image_url=None,
+                country="BR",
+            ))
+    except Exception as exc:
+        logger.warning("[catalog] failed to load promoted products, keeping previous cache: %s", exc)
+        return _promoted_cache["products"]
+    finally:
+        db.close()
+
+    _promoted_cache["loaded_at"] = now
+    _promoted_cache["products"] = products
+    logger.info("[catalog] Loaded %d promoted (user-confirmed) products", len(products))
+    return products
+
+
 def search_catalog(query: str, country: str = "BR", limit: int = 10) -> List[CatalogProduct]:
     """Search catalog by name, brand, or variant."""
     catalog = CATALOGS.get(country.upper(), BR_CATALOG)
@@ -540,6 +630,8 @@ def search_catalog_candidates(
         return cached[:limit]
 
     catalog = CATALOGS.get(country.upper(), BR_CATALOG)
+    if country.upper() == "BR":
+        catalog = catalog + _load_promoted_products()
     query_tokens = _tokenize_search_text(query)
 
     # Score products by token-overlap RATIO (accent-insensitive) — how much
