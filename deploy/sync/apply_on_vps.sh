@@ -200,6 +200,16 @@ if [ "$RESTART_WEB" = true ]; then
     npm run web:build
 fi
 
+# ── Bump version.json so clients auto-reload onto the new build ────────────
+# The client polls /version.json every 60s and force-reloads on change (see
+# apps/web/src/app/home/page.tsx) — but version.json was a static file never
+# touched by this pipeline, so that check always compared the same value and
+# never fired. Every deploy since this mechanism was written has silently
+# required users to manually close/reopen the app to get new code. Write a
+# fresh value (the deploy SHA — unique per deploy, traceable) before the
+# static-asset copy below so it reaches the standalone server too.
+echo "{\"v\":\"$DEPLOY_SHA-$(date -u +%s)\"}" > "$APP_DIR/apps/web/public/version.json"
+
 # ── ALWAYS copy static assets to standalone (critical for CSS/fonts) ────────
 # Next.js standalone mode requires public/ and .next/static/ to be
 # manually copied next to the server.js entry point, even if no rebuild occurred.
