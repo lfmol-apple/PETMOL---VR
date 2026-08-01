@@ -517,8 +517,17 @@ export async function resolvePhotoProductCandidate(
     if (!parsed) return null;
     fuzzyBrand = parsed.brandMatchMode === 'fuzzy';
     weight = weight ?? parsed.weight;
-    // If parser's OCR found a different known brand than what AI reported, override.
-    if (parsed.brand && parsed.brand !== brand) {
+    // Only fall back to the client-side parser's brand guess when the
+    // backend didn't provide one at all. The backend's brand already went
+    // through an independent-OCR-grounded hallucination guard — letting this
+    // weaker client-side re-derivation (a plain fuzzy match against
+    // raw_text_blobs, no cross-validation) override an already-verified
+    // brand whenever they merely *differ* is how a correct "PremierPet"
+    // turns back into "Hill's Science Diet": raw_text_blobs can still
+    // contain noise (a neighboring product, or the identification call's
+    // own self-consistent phrasing) that fuzzy-matches a known brand even
+    // when the verified brand field itself is completely correct.
+    if (!brand && parsed.brand) {
       brand = parsed.brand;
     }
 

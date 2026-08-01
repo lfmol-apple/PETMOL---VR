@@ -839,7 +839,11 @@ export function ProductDetectionSheetGold({
       });
 
       const structuredFields: StructuredFoodFields = {
-        marca: parsedFood.brand || payload.brand?.trim(),
+        // Trust the backend-verified brand first — it already went through
+        // an independent-OCR hallucination guard. parsedFood.brand (a plain
+        // client-side fuzzy match against raw text, no cross-validation) is
+        // a fallback for when the backend has nothing, not an override.
+        marca: payload.brand?.trim() || parsedFood.brand,
         linha: payload.line?.trim() || parsedFood.line || payload.product_name?.trim() || parsedFood.productName,
         especie: normalizeFoodSpecies(payload.species?.trim() || parsedFood.species),
         fase: normalizeFoodLifeStage(payload.life_stage?.trim() || parsedFood.lifeStage),

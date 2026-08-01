@@ -512,8 +512,13 @@ export function buildPartialFoodName(
     };
   const extracted = extractFoodFields(structuredInput);
   const normalizedWeight = normalizeFoodWeight(structuredInput.weight) ?? buildStructuredWeight(structuredInput.weightValue, structuredInput.weightUnit) ?? extracted.weight;
-  // Prefer OCR-extracted brand (which applies conflict detection) over raw AI input
-  const resolvedBrand = extracted.brand || structuredInput.brand?.trim();
+  // Trust the backend-verified brand first — it already went through an
+  // independent-OCR hallucination guard server-side. extracted.brand (a
+  // plain client-side fuzzy match against raw text, no cross-validation) is
+  // a fallback for when the backend has nothing, not an override: letting
+  // it win whenever the two merely differ is how a correct "PremierPet" name
+  // ends up prefixed with "Hill's Science Diet" again.
+  const resolvedBrand = structuredInput.brand?.trim() || extracted.brand;
   const resolvedProductName = structuredInput.productName?.trim() || structuredInput.probableName?.trim() || extracted.productName;
   const resolvedSpecies = structuredInput.species?.trim() || extracted.species;
   const resolvedLifeStage = structuredInput.lifeStage?.trim() || extracted.lifeStage;
