@@ -355,6 +355,21 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
   if (lifeStage === 'adult' && /(adult|adulto)/.test(title)) score += 0.1;
   if (lifeStage === 'senior' && /(senior|sênior|mature)/.test(title)) score += 0.1;
 
+  // payload.product_name/line name the SPECIFIC line (e.g. "Ambientes
+  // Internos", "Gastrointestinal") — the words that actually distinguish
+  // which product this is, unlike brand/species/weight/life-stage which are
+  // shared by dozens of SKUs and already scored above. If we have specific
+  // identity tokens but the candidate shares NONE of them, the catalog is
+  // very likely just missing this exact line, and a generic same-brand/
+  // same-weight product only scored high by accident (e.g. a Premier
+  // "Ambientes Internos" bag matching "Premier Nattu Adulto" purely on
+  // brand+species+weight). Penalize hard so it falls below the acceptance
+  // threshold instead of confidently substituting a different real product.
+  const identityTokens = tokenize([payload.product_name, payload.line].filter(Boolean).join(' '));
+  if (identityTokens.length > 0 && !identityTokens.some(t => candidateTokens.has(t))) {
+    score -= 0.45;
+  }
+
   return clampScore(score);
 }
 

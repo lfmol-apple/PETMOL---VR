@@ -132,6 +132,9 @@ premier_formula_base = [
     ("Fórmula Filhotes Raças Pequenas", "pequeno", "puppy", [1, 3, 10.1], FLAVORS_BASIC),
     ("Fórmula Sênior Raças Pequenas", "pequeno", "senior", [1, 3, 10.1], FLAVORS_BASIC),
     ("Fórmula Light Raças Pequenas", "pequeno", "adult", [1, 3, 10.1], FLAVORS_BASIC),
+    # confirmado via OCR independente em teste real (pacote real fotografado)
+    ("Ambientes Internos Castrados Pequeno Adultos", "pequeno", "adult", [1, 3, 7.5, 12],
+     ["Frango e Salmão"]),
 ]
 for variant, port, stage, w, flavors in premier_formula_base:
     add_flavors("Premier Pet", "Premier Pet", "Fórmula", variant, "dog", stage, port,
