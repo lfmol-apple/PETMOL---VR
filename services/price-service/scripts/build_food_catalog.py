@@ -51,9 +51,17 @@ def add_flavors(brand, manufacturer, line, base_variant, species, life_stage, po
             indication, weights, confidence=confidence)
 
 
-FLAVORS_BASIC = ["Carne", "Frango"]
-FLAVORS_STD = ["Carne", "Frango", "Cordeiro"]
-FLAVORS_PREMIUM = ["Carne", "Frango", "Salmão"]
+# These used to be guessed flavor lists ("Carne", "Frango", ...) applied to
+# ~15 brand blocks with zero verification — confirmed via a real scan log to
+# actively cause wrong results: the AI correctly read "Mix de Carne" on a
+# Quatree bag, but the catalog only had guessed "Carne"/"Frango" entries, so
+# the match won on brand+line+weight and overrode the AI's correct reading
+# with a fabricated flavor. A catalog entry with no flavor claim lets the
+# AI's own grounded flavor extraction stand; a wrong specific claim replaces
+# a right answer with a wrong one. [None] = no flavor-specific SKU variant.
+FLAVORS_BASIC = [None]
+FLAVORS_STD = [None]
+FLAVORS_PREMIUM = [None]
 
 # ============================================================
 # CÃES
@@ -122,10 +130,11 @@ for variant, ind in rc_vet:
 
 # --- Premier Pet ---
 premier_formula_base = [
-    # confirmado via OCR independente em teste real: essa linha vem em pelo
-    # menos Carne, Frango e Cordeiro e Cenoura
+    # "Cordeiro e Cenoura" confirmado via OCR independente em teste real —
+    # os outros sabores dessa linha não foram verificados, então não são
+    # listados (None = sem palpite de sabor, deixa a IA ler o real).
     ("Fórmula Raças Grandes e Gigantes Adultos", "grande_gigante", "adult", [15, 20],
-     ["Carne", "Frango", "Cordeiro e Cenoura"]),
+     [None, "Cordeiro e Cenoura"]),
     ("Fórmula Raças Médias Adultos", "medio", "adult", [10.1, 15], FLAVORS_BASIC),
     ("Fórmula Raças Pequenas Adultos", "pequeno", "adult", [1, 3, 10.1], FLAVORS_BASIC),
     ("Fórmula Filhotes Raças Grandes", "grande", "puppy", [15], FLAVORS_BASIC),
@@ -260,8 +269,7 @@ guabi_base = [
     ("Raças Pequenas Filhote", "puppy", [1, 3]),
 ]
 for variant, stage, w in guabi_base:
-    add_flavors("Guabi Natural", "Guabi", None, variant, "dog", stage, None, "premium", None, w,
-                flavors=["Frango", "Salmão", "Cordeiro"])
+    add("Guabi Natural", "Guabi", None, variant, "dog", stage, None, "premium", None, w)
 
 # --- Fórmula Natural ---
 formula_natural_base = [
@@ -272,8 +280,10 @@ formula_natural_base = [
     ("Sênior Mini e Pequeno", "senior", [1, 7]),
 ]
 for variant, stage, w in formula_natural_base:
+    # "Frango, Tomate e Chá Verde" confirmado via log real (scan de um Fórmula
+    # Natural Fresh Meat Sênior) — demais sabores não verificados.
     add_flavors("Fórmula Natural", "Fórmula Natural", None, variant, "dog", stage, None,
-                "super_premium", None, w, flavors=["Frango, Tomate e Chá Verde", "Carne"])
+                "super_premium", None, w, flavors=[None, "Frango, Tomate e Chá Verde"])
 formula_natural_vet = [("Urinary", "urinary"), ("Renal", "renal"), ("Obesidade", "obesity")]
 for variant, ind in formula_natural_vet:
     add("Fórmula Natural", "Fórmula Natural", "Vet Line", variant, "dog", "adult",

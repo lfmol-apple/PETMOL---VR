@@ -21,6 +21,8 @@ import hashlib
 import json
 import logging
 import os
+import re
+import unicodedata
 import uuid
 
 logger = logging.getLogger(__name__)
@@ -481,6 +483,35 @@ def _product_to_candidate(product: CatalogProduct, source: str = "catalog") -> D
     }
 
 
+_WORD_RE = re.compile(r"[a-z0-9]+")
+
+
+def _normalize_search_text(text: str) -> str:
+    """Lowercase + strip accents, so "cão"/"cao" and "salmão"/"salmao" match.
+    The old version compared raw lowercased strings with no accent handling
+    at all, which silently broke matching for most Portuguese product text."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
+def _singularize(word: str) -> str:
+    """Naive Portuguese depluralization so "adulto"/"adultos" (and every
+    other singular/plural pair — filhote/filhotes, raça/raças, castrado/
+    castrados...) count as the same token. Without this, the catalog's own
+    "Adultos" (plural, matching real packaging: "CÃES ADULTOS") never
+    overlapped with queries built using singular "Adulto" (from the
+    Portuguese life-stage label), silently zeroing out one of the most
+    common tokens in every food query against most of the catalog."""
+    if len(word) > 4 and word.endswith("s") and not word.endswith("ns"):
+        return word[:-1]
+    return word
+
+
+def _tokenize_search_text(text: str) -> set[str]:
+    words = _WORD_RE.findall(_normalize_search_text(text.lower()))
+    return {_singularize(w) for w in words}
+
+
 def search_catalog_candidates(
     query: str,
     country: str = "BR",
@@ -495,52 +526,60 @@ def search_catalog_candidates(
     cached = catalog_cache.get(query, country, product_type)
     if cached is not None:
         return cached[:limit]
-    
-    candidates = []
-    query_lower = query.lower()
+
     catalog = CATALOGS.get(country.upper(), BR_CATALOG)
-    
-    # Score products by relevance
-    scored = []
+    query_tokens = _tokenize_search_text(query)
+
+    # Score products by token-overlap RATIO (accent-insensitive) — how much
+    # of the query's specific words this candidate actually matches — as the
+    # dominant signal, with a small brand tie-breaker bonus. A raw substring/
+    # prefix check (the old approach) or an oversized flat brand bonus (an
+    # earlier version of this rewrite) both let a short, generic brand name
+    # like "Premier" swamp a much more specific multi-word match like
+    # "Ambientes Internos" just because "premier" trivially appears anywhere
+    # in a long free-text query — a 5-of-8-token specific match must outrank
+    # a 1-of-8-token brand-only match.
+    scored: List[tuple[float, CatalogProduct]] = []
     for product in catalog:
-        score = 0
-        
-        # Exact brand match
-        if query_lower == product.brand.lower():
-            score += 100
-        elif query_lower in product.brand.lower():
-            score += 50
-        
-        # Name match
-        if query_lower in product.name.lower():
-            score += 30
-        
-        # Variant match
-        if product.variant and query_lower in product.variant.lower():
-            score += 20
-        
-        # Word prefix matching
-        words = query_lower.split()
-        for word in words:
-            if any(product.brand.lower().startswith(word) or 
-                   product.name.lower().startswith(word) for _ in [1]):
-                score += 10
-            if any(w.startswith(word) for w in product.name.lower().split()):
-                score += 5
-        
+        brand_tokens = _tokenize_search_text(product.brand)
+        name_tokens = _tokenize_search_text(product.name)
+        variant_tokens = _tokenize_search_text(product.variant) if product.variant else set()
+        candidate_tokens = name_tokens | variant_tokens | brand_tokens
+
+        score = 0.0
+        if query_tokens:
+            overlap = len(query_tokens & candidate_tokens)
+            score += 100 * (overlap / len(query_tokens))
+
+        if brand_tokens and brand_tokens.issubset(query_tokens):
+            score += 8
+
         if score > 0:
             scored.append((score, product))
-    
+
     # Sort by score descending
     scored.sort(key=lambda x: x[0], reverse=True)
-    
-    # Convert to candidates
-    for _, product in scored[:limit]:
+
+    # Dedupe by (brand, name): the catalog has one CatalogProduct per pack
+    # weight, so without this the top-N slots fill up with several weight
+    # variants of the SAME product, crowding out other distinct products
+    # that would otherwise rank well enough to be considered (e.g. the
+    # correct line simply never appearing among the candidates the caller's
+    # own re-scoring gets to evaluate).
+    seen_products: set[tuple[str, str]] = set()
+    candidates = []
+    for _, product in scored:
+        key = (product.brand.lower(), product.name.lower())
+        if key in seen_products:
+            continue
+        seen_products.add(key)
         candidates.append(_product_to_candidate(product, "catalog"))
-    
+        if len(candidates) >= limit:
+            break
+
     # Cache results
     catalog_cache.set(query, country, product_type, candidates)
-    
+
     return candidates
 
 

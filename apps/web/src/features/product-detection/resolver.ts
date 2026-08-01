@@ -412,9 +412,22 @@ async function searchInternalCatalogCandidate(
         score -= compatibility.mediumConflicts.length * 0.16;
         if (score < 0.55) continue;
         const weight = normalizeWeight(payload) ?? packSizes[0];
+        // The catalog entry may not carry flavor at all (Fase 1 only records
+        // flavors confirmed against a real scan, to avoid overriding a
+        // correct AI reading with a guessed one — see foods_br_phase1.json).
+        // When the AI grounded a flavor that isn't already reflected in the
+        // catalog title, append it instead of silently dropping it.
+        const catalogFlavor = normalizeText(payload.flavor);
+        const catalogTitleTokens = new Set(tokenize(candidate.title));
+        const flavorAlreadyInTitle = catalogFlavor
+          ? tokenize(catalogFlavor).every(t => catalogTitleTokens.has(t))
+          : true;
+        const displayName = catalogFlavor && !flavorAlreadyInTitle
+          ? `${candidate.title} ${catalogFlavor}`
+          : candidate.title;
         const resolved: ResolvedProduct = {
           barcode: '',
-          name: candidate.title,
+          name: displayName,
           brand: normalizeText(candidate.brand) ?? normalizeText(payload.brand),
           weight,
           manufacturer: normalizeText(candidate.brand) ?? normalizeText(payload.brand),
