@@ -89,7 +89,13 @@ Responda APENAS com JSON válido neste formato:
                 return await self.model.generate_content_async(
                     [prompt, image_part],
                     generation_config=generation_config,
-                    request_options={"timeout": 20},
+                    # Production logs show legitimate successful calls taking up to
+                    # ~19.5s — a 20s cap means normal latency variance alone
+                    # occasionally trips it, surfacing as "não conseguiu ler" to the
+                    # user for no real reason. 30s keeps real hangs bounded while
+                    # giving enough headroom that this doesn't fire on ordinary slow
+                    # responses.
+                    request_options={"timeout": 30},
                 )
             except Exception as exc:
                 err_str = str(exc).lower()

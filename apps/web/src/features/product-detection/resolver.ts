@@ -402,6 +402,19 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
     score -= 0.45;
   }
 
+  // The catalog has no structured flavor field — it's baked into title/variant
+  // free text, so nothing above ever compared it. Two SKUs of the same brand,
+  // species, weight, life-stage and port routinely differ ONLY by flavor
+  // (confirmed in production: a Fórmula Natural Sênior "Frango e Cenoura" scan
+  // matched a same-brand different-flavor catalog entry because flavor never
+  // factored into the score at all). Same treatment as the identity-token
+  // check above: if we have a specific flavor reading but the candidate
+  // shares none of its tokens, it's very likely a different flavor variant.
+  const flavorTokens = tokenize(normalizeText(payload.flavor) ?? '');
+  if (flavorTokens.length > 0 && !flavorTokens.some(t => candidateTokens.has(t))) {
+    score -= 0.3;
+  }
+
   return clampScore(score);
 }
 

@@ -625,7 +625,10 @@ export function ProductDetectionSheetGold({
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         credentials: 'include',
-        signal: AbortSignal.timeout(25000),
+        // Backend's own Gemini call timeout is 30s (identification + OCR run in
+        // parallel there); this must stay above that or the client aborts a
+        // request that would have succeeded server-side.
+        signal: AbortSignal.timeout(40000),
         body: JSON.stringify({
           image,
           pet_id: petId,
