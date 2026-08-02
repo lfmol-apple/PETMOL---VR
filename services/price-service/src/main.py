@@ -234,6 +234,19 @@ def init_db():
     except Exception:
         pass
 
+    # Funde linhas de ProductReliableCatalog que colidem depois de recalcular
+    # canonical_key com a normalização atual (idempotente — vira no-op depois
+    # da primeira fusão real).
+    try:
+        from .product_catalog_lookup import reconcile_reliable_catalog_keys
+        _reconcile_db = SessionLocal()
+        try:
+            reconcile_reliable_catalog_keys(_reconcile_db)
+        finally:
+            _reconcile_db.close()
+    except Exception:
+        logging.getLogger(__name__).exception("[startup] reconcile_reliable_catalog_keys failed")
+
     # ── Auto-backup SQLite a cada startup ────────────────────────────────
     # Garante que nenhum reinício do servidor apague dados dos pets.
     # Mantém os últimos 7 backups; backups mais antigos são removidos.

@@ -234,10 +234,6 @@ def _safe_float(value: Any) -> Optional[float]:
         return None
 
 
-def _norm_key(value: Optional[str]) -> str:
-    return "".join(ch.lower() for ch in (value or "").strip() if ch.isalnum() or ch.isspace()).strip()
-
-
 def _safe_dict(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
@@ -349,11 +345,105 @@ def find_reliable_catalog_match_by_image(
 
 
 def _canonical_key(name: str, brand: Optional[str], category: Optional[str]) -> str:
+    """Chave usada pra decidir se uma confirmação é 'o mesmo produto' de uma
+    linha já existente em ProductReliableCatalog. Usa a mesma tokenização
+    (acento-insensível, singular/plural colapsado) já usada pra busca em
+    catalog.py — a versão antiga comparava a string final literal, então
+    duas confirmações do mesmo produto real ("Mix de Carne" numa e "Mix de
+    Carnes" na outra, só porque o tutor ou a IA escreveu diferente) viravam
+    duas linhas separadas em vez de reforçar confirmation_count de uma só.
+    Importado de dentro da função pra evitar import circular no carregamento
+    do módulo (catalog.py só importa este módulo dentro de função, não no
+    topo do arquivo)."""
+    from .catalog import _tokenize_search_text
+
+    def _key_part(value: Optional[str]) -> str:
+        tokens = _tokenize_search_text(value or "")
+        return " ".join(sorted(tokens))
+
     return "|".join([
-        _norm_key(brand),
-        _norm_key(category),
-        _norm_key(name),
+        _key_part(brand),
+        _key_part(category),
+        _key_part(name),
     ])
+
+
+def reconcile_reliable_catalog_keys(db: Session) -> int:
+    """Recalcula canonical_key de toda ProductReliableCatalog com a
+    normalização atual e funde linhas que colidirem depois do recálculo.
+
+    Existe porque _canonical_key já mudou de algoritmo uma vez (string
+    literal → tokens normalizados) e vai poder mudar de novo — sem isso,
+    linhas antigas ficariam presas com a chave antiga e nunca mais
+    reforçariam confirmation_count junto com confirmações novas do mesmo
+    produto. Roda a cada startup; depois da primeira fusão não sobra nada
+    pra fundir, então vira um no-op rápido (idempotente).
+    """
+    rows = db.scalars(select(ProductReliableCatalog)).all()
+    groups: dict[str, list[ProductReliableCatalog]] = {}
+    for row in rows:
+        new_key = _canonical_key(row.canonical_name, row.brand, row.category)
+        groups.setdefault(new_key, []).append(row)
+
+    merged_count = 0
+    for new_key, group_rows in groups.items():
+        if len(group_rows) == 1:
+            row = group_rows[0]
+            if row.canonical_key != new_key:
+                row.canonical_key = new_key
+            continue
+
+        # Mais de uma linha caiu na mesma chave nova: funde tudo na "primária"
+        # (mais confirmações; empate vai pra mais antiga) e apaga o resto,
+        # somando contadores e unindo aliases/gtins/hashes de foto.
+        group_rows.sort(
+            key=lambda r: (
+                -int(r.confirmation_count or 0),
+                r.created_at or datetime.min.replace(tzinfo=timezone.utc),
+            )
+        )
+        primary = group_rows[0]
+        others = group_rows[1:]
+
+        aliases = set(_safe_json_list(primary.aliases_json))
+        gtins = set(_safe_json_list(primary.gtins_json))
+        image_phashes = set(_safe_json_list(primary.image_phashes_json))
+        total_confirmations = int(primary.confirmation_count or 0)
+        total_corrections = int(primary.correction_count or 0)
+        last_confirmed_at = primary.last_confirmed_at
+
+        for other in others:
+            aliases |= set(_safe_json_list(other.aliases_json))
+            aliases.add(other.canonical_name)
+            gtins |= set(_safe_json_list(other.gtins_json))
+            image_phashes |= set(_safe_json_list(other.image_phashes_json))
+            total_confirmations += int(other.confirmation_count or 0)
+            total_corrections += int(other.correction_count or 0)
+            if other.last_confirmed_at and (not last_confirmed_at or other.last_confirmed_at > last_confirmed_at):
+                last_confirmed_at = other.last_confirmed_at
+            primary.species = primary.species or other.species
+            primary.life_stage = primary.life_stage or other.life_stage
+            primary.weight = primary.weight or other.weight
+            primary.flavor = primary.flavor or other.flavor
+            primary.port = primary.port or other.port
+            if primary.neutered is None and other.neutered is not None:
+                primary.neutered = other.neutered
+            db.delete(other)
+            merged_count += 1
+
+        primary.canonical_key = new_key
+        primary.aliases_json = json.dumps(sorted(aliases), ensure_ascii=False)
+        primary.gtins_json = json.dumps(sorted(gtins), ensure_ascii=False)
+        primary.image_phashes_json = json.dumps(sorted(image_phashes)[:20], ensure_ascii=False)
+        primary.confirmation_count = total_confirmations
+        primary.correction_count = total_corrections
+        primary.last_confirmed_at = last_confirmed_at
+        primary.updated_at = datetime.now(timezone.utc)
+
+    db.commit()
+    if merged_count:
+        logger.info("[product_catalog] reconcile_reliable_catalog_keys: merged %d duplicate rows", merged_count)
+    return merged_count
 
 
 def _response_from_catalog_row(row: ProductCatalog, *, from_cache: bool) -> LookupResponse:
