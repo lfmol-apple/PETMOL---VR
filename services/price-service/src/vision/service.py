@@ -356,7 +356,6 @@ Responda APENAS com JSON válido neste formato:
             "pequenas": "pequeno",
             "pequenos": "pequeno",
             "small": "pequeno",
-            "mini e pequeno": "pequeno",
             "medio": "medio",
             "médio": "medio",
             "media": "medio",
@@ -373,7 +372,30 @@ Responda APENAS com JSON válido neste formato:
             "all": "all",
             "todos os portes": "all",
         }
-        return aliases.get(normalized)
+        direct = aliases.get(normalized)
+        if direct:
+            return direct
+        # Real packaging routinely covers more than one size on the same bag
+        # ("Cães de Portes Médio e Grande", "Raças Mini e Pequenas") — the old
+        # exact-match dict.get() had only one hand-coded compound case
+        # ("mini e pequeno") and returned None for every other real compound
+        # reading, silently discarding the port signal entirely before it
+        # ever reached the frontend. Confirmed in production: a real Premier
+        # "Nutrição Clínica Gastrointestinal ... Médio e Grande" scan lost
+        # its port field this way, and the frontend's port-matching bonus/
+        # penalty (resolver.ts) never ran, letting a same-brand/weight but
+        # wrong-port "Raças Pequenas" SKU win instead. Split on common
+        # separators and resolve each piece; multiple distinct matches are
+        # joined with "_", the same compound encoding resolver.ts's own
+        # candidate-side port comparison already expects.
+        SIZE_ORDER = ["mini", "pequeno", "medio", "grande", "gigante", "all"]
+        parts = re.split(r"\s*(?:,|/|&|\be\b|\band\b)\s*", normalized)
+        matched = {aliases[p] for p in (part.strip() for part in parts) if p in aliases}
+        if not matched:
+            return None
+        if len(matched) == 1:
+            return next(iter(matched))
+        return "_".join(size for size in SIZE_ORDER if size in matched)
 
     @staticmethod
     def _build_probable_name(

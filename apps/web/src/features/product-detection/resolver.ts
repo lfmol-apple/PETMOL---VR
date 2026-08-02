@@ -490,7 +490,14 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
   const candidatePort = candidate.port?.toLowerCase();
   if (port && candidatePort && candidatePort !== 'all') {
     const candidatePortParts = candidatePort.split('_');
-    if (candidatePortParts.includes(port)) {
+    // payload.port can itself be compound now ("medio_grande" — a real bag
+    // reading "Cães de Portes Médio e Grande") since the backend normalizer
+    // was fixed to stop discarding multi-size readings. A candidate matches
+    // if ANY of its sizes is among the sizes the payload actually read, not
+    // just if the payload's whole (possibly compound) string equals one of
+    // the candidate's parts.
+    const payloadPortParts = port.split('_');
+    if (payloadPortParts.some(p => candidatePortParts.includes(p))) {
       score += 0.12;
     } else {
       score -= 0.15;
