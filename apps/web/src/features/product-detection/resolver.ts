@@ -452,7 +452,18 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
     score -= 0.3;
   }
 
-  return clampScore(score);
+  // Deliberately NOT clamped here. A candidate that matches on every signal
+  // this function checks (brand, species, weight, life-stage, port,
+  // neutered, verified source) can legitimately sum past 1.0 — up to ~1.98
+  // in the best case. The caller (searchInternalCatalogCandidate) adds MORE
+  // to this value afterward (dominant-term bonuses). Clamping here first and
+  // letting the caller keep adding to the clamped value threw away exactly
+  // the margin that should have kept a genuinely stronger candidate ahead of
+  // a weaker one that picks up a few dominant-term bonuses — the same shape
+  // of bug already found and fixed one level up (see bestRawScore below).
+  // The only place a score should be capped is where it's finally turned
+  // into a displayed confidence, at the bestMatch assignment below.
+  return score;
 }
 
 async function searchInternalCatalogCandidate(
