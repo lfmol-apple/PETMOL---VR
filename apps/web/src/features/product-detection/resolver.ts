@@ -525,6 +525,7 @@ async function searchInternalCatalogCandidate(
           productName: candidate.title,
           variant: candidate.variant,
           species: candidate.species,
+          lifeStage: candidate.life_stage,
           weight: packSizes[0],
           rawTextBlobs: [candidate.title, candidate.brand, candidate.variant, candidate.species, ...packSizes],
         });

@@ -4,6 +4,7 @@ import io
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -254,7 +255,10 @@ def _infer_category(*parts: Optional[str]) -> str:
         return "dewormer"
     if any(word in normalized for word in ("coleira", "seresto", "scalibor", "collar")):
         return "collar"
-    if any(word in normalized for word in ("medicamento", "remedio", "remédio", "comprimido", "mg", "mcg", "sol oral")):
+    # "mg"/"mcg" as bare substrings matched inside unrelated words (e.g. a
+    # slug fragment like "...7.5kg Petmga" from a marketplace listing URL),
+    # misclassifying real food as medication — word-boundary instead.
+    if any(word in normalized for word in ("medicamento", "remedio", "remédio", "comprimido", "sol oral")) or re.search(r"\b(mg|mcg)\b", normalized):
         return "medication"
     if any(word in normalized for word in ("racao", "ração", "alimento", "cafe", "snack", "petisco", "sache", "lata")):
         return "food"
@@ -854,6 +858,17 @@ def save_confirmed_product_to_catalog(
 
         # Aprendizado silencioso: elevar confiança no ProductCatalog quando
         # muitas confirmações acumuladas — produto é altamente confiável.
+        # search_catalog_candidates' own outer cache (catalog.py's
+        # catalog_cache, 300s TTL) sits ABOVE _load_promoted_products'
+        # 120s cache and was never invalidated when a confirmation lands —
+        # a query cached moments before a tutor confirms this exact product
+        # would keep serving the pre-confirmation candidate list for up to
+        # 5 minutes even though the underlying promoted-products data
+        # already updated. Deferred import: same reason catalog.py's own
+        # import of this module is deferred (avoids a circular import at
+        # module-load time).
+        from .catalog import catalog_cache
+        catalog_cache.clear()
     except Exception:
         pass
 

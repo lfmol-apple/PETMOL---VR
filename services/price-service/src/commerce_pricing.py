@@ -139,7 +139,12 @@ def _infer_species(text: str) -> Optional[str]:
     lowered = text.lower()
     if "gato" in lowered or "felin" in lowered:
         return "cat"
-    if "cão" in lowered or "caes" in lowered or "cães" in lowered or "canin" in lowered or "canine" in lowered:
+    # "canin"/"canine" removed as dog markers: they matched the brand name
+    # "Royal Canin" as a false positive, misclassifying real Royal Canin CAT
+    # products (e.g. "Mother & Babycat") as dog — confirmed against 3 real
+    # entries in the live Cobasi catalog. "cão"/"cães"/"caes" are unambiguous
+    # Portuguese markers and don't have this collision.
+    if "cão" in lowered or "caes" in lowered or "cães" in lowered:
         return "dog"
     return None
 

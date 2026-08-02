@@ -624,7 +624,23 @@ def _singularize(word: str) -> str:
     "Adultos" (plural, matching real packaging: "CÃES ADULTOS") never
     overlapped with queries built using singular "Adulto" (from the
     Portuguese life-stage label), silently zeroing out one of the most
-    common tokens in every food query against most of the catalog."""
+    common tokens in every food query against most of the catalog.
+
+    "cães" is a closed-set irregular too short (4 chars) for the length
+    guard below to ever reach — spelled out explicitly since it's the
+    second most common word in this entire domain, right after "ração".
+    """
+    if word == "caes":
+        return "cao"
+    # Irregular "-ão" -> "-ões" plurals (ração/rações, coração/corações,
+    # botão/botões...) don't reduce by stripping a trailing "s" — that naive
+    # rule turns "racoes" into "racoe", which never matches singular "racao".
+    # "ração" is THE most central word in this whole domain: two real near-
+    # duplicate listings of the same physical product (one titled "Ração
+    # Úmida...", the other "Ração**s** Úmida...") scored 108.0 vs 96.89 on
+    # an otherwise-identical query purely from this one token miss.
+    if len(word) > 4 and word.endswith("oes"):
+        return word[:-3] + "ao"
     if len(word) > 4 and word.endswith("s") and not word.endswith("ns"):
         return word[:-1]
     return word
