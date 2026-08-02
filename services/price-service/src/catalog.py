@@ -52,6 +52,11 @@ class CatalogProduct(BaseModel):
     barcodes: List[str] = []  # EAN-13/UPC codes
     image_url: Optional[str] = None
     country: str = "BR"
+    # Alternate raw readings (AI suggestions, OCR-derived probable names)
+    # previously linked to this same confirmed product — see search_catalog_candidates,
+    # where these widen what a future scan's OCR can match against beyond
+    # just the single canonical name a tutor typed once.
+    search_aliases: List[str] = []
 
 
 # ========================================
@@ -506,6 +511,11 @@ def _load_promoted_products(force: bool = False) -> List[CatalogProduct]:
                 gtins = json.loads(row.gtins_json) if row.gtins_json else []
             except (json.JSONDecodeError, TypeError):
                 gtins = []
+            aliases: List[str] = []
+            try:
+                aliases = json.loads(row.aliases_json) if row.aliases_json else []
+            except (json.JSONDecodeError, TypeError):
+                aliases = []
             products.append(CatalogProduct(
                 id=f"reliable-{row.id}",
                 name=row.canonical_name,
@@ -519,6 +529,7 @@ def _load_promoted_products(force: bool = False) -> List[CatalogProduct]:
                 barcodes=[g for g in gtins if isinstance(g, str)],
                 image_url=None,
                 country="BR",
+                search_aliases=[a for a in aliases if isinstance(a, str)],
             ))
     except Exception as exc:
         logger.warning("[catalog] failed to load promoted products, keeping previous cache: %s", exc)
@@ -648,7 +659,10 @@ def search_catalog_candidates(
         brand_tokens = _tokenize_search_text(product.brand)
         name_tokens = _tokenize_search_text(product.name)
         variant_tokens = _tokenize_search_text(product.variant) if product.variant else set()
-        candidate_tokens = name_tokens | variant_tokens | brand_tokens
+        alias_tokens: set[str] = set()
+        for alias in product.search_aliases:
+            alias_tokens |= _tokenize_search_text(alias)
+        candidate_tokens = name_tokens | variant_tokens | brand_tokens | alias_tokens
 
         score = 0.0
         if query_tokens:
