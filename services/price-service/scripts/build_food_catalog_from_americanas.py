@@ -39,9 +39,18 @@ CATEGORY_URL = (
     "https://www.americanas.com.br/api/catalog_system/pub/products/search"
     "?fq=C:/3714/3722/3727/&_from={f}&_to={t}"
 )
+FACETS_URL = "https://www.americanas.com.br/api/catalog_system/pub/facets/search/pet%20shop/alimentos/racao?map=c,c,c"
+BRAND_SHARD_URL = (
+    "https://www.americanas.com.br/api/catalog_system/pub/products/search/{link_path}"
+    "?map=c,c,c,b&_from={f}&_to={t}"
+)
 PAGE_SIZE = 50
 REQUEST_DELAY_SECONDS = 1.2
 MAX_RETRIES = 6
+# Teto da própria plataforma pra busca anônima (confirmado: _to=2549 funciona,
+# _to=2550 já dá 400) — mesmo fazendo shard por marca, cada shard individual
+# ainda respeita esse teto (nenhuma marca chega perto disso sozinha).
+PLATFORM_PAGINATION_CAP = 2549
 
 COBASI_FILE = os.path.join(
     os.path.dirname(__file__), "..", "src", "catalogs", "food_database", "foods_br_phase2_cobasi.json"
@@ -217,43 +226,105 @@ def _clean_variant(product_name: str, brand: str) -> str:
     return cleaned or product_name.strip()
 
 
-def fetch_all_products() -> list[dict]:
-    all_items: list[dict] = []
-    seen_ids: set[str] = set()
+def _http_get_json(url: str) -> Any:
+    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "Mozilla/5.0"})
+    for attempt in range(MAX_RETRIES):
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                content_range = resp.getheader("resources")
+                body = resp.read()
+            return content_range, json.loads(body)
+        except Exception as exc:
+            wait = 2.5 * (attempt + 1)
+            print(f"    erro {exc} em {url[:90]}..., esperando {wait}s (tentativa {attempt + 1})")
+            time.sleep(wait)
+    return None, None
+
+
+def fetch_brand_facets() -> list[dict]:
+    """Marcas com produto na categoria Ração, cada uma com sua contagem —
+    usado pra buscar marca por marca (cada uma bem abaixo do teto de 2549),
+    em vez de uma varredura só da categoria inteira (que trunca em 2550 de
+    7896). Busca ao vivo, não hardcoded — reexecutar este script no futuro
+    pega a lista de marcas atualizada automaticamente."""
+    _, data = _http_get_json(FACETS_URL)
+    if not data or "Brands" not in data:
+        print("  aviso: não consegui buscar facetas de marca, caindo pra varredura única")
+        return []
+    return data["Brands"]
+
+
+def fetch_shard(url_template: str, label: str, cap: int = PLATFORM_PAGINATION_CAP) -> list[dict]:
+    items: list[dict] = []
     offset = 0
     total = None
     while total is None or offset < total:
-        url = CATEGORY_URL.format(f=offset, t=offset + PAGE_SIZE - 1)
-        req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "Mozilla/5.0"})
-        page = None
-        for attempt in range(MAX_RETRIES):
-            try:
-                with urllib.request.urlopen(req, timeout=20) as resp:
-                    content_range = resp.getheader("resources")
-                    if total is None and content_range and "/" in content_range:
-                        total = int(content_range.split("/")[-1])
-                    body = resp.read()
-                page = json.loads(body)
-                break
-            except Exception as exc:
-                wait = 2.5 * (attempt + 1)
-                print(f"    erro {exc} na pagina {offset}, esperando {wait}s (tentativa {attempt + 1})")
-                time.sleep(wait)
+        if offset > cap:
+            print(f"    [{label}] parando em {cap} (teto da plataforma) — {total} existem no total")
+            break
+        to = min(offset + PAGE_SIZE - 1, cap)
+        url = url_template.format(f=offset, t=to)
+        content_range, page = _http_get_json(url)
+        if total is None and content_range and "/" in content_range:
+            total = int(content_range.split("/")[-1])
         if not page:
-            offset += PAGE_SIZE
-            time.sleep(1.0)
-            continue
-        for p in page:
+            break
+        items.extend(page)
+        offset += PAGE_SIZE
+        time.sleep(REQUEST_DELAY_SECONDS)
+        if total and offset >= total:
+            break
+    return items
+
+
+def fetch_all_products() -> list[dict]:
+    all_items: list[dict] = []
+    seen_ids: set[str] = set()
+
+    def add_items(items: list[dict]):
+        added = 0
+        for p in items:
             pid = p.get("productId")
             if pid and pid not in seen_ids:
                 seen_ids.add(pid)
                 all_items.append(p)
-        offset += PAGE_SIZE
-        if offset % 1000 == 0:
-            print(f"  ... {offset}/{total} ({len(all_items)} coletados)")
-        time.sleep(REQUEST_DELAY_SECONDS)
-        if total and offset >= total:
-            break
+                added += 1
+        return added
+
+    print("Buscando lista de marcas da categoria...")
+    brands = fetch_brand_facets()
+
+    if not brands:
+        # fallback: varredura única da categoria (sujeita ao teto de 2550)
+        print("Varredura única da categoria (sem shard por marca)...")
+        items = fetch_shard(CATEGORY_URL, "categoria inteira")
+        add_items(items)
+        return all_items
+
+    real_brands = [b for b in brands if b.get("Name") and b["Name"] != "Não Disponível"]
+    unbranded = next((b for b in brands if b.get("Name") == "Não Disponível"), None)
+
+    def _link_path(link: str) -> str:
+        # b["Link"] vem como "/pet-shop/alimentos/racao/Royal-Canin?map=c,c,c,b" —
+        # só quero o caminho, sem a querystring (monto a minha própria com _from/_to).
+        return link.split("?")[0].lstrip("/")
+
+    print(f"{len(real_brands)} marcas reais na categoria (cobertura completa cada uma):")
+    for b in sorted(real_brands, key=lambda x: -x["Quantity"]):
+        link_path = _link_path(b["Link"])
+        url_template = BRAND_SHARD_URL.format(link_path=link_path, f="{f}", t="{t}")
+        items = fetch_shard(url_template, b["Name"])
+        added = add_items(items)
+        print(f"  {b['Name']}: {b['Quantity']} esperados, {len(items)} buscados, {added} novos")
+
+    if unbranded:
+        print(f"\nBuscando fatia de 'Não Disponível' ({unbranded['Quantity']} no total, teto {PLATFORM_PAGINATION_CAP + 1})...")
+        link_path = _link_path(unbranded["Link"])
+        url_template = BRAND_SHARD_URL.format(link_path=link_path, f="{f}", t="{t}")
+        items = fetch_shard(url_template, "Não Disponível")
+        added = add_items(items)
+        print(f"  Não Disponível: {len(items)} buscados, {added} novos")
+
     return all_items
 
 
