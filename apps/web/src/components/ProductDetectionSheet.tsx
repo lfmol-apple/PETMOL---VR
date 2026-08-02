@@ -165,6 +165,7 @@ interface PhotoProductIdentifyResponse {
   neutered?: boolean | null;
   visible_text?: string | null;
   raw_text_blobs?: string[] | null;
+  image_phash?: string | null;
 }
 
 interface PhotoIdentifyOutcome {
@@ -180,6 +181,7 @@ interface PhotoIdentifyOutcome {
   flavor?: string;
   port?: string;
   neutered?: boolean;
+  imagePhash?: string;
   detectedWeight?: string;
   detectedBrand?: string;
   assistedConfirmation?: boolean;
@@ -547,6 +549,7 @@ export function ProductDetectionSheetGold({
   const flavorRef = useRef<string | undefined>(undefined);
   const portRef = useRef<string | undefined>(undefined);
   const neuteredRef = useRef<boolean | undefined>(undefined);
+  const imagePhashRef = useRef<string | undefined>(undefined);
   const detectedWeightRef = useRef<string | undefined>(undefined);
   const detectedBrandRef = useRef<string | undefined>(undefined);
   const strongTermsRef = useRef<string[]>([]);
@@ -644,6 +647,7 @@ export function ProductDetectionSheetGold({
     flavorRef.current = undefined;
     portRef.current = undefined;
     neuteredRef.current = undefined;
+    imagePhashRef.current = undefined;
     detectedWeightRef.current = undefined;
     detectedBrandRef.current = undefined;
     strongTermsRef.current = [];
@@ -778,6 +782,7 @@ export function ProductDetectionSheetGold({
           flavor: payload.flavor?.trim() || undefined,
         port: payload.port?.trim() || undefined,
         neutered: typeof payload.neutered === 'boolean' ? payload.neutered : undefined,
+        imagePhash: payload.image_phash?.trim() || undefined,
           detectedWeight,
           detectedBrand: resolvedBrand || undefined,
           assistedConfirmation: assistedConfirmation || fallbackTerms.strongTerms.length > 0,
@@ -812,6 +817,7 @@ export function ProductDetectionSheetGold({
         flavor: payload.flavor?.trim() || undefined,
         port: payload.port?.trim() || undefined,
         neutered: typeof payload.neutered === 'boolean' ? payload.neutered : undefined,
+        imagePhash: payload.image_phash?.trim() || undefined,
         detectedWeight: detectedWeight ?? resolved.product.weight,
         detectedBrand: resolved.product.brand || payload.brand?.trim(),
         assistedConfirmation: assistedConfirmation || resolved.assistedConfirmation,
@@ -1275,6 +1281,7 @@ export function ProductDetectionSheetGold({
       flavorRef.current = undefined;
       portRef.current = undefined;
       neuteredRef.current = undefined;
+      imagePhashRef.current = undefined;
       detectedWeightRef.current = final.weight;
       detectedBrandRef.current = final.brand;
       strongTermsRef.current = [];
@@ -1512,6 +1519,7 @@ export function ProductDetectionSheetGold({
       flavorRef.current = identifiedFromPhoto.flavor;
       portRef.current = identifiedFromPhoto.port;
       neuteredRef.current = identifiedFromPhoto.neutered;
+      imagePhashRef.current = identifiedFromPhoto.imagePhash;
       detectedWeightRef.current = identifiedFromPhoto.detectedWeight ?? photoProduct.weight;
       detectedBrandRef.current = identifiedFromPhoto.detectedBrand ?? photoProduct.brand;
       strongTermsRef.current = identifiedFromPhoto.strongTerms ?? [];
@@ -1624,6 +1632,7 @@ export function ProductDetectionSheetGold({
       flavor: flavorRef.current,
       port: portRef.current,
       neutered: neuteredRef.current,
+      image_phash: imagePhashRef.current,
       decision_source: decisionSourceRef.current,
       decision_score: decisionScoreRef.current ?? aiConfidenceRef.current,
       decision_result: decisionResultTypeRef.current,

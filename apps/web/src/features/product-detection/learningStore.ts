@@ -18,6 +18,7 @@ export interface LearningConfirmPayload {
   flavor?: string;
   port?: string;
   neutered?: boolean;
+  image_phash?: string;
   decision_source: ScanDecisionSource;
   decision_score?: number;
   decision_result?: 'complete' | 'partial' | 'fallback';
@@ -178,6 +179,7 @@ export async function submitLearningConfirmation(payload: LearningConfirmPayload
         flavor: payload.flavor ?? null,
         port: payload.port ?? null,
         neutered: payload.neutered ?? null,
+        image_phash: payload.image_phash ?? null,
         probable_name: payload.probable_name ?? null,
         visible_text: payload.visible_text ?? null,
         ocr_raw_text: payload.ocr_raw_text ?? null,

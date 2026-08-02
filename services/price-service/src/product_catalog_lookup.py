@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import io
 import json
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 import httpx
+import imagehash
+from PIL import Image
 from pydantic import BaseModel, Field
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, or_, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
@@ -17,6 +21,14 @@ from .gtin_client import GtinAuthError, GtinConfigError, GtinExternalError, get_
 
 
 logger = logging.getLogger(__name__)
+
+# Máxima distância de Hamming (0-64, pHash de 64 bits) para considerar uma
+# foto nova "a mesma embalagem" de um produto já confirmado por um tutor.
+# Baixo o suficiente pra exigir fotos visualmente quase idênticas (mesma
+# arte de embalagem, ângulo/luz parecidos) — o objetivo é só pular a
+# chamada do Gemini quando já temos alta confiança visual, nunca substituir
+# a confirmação do tutor na tela seguinte.
+PRODUCT_PHOTO_HASH_MAX_DISTANCE = int(os.environ.get("PRODUCT_PHOTO_HASH_MAX_DISTANCE", "6"))
 
 COSMOS_TIMEOUT_SECONDS = 4.0
 VALID_PRODUCT_CATEGORIES = {
@@ -148,6 +160,7 @@ class ProductReliableCatalog(Base):
     flavor: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     port: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     neutered: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    image_phashes_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     confirmation_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     correction_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -287,6 +300,52 @@ def _safe_json_list(value: Optional[str]) -> list[str]:
     except Exception:
         return []
     return []
+
+
+def compute_image_phash(image_bytes: bytes) -> Optional[str]:
+    """Perceptual hash (pHash) da foto, como string hex. Usado tanto pra
+    gravar no confirmar quanto pra comparar num scan novo — nunca guardamos
+    a imagem em si, só esse hash de ~16 bytes."""
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            return str(imagehash.phash(img))
+    except Exception as exc:
+        logger.warning("[product_catalog] falha ao calcular phash da imagem: %s", exc)
+        return None
+
+
+def find_reliable_catalog_match_by_image(
+    db: Session,
+    image_phash: str,
+    *,
+    min_confirmations: int,
+    max_distance: int = PRODUCT_PHOTO_HASH_MAX_DISTANCE,
+) -> Optional[tuple[ProductReliableCatalog, int]]:
+    """Produto já confirmado cuja foto salva é visualmente quase idêntica à
+    nova. Retorna (linha, distância) do melhor candidato dentro do limiar,
+    ou None. Só considera produtos com confirmation_count >= min_confirmations
+    (o mesmo limiar de promoção usado na busca por texto)."""
+    try:
+        target = imagehash.hex_to_hash(image_phash)
+    except Exception:
+        return None
+
+    rows = db.scalars(
+        select(ProductReliableCatalog).where(
+            ProductReliableCatalog.confirmation_count >= min_confirmations
+        )
+    ).all()
+
+    best: Optional[tuple[ProductReliableCatalog, int]] = None
+    for row in rows:
+        for stored_hash in _safe_json_list(row.image_phashes_json):
+            try:
+                distance = target - imagehash.hex_to_hash(stored_hash)
+            except Exception:
+                continue
+            if distance <= max_distance and (best is None or distance < best[1]):
+                best = (row, distance)
+    return best
 
 
 def _canonical_key(name: str, brand: Optional[str], category: Optional[str]) -> str:
@@ -552,6 +611,7 @@ def save_confirmed_product_to_catalog(
     decision_score: Optional[float] = None,
     decision_result: Optional[str] = None,
     tutor_confirmed: bool = True,
+    image_phash: Optional[str] = None,
 ) -> Optional[ProductCatalog]:
     raw_payload: dict[str, Any] = {
         "name": name,
@@ -658,6 +718,7 @@ def save_confirmed_product_to_catalog(
                 flavor=_safe_text(flavor),
                 port=_safe_text(port),
                 neutered=neutered if isinstance(neutered, bool) else None,
+                image_phashes_json="[]",
                 confirmation_count=0,
                 correction_count=0,
             )
@@ -666,6 +727,7 @@ def save_confirmed_product_to_catalog(
 
         aliases = set(_safe_json_list(reliable.aliases_json))
         gtins = set(_safe_json_list(reliable.gtins_json))
+        image_phashes = set(_safe_json_list(reliable.image_phashes_json))
         if ai_suggested_name and ai_suggested_name.strip():
             aliases.add(ai_suggested_name.strip())
         if probable_name and probable_name.strip():
@@ -675,8 +737,15 @@ def save_confirmed_product_to_catalog(
         if normalized_gtin:
             gtins.add(normalized_gtin)
 
+        if image_phash and image_phash.strip():
+            image_phashes.add(image_phash.strip())
+
         reliable.aliases_json = json.dumps(sorted(aliases), ensure_ascii=False)
         reliable.gtins_json = json.dumps(sorted(gtins), ensure_ascii=False)
+        # Capado pra não crescer sem limite num produto muito escaneado —
+        # não importa qual subconjunto sobra, são só fingerprints visuais
+        # da mesma embalagem, qualquer um deles serve pra bater no futuro.
+        reliable.image_phashes_json = json.dumps(sorted(image_phashes)[:20], ensure_ascii=False)
         reliable.brand = reliable.brand or _safe_text(brand)
         reliable.category = reliable.category or _normalize_category(category, name, brand)
         reliable.species = reliable.species or _safe_text(species)

@@ -5,6 +5,7 @@ Extracts vaccine data from pet vaccination card images using Gemini AI
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 import base64
@@ -13,8 +14,10 @@ import logging
 import asyncio
 import time
 
+from ..db import get_db
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
+from ..product_catalog_lookup import compute_image_phash, find_reliable_catalog_match_by_image
 from .service import VisionService
 from .monitor import list_product_photo_events, list_all_recent_events, record_product_photo_event
 
@@ -74,6 +77,7 @@ class IdentifyProductPhotoResponse(BaseModel):
     visible_text: Optional[str] = None
     raw_text_blobs: List[str] = Field(default_factory=list)
     multiple_products_detected: bool = False
+    image_phash: Optional[str] = Field(None, description="Hash perceptual da foto (pHash), pra enviar de volta na confirmação")
 
 
 class ProductPhotoMonitorEntry(BaseModel):
@@ -291,7 +295,8 @@ async def extract_vaccine_card(
 @router.post("/identify-product-photo", response_model=IdentifyProductPhotoResponse)
 async def identify_product_photo(
     request: IdentifyProductPhotoRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Identifica um produto pet a partir da foto da embalagem."""
 
@@ -318,39 +323,85 @@ async def identify_product_photo(
                 detail=f"Imagem muito grande ({image_size_mb:.1f}MB). Máximo: 4MB"
             )
 
-        vision_service = VisionService(api_key)
-        try:
-            result = await asyncio.wait_for(
-                vision_service.identify_product_from_image(
-                    image_bytes=image_bytes,
-                    pet_id=request.pet_id,
-                    hint=request.hint,
-                ),
-                timeout=PHOTO_AI_TIMEOUT_SECONDS,
-            )
-        except asyncio.TimeoutError:
-            duration_ms = round((time.perf_counter() - started_at) * 1000)
-            record_product_photo_event(
-                str(current_user.id),
-                _build_product_photo_monitor_event(
-                    pet_id=request.pet_id,
-                    hint=request.hint,
-                    image_size_mb=image_size_mb,
-                    duration_ms=duration_ms,
-                    error_type="timeout",
-                    error_message="Tempo limite da IA esgotado",
-                ),
-            )
-            logger.warning(
-                "identify-product-photo return_type=timeout pet=%s hint=%s timeout_seconds=%.1f",
-                request.pet_id,
-                request.hint,
-                PHOTO_AI_TIMEOUT_SECONDS,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail="Tempo limite da IA esgotado. Tente novamente."
-            )
+        image_phash = compute_image_phash(image_bytes)
+
+        # Atalho: se essa foto é visualmente quase idêntica à de um produto
+        # já confirmado por algum tutor antes (mesmo que seja outro tutor,
+        # outro pet), usamos direto os dados salvos e pulamos a chamada do
+        # Gemini — mais rápido e sem custo de IA. A tela de confirmação
+        # continua aparecendo normalmente depois: isso só evita a espera da
+        # IA, nunca pula a checagem do tutor.
+        result: Optional[dict] = None
+        min_confirmations = int(os.environ.get("CATALOG_PROMOTION_MIN_CONFIRMATIONS", "1"))
+        if image_phash:
+            match = find_reliable_catalog_match_by_image(db, image_phash, min_confirmations=min_confirmations)
+            if match:
+                row, distance = match
+                result = {
+                    "found": True,
+                    "name": row.canonical_name,
+                    "product_name": row.canonical_name,
+                    "probable_name": row.canonical_name,
+                    "brand": row.brand,
+                    "category": row.category or request.hint or "other",
+                    "weight": row.weight,
+                    "weight_value": None,
+                    "weight_unit": None,
+                    "variant": None,
+                    "size": None,
+                    "manufacturer": None,
+                    "presentation": None,
+                    "confidence": round(max(0.5, 1.0 - (distance / 64)), 2),
+                    "reason": "image_hash_match",
+                    "species": row.species,
+                    "life_stage": row.life_stage,
+                    "port": row.port,
+                    "neutered": row.neutered,
+                    "line": None,
+                    "flavor": row.flavor,
+                    "visible_text": None,
+                    "raw_text_blobs": [],
+                    "multiple_products_detected": False,
+                }
+                logger.info(
+                    "identify-product-photo image_hash_match pet=%s hash_distance=%s canonical=%s",
+                    request.pet_id, distance, row.canonical_name,
+                )
+
+        if result is None:
+            vision_service = VisionService(api_key)
+            try:
+                result = await asyncio.wait_for(
+                    vision_service.identify_product_from_image(
+                        image_bytes=image_bytes,
+                        pet_id=request.pet_id,
+                        hint=request.hint,
+                    ),
+                    timeout=PHOTO_AI_TIMEOUT_SECONDS,
+                )
+            except asyncio.TimeoutError:
+                duration_ms = round((time.perf_counter() - started_at) * 1000)
+                record_product_photo_event(
+                    str(current_user.id),
+                    _build_product_photo_monitor_event(
+                        pet_id=request.pet_id,
+                        hint=request.hint,
+                        image_size_mb=image_size_mb,
+                        duration_ms=duration_ms,
+                        error_type="timeout",
+                        error_message="Tempo limite da IA esgotado",
+                    ),
+                )
+                logger.warning(
+                    "identify-product-photo return_type=timeout pet=%s hint=%s timeout_seconds=%.1f",
+                    request.pet_id,
+                    request.hint,
+                    PHOTO_AI_TIMEOUT_SECONDS,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                    detail="Tempo limite da IA esgotado. Tente novamente."
+                )
 
         has_name = bool((result.get("name") or "").strip())
         has_partial = bool(
@@ -392,7 +443,7 @@ async def identify_product_photo(
             duration_ms,
         )
 
-        return IdentifyProductPhotoResponse(**result)
+        return IdentifyProductPhotoResponse(**result, image_phash=image_phash)
     except base64.binascii.Error:
         duration_ms = round((time.perf_counter() - started_at) * 1000)
         record_product_photo_event(

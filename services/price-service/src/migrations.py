@@ -199,6 +199,12 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "product_reliable_catalog", "port", "TEXT")
         _pg_add_column_if_missing(conn, "product_reliable_catalog", "neutered", "BOOLEAN")
 
+        # product_reliable_catalog: image_phashes_json (Aug 2026) — hash
+        # perceptual (pHash) das fotos já confirmadas para esse produto, pra
+        # pular a chamada de IA num scan novo cuja foto seja visualmente
+        # quase idêntica a uma já resolvida (nunca guarda a imagem em si)
+        _pg_add_column_if_missing(conn, "product_reliable_catalog", "image_phashes_json", "TEXT DEFAULT '[]'")
+
         # found_reports: dismiss flag + finder identity (Jul 2026)
         _pg_add_column_if_missing(conn, "found_reports", "dismissed", "INTEGER DEFAULT 0")
         _pg_add_column_if_missing(conn, "found_reports", "finder_user_id", "TEXT")
@@ -624,6 +630,9 @@ def run_sqlite_migrations(engine: Engine) -> None:
         # product_reliable_catalog: port + neutered (Aug 2026)
         changed |= _sqlite_add_column_if_missing(conn, "product_reliable_catalog", "port", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "product_reliable_catalog", "neutered", "BOOLEAN")
+
+        # product_reliable_catalog: image_phashes_json (Aug 2026)
+        changed |= _sqlite_add_column_if_missing(conn, "product_reliable_catalog", "image_phashes_json", "TEXT DEFAULT '[]'")
 
         # missing_pets: public third-party reports + SEO pages (Jul 2026)
         changed |= _sqlite_add_column_if_missing(conn, "found_reports", "finder_video_url", "TEXT")

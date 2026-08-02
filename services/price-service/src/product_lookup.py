@@ -49,6 +49,7 @@ class ProductLookupConfirmRequest(BaseModel):
     flavor: Optional[str] = Field(None, max_length=255)
     port: Optional[str] = Field(None, max_length=16)
     neutered: Optional[bool] = None
+    image_phash: Optional[str] = Field(None, max_length=32)
     probable_name: Optional[str] = Field(None, max_length=255)
     visible_text: Optional[str] = None
     ocr_raw_text: Optional[str] = None
@@ -199,6 +200,7 @@ async def confirm_product_lookup(
             flavor=payload.flavor,
             port=payload.port,
             neutered=payload.neutered,
+            image_phash=payload.image_phash,
             ai_confidence=payload.confidence if payload.confidence < 1.0 else None,
             probable_name=payload.probable_name,
             visible_text=payload.visible_text,
