@@ -698,7 +698,18 @@ def search_catalog_candidates(
     # Allowing a few variants through keeps the original goal (one
     # product's pack sizes shouldn't fill every slot and crowd out other
     # distinct products) while no longer hiding the correct pack size.
-    MAX_VARIANTS_PER_PRODUCT = 3
+    #
+    # Raised from 3 to 6 (Aug 2026): confirmed live with the real Cobasi
+    # catalog (foods_br_phase2_cobasi.json) that 3 was still too low — 45
+    # product lines have 4+ real pack-size variants (max observed: 5, e.g.
+    # Premier "Ambientes Internos ... Raças Pequenas Frango e Salmão" in
+    # 1/2.5/7.5/12kg), so a real scan of the 12kg bag was silently dropped
+    # before resolver.ts's weight-aware scoring ever saw it — same failure
+    # mode as the Royal Canin bug above, just past the old cap's margin. 6
+    # covers every case in the current catalog with one spare, while still
+    # leaving room under the caller's own limit=8 (resolver.ts) for other
+    # distinct products, not just this one's pack sizes.
+    MAX_VARIANTS_PER_PRODUCT = 6
     seen_products: dict[tuple[str, str], int] = {}
     candidates = []
     for _, product in scored:
