@@ -536,9 +536,42 @@ async function searchInternalCatalogCandidate(
         const flavorAlreadyInTitle = catalogFlavor
           ? tokenize(catalogFlavor).every(t => catalogTitleTokens.has(t))
           : true;
-        const displayName = catalogFlavor && !flavorAlreadyInTitle
+        let displayName = catalogFlavor && !flavorAlreadyInTitle
           ? `${candidate.title} ${catalogFlavor}`
           : candidate.title;
+
+        // Same idea for port: the catalog entry may be genuinely the only
+        // real SKU (confirmed against a real case — Premier "Ambientes
+        // Internos Castrados" only exists as one dog formula, not split by
+        // port) but still not literally say "Porte Pequeno" in its own
+        // title, even though the package does. Silently dropping a detail
+        // the tutor can see on the bag reads as "did this even look at my
+        // photo" — append it so the confirm screen echoes back everything
+        // the AI verified, not just whatever the catalog title happened to
+        // already contain.
+        const PORT_LABELS: Record<string, string> = {
+          mini: 'Porte Mini', pequeno: 'Porte Pequeno', medio: 'Porte Médio',
+          grande: 'Porte Grande', gigante: 'Porte Gigante',
+        };
+        // Titles say "Raças Pequenas"/"Porte Pequeno"/"Cão Pequeno" — plural,
+        // gendered, with or without "porte" — a single-token exact check
+        // ("pequeno" as a whole word) misses "pequenas" and would append a
+        // redundant "Porte Pequeno" onto a title that already says it.
+        const PORT_SYNONYMS: Record<string, string[]> = {
+          mini: ['mini', 'minis'],
+          pequeno: ['pequeno', 'pequenos', 'pequena', 'pequenas'],
+          medio: ['medio', 'medios', 'media', 'medias'],
+          grande: ['grande', 'grandes'],
+          gigante: ['gigante', 'gigantes'],
+        };
+        const payloadPort = payload.port?.toLowerCase();
+        const portLabel = payloadPort ? PORT_LABELS[payloadPort] : undefined;
+        const portAlreadyInTitle = payloadPort
+          ? (PORT_SYNONYMS[payloadPort] ?? [payloadPort]).some(t => catalogTitleTokens.has(t))
+          : true;
+        if (portLabel && !portAlreadyInTitle) {
+          displayName = `${displayName} ${portLabel}`;
+        }
         const resolved: ResolvedProduct = {
           barcode: '',
           name: displayName,
