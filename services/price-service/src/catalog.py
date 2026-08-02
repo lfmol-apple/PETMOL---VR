@@ -447,6 +447,11 @@ def _load_food_catalog_from_file(filename: str) -> List[CatalogProduct]:
 
 
 BR_CATALOG = BR_CATALOG + _load_food_catalog_from_file("foods_br_phase2_cobasi.json")
+# Fase 3: mesma ideia, varredura real da Americanas (scripts/build_food_catalog_from_americanas.py),
+# já deduplicada por EAN contra a Fase 2 na hora de gerar o arquivo — soma
+# marcas/produtos que a Cobasi não vende, sem duplicar o que já cobrimos.
+# Revert: remover esta linha volta exatamente ao estado só-Cobasi.
+BR_CATALOG = BR_CATALOG + _load_food_catalog_from_file("foods_br_phase3_americanas.json")
 
 
 # Combined catalog by country
@@ -729,7 +734,7 @@ def search_catalog_candidates(
         # Dog Chow, missing pack-size variants) and is no longer loaded.
         if product.id.startswith("reliable-"):
             source = "catalog_promoted"
-        elif product.id.startswith("cobasi-"):
+        elif product.id.startswith("cobasi-") or product.id.startswith("americanas-"):
             source = "catalog_verified"
         else:
             source = "catalog_static"
