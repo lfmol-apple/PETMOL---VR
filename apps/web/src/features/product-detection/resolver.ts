@@ -14,7 +14,18 @@ export { getLocalProduct, saveLocalProduct } from './cache';
 // across dozens of different flavors regardless of the actual protein — used
 // both to score flavor overlap and to decide whether a title already names a
 // specific flavor before appending a different one to the display name.
-const FLAVOR_GENERIC_WORDS = new Set(['arroz', 'vegetais', 'legumes', 'cereais', 'molho', 'sabor']);
+// Also includes pure grammatical connectors ("com", "de", "para"...) — these
+// survive tokenize()'s length>=2 filter but carry zero flavor information of
+// their own ("Frango com Legumes" and "Bacalhau com Tomate" share "com" no
+// more meaningfully than they'd share a space). Confirmed in production:
+// "com" alone let a completely different Fancy Feast flavor ("Petit Filets
+// com Salmão") pass the conflict check meant to block exactly this, so the
+// AI-read flavor ("Bacalhau com tomate e batata") got appended onto it,
+// fabricating "...Petit Filets com Salmão... Bacalhau com tomate e batata".
+const FLAVOR_GENERIC_WORDS = new Set([
+  'arroz', 'vegetais', 'legumes', 'cereais', 'molho', 'sabor',
+  'com', 'de', 'do', 'da', 'dos', 'das', 'para', 'em', 'ao', 'aos',
+]);
 
 type ProductLookupResponse = {
   ok: boolean;
@@ -335,6 +346,28 @@ function hasCompoundMatch(sourceText: string, candidateFullText: string): boolea
   const sourceDespaced = despacedForm(sourceText);
   if (sourceDespaced.length < 2) return false;
   return despacedForm(candidateFullText).includes(sourceDespaced);
+}
+
+// A catalog title that's missing part of the flavor (source data truncated
+// mid-phrase, e.g. "...Cordeiro" for a real "Cordeiro e Cenoura" product)
+// still shares its FIRST word(s) with the flavor being appended — naively
+// appending the full flavor phrase then duplicates that shared word
+// ("...Cordeiro" + "Cordeiro e Cenoura" = "...Cordeiro Cordeiro e Cenoura").
+// Confirmed in production: a real Premier "Cordeiro e Cenoura" 15kg scan
+// displayed exactly that duplicate. Strips however many leading words of the
+// suffix are already the trailing words of the title before joining.
+function dedupeJoinOverlap(title: string, suffix: string): string {
+  const titleWords = title.trim().split(/\s+/);
+  const suffixWords = suffix.trim().split(/\s+/);
+  let cut = 0;
+  while (
+    cut < suffixWords.length &&
+    cut < titleWords.length &&
+    despacedForm(titleWords[titleWords.length - 1 - cut]) === despacedForm(suffixWords[cut])
+  ) {
+    cut += 1;
+  }
+  return suffixWords.slice(cut).join(' ');
 }
 
 function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: ProductPhotoVisionPayload, query: string): number {
@@ -701,8 +734,9 @@ async function searchInternalCatalogCandidate(
         const flavorConflictsWithTitle = flavorSpecificForDisplay.length > 0
           && !flavorSpecificForDisplay.some(t => catalogTitleTokens.has(t))
           && !hasCompoundMatch(catalogFlavor ?? '', candidate.title);
-        let displayName = catalogFlavor && !flavorAlreadyInTitle && !flavorConflictsWithTitle
-          ? `${candidate.title} ${catalogFlavor}`
+        const flavorRemainder = catalogFlavor ? dedupeJoinOverlap(candidate.title, catalogFlavor) : '';
+        let displayName = catalogFlavor && !flavorAlreadyInTitle && !flavorConflictsWithTitle && flavorRemainder
+          ? `${candidate.title} ${flavorRemainder}`
           : candidate.title;
 
         // Same idea for port: the catalog entry may be genuinely the only
