@@ -232,11 +232,25 @@ export function compareDominantTerms(expected: DominantTerms, actual: DominantTe
   const strongConflicts: string[] = [];
   const mediumConflicts: string[] = [];
 
+  // audienceTerms is forced 'medium' here, matching what every single term
+  // definition in that bucket already declares (port: mini/small/medium/maxi,
+  // indoor, neutered — all authored with strength: 'medium' above). This
+  // function used to hardcode 'strong' for the whole bucket regardless,
+  // silently overriding that intent — which also made mediumMatches/
+  // mediumConflicts permanently empty (dead code), and, worse, turned a
+  // port MISMATCH into a hard exclusion via strongConflicts instead of the
+  // proportionate penalty scoreCatalogCandidate already applies for port.
+  // Confirmed in production: a real "Ancestral Grain" (Farmina N&D) scan
+  // read port="mini" from the package; the correct catalog candidate
+  // (same line, same flavor, but titled "Raças Médias" — our catalog's
+  // closest real SKU) got silently thrown out here before scoring ever
+  // ran, letting a same-brand, same-port, WRONG-LINE "Prime" candidate win
+  // by default since it was the only "Mini Breeds" option left standing.
   const buckets = [
     ['functionalTerms', 'strong'] as const,
     ['lifeStageTerms', 'strong'] as const,
     ['speciesTerms', 'strong'] as const,
-    ['audienceTerms', 'strong'] as const,
+    ['audienceTerms', 'medium'] as const,
   ];
 
   for (const [bucket, severity] of buckets) {

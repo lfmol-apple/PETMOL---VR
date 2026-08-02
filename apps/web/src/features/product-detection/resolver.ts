@@ -433,9 +433,27 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
     ...tokenize(normalizeText(payload.brand) ?? ''),
     ...tokenize(normalizeText(candidate.brand) ?? ''),
   ]);
-  const identityTokens = tokenize([payload.product_name, payload.line, payload.variant].filter(Boolean).join(' '))
+  const identityTokens = tokenize([payload.product_name, payload.variant].filter(Boolean).join(' '))
     .filter(t => !brandTokens.has(t));
   if (identityTokens.length > 0 && !identityTokens.some(t => candidateTokens.has(t))) {
+    score -= 0.45;
+  }
+
+  // payload.line specifically names the SUB-LINE within a brand (e.g. Farmina
+  // N&D's "Ancestral Grain" vs "Prime" — two real, different product lines,
+  // sold at overlapping weights/ports/life-stages). This used to be folded
+  // into identityTokens above alongside product_name/variant, which are often
+  // generic port/pack descriptors ("Mini Breeds") shared across EVERY line a
+  // brand sells. Since that check only requires .some() token to overlap, a
+  // shared descriptor let it pass even when the actual line name didn't
+  // match at all — confirmed in production: a real "Ancestral Grain" scan
+  // (line correctly read from the package) resolved to a same-brand,
+  // same-port "Prime" product instead, because "mini"/"breeds" satisfied the
+  // combined check while "ancestral"/"grain" were never actually compared.
+  // Splitting this into its own check means a real line mismatch can't hide
+  // behind an unrelated descriptor token happening to overlap.
+  const lineTokens = tokenize(normalizeText(payload.line) ?? '').filter(t => !brandTokens.has(t));
+  if (lineTokens.length > 0 && !lineTokens.some(t => candidateTokens.has(t))) {
     score -= 0.45;
   }
 
