@@ -322,13 +322,13 @@ export function HomePetHeader({
           
           {/* Chips de dados do pet */}
           {petChips.length > 0 && (
-            <div className="mt-1.5 ml-1 flex flex-nowrap gap-1.5 overflow-hidden sm:mt-2 sm:flex-wrap">
+            <div className="mt-1.5 ml-1 flex flex-wrap gap-1.5 sm:mt-2">
               {petChips.map((chip) => (
                 <span
                   key={chip}
-                  className="inline-flex min-w-0 flex-shrink items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold leading-none text-slate-600 sm:px-2.5 sm:py-1 sm:text-[11px]"
+                  className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold leading-none text-slate-600 sm:px-2.5 sm:py-1 sm:text-[11px]"
                 >
-                  <span className="truncate">{chip}</span>
+                  {chip}
                 </span>
               ))}
             </div>
