@@ -325,15 +325,16 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
     score += overlap / queryTokens.length;
   }
 
-  // Trust real/verified data over the hand-curated static catalog: every
-  // wrong-product-substitution bug found this session (Nattu, Dog Chow,
-  // hidden pack-size variants...) came from the static Fase 1 catalog being
-  // an approximation with real gaps — a live Cobasi listing or a candidate
-  // promoted from an actual confirmed scan (source="catalog_promoted", see
-  // catalog.py) are both real data, not guesswork, so a close tie should
-  // favor them instead of the static entry by default. Modest bonus — it
-  // should break near-ties, not override a genuinely stronger static match.
-  if (candidate.source === 'cobasi' || candidate.source === 'catalog_promoted') {
+  // Trust real/verified data over the (now retired) hand-curated Fase 1
+  // catalog: every wrong-product-substitution bug found this session (Nattu,
+  // Dog Chow, hidden pack-size variants...) came from that catalog being an
+  // AI-compiled approximation with real gaps. A live Cobasi listing
+  // (source="cobasi"), a candidate promoted from an actual confirmed scan
+  // (source="catalog_promoted"), or an entry from the bulk Cobasi crawl with
+  // a real EAN (source="catalog_verified", see catalog.py) are all real
+  // data, not guesswork, so a close tie should favor them by default. Modest
+  // bonus — it should break near-ties, not override a genuinely stronger match.
+  if (candidate.source === 'cobasi' || candidate.source === 'catalog_promoted' || candidate.source === 'catalog_verified') {
     score += 0.12;
   }
 
