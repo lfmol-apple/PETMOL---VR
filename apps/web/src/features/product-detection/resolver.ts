@@ -10,6 +10,12 @@ import type { ProductCategory } from '@/lib/productScanner';
 export type { ResolvedProduct };
 export { getLocalProduct, saveLocalProduct } from './cache';
 
+// Generic carrier/side-ingredient words ("arroz", "vegetais"...) show up
+// across dozens of different flavors regardless of the actual protein — used
+// both to score flavor overlap and to decide whether a title already names a
+// specific flavor before appending a different one to the display name.
+const FLAVOR_GENERIC_WORDS = new Set(['arroz', 'vegetais', 'legumes', 'cereais', 'molho', 'sabor']);
+
 type ProductLookupResponse = {
   ok: boolean;
   gtin: string;
@@ -306,6 +312,31 @@ function formatPackSizes(packSizes?: Array<{ value: number; unit: string }>): st
     .map(size => `${String(size.value).replace('.', ',')} ${size.unit.toLowerCase()}`);
 }
 
+function despacedForm(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+// Exact single-token overlap misses real cases where the AI's OCR and the
+// catalog's own title spell the same name with different word-splitting:
+// "N&D" (tokenizes to single characters "n"/"d", both discarded by the
+// length>=2 filter — an empty token set, silently disabling the check
+// entirely) vs a title that spells it "N D"; "freshmeat" (one word, as
+// Gemini read it) vs a catalog title spelling it "Fresh Meat" (two words);
+// "Extralife" vs "Extra Life". Confirmed with 3 real cases across separate
+// test runs — same root shape each time: identical name, different
+// spacing, so no individual token ever matches even though the phrase
+// clearly does. Falls back to comparing the space/punctuation-stripped
+// forms as a substring check when the normal token overlap finds nothing.
+function hasCompoundMatch(sourceText: string, candidateFullText: string): boolean {
+  const sourceDespaced = despacedForm(sourceText);
+  if (sourceDespaced.length < 2) return false;
+  return despacedForm(candidateFullText).includes(sourceDespaced);
+}
+
 function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: ProductPhotoVisionPayload, query: string): number {
   const queryTokens = tokenize(query);
   const candidateText = [
@@ -474,9 +505,13 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
     ...tokenize(normalizeText(payload.brand) ?? ''),
     ...tokenize(normalizeText(candidate.brand) ?? ''),
   ]);
-  const identityTokens = tokenize([payload.product_name, payload.variant].filter(Boolean).join(' '))
-    .filter(t => !brandTokens.has(t));
-  if (identityTokens.length > 0 && !identityTokens.some(t => candidateTokens.has(t))) {
+  const identitySource = [payload.product_name, payload.variant].filter(Boolean).join(' ');
+  const identityTokens = tokenize(identitySource).filter(t => !brandTokens.has(t));
+  if (
+    identityTokens.length > 0 &&
+    !identityTokens.some(t => candidateTokens.has(t)) &&
+    !hasCompoundMatch(identitySource, candidateText)
+  ) {
     score -= 0.45;
   }
 
@@ -493,8 +528,13 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
   // combined check while "ancestral"/"grain" were never actually compared.
   // Splitting this into its own check means a real line mismatch can't hide
   // behind an unrelated descriptor token happening to overlap.
-  const lineTokens = tokenize(normalizeText(payload.line) ?? '').filter(t => !brandTokens.has(t));
-  if (lineTokens.length > 0 && !lineTokens.some(t => candidateTokens.has(t))) {
+  const lineSource = normalizeText(payload.line) ?? '';
+  const lineTokens = tokenize(lineSource).filter(t => !brandTokens.has(t));
+  if (
+    lineTokens.length > 0 &&
+    !lineTokens.some(t => candidateTokens.has(t)) &&
+    !hasCompoundMatch(lineSource, candidateText)
+  ) {
     score -= 0.45;
   }
 
@@ -506,8 +546,23 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
   // factored into the score at all). Same treatment as the identity-token
   // check above: if we have a specific flavor reading but the candidate
   // shares none of its tokens, it's very likely a different flavor variant.
-  const flavorTokens = tokenize(normalizeText(payload.flavor) ?? '');
-  if (flavorTokens.length > 0 && !flavorTokens.some(t => candidateTokens.has(t))) {
+  const flavorSource = normalizeText(payload.flavor) ?? '';
+  const flavorTokensRaw = tokenize(flavorSource);
+  // Requiring only .some() token to overlap let generic carrier words alone
+  // satisfy the check. Confirmed in production: "Salmão, Arroz e Vegetais"
+  // matched a same-brand/weight/port "Frango, Arroz e Vegetais" candidate
+  // because "arroz"/"vegetais" overlapped while the actual distinguishing
+  // word (salmão vs frango) never did. When the reading has at least one
+  // non-generic word, check overlap against those specifically; only fall
+  // back to the full set if every word we read is itself generic (nothing
+  // more specific to check against).
+  const flavorSpecificTokens = flavorTokensRaw.filter(t => !FLAVOR_GENERIC_WORDS.has(t));
+  const flavorTokens = flavorSpecificTokens.length > 0 ? flavorSpecificTokens : flavorTokensRaw;
+  if (
+    flavorTokens.length > 0 &&
+    !flavorTokens.some(t => candidateTokens.has(t)) &&
+    !hasCompoundMatch(flavorSource, candidateText)
+  ) {
     score -= 0.3;
   }
 
@@ -543,6 +598,26 @@ async function searchInternalCatalogCandidate(
   // wrong "Porte Médio" variant despite the AI correctly reading
   // port=pequeno/neutered=true from the package).
   let bestRawScore = -Infinity;
+
+  // scoreCatalogCandidate's token-overlap term is measured against whichever
+  // query string is passed in — but the loop below fetches with up to 4
+  // DIFFERENT auto-generated queries (broad brand+species query, narrow
+  // full-detail query, etc.), purely to maximize recall across candidates.
+  // Scoring each candidate against the SAME query that happened to fetch it
+  // makes that recall-only choice leak into the match score: a query that
+  // merely echoes generic descriptor words ("Mini Breeds") can overlap more
+  // with a WRONG same-brand/port candidate's title than the fullest query
+  // does with the CORRECT candidate, letting the wrong one win purely on
+  // token overlap even though the flavor check correctly penalizes it.
+  // Confirmed in production: "N&D Prime ... Cordeiro e Blueberry" (a real,
+  // exact-match SKU present in the results) lost to a same-brand/port/weight
+  // "Frango e Romã" SKU whose title happened to contain "Mini Breeds"
+  // verbatim, because the narrow query "Farmina N&D Prime Mini Breeds dog
+  // mini" overlapped better with the wrong title than any query overlapped
+  // with the right one. Scoring every candidate against the single fullest
+  // query (queries[0], which folds in every field including flavor) removes
+  // that per-query luck while still fetching broadly across all 4 queries.
+  const scoringQuery = queries[0] ?? '';
 
   for (const query of queries.slice(0, 4)) {
     if (!query.trim()) continue;
@@ -591,7 +666,7 @@ async function searchInternalCatalogCandidate(
         const compatibility = compareDominantTerms(expectedDominantTerms, candidateFields.dominantTerms);
         if (compatibility.strongConflicts.length > 0) continue;
 
-        let score = scoreCatalogCandidate(candidate, payload, query);
+        let score = scoreCatalogCandidate(candidate, payload, scoringQuery);
         score += compatibility.strongMatches.length * 0.08;
         score += compatibility.mediumMatches.length * 0.04;
         score -= compatibility.mediumConflicts.length * 0.16;
@@ -601,13 +676,32 @@ async function searchInternalCatalogCandidate(
         // flavors confirmed against a real scan, to avoid overriding a
         // correct AI reading with a guessed one — see foods_br_phase1.json).
         // When the AI grounded a flavor that isn't already reflected in the
-        // catalog title, append it instead of silently dropping it.
+        // catalog title, append it instead of silently dropping it. BUT only
+        // when the title has no specific flavor of its own to begin with —
+        // if it already names one (even a different one from what the AI
+        // read), appending ours doesn't "fill a gap," it grafts a second,
+        // contradicting flavor onto the name. Confirmed in production: a
+        // wrong-candidate pick titled "...Sabor Frango e Romã 10Kg" got
+        // displayed as "...Sabor Frango e Romã 10Kg Cordeiro e Blueberry" —
+        // a hybrid flavor that doesn't exist, making a wrong match read as
+        // if it had been correctly verified against the photo.
         const catalogFlavor = normalizeText(payload.flavor);
         const catalogTitleTokens = new Set(tokenize(candidate.title));
         const flavorAlreadyInTitle = catalogFlavor
           ? tokenize(catalogFlavor).every(t => catalogTitleTokens.has(t))
           : true;
-        let displayName = catalogFlavor && !flavorAlreadyInTitle
+        // Same check scoreCatalogCandidate uses to apply the flavor-mismatch
+        // penalty: if our flavor's specific words share nothing with the
+        // title (by token or compound-substring match), the title is very
+        // likely naming a genuinely different flavor, not just phrasing ours
+        // differently — appending in that case fabricates a hybrid.
+        const flavorSpecificForDisplay = catalogFlavor
+          ? tokenize(catalogFlavor).filter(t => !FLAVOR_GENERIC_WORDS.has(t))
+          : [];
+        const flavorConflictsWithTitle = flavorSpecificForDisplay.length > 0
+          && !flavorSpecificForDisplay.some(t => catalogTitleTokens.has(t))
+          && !hasCompoundMatch(catalogFlavor ?? '', candidate.title);
+        let displayName = catalogFlavor && !flavorAlreadyInTitle && !flavorConflictsWithTitle
           ? `${candidate.title} ${catalogFlavor}`
           : candidate.title;
 
