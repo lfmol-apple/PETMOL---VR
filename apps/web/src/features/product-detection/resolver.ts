@@ -463,6 +463,16 @@ async function searchInternalCatalogCandidate(
 ): Promise<CatalogMatchResult | null> {
   const type = category === 'food' ? 'food' : 'product';
   let bestMatch: CatalogMatchResult | null = null;
+  // Tracked separately from bestMatch.score, which is clampScore()'d to a
+  // display-friendly max of 0.99 before being stored. Comparing a fresh
+  // candidate's raw score against that already-capped stored value let a
+  // strictly worse candidate win outright: e.g. a correct match scoring
+  // 1.23 got stored as 0.99, then a wrong match scoring 1.06 passed
+  // "1.06 > 0.99" and overwrote it — confirmed against a real production
+  // scan (Premier "Ambientes Internos Castrados" 12kg resolving to the
+  // wrong "Porte Médio" variant despite the AI correctly reading
+  // port=pequeno/neutered=true from the package).
+  let bestRawScore = -Infinity;
 
   for (const query of queries.slice(0, 4)) {
     if (!query.trim()) continue;
@@ -539,7 +549,8 @@ async function searchInternalCatalogCandidate(
           category,
           source: 'internal',
         };
-        if (!bestMatch || score > bestMatch.score) {
+        if (score > bestRawScore) {
+          bestRawScore = score;
           bestMatch = {
             product: category === 'food' ? enrichFoodProduct(resolved) : resolved,
             score: clampScore(score),
