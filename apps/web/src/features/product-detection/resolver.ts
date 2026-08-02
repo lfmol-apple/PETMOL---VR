@@ -243,6 +243,7 @@ function toStructuredFoodInput(payload: ProductPhotoVisionPayload): StructuredFo
     probableName: payload.probable_name,
     species: payload.species,
     lifeStage: payload.life_stage,
+    port: payload.port,
     weight: normalizeWeight(payload) ?? payload.weight,
     weightValue: payload.weight_value,
     weightUnit: payload.weight_unit,
@@ -345,8 +346,36 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
       score += 0.28;
     } else {
       // Different known brands — strong penalty to prevent cross-brand contamination
-      // (e.g. "Hill's Science Diet Puppy" scoring high in a "royal canin" search)
-      score -= 0.5;
+      // (e.g. "Hill's Science Diet Puppy" scoring high in a "royal canin" search).
+      // BUT: a real package often prints both the manufacturer name and a
+      // distinct marketed sub-brand (Purina/Fancy Feast, Farmina/Cibau,
+      // Farmina/N&D, Total Alimentos/Equilíbrio) — Gemini reads both but only
+      // one lands in the structured brand field, so a plain string mismatch
+      // here doesn't mean "different company," just "different field of the
+      // same package." Confirmed with 4 real cases across two independent
+      // test runs: the correct catalog SKU kept losing to a wrong product
+      // that merely shared payload.brand's exact string. Before penalizing,
+      // check whether the OTHER name is verifiably present somewhere real:
+      // either the candidate's own title/variant text names the brand we
+      // read (Total Alimentos SKU whose title literally says "Equilíbrio"),
+      // or what Gemini actually saw on the package (raw_text_blobs/
+      // visible_text) names the candidate's brand (the "Fancy Feast" case —
+      // Gemini put "Purina" in the structured field, but "Fancy Feast" is
+      // right there in raw_text_blobs). A small bonus, not the full
+      // same-brand one — this is evidence of a plausible relationship, not
+      // certainty.
+      const candidateTextLower = candidateText.toLowerCase();
+      const payloadRawText = [payload.visible_text, ...(payload.raw_text_blobs ?? [])]
+        .filter((s): s is string => Boolean(s))
+        .join(' ')
+        .toLowerCase();
+      const brandSeenInCandidateText = candidateTextLower.includes(brand);
+      const candidateBrandSeenInPayloadText = candidateBrand.length >= 3 && payloadRawText.includes(candidateBrand);
+      if (brandSeenInCandidateText || candidateBrandSeenInPayloadText) {
+        score += 0.05;
+      } else {
+        score -= 0.5;
+      }
     }
   } else if (candidateBrand) {
     // We have no brand signal of our own (cleared by the hallucination guard, or
@@ -363,8 +392,20 @@ function scoreCatalogCandidate(candidate: CatalogSearchApiCandidate, payload: Pr
   if (species && candidateSpecies && species === candidateSpecies) score += 0.12;
 
   const weight = normalizeWeight(payload)?.toLowerCase();
-  if (weight && formatPackSizes(candidate.pack_sizes).some(pack => pack.toLowerCase() === weight || candidateText.toLowerCase().includes(weight))) {
-    score += 0.16;
+  if (weight) {
+    const exactPackMatch = formatPackSizes(candidate.pack_sizes).some(pack => pack.toLowerCase() === weight);
+    // Fallback for when pack_sizes isn't populated: look for the weight in
+    // the free-text title, but word-bounded — a plain substring check let
+    // "1 kg" match inside "0,1 kg" (100g), wrongly crediting a completely
+    // different pack size just because its digits happen to end the same
+    // way. Confirmed in production: two real cases (Dog Chow 1kg vs 100g
+    // sachê, Whiskas 85g) where this false match tipped the score toward
+    // the wrong weight variant.
+    const escaped = weight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wordBoundedMatch = !exactPackMatch && new RegExp(`(?<![\\d,.])${escaped}`).test(candidateText.toLowerCase());
+    if (exactPackMatch || wordBoundedMatch) {
+      score += 0.16;
+    }
   }
 
   const lifeStage = normalizeLifeStageToken(payload.life_stage);

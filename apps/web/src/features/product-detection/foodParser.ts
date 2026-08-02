@@ -97,6 +97,7 @@ export interface StructuredFoodInput {
   probableName?: string | null;
   species?: string | null;
   lifeStage?: string | null;
+  port?: string | null;
   weight?: string | null;
   weightValue?: number | null;
   weightUnit?: string | null;
@@ -466,10 +467,20 @@ export function buildFoodSearchQueries(rawInput: string | StructuredFoodInput): 
   // Science Diet) — confirmed against production logs. Every other query here
   // always leads with fields.brand, so removed the brandless ones instead of
   // trying to patch the dominant-terms classification.
+  // input.port (mini/pequeno/medio/grande/gigante, read straight off the
+  // package) never made it into any query string before — it was only ever
+  // compared downstream, in scoreCatalogCandidate, against whatever
+  // candidates the OTHER fields happened to retrieve. A candidate whose
+  // title only differs by port (e.g. "Porte Grande e Gigante" vs "Porte
+  // Pequeno") could then never even be fetched as a candidate to begin
+  // with, regardless of how well it would have scored — confirmed in
+  // production: a Premier puppy formula read as port="grande" resolved to
+  // the small-breed puppy formula because the large/giant-breed SKU never
+  // appeared in any of the 4 generated queries' results at all.
   const queries = compactParts([
-    [fields.brand, fields.productName, fields.line, fields.variant, fields.flavor, fields.weight].filter(Boolean).join(' '),
-    [fields.brand, fields.productName, fields.species, fields.lifeStage, fields.weight].filter(Boolean).join(' '),
-    [fields.brand, fields.line, fields.variant, fields.species, fields.weight].filter(Boolean).join(' '),
+    [fields.brand, fields.productName, fields.line, fields.variant, fields.flavor, input.port, fields.weight].filter(Boolean).join(' '),
+    [fields.brand, fields.productName, fields.species, fields.lifeStage, input.port, fields.weight].filter(Boolean).join(' '),
+    [fields.brand, fields.line, fields.variant, fields.species, input.port, fields.weight].filter(Boolean).join(' '),
     fields.searchQuery,
     ...fields.rawTextBlobs.slice(0, 4),
   ]);
