@@ -24,13 +24,15 @@ function diffLabel(diff: number): string {
     const days = Math.abs(diff);
     if (days === 1) return 'Atrasado 1 dia';
     if (days < 30) return `Atrasado ${days} dias`;
-    if (days < 365) return `Atrasado ${Math.round(days / 30)} meses`;
+    const overdueMonths = Math.round(days / 30);
+    if (days < 365) return `Atrasado ${overdueMonths} ${overdueMonths === 1 ? 'mês' : 'meses'}`;
     return `Atrasado ${Math.round(days / 365)} ano${Math.round(days / 365) > 1 ? 's' : ''}`;
   }
   if (diff === 0) return 'Hoje';
   if (diff === 1) return 'Amanhã';
   if (diff < 30) return `Em ${diff} dias`;
-  if (diff < 365) return `Em ${Math.round(diff / 30)} meses`;
+  const months = Math.round(diff / 30);
+  if (diff < 365) return `Em ${months} ${months === 1 ? 'mês' : 'meses'}`;
   return `Em ${Math.round(diff / 365)} ano${Math.round(diff / 365) > 1 ? 's' : ''}`;
 }
 
