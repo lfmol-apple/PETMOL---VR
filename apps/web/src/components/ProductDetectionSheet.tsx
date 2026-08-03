@@ -1657,6 +1657,34 @@ export function ProductDetectionSheetGold({
     onProductConfirmed(product);
   };
 
+  // Both the explicit "Não, escolher outro" button and backing out of the
+  // confirm screen (hardware/swipe back) reject the suggested product the
+  // same way — until now, neither was logged as a first-class event, so the
+  // only way to know how often the AI's suggestion was wrong in real usage
+  // was a one-off manual test, not an ongoing signal. Shares the same
+  // 'origin'/'result'/'score' shape as the 'resolved'/'confirmed' events so
+  // accept/correct/reject rates can be compared directly.
+  const rejectConfirmedProduct = () => {
+    if (confirmed?.barcode) {
+      rejectedBarcodesRef.current.add(confirmed.barcode);
+      clearLocalProduct(confirmed.barcode);
+    }
+    if (confirmed) {
+      emitProductTelemetry('rejected', {
+        origin: decisionSourceRef.current,
+        result: decisionResultTypeRef.current,
+        score: decisionScoreRef.current ?? aiConfidenceRef.current ?? null,
+        category: confirmed.category,
+        brand: confirmed.brand ?? null,
+      });
+    }
+    clearPendingScannedProduct();
+    setConfirmed(null);
+    setFromHistory(false);
+    setStep('manual');
+    setQuery('');
+  };
+
   const canGoBack = step !== 'entry' && step !== 'resolving' && step !== 'photo-processing';
   const immersiveMode = step === 'scanning' || step === 'resolving';
 
@@ -1675,15 +1703,7 @@ export function ProductDetectionSheetGold({
     }
 
     if (step === 'confirm') {
-      if (confirmed?.barcode) {
-        rejectedBarcodesRef.current.add(confirmed.barcode);
-        clearLocalProduct(confirmed.barcode);
-      }
-      clearPendingScannedProduct();
-      setConfirmed(null);
-      setFromHistory(false);
-      setStep('manual');
-      setQuery('');
+      rejectConfirmedProduct();
       return;
     }
 
@@ -2540,17 +2560,7 @@ export function ProductDetectionSheetGold({
 
         <button
           type="button"
-          onClick={() => {
-            if (confirmed?.barcode) {
-        rejectedBarcodesRef.current.add(confirmed.barcode);
-        clearLocalProduct(confirmed.barcode);
-      }
-            clearPendingScannedProduct();
-            setConfirmed(null);
-            setFromHistory(false);
-            setStep('manual');
-            setQuery('');
-          }}
+          onClick={rejectConfirmedProduct}
           className="w-full rounded-xl border border-gray-200 py-3 text-sm font-semibold text-gray-600 transition-all active:scale-95"
         >
           Não, escolher outro
