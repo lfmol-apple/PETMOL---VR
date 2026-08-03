@@ -1231,12 +1231,21 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     topAttentionPetCount,
     selectedPetCardAlerts,
     selectedPetCardColors,
-    basicCareAttentionPetCount,
+    basicCareAttentionPetIds,
   } = useHomeInteractionCenter(
     multipetInteractions.interactions,
     multipetInteractions.canonicalEvents,
     selectedPetId,
     allPetIds,
+  );
+  // Names for the basic-care badge — shown instead of a bare count when
+  // exactly one pet needs attention, so the badge can say "Mingau precisa
+  // de atenção" instead of a generic "1 pet precisa de atenção".
+  const basicCareAttentionPetNames = useMemo(
+    () => basicCareAttentionPetIds
+      .map((id) => pets.find((p) => p.pet_id === id)?.pet_name)
+      .filter((name): name is string => Boolean(name)),
+    [basicCareAttentionPetIds, pets],
   );
 
   // Dispatcher frontend e pendencies sem superfície foram desativados.
@@ -2282,7 +2291,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       onAlertSelect={handleTopAttentionSelect}
                       upcomingCount={allUpcomingReminders.length}
                       onOpenUpcoming={() => setShowUpcomingSheet(true)}
-                      basicCareAttentionPetCount={basicCareAttentionPetCount}
+                      basicCareAttentionPetNames={basicCareAttentionPetNames}
                     />
 
                   {/* Compartilhar cuidado — só para o dono do pet */}

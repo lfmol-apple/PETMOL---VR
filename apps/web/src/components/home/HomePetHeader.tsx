@@ -39,13 +39,13 @@ interface HomePetHeaderProps {
   onAlertSelect: (alert: PetInteractionItem) => void;
   upcomingCount: number;
   onOpenUpcoming: () => void;
-  // How many pets across the WHOLE household need attention on the basic-
-  // care minimum (vacina/vermífugo/antipulgas/ração — the items that apply
-  // to every pet regardless of health condition; medication/grooming
+  // Names of pets across the WHOLE household that need attention on the
+  // basic-care minimum (vacina/vermífugo/antipulgas/ração — the items that
+  // apply to every pet regardless of health condition; medication/grooming
   // excluded on purpose, since not every pet takes medication). Computed
   // once in useHomeInteractionCenter.ts and shared across the household,
   // not scoped to just the currently-selected pet.
-  basicCareAttentionPetCount: number;
+  basicCareAttentionPetNames: string[];
 }
 
 export function HomePetHeader({
@@ -71,7 +71,7 @@ export function HomePetHeader({
   onAlertSelect,
   upcomingCount,
   onOpenUpcoming,
-  basicCareAttentionPetCount,
+  basicCareAttentionPetNames,
 }: HomePetHeaderProps) {
   const { t } = useI18n();
   const nameButtonRef = useRef<HTMLButtonElement>(null);
@@ -175,11 +175,11 @@ export function HomePetHeader({
   ].filter(Boolean) as string[];
 
   const currentPetPhotoUrl = getPhotoUrl(currentPet.photo, currentPet.pet_id, photoTimestamps);
-  // Basic-care badge: how many pets in the household need attention on
-  // vacina/vermífugo/antipulgas/ração — see basicCareAttentionPetCount's
+  // Basic-care badge: which pets in the household need attention on
+  // vacina/vermífugo/antipulgas/ração — see basicCareAttentionPetIds'
   // definition (useHomeInteractionCenter.ts) for what counts as "needing
-  // attention" (actually overdue, or never registered at all).
-  const hasVisibleAttention = basicCareAttentionPetCount > 0;
+  // attention" (actually overdue).
+  const hasVisibleAttention = basicCareAttentionPetNames.length > 0;
 
   return (
     <>    <div className="px-3 pt-2 space-y-2 sm:px-4 sm:pt-4 sm:space-y-3">
@@ -322,7 +322,9 @@ export function HomePetHeader({
               <div className={`w-1.5 h-1.5 rounded-full ${hasVisibleAttention ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
               <span className="truncate text-[10px] font-bold tracking-wide">
                 {hasVisibleAttention
-                  ? `${basicCareAttentionPetCount} ${basicCareAttentionPetCount === 1 ? 'pet precisa' : 'pets precisam'} de atenção`
+                  ? basicCareAttentionPetNames.length === 1
+                    ? `${basicCareAttentionPetNames[0]} precisa de atenção`
+                    : `${basicCareAttentionPetNames.length} pets precisam de atenção`
                   : 'Em dia'}
               </span>
             </div>

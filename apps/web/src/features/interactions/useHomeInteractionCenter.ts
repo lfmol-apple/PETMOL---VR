@@ -27,14 +27,15 @@ interface HomeInteractionCenterResult {
     grooming: CardTone;
     food: CardTone;
   };
-  // How many pets across the whole household need attention on the basic-
-  // care minimum (vacina/vermífugo/antipulgas/ração — the items that apply
-  // to every pet regardless of health condition; medication/coleira/
-  // grooming excluded on purpose). Distinct from topAttentionPetCount
-  // (which covers a broader interaction set) and from selectedPetCard* (
-  // which is scoped to only the currently-selected pet) — this one is
-  // cross-pet, for the badge below the pet photo on Home.
-  basicCareAttentionPetCount: number;
+  // Which pets across the whole household need attention on the basic-care
+  // minimum (vacina/vermífugo/antipulgas/ração — the items that apply to
+  // every pet regardless of health condition; medication/coleira/grooming
+  // excluded on purpose). Distinct from topAttentionPetCount (which covers
+  // a broader interaction set) and from selectedPetCard* (which is scoped
+  // to only the currently-selected pet) — this one is cross-pet, for the
+  // badge below the pet photo on Home. Returns pet_ids (not just a count)
+  // so the badge can name the pet when there's exactly one.
+  basicCareAttentionPetIds: string[];
 }
 
 function resolveTone(events: CanonicalPetEvent[]): CardTone {
@@ -87,13 +88,11 @@ export function useHomeInteractionCenter(
     const collarEvents = selectedPetEvents.filter((event) => event.action_target === 'health/parasites/collar');
     const foodEvents = selectedPetEvents.filter((event) => event.domain === 'food');
 
-    // Basic-care count across ALL pets — 'critical' (actually overdue) or
-    // 'neutral' (never registered at all, same "missing data is itself a
-    // gap" convention the food card's "Cuidado em aberto" already uses) on
-    // any of the 4 domains flags that pet. 'warning' (due soon, not yet
-    // late) intentionally does NOT count — this is about what's actually
-    // been missed, not what's merely upcoming.
-    const basicCareAttentionPetCount = allPetIds.filter((petId) => {
+    // Basic-care attention across ALL pets — only 'critical' (actually
+    // overdue) flags a pet; 'warning' (due soon, not yet late) and
+    // 'neutral' (never registered) intentionally do NOT — see the comment
+    // below on why 'neutral' was deliberately excluded here.
+    const basicCareAttentionPetIds = allPetIds.filter((petId) => {
       const petEvents = canonicalEvents.filter((event) => (
         event.pet_id === petId
         && event.domain !== 'grooming'
@@ -114,7 +113,7 @@ export function useHomeInteractionCenter(
       // even when nothing is actually overdue. Only 'critical' (something
       // genuinely overdue) counts toward this cross-pet total.
       return tones.some((tone) => tone === 'critical');
-    }).length;
+    });
 
     return {
       topAttentionAlerts,
@@ -137,7 +136,7 @@ export function useHomeInteractionCenter(
         grooming: 'neutral',
         food: resolveTone(foodEvents),
       },
-      basicCareAttentionPetCount,
+      basicCareAttentionPetIds,
     };
   }, [interactions, canonicalEvents, selectedPetId, allPetIds]);
 }

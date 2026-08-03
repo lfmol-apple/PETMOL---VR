@@ -163,8 +163,14 @@ export function HomePetDashboard({
     });
   }, [currentPet, vaccines, parasiteControls, groomingRecords, feedingPlan, petEvents]);
 
+  // Despite the name (kept to avoid a wider rename across every call site),
+  // this intentionally includes OVERDUE reminders (diff < 0) too, not just
+  // future ones — the bell badge and its sheet are fed directly from this.
+  // Real complaint: an overdue "ração" reminder didn't show up on the bell
+  // at all, making the app look like everything was fine when it wasn't.
+  // Sorted ascending by diff, so the most overdue item leads.
   const allUpcomingReminders = useMemo(
-    () => reminders.filter((r) => r.diff >= 0).sort((a, b) => a.diff - b.diff),
+    () => [...reminders].sort((a, b) => a.diff - b.diff),
     [reminders],
   );
 
