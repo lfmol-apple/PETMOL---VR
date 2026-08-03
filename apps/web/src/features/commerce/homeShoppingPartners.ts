@@ -169,10 +169,40 @@ export function resolvePartnerUrl(
   return `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(query)}`;
 }
 
+function isStandaloneInstalledApp(): boolean {
+  if (typeof window === 'undefined') return false;
+  const iosStandalone = (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+  return iosStandalone || Boolean(window.matchMedia?.('(display-mode: standalone)').matches);
+}
+
 /**
- * Abre o parceiro em nova aba.
- * window.open deve ser chamado sincronamente dentro do gesto do usuário —
- * por isso a analítica é disparada em background sem bloquear a abertura.
+ * Navigates to an external partner URL. Installed home-screen PWAs on iOS
+ * (display-mode: standalone) have no tab chrome for window.open() to attach
+ * to — WebKit spawns a separate modal browsing context that frequently
+ * fails to finish loading the target URL, leaving the tutor looking at a
+ * blank white screen with only a system "X" to close it (confirmed via a
+ * real report: tapping "Comprar" inside Loja do Baby, landing on Cobasi,
+ * then seeing exactly this instead of the product page). A normal full
+ * navigation (location.href) is the standard workaround — standalone iOS
+ * treats it as leaving the app to Safari, with Safari's own "back to
+ * [App]" affordance, instead of trying to open a doomed popup window.
+ * Regular (non-installed, e.g. desktop/Android Chrome tab) usage keeps
+ * window.open, which isn't affected by this and lets the tutor return to
+ * a still-open PETMOL tab instead of losing it.
+ */
+export function navigateToPartnerUrl(url: string): void {
+  if (isStandaloneInstalledApp()) {
+    window.location.href = url;
+    return;
+  }
+  // window.open deve ser chamado sincronamente dentro do gesto do usuário —
+  // por isso a analítica é disparada em background sem bloquear a abertura.
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+/**
+ * Abre o parceiro em nova aba (ou navega diretamente, em PWA instalado —
+ * ver navigateToPartnerUrl).
  */
 export function openHomeShoppingPartner(
   partnerId: HomeShoppingPartnerId,
@@ -182,9 +212,7 @@ export function openHomeShoppingPartner(
   if (!partner) return;
 
   const url = resolvePartnerUrl(partner, query, '');
-
-  // Abre sincronamente (dentro do gesto do usuário) para evitar bloqueio de popup no mobile
-  window.open(url, '_blank', 'noopener,noreferrer');
+  navigateToPartnerUrl(url);
 
   // Analítica em background — não bloqueia a navegação
   void trackClick({

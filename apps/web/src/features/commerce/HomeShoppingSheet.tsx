@@ -5,7 +5,7 @@ import { petDo } from '@/lib/petGender';
 import { trackClick } from '@/lib/analytics/click';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import type { PetCareReminder } from '@/lib/petCareDomain';
-import { HOME_SHOPPING_PARTNERS, openHomeShoppingPartner, type HomeShoppingPartner, type HomeShoppingPartnerId } from './homeShoppingPartners';
+import { HOME_SHOPPING_PARTNERS, openHomeShoppingPartner, navigateToPartnerUrl, type HomeShoppingPartner, type HomeShoppingPartnerId } from './homeShoppingPartners';
 import { fetchProductPrice, formatBRLPrice, type ProductPriceResult } from './productPricing';
 import {
   buildReorderCards,
@@ -52,7 +52,11 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   const title = petName ? `Loja ${petDo(currentPet)} ${petName}` : 'Loja do Pet';
 
   function handleQuickBuy(partnerId: HomeShoppingPartnerId, searchQuery: string, ctaType: string, metadata: Record<string, unknown>) {
-    onClose();
+    // Not closing the sheet here on purpose: if the tutor's phone keeps this
+    // page suspended (rather than fully reloading it) while they're on the
+    // partner site, coming back should still show Loja do Baby, not Home —
+    // confirmed as a real complaint (tapping Comprar, going to Cobasi,
+    // returning landed somewhere other than where they'd been).
     openHomeShoppingPartner(partnerId, searchQuery);
     void trackClick({
       source: 'home',
@@ -66,7 +70,6 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   function handleStoreCategory(category: StoreCategoryOption) {
     if (!browsingPartner) return;
     const query = buildStoreCategoryQuery(category, currentPet.species);
-    onClose();
     openHomeShoppingPartner(browsingPartner.id, query);
     void trackClick({
       source: 'home',
@@ -154,8 +157,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                           onTogglePicker={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
                           onQuickBuy={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, label: card.label })}
                           onDirectBuy={(price) => {
-                            onClose();
-                            if (price.url) window.open(price.url, '_blank', 'noopener,noreferrer');
+                            if (price.url) navigateToPartnerUrl(price.url);
                             void trackClick({
                               source: 'home',
                               cta_type: 'shop_reorder_buy_direct',
