@@ -2779,12 +2779,16 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
             setShowUpcomingSheet(false);
             const target = r.action_target;
             if (QUICK_ACTION_TARGETS.has(target)) {
+              // r.status/r.diff reflect the real reminder — this used to be
+              // hardcoded to 'upcoming' regardless, so tapping an overdue
+              // item from the bell showed "EM BREVE" instead of "ATRASADO".
               setHealthQuickAction({
                 action_target: target,
                 label: r.label,
                 pet_id: currentPet.pet_id,
                 pet_name: currentPet.pet_name,
-                status: 'upcoming',
+                status: r.status,
+                days_overdue: r.diff < 0 ? Math.abs(r.diff) : undefined,
                 source_record_id: r.source_record_id,
               });
             } else if (target === 'health/events') {

@@ -148,7 +148,31 @@ function makeKey(
 // ─── Domain Processors ────────────────────────────────────────────────────────
 
 function processVaccines(p: PetCareDomainParams): PetCareReminder[] {
-  if (!p.vaccines.length) return [];
+  // A pet with ZERO vaccine records has no next_dose_date to derive a
+  // reminder from, so this used to just return [] — meaning the bell (and
+  // everything downstream of it) had no way to say "you never even
+  // started tracking vaccines for this pet", the single worst case,
+  // silently treated as if there was nothing to remind about at all. Real
+  // complaint: a pet with no vaccines showed as fully up to date in the
+  // bell. A synthetic reminder here (diff deeply negative so it sorts and
+  // groups as the most overdue thing) keeps this consistent with the
+  // Saúde card dot and the household badge, both already fixed to treat
+  // "no vaccine ever" as needing attention.
+  if (!p.vaccines.length) {
+    return [{
+      key: makeKey(p.pet_id, 'vaccine', 'none', 'unregistered', 'none'),
+      pet_id: p.pet_id,
+      pet_name: p.pet_name,
+      domain: 'vaccine',
+      label: 'Nenhuma vacina registrada',
+      icon: '💉',
+      due_date: dateToLocalISO(todayMidnight()),
+      diff: -9999,
+      status: 'overdue',
+      action_target: 'health/vaccines',
+      is_derived: true,
+    }];
+  }
 
   const latestByGroup = latestVaccinePerGroup(p.vaccines);
   const vTypeLabels: Record<string, string | undefined> = {

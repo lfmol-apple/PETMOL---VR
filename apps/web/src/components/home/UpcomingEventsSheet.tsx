@@ -11,7 +11,20 @@ interface Props {
   onSelect: (r: PetCareReminder) => void;
 }
 
+// Overdue (diff < 0) items only started reaching this sheet once the bell
+// stopped filtering them out (see HomePetDashboard.tsx) — before that,
+// diff was always >= 0 here, so nothing below ever needed to handle a
+// negative number. Without this, an overdue item rendered as "Em -5 dias",
+// which reads as nonsense rather than "atrasado".
 function diffLabel(diff: number): string {
+  if (diff < 0) {
+    const days = Math.abs(diff);
+    if (days === 1) return 'Atrasado 1 dia';
+    if (days < 7) return `Atrasado ${days} dias`;
+    if (days < 30) return `Atrasado ${Math.round(days / 7)} sem.`;
+    if (days < 365) return `Atrasado ${Math.round(days / 30)} meses`;
+    return `Atrasado ${Math.round(days / 365)} ano${Math.round(days / 365) > 1 ? 's' : ''}`;
+  }
   if (diff === 0) return 'Hoje';
   if (diff === 1) return 'Amanhã';
   if (diff < 7) return `Em ${diff} dias`;
@@ -21,6 +34,7 @@ function diffLabel(diff: number): string {
 }
 
 function groupLabel(diff: number): string {
+  if (diff < 0) return 'Atrasado';
   if (diff === 0) return 'Hoje';
   if (diff <= 7) return 'Esta semana';
   if (diff <= 30) return 'Este mês';
@@ -29,6 +43,7 @@ function groupLabel(diff: number): string {
 }
 
 function groupOrder(diff: number): number {
+  if (diff < 0) return -1;
   if (diff === 0) return 0;
   if (diff <= 7) return 1;
   if (diff <= 30) return 2;
@@ -112,7 +127,9 @@ export function UpcomingEventsSheet({ open, onClose, reminders, petName, onSelec
                         )}
                       </div>
                       <span className={`flex-shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full ${
-                        r.diff === 0
+                        r.diff < 0
+                          ? 'bg-rose-100 text-rose-700'
+                          : r.diff === 0
                           ? 'bg-amber-100 text-amber-700'
                           : r.diff <= 7
                           ? 'bg-orange-100 text-orange-700'
