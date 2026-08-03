@@ -729,7 +729,7 @@ function VaccineRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-bold text-gray-900 truncate">{v.vaccine_name}</p>
-            {diff !== null && diff < 0 && (
+            {isCurrent && diff !== null && diff < 0 && (
               <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm border border-white/50 flex-shrink-0">
                 !
               </div>
@@ -745,7 +745,12 @@ function VaccineRow({
             {v.next_dose_date && (
               <>
                 {' · '}próxima {fmtDate(v.next_dose_date)}
-                {diff !== null && (
+                {/* A superseded record's own next_dose_date is naturally in
+                    the past by now — that's expected history, not a current
+                    concern, since a later dose already replaced it. Only the
+                    CURRENT record per vaccine group gets the "overdue"
+                    framing/color; older ones just show the plain date. */}
+                {isCurrent && diff !== null && (
                   <span className={`ml-1 font-medium ${
                     diff < 0 ? 'text-rose-600' : diff <= 7 ? 'text-amber-600' : ''
                   }`}>
