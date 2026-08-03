@@ -103,17 +103,21 @@ export function useHomeInteractionCenter(
         resolveTone(petEvents.filter((event) => event.action_target === 'health/parasites/dewormer')),
         resolveTone(petEvents.filter((event) => event.action_target === 'health/parasites/flea_tick')),
         resolveTone(petEvents.filter((event) => event.domain === 'food')),
+        resolveTone(petEvents.filter((event) => event.domain === 'medication')),
       ];
       // 'neutral' (never registered at all) counts as needing attention
       // ONLY for vaccine — a pet with zero vaccine history is a real,
       // deliberate gap worth flagging, not just a missing data point (per
-      // explicit feedback). vermífugo/antipulgas/ração stay 'critical'-only:
-      // a household-wide count needs to be trustworthy, and letting
-      // 'neutral' count on all 4 domains previously inflated the total past
-      // the number of pets with an actually overdue problem ("system says
-      // 7 pets need attention, really only 3 do" — every pet simply
-      // missing ONE domain's data, e.g. never logged "ração" for a
-      // secondary pet, got flagged even though nothing was really due).
+      // explicit feedback). vermífugo/antipulgas/ração/medicação stay
+      // 'critical'-only: a household-wide count needs to be trustworthy,
+      // and letting 'neutral' count on every domain previously inflated
+      // the total past the number of pets with an actually overdue
+      // problem ("system says 7 pets need attention, really only 3 do" —
+      // every pet simply missing ONE domain's data, e.g. never logged
+      // "ração" for a secondary pet, got flagged even though nothing was
+      // really due). Medication in particular must stay 'critical'-only —
+      // most pets have no medication at all, and 'neutral' there is the
+      // normal, expected case, not a gap.
       if (vaccineTone === 'critical' || vaccineTone === 'neutral') return true;
       return otherTones.some((tone) => tone === 'critical');
     });

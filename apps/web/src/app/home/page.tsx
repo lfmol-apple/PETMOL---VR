@@ -662,6 +662,10 @@ function HomePageInner() {
   const [showPetSumidoSheet, setShowPetSumidoSheet] = useState(false);
   const [showUpcomingSheet, setShowUpcomingSheet] = useState(false);
   const [allUpcomingReminders, setAllUpcomingReminders] = useState<PetCareReminder[]>([]);
+  // Stricter than allUpcomingReminders.length: only overdue/today for the
+  // selected pet — the bell's badge NUMBER, so "vence em 3 semanas" doesn't
+  // dilute it. The sheet itself still shows the full list on tap.
+  const [pendingReminderCount, setPendingReminderCount] = useState(0);
 
   // Alertas de pets sumidos próximos (não são do usuário logado)
   type NearbyAlert = {
@@ -2289,7 +2293,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       showTopAttentionModal={showTopAttentionModal}
                       topAttentionAlerts={topAttentionAlerts}
                       onAlertSelect={handleTopAttentionSelect}
-                      upcomingCount={allUpcomingReminders.length}
+                      upcomingCount={pendingReminderCount}
                       onOpenUpcoming={() => setShowUpcomingSheet(true)}
                       basicCareAttentionPetNames={basicCareAttentionPetNames}
                     />
@@ -2356,7 +2360,10 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     onOpenEvents={handleOpenEvents}
                     onOpenFamily={togglePetSelector}
                     onOpenPetSumido={() => setShowPetSumidoSheet(true)}
-                    onUpcomingCountChange={(_count, reminders) => setAllUpcomingReminders(reminders)}
+                    onUpcomingCountChange={(count, reminders) => {
+                      setPendingReminderCount(count);
+                      setAllUpcomingReminders(reminders);
+                    }}
                     onHealthItemClick={setHealthQuickAction}
                   />
                 </PetTabs>
