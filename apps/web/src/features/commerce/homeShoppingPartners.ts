@@ -143,15 +143,19 @@ const DIRECT_SEARCH_URLS: Record<HomeShoppingPartnerId, (q: string) => string> =
   araujo:       (q) => `https://www.araujo.com.br/busca?q=${encodeURIComponent(q)}`,
 };
 
-// TESTE: link de afiliado DIRETO da Cobasi ("Minha Loja"), fornecido pela
-// própria Cobasi com utm_campaign=petmol já embutido — programa próprio
-// deles, fora da Lomadee (que é como o resto do arquivo trata Cobasi hoje).
-// A página carrega o conteúdo via JS (não deu pra confirmar sem navegador
-// se ela realmente filtra por produto), então ?q= aqui é uma HIPÓTESE — a
-// mesma convenção que o site normal da Cobasi usa (cobasi.com.br/busca?q=).
-// Prioridade temporária sobre a Lomadee/busca direta abaixo, especificamente
-// pra testar isso ao vivo no app. Reverter é só remover este bloco.
-const COBASI_MINHA_LOJA_BASE = 'https://minhaloja.cobasi.com.br/paco?utm_source=mais&utm_medium=maisplataforma&utm_campaign=petmol';
+// Cobasi's "Minha Loja"/"Mais" storefront (minhaloja.cobasi.com.br/paco)
+// was tried here as a direct-affiliate alternative to Lomadee below, but
+// reverse-engineered and ruled out for this use case: its own loader
+// script (maisLoad.js) only reads utm_campaign to fetch a FIXED, pre-
+// curated product showcase from a third-party API
+// (api-seedmais.mais.com.br/api/Store/{campaign}) — it has no query/search
+// parameter at all, so it can never deep-link to a specific product like
+// "Comprar novamente" needs (confirmed by reading the actual loader
+// script, not guessing). Also found that API currently returns 503 for
+// the "petmol" campaign, so the store may not even be provisioned yet.
+// Worth revisiting as a generic "visit our curated Cobasi picks" entry
+// point once that's confirmed working — not as a replacement for
+// per-product search.
 
 /**
  * Resolve a URL final de um parceiro para um produto específico.
@@ -163,10 +167,6 @@ export function resolvePartnerUrl(
   query: string,
   _leadId: string,
 ): string {
-  if (partner.id === 'cobasi') {
-    return `${COBASI_MINHA_LOJA_BASE}&q=${encodeURIComponent(query)}`;
-  }
-
   const affId = AFF[partner.id];
 
   // Afiliado configurado → usa link rastreado diretamente
