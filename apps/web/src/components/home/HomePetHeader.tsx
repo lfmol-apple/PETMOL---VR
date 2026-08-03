@@ -39,15 +39,13 @@ interface HomePetHeaderProps {
   onAlertSelect: (alert: PetInteractionItem) => void;
   upcomingCount: number;
   onOpenUpcoming: () => void;
-  // Basic-care status for THIS pet specifically — vacina/vermífugo/
-  // antipulgas/ração, the minimum that applies to every pet regardless of
-  // health condition (medication and grooming intentionally excluded: not
-  // every pet takes medication, so scoring their absence would unfairly
-  // flag a healthy pet with no chronic condition).
-  colorVacinas: 'neutral' | 'ok' | 'warning' | 'critical';
-  colorVermifugo: 'neutral' | 'ok' | 'warning' | 'critical';
-  colorAntipulgas: 'neutral' | 'ok' | 'warning' | 'critical';
-  colorFood: 'neutral' | 'ok' | 'warning' | 'critical';
+  // How many pets across the WHOLE household need attention on the basic-
+  // care minimum (vacina/vermífugo/antipulgas/ração — the items that apply
+  // to every pet regardless of health condition; medication/grooming
+  // excluded on purpose, since not every pet takes medication). Computed
+  // once in useHomeInteractionCenter.ts and shared across the household,
+  // not scoped to just the currently-selected pet.
+  basicCareAttentionPetCount: number;
 }
 
 export function HomePetHeader({
@@ -73,10 +71,7 @@ export function HomePetHeader({
   onAlertSelect,
   upcomingCount,
   onOpenUpcoming,
-  colorVacinas,
-  colorVermifugo,
-  colorAntipulgas,
-  colorFood,
+  basicCareAttentionPetCount,
 }: HomePetHeaderProps) {
   const { t } = useI18n();
   const nameButtonRef = useRef<HTMLButtonElement>(null);
@@ -180,14 +175,11 @@ export function HomePetHeader({
   ].filter(Boolean) as string[];
 
   const currentPetPhotoUrl = getPhotoUrl(currentPet.photo, currentPet.pet_id, photoTimestamps);
-  // Basic-care status badge: vacina/vermífugo/antipulgas/ração for THIS
-  // pet, worst-of-4 — any one overdue (or never registered at all, matching
-  // the same "no data = alert" convention the food card already uses)
-  // flips the whole badge to "Precisa de atenção". "warning" (due soon,
-  // not yet late) is intentionally NOT included — this badge is about
-  // catching what's actually been missed, not what's merely upcoming.
-  const basicCareTones = [colorVacinas, colorVermifugo, colorAntipulgas, colorFood];
-  const hasVisibleAttention = basicCareTones.some((tone) => tone === 'critical' || tone === 'neutral');
+  // Basic-care badge: how many pets in the household need attention on
+  // vacina/vermífugo/antipulgas/ração — see basicCareAttentionPetCount's
+  // definition (useHomeInteractionCenter.ts) for what counts as "needing
+  // attention" (actually overdue, or never registered at all).
+  const hasVisibleAttention = basicCareAttentionPetCount > 0;
 
   return (
     <>    <div className="px-3 pt-2 space-y-2 sm:px-4 sm:pt-4 sm:space-y-3">
@@ -329,7 +321,9 @@ export function HomePetHeader({
             >
               <div className={`w-1.5 h-1.5 rounded-full ${hasVisibleAttention ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
               <span className="truncate text-[10px] font-bold tracking-wide">
-                {hasVisibleAttention ? 'Precisa de atenção' : 'Em dia'}
+                {hasVisibleAttention
+                  ? `${basicCareAttentionPetCount} ${basicCareAttentionPetCount === 1 ? 'pet precisa' : 'pets precisam'} de atenção`
+                  : 'Em dia'}
               </span>
             </div>
           </div>

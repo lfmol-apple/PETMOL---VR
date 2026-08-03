@@ -27,6 +27,14 @@ interface HomeInteractionCenterResult {
     grooming: CardTone;
     food: CardTone;
   };
+  // How many pets across the whole household need attention on the basic-
+  // care minimum (vacina/vermífugo/antipulgas/ração — the items that apply
+  // to every pet regardless of health condition; medication/coleira/
+  // grooming excluded on purpose). Distinct from topAttentionPetCount
+  // (which covers a broader interaction set) and from selectedPetCard* (
+  // which is scoped to only the currently-selected pet) — this one is
+  // cross-pet, for the badge below the pet photo on Home.
+  basicCareAttentionPetCount: number;
 }
 
 function resolveTone(events: CanonicalPetEvent[]): CardTone {
@@ -45,6 +53,7 @@ export function useHomeInteractionCenter(
   interactions: PetInteractionItem[],
   canonicalEvents: CanonicalPetEvent[],
   selectedPetId: string | null,
+  allPetIds: string[] = [],
 ): HomeInteractionCenterResult {
   return useMemo(() => {
     const rules = loadMasterInteractionRules();
@@ -78,6 +87,27 @@ export function useHomeInteractionCenter(
     const collarEvents = selectedPetEvents.filter((event) => event.action_target === 'health/parasites/collar');
     const foodEvents = selectedPetEvents.filter((event) => event.domain === 'food');
 
+    // Basic-care count across ALL pets — 'critical' (actually overdue) or
+    // 'neutral' (never registered at all, same "missing data is itself a
+    // gap" convention the food card's "Cuidado em aberto" already uses) on
+    // any of the 4 domains flags that pet. 'warning' (due soon, not yet
+    // late) intentionally does NOT count — this is about what's actually
+    // been missed, not what's merely upcoming.
+    const basicCareAttentionPetCount = allPetIds.filter((petId) => {
+      const petEvents = canonicalEvents.filter((event) => (
+        event.pet_id === petId
+        && event.domain !== 'grooming'
+        && isEventVisibleOnHome(event, rules)
+      ));
+      const tones = [
+        resolveTone(petEvents.filter((event) => event.domain === 'vaccine')),
+        resolveTone(petEvents.filter((event) => event.action_target === 'health/parasites/dewormer')),
+        resolveTone(petEvents.filter((event) => event.action_target === 'health/parasites/flea_tick')),
+        resolveTone(petEvents.filter((event) => event.domain === 'food')),
+      ];
+      return tones.some((tone) => tone === 'critical' || tone === 'neutral');
+    }).length;
+
     return {
       topAttentionAlerts,
       topAttentionPetCount,
@@ -99,6 +129,7 @@ export function useHomeInteractionCenter(
         grooming: 'neutral',
         food: resolveTone(foodEvents),
       },
+      basicCareAttentionPetCount,
     };
-  }, [interactions, canonicalEvents, selectedPetId]);
+  }, [interactions, canonicalEvents, selectedPetId, allPetIds]);
 }

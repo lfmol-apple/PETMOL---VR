@@ -1225,15 +1225,18 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     feedingPlanByPet: feedingPlan,
     petEventsByPet,
   });
+  const allPetIds = useMemo(() => pets.map((p) => p.pet_id), [pets]);
   const {
     topAttentionAlerts,
     topAttentionPetCount,
     selectedPetCardAlerts,
     selectedPetCardColors,
+    basicCareAttentionPetCount,
   } = useHomeInteractionCenter(
     multipetInteractions.interactions,
     multipetInteractions.canonicalEvents,
     selectedPetId,
+    allPetIds,
   );
 
   // Dispatcher frontend e pendencies sem superfície foram desativados.
@@ -2279,10 +2282,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       onAlertSelect={handleTopAttentionSelect}
                       upcomingCount={allUpcomingReminders.length}
                       onOpenUpcoming={() => setShowUpcomingSheet(true)}
-                      colorVacinas={selectedPetCardColors.vacinas}
-                      colorVermifugo={selectedPetCardColors.vermifugo}
-                      colorAntipulgas={selectedPetCardColors.antipulgas}
-                      colorFood={selectedPetCardColors.food}
+                      basicCareAttentionPetCount={basicCareAttentionPetCount}
                     />
 
                   {/* Compartilhar cuidado — só para o dono do pet */}
