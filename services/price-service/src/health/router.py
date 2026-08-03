@@ -62,6 +62,46 @@ def _check_pet_ownership(pet_id: str, user: User, db: Session) -> Pet:
     return get_accessible_pet_or_404(db, user.id, pet_id)
 
 
+# --- Puppy/kitten age-gated protocol (WSAVA 2024 guidelines) -----------------
+# Puppies/kittens need a core-vaccine series every 2-4 weeks starting around
+# 6-8 weeks of age, with the FINAL dose at 16+ weeks — maternal antibodies
+# block the vaccine from taking effect reliably before then, so a flat
+# annual/catalog interval (built for adults) is wrong for this whole stage.
+# One more booster at 26+ weeks is recommended to immunise the minority of
+# animals still under antibody interference at their 16-week dose. Source:
+# WSAVA Vaccination Guidelines Group, 2024
+# (https://wsava.org/wp-content/uploads/2024/04/WSAVA-Vaccination-guidelines-2024.pdf).
+#
+# This is a SUGGESTION, not a mandate — the tutor (and vet) can always
+# override next_due_on manually; see the priority order in
+# bulk_confirm_vaccines below. Only applies when we actually know the pet's
+# birth date; falls through to the normal catalog/fallback logic for adult
+# pets or when birth date is unknown (e.g. an adopted adult with no reliable
+# history).
+PUPPY_SERIES_CUTOFF_DAYS = 16 * 7   # 112 — keep boosting until 16+ weeks old
+PUPPY_BOOSTER_CUTOFF_DAYS = 26 * 7  # 182 — one more booster at 26+ weeks old
+PUPPY_SERIES_INTERVAL_DAYS = 21     # 3 weeks — common BR practice (e.g. V10 ~45/65/90d), within WSAVA's 2-4 week range; always editable by the tutor
+
+
+def _puppy_protocol_next_dose(pet_birth_date: Optional[date], applied_date: datetime) -> Optional[datetime]:
+    """Returns a suggested next-dose date if this vaccine was given while the
+    pet was still in its puppy/kitten core-vaccine window, else None (meaning:
+    use the normal adult catalog/fallback logic instead)."""
+    if not pet_birth_date:
+        return None
+    age_days = (applied_date.date() - pet_birth_date).days
+    if age_days < 0 or age_days >= PUPPY_BOOSTER_CUTOFF_DAYS:
+        return None
+    if age_days < PUPPY_SERIES_CUTOFF_DAYS:
+        return applied_date + timedelta(days=PUPPY_SERIES_INTERVAL_DAYS)
+    # 16-26 weeks old: this dose is at/around the "final" series dose —
+    # suggest the 26-week safety booster, floored so it's never sooner than
+    # a normal series gap even if already close to 26 weeks at this dose.
+    booster_date = datetime.combine(pet_birth_date, datetime.min.time()) + timedelta(days=PUPPY_BOOSTER_CUTOFF_DAYS)
+    floor_date = applied_date + timedelta(days=14)
+    return max(booster_date, floor_date)
+
+
 def _vaccine_record_to_response(record: VaccineRecord) -> VaccineResponse:
     """Convert ORM VaccineRecord to response schema."""
     # Resolve canonical_name from catalog if vaccine_code is known
@@ -464,9 +504,12 @@ async def bulk_confirm_vaccines(
     Catalog enrichment logic per vaccine:
     1. Try to map display_name → vaccine_code via country+species aliases.
     2. If caller provides next_due_on → respect it, mark next_due_source="manual".
-    3. If no next_due_on but catalog entry has interval_days → calculate,
+    3. If no next_due_on and the pet's age at applied_date puts it in the
+       puppy/kitten core-vaccine window (WSAVA guidelines) → calculate,
+       mark next_due_source="puppy_protocol".
+    4. If no next_due_on and catalog entry has interval_days → calculate,
        mark next_due_source="protocol".
-    4. If no mapping and no next_due_on → fallback 1 year,
+    5. If no mapping and no next_due_on → fallback 1 year,
        mark next_due_source="unknown".
     """
     # Validate pet belongs to user
@@ -509,8 +552,16 @@ async def bulk_confirm_vaccines(
         )
 
         if not vac.next_due_on:
+            # Puppy/kitten age-gated protocol takes priority over the adult
+            # catalog interval — a flat annual (or any fixed) interval is
+            # simply the wrong schedule for an animal still in its core
+            # series. See _puppy_protocol_next_dose above.
+            puppy_next_due = _puppy_protocol_next_dose(pet.birth_date, applied_date)
+            if puppy_next_due:
+                next_due_date = puppy_next_due
+                next_due_source = "puppy_protocol"
             # Try protocol interval if we found a match
-            if resolved_code and resolved_code in VACCINE_CATALOG:
+            elif resolved_code and resolved_code in VACCINE_CATALOG:
                 entry = VACCINE_CATALOG[resolved_code]
                 if entry.interval_days:
                     next_due_date = applied_date + timedelta(days=entry.interval_days)

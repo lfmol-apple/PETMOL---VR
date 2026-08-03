@@ -55,7 +55,7 @@ export function computeCareBreakdown(
     if (historyStatus === 'history') return false;
     if (historyStatus === 'current' || historyStatus === 'active') return true;
     if (trackingMode === 'active' || trackingMode === 'protocol') return true;
-    if (dueSource === 'protocol') return true;
+    if (dueSource === 'protocol' || dueSource === 'puppy_protocol') return true;
     return false;
   });
 

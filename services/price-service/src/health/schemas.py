@@ -54,7 +54,7 @@ class VaccineResponse(BaseModel):
     dose_number: Optional[int] = None
     applied_on: str
     next_due_on: Optional[str] = None
-    next_due_source: str = "unknown"      # protocol | manual | unknown
+    next_due_source: str = "unknown"      # protocol | manual | unknown | puppy_protocol
     notes: Optional[str] = None
     source: str
     confirmed_by_user: bool

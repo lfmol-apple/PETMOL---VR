@@ -46,6 +46,42 @@ const createLocalDate = (dateStr: string): Date => {
   return new Date(year, month - 1, day);
 };
 
+// --- Puppy/kitten age-gated protocol (WSAVA 2024 guidelines) ---------------
+// Mirrors the backend's _puppy_protocol_next_dose (services/price-service/
+// src/health/router.py) — kept in sync deliberately, same constants. Needed
+// HERE too, not just on the backend: the form always computes and sends an
+// explicit next_due_on (see handleSaveVaccine below), and the backend only
+// applies its own age-gated logic when next_due_on is ABSENT — so without
+// this, the frontend's flat 365-day guess would always win before the
+// backend's age-aware one ever got a chance to run.
+// Source: WSAVA Vaccination Guidelines Group, 2024
+// (https://wsava.org/wp-content/uploads/2024/04/WSAVA-Vaccination-guidelines-2024.pdf) —
+// core series every 2-4 weeks until 16+ weeks old, one more booster at 26+
+// weeks, then the normal adult schedule. This is a SUGGESTION pre-filled
+// into an editable date field — the tutor (or vet) can always change it.
+const PUPPY_SERIES_CUTOFF_DAYS = 16 * 7;   // 112
+const PUPPY_BOOSTER_CUTOFF_DAYS = 26 * 7;  // 182
+const PUPPY_SERIES_INTERVAL_DAYS = 21;     // 3 weeks
+
+function puppyProtocolNextDose(petBirthDate: string | undefined, appliedDate: Date): Date | null {
+  if (!petBirthDate) return null;
+  const birth = createLocalDate(petBirthDate);
+  const ageDays = Math.round((appliedDate.getTime() - birth.getTime()) / 86_400_000);
+  if (ageDays < 0 || ageDays >= PUPPY_BOOSTER_CUTOFF_DAYS) return null;
+  if (ageDays < PUPPY_SERIES_CUTOFF_DAYS) {
+    const next = new Date(appliedDate);
+    next.setDate(next.getDate() + PUPPY_SERIES_INTERVAL_DAYS);
+    return next;
+  }
+  // 16-26 weeks old: suggest the 26-week safety booster, floored so it's
+  // never sooner than a normal series gap even if already close to 26 weeks.
+  const boosterDate = new Date(birth);
+  boosterDate.setDate(boosterDate.getDate() + PUPPY_BOOSTER_CUTOFF_DAYS);
+  const floorDate = new Date(appliedDate);
+  floorDate.setDate(floorDate.getDate() + 14);
+  return boosterDate.getTime() > floorDate.getTime() ? boosterDate : floorDate;
+}
+
 const DEFAULT_VACCINE_FORM: VaccineFormData = {
   vaccine_type: 'multiple' as VaccineType,
   vaccine_name: '',
@@ -272,8 +308,11 @@ export function useVaccineManagement({
           source: 'manual',
           confirmed_by_user: true,
         };
+        const puppyNextDose = vaccineFormData.date_administered
+          ? puppyProtocolNextDose(currentPet.birth_date, createLocalDate(vaccineFormData.date_administered))
+          : null;
         const computedNextDose = vaccineFormData.date_administered
-          ? calculateNextDose(vaccineFormData.date_administered, vaccineFormData.frequency_days || 365)
+          ? (puppyNextDose ? dateToLocalISO(puppyNextDose) : calculateNextDose(vaccineFormData.date_administered, vaccineFormData.frequency_days || 365))
           : null;
         const nextDoseHint = vaccineFormData.next_dose_date || computedNextDose;
         if (nextDoseHint) vaccinePayload.next_due_on = nextDoseHint;
@@ -601,6 +640,9 @@ export function useVaccineManagement({
     const quickNotes = isUnknownDate
       ? 'Data aproximada (date_unknown=true). Vale confirmar com seu veterinário.'
       : t('health.added_via_quick');
+    const quickNextDueOn = isUnknownDate
+      ? dateToLocalISO(puppyProtocolNextDose(currentPet.birth_date, createLocalDate(today)) ?? createLocalDate(calculateNextDose(today, 365)))
+      : undefined;
 
     try {
       const res = await fetch(
@@ -622,7 +664,7 @@ export function useVaccineManagement({
                 confirmed_by_user: true,
                 notes: quickNotes,
                 record_type: isUnknownDate ? 'estimated_control_start' : 'confirmed_application',
-                ...(isUnknownDate ? { next_due_on: calculateNextDose(today, 365) } : {}),
+                ...(quickNextDueOn ? { next_due_on: quickNextDueOn } : {}),
               },
             ],
           }),
