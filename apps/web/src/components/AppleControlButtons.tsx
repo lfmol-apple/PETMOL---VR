@@ -79,7 +79,7 @@ export function AppleControlButtons({
 
   return (
     <>
-      {/* Grid 2×2: Alimentação | Medicação / Saúde | Shopping */}
+      {/* Grid 2×2: Alimentação | Saúde / Caderneta | Shopping */}
       <div className="relative">
         <div className="grid grid-cols-2 gap-2 min-[390px]:gap-2.5">
 
@@ -122,16 +122,18 @@ export function AppleControlButtons({
             </div>
           </button>
 
-          {/* 3. PET SUMIDO */}
+          {/* 3. CADERNETA */}
           <button
             type="button"
-            onClick={onPetSumidoClick}
-            className="group relative min-h-[68px] overflow-hidden rounded-xl border border-red-400 bg-gradient-to-br from-red-100 via-rose-100 to-red-200 p-2.5 shadow-sm shadow-red-900/15 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            onClick={onDocumentosClick}
+            className="group relative min-h-[68px] overflow-hidden rounded-xl border border-violet-400 bg-gradient-to-br from-violet-100 via-purple-100 to-purple-200 p-2.5 shadow-sm shadow-violet-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
-            <span className="absolute right-2 top-2 text-[18px] opacity-95 pointer-events-none transition-transform group-hover:scale-110 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">🚨</span>
+            <span className="absolute right-2 top-2 text-[18px] opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">📓</span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
-              <h3 className="truncate text-[13px] font-black leading-tight text-red-950 min-[390px]:text-[14px] sm:text-base">Pet Sumido</h3>
-              <p className="mt-0.5 line-clamp-1 text-[9px] font-semibold leading-[1.1] text-red-800/90 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">Gerar alerta urgente</p>
+              <h3 className="truncate text-[13px] font-semibold leading-tight text-violet-950 min-[390px]:text-[14px] sm:text-base">
+                {petName ? `Caderneta de ${petName}` : 'Caderneta do Pet'}
+              </h3>
+              <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-violet-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">Vacinas, exames e documentos</p>
             </div>
           </button>
 
@@ -150,23 +152,21 @@ export function AppleControlButtons({
 
         </div>
 
-        {/* Abaixo do grid: Histórico + Socorro */}
+        {/* Abaixo do grid: Pet Sumido + Socorro (agrupados — ambos de urgência) */}
         <div className="mt-2 space-y-2 min-[390px]:mt-2.5">
           <button
             type="button"
-            onClick={onDocumentosClick}
-            className="group relative flex min-h-[44px] w-full items-center gap-2 overflow-hidden rounded-xl border border-violet-200 bg-gradient-to-r from-violet-50 to-purple-50 p-2.5 shadow-sm shadow-violet-900/5 transition-all duration-300 hover:from-violet-100 hover:to-purple-100 hover:shadow-md active:scale-[0.98] min-[390px]:min-h-[52px] min-[390px]:gap-2.5 min-[390px]:rounded-2xl min-[390px]:p-3"
+            onClick={onPetSumidoClick}
+            className="group relative flex min-h-[44px] w-full items-center gap-2 overflow-hidden rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 p-2.5 shadow-sm shadow-red-900/5 transition-all duration-300 hover:shadow-md active:scale-[0.98] min-[390px]:min-h-[52px] min-[390px]:gap-2.5 min-[390px]:rounded-2xl min-[390px]:p-3"
           >
-            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-violet-100 transition-transform group-hover:scale-105 min-[390px]:h-8 min-[390px]:w-8">
-              <span className="pointer-events-none text-base min-[390px]:text-lg">📓</span>
+            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-red-100 transition-transform group-hover:scale-105 min-[390px]:h-8 min-[390px]:w-8">
+              <span className="pointer-events-none text-base min-[390px]:text-lg">🚨</span>
             </div>
             <div className="min-w-0 flex-1 text-left">
-              <h3 className="truncate text-[13px] font-bold leading-tight text-violet-900 min-[390px]:text-[14px] sm:text-base">
-                {petName ? `Caderneta de ${petName}` : 'Caderneta do Pet'}
-              </h3>
-              <p className="mt-0.5 truncate text-[9px] font-semibold leading-[1.1] text-violet-600/80 min-[390px]:text-[10px] sm:text-xs">Vacinas · exames · laudos · documentos</p>
+              <h3 className="truncate text-[13px] font-black leading-tight text-red-800 min-[390px]:text-[14px] sm:text-base">Pet Sumido</h3>
+              <p className="mt-0.5 truncate text-[9px] font-semibold leading-[1.1] text-red-600/80 min-[390px]:text-[10px] sm:text-xs">Gerar alerta urgente</p>
             </div>
-            <span className="text-lg text-violet-300 transition-transform group-hover:translate-x-1">›</span>
+            <span className="text-lg text-red-300 transition-transform group-hover:translate-x-1">›</span>
           </button>
 
           <button
