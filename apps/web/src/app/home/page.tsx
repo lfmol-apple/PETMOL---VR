@@ -1901,28 +1901,35 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         </div>
       </div>
       <div className="max-w-2xl mx-auto px-4 py-4">
-        {pets.length > 0 && (syncStatus === 'offline' || syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale || justSynced) && (
-          <div className="mb-3 flex justify-center">
-            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-sm ${
-              syncStatus === 'offline'
-                ? 'border-rose-200 bg-rose-50 text-rose-700'
-                : syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale
-                  ? 'border-amber-200 bg-amber-50 text-amber-800'
-                  : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-            }`}>
-              <span className={`h-2 w-2 rounded-full ${
+        {/* Fixed-height slot, always mounted while there's a pet — the pill
+            INSIDE still mounts/unmounts on sync-state changes, but the slot
+            itself never does, so the pet card and everything below it never
+            shifts when the pill appears/disappears (confirmed real
+            complaint: "Sincronizado" showing up was moving the screen). */}
+        {pets.length > 0 && (
+          <div className="mb-3 flex h-9 items-center justify-center">
+            {(syncStatus === 'offline' || syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale || justSynced) && (
+              <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-sm ${
                 syncStatus === 'offline'
-                  ? 'bg-rose-500'
+                  ? 'border-rose-200 bg-rose-50 text-rose-700'
                   : syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale
-                    ? 'bg-amber-500'
-                    : 'bg-emerald-500'
-              }`} />
-              {syncStatus === 'offline'
-                ? 'Sem conexão'
-                : syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale
-                  ? 'Tentando reconectar'
-                  : 'Sincronizado'}
-            </div>
+                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              }`}>
+                <span className={`h-2 w-2 rounded-full ${
+                  syncStatus === 'offline'
+                    ? 'bg-rose-500'
+                    : syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale
+                      ? 'bg-amber-500'
+                      : 'bg-emerald-500'
+                }`} />
+                {syncStatus === 'offline'
+                  ? 'Sem conexão'
+                  : syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale
+                    ? 'Tentando reconectar'
+                    : 'Sincronizado'}
+              </div>
+            )}
           </div>
         )}
 
