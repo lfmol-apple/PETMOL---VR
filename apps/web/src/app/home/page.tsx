@@ -49,7 +49,6 @@ import { useHomeInteractionCenter } from '@/features/interactions/useHomeInterac
 import { requestUserConfirmation, showAppToast, showBlockingNotice } from '@/features/interactions/userPromptChannel';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { getPetCareCollections } from '@/features/pets/healthCollections';
-import { computeCareBreakdown } from '@/features/care/computeCareBreakdown';
 import { usePetEventManagement } from '@/hooks/usePetEventManagement';
 import { useVaccineCardWorkflow } from '@/hooks/useVaccineCardWorkflow';
 import { useParasiteManagement } from '@/hooks/useParasiteManagement';
@@ -1229,7 +1228,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   const {
     topAttentionAlerts,
     topAttentionPetCount,
-    selectedPetAllAlerts: _selectedPetAllAlerts,
     selectedPetCardAlerts,
     selectedPetCardColors,
   } = useHomeInteractionCenter(
@@ -1244,17 +1242,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     () => String(loggedUserId || tutor?.id || currentPet?.owner_user_id || 'petmol-home'),
     [loggedUserId, tutor?.id, currentPet?.owner_user_id]
   );
-
-  const _selectedPetCareBreakdown = useMemo(
-    () => computeCareBreakdown(currentPet, petEvents, vaccines, parasiteControls, groomingRecords, _selectedPetAllAlerts),
-    [_selectedPetAllAlerts, currentPet, petEvents, vaccines, parasiteControls, groomingRecords],
-  );
-  const _selectedPetCareScore = useMemo(() => {
-    if (_selectedPetCareBreakdown.totalItems === 0) return 100;
-    const proportional = Math.round((_selectedPetCareBreakdown.compliantItems / _selectedPetCareBreakdown.totalItems) * 100);
-    return Math.max(15, Math.min(100, proportional));
-  }, [_selectedPetCareBreakdown]);
-  const _selectedPetNeedsAttention = _selectedPetCareBreakdown.overdueItems > 0;
 
   const activeMedicationCount = useMemo(() => {
     return petEvents.filter(ev => {
@@ -2283,10 +2270,12 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       showTopAttentionModal={showTopAttentionModal}
                       topAttentionAlerts={topAttentionAlerts}
                       onAlertSelect={handleTopAttentionSelect}
-                      selectedPetNeedsAttention={_selectedPetNeedsAttention}
-                      selectedPetCareScore={_selectedPetCareScore}
                       upcomingCount={allUpcomingReminders.length}
                       onOpenUpcoming={() => setShowUpcomingSheet(true)}
+                      colorVacinas={selectedPetCardColors.vacinas}
+                      colorVermifugo={selectedPetCardColors.vermifugo}
+                      colorAntipulgas={selectedPetCardColors.antipulgas}
+                      colorFood={selectedPetCardColors.food}
                     />
 
                   {/* Compartilhar cuidado — só para o dono do pet */}
