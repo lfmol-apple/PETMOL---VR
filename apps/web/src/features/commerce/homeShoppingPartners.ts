@@ -143,6 +143,16 @@ const DIRECT_SEARCH_URLS: Record<HomeShoppingPartnerId, (q: string) => string> =
   araujo:       (q) => `https://www.araujo.com.br/busca?q=${encodeURIComponent(q)}`,
 };
 
+// TESTE: link de afiliado DIRETO da Cobasi ("Minha Loja"), fornecido pela
+// própria Cobasi com utm_campaign=petmol já embutido — programa próprio
+// deles, fora da Lomadee (que é como o resto do arquivo trata Cobasi hoje).
+// A página carrega o conteúdo via JS (não deu pra confirmar sem navegador
+// se ela realmente filtra por produto), então ?q= aqui é uma HIPÓTESE — a
+// mesma convenção que o site normal da Cobasi usa (cobasi.com.br/busca?q=).
+// Prioridade temporária sobre a Lomadee/busca direta abaixo, especificamente
+// pra testar isso ao vivo no app. Reverter é só remover este bloco.
+const COBASI_MINHA_LOJA_BASE = 'https://minhaloja.cobasi.com.br/paco?utm_source=mais&utm_medium=maisplataforma&utm_campaign=petmol';
+
 /**
  * Resolve a URL final de um parceiro para um produto específico.
  * Prioridade: link afiliado > URL de busca direta > directUrl > fallbackUrl.
@@ -153,6 +163,10 @@ export function resolvePartnerUrl(
   query: string,
   _leadId: string,
 ): string {
+  if (partner.id === 'cobasi') {
+    return `${COBASI_MINHA_LOJA_BASE}&q=${encodeURIComponent(query)}`;
+  }
+
   const affId = AFF[partner.id];
 
   // Afiliado configurado → usa link rastreado diretamente
