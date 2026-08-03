@@ -173,32 +173,21 @@ export function HomePetDashboard({
     });
   }, [currentPet, vaccines, parasiteControls, groomingRecords, feedingPlan, petEvents]);
 
-  // Despite the name (kept to avoid a wider rename across every call site),
-  // this intentionally includes OVERDUE reminders (diff < 0) too, not just
-  // future ones — the sheet the bell opens is fed from this, so tapping it
-  // still shows the full picture (this week, this month, further out).
+  // Includes OVERDUE reminders (diff < 0) too, not just future ones — the
+  // bell shows the full picture (count includes everything; only the
+  // COLOR distinguishes real pendências from what's merely upcoming — see
+  // hasUrgentReminder derived from this same list at the page level).
   // Sorted ascending by diff, so the most overdue item leads.
   const allUpcomingReminders = useMemo(
     () => [...reminders].sort((a, b) => a.diff - b.diff),
     [reminders],
   );
 
-  // The bell's own BADGE NUMBER is a stricter "pendências" count — only
-  // what's actually due (overdue or today), not everything upcoming.
-  // "Vence em 3 semanas" isn't a pendência yet; showing it in the badge
-  // number diluted the count and made it unclear whether something needed
-  // action right now. The full list (including future items) is still one
-  // tap away via allUpcomingReminders above.
-  const pendingCount = useMemo(
-    () => reminders.filter((r) => r.status === 'overdue' || r.status === 'today').length,
-    [reminders],
-  );
-
   const [showShoppingSheet, setShowShoppingSheet] = useState(false);
 
   useEffect(() => {
-    onUpcomingCountChange?.(pendingCount, allUpcomingReminders);
-  }, [pendingCount, allUpcomingReminders, onUpcomingCountChange]);
+    onUpcomingCountChange?.(allUpcomingReminders.length, allUpcomingReminders);
+  }, [allUpcomingReminders, onUpcomingCountChange]);
   
   const hasFoodData = Object.keys(feedingPlan).length > 0 && (() => {
     const plan = feedingPlan[currentPet.pet_id];

@@ -38,6 +38,11 @@ interface HomePetHeaderProps {
   topAttentionAlerts: PetInteractionItem[];
   onAlertSelect: (alert: PetInteractionItem) => void;
   upcomingCount: number;
+  // True when at least one of the bell's reminders is a real pendência
+  // (overdue or due today) — the badge shows the FULL count regardless,
+  // but only turns red when something genuinely needs action now; a count
+  // made up entirely of "vence em 3 semanas" stays a calmer blue.
+  upcomingUrgent: boolean;
   onOpenUpcoming: () => void;
   // Names of pets across the WHOLE household that need attention on the
   // basic-care minimum (vacina/vermífugo/antipulgas/ração — the items that
@@ -70,6 +75,7 @@ export function HomePetHeader({
   topAttentionAlerts,
   onAlertSelect,
   upcomingCount,
+  upcomingUrgent,
   onOpenUpcoming,
   basicCareAttentionPetNames,
 }: HomePetHeaderProps) {
@@ -253,7 +259,9 @@ export function HomePetHeader({
               <path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2Zm6-6V11a6 6 0 0 0-5-5.92V4a1 1 0 0 0-2 0v1.08A6 6 0 0 0 6 11v5l-1.29 1.29A1 1 0 0 0 5 19h14a1 1 0 0 0 .71-1.71L18 16Z" />
             </svg>
             {upcomingCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 border-2 border-white text-[10px] font-black text-white flex items-center justify-center px-1 leading-none shadow-md tabular-nums">
+              <span className={`absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full border-2 border-white text-[10px] font-black text-white flex items-center justify-center px-1 leading-none shadow-md tabular-nums ${
+                upcomingUrgent ? 'bg-red-500' : 'bg-sky-500'
+              }`}>
                 {upcomingCount > 99 ? '99+' : upcomingCount}
               </span>
             )}

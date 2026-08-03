@@ -16,19 +16,20 @@ interface Props {
 // diff was always >= 0 here, so nothing below ever needed to handle a
 // negative number. Without this, an overdue item rendered as "Em -5 dias",
 // which reads as nonsense rather than "atrasado".
+// Per feedback: days, not weeks — "Em 2 sem." was less immediately
+// readable than just "Em 15 dias". Kept months/years for longer horizons,
+// where a day count stops being useful.
 function diffLabel(diff: number): string {
   if (diff < 0) {
     const days = Math.abs(diff);
     if (days === 1) return 'Atrasado 1 dia';
-    if (days < 7) return `Atrasado ${days} dias`;
-    if (days < 30) return `Atrasado ${Math.round(days / 7)} sem.`;
+    if (days < 30) return `Atrasado ${days} dias`;
     if (days < 365) return `Atrasado ${Math.round(days / 30)} meses`;
     return `Atrasado ${Math.round(days / 365)} ano${Math.round(days / 365) > 1 ? 's' : ''}`;
   }
   if (diff === 0) return 'Hoje';
   if (diff === 1) return 'Amanhã';
-  if (diff < 7) return `Em ${diff} dias`;
-  if (diff < 30) return `Em ${Math.round(diff / 7)} sem.`;
+  if (diff < 30) return `Em ${diff} dias`;
   if (diff < 365) return `Em ${Math.round(diff / 30)} meses`;
   return `Em ${Math.round(diff / 365)} ano${Math.round(diff / 365) > 1 ? 's' : ''}`;
 }
