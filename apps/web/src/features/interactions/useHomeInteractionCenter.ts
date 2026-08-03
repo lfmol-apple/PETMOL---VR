@@ -105,7 +105,15 @@ export function useHomeInteractionCenter(
         resolveTone(petEvents.filter((event) => event.action_target === 'health/parasites/flea_tick')),
         resolveTone(petEvents.filter((event) => event.domain === 'food')),
       ];
-      return tones.some((tone) => tone === 'critical' || tone === 'neutral');
+      // 'neutral' (never registered at all) intentionally does NOT count
+      // here, unlike the single-pet food card's "Cuidado em aberto". A
+      // household-wide count needs to be trustworthy: real complaint —
+      // "system says 7 pets need attention, really only 3 do" — caused by
+      // 'neutral' inflating the count for every pet simply missing ONE
+      // domain's data (e.g. never logged "ração" for a secondary pet),
+      // even when nothing is actually overdue. Only 'critical' (something
+      // genuinely overdue) counts toward this cross-pet total.
+      return tones.some((tone) => tone === 'critical');
     }).length;
 
     return {
