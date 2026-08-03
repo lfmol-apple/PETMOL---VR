@@ -98,21 +98,24 @@ export function useHomeInteractionCenter(
         && event.domain !== 'grooming'
         && isEventVisibleOnHome(event, rules)
       ));
-      const tones = [
-        resolveTone(petEvents.filter((event) => event.domain === 'vaccine')),
+      const vaccineTone = resolveTone(petEvents.filter((event) => event.domain === 'vaccine'));
+      const otherTones = [
         resolveTone(petEvents.filter((event) => event.action_target === 'health/parasites/dewormer')),
         resolveTone(petEvents.filter((event) => event.action_target === 'health/parasites/flea_tick')),
         resolveTone(petEvents.filter((event) => event.domain === 'food')),
       ];
-      // 'neutral' (never registered at all) intentionally does NOT count
-      // here, unlike the single-pet food card's "Cuidado em aberto". A
-      // household-wide count needs to be trustworthy: real complaint —
-      // "system says 7 pets need attention, really only 3 do" — caused by
-      // 'neutral' inflating the count for every pet simply missing ONE
-      // domain's data (e.g. never logged "ração" for a secondary pet),
-      // even when nothing is actually overdue. Only 'critical' (something
-      // genuinely overdue) counts toward this cross-pet total.
-      return tones.some((tone) => tone === 'critical');
+      // 'neutral' (never registered at all) counts as needing attention
+      // ONLY for vaccine — a pet with zero vaccine history is a real,
+      // deliberate gap worth flagging, not just a missing data point (per
+      // explicit feedback). vermífugo/antipulgas/ração stay 'critical'-only:
+      // a household-wide count needs to be trustworthy, and letting
+      // 'neutral' count on all 4 domains previously inflated the total past
+      // the number of pets with an actually overdue problem ("system says
+      // 7 pets need attention, really only 3 do" — every pet simply
+      // missing ONE domain's data, e.g. never logged "ração" for a
+      // secondary pet, got flagged even though nothing was really due).
+      if (vaccineTone === 'critical' || vaccineTone === 'neutral') return true;
+      return otherTones.some((tone) => tone === 'critical');
     });
 
     return {
