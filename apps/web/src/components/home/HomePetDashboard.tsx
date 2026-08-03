@@ -141,7 +141,17 @@ export function HomePetDashboard({
   onHealthItemClick,
 }: HomePetDashboardProps) {
 
-  const healthTones = [colorVacinas, colorVermifugo, colorAntipulgas, colorColeira, colorMedicacao, colorGrooming];
+  // A pet with ZERO vaccine history ('neutral' — never registered) is a
+  // real gap worth the red dot, same as an actually-overdue one — treated
+  // as 'critical' here specifically for vaccine (per explicit feedback;
+  // vermífugo/antipulgas/ração intentionally stay untouched, since
+  // treating "no data" as critical for every domain was what caused the
+  // earlier false-positive household count). Without this, a pet with no
+  // vaccines but an otherwise-fine health card resolved to colorHealth=
+  // 'ok', and the dot never showed — shouldShowAlert only checks the tone
+  // string, so alertVacinas being true didn't matter on its own.
+  const effectiveVaccineTone: CardTone = (colorVacinas === 'neutral' || colorVacinas === undefined) ? 'critical' : colorVacinas;
+  const healthTones = [effectiveVaccineTone, colorVermifugo, colorAntipulgas, colorColeira, colorMedicacao, colorGrooming];
   const colorHealth: CardTone = healthTones.includes('critical')
     ? 'critical'
     : healthTones.includes('warning')
