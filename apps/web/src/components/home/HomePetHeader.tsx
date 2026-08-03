@@ -291,7 +291,7 @@ export function HomePetHeader({
             <button
               ref={nameButtonRef}
               onClick={onTogglePetSelector}
-              className="group -ml-1 flex min-w-0 items-center gap-1.5 rounded-2xl py-1 pl-1.5 pr-2 text-left transition-all hover:bg-slate-100/50 active:scale-95 sm:gap-2 sm:py-1.5 sm:pr-2.5"
+              className="group -ml-1 flex min-w-0 flex-1 items-center gap-1.5 rounded-2xl py-1 pl-1.5 pr-2 text-left transition-all hover:bg-slate-100/50 active:scale-95 sm:gap-2 sm:py-1.5 sm:pr-2.5"
             >
               <span className="min-w-0">
                 <h2 className="min-w-0 truncate text-[28px] font-black leading-none tracking-tight text-slate-900 transition-colors group-hover:text-blue-600 sm:text-3xl">
@@ -310,21 +310,26 @@ export function HomePetHeader({
               </div>
             </button>
 
-            {/* Badge de atenção — alinhado à direita com o nome */}
+            {/* Badge de atenção — alinhado à direita com o nome. Texto
+                deliberadamente curto (a bolinha colorida já carrega a
+                urgência) e com teto de largura menor que o do nome, pra não
+                espremer o nome do pet — confirmado em produção: "Mingau"
+                virava "Ming..." porque o selo antigo ("2 pets precisam de
+                atenção") tomava até 52% da linha. */}
             <div
               onClick={hasVisibleAttention ? onOpenTopAttentionModal : undefined}
-              className={`inline-flex max-w-[52%] flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-sm transition-all ${
+              className={`inline-flex max-w-[38%] flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-sm transition-all ${
                 hasVisibleAttention
                   ? 'bg-rose-50 border-rose-200 text-rose-700 cursor-pointer hover:bg-rose-100 active:scale-95'
                   : 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default'
               }`}
             >
-              <div className={`w-1.5 h-1.5 rounded-full ${hasVisibleAttention ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
+              <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${hasVisibleAttention ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
               <span className="truncate text-[10px] font-bold tracking-wide">
                 {hasVisibleAttention
                   ? basicCareAttentionPetNames.length === 1
-                    ? `${basicCareAttentionPetNames[0]} precisa de atenção`
-                    : `${basicCareAttentionPetNames.length} pets precisam de atenção`
+                    ? basicCareAttentionPetNames[0]
+                    : `${basicCareAttentionPetNames.length} pets`
                   : 'Em dia'}
               </span>
             </div>
