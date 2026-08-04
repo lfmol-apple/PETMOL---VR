@@ -137,16 +137,20 @@ export function AppleControlButtons({
             </div>
           </button>
 
-          {/* 4. SHOPPING (Loja do/da {pet}) */}
+          {/* 4. SHOPPING (Loja do/da {pet}) — visual destaque deliberado:
+              borda mais grossa, gradiente mais rico (emerald/teal, cor não
+              usada por nenhum outro card do grid) e sombra mais forte que
+              os outros 3. É a fonte de renda dedicada do app agora, então
+              chama mais atenção que Ração/Saúde/Caderneta de propósito. */}
           <button
             type="button"
             onClick={onShoppingClick}
-            className="group relative min-h-[68px] overflow-hidden rounded-xl border border-sky-400 bg-gradient-to-br from-sky-100 via-blue-100 to-blue-200 p-2.5 shadow-sm shadow-sky-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[68px] overflow-hidden rounded-xl border-2 border-emerald-500 bg-gradient-to-br from-emerald-100 via-emerald-200 to-teal-200 p-2.5 shadow-md shadow-emerald-900/15 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             <span className="absolute right-2 top-2 text-[18px] opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">🛒</span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
-              <h3 className="truncate text-[13px] font-semibold leading-tight text-sky-950 min-[390px]:text-[14px] sm:text-base">{shoppingTitle}</h3>
-              <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-sky-900/75 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">Tudo que {petName || 'seu pet'} usa</p>
+              <h3 className="truncate text-[13px] font-bold leading-tight text-emerald-950 min-[390px]:text-[14px] sm:text-base">{shoppingTitle}</h3>
+              <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-emerald-900/75 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">Tudo que {petName || 'seu pet'} usa</p>
             </div>
           </button>
 
