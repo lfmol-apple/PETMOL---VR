@@ -22,7 +22,7 @@ interface UseAdminReturn {
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
 export function useAdmin(): UseAdminReturn {
-  const { isAuthenticated, token } = useAuth();
+  const { isAuthenticated, token, isLoading: authLoading } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminData, setAdminData] = useState<AdminData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -73,8 +73,14 @@ export function useAdmin(): UseAdminReturn {
   };
 
   useEffect(() => {
+    // AuthContext resolves `token` (sync, from storage) before `tutor`
+    // (async, fetched from /auth/me) — isAuthenticated is derived from
+    // tutor, so it's briefly false on every mount even for a logged-in
+    // user. Waiting for authLoading to clear avoids concluding "not admin"
+    // during that window and redirecting a real admin away.
+    if (authLoading) return;
     fetchAdminStatus();
-  }, [isAuthenticated, token]);
+  }, [authLoading, isAuthenticated, token]);
 
   return {
     isAdmin,
