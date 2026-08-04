@@ -286,21 +286,23 @@ def init_db():
         except Exception as _e:
             print(f"[PETMOL] ⚠️  Backup automático falhou (não crítico): {_e}")
 
-    # Optional: seed first master admin via environment variables.
-    # Only runs if configured AND there are no admins yet.
-    if settings.admin_master_email and settings.admin_master_password:
+    # Ensure the master admin (settings.admin_master_email, hardcoded default
+    # leonardofmol@gmail.com) has an AdminUser row. If that account already
+    # exists (the normal app signup), we just grant the row — no password
+    # touched. Only create a brand-new User if one doesn't exist yet AND a
+    # password was explicitly provided for that bootstrap case.
+    if settings.admin_master_email:
         db = SessionLocal()
         try:
-            existing_admins = db.query(AdminUser).count()
-            if existing_admins == 0:
-                email = settings.admin_master_email.strip().lower()
-                user = db.query(User).filter(User.email == email).first()
-                if not user:
-                    user = User(email=email, password_hash=hash_password(settings.admin_master_password), name=settings.admin_master_name or "Admin")
-                    db.add(user)
-                    db.commit()
-                    db.refresh(user)
+            email = settings.admin_master_email.strip().lower()
+            user = db.query(User).filter(User.email == email).first()
+            if not user and settings.admin_master_password:
+                user = User(email=email, password_hash=hash_password(settings.admin_master_password), name=settings.admin_master_name or "Admin")
+                db.add(user)
+                db.commit()
+                db.refresh(user)
 
+            if user:
                 admin = db.query(AdminUser).filter(AdminUser.user_id == user.id).first()
                 if not admin:
                     admin = AdminUser(user_id=str(user.id), role=settings.admin_master_role)

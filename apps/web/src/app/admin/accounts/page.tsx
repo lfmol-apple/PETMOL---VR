@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PremiumScreenShell } from '@/components/premium';
 import { localTodayISO } from '@/lib/localDate';
+import { useAuth } from '@/contexts/AuthContext';
+import { useAdmin } from '@/hooks/useAdmin';
 
 interface PetOut {
   id: string;
@@ -38,26 +40,27 @@ interface AccountsListResponse {
 
 export default function AdminAccountsPage() {
   const router = useRouter();
+  const { token } = useAuth();
+  const { isAdmin, isLoading: adminLoading } = useAdmin();
   const [accounts, setAccounts] = useState<AccountOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [query, setQuery] = useState('');
 
   useEffect(() => {
+    if (adminLoading) return;
+    if (!isAdmin) {
+      router.push('/home');
+      return;
+    }
     void loadAccounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [adminLoading, isAdmin]);
 
   const loadAccounts = async () => {
     setLoading(true);
     setError('');
     try {
-      const token = localStorage.getItem('admin_token') || undefined;
-      if (!token) {
-        router.push('/admin/login');
-        return;
-      }
-
       const response = await fetch('/api/v1/admin/all-accounts', {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -67,9 +70,7 @@ export default function AdminAccountsPage() {
       const data: AccountsListResponse = await response.json();
       if (!response.ok || !data.success) {
         if (response.status === 401 || response.status === 403) {
-          localStorage.removeItem('admin_token');
-          localStorage.removeItem('admin_user');
-          router.push('/admin/login');
+          router.push('/home');
           return;
         }
         throw new Error(data.detail || 'Falha ao carregar contas');
@@ -122,7 +123,7 @@ export default function AdminAccountsPage() {
     URL.revokeObjectURL(url);
   };
 
-  if (loading) {
+  if (adminLoading || !isAdmin || loading) {
     return (
       <PremiumScreenShell title="Contas" backHref="/admin/dashboard">
         <p className="text-center text-slate-500 py-16">Carregando dados...</p>

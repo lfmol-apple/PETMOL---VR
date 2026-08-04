@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PremiumScreenShell } from '@/components/premium';
 import { requestUserConfirmation } from '@/features/interactions/userPromptChannel';
+import { getToken } from '@/lib/auth-token';
+import { useAdmin } from '@/hooks/useAdmin';
 
 interface User {
   id: string;
@@ -31,20 +33,10 @@ function formatDate(isoString: string) {
 }
 
 async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  // Primeiro tenta cookie
-  let token = document.cookie
-    .split('; ')
-    .find(row => row.startsWith('petmol_session='))
-    ?.split('=')[1];
-  
-  // Se não tem cookie, tenta localStorage como fallback
-  if (!token) {
-    token = localStorage.getItem('admin_token') || undefined;
-  }
+  const token = getToken();
 
   if (!token) {
-    // Redireciona para login se não tem token
-    window.location.href = '/admin/login';
+    window.location.href = '/home';
     throw new Error('Token não encontrado');
   }
 
@@ -59,8 +51,8 @@ async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
-      // Token inválido, redireciona para login
-      window.location.href = '/admin/login';
+      // Sem acesso admin (token inválido ou e-mail não é o master)
+      window.location.href = '/home';
       throw new Error('Sessão expirada');
     }
     const data = await response.json().catch(() => ({}));
@@ -104,6 +96,7 @@ async function deleteUser(id: string): Promise<void> {
 
 export default function AdminUsersPage() {
   const router = useRouter();
+  const { isAdmin, isLoading: adminLoading } = useAdmin();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -183,6 +176,12 @@ export default function AdminUsersPage() {
     });
     if (!accepted) return;
 
+    const typed = window.prompt(`Para confirmar, digite o e-mail exato do usuário:\n${user.email}`);
+    if (typed?.trim().toLowerCase() !== user.email.trim().toLowerCase()) {
+      setError('Exclusão cancelada: o e-mail digitado não confere.');
+      return;
+    }
+
     try {
       await deleteUser(user.id);
       setUsers(users.filter(u => u.id !== user.id));
@@ -213,8 +212,22 @@ export default function AdminUsersPage() {
   };
 
   useEffect(() => {
+    if (adminLoading) return;
+    if (!isAdmin) {
+      router.push('/home');
+      return;
+    }
     loadUsers();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminLoading, isAdmin]);
+
+  if (adminLoading || !isAdmin) {
+    return (
+      <PremiumScreenShell title="Usuários" backHref="/admin/dashboard">
+        <p className="text-center text-slate-500 py-16">Verificando autenticação...</p>
+      </PremiumScreenShell>
+    );
+  }
 
   return (
     <PremiumScreenShell title="Usuários" subtitle={`Total: ${users.length} usuários`} backHref="/admin/dashboard">

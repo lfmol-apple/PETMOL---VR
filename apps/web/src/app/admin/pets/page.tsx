@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PremiumScreenShell } from '@/components/premium';
 import { requestUserConfirmation } from '@/features/interactions/userPromptChannel';
+import { getToken } from '@/lib/auth-token';
+import { useAdmin } from '@/hooks/useAdmin';
 
 interface Pet {
   id: string;
@@ -31,20 +33,10 @@ function formatDate(isoString?: string) {
 }
 
 async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  // Primeiro tenta cookie
-  let token = document.cookie
-    .split('; ')
-    .find(row => row.startsWith('petmol_session='))
-    ?.split('=')[1];
-  
-  // Se não tem cookie, tenta localStorage como fallback
-  if (!token) {
-    token = localStorage.getItem('admin_token') || undefined;
-  }
+  const token = getToken();
 
   if (!token) {
-    // Redireciona para login se não tem token
-    window.location.href = '/admin/login';
+    window.location.href = '/home';
     throw new Error('Token não encontrado');
   }
 
@@ -59,8 +51,8 @@ async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
-      // Token inválido, redireciona para login
-      window.location.href = '/admin/login';
+      // Sem acesso admin (token inválido ou e-mail não é o master)
+      window.location.href = '/home';
       throw new Error('Sessão expirada');
     }
     const data = await response.json().catch(() => ({}));
@@ -104,15 +96,16 @@ async function deletePet(id: string): Promise<void> {
 
 export default function AdminPetsPage() {
   const router = useRouter();
+  const { isAdmin, isLoading: adminLoading } = useAdmin();
   const [pets, setPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Form states
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingPet, setEditingPet] = useState<Pet | null>(null);
   const [formData, setFormData] = useState({
-    tutor_id: '',
+    user_id: '',
     name: '',
     species: '',
     breed: '',
@@ -163,7 +156,7 @@ export default function AdminPetsPage() {
       const newPet = await createPet(petData);
       setPets([newPet, ...pets]);
       setFormData({
-        tutor_id: '',
+        user_id: '',
         name: '',
         species: '',
         breed: '',
@@ -217,6 +210,12 @@ export default function AdminPetsPage() {
     });
     if (!accepted) return;
 
+    const typed = window.prompt(`Para confirmar, digite o nome exato do pet:\n${pet.name}`);
+    if (typed?.trim().toLowerCase() !== pet.name.trim().toLowerCase()) {
+      setError('Exclusão cancelada: o nome digitado não confere.');
+      return;
+    }
+
     try {
       await deletePet(pet.id);
       setPets(pets.filter(p => p.id !== pet.id));
@@ -227,7 +226,7 @@ export default function AdminPetsPage() {
 
   const resetForm = () => {
     setFormData({
-      tutor_id: '',
+      user_id: '',
       name: '',
       species: '',
       breed: '',
@@ -241,7 +240,7 @@ export default function AdminPetsPage() {
   const startEdit = (pet: Pet) => {
     setEditingPet(pet);
     setFormData({
-      tutor_id: '', // Not needed for edit
+      user_id: '', // Not needed for edit
       name: pet.name,
       species: pet.species,
       breed: pet.breed || '',
@@ -269,8 +268,22 @@ export default function AdminPetsPage() {
   };
 
   useEffect(() => {
+    if (adminLoading) return;
+    if (!isAdmin) {
+      router.push('/home');
+      return;
+    }
     loadPets();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminLoading, isAdmin]);
+
+  if (adminLoading || !isAdmin) {
+    return (
+      <PremiumScreenShell title="Pets" backHref="/admin/dashboard">
+        <p className="text-center text-slate-500 py-16">Verificando autenticação...</p>
+      </PremiumScreenShell>
+    );
+  }
 
   return (
     <PremiumScreenShell title="Pets" subtitle={`Total: ${pets.length} pets`} backHref="/admin/dashboard">
@@ -329,11 +342,11 @@ export default function AdminPetsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {!editingPet && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">ID do Tutor</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ID do Usuário (dono)</label>
                     <input
                       type="text"
-                      value={formData.tutor_id}
-                      onChange={(e) => setFormData({ ...formData, tutor_id: e.target.value })}
+                      value={formData.user_id}
+                      onChange={(e) => setFormData({ ...formData, user_id: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
                       required
                     />

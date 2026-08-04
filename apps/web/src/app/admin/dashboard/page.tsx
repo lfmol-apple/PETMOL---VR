@@ -3,13 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { PremiumScreenShell } from '@/components/premium';
-
-interface AdminUser {
-  admin_id: string;
-  username: string;
-  email: string;
-  role: string;
-}
+import { useAuth } from '@/contexts/AuthContext';
+import { useAdmin } from '@/hooks/useAdmin';
 
 interface GlobalStats {
   total_users: number;
@@ -23,30 +18,23 @@ interface GlobalStats {
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const [admin, setAdmin] = useState<AdminUser | null>(null);
+  const { token, logout } = useAuth();
+  const { isAdmin, adminData, isLoading: adminLoading } = useAdmin();
   const [stats, setStats] = useState<GlobalStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkAuth();
-    loadStats();
-  }, []);
-
-  const checkAuth = () => {
-    const token = localStorage.getItem('admin_token') || undefined;
-    const adminData = localStorage.getItem('admin_user');
-
-    if (!token || !adminData) {
-      router.push('/admin/login');
+    if (adminLoading) return;
+    if (!isAdmin) {
+      router.push('/home');
       return;
     }
-
-    setAdmin(JSON.parse(adminData));
-  };
+    loadStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminLoading, isAdmin]);
 
   const loadStats = async () => {
     try {
-      const token = localStorage.getItem('admin_token') || undefined;
       if (!token) return;
 
       const response = await fetch('/api/v1/admin/stats', {
@@ -66,27 +54,12 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      const token = localStorage.getItem('admin_token') || undefined;
-      if (token) {
-        await fetch('/api/v1/admin/logout', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-      }
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      localStorage.removeItem('admin_token');
-      localStorage.removeItem('admin_user');
-      router.push('/admin/login');
-    }
+  const handleLogout = () => {
+    logout();
+    router.push('/home');
   };
 
-  if (!admin) {
+  if (adminLoading || !isAdmin || !adminData) {
     return (
       <PremiumScreenShell title="PETMOL Admin" hideBack>
         <p className="text-center text-slate-500 py-16">Verificando autenticação...</p>
@@ -97,7 +70,7 @@ export default function AdminDashboardPage() {
   return (
     <PremiumScreenShell
       title="Administração"
-      subtitle={`${admin.username} • ${admin.role}`}
+      subtitle={`${adminData.email} • ${adminData.role}`}
       hideBack
       rightAction={
         <button

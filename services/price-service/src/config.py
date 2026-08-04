@@ -83,8 +83,10 @@ class Settings(BaseSettings):
     # Admin bootstrap (used to promote first admin safely)
     admin_bootstrap_secret: Optional[str] = None
 
-    # Admin master seed (optional; only seeds if configured and no admins exist)
-    admin_master_email: Optional[str] = None
+    # Admin master: the ONLY email ever allowed through get_current_admin.
+    # Overridable via env var, but defaults to the real value so this holds
+    # even if the server's env file doesn't set it.
+    admin_master_email: str = "leonardofmol@gmail.com"
     admin_master_password: Optional[str] = None
     admin_master_name: Optional[str] = None
     admin_master_role: str = "master"

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
+import { getToken } from '@/lib/auth-token';
 import { PremiumScreenShell } from '@/components/premium';
 
 interface FoodMetricsResponse {
@@ -41,9 +42,9 @@ export default function AdminFoodMetricsPage() {
       setLoading(true);
       setError(null);
       try {
-        const adminToken = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+        const token = getToken();
         const res = await fetch(`${API_BASE_URL}/metrics/food`, {
-          headers: adminToken ? { Authorization: `Bearer ${adminToken}` } : {},
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);

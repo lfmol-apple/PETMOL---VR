@@ -15,14 +15,12 @@ from sqlalchemy.orm import Session
 from ..config import get_settings
 from ..db import get_db
 from ..user_auth.models import User
-from ..user_auth.security import create_access_token, verify_password, hash_password
+from ..user_auth.security import hash_password
 from ..user_auth.router import COOKIE_NAME
 from ..pets.models import Pet
 from .deps import get_current_admin
 from .models import AdminUser
 from .schemas import (
-    AdminLoginRequest,
-    AdminLoginResponse,
     AdminBootstrapPromoteRequest,
     AdminMeOut,
     GlobalStatsOut,
@@ -31,7 +29,6 @@ from .schemas import (
     OkOut,
     TutorOut,
     PetOut,
-    AdminLoginData,
     AdminMeData,
     GlobalStatsData,
     UserCreateRequest,
@@ -39,9 +36,6 @@ from .schemas import (
     UserDetailOut,
     UsersListOut,
     UserOut,
-    TutorCreateRequest,
-    TutorUpdateRequest,
-    TutorDetailOut,
     PetCreateRequest,
     PetUpdateRequest,
     PetDetailOut,
@@ -54,52 +48,18 @@ router = APIRouter(prefix="/v1/admin", tags=["Admin"])
 settings = get_settings()
 
 
-def _cookie_settings():
-    return {
-        "httponly": True,
-        "secure": settings.env == "prod",
-        "samesite": "lax",
-        "max_age": settings.jwt_access_token_expire_minutes * 60,
-        "path": "/",
-    }
-
-
-@router.post("/login", response_model=AdminLoginResponse)
-def admin_login(payload: AdminLoginRequest, response: Response, db: Session = Depends(get_db)):
-    # username can be either email or 'admin'
-    username = payload.username.strip().lower()
-    email = "admin@petmol.com" if username == "admin" else username
-
-    user = db.query(User).filter(User.email == email).first()
-    if not user or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais inválidas")
-
-    admin = db.query(AdminUser).filter(AdminUser.user_id == user.id).first()
-    if not admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso admin negado")
-
-    token = create_access_token(user_id=str(user.id))
-    # Set cookie as well (optional; frontend currently uses Bearer)
-    response.set_cookie(COOKIE_NAME, token, **_cookie_settings())
-
-    return AdminLoginResponse(
-        success=True,
-        data=AdminLoginData(
-            admin_id=admin.id,
-            username=payload.username,
-            email=user.email,
-            role=admin.role,
-            session_token=token,
-        ),
-    )
-
-
 @router.post("/bootstrap/promote", response_model=AdminMeOut)
 def bootstrap_promote_admin(
     payload: AdminBootstrapPromoteRequest,
     db: Session = Depends(get_db),
     x_admin_bootstrap: Optional[str] = Header(default=None, alias="X-Admin-Bootstrap"),
 ):
+    # Only the hardcoded master email may ever be promoted — this endpoint
+    # exists purely to create the AdminUser row for that one account, not
+    # as a general "become admin" mechanism.
+    if payload.email.strip().lower() != settings.admin_master_email.strip().lower():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Apenas o e-mail master pode ser promovido")
+
     # If a secret is configured (especially in prod), require it.
     if settings.env == "prod" and not settings.admin_bootstrap_secret:
         raise HTTPException(
@@ -364,125 +324,10 @@ def admin_delete_user(
     return DeletedOut(success=True, message=f"Usuário {user.email} excluído com sucesso")
 
 
-# === TUTOR MANAGEMENT ===
-
-@router.post("/tutors", response_model=TutorDetailOut)
-def admin_create_tutor(
-    payload: TutorCreateRequest,
-    db: Session = Depends(get_db),
-    current=Depends(get_current_admin),
-):
-    user = db.query(User).filter(User.id == payload.user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
-
-    existing = db.query(Tutor).filter(Tutor.user_id == payload.user_id).first()
-    if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Usuário já possui tutor")
-
-    tutor = Tutor(
-        user_id=payload.user_id,
-        name=payload.name,
-        phone=payload.phone,
-        email=payload.email,
-        whatsapp=payload.whatsapp,
-        postal_code=payload.postal_code,
-        street=payload.street,
-        number=payload.number,
-        complement=payload.complement,
-        neighborhood=payload.neighborhood,
-        city=payload.city,
-        state=payload.state,
-        country=payload.country,
-    )
-    db.add(tutor)
-    db.commit()
-    db.refresh(tutor)
-
-    return TutorDetailOut(
-        success=True,
-        data=TutorOut(
-            id=str(tutor.id),
-            name=tutor.name,
-            phone=tutor.phone,
-            email=tutor.email,
-            city=tutor.city,
-            state=tutor.state,
-            country=tutor.country,
-        ),
-    )
-
-
-@router.get("/tutors/{tutor_id}", response_model=TutorDetailOut)
-def admin_get_tutor(
-    tutor_id: str,
-    db: Session = Depends(get_db),
-    current=Depends(get_current_admin),
-):
-    tutor = db.query(Tutor).filter(Tutor.id == tutor_id).first()
-    if not tutor:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tutor não encontrado")
-
-    return TutorDetailOut(
-        success=True,
-        data=TutorOut(
-            id=str(tutor.id),
-            name=tutor.name,
-            phone=tutor.phone,
-            email=tutor.email,
-            city=tutor.city,
-            state=tutor.state,
-            country=tutor.country,
-        ),
-    )
-
-
-@router.put("/tutors/{tutor_id}", response_model=TutorDetailOut)
-def admin_update_tutor(
-    tutor_id: str,
-    payload: TutorUpdateRequest,
-    db: Session = Depends(get_db),
-    current=Depends(get_current_admin),
-):
-    tutor = db.query(Tutor).filter(Tutor.id == tutor_id).first()
-    if not tutor:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tutor não encontrado")
-
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(tutor, field, value)
-
-    db.commit()
-    db.refresh(tutor)
-
-    return TutorDetailOut(
-        success=True,
-        data=TutorOut(
-            id=str(tutor.id),
-            name=tutor.name,
-            phone=tutor.phone,
-            email=tutor.email,
-            city=tutor.city,
-            state=tutor.state,
-            country=tutor.country,
-        ),
-    )
-
-
-@router.delete("/tutors/{tutor_id}", response_model=DeletedOut)
-def admin_delete_tutor(
-    tutor_id: str,
-    db: Session = Depends(get_db),
-    current=Depends(get_current_admin),
-):
-    tutor = db.query(Tutor).filter(Tutor.id == tutor_id).first()
-    if not tutor:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tutor não encontrado")
-
-    db.delete(tutor)
-    db.commit()
-
-    return DeletedOut(success=True, message=f"Tutor {tutor.name} excluído com sucesso")
-
+# Nota: não há mais endpoints /tutors/* aqui — o modelo Tutor foi
+# absorvido por User (ver user_auth/models.py); dados de tutor são
+# editados via /v1/admin/users/{id}. As rotas antigas referenciavam um
+# `Tutor` que não existe mais e sempre quebravam com NameError.
 
 # === PET MANAGEMENT ===
 
@@ -523,9 +368,9 @@ def admin_create_pet(
     db: Session = Depends(get_db),
     current=Depends(get_current_admin),
 ):
-    tutor = db.query(Tutor).filter(Tutor.id == payload.tutor_id).first()
-    if not tutor:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tutor não encontrado")
+    user = db.query(User).filter(User.id == payload.user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
 
     birth_date = None
     if payload.birth_date:
@@ -535,7 +380,7 @@ def admin_create_pet(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Data de nascimento inválida")
 
     pet = Pet(
-        tutor_id=payload.tutor_id,
+        user_id=payload.user_id,
         name=payload.name,
         species=payload.species,
         breed=payload.breed,

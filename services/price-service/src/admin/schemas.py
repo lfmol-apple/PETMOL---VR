@@ -7,24 +7,6 @@ from pydantic import BaseModel, EmailStr, Field
 from ..serialization.utc_instant import UtcInstant
 
 
-class AdminLoginRequest(BaseModel):
-    username: str
-    password: str
-
-
-class AdminLoginData(BaseModel):
-    admin_id: str
-    username: str
-    email: EmailStr
-    role: str
-    session_token: str
-
-
-class AdminLoginResponse(BaseModel):
-    success: bool = True
-    data: AdminLoginData
-
-
 class AdminBootstrapPromoteRequest(BaseModel):
     email: EmailStr
     role: str = "admin"
@@ -125,46 +107,9 @@ class UsersListOut(BaseModel):
     data: List[UserOut]
 
 
-# Tutor management schemas
-class TutorCreateRequest(BaseModel):
-    user_id: str
-    name: str
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    whatsapp: bool = True
-    postal_code: Optional[str] = None
-    street: Optional[str] = None
-    number: Optional[str] = None
-    complement: Optional[str] = None
-    neighborhood: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    country: Optional[str] = None
-
-
-class TutorUpdateRequest(BaseModel):
-    name: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    whatsapp: Optional[bool] = None
-    postal_code: Optional[str] = None
-    street: Optional[str] = None
-    number: Optional[str] = None
-    complement: Optional[str] = None
-    neighborhood: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    country: Optional[str] = None
-
-
-class TutorDetailOut(BaseModel):
-    success: bool = True
-    data: TutorOut
-
-
 # Pet management schemas
 class PetCreateRequest(BaseModel):
-    tutor_id: str
+    user_id: str
     name: str
     species: str
     breed: Optional[str] = None

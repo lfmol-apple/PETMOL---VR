@@ -7,6 +7,7 @@ import { API_BASE_URL } from '@/lib/api';
 import { showBlockingNotice } from '@/features/interactions/userPromptChannel';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { IosSwitch } from '@/components/ui/IosSwitch';
+import { useAdmin } from '@/hooks/useAdmin';
 
 // ── Design tokens ─────────────────────────────────────────────
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
@@ -45,6 +46,7 @@ function PreferenceSwitch({ checked, onToggle, disabled = false }: { checked: bo
 export default function ProfilePage() {
   const router = useRouter();
   const apiBase = API_BASE_URL;
+  const { isAdmin } = useAdmin();
   const {
     isSupported,
     isSubscribed,
@@ -543,6 +545,19 @@ export default function ProfilePage() {
               </button>
             )}
           </div>
+
+          {isAdmin && (
+            <Link
+              href="/admin/dashboard"
+              className="flex items-center justify-between gap-3 rounded-[20px] border border-slate-100 bg-slate-50 px-5 py-4 hover:bg-blue-50 hover:border-blue-100 transition-all active:scale-[0.98]"
+            >
+              <span className="flex items-center gap-3">
+                <span className="text-xl">🛠️</span>
+                <span className="text-sm font-black text-slate-700">Painel Admin</span>
+              </span>
+              <span className="text-slate-400">→</span>
+            </Link>
+          )}
 
           {error && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700 font-bold flex items-center gap-3 animate-shake">
