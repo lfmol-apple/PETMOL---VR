@@ -126,14 +126,14 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onDocumentosClick}
-            className="group relative min-h-[68px] overflow-hidden rounded-xl border border-violet-400 bg-gradient-to-br from-violet-100 via-purple-100 to-purple-200 p-2.5 shadow-sm shadow-violet-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[68px] overflow-hidden rounded-xl border border-emerald-400 bg-gradient-to-br from-emerald-100 via-emerald-100 to-teal-200 p-2.5 shadow-sm shadow-emerald-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             <span className="absolute right-2 top-2 text-[18px] opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">📓</span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
-              <h3 className="truncate text-[13px] font-semibold leading-tight text-violet-950 min-[390px]:text-[14px] sm:text-base">
+              <h3 className="truncate text-[13px] font-semibold leading-tight text-emerald-950 min-[390px]:text-[14px] sm:text-base">
                 {petName ? `Caderneta de ${petName}` : 'Caderneta do Pet'}
               </h3>
-              <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-violet-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">Vacinas, exames e documentos</p>
+              <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-emerald-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">Vacinas, exames e documentos</p>
             </div>
           </button>
 
