@@ -9,6 +9,7 @@ import { API_BASE_URL } from '@/lib/api';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { subscribeToPush } from '@/features/notifications/pushService';
+import { needsIosInstallForPush } from '@/lib/pwaPlatform';
 
 type FieldKey = 'name' | 'email' | 'password' | 'terms';
 
@@ -50,6 +51,7 @@ export default function RegisterPage() {
   const [currentField, setCurrentField] = useState<FieldKey>('name');
   const [subscribing, setSubscribing] = useState(false);
   const [pushSupported, setPushSupported] = useState(false);
+  const [iosNeedsInstall, setIosNeedsInstall] = useState(false);
   const [postNotifRoute, setPostNotifRoute] = useState('/welcome');
   const [emailPanelOpen, setEmailPanelOpen] = useState(false);
   const [passwordPanelOpen, setPasswordPanelOpen] = useState(false);
@@ -67,12 +69,16 @@ export default function RegisterPage() {
     setInviteToken(params.get('invite'));
     setRedirectAfter(params.get('redirect'));
     nameRef.current?.focus();
-    setPushSupported(
+    const nativePushSupported =
       'Notification' in window &&
       'serviceWorker' in navigator &&
       'PushManager' in window &&
-      Notification.permission !== 'granted',
-    );
+      Notification.permission !== 'granted';
+    setPushSupported(nativePushSupported);
+    // On iOS Safari outside an installed PWA, PushManager doesn't exist at
+    // all — nativePushSupported is false the same as "no push support",
+    // but here it's actually "would work if installed first".
+    setIosNeedsInstall(!nativePushSupported && needsIosInstallForPush());
   }, []);
 
   const canContinueName = name.trim().length >= 2;
@@ -190,7 +196,7 @@ export default function RegisterPage() {
         setPostNotifRoute('/welcome');
       }
 
-      if (pushSupported && !dest?.startsWith('/cuidar/')) {
+      if ((pushSupported || iosNeedsInstall) && !dest?.startsWith('/cuidar/')) {
         setStep(3);
       } else {
         router.push(dest || '/welcome');
@@ -233,7 +239,7 @@ export default function RegisterPage() {
 
           <div className="mb-4">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-500">Cadastro rápido</p>
-            <p className="mt-2 text-sm font-bold text-slate-900">Passo {Math.min(step, pushSupported ? 3 : 2)} de {pushSupported ? 3 : 2}</p>
+            <p className="mt-2 text-sm font-bold text-slate-900">Passo {Math.min(step, (pushSupported || iosNeedsInstall) ? 3 : 2)} de {(pushSupported || iosNeedsInstall) ? 3 : 2}</p>
           </div>
 
           {step === 3 ? (
@@ -252,45 +258,74 @@ export default function RegisterPage() {
               <div className="text-center">
                 <p className="text-2xl font-black text-slate-900 leading-tight">Ative os lembretes</p>
                 <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-                  Receba avisos no celular antes que vacinas vençam, medicamentos acabem ou a ração esgote.
+                  {iosNeedsInstall
+                    ? 'No iPhone, as notificações só funcionam depois de instalar o PETMOL na tela de início.'
+                    : 'Receba avisos no celular antes que vacinas vençam, medicamentos acabem ou a ração esgote.'}
                 </p>
               </div>
 
-              {/* Benefícios */}
-              <ul className="space-y-2.5">
-                {[
-                  { icon: '💉', text: 'Vacinas prestes a vencer' },
-                  { icon: '💊', text: 'Hora do remédio e antiparasitários' },
-                  { icon: '🍽️', text: 'Estoque de ração acabando' },
-                ].map(({ icon, text }) => (
-                  <li key={text} className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
-                    <span className="text-lg leading-none">{icon}</span>
-                    <span className="text-sm font-semibold text-slate-700">{text}</span>
-                  </li>
-                ))}
-              </ul>
+              {iosNeedsInstall ? (
+                /* Instruções de instalação — PushManager não existe fora do modo standalone no iOS,
+                   então o botão "Ativar notificações" falharia silenciosamente aqui. */
+                <ol className="space-y-2.5 text-left">
+                  {[
+                    { icon: '📤', text: 'Toque no ícone de compartilhar, na barra do Safari' },
+                    { icon: '➕', text: 'Escolha "Adicionar à Tela de Início"' },
+                    { icon: '🔔', text: 'Abra o PETMOL pelo ícone novo — os lembretes passam a funcionar' },
+                  ].map(({ icon, text }, i) => (
+                    <li key={text} className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+                      <span className="text-lg leading-none">{icon}</span>
+                      <span className="text-sm font-semibold text-slate-700">{i + 1}. {text}</span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                /* Benefícios */
+                <ul className="space-y-2.5">
+                  {[
+                    { icon: '💉', text: 'Vacinas prestes a vencer' },
+                    { icon: '💊', text: 'Hora do remédio e antiparasitários' },
+                    { icon: '🍽️', text: 'Estoque de ração acabando' },
+                  ].map(({ icon, text }) => (
+                    <li key={text} className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+                      <span className="text-lg leading-none">{icon}</span>
+                      <span className="text-sm font-semibold text-slate-700">{text}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               {/* Botões */}
               <div className="space-y-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleActivateNotifications}
-                  disabled={subscribing}
-                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-[15px] font-black shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
-                >
-                  {subscribing ? (
-                    <>
-                      <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.3" /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>
-                      Ativando...
-                    </>
-                  ) : (
-                    '🔔  Ativar notificações'
-                  )}
-                </button>
+                {iosNeedsInstall ? (
+                  <button
+                    type="button"
+                    onClick={() => router.push(postNotifRoute)}
+                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-[15px] font-black shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform"
+                  >
+                    Entendi
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleActivateNotifications}
+                    disabled={subscribing}
+                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-[15px] font-black shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
+                  >
+                    {subscribing ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.3" /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>
+                        Ativando...
+                      </>
+                    ) : (
+                      '🔔  Ativar notificações'
+                    )}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => router.push(postNotifRoute)}
-                  className="w-full py-3 text-sm font-semibold text-slate-400 active:text-slate-600 transition-colors"
+                  className={`w-full py-3 text-sm font-semibold text-slate-400 active:text-slate-600 transition-colors ${iosNeedsInstall ? 'hidden' : ''}`}
                 >
                   Agora não
                 </button>

@@ -8,6 +8,7 @@ import { PetPhotoPicker } from '@/components/PetPhotoPicker';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { subscribeToPush } from '@/features/notifications/pushService';
+import { needsIosInstallForPush } from '@/lib/pwaPlatform';
 import { Camera } from 'lucide-react';
 
 // ── Breed data ────────────────────────────────────────────────────────────────
@@ -172,10 +173,17 @@ export default function RegisterPetPage() {
   const [errors, setErrors] = useState<{ name?: string; species?: string; sex?: string; general?: string }>({});
   const [savedPetId, setSavedPetId] = useState<string | null>(null);
   const [onboardStep, setOnboardStep] = useState<0 | 1 | 2 | 'done'>(0);
-  const [notifStep, setNotifStep] = useState<'ask' | 'done'>('ask');
+  const [notifStep, setNotifStep] = useState<'ask' | 'ios-install' | 'done'>('ask');
   const [notifLoading, setNotifLoading] = useState(false);
 
   const nameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // PushManager doesn't exist in a non-installed iOS Safari tab — the
+    // "Sim, quero avisos" button below would silently no-op there, so this
+    // is the one case where we show install instructions instead of asking.
+    if (needsIosInstallForPush()) setNotifStep('ios-install');
+  }, []);
 
   useEffect(() => {
     const token = getToken();
@@ -428,6 +436,32 @@ export default function RegisterPetPage() {
                     Agora não
                   </button>
                 </div>
+              </div>
+            ) : notifStep === 'ios-install' ? (
+              <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                <p className="text-sm font-black text-slate-900">Quer ser avisado quando a ração estiver acabando?</p>
+                <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                  No iPhone, os avisos só funcionam depois de instalar o PETMOL na tela de início.
+                </p>
+                <ol className="mt-3 space-y-2">
+                  {[
+                    { icon: '📤', text: 'Toque no ícone de compartilhar, na barra do Safari' },
+                    { icon: '➕', text: 'Escolha "Adicionar à Tela de Início"' },
+                    { icon: '🔔', text: 'Abra o PETMOL pelo ícone novo — os avisos passam a funcionar' },
+                  ].map(({ icon, text }, i) => (
+                    <li key={text} className="flex items-center gap-2 rounded-xl bg-white border border-slate-100 px-3 py-2">
+                      <span className="text-base leading-none">{icon}</span>
+                      <span className="text-xs font-semibold text-slate-700">{i + 1}. {text}</span>
+                    </li>
+                  ))}
+                </ol>
+                <button
+                  type="button"
+                  onClick={() => setNotifStep('done')}
+                  className="mt-4 w-full rounded-xl bg-[#0056D2] py-3 text-xs font-black text-white active:scale-[0.98]"
+                >
+                  Entendi
+                </button>
               </div>
             ) : (
               <>
