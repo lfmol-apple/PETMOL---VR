@@ -143,12 +143,19 @@ def _password_reset_url(token: str) -> str:
 @router.post("/password-reset/request", response_model=PasswordResetResponse)
 def request_password_reset(
     payload: PasswordResetRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ):
     """Send a password reset link if the account exists.
 
     Always returns success to avoid leaking which e-mails are registered.
     """
+    # Unauthenticated + triggers a real outbound email — without this an
+    # attacker can email-bomb any address for free (no rate limit existed).
+    allowed, _, _ = rate_limiter.check_rate_limit(request, max_requests=5, window_seconds=300)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Muitas tentativas. Aguarde um momento.")
+
     email = payload.email.lower()
     if settings.env == "prod" and not all(os.environ.get(k) for k in ("SMTP_HOST", "SMTP_USER", "SMTP_PASS")):
         raise HTTPException(status_code=503, detail="Envio de e-mail não configurado. Configure SMTP e tente novamente.")
@@ -241,11 +248,16 @@ def _send_verification_for_user(user: "User", db: Session) -> None:
 
 @router.post("/verify-email/send", response_model=PasswordResetResponse)
 def send_email_verification(
+    request: Request,
     authorization: Optional[str] = Header(default=None),
     token: Optional[str] = Cookie(default=None, alias=COOKIE_NAME),
     db: Session = Depends(get_db),
 ):
     """Re-send the email verification link for the currently authenticated user."""
+    allowed, _, _ = rate_limiter.check_rate_limit(request, max_requests=5, window_seconds=300)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Muitas tentativas. Aguarde um momento.")
+
     auth_token = None
     if authorization and authorization.startswith("Bearer "):
         auth_token = authorization[7:]

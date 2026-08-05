@@ -95,6 +95,18 @@ DOCS_UPLOAD_DIR = _PROJECT_ROOT / "uploads" / "pet_documents"
 MAX_FILE_SIZE = 20 * 1024 * 1024   # 20 MB  – individual files / files inside ZIP
 MAX_ZIP_SIZE  = 100 * 1024 * 1024  # 100 MB – whole ZIP archive
 
+# mime_type on a document is whatever Content-Type the uploader's client sent
+# — never verified against the actual bytes. Gating "serve inline" on a bare
+# mime.startswith("image/") trusts that value: an upload declared as
+# image/svg+xml passes the prefix check, and SVG can carry a <script> that
+# executes when the browser opens it inline. Serve inline only for types
+# with no known script-execution behavior; anything else is forced to
+# download instead (see serve_document_file below).
+INLINE_SAFE_MIMES = {
+    "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic",
+    "application/pdf",
+}
+
 # ── Limits ────────────────────────────────────────────────────────────────────
 IMPORT_MAX_ITEMS = 200
 IMPORT_TIMEOUT = 60.0
@@ -1187,7 +1199,7 @@ def serve_document_file(
 
     mime = doc.mime_type or "application/octet-stream"
     # Tipos visíveis inline: imagens e PDF
-    viewable = mime.startswith("image/") or mime == "application/pdf"
+    viewable = mime in INLINE_SAFE_MIMES
 
     if dl or not viewable:
         # Forçar download
