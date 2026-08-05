@@ -101,4 +101,4 @@ O CI ([`ci.yml`](.github/workflows/ci.yml)) roda essa suíte a cada push.
 
 ## Backup
 
-`scripts/backup/create-backup.sh` empacota banco, uploads e `.env` de todos os serviços em um `.tar.gz` com checksum (ver [`docs/BACKUP_ROTINA.md`](docs/BACKUP_ROTINA.md) para agendamento via cron). Teste de restauração ainda não documentado como procedimento rotineiro.
+`scripts/backup/create-backup.sh` empacota `pg_dump` do Postgres (quando `DATABASE_URL` aponta pra Postgres — sempre o caso em produção), uploads e `.env` de todos os serviços em um `.tar.gz` com checksum (ver [`docs/BACKUP_ROTINA.md`](docs/BACKUP_ROTINA.md) para agendamento via cron e passo a passo de restauração com `pg_restore`). Se `pg_dump` falhar, o script para com erro em vez de gerar um backup incompleto silenciosamente — o `petmol.db` (SQLite) sozinho não representa os dados reais de produção. Teste de restauração completo (gerar → restaurar em banco isolado → conferir contagens) ainda não foi executado nem documentado como procedimento rotineiro.

@@ -18,6 +18,46 @@ mkdir -p "${BACKUP_DIR}"
 ARCHIVE_PATH="${BACKUP_DIR}/${BACKUP_NAME}.tar.gz"
 CHECKSUM_PATH="${BACKUP_DIR}/${BACKUP_NAME}.sha256"
 
+# ── Postgres dump ────────────────────────────────────────────────────────────
+# In prod, DATABASE_URL always points at Postgres (config.py's validate_prod
+# enforces this) — the actual user/pet/vaccine/feeding data lives there, not
+# in services/price-service/petmol.db (that file is dev-only SQLite and
+# simply won't exist in prod). This backup used to only archive that SQLite
+# file plus uploads/.env, so a Postgres-backed prod deploy was silently
+# backing up everything except the database.
+PG_DUMP_REL_PATH="services/price-service/_backup_db.dump"
+PG_DUMP_ABS_PATH="${ROOT_DIR}/${PG_DUMP_REL_PATH}"
+BACKEND_ENV_FILE="${ROOT_DIR}/services/price-service/.env"
+
+cleanup_pg_dump() {
+  rm -f "${PG_DUMP_ABS_PATH}"
+}
+trap cleanup_pg_dump EXIT
+
+DID_DUMP_DB=0
+if [[ -f "${BACKEND_ENV_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  set -a; source "${BACKEND_ENV_FILE}"; set +a
+
+  if [[ "${DATABASE_URL:-}" == postgresql* ]]; then
+    if ! command -v pg_dump >/dev/null 2>&1; then
+      echo "ERRO: DATABASE_URL e Postgres mas pg_dump nao esta instalado. Backup abortado — rodar sem o dump do banco seria enganoso." >&2
+      exit 1
+    fi
+
+    # pg_dump needs a plain postgresql:// URI; SQLAlchemy's +psycopg2 dialect
+    # suffix isn't valid libpq syntax.
+    PG_DUMP_URL="${DATABASE_URL/postgresql+psycopg2:/postgresql:}"
+
+    echo "Gerando dump do Postgres..."
+    if ! pg_dump "${PG_DUMP_URL}" -Fc -f "${PG_DUMP_ABS_PATH}"; then
+      echo "ERRO: pg_dump falhou. Backup abortado — melhor falhar alto do que gerar um backup sem banco." >&2
+      exit 1
+    fi
+    DID_DUMP_DB=1
+  fi
+fi
+
 TARGETS=(
   "analysis"
   "uploads"
@@ -29,6 +69,10 @@ TARGETS=(
   "functions/.env"
   "services/price-service/.env"
 )
+
+if [[ "${DID_DUMP_DB}" -eq 1 ]]; then
+  TARGETS+=("${PG_DUMP_REL_PATH}")
+fi
 
 EXISTING_TARGETS=()
 for target in "${TARGETS[@]}"; do
@@ -61,3 +105,6 @@ find "${BACKUP_DIR}" -type f -name "petmol_*.tar.gz" -mtime +"${RETENTION_DAYS}"
 find "${BACKUP_DIR}" -type f -name "petmol_*.sha256" -mtime +"${RETENTION_DAYS}" -delete
 
 echo "Backup concluido: ${ARCHIVE_PATH}"
+if [[ "${DID_DUMP_DB}" -eq 1 ]]; then
+  echo "Inclui dump do Postgres (${PG_DUMP_REL_PATH} dentro do arquivo)."
+fi

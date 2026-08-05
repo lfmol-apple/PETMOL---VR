@@ -7,9 +7,12 @@ Objetivo: gerar backup automatico dos dados criticos que nao estao no Git.
 - `analysis/`
 - `uploads/`
 - `services/price-service/uploads/`
-- `services/price-service/petmol.db`
+- Dump do Postgres (`pg_dump -Fc`), quando `DATABASE_URL` do backend aponta para Postgres — é o caso de producao. Isso e o que realmente contem usuarios, pets, vacinas, racao e medicacao.
+- `services/price-service/petmol.db`, quando existir (SQLite — so em ambiente local/dev; nao existe em producao)
 - `services/price-service/push_subscriptions.json`
 - `.env` (raiz, web, functions, backend), quando existir
+
+Se `DATABASE_URL` for Postgres e `pg_dump` falhar (ou nao estiver instalado), o script para com erro em vez de gerar um backup incompleto silenciosamente.
 
 ## Execucao manual
 
@@ -56,7 +59,7 @@ Logs do cron:
 
 ## Restauracao (manual)
 
-Exemplo de restauracao:
+Extrair o arquivo:
 
 ```bash
 mkdir -p /tmp/petmol-restore
@@ -69,3 +72,13 @@ Verificacao de integridade:
 cd ~/.petmol-backups
 shasum -a 256 -c petmol_HOST_DATA.sha256
 ```
+
+Restaurar o banco (Postgres) — **sempre em um banco separado, nunca sobrescrever o de producao diretamente**:
+
+```bash
+createdb petmol_restore_test
+pg_restore -d petmol_restore_test /tmp/petmol-restore/services/price-service/_backup_db.dump
+psql -d petmol_restore_test -c "select count(*) from users;"
+```
+
+So depois de conferir os dados nesse banco isolado (contagem de usuarios, pets, vacinas etc. bate com o esperado) e que faria sentido promover esse dump para substituir o banco real, em caso de recuperacao de desastre real.
