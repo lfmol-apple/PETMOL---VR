@@ -8,7 +8,7 @@ export default function PrivacyPage() {
       backHref="/"
     >
       <PremiumCard>
-        <p className="text-slate-500 text-xs mb-6">Última atualização: 03 de fevereiro de 2026</p>
+        <p className="text-slate-500 text-xs mb-6">Última atualização: 05 de agosto de 2026</p>
         <div className="prose prose-sm prose-slate max-w-none">
           <h2>1. Introdução</h2>
           <p>
@@ -31,6 +31,7 @@ export default function PrivacyPage() {
             <li>Sexo, peso, informações de castração</li>
             <li>Fotos do pet (opcional)</li>
             <li><strong>Dados de saúde</strong> (vacinas, vermífugos, consultas, medicamentos, controles antiparasitários) — tratados com nível de proteção equivalente a dados sensíveis nos termos da LGPD, utilizados exclusivamente para as funcionalidades do app e nunca compartilhados com terceiros para fins comerciais</li>
+            <li>Documentos enviados (fotos de carteirinha de vacinação, receitas, laudos) podem ser processados por inteligência artificial (Google Gemini, OpenAI) para extração automática de informações como nome da vacina e data — o arquivo original é armazenado nos nossos servidores, não retido pelo provedor de IA além do processamento da requisição</li>
           </ul>
 
           <h3>2.3. Dados de Uso</h3>
@@ -101,10 +102,15 @@ export default function PrivacyPage() {
           <p>Podemos compartilhar seus dados apenas com:</p>
           <ul>
             <li><strong>Provedores de serviço:</strong> Hospedagem, e-mail, notificações push (sob contrato de confidencialidade)</li>
-            <li><strong>APIs externas:</strong> Google Maps (para busca de estabelecimentos), serviços de autenticação</li>
+            <li><strong>APIs externas:</strong> Google Maps/Places (busca de estabelecimentos), Supabase (autenticação), Google Gemini e OpenAI (leitura automática de documentos e identificação de produtos por foto), Cosmos Bluesoft e GTIN (consulta de código de barras de produtos)</li>
             <li><strong>Autoridades:</strong> Quando exigido por lei ou ordem judicial</li>
             <li><strong>Estabelecimentos:</strong> Apenas se você optar por compartilhar informações específicas (ex: carteirinha digital)</li>
           </ul>
+
+          <h3>5.3. Compartilhamento com Cuidadores</h3>
+          <p>
+            Se você convidar outra pessoa para cuidar do seu pet junto com você (recurso de família/cuidador), essa pessoa passa a ter acesso aos dados daquele pet específico — não aos seus dados pessoais de conta. Você pode remover o acesso dela a qualquer momento.
+          </p>
 
           <h2>6. Armazenamento e Segurança</h2>
           
@@ -226,8 +232,8 @@ export default function PrivacyPage() {
 
           <div className="mt-4 p-6 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-blue-900">
-              <strong>Versão:</strong> 2026-02-03<br />
-              <strong>Data de vigência:</strong> 03 de fevereiro de 2026<br />
+              <strong>Versão:</strong> 2026-08-05<br />
+              <strong>Data de vigência:</strong> 05 de agosto de 2026<br />
               <strong>Conformidade:</strong> LGPD (Lei 13.709/2018)
             </p>
           </div>
