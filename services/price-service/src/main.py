@@ -109,39 +109,93 @@ app = FastAPI(
 )
 
 # ========================================
-# Performance Monitoring (100K+ users)
+# Structured request logging (100K+ users)
 # ========================================
+# One JSON line per request — request_id/user_id/latency/status/ip — instead
+# of ad-hoc f-strings only for slow requests. A single unstructured "SLOW
+# REQUEST" message can't be correlated across a request's own error logs or
+# grepped/aggregated once there's real traffic volume; request_id fixes both.
+import json
 import time
+import uuid
 import logging
 
 logger = logging.getLogger(__name__)
 
+
+def _client_ip_for_log(request: Request) -> str:
+    # Same precedence as rate_limit.py's _get_client_ip — this app runs
+    # behind Cloudflare/nginx, so REMOTE_ADDR alone is the proxy, not the user.
+    cf_ip = request.headers.get("CF-Connecting-IP") or request.headers.get("True-Client-IP")
+    if cf_ip:
+        return cf_ip.split(",")[0].strip()
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _user_id_for_log(request: Request) -> str:
+    # Best-effort only — logging must never fail or block a request over a
+    # missing/expired/malformed token. Full auth still happens per-route via
+    # get_current_user; this just gives logs something to correlate by.
+    try:
+        auth = request.headers.get("Authorization", "")
+        token = auth[7:] if auth.startswith("Bearer ") else request.cookies.get("petmol_session")
+        if not token:
+            return "anonymous"
+        from .user_auth.security import decode_token
+        data = decode_token(token)
+        return data.user_id if data and data.user_id else "anonymous"
+    except Exception:
+        return "anonymous"
+
+
 @app.middleware("http")
-async def log_slow_requests(request: Request, call_next):
-    """Monitor and log slow requests for performance optimization."""
+async def structured_request_logging(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:16]
     start_time = time.time()
-    
-    response = await call_next(request)
-    
-    duration = time.time() - start_time
-    
-    # Log requests lentos (>1s) para investigação
-    if duration > 1.0:
-        logger.warning(
-            f"SLOW REQUEST: {request.method} {request.url.path} "
-            f"took {duration:.2f}s | status={response.status_code}"
-        )
-    
-    # Log requests muito lentos (>3s) como ERROR
-    if duration > 3.0:
-        logger.error(
-            f"VERY SLOW REQUEST: {request.method} {request.url.path} "
-            f"took {duration:.2f}s | status={response.status_code}"
-        )
-    
-    # Adicionar header de tempo de resposta
-    response.headers["X-Process-Time"] = f"{duration:.3f}"
-    
+
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+    except Exception:
+        duration_ms = round((time.time() - start_time) * 1000, 1)
+        logger.error(json.dumps({
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+            "status": 500,
+            "latency_ms": duration_ms,
+            "user_id": _user_id_for_log(request),
+            "ip": _client_ip_for_log(request),
+            "unhandled_exception": True,
+        }))
+        raise
+
+    duration_ms = round((time.time() - start_time) * 1000, 1)
+    log_entry = {
+        "request_id": request_id,
+        "method": request.method,
+        "path": request.url.path,
+        "status": status_code,
+        "latency_ms": duration_ms,
+        "user_id": _user_id_for_log(request),
+        "ip": _client_ip_for_log(request),
+    }
+
+    if duration_ms > 3000:
+        logger.error(json.dumps(log_entry))
+    elif duration_ms > 1000 or status_code >= 500:
+        logger.warning(json.dumps(log_entry))
+    else:
+        logger.info(json.dumps(log_entry))
+
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Process-Time"] = f"{duration_ms / 1000:.3f}"
     return response
 
 # Custom exception handler for 429 (Rate Limit)

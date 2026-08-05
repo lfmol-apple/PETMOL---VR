@@ -99,6 +99,10 @@ O CI ([`ci.yml`](.github/workflows/ci.yml)) roda essa suíte a cada push.
 - [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda em todo push: typecheck + lint + build do frontend, compile-check do backend.
 - [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) roda depois que o CI passa em `main` (`workflow_run`, não em paralelo) — ou manualmente via `workflow_dispatch`, que pula essa checagem de propósito para deploys de emergência. Empacota o repo, envia para o VPS via SSH, aplica com [`deploy/sync/apply_on_vps.sh`](deploy/sync/apply_on_vps.sh) (rsync preservando `.env`/segredos, reinstala dependências se necessário, rebuild do Next.js, restart dos serviços via systemd, bateria de health checks pós-deploy) e roda um health check final em `https://petmol.com.br/api/health`.
 
+## Operação
+
+Deploy travado, rollback, incidentes já enfrentados, onde as coisas ficam (VPS, banco, chaves push) — ver [`docs/RUNBOOK.md`](docs/RUNBOOK.md). É o documento pra alguém colocar produção de volta no ar sem depender de quem escreveu o código.
+
 ## Backup
 
 `scripts/backup/create-backup.sh` empacota `pg_dump` do Postgres (quando `DATABASE_URL` aponta pra Postgres — sempre o caso em produção), uploads e `.env` de todos os serviços em um `.tar.gz` com checksum (ver [`docs/BACKUP_ROTINA.md`](docs/BACKUP_ROTINA.md) para agendamento via cron e passo a passo de restauração com `pg_restore`). Se `pg_dump` falhar, o script para com erro em vez de gerar um backup incompleto silenciosamente — o `petmol.db` (SQLite) sozinho não representa os dados reais de produção. Teste de restauração completo (gerar → restaurar em banco isolado → conferir contagens) ainda não foi executado nem documentado como procedimento rotineiro.
