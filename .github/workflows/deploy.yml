@@ -30,6 +30,14 @@ jobs:
     # actually passed (workflow_dispatch still bypasses this for manual/
     # emergency deploys).
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    # A VPS reboot mid-deploy killed the SSH connection without GitHub Actions
+    # ever finding out — the run just sat "in_progress" indefinitely, and
+    # since concurrency below never cancels, it silently blocked every
+    # subsequent deploy from even starting until someone noticed and
+    # cancelled it by hand. Default job timeout is 360 minutes; a real
+    # deploy here never takes more than ~5, so this fails it automatically
+    # instead of blocking the queue for up to 6 hours.
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
