@@ -24,6 +24,21 @@ DEPLOY_BRANCH="${PETMOL_DEPLOY_BRANCH:-unknown}"
 # concurrency group covers normal CI-triggered deploys; this covers any
 # other way this script might get invoked (manual SSH run, retries, etc.).
 LOCK_FILE="$REMOTE_DIR/.deploy.lock"
+LOCK_STALE_SECONDS=900  # 15 min — far longer than any real deploy takes here
+
+# A lock older than this can only be stale: something (an orphaned build
+# worker, a killed SSH session) is holding it without actually deploying.
+# Three deploys in a row got rejected this way with nothing findable via
+# ps/lsof by the time anyone looked — rather than keep hand-diagnosing
+# which process it was each time, expire it automatically.
+if [ -f "$LOCK_FILE" ]; then
+    lock_age=$(( $(date +%s) - $(stat -c %Y "$LOCK_FILE" 2>/dev/null || echo 0) ))
+    if [ "$lock_age" -gt "$LOCK_STALE_SECONDS" ]; then
+        echo "Lock com mais de $((LOCK_STALE_SECONDS / 60)) min (provavelmente travado) — removendo e seguindo." >&2
+        rm -f "$LOCK_FILE"
+    fi
+fi
+
 exec 200>"$LOCK_FILE"
 if ! flock -n 200; then
     echo "Outro deploy ja esta em andamento neste VPS. Abortando para nao corromper node_modules/.next concorrente." >&2
