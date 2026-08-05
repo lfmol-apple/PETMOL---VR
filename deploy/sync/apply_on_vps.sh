@@ -289,7 +289,7 @@ if [ ! -f "$RECLASSIFY_FLAG" ]; then
         cd "$APP_DIR/services/price-service"
         set -a; [ -f .env ] && source .env; set +a
         cd "$APP_DIR"
-        "$VENV_PYTHON" "$RECLASSIFY_SCRIPT" --pet "Baby" \
+        "$VENV_PYTHON" "$RECLASSIFY_SCRIPT" --pet "Baby" 200>&- \
             && touch "$RECLASSIFY_FLAG" \
             && log "Reclassificação do Baby concluída." \
             || warn "Reclassificação falhou — será tentada novamente no próximo deploy."
