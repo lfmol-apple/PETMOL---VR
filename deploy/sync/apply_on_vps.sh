@@ -39,7 +39,11 @@ if [ -f "$LOCK_FILE" ]; then
     fi
 fi
 
-exec 200>"$LOCK_FILE"
+# >> not > : truncating on every open (even a failed attempt that never
+# gets the flock) resets the file's mtime each time, which silently
+# defeated the staleness check above — every retry pushed the 15-minute
+# clock back out, so it could never actually fire.
+exec 200>>"$LOCK_FILE"
 if ! flock -n 200; then
     echo "Outro deploy ja esta em andamento neste VPS. Abortando para nao corromper node_modules/.next concorrente." >&2
     exit 1
