@@ -6,7 +6,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import httpx
@@ -488,6 +488,38 @@ def get_product_from_cache(db: Session, gtin: str) -> Optional[LookupResponse]:
     return None
 
 
+def _backoff_hours_for(attempts: int) -> int:
+    # 1a falha: retenta em 24h. Repetidas: 7 dias. Muitas: 30 dias — cada
+    # scan do mesmo GTIN "não encontrado" custava uma chamada Cosmos +
+    # possivelmente GTIN de novo, para sempre, sem isso.
+    if attempts >= 5:
+        return 30 * 24
+    if attempts >= 2:
+        return 7 * 24
+    return 24
+
+
+def get_recent_negative_lookup(db: Session, gtin: str) -> Optional[ProductLookupQueue]:
+    """Se esse GTIN já falhou recentemente nos provedores externos, retorna
+    o item da fila (para pular Cosmos/GTIN de novo); None se pode tentar."""
+    normalized = normalize_gtin(gtin)
+    queue_item = db.scalar(
+        select(ProductLookupQueue).where(
+            ProductLookupQueue.barcode_normalized == normalized,
+            ProductLookupQueue.status == LOOKUP_QUEUE_STATUS_PENDING,
+        )
+    )
+    if not queue_item or not queue_item.last_attempt_at:
+        return None
+    backoff = timedelta(hours=_backoff_hours_for(queue_item.attempts or 0))
+    last_attempt = queue_item.last_attempt_at
+    if last_attempt.tzinfo is None:
+        last_attempt = last_attempt.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) - last_attempt < backoff:
+        return queue_item
+    return None
+
+
 def enqueue_missing_product(db: Session, gtin: str, reason: str = LOOKUP_QUEUE_NOT_FOUND_REASON) -> ProductLookupQueue:
     normalized = normalize_gtin(gtin)
     now = datetime.now(timezone.utc)
@@ -951,6 +983,33 @@ async def lookup_product_by_gtin(db: Session, gtin: str, *, context: str = "api_
         )
         db.commit()
         return cached
+
+    # Esse GTIN já falhou em Cosmos/GTIN recentemente? Sem isso, cada scan de
+    # um produto desconhecido (mesmo popular) paga a chamada externa de novo,
+    # para sempre — 50 tutores escaneando o mesmo item não catalogado eram
+    # 50 chamadas pagas em vez de 1.
+    recent_negative = get_recent_negative_lookup(db, normalized)
+    if recent_negative:
+        _record_scan_event(
+            db,
+            barcode=gtin,
+            barcode_normalized=normalized,
+            found_in_cache=False,
+            external_source_used="negative_cache",
+            product_id=recent_negative.resolved_product_id,
+            context=context,
+        )
+        db.commit()
+        return LookupResponse(
+            ok=True,
+            gtin=normalized,
+            found=False,
+            from_cache=False,
+            queued=True,
+            source=None,
+            product=None,
+            error=LOOKUP_QUEUE_NOT_FOUND_REASON,
+        )
 
     provider_used: Optional[str] = None
     candidate: Optional[CatalogCandidate] = None
