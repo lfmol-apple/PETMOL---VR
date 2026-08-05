@@ -51,6 +51,8 @@ uploads/
 *.sql
 *.sqlite
 *.db
+*.db-wal
+*.db-shm
 
 # Exceções — arquivos JSON versionados explicitamente
 !services/price-service/data/base_mestre_pet.json

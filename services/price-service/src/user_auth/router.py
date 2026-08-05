@@ -189,7 +189,15 @@ def confirm_password_reset(
     reset_token = db.query(PasswordResetToken).filter(PasswordResetToken.token_hash == token_hash).first()
     now = datetime.now(timezone.utc)
 
-    if not reset_token or reset_token.used_at is not None or reset_token.expires_at < now:
+    # SQLite (local dev) drops tzinfo on read even though the column is
+    # DateTime(timezone=True) — normalize before comparing, same as
+    # family/router.py's invite-expiry check, or this raises TypeError on
+    # SQLite instead of the intended 400.
+    expires_at = reset_token.expires_at if reset_token else None
+    if expires_at is not None and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    if not reset_token or reset_token.used_at is not None or expires_at < now:
         raise HTTPException(status_code=400, detail="Link inválido ou expirado. Solicite um novo e-mail.")
 
     user = db.query(User).filter(User.id == reset_token.user_id).first()
@@ -273,7 +281,12 @@ def confirm_email_verification(
     ).first()
     now = datetime.now(timezone.utc)
 
-    if not ev_token or ev_token.used_at is not None or ev_token.expires_at < now:
+    # See confirm_password_reset above — SQLite drops tzinfo on read.
+    expires_at = ev_token.expires_at if ev_token else None
+    if expires_at is not None and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    if not ev_token or ev_token.used_at is not None or expires_at < now:
         raise HTTPException(status_code=400, detail="Link inválido ou expirado. Solicite um novo e-mail.")
 
     user = db.query(User).filter(User.id == ev_token.user_id).first()

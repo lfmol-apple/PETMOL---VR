@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import hmac as _hmac
 import io
-import os
 import re
 import time
 import zipfile
@@ -16,6 +15,7 @@ from fastapi.responses import Response, StreamingResponse
 from fpdf import FPDF
 from sqlalchemy.orm import Session
 
+from ..config import get_settings
 from ..db import get_db
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
@@ -29,8 +29,11 @@ from ..events.models import Event
 
 router = APIRouter(prefix="/pets", tags=["Pet Export"])
 
-# HMAC secret — stateless, funciona com múltiplos workers uvicorn
-_ZIP_HMAC_SECRET = os.environ.get("ZIP_HMAC_SECRET", "petmol-zip-dl-2024").encode()
+# HMAC secret — stateless, funciona com múltiplos workers uvicorn.
+# Sourced from Settings (validated at startup by validate_prod) instead of a
+# hardcoded fallback: this file is public on GitHub, so a baked-in default
+# would let anyone forge a valid download token for any pet_id.
+_ZIP_HMAC_SECRET = get_settings().zip_hmac_secret.encode()
 _ZIP_TOKEN_TTL = 1800  # 30 min
 
 
