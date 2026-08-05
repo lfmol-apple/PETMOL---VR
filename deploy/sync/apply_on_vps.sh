@@ -196,25 +196,33 @@ chown -R petmol:petmol "$APP_DIR" 2>/dev/null || true
 # ============================================
 # Step 4: Install dependencies if needed
 # ============================================
+# `200>&-` on every subprocess below: bash fds are inherited by children
+# unless closed explicitly, so without this, any npm/pip/next child that
+# outlives its parent (Next.js build workers are known to do this on a
+# crash) keeps holding our flock forever — the parent script exiting
+# doesn't release it, only every holder of fd 200 exiting does. This bit
+# us: three deploys in a row got rejected as "already in progress" by a
+# lock nothing was actually still using, from a build worker orphaned by
+# an earlier failed run.
 if [ "$RESTART_API" = true ]; then
     log "Installing Python dependencies..."
     cd "$APP_DIR/services/price-service"
     if [ ! -d ".venv" ]; then
-        python3 -m venv .venv
+        python3 -m venv .venv 200>&-
     fi
-    .venv/bin/pip install -q --upgrade pip
-    .venv/bin/pip install -q -e .
-    .venv/bin/pip install -q uvicorn[standard]
+    .venv/bin/pip install -q --upgrade pip 200>&-
+    .venv/bin/pip install -q -e . 200>&-
+    .venv/bin/pip install -q uvicorn[standard] 200>&-
 fi
 
 if [ "$RESTART_WEB" = true ]; then
     log "Installing npm dependencies..."
     cd "$APP_DIR"
     export NEXT_IGNORE_INCORRECT_LOCKFILE=1
-    npm ci --legacy-peer-deps 2>/dev/null || npm install --legacy-peer-deps
+    npm ci --legacy-peer-deps 200>&- 2>/dev/null || npm install --legacy-peer-deps 200>&-
 
     log "Building Next.js..."
-    npm run web:build
+    npm run web:build 200>&-
 fi
 
 # ── Bump version.json so clients auto-reload onto the new build ────────────
