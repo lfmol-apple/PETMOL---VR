@@ -3,6 +3,7 @@ import hashlib
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -494,10 +495,30 @@ def delete_account(
     # Deleta dados relacionados via SQL direto para evitar problemas de relacionamento
     from sqlalchemy import text
     uid = str(user.id)
+
+    # Arquivos em disco (documentos enviados) nao sao apagados so por remover
+    # a linha do banco — sem isso o "direito ao apagamento" (LGPD) nao vale
+    # de verdade, o arquivo fica orfao em uploads/pet_documents. Coleta os
+    # caminhos antes do DELETE para poder remover os arquivos depois do commit.
+    storage_keys = [
+        row[0]
+        for row in db.execute(
+            text(
+                "SELECT storage_key FROM pet_documents "
+                "WHERE pet_id IN (SELECT id FROM pets WHERE user_id = :uid) "
+                "AND storage_key IS NOT NULL"
+            ),
+            {"uid": uid},
+        ).fetchall()
+    ]
+
     # Tabelas com pet_id (ordem importa: filhas antes de pets)
+    # 'care_plans' nao existe no schema real (41 tabelas, nenhuma com esse
+    # nome — confirmado inspecionando Base.metadata.tables) e derrubava esse
+    # endpoint inteiro com 500 antes de chegar em qualquer outra tabela,
+    # inclusive vaccine_records/pet_documents mais abaixo na lista.
     pet_child_tables = [
         'analytics_events',
-        'care_plans',
         'events',
         'feeding_plans',
         'grooming_records',
@@ -513,6 +534,16 @@ def delete_account(
     db.execute(text("DELETE FROM pets WHERE user_id = :uid"), {"uid": uid})
     db.delete(user)
     db.commit()
+
+    if storage_keys:
+        from ..pets.document_router import DOCS_UPLOAD_DIR
+        for key in storage_keys:
+            candidate = Path(key)
+            fpath = candidate if (candidate.is_absolute() and candidate.is_file()) else DOCS_UPLOAD_DIR / candidate.name
+            try:
+                fpath.unlink(missing_ok=True)
+            except OSError:
+                pass  # best-effort — DB rows are already gone either way
 
     response.delete_cookie(COOKIE_NAME, path="/")
     return {"ok": True}
