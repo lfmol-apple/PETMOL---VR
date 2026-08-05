@@ -13,6 +13,23 @@ TEMP_DIR="$REMOTE_DIR/PETMOL_new"
 DEPLOY_SHA="${PETMOL_DEPLOY_SHA:-unknown}"
 DEPLOY_BRANCH="${PETMOL_DEPLOY_BRANCH:-unknown}"
 
+# ============================================
+# Concurrency guard
+# ============================================
+# Two deploys landing on the VPS at once both write into the same
+# node_modules/.next — a concurrent `npm ci` + `next build` collision
+# corrupted the build once already (this script is invoked via `bash -s`
+# over SSH, piped from stdin, so a plain "is another instance running" pidof
+# check isn't reliable here — flock on a fixed fd is). GitHub Actions'
+# concurrency group covers normal CI-triggered deploys; this covers any
+# other way this script might get invoked (manual SSH run, retries, etc.).
+LOCK_FILE="$REMOTE_DIR/.deploy.lock"
+exec 200>"$LOCK_FILE"
+if ! flock -n 200; then
+    echo "Outro deploy ja esta em andamento neste VPS. Abortando para nao corromper node_modules/.next concorrente." >&2
+    exit 1
+fi
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

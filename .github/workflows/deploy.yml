@@ -7,6 +7,18 @@ on:
     types: [completed]
     branches: [main]
 
+# Nothing prevented two deploy runs from executing on the VPS at the same
+# time (e.g. a manual dispatch overlapping a workflow_run-triggered one) —
+# both write into the same node_modules/.next on disk, and a concurrent
+# `npm ci` + `next build` colliding there corrupted the build (saw both a
+# missing-Next.js-internal-module error and a bogus "Cannot find name
+# 'localStorage'" TS error from the same commit that built cleanly in CI).
+# Queue instead of racing; never cancel one mid-deploy since that would
+# leave the VPS with a half-applied release.
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Deploy to petmol.com.br
