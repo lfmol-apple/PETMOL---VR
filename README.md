@@ -6,7 +6,7 @@ Fluxo principal: cadastrar pet → registrar alimentação e cuidados → recebe
 
 ## Branch de produção
 
-**`main` é a única branch que vai para produção.** Todo push em `main` dispara deploy automático via GitHub Actions ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)) para o VPS (`petmol.com.br`).
+**`main` é a única branch que vai para produção.** Todo push em `main` roda o CI; se ele passar, o deploy dispara automaticamente via GitHub Actions ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)) para o VPS (`petmol.com.br`) — deploy não roda mais em paralelo com o CI, só depois dele ter passado.
 
 > O branch "padrão" exibido na página inicial do GitHub pode não ser `main` — isso é só uma configuração de navegação (Settings → Branches), não afeta o que está em produção. Sempre trabalhe a partir de `main`; as demais branches (`v2-design`, `redesign/frontend-proposal`, `release/docs-viewer-mobile`, `feature/*`) são linhas de desenvolvimento paralelas/abandonadas que não estão no ar.
 
@@ -97,7 +97,7 @@ O CI ([`ci.yml`](.github/workflows/ci.yml)) roda essa suíte a cada push.
 ## CI/CD
 
 - [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda em todo push: typecheck + lint + build do frontend, compile-check do backend.
-- [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) roda em todo push para `main`: empacota o repo, envia para o VPS via SSH, aplica com [`deploy/sync/apply_on_vps.sh`](deploy/sync/apply_on_vps.sh) (rsync preservando `.env`/segredos, reinstala dependências se necessário, rebuild do Next.js, restart dos serviços via systemd, bateria de health checks pós-deploy) e roda um health check final em `https://petmol.com.br/api/health`.
+- [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) roda depois que o CI passa em `main` (`workflow_run`, não em paralelo) — ou manualmente via `workflow_dispatch`, que pula essa checagem de propósito para deploys de emergência. Empacota o repo, envia para o VPS via SSH, aplica com [`deploy/sync/apply_on_vps.sh`](deploy/sync/apply_on_vps.sh) (rsync preservando `.env`/segredos, reinstala dependências se necessário, rebuild do Next.js, restart dos serviços via systemd, bateria de health checks pós-deploy) e roda um health check final em `https://petmol.com.br/api/health`.
 
 ## Backup
 

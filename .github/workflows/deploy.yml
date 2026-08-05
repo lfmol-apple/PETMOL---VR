@@ -1,18 +1,30 @@
 name: Deploy → VPS
 
 on:
-  workflow_dispatch:  # manual trigger no GitHub
-  push:
+  workflow_dispatch:  # manual trigger no GitHub — bypasses the CI gate below on purpose
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
 
 jobs:
   deploy:
     name: Deploy to petmol.com.br
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    # Previously this fired on every push to main in parallel with CI, so a
+    # commit whose tests failed could still finish deploying before CI
+    # reported it — CI and deploy raced instead of gating each other. Now
+    # deploy only starts once CI has finished, and only proceeds if it
+    # actually passed (workflow_dispatch still bypasses this for manual/
+    # emergency deploys).
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Pin to the exact commit CI validated, not whatever main's tip is
+          # by the time this job starts.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Create deployment package
         run: |
@@ -31,8 +43,8 @@ jobs:
           VPS_IP: ${{ secrets.VPS_IP }}
           VPS_USER: ${{ secrets.VPS_USER }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          GIT_SHA: ${{ github.sha }}
-          GIT_BRANCH: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          GIT_BRANCH: ${{ github.event.workflow_run.head_branch || github.ref_name }}
         run: |
           # Setup SSH
           mkdir -p ~/.ssh
