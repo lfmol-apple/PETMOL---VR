@@ -60,6 +60,10 @@ Nota importante: o auto-deploy legado era ruim por competir com Actions, mas tam
 
 ## Segunda correcao aplicada agora
 
+Commit pushado:
+
+- `ebb94e3 Retry VPS SSH deploy connection`
+
 Arquivo alterado:
 
 - `.github/workflows/deploy.yml`
@@ -89,12 +93,80 @@ Resultado:
 yaml ok
 ```
 
+Status apos push:
+
+- CI criada para `ebb94e3`: `31125070012`
+- Estado observado depois: `completed/failure`, com os dois jobs `cancelled`
+- Jobs cancelados:
+  - `Backend — compile check + tests`
+  - `Frontend — typecheck + lint + build`
+- No mesmo periodo, GitHub Status reportava `Actions: major_outage`.
+- Nenhum deploy novo foi criado porque o deploy depende de `workflow_run` da CI com conclusao `success`.
+- SSH direto para o VPS continuava falhando antes do banner:
+  `Connection timed out during banner exchange`.
+- Tentativa de habilitar `Port 2222` via `/etc/ssh/sshd_config.d/99-petmol-ports.conf`
+  nao abriu a porta 2222. O `ss -ltnp` mostrou apenas `:22`, com `systemd`
+  tambem dono do socket. Diagnostico: Ubuntu 24 esta usando `ssh.socket`
+  para socket activation; nesse modo, adicionar `Port 2222` no `sshd_config`
+  nao cria novo listener enquanto o `ssh.socket` continuar configurado apenas
+  para `ListenStream=22`.
+- HTTP/HTTPS de producao estavam saudaveis:
+  - `https://www.petmol.com.br/` retornou `200`
+  - `https://petmol.com.br/api/health` retornou `308` (aceito pelo workflow)
+
 ## Proximos passos recomendados para Claude
 
-1. Confirmar se o commit desta segunda correcao foi pushado.
+Atualizacao mais recente: o usuario pediu outra abordagem, sem continuar
+tentando consertar SSH no escuro. A rota adotada foi o deploy via webhook HTTP
+ja existente em `apps/web/src/app/webhook/route.ts`.
+
+O webhook atual:
+
+- `POST https://www.petmol.com.br/webhook`
+- Valida o token contra `/opt/petmol/deploy-token`
+- Quando recebe `url`, baixa o `.tar.gz`, extrai em
+  `/opt/petmol/app/apps/web` e reinicia `petmol-web`
+- Nao atualiza backend, `REVISION`, nem roda o deploy completo de
+  `deploy/sync/apply_on_vps.sh`
+
+Foi criado um pacote standalone local do Next em:
+
+- `/tmp/petmol-standalone-ebb94e3-webhook.tar.gz`
+- Copiado para `deploy/releases/petmol-standalone-ebb94e3-webhook.tar.gz`
+
+O pacote foi marcado em `public/version.json` com:
+
+- `ebb94e3-webhook-1786041298`
+
+Depois de publicar/pushar esse arquivo, acionar o webhook com o URL raw:
+
+```text
+https://raw.githubusercontent.com/lfmol-apple/PETMOL---VR/main/deploy/releases/petmol-standalone-ebb94e3-webhook.tar.gz
+```
+
+Validar com:
+
+```bash
+curl -sS https://www.petmol.com.br/version.json
+```
+
+Resultado esperado:
+
+```json
+{"v":"ebb94e3-webhook-1786041298"}
+```
+
+Observacao: nao publicar o token do webhook em logs, commits ou mensagens.
+
+1. Quando GitHub Actions sair de `major_outage`, disparar uma nova CI para `main` ou rerun da `31125070012`.
 2. Acompanhar a CI e o deploy que ela disparar.
-3. Se o deploy ainda falhar com SSH banner timeout depois de 480s de retry, o problema esta fora do repo: porta 22/sshd/firewall/provider do VPS.
-4. Nesse caso, nao reativar simplesmente `petmol-auto-deploy.timer` sem redesenhar:
+3. Se a CI passar e o deploy ainda falhar com SSH banner timeout depois de 480s de retry, o problema esta fora do repo: porta 22/sshd/firewall/provider do VPS.
+4. Nesse caso, usar o console web da Hostinger para corrigir `sshd`/firewall ou reiniciar o VPS. Sem SSH e sem Actions, nao ha canal tecnico disponivel daqui para alterar o servidor.
+   - Para porta alternativa em Ubuntu 24 com `ssh.socket`, criar override do socket:
+     `systemctl edit ssh.socket` ou arquivo em `/etc/systemd/system/ssh.socket.d/override.conf`
+     limpando `ListenStream=` e adicionando `ListenStream=22` e `ListenStream=2222`,
+     depois `systemctl daemon-reload && systemctl restart ssh.socket ssh`.
+5. Nao reativar simplesmente `petmol-auto-deploy.timer` sem redesenhar:
    - se usar pull-based deploy, ele deve ser o unico orquestrador;
    - o workflow SSH push deve ser desativado ou convertido em apenas CI/status;
    - o timer deve ter timeout finito e lock robusto.
@@ -130,4 +202,3 @@ Arquivos sujos pre-existentes/gerados que nao fazem parte da correcao de deploy:
 - `services/price-service/src/petmol_price_service.egg-info/SOURCES.txt`
 - `services/price-service/src/petmol_price_service.egg-info/requires.txt`
 - `services/price-service/src/petmol_price_service.egg-info/top_level.txt`
-
