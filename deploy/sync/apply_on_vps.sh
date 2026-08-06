@@ -13,6 +13,14 @@ TEMP_DIR="$REMOTE_DIR/PETMOL_new"
 DEPLOY_SHA="${PETMOL_DEPLOY_SHA:-unknown}"
 DEPLOY_BRANCH="${PETMOL_DEPLOY_BRANCH:-unknown}"
 
+# Legacy pull-based deploy ran from a systemd timer every 2 minutes on the VPS.
+# Production now deploys through GitHub Actions -> SSH; leaving the timer enabled
+# creates a second orchestrator that can race the official deploy and hold this
+# script's lock while Actions is also trying to deploy.
+if command -v systemctl >/dev/null 2>&1 && systemctl cat petmol-auto-deploy.timer >/dev/null 2>&1; then
+    systemctl disable --now petmol-auto-deploy.timer >/dev/null 2>&1 || true
+fi
+
 # ============================================
 # Concurrency guard
 # ============================================
