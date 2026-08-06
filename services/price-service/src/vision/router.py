@@ -3,7 +3,7 @@ Vision AI Router - Vaccine Card OCR
 Extracts vaccine data from pet vaccination card images using Gemini AI
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -15,6 +15,7 @@ import asyncio
 import time
 
 from ..db import get_db
+from ..rate_limit import rate_limiter
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
 from ..product_catalog_lookup import compute_image_phash, find_reliable_catalog_match_by_image
@@ -213,6 +214,7 @@ async def debug_dump_product_photo_events(
 @router.post("/extract-vaccine-card", response_model=ExtractVaccineCardResponse)
 async def extract_vaccine_card(
     request: ExtractVaccineCardRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -231,7 +233,13 @@ async def extract_vaccine_card(
     - Formatos: JPEG, PNG
     - Requer chave GOOGLE_API_KEY ou GEMINI_API_KEY configurada
     """
-    
+    # Cada chamada custa dinheiro de verdade (API do Gemini) — sem isso, um
+    # script batendo nesse endpoint em loop vira uma conta inesperada, não
+    # só um problema de performance.
+    allowed, _, _ = rate_limiter.check_rate_limit(http_request, max_requests=20, window_seconds=3600)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Muitas leituras de imagem. Aguarde um momento.")
+
     # Verificar feature flag
     feature_enabled = os.getenv("FEATURE_AI_VACCINE_SCAN", "false").lower() == "true"
     if not feature_enabled:
@@ -295,10 +303,14 @@ async def extract_vaccine_card(
 @router.post("/identify-product-photo", response_model=IdentifyProductPhotoResponse)
 async def identify_product_photo(
     request: IdentifyProductPhotoRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Identifica um produto pet a partir da foto da embalagem."""
+    allowed, _, _ = rate_limiter.check_rate_limit(http_request, max_requests=20, window_seconds=3600)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Muitas leituras de imagem. Aguarde um momento.")
 
     started_at = time.perf_counter()
 
@@ -548,8 +560,13 @@ class DocumentClassificationResponse(BaseModel):
 )
 async def classify_document_ocr(
     request: DocumentClassificationRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user)
 ):
+    allowed, _, _ = rate_limiter.check_rate_limit(http_request, max_requests=20, window_seconds=3600)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Muitas leituras de documento. Aguarde um momento.")
+
     try:
         # 1. Decode base64
         try:
