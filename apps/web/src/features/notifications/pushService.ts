@@ -288,13 +288,22 @@ export async function scheduleFoodReminder(
 }
 
 /**
- * Agenda UM lembrete por tipo + pet + título, substituindo qualquer lembrete
- * anterior com os mesmos identificadores. Garante que não há duplicatas por
- * vacina, antiparasitário, medicação, etc.
+ * Agenda UM lembrete por tipo + pet (+ título quando `matchByTitle`),
+ * substituindo qualquer lembrete anterior com os mesmos identificadores.
+ *
+ * `matchByTitle` deve ficar true só quando o mesmo `type` legitimamente
+ * comporta múltiplos lembretes simultâneos por pet, diferenciados pelo texto
+ * (vacina: nomes diferentes; banho/tosa: serviços diferentes). Para tipos
+ * onde `type` já é o identificador único por pet (vermífugo/antipulgas/
+ * coleira — cada subtipo tem seu próprio `type`, um único "próximo vencimento"
+ * por vez), comparar por título é frágil à toa: se o texto do título mudar
+ * em qualquer versão futura do app, o lembrete antigo nunca bate no filtro,
+ * nunca é substituído, e fica preso apontando pra URL antiga até disparar.
  */
 export async function scheduleUniqueReminder(
   payload: CreateReminderPayload & { pet_id: string },
-  token: string
+  token: string,
+  matchByTitle: boolean = true,
 ): Promise<void> {
   try {
     const already = await isSubscribed();
@@ -312,10 +321,9 @@ export async function scheduleUniqueReminder(
       const ok = await subscribeToPush(token);
       if (!ok) return;
     }
-    // Cancela apenas reminders do mesmo tipo + pet + título (específico por vacina/parasita)
     const existing = await listReminders(token);
     const old = existing.filter(
-      (r) => r.type === payload.type && r.pet_id === payload.pet_id && r.title === payload.title,
+      (r) => r.type === payload.type && r.pet_id === payload.pet_id && (!matchByTitle || r.title === payload.title),
     );
     await Promise.all(old.map((r) => deleteReminder(r.id, token)));
     await createReminder(payload, token);

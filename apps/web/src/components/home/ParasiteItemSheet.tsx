@@ -321,7 +321,8 @@ export function ParasiteItemSheet({
         const pushType = (type === 'flea_tick' ? 'flea' : type) as 'dewormer' | 'flea' | 'collar';
         void scheduleUniqueReminder(
           { pet_id: petId, type: pushType, title: `${cfg.icon} ${cfg.title}`, body: `Hora de comprar ${applyForm.product_name} para ${petName || 'seu pet'}. Verifique o estoque!`, remind_at: buildRemindAt(addDays(computedNext, -(parseInt(applyForm.reminder_days) || 3)), applyForm.reminder_time) },
-          token!
+          token!,
+          false
         );
         setMode('view');
         // Track product usage for recurring product suggestions
@@ -399,7 +400,8 @@ export function ParasiteItemSheet({
         const pushType = (type === 'flea_tick' ? 'flea' : type) as 'dewormer' | 'flea' | 'collar';
         void scheduleUniqueReminder(
           { pet_id: petId, type: pushType, title: `${cfg.icon} ${cfg.title}`, body: `Hora de comprar ${editForm.product_name} para ${petName || 'seu pet'}. Verifique o estoque!`, remind_at: buildRemindAt(addDays(nextDue, -(parseInt(editForm.reminder_days) || 3)), editForm.reminder_time) },
-          token!
+          token!,
+          false
         );
         setMode('view');
         setEditRecord(null);

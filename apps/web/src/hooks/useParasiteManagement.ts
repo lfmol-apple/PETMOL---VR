@@ -354,7 +354,7 @@ export function useParasiteManagement({
             if (parasiteToken) {
               const pushType = (parasiteFormData.type === 'flea_tick' ? 'flea' : parasiteFormData.type) as 'dewormer' | 'flea' | 'collar';
               const _productLabel = pushType === 'dewormer' ? 'vermífugo' : pushType === 'flea' ? 'antipulgas' : 'coleira antipulgas';
-              void scheduleUniqueReminder({ pet_id: currentPet.pet_id, type: pushType, title: `🛒 Comprar ${_productLabel}`, body: `Hora de comprar ${parasiteFormData.product_name} para ${currentPet.pet_name}. Verifique o estoque!`, remind_at: remindAt }, parasiteToken);
+              void scheduleUniqueReminder({ pet_id: currentPet.pet_id, type: pushType, title: `🛒 Comprar ${_productLabel}`, body: `Hora de comprar ${parasiteFormData.product_name} para ${currentPet.pet_name}. Verifique o estoque!`, remind_at: remindAt }, parasiteToken, false);
             }
           }
         }
