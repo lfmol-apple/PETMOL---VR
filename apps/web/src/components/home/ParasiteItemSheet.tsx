@@ -594,6 +594,25 @@ export function ParasiteItemSheet({
                 </div>
               )}
 
+              {/* Registrar / Editar — logo abaixo do produto atual (ou do estado vazio), coloridos por tipo */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setMode('apply')}
+                  className={`flex-1 py-2.5 rounded-xl text-[13px] font-semibold active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${cfg.colorBtn}`}
+                >
+                  <span>✅</span>
+                  Registrar
+                </button>
+                {current && (
+                  <button
+                    onClick={() => startEdit(current)}
+                    className={`px-4 py-2.5 rounded-xl text-[13px] font-semibold active:scale-[0.98] transition-all ${cfg.colorBtn}`}
+                  >
+                    Editar
+                  </button>
+                )}
+              </div>
+
               {/* History — collapsed accordion */}
               {sorted.length > 0 && (
                 <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
@@ -925,23 +944,6 @@ export function ParasiteItemSheet({
               <span>🛒</span>
               {cfg.buyLabel}
             </button>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setMode('apply')}
-                className="flex-1 py-3 rounded-2xl bg-white border border-gray-200 text-gray-600 text-[14px] font-semibold active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-              >
-                <span>✅</span>
-                Registrar
-              </button>
-              {current && (
-                <button
-                  onClick={() => startEdit(current)}
-                  className="px-4 py-3 rounded-2xl bg-white border border-gray-200 text-gray-600 text-[13px] font-semibold active:scale-[0.98] transition-all"
-                >
-                  Editar
-                </button>
-              )}
-            </div>
           </div>
         )}
 
