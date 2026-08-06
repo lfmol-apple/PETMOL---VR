@@ -456,7 +456,7 @@ export function ParasiteItemSheet({
 
       {/* Sheet */}
       <div
-        className="relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-[28px] shadow-2xl border-t border-x sm:border border-gray-200/70 flex flex-col overflow-hidden animate-slideUp sm:animate-scaleIn h-[90vh] sm:h-auto sm:max-h-[90dvh]"
+        className="relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-[28px] shadow-2xl border-t border-x sm:border border-gray-200/70 flex flex-col overflow-hidden animate-slideUp sm:animate-scaleIn max-h-[90vh] sm:max-h-[90dvh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Success overlay */}
@@ -936,7 +936,7 @@ export function ParasiteItemSheet({
               {current && (
                 <button
                   onClick={() => startEdit(current)}
-                  className="px-4 py-3 rounded-2xl bg-white border border-gray-200 text-gray-400 text-[13px] font-medium active:scale-[0.98] transition-all"
+                  className="px-4 py-3 rounded-2xl bg-white border border-gray-200 text-gray-600 text-[13px] font-semibold active:scale-[0.98] transition-all"
                 >
                   Editar
                 </button>
