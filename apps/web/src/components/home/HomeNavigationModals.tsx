@@ -160,7 +160,7 @@ export function HomeNavigationModals({
                   <span className="text-xl">🏥</span>
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-slate-900 leading-tight">Saúde</h3>
+                  <h3 className="text-lg font-black text-slate-900 leading-tight">Cuidados</h3>
                   <p className="text-xs text-slate-500 font-medium">{currentPet?.pet_name ? `Cuidando de ${currentPet.pet_name}` : 'Cuidados preventivos'}</p>
                 </div>
               </div>
