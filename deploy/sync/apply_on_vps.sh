@@ -286,36 +286,6 @@ EOF
 chown petmol:petmol "$APP_DIR/REVISION" 2>/dev/null || true
 
 # ============================================
-# Step 4.5: One-time reclassification (roda uma vez, flag impede repetição)
-# ============================================
-RECLASSIFY_FLAG="$REMOTE_DIR/.reclassify_baby_done"
-if [ ! -f "$RECLASSIFY_FLAG" ]; then
-    log "Reclassificando documentos do Baby com novo prompt Gemini..."
-    VENV_PYTHON="$APP_DIR/services/price-service/.venv/bin/python"
-    RECLASSIFY_SCRIPT="$APP_DIR/deploy/scripts/reclassify_pet_docs.py"
-    if [ -f "$VENV_PYTHON" ] && [ -f "$RECLASSIFY_SCRIPT" ]; then
-        cd "$APP_DIR/services/price-service"
-        set -a; [ -f .env ] && source .env; set +a
-        cd "$APP_DIR"
-        "$VENV_PYTHON" "$RECLASSIFY_SCRIPT" --pet "Baby" 200>&- \
-            && touch "$RECLASSIFY_FLAG" \
-            && log "Reclassificação do Baby concluída." \
-            || warn "Reclassificação falhou — será tentada novamente no próximo deploy."
-    else
-        warn "venv ($VENV_PYTHON) ou script não encontrado — pulando."
-    fi
-fi
-
-# When this whole script runs as root (automated GitHub Actions deploy uses
-# a root SSH key), the reclassify step above compiles __pycache__/*.pyc as
-# root — even on failure, since Python writes the bytecode cache before the
-# import error surfaces. Those root-owned files then block `rsync --delete`
-# on the next deploy that runs as `petmol` (manual recovery). Re-chown here,
-# after the reclassify step, since the earlier chown (before Step 4.5) runs
-# too early to catch this.
-chown -R petmol:petmol "$APP_DIR" 2>/dev/null || true
-
-# ============================================
 # Step 5: Restart services
 # ============================================
 log "Restarting petmol-api..."
