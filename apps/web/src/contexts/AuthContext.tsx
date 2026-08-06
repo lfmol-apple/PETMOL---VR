@@ -82,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await fetch(`${API_URL}/auth/me`, {
         credentials: 'include',
         headers: { 'Authorization': `Bearer ${savedToken}` },
+        signal: AbortSignal.timeout(15000),
       });
 
       if (response.ok) {

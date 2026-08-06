@@ -46,6 +46,7 @@ export function useAdmin(): UseAdminReturn {
           'Authorization': token ? `Bearer ${token}` : '',
         },
         credentials: 'include',
+        signal: AbortSignal.timeout(15000),
       });
 
       if (response.ok) {
