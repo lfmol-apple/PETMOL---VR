@@ -567,6 +567,17 @@ async def classify_document_ocr(
     if not allowed:
         raise HTTPException(status_code=429, detail="Muitas leituras de documento. Aguarde um momento.")
 
+    # A Caderneta (armazenamento/classificação genérica de documentos) saiu
+    # da navegação da home — este endpoint fica desligado por padrão até
+    # essa frente ser retomada, sem precisar remover o código. Ativar com
+    # FEATURE_DOCUMENT_OCR=true quando quiser religar.
+    feature_enabled = os.getenv("FEATURE_DOCUMENT_OCR", "false").lower() == "true"
+    if not feature_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Feature de OCR de documentos não está habilitada. Configure FEATURE_DOCUMENT_OCR=true"
+        )
+
     try:
         # 1. Decode base64
         try:
