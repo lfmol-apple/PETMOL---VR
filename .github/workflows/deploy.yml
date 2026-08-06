@@ -34,10 +34,9 @@ jobs:
     # ever finding out — the run just sat "in_progress" indefinitely, and
     # since concurrency below never cancels, it silently blocked every
     # subsequent deploy from even starting until someone noticed and
-    # cancelled it by hand. Default job timeout is 360 minutes; a real
-    # deploy here never takes more than ~5, so this fails it automatically
-    # instead of blocking the queue for up to 6 hours.
-    timeout-minutes: 10
+    # cancelled it by hand. Keep a finite timeout, but leave room for SSH
+    # banner timeouts/retries when port 22 is temporarily saturated.
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
@@ -72,22 +71,78 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o BatchMode=yes"
+          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o BatchMode=yes -o ServerAliveInterval=10 -o ServerAliveCountMax=2"
           SSH="ssh $SSH_OPTS $VPS_USER@$VPS_IP"
           SCP="scp $SSH_OPTS"
 
+          ssh_retry() {
+            local max_wait=480
+            local elapsed=0
+            local delay=10
+            until $SSH "$@"; do
+              elapsed=$((elapsed + delay))
+              if [ "$elapsed" -ge "$max_wait" ]; then
+                echo "SSH did not become ready after ${max_wait}s"
+                return 1
+              fi
+              echo "SSH not ready yet; retrying in ${delay}s (${elapsed}/${max_wait}s)"
+              sleep "$delay"
+              if [ "$delay" -lt 40 ]; then
+                delay=$((delay + 10))
+              fi
+            done
+          }
+
+          scp_retry() {
+            local max_wait=480
+            local elapsed=0
+            local delay=10
+            until $SCP "$@"; do
+              elapsed=$((elapsed + delay))
+              if [ "$elapsed" -ge "$max_wait" ]; then
+                echo "SCP did not succeed after ${max_wait}s"
+                return 1
+              fi
+              echo "SCP not ready yet; retrying in ${delay}s (${elapsed}/${max_wait}s)"
+              sleep "$delay"
+              if [ "$delay" -lt 40 ]; then
+                delay=$((delay + 10))
+              fi
+            done
+          }
+
+          ssh_stdin_retry() {
+            local stdin_file="$1"
+            shift
+            local max_wait=480
+            local elapsed=0
+            local delay=10
+            until $SSH "$@" < "$stdin_file"; do
+              elapsed=$((elapsed + delay))
+              if [ "$elapsed" -ge "$max_wait" ]; then
+                echo "SSH command did not succeed after ${max_wait}s"
+                return 1
+              fi
+              echo "SSH command failed; retrying in ${delay}s (${elapsed}/${max_wait}s)"
+              sleep "$delay"
+              if [ "$delay" -lt 40 ]; then
+                delay=$((delay + 10))
+              fi
+            done
+          }
+
           # Verify VPS is reachable before uploading
           echo "=== Testing SSH connectivity ==="
-          $SSH "echo 'SSH OK — disk:' && df -h /opt/petmol 2>/dev/null || df -h / | tail -2"
+          ssh_retry "echo 'SSH OK — disk:' && df -h /opt/petmol 2>/dev/null || df -h / | tail -2"
 
           # Upload zip
           echo "=== Uploading package ==="
-          $SCP /tmp/PETMOL.zip "$VPS_USER@$VPS_IP:/opt/petmol/"
+          scp_retry /tmp/PETMOL.zip "$VPS_USER@$VPS_IP:/opt/petmol/"
 
           # Apply on VPS
           echo "=== Running apply script ==="
-          $SSH "PETMOL_DEPLOY_SHA='$GIT_SHA' PETMOL_DEPLOY_BRANCH='$GIT_BRANCH' bash -s" \
-            < deploy/sync/apply_on_vps.sh
+          ssh_stdin_retry deploy/sync/apply_on_vps.sh \
+            "PETMOL_DEPLOY_SHA='$GIT_SHA' PETMOL_DEPLOY_BRANCH='$GIT_BRANCH' bash -s"
 
       - name: Health check
         run: |
