@@ -1,17 +1,111 @@
 import { spawn, execSync } from 'child_process'
+import { createPublicKey, createVerify } from 'crypto'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { NextRequest } from 'next/server'
 
 const REPO = 'lfmol-apple/PETMOL---VR'
+const GITHUB_OIDC_ISSUER = 'https://token.actions.githubusercontent.com'
+const GITHUB_OIDC_AUDIENCE = 'petmol-deploy'
+const GITHUB_OIDC_JWKS_URL = `${GITHUB_OIDC_ISSUER}/.well-known/jwks`
+
+type DeployRequest = {
+  token?: string
+  url?: string
+  oidcToken?: string
+}
+
+type JwtHeader = {
+  alg?: string
+  kid?: string
+  typ?: string
+}
+
+type JwtClaims = {
+  aud?: string | string[]
+  exp?: number
+  iat?: number
+  iss?: string
+  nbf?: number
+  ref?: string
+  repository?: string
+}
+
+type JwksKey = {
+  alg?: string
+  e?: string
+  kid?: string
+  kty?: string
+  n?: string
+  use?: string
+}
+
+function decodeBase64UrlJson<T>(value: string): T {
+  return JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as T
+}
+
+function audienceMatches(aud: JwtClaims['aud']) {
+  return Array.isArray(aud)
+    ? aud.includes(GITHUB_OIDC_AUDIENCE)
+    : aud === GITHUB_OIDC_AUDIENCE
+}
+
+async function verifyGitHubOidcToken(token: string): Promise<boolean> {
+  const parts = token.split('.')
+  if (parts.length !== 3) return false
+
+  const [encodedHeader, encodedPayload, encodedSignature] = parts
+  let header: JwtHeader
+  let claims: JwtClaims
+  try {
+    header = decodeBase64UrlJson<JwtHeader>(encodedHeader)
+    claims = decodeBase64UrlJson<JwtClaims>(encodedPayload)
+  } catch {
+    return false
+  }
+
+  if (header.alg !== 'RS256' || !header.kid) return false
+
+  const now = Math.floor(Date.now() / 1000)
+  if (claims.iss !== GITHUB_OIDC_ISSUER) return false
+  if (!audienceMatches(claims.aud)) return false
+  if (claims.repository !== REPO) return false
+  if (claims.ref !== 'refs/heads/main') return false
+  if (typeof claims.exp !== 'number' || claims.exp <= now) return false
+  if (typeof claims.nbf === 'number' && claims.nbf > now + 30) return false
+  if (typeof claims.iat === 'number' && claims.iat > now + 30) return false
+
+  const jwksResponse = await fetch(GITHUB_OIDC_JWKS_URL, { cache: 'no-store' })
+  if (!jwksResponse.ok) return false
+
+  const jwks = (await jwksResponse.json()) as { keys?: JwksKey[] }
+  const jwk = jwks.keys?.find((key) => key.kid === header.kid)
+  if (!jwk) return false
+
+  const verifier = createVerify('RSA-SHA256')
+  verifier.update(`${encodedHeader}.${encodedPayload}`)
+  verifier.end()
+
+  try {
+    const publicKey = createPublicKey({
+      key: jwk,
+      format: 'jwk',
+    } as Parameters<typeof createPublicKey>[0])
+    return verifier.verify(publicKey, Buffer.from(encodedSignature, 'base64url'))
+  } catch {
+    return false
+  }
+}
 
 export async function POST(req: NextRequest) {
-  let body: { token?: string; url?: string } = {}
+  let body: DeployRequest = {}
   try { body = await req.json() } catch { /* ignore */ }
 
   const tokenFile = '/opt/petmol/deploy-token'
   const expected = existsSync(tokenFile) ? readFileSync(tokenFile, 'utf8').trim() : null
+  const tokenAuthorized = Boolean(expected && body.token === expected)
+  const oidcAuthorized = body.oidcToken ? await verifyGitHubOidcToken(body.oidcToken) : false
 
-  if (!expected || body.token !== expected) {
+  if (!tokenAuthorized && !oidcAuthorized) {
     return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 

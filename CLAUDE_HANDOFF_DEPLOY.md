@@ -149,14 +149,22 @@ Correcao estrutural aplicada depois:
   3. roda `npm run web:build`;
   4. empacota `apps/web/.next/standalone`;
   5. cria um GitHub Release asset com `GITHUB_TOKEN`;
-  6. aciona `POST https://www.petmol.com.br/webhook` sem `url`, para o VPS
+  6. pede um token OIDC do GitHub Actions com audience `petmol-deploy`;
+  7. aciona `POST https://www.petmol.com.br/webhook` sem `url`, para o VPS
      baixar o latest release usando o token dele em `/opt/petmol/.github-env`.
 
-Pre-requisito do fallback:
+Atualizacao posterior:
 
-- Criar no GitHub Actions secret `DEPLOY_WEBHOOK_TOKEN` com o conteudo atual
-  de `/opt/petmol/deploy-token`.
-- Nao commitar esse token.
+- O fallback nao depende mais de secret `DEPLOY_WEBHOOK_TOKEN`.
+- `apps/web/src/app/webhook/route.ts` aceita o token manual antigo ou um
+  `oidcToken` assinado pelo GitHub.
+- O webhook valida:
+  - issuer `https://token.actions.githubusercontent.com`;
+  - audience `petmol-deploy`;
+  - repository `lfmol-apple/PETMOL---VR`;
+  - ref `refs/heads/main`;
+  - assinatura RS256 contra JWKS oficial do GitHub.
+- `.github/workflows/deploy.yml` agora tem `permissions.id-token: write`.
 
 Validar com:
 
@@ -175,17 +183,16 @@ Observacao: nao publicar o token do webhook em logs, commits ou mensagens.
 ## Proximos passos recomendados para Claude
 
 1. Quando GitHub Actions sair de `major_outage`, disparar uma nova CI para `main` ou rerun da `31125070012`.
-2. Confirmar que o secret `DEPLOY_WEBHOOK_TOKEN` existe.
-3. Acompanhar a CI e o deploy que ela disparar.
-4. Se SSH falhar, confirmar que o fallback criou release e acionou o webhook.
-5. Se o fallback falhar por `DEPLOY_WEBHOOK_TOKEN secret is required`, criar o secret e rerodar o deploy.
-6. Se a CI passar e o deploy ainda falhar com SSH banner timeout depois de 480s de retry, o problema de SSH continua fora do repo: porta 22/sshd/firewall/provider do VPS.
-7. Nesse caso, usar o console web da Hostinger para corrigir `sshd`/firewall ou reiniciar o VPS. Sem SSH e sem Actions, nao ha canal tecnico disponivel daqui para alterar o servidor.
+2. Acompanhar a CI e o deploy que ela disparar.
+3. Se SSH falhar, confirmar que o fallback criou release, obteve OIDC e acionou o webhook.
+4. Se o fallback falhar por OIDC, verificar `permissions.id-token: write` e audience `petmol-deploy`.
+5. Se a CI passar e o deploy ainda falhar com SSH banner timeout depois de 480s de retry, o problema de SSH continua fora do repo: porta 22/sshd/firewall/provider do VPS.
+6. Nesse caso, usar o console web da Hostinger para corrigir `sshd`/firewall ou reiniciar o VPS. Sem SSH e sem Actions, nao ha canal tecnico disponivel daqui para alterar o servidor.
    - Para porta alternativa em Ubuntu 24 com `ssh.socket`, criar override do socket:
      `systemctl edit ssh.socket` ou arquivo em `/etc/systemd/system/ssh.socket.d/override.conf`
      limpando `ListenStream=` e adicionando `ListenStream=22` e `ListenStream=2222`,
      depois `systemctl daemon-reload && systemctl restart ssh.socket ssh`.
-8. Nao reativar simplesmente `petmol-auto-deploy.timer` sem redesenhar:
+7. Nao reativar simplesmente `petmol-auto-deploy.timer` sem redesenhar:
    - se usar pull-based deploy, ele deve ser o unico orquestrador;
    - o workflow SSH push deve ser desativado ou convertido em apenas CI/status;
    - o timer deve ter timeout finito e lock robusto.

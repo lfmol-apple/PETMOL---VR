@@ -21,6 +21,7 @@ concurrency:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   deploy:
@@ -185,16 +186,20 @@ jobs:
       - name: Trigger webhook fallback deploy
         id: webhook_fallback
         if: steps.ssh_deploy.outcome == 'failure'
-        env:
-          DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
         run: |
-          if [ -z "$DEPLOY_WEBHOOK_TOKEN" ]; then
-            echo "DEPLOY_WEBHOOK_TOKEN secret is required for webhook fallback deploy."
+          OIDC_TOKEN="$(
+            curl -fsS \
+              -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=petmol-deploy" \
+              | jq -r '.value'
+          )"
+          if [ -z "$OIDC_TOKEN" ] || [ "$OIDC_TOKEN" = "null" ]; then
+            echo "Could not obtain GitHub Actions OIDC token."
             exit 1
           fi
           curl -fsS --max-time 30 -X POST 'https://www.petmol.com.br/webhook' \
             -H 'Content-Type: application/json' \
-            --data "$(jq -nc --arg token "$DEPLOY_WEBHOOK_TOKEN" '{token:$token}')"
+            --data "$(jq -nc --arg oidcToken "$OIDC_TOKEN" '{oidcToken:$oidcToken}')"
           echo "Webhook fallback deploy requested for version ${FALLBACK_VERSION:-unknown}."
 
       - name: Health check
