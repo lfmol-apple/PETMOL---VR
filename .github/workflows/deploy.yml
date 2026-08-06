@@ -26,7 +26,7 @@ permissions:
 jobs:
   deploy:
     name: Deploy to petmol.com.br
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Previously this fired on every push to main in parallel with CI, so a
     # commit whose tests failed could still finish deploying before CI
     # reported it — CI and deploy raced instead of gating each other. Now
@@ -178,9 +178,9 @@ jobs:
           GIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           TAG="deploy-web-${GIT_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          gh release create "$TAG" /tmp/petmol-web-standalone.tar.gz \
+          gh release create "$TAG" /tmp/petmol-web-standalone.tar.gz /tmp/PETMOL.zip \
             --title "Web fallback deploy ${GIT_SHA}" \
-            --notes "Automatic web-only fallback deploy after SSH deploy failed."
+            --notes "Automatic webhook fallback deploy after SSH deploy failed."
           echo "FALLBACK_TAG=$TAG" >> "$GITHUB_ENV"
 
       - name: Trigger webhook fallback deploy
@@ -199,7 +199,25 @@ jobs:
           fi
           curl -fsS --max-time 30 -X POST 'https://www.petmol.com.br/webhook' \
             -H 'Content-Type: application/json' \
-            --data "$(jq -nc --arg oidcToken "$OIDC_TOKEN" '{oidcToken:$oidcToken}')"
+            --data "$(jq -nc --arg oidcToken "$OIDC_TOKEN" '{oidcToken:$oidcToken,bootstrapWebOnly:true}')"
+
+          for attempt in $(seq 1 30); do
+            LIVE_VERSION="$(curl -fsS --max-time 10 'https://www.petmol.com.br/version.json' | jq -r '.v // empty' || true)"
+            if [ "$LIVE_VERSION" = "${FALLBACK_VERSION:-}" ]; then
+              break
+            fi
+            sleep 3
+          done
+
+          OIDC_TOKEN="$(
+            curl -fsS \
+              -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=petmol-deploy" \
+              | jq -r '.value'
+          )"
+          curl -fsS --max-time 30 -X POST 'https://www.petmol.com.br/webhook' \
+            -H 'Content-Type: application/json' \
+            --data "$(jq -nc --arg oidcToken "$OIDC_TOKEN" '{oidcToken:$oidcToken,fullDeploy:true}')"
           echo "Webhook fallback deploy requested for version ${FALLBACK_VERSION:-unknown}."
 
       - name: Health check

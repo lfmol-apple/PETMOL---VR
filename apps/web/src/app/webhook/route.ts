@@ -9,6 +9,8 @@ const GITHUB_OIDC_AUDIENCE = 'petmol-deploy'
 const GITHUB_OIDC_JWKS_URL = `${GITHUB_OIDC_ISSUER}/.well-known/jwks`
 
 type DeployRequest = {
+  bootstrapWebOnly?: boolean
+  fullDeploy?: boolean
   token?: string
   url?: string
   oidcToken?: string
@@ -139,6 +141,7 @@ echo "Extract OK $(date)" >> "$LOG"
 /usr/bin/systemctl restart petmol-web
 echo "Restart OK $(date)" >> "$LOG"`
   } else {
+    const forceWebOnly = Boolean(body.bootstrapWebOnly && !body.fullDeploy)
     script = `#!/bin/bash
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 GH_TOKEN='${ghToken}'
@@ -147,15 +150,41 @@ echo "=== Deploy start $(date) ===" >> "$LOG"
 LATEST=$(/usr/bin/curl -sf --max-time 15 -H "Authorization: token $GH_TOKEN" -H "User-Agent: petmol-deploy" "https://api.github.com/repos/${REPO}/releases/latest")
 if [ -z "$LATEST" ]; then echo "ERRO: sem resposta da API GitHub" >> "$LOG"; exit 1; fi
 echo "Got metadata" >> "$LOG"
-ASSET_ID=$(echo "$LATEST" | /usr/bin/python3 -c "import sys,json;print(json.load(sys.stdin)['assets'][0]['id'])" 2>>"$LOG")
-echo "Asset ID: $ASSET_ID" >> "$LOG"
+read ASSET_ID ASSET_NAME DEPLOY_SHA < <(echo "$LATEST" | /usr/bin/python3 -c 'import json, re, sys
+data = json.load(sys.stdin)
+assets = data.get("assets") or []
+force_web = ${forceWebOnly ? 'True' : 'False'}
+chosen = None
+if not force_web:
+    chosen = next((asset for asset in assets if asset.get("name") == "PETMOL.zip"), None)
+if chosen is None:
+    chosen = next((asset for asset in assets if str(asset.get("name", "")).endswith(".tar.gz")), None)
+if chosen is None and assets:
+    chosen = assets[0]
+if chosen is None:
+    raise SystemExit("no release assets")
+tag = data.get("tag_name") or ""
+match = re.search(r"([0-9a-f]{7,40})", tag)
+print(chosen["id"], chosen.get("name", ""), match.group(1) if match else "unknown")
+' 2>>"$LOG")
+echo "Asset ID: $ASSET_ID ($ASSET_NAME)" >> "$LOG"
 DL_URL=$(/usr/bin/curl -s --max-time 15 -o /dev/null -w "%{redirect_url}" -H "Authorization: token $GH_TOKEN" -H "Accept: application/octet-stream" -H "User-Agent: petmol-deploy" "https://api.github.com/repos/${REPO}/releases/assets/$ASSET_ID")
 echo "DL_URL: $DL_URL" >> "$LOG"
 if [ -z "$DL_URL" ]; then echo "ERRO: DL_URL vazia" >> "$LOG"; exit 1; fi
-/usr/bin/curl -fL --max-time 300 "$DL_URL" | /usr/bin/tar -xzC /opt/petmol/app/apps/web --no-same-owner
-echo "Extract OK $(date)" >> "$LOG"
-/usr/bin/systemctl restart petmol-web
-echo "Restart OK $(date)" >> "$LOG"`
+if [ "$ASSET_NAME" = "PETMOL.zip" ]; then
+  echo "Full deploy via webhook fallback: $DEPLOY_SHA" >> "$LOG"
+  /usr/bin/curl -fL --max-time 300 "$DL_URL" -o /opt/petmol/PETMOL.zip
+  rm -rf /opt/petmol/PETMOL_apply
+  mkdir -p /opt/petmol/PETMOL_apply
+  /usr/bin/unzip -q -o /opt/petmol/PETMOL.zip deploy/sync/apply_on_vps.sh -d /opt/petmol/PETMOL_apply
+  PETMOL_DEPLOY_SHA="$DEPLOY_SHA" PETMOL_DEPLOY_BRANCH="main" /bin/bash /opt/petmol/PETMOL_apply/deploy/sync/apply_on_vps.sh >> "$LOG" 2>&1
+  echo "Full deploy OK $(date)" >> "$LOG"
+else
+  /usr/bin/curl -fL --max-time 300 "$DL_URL" | /usr/bin/tar -xzC /opt/petmol/app/apps/web --no-same-owner
+  echo "Extract OK $(date)" >> "$LOG"
+  /usr/bin/systemctl restart petmol-web
+  echo "Restart OK $(date)" >> "$LOG"
+fi`
   }
 
   try {

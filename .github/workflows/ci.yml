@@ -9,7 +9,7 @@ on:
 jobs:
   frontend:
     name: Frontend — typecheck + lint + build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +43,7 @@ jobs:
 
   backend:
     name: Backend — compile check + tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: services/price-service
