@@ -1,0 +1,110 @@
+name: Deploy → VPS (atomic releases — NEW, not yet official)
+
+# This is the new atomic-release pipeline (see docs/DEPLOYMENT.md). It is
+# intentionally workflow_dispatch-only for now: it does NOT auto-trigger on
+# push to main. deploy.yml (SSH + in-place rsync/build on the VPS) remains
+# the only automatic production path until this has been validated against
+# the real VPS and deploy.yml is retired in a follow-up change. Do not wire
+# this to auto-trigger without removing/disabling deploy.yml first — running
+# both on the same push would mean two independent things deploying to the
+# same box.
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Commit SHA to deploy (must have a successful CI run on main with a packaged artifact)'
+        required: true
+
+concurrency:
+  group: deploy-vps-atomic
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  deploy:
+    name: Activate release on petmol.com.br
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.sha }}
+
+      - name: Find the CI run that packaged this SHA
+        id: find_run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.inputs.sha }}
+        run: |
+          RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml \
+            --commit "$SHA" --status success --json databaseId --jq '.[0].databaseId')
+          if [ -z "$RUN_ID" ]; then
+            echo "No successful CI run found for $SHA — nothing to deploy."
+            exit 1
+          fi
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Download packaged artifact from that run
+        uses: actions/download-artifact@v4
+        with:
+          name: petmol-release-${{ github.event.inputs.sha }}
+          run-id: ${{ steps.find_run.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: /tmp/release-artifact
+
+      - name: Upload artifact and activate on VPS
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SHA: ${{ github.event.inputs.sha }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o BatchMode=yes -o ServerAliveInterval=10 -o ServerAliveCountMax=2"
+          SSH="ssh $SSH_OPTS $VPS_USER@$VPS_IP"
+          SCP="scp $SSH_OPTS"
+
+          TARBALL="/tmp/release-artifact/petmol-${SHA}.tar.gz"
+          if [ ! -f "$TARBALL" ]; then
+            echo "Downloaded artifact missing: $TARBALL"
+            exit 1
+          fi
+
+          # Retries here are for SSH connect/upload flakiness only — once
+          # activate.sh starts running, it runs exactly once (see its own
+          # lock). No retry wraps the activation command itself.
+          ssh_retry() {
+            local max_wait=180 elapsed=0 delay=10
+            until $SSH "$@"; do
+              elapsed=$((elapsed + delay))
+              [ "$elapsed" -ge "$max_wait" ] && { echo "SSH did not become ready after ${max_wait}s"; return 1; }
+              echo "SSH not ready yet; retrying in ${delay}s (${elapsed}/${max_wait}s)"
+              sleep "$delay"
+            done
+          }
+
+          ssh_retry "mkdir -p /opt/petmol/incoming"
+          $SCP "$TARBALL" "$VPS_USER@$VPS_IP:/opt/petmol/incoming/petmol-${SHA}.tar.gz"
+
+          $SSH "tar -xzOf /opt/petmol/incoming/petmol-${SHA}.tar.gz deploy/release/activate.sh > /tmp/activate-${SHA}.sh && \
+                PETMOL_DEPLOY_SHA='${SHA}' bash /tmp/activate-${SHA}.sh /opt/petmol/incoming/petmol-${SHA}.tar.gz && \
+                rm -f /tmp/activate-${SHA}.sh /opt/petmol/incoming/petmol-${SHA}.tar.gz"
+
+      - name: External health check
+        run: |
+          sleep 5
+          STATUS=$(curl -sL -o /dev/null -w "%{http_code}" https://petmol.com.br/api/health)
+          if [[ "$STATUS" =~ ^(200|301|302|307|308)$ ]]; then
+            echo "✅ Deploy successful — API responding $STATUS"
+          else
+            echo "❌ External health check failed — HTTP $STATUS"
+            exit 1
+          fi

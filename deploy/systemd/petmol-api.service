@@ -1,0 +1,16 @@
+[Unit]
+Description=PETMOL Price Service API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=petmol
+Group=petmol
+WorkingDirectory=/opt/petmol/current/services/price-service
+EnvironmentFile=-/opt/petmol/shared/env/api.env
+ExecStart=/opt/petmol/current/services/price-service/.venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

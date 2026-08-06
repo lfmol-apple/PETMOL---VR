@@ -69,3 +69,95 @@ jobs:
       # before importing the app, so this never touches Postgres/prod data.
       - name: Tests
         run: python -m pytest tests/ -v
+
+  # Builds the one artifact that production ever runs. Everything downstream
+  # (deploy/release/activate.sh on the VPS) only ever extracts and activates
+  # this exact tarball — it never runs `npm ci`/`next build`/`pip install`
+  # itself. Only runs on main, after both gates pass, so a PR branch never
+  # produces a "deployable" package.
+  package:
+    name: Build & package release artifact
+    needs: [frontend, backend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      # Written before the build so it's baked into both the source tree
+      # copy below and the standalone bundle's public/ dir.
+      - name: Stamp version
+        run: echo "{\"v\":\"${GITHUB_SHA}-$(date -u +%s)\"}" > apps/web/public/version.json
+
+      - name: Build frontend (standalone)
+        run: npm run web:build
+
+      # Next's standalone output already mirrors the monorepo layout it needs
+      # at runtime (apps/web/server.js + a scoped node_modules), rooted at
+      # .next/standalone/ because of outputFileTracingRoot — copying its
+      # contents straight into the release root recreates exactly that
+      # layout, just flatter (no more nested .next/standalone/apps/web).
+      - name: Assemble frontend into release root
+        run: |
+          mkdir -p /tmp/release
+          cp -r apps/web/.next/standalone/. /tmp/release/
+          mkdir -p /tmp/release/apps/web/.next
+          cp -r apps/web/.next/static /tmp/release/apps/web/.next/static
+          cp -r apps/web/public /tmp/release/apps/web/public
+
+      # Source + manifest only — no .venv, no caches, no dev-only data.
+      # deploy/release/activate.sh installs deps into a VPS-side shared venv
+      # and symlinks it in; it is never part of this artifact.
+      - name: Assemble backend into release root
+        run: |
+          mkdir -p /tmp/release/services/price-service
+          rsync -a \
+            --exclude '.venv' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude 'uploads' \
+            --exclude '.env' \
+            --exclude '.env.local' \
+            --exclude 'petmol.db*' \
+            --exclude 'push_subscriptions.json' \
+            --exclude '.pytest_cache' \
+            --exclude '*.egg-info' \
+            services/price-service/ /tmp/release/services/price-service/
+
+      - name: Copy release activation scripts
+        run: |
+          mkdir -p /tmp/release/deploy/release /tmp/release/deploy/systemd
+          cp deploy/release/activate.sh deploy/release/rollback.sh deploy/release/health_check.sh /tmp/release/deploy/release/
+          cp deploy/systemd/*.service /tmp/release/deploy/systemd/
+
+      - name: Write manifest
+        run: |
+          cat > /tmp/release/manifest.json <<EOF
+          {
+            "sha": "${GITHUB_SHA}",
+            "branch": "${GITHUB_REF_NAME}",
+            "built_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "frontend": true,
+            "backend": true
+          }
+          EOF
+
+      - name: Create tarball
+        run: |
+          tar -czf "/tmp/petmol-${GITHUB_SHA}.tar.gz" -C /tmp/release .
+          echo "Package size: $(du -sh "/tmp/petmol-${GITHUB_SHA}.tar.gz" | cut -f1)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: petmol-release-${{ github.sha }}
+          path: /tmp/petmol-${{ github.sha }}.tar.gz
+          retention-days: 14
