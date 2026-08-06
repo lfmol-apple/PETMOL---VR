@@ -19,6 +19,9 @@ concurrency:
   group: deploy-vps
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 jobs:
   deploy:
     name: Deploy to petmol.com.br
@@ -57,7 +60,9 @@ jobs:
             --exclude "uploads/*"
           echo "Package size: $(du -sh /tmp/PETMOL.zip | cut -f1)"
 
-      - name: Upload and deploy
+      - name: Upload and deploy via SSH
+        id: ssh_deploy
+        continue-on-error: true
         env:
           VPS_IP: ${{ secrets.VPS_IP }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -144,7 +149,56 @@ jobs:
           ssh_stdin_retry deploy/sync/apply_on_vps.sh \
             "PETMOL_DEPLOY_SHA='$GIT_SHA' PETMOL_DEPLOY_BRANCH='$GIT_BRANCH' bash -s"
 
+      - uses: actions/setup-node@v4
+        if: steps.ssh_deploy.outcome == 'failure'
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Build web fallback package
+        if: steps.ssh_deploy.outcome == 'failure'
+        env:
+          GIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          echo "SSH deploy failed; building web-only webhook fallback."
+          npm ci --legacy-peer-deps
+          VERSION="${GIT_SHA}-webhook-$(date -u +%s)"
+          printf '{"v":"%s"}\n' "$VERSION" > apps/web/public/version.json
+          npm run web:build
+          tar -czf /tmp/petmol-web-standalone.tar.gz -C apps/web .next/standalone
+          echo "FALLBACK_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Fallback package size: $(du -sh /tmp/petmol-web-standalone.tar.gz | cut -f1)"
+
+      - name: Publish fallback release asset
+        if: steps.ssh_deploy.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          TAG="deploy-web-${GIT_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          gh release create "$TAG" /tmp/petmol-web-standalone.tar.gz \
+            --title "Web fallback deploy ${GIT_SHA}" \
+            --notes "Automatic web-only fallback deploy after SSH deploy failed."
+          echo "FALLBACK_TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Trigger webhook fallback deploy
+        id: webhook_fallback
+        if: steps.ssh_deploy.outcome == 'failure'
+        env:
+          DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
+        run: |
+          if [ -z "$DEPLOY_WEBHOOK_TOKEN" ]; then
+            echo "DEPLOY_WEBHOOK_TOKEN secret is required for webhook fallback deploy."
+            exit 1
+          fi
+          curl -fsS --max-time 30 -X POST 'https://www.petmol.com.br/webhook' \
+            -H 'Content-Type: application/json' \
+            --data "$(jq -nc --arg token "$DEPLOY_WEBHOOK_TOKEN" '{token:$token}')"
+          echo "Webhook fallback deploy requested for version ${FALLBACK_VERSION:-unknown}."
+
       - name: Health check
+        if: steps.ssh_deploy.outcome == 'success' || steps.webhook_fallback.outcome == 'success'
         run: |
           sleep 10
           STATUS=$(curl -sL -o /dev/null -w "%{http_code}" https://petmol.com.br/api/health)

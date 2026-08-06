@@ -114,7 +114,7 @@ Status apos push:
   - `https://www.petmol.com.br/` retornou `200`
   - `https://petmol.com.br/api/health` retornou `308` (aceito pelo workflow)
 
-## Proximos passos recomendados para Claude
+## Terceira correcao: fallback HTTP automatizado
 
 Atualizacao mais recente: o usuario pediu outra abordagem, sem continuar
 tentando consertar SSH no escuro. A rota adotada foi o deploy via webhook HTTP
@@ -129,20 +129,33 @@ O webhook atual:
 - Nao atualiza backend, `REVISION`, nem roda o deploy completo de
   `deploy/sync/apply_on_vps.sh`
 
-Foi criado um pacote standalone local do Next em:
+Recuperacao manual ja executada:
 
 - `/tmp/petmol-standalone-ebb94e3-webhook.tar.gz`
-- Copiado para `deploy/releases/petmol-standalone-ebb94e3-webhook.tar.gz`
+- Publicado temporariamente no commit `d9fa583` em
+  `deploy/releases/petmol-standalone-ebb94e3-webhook.tar.gz`
+- Webhook acionado com sucesso
+- Producao validada em:
+  `{"v":"ebb94e3-webhook-1786041298"}`
 
-O pacote foi marcado em `public/version.json` com:
+Correcao estrutural aplicada depois:
 
-- `ebb94e3-webhook-1786041298`
+- `.github/workflows/deploy.yml` agora mantem o deploy completo por SSH como
+  caminho principal.
+- Se o SSH falhar, o workflow:
+  1. instala dependencias com `npm ci --legacy-peer-deps`;
+  2. marca `apps/web/public/version.json`;
+  3. roda `npm run web:build`;
+  4. empacota `apps/web/.next/standalone`;
+  5. cria um GitHub Release asset com `GITHUB_TOKEN`;
+  6. aciona `POST https://www.petmol.com.br/webhook` sem `url`, para o VPS
+     baixar o latest release usando o token dele em `/opt/petmol/.github-env`.
 
-Depois de publicar/pushar esse arquivo, acionar o webhook com o URL raw:
+Pre-requisito do fallback:
 
-```text
-https://raw.githubusercontent.com/lfmol-apple/PETMOL---VR/main/deploy/releases/petmol-standalone-ebb94e3-webhook.tar.gz
-```
+- Criar no GitHub Actions secret `DEPLOY_WEBHOOK_TOKEN` com o conteudo atual
+  de `/opt/petmol/deploy-token`.
+- Nao commitar esse token.
 
 Validar com:
 
@@ -153,20 +166,25 @@ curl -sS https://www.petmol.com.br/version.json
 Resultado esperado:
 
 ```json
-{"v":"ebb94e3-webhook-1786041298"}
+{"v":"<sha>-webhook-<timestamp>"}
 ```
 
 Observacao: nao publicar o token do webhook em logs, commits ou mensagens.
 
+## Proximos passos recomendados para Claude
+
 1. Quando GitHub Actions sair de `major_outage`, disparar uma nova CI para `main` ou rerun da `31125070012`.
-2. Acompanhar a CI e o deploy que ela disparar.
-3. Se a CI passar e o deploy ainda falhar com SSH banner timeout depois de 480s de retry, o problema esta fora do repo: porta 22/sshd/firewall/provider do VPS.
-4. Nesse caso, usar o console web da Hostinger para corrigir `sshd`/firewall ou reiniciar o VPS. Sem SSH e sem Actions, nao ha canal tecnico disponivel daqui para alterar o servidor.
+2. Confirmar que o secret `DEPLOY_WEBHOOK_TOKEN` existe.
+3. Acompanhar a CI e o deploy que ela disparar.
+4. Se SSH falhar, confirmar que o fallback criou release e acionou o webhook.
+5. Se o fallback falhar por `DEPLOY_WEBHOOK_TOKEN secret is required`, criar o secret e rerodar o deploy.
+6. Se a CI passar e o deploy ainda falhar com SSH banner timeout depois de 480s de retry, o problema de SSH continua fora do repo: porta 22/sshd/firewall/provider do VPS.
+7. Nesse caso, usar o console web da Hostinger para corrigir `sshd`/firewall ou reiniciar o VPS. Sem SSH e sem Actions, nao ha canal tecnico disponivel daqui para alterar o servidor.
    - Para porta alternativa em Ubuntu 24 com `ssh.socket`, criar override do socket:
      `systemctl edit ssh.socket` ou arquivo em `/etc/systemd/system/ssh.socket.d/override.conf`
      limpando `ListenStream=` e adicionando `ListenStream=22` e `ListenStream=2222`,
      depois `systemctl daemon-reload && systemctl restart ssh.socket ssh`.
-5. Nao reativar simplesmente `petmol-auto-deploy.timer` sem redesenhar:
+8. Nao reativar simplesmente `petmol-auto-deploy.timer` sem redesenhar:
    - se usar pull-based deploy, ele deve ser o unico orquestrador;
    - o workflow SSH push deve ser desativado ou convertido em apenas CI/status;
    - o timer deve ter timeout finito e lock robusto.
