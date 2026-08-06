@@ -1333,7 +1333,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     openVermifugo: handleOpenVermifugo,
     openAntipulgas: handleOpenAntipulgas,
     openColeira: handleOpenColeira,
-    openDocuments: handleOpenDocuments,
     openGrooming: handleOpenGrooming,
     openMedication: handleOpenMedication,
     openFood: handleOpenFood,
@@ -2339,7 +2338,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     setQuickMarkToast={setQuickMarkToast}
                     fetchPetEvents={fetchPetEvents}
                     onOpenHealth={handleOpenHealth}
-                    onOpenDocuments={handleOpenDocuments}
                     alertVacinas={selectedPetCardAlerts.vacinas}
                     colorVacinas={selectedPetCardColors.vacinas}
                     alertVermifugo={selectedPetCardAlerts.vermifugo}

@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { AppleControlButtons } from '@/components/AppleControlButtons';
 import { HomeShoppingSheet } from '@/features/commerce/HomeShoppingSheet';
 import { buildPetCareReminders } from '@/lib/petCareDomain';
-import type { PetCareReminder } from '@/lib/petCareDomain';
+import type { CareActionTarget, PetCareReminder } from '@/lib/petCareDomain';
 import type { PetEventRecord } from '@/lib/petEvents';
 import type { PetHealthProfile, VaccineRecord } from '@/lib/petHealth';
 import type { FeedingPlanEntry } from '@/lib/types/homeForms';
@@ -43,6 +43,32 @@ function addDaysIso(startIso: string | null | undefined, days: number | null | u
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+// Gravidade real, não ordem de cadastro nem alfabética — coleira (leishmaniose
+// no Brasil: grave, às vezes fatal, sem cura definitiva) pesa mais que
+// vermífugo ou banho. É essa ordem que decide o que o card de Saúde mostra
+// quando mais de um cuidado está vencendo ao mesmo tempo.
+function healthSeverityRank(actionTarget: CareActionTarget): number {
+  if (actionTarget === 'health/parasites/collar') return 0;
+  if (actionTarget === 'health/medication') return 1;
+  if (
+    actionTarget === 'health/parasites/dewormer' ||
+    actionTarget === 'health/parasites/flea_tick' ||
+    actionTarget === 'health/parasites'
+  ) return 2;
+  if (actionTarget === 'health/grooming') return 3;
+  return 4;
+}
+
+function formatReminderHeadline(reminder: PetCareReminder): string {
+  const days = reminder.diff;
+  const when = days < 0
+    ? `venceu há ${Math.abs(days)} dia${Math.abs(days) === 1 ? '' : 's'}`
+    : days === 0
+      ? 'vence hoje'
+      : `vence em ${days} dia${days === 1 ? '' : 's'}`;
+  return `${reminder.label} ${when}`;
+}
+
 
 interface HomePetDashboardProps {
   petEvents: PetEventRecord[];
@@ -66,7 +92,6 @@ interface HomePetDashboardProps {
   setQuickMarkToast: (value: string | null) => void;
   fetchPetEvents: (petId: string) => Promise<void>;
   onOpenHealth: () => void;
-  onOpenDocuments: () => void;
   alertVacinas?: boolean;
   colorVacinas?: CardTone;
   alertVermifugo?: boolean;
@@ -112,7 +137,6 @@ export function HomePetDashboard({
   currentPet,
   tutorCheckinDay: _tutorCheckinDay,
   onOpenHealth,
-  onOpenDocuments,
   alertVacinas,
   colorVacinas,
   alertVermifugo,
@@ -188,7 +212,39 @@ export function HomePetDashboard({
   useEffect(() => {
     onUpcomingCountChange?.(allUpcomingReminders.length, allUpcomingReminders);
   }, [allUpcomingReminders, onUpcomingCountChange]);
-  
+
+  // Card de Vacina: o lembrete de vacina mais próximo de vencer (a lista já
+  // vem ordenada por proximidade — o primeiro da fila é o certo).
+  const vaccineReminder = useMemo(
+    () => allUpcomingReminders.find((r) => r.domain === 'vaccine') ?? null,
+    [allUpcomingReminders],
+  );
+  const hasVaccineData = vaccines.length > 0;
+  const vaccineHeadline = vaccineReminder
+    ? formatReminderHeadline(vaccineReminder)
+    : hasVaccineData
+      ? 'Vacinas em dia'
+      : undefined; // sem dado nenhum — cai no texto estático de convite do card
+
+  // Card de Saúde: entre remédio/antiparasitário/vermífugo/banho (vacina já
+  // tem card próprio, ração também), pega o de maior gravidade real
+  // vencendo — não o mais recente cadastrado.
+  const healthReminder = useMemo(() => {
+    const candidates = allUpcomingReminders.filter(
+      (r) => r.domain === 'parasite' || r.domain === 'medication' || r.domain === 'grooming',
+    );
+    if (candidates.length === 0) return null;
+    return [...candidates].sort(
+      (a, b) => healthSeverityRank(a.action_target) - healthSeverityRank(b.action_target) || a.diff - b.diff,
+    )[0];
+  }, [allUpcomingReminders]);
+  const hasHealthData = parasiteControls.length > 0 || groomingRecords.length > 0;
+  const healthHeadline = healthReminder
+    ? formatReminderHeadline(healthReminder)
+    : hasHealthData
+      ? 'Tudo em dia' // conquista — não é só ausência de alerta
+      : undefined; // sem dado — cai no texto estático de convite do card
+
   const hasFoodData = Object.keys(feedingPlan).length > 0 && (() => {
     const plan = feedingPlan[currentPet.pet_id];
     if (!plan) return false;
@@ -227,7 +283,7 @@ export function HomePetDashboard({
     <div className="relative px-2 pt-1 pb-4 space-y-3 sm:pt-2 sm:pb-6 sm:space-y-4">
       <AppleControlButtons
         onHealthClick={onOpenHealth}
-        onDocumentosClick={onOpenDocuments}
+        onVaccinesClick={onOpenVaccines}
         petName={currentPet.pet_name}
         petSex={currentPet.sex}
         onAlimentacaoClick={onOpenFood}
@@ -240,14 +296,18 @@ export function HomePetDashboard({
         foodTitle={foodTitle}
         foodHeadline={foodHeadline ?? undefined}
         foodSubline={foodSubline ?? undefined}
+        vaccineHeadline={vaccineHeadline}
+        healthHeadline={healthHeadline}
         alertHealth={alertHealth}
         alertGrooming={alertGrooming}
         alertFood={alertFood}
         alertMedicacao={alertMedicacao}
+        alertVaccines={alertVacinas}
         colorHealth={colorHealth}
         colorGrooming={colorGrooming}
         colorFood={colorFood}
         colorMedicacao={colorMedicacao}
+        colorVaccines={colorVacinas}
       />
       <HomeShoppingSheet
         open={showShoppingSheet}

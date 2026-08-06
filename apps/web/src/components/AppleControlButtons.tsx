@@ -8,7 +8,7 @@ import { type HomeInactiveEligibleControlId } from '@/lib/homeControlPreferences
 // ── Props H1 logic preserved ──────────────────────────────────────────────────
 interface AppleControlButtonsProps {
   onHealthClick: () => void;
-  onDocumentosClick: () => void;
+  onVaccinesClick: () => void;
   petName?: string;
   petSex?: 'male' | 'female' | null;
   onAlimentacaoClick?: () => void;
@@ -22,17 +22,32 @@ interface AppleControlButtonsProps {
   foodHeadline?: string;
   foodSubline?: string;
 
+  // Card de Vacina — substituiu a antiga "Caderneta" (cofre de documentos).
+  // Mesmo peso visual/posição que ela tinha; conteúdo agora é lembrete de
+  // ciclo, não cofre.
+  vaccineHeadline?: string;
+  vaccineSubline?: string;
+
+  // Card de Saúde — headline/subline dinâmicos: mostram o item de maior
+  // gravidade real vencendo (leishmaniose > antiparasitário > vermífugo >
+  // remédio > banho), calculado fora deste componente. Sem valor, cai no
+  // texto estático de sempre.
+  healthHeadline?: string;
+  healthSubline?: string;
+
   // Alert overrides from engine H1
   alertHealth?: boolean;
   alertGrooming?: boolean;
   alertFood?: boolean;
   alertMedicacao?: boolean;
   alertShopping?: boolean;
+  alertVaccines?: boolean;
 
   colorHealth?: 'neutral' | 'ok' | 'warning' | 'critical';
   colorGrooming?: 'neutral' | 'ok' | 'warning' | 'critical';
   colorFood?: 'neutral' | 'ok' | 'warning' | 'critical';
   colorMedicacao?: 'neutral' | 'ok' | 'warning' | 'critical';
+  colorVaccines?: 'neutral' | 'ok' | 'warning' | 'critical';
 
   inactiveControls?: HomeInactiveEligibleControlId[];
   onDeactivateControl?: (controlId: HomeInactiveEligibleControlId) => void;
@@ -58,7 +73,7 @@ function AlertDot({ tone = 'critical' }: { tone?: ControlTone }) {
 
 export function AppleControlButtons({
   onHealthClick,
-  onDocumentosClick,
+  onVaccinesClick,
   petName,
   petSex,
   onAlimentacaoClick,
@@ -68,10 +83,16 @@ export function AppleControlButtons({
   foodTitle,
   foodHeadline,
   foodSubline,
+  vaccineHeadline,
+  vaccineSubline,
+  healthHeadline,
+  healthSubline,
   alertHealth,
   alertFood,
+  alertVaccines,
   colorHealth,
   colorFood,
+  colorVaccines,
 }: AppleControlButtonsProps) {
   const { t } = useI18n();
   const [showEmergencyChoice, setShowEmergencyChoice] = useState(false);
@@ -79,7 +100,7 @@ export function AppleControlButtons({
 
   return (
     <>
-      {/* Grid 2×2: Alimentação | Saúde / Caderneta | Shopping */}
+      {/* Grid 2×2: Alimentação | Saúde | Vacina | Shopping */}
       <div className="relative">
         <div className="grid grid-cols-2 gap-2 min-[390px]:gap-2.5">
 
@@ -118,22 +139,36 @@ export function AppleControlButtons({
             <span className="absolute right-2 top-2 text-[18px] opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">🏥</span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
               <h3 className="truncate text-[13px] font-semibold leading-tight text-indigo-950 min-[390px]:text-[14px] sm:text-base">Saúde</h3>
-              <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-indigo-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">Vacinas, medicação e banho</p>
+              <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-indigo-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">{healthHeadline || 'Remédio, antiparasitário e banho'}</p>
+              {healthSubline && (
+                <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.1] text-indigo-900 min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
+                  {healthSubline}
+                </p>
+              )}
             </div>
           </button>
 
-          {/* 3. CADERNETA */}
+          {/* 3. VACINA — substituiu a antiga Caderneta (cofre de documentos).
+              Mesma posição/cor/peso visual; conteúdo agora é lembrete de
+              ciclo, não cofre. Ver docs/RUNBOOK.md ou memória do projeto
+              "caderneta redesign" pro raciocínio completo por trás disso. */}
           <button
             type="button"
-            onClick={onDocumentosClick}
+            onClick={onVaccinesClick}
             className="group relative min-h-[68px] overflow-hidden rounded-xl border border-emerald-400 bg-gradient-to-br from-emerald-100 via-emerald-100 to-teal-200 p-2.5 shadow-sm shadow-emerald-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
-            <span className="absolute right-2 top-2 text-[18px] opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">📓</span>
+            {shouldShowAlert(colorVaccines, alertVaccines) && <AlertDot tone={colorVaccines} />}
+            <span className="absolute right-2 top-2 text-[18px] opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">💉</span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
               <h3 className="truncate text-[13px] font-semibold leading-tight text-emerald-950 min-[390px]:text-[14px] sm:text-base">
-                {petName ? `Caderneta de ${petName}` : 'Caderneta do Pet'}
+                {petName ? `Vacina ${petDo({ sex: petSex })} ${petName}` : 'Vacina do Pet'}
               </h3>
-              <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-emerald-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">Vacinas, exames e documentos</p>
+              <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-emerald-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">{vaccineHeadline || 'Datas, doses e lembretes'}</p>
+              {vaccineSubline && (
+                <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.1] text-emerald-900 min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
+                  {vaccineSubline}
+                </p>
+              )}
             </div>
           </button>
 
