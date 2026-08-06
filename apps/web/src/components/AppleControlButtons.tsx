@@ -192,12 +192,7 @@ export function AppleControlButtons({
 
         </div>
 
-        {/* Abaixo do grid: só Pet Sumido — é uma ação deliberada (gerar
-            alerta), não socorro imediato, então continua concorrendo por
-            espaço normalmente. "Emergência veterinária" virou o botão fixo
-            logo abaixo: não é lembrete de ciclo, é socorro — não devia
-            competir por atenção no dia a dia, mas também não pode exigir
-            rolar a tela pra achar na hora real de pânico. */}
+        {/* Abaixo do grid: Pet Sumido + Socorro (agrupados — ambos de urgência) */}
         <div className="mt-2 space-y-2 min-[390px]:mt-2.5">
           <button
             type="button"
@@ -213,19 +208,23 @@ export function AppleControlButtons({
             </div>
             <span className="text-lg text-red-300 transition-transform group-hover:translate-x-1">›</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setShowEmergencyChoice(true)}
+            className="group relative flex min-h-[44px] w-full items-center gap-2 overflow-hidden rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 p-2.5 shadow-sm shadow-red-900/5 transition-all duration-300 hover:shadow-md active:scale-[0.98] min-[390px]:min-h-[52px] min-[390px]:gap-2.5 min-[390px]:rounded-2xl min-[390px]:p-3"
+          >
+            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-red-100 transition-transform group-hover:scale-105 min-[390px]:h-8 min-[390px]:w-8">
+              <span className="pointer-events-none text-base min-[390px]:text-lg">🚨</span>
+            </div>
+            <div className="min-w-0 flex-1 text-left">
+              <h3 className="truncate text-[13px] font-bold leading-tight text-red-800 min-[390px]:text-[14px] sm:text-base">Emergência veterinária</h3>
+              <p className="mt-0.5 truncate text-[9px] font-semibold leading-[1.1] text-red-600/80 min-[390px]:text-[10px] sm:text-xs">Encontre atendimento aberto ou ligue agora</p>
+            </div>
+            <span className="text-lg text-red-300 transition-transform group-hover:translate-x-1">›</span>
+          </button>
         </div>
       </div>
-
-      {/* Emergência — fixa na tela, não sai com o scroll. Sempre alcançável
-          sem precisar procurar, sem disputar espaço com Ração/Vacina/Saúde. */}
-      <button
-        type="button"
-        onClick={() => setShowEmergencyChoice(true)}
-        aria-label="Emergência veterinária — encontre atendimento aberto ou ligue agora"
-        className="fixed bottom-24 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-red-600 text-2xl shadow-lg shadow-red-900/30 ring-2 ring-white/80 transition-transform active:scale-90 min-[390px]:bottom-28"
-      >
-        <span className="pointer-events-none">🚨</span>
-      </button>
 
       {/* Mini-choice: Socorro Agora */}
       {showEmergencyChoice && (
