@@ -177,7 +177,6 @@ export function HomeNavigationModals({
             <div className="p-4 sm:p-6 bg-slate-50">
               <div className="grid grid-cols-2 gap-3 mb-2">
                 {[
-                  { icon: '💉', label: 'Vacinas', gradient: 'from-blue-100 to-blue-200 border-blue-300', tab: 'vaccines', alert: alertVaccinesValue, tone: colorVaccinesValue },
                   { icon: '🪱', label: 'Vermífugo', gradient: 'from-orange-100 to-amber-200 border-amber-300', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
                   { icon: '🛡️', label: 'Antipulgas', gradient: 'from-emerald-100 to-green-200 border-green-300', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
                   { icon: '📿', label: 'Coleira', gradient: 'from-teal-100 to-cyan-200 border-teal-300', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue },
@@ -190,11 +189,6 @@ export function HomeNavigationModals({
                   <button
                     key={tab}
                     onClick={() => {
-                      if (tab === 'vaccines' && onOpenVaccines) {
-                        onCloseHealthOptionsModal();
-                        onOpenVaccines();
-                        return;
-                      }
                       if (tab === 'dewormer' && onOpenVermifugo) {
                         onCloseHealthOptionsModal();
                         onOpenVermifugo();
