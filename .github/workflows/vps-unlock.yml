@@ -1,0 +1,50 @@
+name: VPS Deploy Lock — Diagnose & Clear
+
+on:
+  workflow_dispatch:  # manual only — this is an emergency/diagnostic tool, never auto-triggered
+
+# One-off tool for when deploy.yml keeps failing on "Outro deploy ja esta em
+# andamento" well past the 15-minute stale-lock auto-expiry in
+# apply_on_vps.sh (i.e. something is stuck, not genuinely contending). Logs
+# what's actually holding the lock fd before clearing it, since blindly
+# rm-ing it every time would hide whatever keeps re-acquiring it.
+jobs:
+  unlock:
+    name: Inspect and clear .deploy.lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: SSH in, diagnose, clear lock
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o BatchMode=yes"
+          SSH="ssh $SSH_OPTS $VPS_USER@$VPS_IP"
+
+          $SSH 'bash -s' <<'REMOTE'
+            set -x
+            LOCK_FILE="/opt/petmol/.deploy.lock"
+
+            echo "=== lock file stat ==="
+            stat "$LOCK_FILE" 2>&1 || echo "(no lock file present)"
+
+            echo "=== what has it open (lsof) ==="
+            lsof "$LOCK_FILE" 2>&1 || echo "(lsof found nothing / not installed)"
+
+            echo "=== fuser ==="
+            fuser -v "$LOCK_FILE" 2>&1 || echo "(fuser found nothing / not installed)"
+
+            echo "=== any apply_on_vps / npm / pip / reclassify process still alive ==="
+            ps aux | grep -E 'apply_on_vps|npm ci|npm run web:build|reclassify_pet_docs|pip install' | grep -v grep || echo "(none found)"
+
+            echo "=== clearing lock ==="
+            rm -f "$LOCK_FILE"
+            echo "done — lock file removed"
+          REMOTE
