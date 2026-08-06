@@ -140,6 +140,7 @@ Recuperacao manual ja executada:
 
 Correcao estrutural aplicada depois:
 
+- Commit pushado: `b56eb17 Add webhook deploy fallback`
 - `.github/workflows/deploy.yml` agora mantem o deploy completo por SSH como
   caminho principal.
 - Se o SSH falhar, o workflow:
