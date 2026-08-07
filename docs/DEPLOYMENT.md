@@ -1,9 +1,9 @@
 # DEPLOYMENT — arquitetura de release atômica do PETMOL
 
-> **Status:** este documento descreve o **novo** pipeline (`ci.yml` job `package` + `deploy-atomic.yml`).
-> Ele ainda **não é o caminho oficial de produção** — está pronto e testável, mas
-> `deploy-atomic.yml` só dispara manualmente (`workflow_dispatch`) até ser validado
-> contra o VPS real e o `deploy.yml` legado ser desativado. Veja "Status da migração" no fim.
+> **Status:** migração completa e em produção desde 2026-08-07. `deploy-atomic.yml`
+> é o caminho oficial (dispara automaticamente via `workflow_run` após a CI passar
+> em `main`); `deploy.yml` legado ficou `workflow_dispatch`-only, mantido só como
+> fallback manual de emergência. Veja "Status da migração" no fim.
 
 ## Por que isso existe
 
@@ -133,21 +133,35 @@ Para reclassificar de novo ou outro pet, use o workflow manual `reclassify.yml`.
 - [x] Etapa 2 — artefato único gerado no CI.
 - [x] Etapa 3 — scripts de release atômica, systemd de referência, script de migração manual
       (`deploy/release/bootstrap_vps.sh`).
-- [ ] Etapa 4 — cutover: desativar `deploy.yml`/`fix_vps.yml`/`reclassify.yml`/`vps-unlock.yml`
-      do caminho automático e tornar `deploy-atomic.yml` o único oficial. **Bloqueado**: SSH
-      pro VPS (`147.93.33.24:22`) está indisponível (timeout de conexão) desde antes desta
-      sessão — precisa ser resolvido pelo console web da Hostinger antes de qualquer teste real.
-- [ ] Etapa 5 — validação de deploy real e rollback real no VPS.
+- [x] Etapa 4 — cutover: `deploy.yml` ficou `workflow_dispatch`-only (fallback manual);
+      `fix_vps.yml`/`reclassify.yml`/`vps-unlock.yml` já eram manuais. `deploy-atomic.yml`
+      é o único caminho automático (`workflow_run` após `CI` em `main`).
+- [x] Etapa 5 — validação de deploy real e rollback real no VPS. Concluída em 2026-08-07.
 
-### Como retomar quando o SSH voltar
+### Histórico do cutover (2026-08-07)
 
-1. Confirmar acesso: `ssh -o ConnectTimeout=10 root@147.93.33.24 echo ok`.
-2. Rodar `deploy/release/bootstrap_vps.sh` manualmente no VPS (copia `.env`/uploads/`.venv`
-   para `shared/`, não apaga nada do layout antigo).
-3. Disparar o job `package` (push em `main` já faz isso) e depois `deploy-atomic.yml` via
-   `workflow_dispatch` com o SHA gerado.
-4. Confirmar `https://petmol.com.br/api/health`, `https://www.petmol.com.br/`, e
-   `/opt/petmol/REVISION` com o SHA esperado.
-5. Testar `deploy/release/rollback.sh` manualmente uma vez.
-6. Só depois disso, desativar `deploy.yml` (e os demais workflows fora do caminho oficial) e
-   promover `deploy-atomic.yml` para disparo automático (`workflow_run` do CI).
+SSH ficou indisponível por um tempo antes desta sessão (socket systemd escutando só em
+IPv6) — resolvido corrigindo `ssh.socket` via console da Hostinger. Depois disso, o
+cutover revelou três bugs que só apareciam ao rodar o artefato de verdade (as validações
+anteriores de `deploy-atomic.yml` restartavam os units *legados*, então nunca exercitaram
+o código do release novo):
+
+1. **Tarball sem `node_modules/`/`package.json`** — o fix do prefixo `./` no `tar` (para o
+   `tar -xzOf` seletivo do `deploy-atomic.yml` funcionar) listou os itens de topo
+   explicitamente e esqueceu esses dois, que o build standalone do Next também coloca na
+   raiz do release. `apps/web/server.js` crashava com `MODULE_NOT_FOUND`.
+2. **`shared/env/api.env` root:600** — `bootstrap_vps.sh` copiava com `cp -n`, preservando
+   dono/permissão do arquivo legado; o usuário `petmol` (que roda os units novos) não
+   conseguia ler.
+3. **`bootstrap_vps.sh` copiava o arquivo de env errado** — `services/price-service/.env`
+   é um arquivo local parcial (10 chaves), não o que a produção usa de verdade
+   (`/etc/petmol/petmol.env`, 57 chaves, incluindo `JWT_SECRET`/`DATABASE_URL`). Corrigido
+   para copiar `/etc/petmol/petmol.env` como fonte.
+
+A primeira tentativa de instalar os units novos bateu nos bugs 1 e 2 ao mesmo tempo: os
+dois serviços entraram em crash-loop e o site ficou fora do ar (502) por menos de um
+minuto até os units legados serem restaurados manualmente. Depois de corrigir os três
+bugs e validar cada serviço isoladamente em portas alternativas (sem tocar no tráfego
+real), o cutover foi refeito com sucesso: zero restarts, health checks limpos, sem erros
+novos no nginx. O primeiro deploy 100% automático (via `workflow_run`) rodou logo em
+seguida e também passou limpo.
