@@ -157,6 +157,18 @@ o código do release novo):
    é um arquivo local parcial (10 chaves), não o que a produção usa de verdade
    (`/etc/petmol/petmol.env`, 57 chaves, incluindo `JWT_SECRET`/`DATABASE_URL`). Corrigido
    para copiar `/etc/petmol/petmol.env` como fonte.
+4. **`/uploads/pets/` do nginx apontava pro caminho legado** — descoberto horas depois do
+   cutover, quando um usuário reportou que a foto do pet cadastrada não aparecia.
+   `/etc/nginx/sites-enabled/petmol` (não versionado — só existe no VPS) tinha
+   `location ^~ /uploads/pets/ { alias /opt/petmol/app/services/price-service/uploads/pets/; }`
+   hardcoded pro diretório legado. A API já escrevia em `shared/uploads/pets/` (via o
+   symlink que `activate.sh` cria), mas o nginx nunca foi atualizado pra servir dali —
+   então toda foto enviada depois do cutover dava 404 silencioso no navegador. Corrigido
+   trocando o `alias` pra `/opt/petmol/shared/uploads/pets/` (que já contém tanto as fotos
+   antigas quanto as novas — `bootstrap_vps.sh` fez o rsync completo). **Pendência:** essa
+   config do nginx não está versionada no repo; considerar trazê-la pra
+   `deploy/nginx/petmol.conf` num commit futuro, tanto por rastreabilidade quanto pra evitar
+   esse tipo de gap se o VPS precisar ser reconstruído.
 
 A primeira tentativa de instalar os units novos bateu nos bugs 1 e 2 ao mesmo tempo: os
 dois serviços entraram em crash-loop e o site ficou fora do ar (502) por menos de um
