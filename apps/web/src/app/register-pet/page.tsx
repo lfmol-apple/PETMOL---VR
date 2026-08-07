@@ -9,7 +9,6 @@ import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { subscribeToPush } from '@/features/notifications/pushService';
 import { needsIosInstallForPush } from '@/lib/pwaPlatform';
-import { openHomeShoppingPartner } from '@/features/commerce/homeShoppingPartners';
 import { Camera } from 'lucide-react';
 
 // ── Breed data ────────────────────────────────────────────────────────────────
@@ -294,7 +293,6 @@ export default function RegisterPetPage() {
         body: `O vet mandou exame ou receita pelo WhatsApp? Compartilhe com o PETMOL — o arquivo é salvo automaticamente na Guarda de Documentos do ${label}. Sem baixar, sem organizar.`,
         flow: ['WhatsApp', 'Compartilhar', 'PETMOL salva'] as string[] | null,
         flowColor: 'text-emerald-700',
-        cta: null as { label: string; onClick: () => void } | null,
       },
       {
         icon: '💉',
@@ -307,7 +305,6 @@ export default function RegisterPetPage() {
         body: `Registre vacinas, vermífugos, remédios e antiparasitários do ${label}. O PETMOL avisa antes do prazo vencer — sem precisar lembrar de nada.`,
         flow: null,
         flowColor: '',
-        cta: null,
       },
       {
         icon: '🍗',
@@ -320,26 +317,7 @@ export default function RegisterPetPage() {
         body: `Informe quanto tem de ração. O PETMOL calcula o consumo diário e avisa antes de acabar. Chega de chegar em casa e a vasilha estar vazia.`,
         flow: null,
         flowColor: '',
-        cta: null,
       },
-      // Leishmaniose é essencialmente uma doença canina no contexto de
-      // prevenção por coleira — não mostrar para gatos/outros.
-      ...(species === 'dog' ? [{
-        icon: '🦟',
-        bg: 'from-rose-50 to-red-50',
-        border: 'border-rose-100',
-        iconBg: 'bg-rose-500',
-        tag: 'Atenção',
-        tagColor: 'text-rose-600',
-        title: 'Leishmaniose: um risco real para cães',
-        body: `Transmitida pela picada do mosquito-palha, é uma doença séria e ainda sem cura definitiva — mas com prevenção acessível. A coleira antiparasitária específica é hoje a principal proteção do ${label}. Converse com o veterinário sobre a melhor opção.`,
-        flow: null,
-        flowColor: '',
-        cta: {
-          label: 'Ver coleiras recomendadas',
-          onClick: () => openHomeShoppingPartner('cobasi', 'coleira antipulgas carrapato leishmaniose cão'),
-        },
-      }] : []),
     ];
 
     if (onboardStep !== 'done') {
@@ -382,15 +360,6 @@ export default function RegisterPetPage() {
                       </span>
                     ))}
                   </div>
-                )}
-                {card.cta && (
-                  <button
-                    type="button"
-                    onClick={card.cta.onClick}
-                    className="mt-4 w-full py-3 rounded-xl bg-white border border-rose-200 text-rose-700 text-sm font-bold active:scale-[0.98] transition-transform"
-                  >
-                    {card.cta.label}
-                  </button>
                 )}
               </div>
 

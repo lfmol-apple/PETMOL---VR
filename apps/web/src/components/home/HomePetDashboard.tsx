@@ -165,6 +165,18 @@ export function HomePetDashboard({
   onHealthItemClick,
 }: HomePetDashboardProps) {
 
+  // Cão sem NENHUM registro de coleira/leishmaniose ainda — mesmo tratamento
+  // que vacina zerada leva (neutral vira critical): não dá pra esperar um
+  // reminder de um registro que nunca existiu. Só cão porque a prevenção por
+  // coleira é especificamente uma recomendação canina. Feedback explícito do
+  // usuário: esse alerta precisa de local de fácil acesso, sem depender de
+  // tour de onboarding pulável — o card de Saúde, sempre visível na home, é
+  // esse local.
+  const hasLeishmaniaseProtection = parasiteControls.some(
+    (p) => p.type === 'collar' || p.type === 'leishmaniasis',
+  );
+  const needsLeishmaniaseAwareness = currentPet.species === 'dog' && !hasLeishmaniaseProtection;
+
   // A pet with ZERO vaccine history ('neutral' — never registered) is a
   // real gap worth the red dot, same as an actually-overdue one — treated
   // as 'critical' here specifically for vaccine (per explicit feedback;
@@ -173,9 +185,12 @@ export function HomePetDashboard({
   // earlier false-positive household count). Without this, a pet with no
   // vaccines but an otherwise-fine health card resolved to colorHealth=
   // 'ok', and the dot never showed — shouldShowAlert only checks the tone
-  // string, so alertVacinas being true didn't matter on its own.
+  // string, so alertVacinas being true didn't matter on its own. Coleira
+  // gets the same "neutral -> critical" override, gated on
+  // needsLeishmaniaseAwareness, for the same reason.
   const effectiveVaccineTone: CardTone = (colorVacinas === 'neutral' || colorVacinas === undefined) ? 'critical' : colorVacinas;
-  const healthTones = [effectiveVaccineTone, colorVermifugo, colorAntipulgas, colorColeira, colorMedicacao, colorGrooming];
+  const effectiveColeiraTone: CardTone = needsLeishmaniaseAwareness ? 'critical' : (colorColeira ?? 'neutral');
+  const healthTones = [effectiveVaccineTone, colorVermifugo, colorAntipulgas, effectiveColeiraTone, colorMedicacao, colorGrooming];
   const colorHealth: CardTone = healthTones.includes('critical')
     ? 'critical'
     : healthTones.includes('warning')
@@ -183,7 +198,7 @@ export function HomePetDashboard({
       : healthTones.includes('ok')
         ? 'ok'
         : 'neutral';
-  const alertHealth = colorHealth === 'warning' || colorHealth === 'critical' || alertVacinas || alertVermifugo || alertAntipulgas || alertColeira || alertMedicacao || alertGrooming;
+  const alertHealth = colorHealth === 'warning' || colorHealth === 'critical' || alertVacinas || alertVermifugo || alertAntipulgas || alertColeira || alertMedicacao || alertGrooming || needsLeishmaniaseAwareness;
   const reminders = useMemo(() => {
     if (!currentPet?.pet_id) return [];
     return buildPetCareReminders({
@@ -239,11 +254,14 @@ export function HomePetDashboard({
     )[0];
   }, [allUpcomingReminders]);
   const hasHealthData = parasiteControls.length > 0 || groomingRecords.length > 0;
+
   const healthHeadline = healthReminder
     ? formatReminderHeadline(healthReminder)
-    : hasHealthData
-      ? 'Tudo em dia' // conquista — não é só ausência de alerta
-      : undefined; // sem dado — cai no texto estático de convite do card
+    : needsLeishmaniaseAwareness
+      ? '🦟 Leishmaniose: proteja com coleira'
+      : hasHealthData
+        ? 'Tudo em dia' // conquista — não é só ausência de alerta
+        : undefined; // sem dado — cai no texto estático de convite do card
 
   const hasFoodData = Object.keys(feedingPlan).length > 0 && (() => {
     const plan = feedingPlan[currentPet.pet_id];
