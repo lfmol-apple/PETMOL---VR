@@ -10,6 +10,7 @@ import { PetPhotoPicker } from './PetPhotoPicker';
 import { ModalPortal } from '@/components/ModalPortal';
 import { resolveBackendPetPhoto } from '@/lib/backendPetProfile';
 import { localTodayISO } from '@/lib/localDate';
+import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
 
 // ── Breed data (sincronizado com register-pet) ────────────────────────────────
 
@@ -119,6 +120,7 @@ function ZoomedField({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
+  const vvRef = useKeyboardSheetViewport(open);
 
   const openPanel = () => {
     setOpen(true);
@@ -139,13 +141,14 @@ function ZoomedField({
       </button>
       {open && (
         <div
-          className="fixed inset-0 z-[300]"
-          style={{ cursor: 'pointer' }}
+          ref={vvRef}
+          className="fixed left-0 right-0 z-[300] flex flex-col justify-end"
+          style={{ top: 0, height: '100dvh', cursor: 'pointer' }}
           onClick={() => setOpen(false)}
         >
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
           <div
-            className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl animate-slideUp"
+            className="relative bg-white rounded-t-3xl shadow-2xl animate-slideUp"
             style={{ cursor: 'default' }}
             onClick={e => e.stopPropagation()}
           >
@@ -206,6 +209,7 @@ function ZoomedWeightField({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
+  const vvRef = useKeyboardSheetViewport(open);
 
   const openPanel = () => {
     setOpen(true);
@@ -226,13 +230,14 @@ function ZoomedWeightField({
       </button>
       {open && (
         <div
-          className="fixed inset-0 z-[300]"
-          style={{ cursor: 'pointer' }}
+          ref={vvRef}
+          className="fixed left-0 right-0 z-[300] flex flex-col justify-end"
+          style={{ top: 0, height: '100dvh', cursor: 'pointer' }}
           onClick={() => setOpen(false)}
         >
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
           <div
-            className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl animate-slideUp"
+            className="relative bg-white rounded-t-3xl shadow-2xl animate-slideUp"
             style={{ cursor: 'default' }}
             onClick={e => e.stopPropagation()}
           >
@@ -297,7 +302,7 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useKeyboardSheetViewport(open);
   const isMounted = useRef(false);
 
   const breeds = species === 'dog' ? DOG_BREEDS : species === 'cat' ? CAT_BREEDS : [];
@@ -309,22 +314,6 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
     if (!isMounted.current) { isMounted.current = true; return; }
     setQuery(''); onChange('');
   }, [species]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Reposiciona o sheet acima do teclado virtual no Android
-  useEffect(() => {
-    if (!open) return;
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const update = () => {
-      if (!wrapperRef.current) return;
-      wrapperRef.current.style.top = `${vv.offsetTop}px`;
-      wrapperRef.current.style.height = `${vv.height}px`;
-    };
-    update();
-    vv.addEventListener('resize', update);
-    vv.addEventListener('scroll', update);
-    return () => { vv.removeEventListener('resize', update); vv.removeEventListener('scroll', update); };
-  }, [open]);
 
   const select = (breed: string) => { onChange(breed); setOpen(false); };
 
