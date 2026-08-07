@@ -62,10 +62,10 @@ const FREQ_DEFAULTS: Record<GroomingType, number> = {
   bath_grooming: 30,
 };
 
-function buildWhatsAppUrl(phone: string, message: string): string {
+function buildWhatsAppUrl(phone: string): string {
   const digits = phone.replace(/\D/g, '');
   const normalized = digits.startsWith('55') ? digits : `55${digits}`;
-  return `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/${normalized}`;
 }
 
 function WhatsAppIcon({ className }: { className?: string }) {
@@ -146,10 +146,6 @@ export function GroomingItemSheet({
     type: 'bath_grooming' as GroomingType,
     location: '',
     location_phone: '',
-    cost: '',
-    notes: '',
-    product_name: '',
-    barcode: '',
     frequency_days: String(FREQ_DEFAULTS['bath_grooming']),
     reminder_days: '3',
     reminder_time: '09:00',
@@ -162,10 +158,6 @@ export function GroomingItemSheet({
     type: 'bath_grooming' as GroomingType,
     location: '',
     location_phone: '',
-    cost: '',
-    notes: '',
-    product_name: '',
-    barcode: '',
     frequency_days: String(FREQ_DEFAULTS['bath_grooming']),
     reminder_days: '3',
     reminder_time: '09:00',
@@ -178,10 +170,6 @@ export function GroomingItemSheet({
     setAddForm(f => ({
       ...f,
       date: localTodayISO(),
-      cost: '',
-      notes: '',
-      product_name: '',
-      barcode: '',
       location: lastWithContact?.location || '',
       location_phone: lastWithContact?.location_phone || '',
     }));
@@ -205,11 +193,6 @@ export function GroomingItemSheet({
       const freq = parseInt(addForm.frequency_days, 10) || FREQ_DEFAULTS[addForm.type];
       const nextRec = addDays(addForm.date, freq);
 
-      const productLine = addForm.product_name.trim()
-        ? `Produto: ${addForm.product_name.trim()}${addForm.barcode ? ` (EAN: ${addForm.barcode})` : ''}`
-        : '';
-      const finalNotes = [productLine, addForm.notes.trim()].filter(Boolean).join('\n') || null;
-
       const res = await fetch(`${API_BASE_URL}/pets/${petId}/grooming`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -218,8 +201,8 @@ export function GroomingItemSheet({
           date: addForm.date,
           location: addForm.location || null,
           location_phone: addForm.location_phone || null,
-          cost: addForm.cost ? parseFloat(addForm.cost) : null,
-          notes: finalNotes,
+          cost: null,
+          notes: null,
           next_recommended_date: nextRec,
           frequency_days: freq,
           reminder_enabled: true,
@@ -253,22 +236,9 @@ export function GroomingItemSheet({
           }
         } catch { /* push é best-effort */ }
 
-        // Track hygiene product usage for recurring suggestions
-        const productName = addForm.product_name.trim();
-        if (productName) {
-          try {
-            const usageKey = `petmol_product_usage_${petId}_hygiene`;
-            const existing = JSON.parse(localStorage.getItem(usageKey) || '[]') as Array<{ name: string; count: number; lastUsed: string }>;
-            const found = existing.find(item => item.name.toLowerCase() === productName.toLowerCase());
-            if (found) { found.count += 1; found.lastUsed = addForm.date; }
-            else existing.push({ name: productName, count: 1, lastUsed: addForm.date });
-            existing.sort((a, b) => b.count - a.count || b.lastUsed.localeCompare(a.lastUsed));
-            localStorage.setItem(usageKey, JSON.stringify(existing));
-          } catch { /* silent */ }
-        }
         setMode('view');
         setJustSavedPhone(addForm.location_phone || null);
-        setAddForm(f => ({ ...f, date: localTodayISO(), cost: '', notes: '', product_name: '', barcode: '' }));
+        setAddForm(f => ({ ...f, date: localTodayISO() }));
         await onRefresh();
         setJustSaved(true);
       } else {
@@ -283,22 +253,11 @@ export function GroomingItemSheet({
   // ── Edit handlers ─────────────────────────────────────────────────────────
   function startEdit(rec: GroomingRecord) {
     setEditRecord(rec);
-    // Extract product_name from notes if previously stored
-    const notesRaw = rec.notes || '';
-    const productMatch = notesRaw.match(/^Produto:\s*([^\n(]+)/);
-    const productName = productMatch ? productMatch[1].trim() : '';
-    const cleanNotes = productName
-      ? notesRaw.replace(/^Produto:[^\n]*(\n)?/, '').trim()
-      : notesRaw;
     setEditForm({
       date: rec.date,
       type: rec.type,
       location: rec.location || '',
       location_phone: rec.location_phone || '',
-      cost: rec.cost != null ? String(rec.cost) : '',
-      notes: cleanNotes,
-      product_name: productName,
-      barcode: '',
       frequency_days: String(rec.frequency_days ?? FREQ_DEFAULTS[rec.type]),
       reminder_days: String((rec as unknown as Record<string, unknown>).alert_days_before ?? 3),
       reminder_time: String((rec as unknown as Record<string, unknown>).scheduled_time ?? '09:00'),
@@ -317,10 +276,6 @@ export function GroomingItemSheet({
       }
 
       const editFreq = parseInt(editForm.frequency_days, 10) || FREQ_DEFAULTS[editForm.type];
-      const productLine = editForm.product_name.trim()
-        ? `Produto: ${editForm.product_name.trim()}${editForm.barcode ? ` (EAN: ${editForm.barcode})` : ''}`
-        : '';
-      const finalNotes = [productLine, editForm.notes.trim()].filter(Boolean).join('\n') || null;
 
       const res = await fetch(`${API_BASE_URL}/pets/${petId}/grooming/${editRecord.id}`, {
         method: 'PATCH',
@@ -330,8 +285,11 @@ export function GroomingItemSheet({
           type: editForm.type,
           location: editForm.location || null,
           location_phone: editForm.location_phone || null,
-          cost: editForm.cost ? parseFloat(editForm.cost) : null,
-          notes: finalNotes,
+          // cost/notes were only ever set via the fields removed from this
+          // form (Produto utilizado, Valor R$) — pass the record's existing
+          // values through unchanged instead of silently wiping them.
+          cost: editRecord.cost ?? null,
+          notes: editRecord.notes ?? null,
           next_recommended_date: addDays(editForm.date, editFreq),
           frequency_days: editFreq,
           reminder_enabled: true,
@@ -431,7 +389,7 @@ export function GroomingItemSheet({
             </div>
             {justSavedPhone && (
               <a
-                href={buildWhatsAppUrl(justSavedPhone, `Olá! Quero agendar banho e tosa para ${petName || 'meu pet'} 🐾 Quando teria disponibilidade?`)}
+                href={buildWhatsAppUrl(justSavedPhone)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full bg-white rounded-2xl px-4 py-4 flex items-center gap-3 shadow-sm active:opacity-70 transition-opacity text-left"
@@ -586,10 +544,7 @@ export function GroomingItemSheet({
               {/* WhatsApp — iOS action row */}
               {last?.location_phone && (
                 <a
-                  href={buildWhatsAppUrl(
-                    last.location_phone,
-                    `Olá${last.location ? `, ${last.location}` : ''}! Quero agendar ${TYPE_LABELS[last.type].replace(/^[^\s]+ /, '')} para ${petName || 'meu pet'} 🐾 Quando teria disponibilidade?`,
-                  )}
+                  href={buildWhatsAppUrl(last.location_phone)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 bg-white rounded-2xl px-4 py-3.5 shadow-sm active:opacity-70 transition-opacity"
@@ -695,17 +650,6 @@ export function GroomingItemSheet({
               <h3 className="text-[17px] font-bold text-[#1C1C1E]">Registrar serviço</h3>
 
               <div>
-                <label className={labelCls}>Produto utilizado (opcional)</label>
-                <input
-                  type="text"
-                  className={inputCls}
-                  placeholder="Ex: Sanol Dog, Johnson's Baby..."
-                  value={addForm.product_name}
-                  onChange={e => setAddForm(f => ({ ...f, product_name: e.target.value }))}
-                />
-              </div>
-
-              <div>
                 <label className={labelCls}>Data *</label>
                 <input
                   type="date"
@@ -772,7 +716,7 @@ export function GroomingItemSheet({
                     </div>
                     {addForm.location_phone && (
                       <a
-                        href={buildWhatsAppUrl(addForm.location_phone, `Olá! Quero agendar banho e tosa para ${petName || 'meu pet'} 🐾`)}
+                        href={buildWhatsAppUrl(addForm.location_phone)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="mt-1.5 inline-flex items-center gap-1 text-[13px] font-medium text-[#25D366]"
@@ -782,19 +726,6 @@ export function GroomingItemSheet({
                     )}
                   </div>
                 </div>
-              </div>
-
-              <div>
-                <label className={labelCls}>Valor R$ (opcional)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className={inputCls}
-                  placeholder="Ex: 80,00"
-                  value={addForm.cost}
-                  onChange={e => setAddForm(f => ({ ...f, cost: e.target.value }))}
-                />
               </div>
 
               <div>
@@ -840,17 +771,6 @@ export function GroomingItemSheet({
                 Voltar
               </button>
               <h3 className="text-[17px] font-bold text-[#1C1C1E]">Editar registro</h3>
-
-              <div>
-                <label className={labelCls}>Produto utilizado (opcional)</label>
-                <input
-                  type="text"
-                  className={inputCls}
-                  placeholder="Ex: Sanol Dog, Johnson's Baby..."
-                  value={editForm.product_name}
-                  onChange={e => setEditForm(f => ({ ...f, product_name: e.target.value }))}
-                />
-              </div>
 
               <div>
                 <label className={labelCls}>Data *</label>
@@ -924,7 +844,7 @@ export function GroomingItemSheet({
                     </div>
                     {editForm.location_phone && (
                       <a
-                        href={buildWhatsAppUrl(editForm.location_phone, `Olá! Quero agendar banho e tosa para ${petName || 'meu pet'} 🐾`)}
+                        href={buildWhatsAppUrl(editForm.location_phone)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="mt-1.5 inline-flex items-center gap-1 text-[13px] font-medium text-[#25D366]"
@@ -934,18 +854,6 @@ export function GroomingItemSheet({
                     )}
                   </div>
                 </div>
-              </div>
-
-              <div>
-                <label className={labelCls}>Valor R$</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className={inputCls}
-                  value={editForm.cost}
-                  onChange={e => setEditForm(f => ({ ...f, cost: e.target.value }))}
-                />
               </div>
 
               <ReminderPicker
