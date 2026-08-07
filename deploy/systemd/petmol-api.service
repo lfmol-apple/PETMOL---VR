@@ -8,7 +8,7 @@ User=petmol
 Group=petmol
 WorkingDirectory=/opt/petmol/current/services/price-service
 EnvironmentFile=-/opt/petmol/shared/env/api.env
-ExecStart=/opt/petmol/current/services/price-service/.venv/bin/uvicorn src.main:app --host 0.0.0.0 --port 8000
+ExecStart=/opt/petmol/current/services/price-service/.venv/bin/uvicorn src.main:app --host 127.0.0.1 --port 8000
 Restart=on-failure
 RestartSec=3
 

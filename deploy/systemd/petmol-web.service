@@ -8,6 +8,7 @@ User=petmol
 Group=petmol
 WorkingDirectory=/opt/petmol/current/apps/web
 EnvironmentFile=-/opt/petmol/shared/env/web.env
+Environment=NODE_ENV=production
 Environment=PORT=3000
 ExecStart=/usr/bin/node server.js
 Restart=on-failure
