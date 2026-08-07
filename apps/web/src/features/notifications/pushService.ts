@@ -69,13 +69,20 @@ export async function unsubscribeFromPush(token: string): Promise<void> {
     new Promise<never>((_, reject) => setTimeout(() => reject(new Error('SW not ready')), 8000)),
   ]);
   const subscription = await registration.pushManager.getSubscription();
+  const endpoint = subscription?.endpoint ?? null;
   if (subscription) {
     await subscription.unsubscribe();
   }
 
   await fetch(`${API_BASE}/notifications/subscribe`, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    // endpoint identifica só ESTE dispositivo — sem ele o backend desativaria
+    // todos os dispositivos do usuário (fallback pra clientes antigos em cache).
+    body: JSON.stringify({ endpoint }),
   });
 }
 

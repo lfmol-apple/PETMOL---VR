@@ -6,7 +6,6 @@ scheduler (1 min) detecta remind_at <= now → envia push via VAPID.
 """
 import json
 import logging
-import os
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -14,7 +13,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from pywebpush import webpush, WebPushException
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text, UniqueConstraint
 
 from ..db import Base, SessionLocal, engine
 from ..user_auth.deps import get_current_user
@@ -26,29 +25,6 @@ from ..pets.models import Pet
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
-
-# ── Subscription storage (arquivo JSON na VPS) ───────────────────────────────
-
-_SUBS_FILE = os.environ.get(
-    "PUSH_SUBSCRIPTIONS_FILE",
-    os.path.join(os.path.dirname(__file__), "push_subscriptions.json"),
-)
-
-
-def _load_subscriptions() -> dict:
-    try:
-        with open(_SUBS_FILE, "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
-
-def _save_subscriptions(subs: dict) -> None:
-    os.makedirs(os.path.dirname(_SUBS_FILE), exist_ok=True)
-    tmp = _SUBS_FILE + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(subs, f)
-    os.replace(tmp, _SUBS_FILE)  # atomic on POSIX
 
 
 # ── Push send helper ─────────────────────────────────────────────────────────
@@ -110,8 +86,83 @@ class Reminder(Base):
     created_at  = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
-# Cria a tabela se não existir
-Base.metadata.create_all(bind=engine, tables=[Reminder.__table__])
+class PushSubscription(Base):
+    """Web Push subscription — uma linha por dispositivo/navegador.
+
+    Substituiu o arquivo shared/persistent/push_subscriptions.json (single-
+    device por usuário, sujeito a race condition em escritas concorrentes —
+    dois POST /subscribe simultâneos podiam colidir no rename do .tmp e
+    devolver 500). (user_id, endpoint) é a chave natural de dispositivo: o
+    endpoint do Web Push já é único por registro de push do navegador, então
+    isso já dá suporte a múltiplos dispositivos por tutor de graça.
+    """
+    __tablename__ = "push_subscriptions"
+    __table_args__ = (UniqueConstraint("user_id", "endpoint", name="uq_push_subscriptions_user_endpoint"),)
+
+    id           = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id      = Column(String(36), nullable=False, index=True)
+    endpoint     = Column(Text, nullable=False)
+    p256dh       = Column(Text, nullable=False)
+    auth         = Column(Text, nullable=False)
+    lat          = Column(Float, nullable=True)
+    lng          = Column(Float, nullable=True)
+    device_id    = Column(String(64), nullable=True)
+    created_at   = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    last_seen_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    disabled_at  = Column(DateTime(timezone=True), nullable=True, index=True)
+
+
+# Cria as tabelas se não existirem
+Base.metadata.create_all(bind=engine, tables=[Reminder.__table__, PushSubscription.__table__])
+
+
+# ── Compat shims (missing_pets/__init__.py e family/utils.py importam estas
+# duas funções diretamente, no formato antigo {user_id: {endpoint, keys, lat,
+# lng}} de um dispositivo por usuário). Reescrever esses dois módulos pra
+# multi-dispositivo fica pra depois — aqui só troca o armazenamento por baixo
+# (Postgres em vez do JSON), sem quebrar quem já chama essas funções. Os
+# endpoints /subscribe, /unsubscribe, /test e o scheduler abaixo JÁ usam
+# PushSubscription diretamente e já suportam múltiplos dispositivos. ─────────
+
+def _load_subscriptions() -> dict:
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(PushSubscription)
+            .filter(PushSubscription.disabled_at.is_(None))
+            .order_by(PushSubscription.last_seen_at.desc())
+            .all()
+        )
+        result: dict = {}
+        for r in rows:
+            if r.user_id in result:
+                continue  # já tem o dispositivo mais recente deste usuário
+            entry = {"endpoint": r.endpoint, "keys": {"p256dh": r.p256dh, "auth": r.auth}}
+            if r.lat is not None:
+                entry["lat"] = r.lat
+            if r.lng is not None:
+                entry["lng"] = r.lng
+            result[r.user_id] = entry
+        return result
+    finally:
+        db.close()
+
+
+def _save_subscriptions(subs: dict) -> None:
+    """`subs` é tratado como autoritativo: qualquer dispositivo ativo cujo
+    user_id não esteja mais em `subs` é desativado. Os chamadores atuais só
+    fazem pop() antes de chamar isso (nunca adicionam), então na prática só
+    desativa."""
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        active = db.query(PushSubscription).filter(PushSubscription.disabled_at.is_(None)).all()
+        for row in active:
+            if row.user_id not in subs:
+                row.disabled_at = now
+        db.commit()
+    finally:
+        db.close()
 
 
 # ── Deep link builder ────────────────────────────────────────────────────────
@@ -194,8 +245,18 @@ def send_due_reminders() -> None:
         if not due:
             return
 
-        subscriptions = _load_subscriptions()
-        changed = False
+        # Uma query só pra todas as subscriptions ativas, reaproveitada por
+        # todos os reminders deste batch (mesmo padrão de antes, só que lendo
+        # de push_subscriptions em vez do JSON) — evita N+1.
+        active_subs = (
+            db.query(PushSubscription)
+            .filter(PushSubscription.disabled_at.is_(None))
+            .all()
+        )
+        subs_by_user: dict = {}
+        for s in active_subs:
+            subs_by_user.setdefault(s.user_id, []).append(s)
+        invalid_sub_ids: set = set()
 
         # Dedup: para cada (user_id, pet_id, type, remind_at), enviar apenas uma vez
         # e marcar todos os duplicados como enviados (evita push duplo por dados herdados)
@@ -226,8 +287,11 @@ def send_due_reminders() -> None:
                     )
                     recipient_ids.update(str(m.user_id) for m in family_members)
 
-            recipient_subs = [(uid, subscriptions.get(uid)) for uid in recipient_ids]
-            recipient_subs = [(uid, sub) for uid, sub in recipient_subs if sub]
+            recipient_subs = [
+                (uid, sub_row)
+                for uid in recipient_ids
+                for sub_row in subs_by_user.get(uid, [])
+            ]
             if not recipient_subs:
                 logger.info(f"Reminder {reminder.id}: sem subscriptions para o pet/user — consumindo")
                 if is_duplicate:
@@ -276,8 +340,9 @@ def send_due_reminders() -> None:
             }
             ok_count = 0
             hard_fail = False
-            for recipient_id, sub in recipient_subs:
-                ok, sub_invalid = _send_push(sub, payload)
+            for recipient_id, sub_row in recipient_subs:
+                sub_dict = {"endpoint": sub_row.endpoint, "keys": {"p256dh": sub_row.p256dh, "auth": sub_row.auth}}
+                ok, sub_invalid = _send_push(sub_dict, payload)
                 logger.info(
                     f"Reminder {reminder.id} ({reminder.type}) user={recipient_id}: "
                     f"push={'ok' if ok else 'falhou'} retries={reminder.retry_count}"
@@ -285,8 +350,7 @@ def send_due_reminders() -> None:
                 if ok:
                     ok_count += 1
                 elif sub_invalid:
-                    subscriptions.pop(recipient_id, None)
-                    changed = True
+                    invalid_sub_ids.add(sub_row.id)
                 else:
                     hard_fail = True
 
@@ -298,9 +362,12 @@ def send_due_reminders() -> None:
                     logger.warning(f"Reminder {reminder.id}: desistindo após {_MAX_RETRY} tentativas")
                     reminder.sent = True
 
+        if invalid_sub_ids:
+            now2 = datetime.now(timezone.utc)
+            db.query(PushSubscription).filter(PushSubscription.id.in_(invalid_sub_ids)).update(
+                {"disabled_at": now2}, synchronize_session=False,
+            )
         db.commit()
-        if changed:
-            _save_subscriptions(subscriptions)
 
     except Exception as e:
         logger.error(f"send_due_reminders error: {e}")
@@ -315,6 +382,14 @@ class SubscribeRequest(BaseModel):
     subscription: dict
     lat: Optional[float] = None
     lng: Optional[float] = None
+
+
+class UnsubscribeRequest(BaseModel):
+    # Endpoint do dispositivo a desativar. None (corpo vazio, cliente antigo
+    # em cache) desativa TODOS os dispositivos do usuário — mesmo
+    # comportamento que o arquivo JSON tinha antes (só suportava um
+    # dispositivo por usuário de qualquer forma).
+    endpoint: Optional[str] = None
 
 
 class ReminderIn(BaseModel):
@@ -350,35 +425,79 @@ def get_vapid_public_key():
 
 @router.post("/subscribe")
 def subscribe(body: SubscribeRequest, current_user=Depends(get_current_user)):
-    subs = _load_subscriptions()
-    entry = {**body.subscription}
-    if body.lat is not None:
-        entry["lat"] = body.lat
-    if body.lng is not None:
-        entry["lng"] = body.lng
-    subs[str(current_user.id)] = entry
-    _save_subscriptions(subs)
-    return {"status": "subscribed"}
+    sub_data = _normalize_subscription(body.subscription)
+    endpoint = sub_data.get("endpoint")
+    keys = sub_data.get("keys") or {}
+    if not endpoint or not keys.get("p256dh") or not keys.get("auth"):
+        raise HTTPException(status_code=400, detail="subscription incompleta (endpoint/keys)")
+
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        user_id = str(current_user.id)
+        existing = (
+            db.query(PushSubscription)
+            .filter(PushSubscription.user_id == user_id, PushSubscription.endpoint == endpoint)
+            .first()
+        )
+        if existing:
+            existing.p256dh = keys["p256dh"]
+            existing.auth = keys["auth"]
+            existing.lat = body.lat
+            existing.lng = body.lng
+            existing.last_seen_at = now
+            existing.disabled_at = None
+        else:
+            db.add(PushSubscription(
+                user_id=user_id, endpoint=endpoint,
+                p256dh=keys["p256dh"], auth=keys["auth"],
+                lat=body.lat, lng=body.lng,
+                created_at=now, last_seen_at=now,
+            ))
+        db.commit()
+        return {"status": "subscribed"}
+    finally:
+        db.close()
 
 
 @router.delete("/subscribe")
-def unsubscribe(current_user=Depends(get_current_user)):
-    subs = _load_subscriptions()
-    subs.pop(str(current_user.id), None)
-    _save_subscriptions(subs)
-    return {"status": "unsubscribed"}
+def unsubscribe(body: Optional[UnsubscribeRequest] = None, current_user=Depends(get_current_user)):
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        q = db.query(PushSubscription).filter(PushSubscription.user_id == str(current_user.id))
+        if body and body.endpoint:
+            q = q.filter(PushSubscription.endpoint == body.endpoint)
+        q.update({"disabled_at": now}, synchronize_session=False)
+        db.commit()
+        return {"status": "unsubscribed"}
+    finally:
+        db.close()
 
 
 @router.post("/test")
 def test_push(current_user=Depends(get_current_user)):
-    subs = _load_subscriptions()
-    sub = subs.get(str(current_user.id))
-    if not sub:
-        raise HTTPException(status_code=404, detail="Sem subscription registrada para este usuário")
-    ok, _ = _send_push(sub, {"title": "🐾 Teste PETMOL", "body": "Push funcionando!", "tag": "test"})
-    if not ok:
-        raise HTTPException(status_code=502, detail="Falha ao enviar push")
-    return {"status": "sent"}
+    db = SessionLocal()
+    try:
+        subs = (
+            db.query(PushSubscription)
+            .filter(PushSubscription.user_id == str(current_user.id), PushSubscription.disabled_at.is_(None))
+            .all()
+        )
+        if not subs:
+            raise HTTPException(status_code=404, detail="Sem subscription registrada para este usuário")
+        any_ok = False
+        for s in subs:
+            ok, _ = _send_push(
+                {"endpoint": s.endpoint, "keys": {"p256dh": s.p256dh, "auth": s.auth}},
+                {"title": "🐾 Teste PETMOL", "body": "Push funcionando!", "tag": "test"},
+            )
+            any_ok = any_ok or ok
+        if not any_ok:
+            raise HTTPException(status_code=502, detail="Falha ao enviar push")
+        return {"status": "sent"}
+    finally:
+        db.close()
 
 
 @router.get("/reminders", response_model=List[ReminderOut])

@@ -278,6 +278,85 @@ def run_pg_migrations(engine: Engine) -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_pet_caretakers_pet_id ON pet_caretakers (pet_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_pet_caretakers_user_id ON pet_caretakers (user_id)"))
 
+        # push_subscriptions: replaces shared/persistent/push_subscriptions.json
+        # (Aug 2026). Created here via raw SQL (not just left to
+        # notifications.py's Base.metadata.create_all) because run_pg_migrations
+        # runs before that module is imported in main.py — the table must
+        # already exist by the time the JSON import below runs. Column types
+        # are a superset-compatible match for the SQLAlchemy model in
+        # notifications/__init__.py; create_all() no-ops once the table exists.
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS push_subscriptions (
+                id            TEXT PRIMARY KEY,
+                user_id       TEXT NOT NULL,
+                endpoint      TEXT NOT NULL,
+                p256dh        TEXT NOT NULL,
+                auth          TEXT NOT NULL,
+                lat           DOUBLE PRECISION,
+                lng           DOUBLE PRECISION,
+                device_id     TEXT,
+                created_at    TIMESTAMPTZ DEFAULT NOW(),
+                last_seen_at  TIMESTAMPTZ DEFAULT NOW(),
+                disabled_at   TIMESTAMPTZ
+            )
+        """))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_push_subscriptions_user_endpoint "
+            "ON push_subscriptions (user_id, endpoint)"
+        ))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions (user_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_push_subscriptions_disabled_at ON push_subscriptions (disabled_at)"))
+
+        _migrate_push_subscriptions_from_json(conn)
+
+
+def _migrate_push_subscriptions_from_json(conn) -> None:
+    """One-time import of the legacy push_subscriptions.json (file-based,
+    single device per user) into push_subscriptions. Safe to run on every
+    deploy: ON CONFLICT (user_id, endpoint) DO NOTHING makes it a no-op once
+    a given subscription has been imported. Reads the same env-var-resolved
+    path the old notifications.py code used, so it picks up whatever file is
+    actually configured in production rather than a guessed default.
+    """
+    import json as _json
+    import os as _os
+    import uuid as _uuid
+
+    path = _os.environ.get(
+        "PUSH_SUBSCRIPTIONS_FILE",
+        _os.path.join(_os.path.dirname(__file__), "notifications", "push_subscriptions.json"),
+    )
+    try:
+        with open(path, "r") as f:
+            data = _json.load(f)
+    except (FileNotFoundError, ValueError):
+        return
+    if not isinstance(data, dict):
+        return
+
+    for user_id, entry in data.items():
+        if not isinstance(entry, dict):
+            continue
+        endpoint = entry.get("endpoint")
+        keys = entry.get("keys") or {}
+        p256dh = keys.get("p256dh") or entry.get("p256dh")
+        auth = keys.get("auth") or entry.get("auth")
+        if not endpoint or not p256dh or not auth:
+            continue
+        conn.execute(text("""
+            INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, lat, lng, created_at, last_seen_at)
+            VALUES (:id, :user_id, :endpoint, :p256dh, :auth, :lat, :lng, NOW(), NOW())
+            ON CONFLICT (user_id, endpoint) DO NOTHING
+        """), {
+            "id": str(_uuid.uuid4()),
+            "user_id": str(user_id),
+            "endpoint": endpoint,
+            "p256dh": p256dh,
+            "auth": auth,
+            "lat": entry.get("lat"),
+            "lng": entry.get("lng"),
+        })
+
 
 def run_sqlite_migrations(engine: Engine) -> None:
     """Run idempotent migrations.

@@ -277,16 +277,20 @@ def init_db():
 
     Base.metadata.create_all(bind=engine)
 
-    # Additive column migrations (idempotent, safe for both SQLite and PostgreSQL)
-    try:
-        if settings.database_url.startswith("sqlite"):
-            from .migrations import run_sqlite_migrations
-            run_sqlite_migrations(engine)
-        else:
-            from .migrations import run_pg_migrations
-            run_pg_migrations(engine)
-    except Exception:
-        pass
+    # Additive column migrations (idempotent, safe for both SQLite and PostgreSQL).
+    # Intentionally NOT wrapped in try/except: a failed migration must not let
+    # the app start on a half-migrated schema and fail mysteriously hours later
+    # when some user hits the missing column/table. With the atomic-release
+    # pipeline, an exception here fails this startup event, activate.sh's
+    # health check never gets a response, and it rolls back to the previous
+    # release automatically — the safe failure mode is "deploy doesn't go
+    # live", not "goes live half-broken and silent".
+    if settings.database_url.startswith("sqlite"):
+        from .migrations import run_sqlite_migrations
+        run_sqlite_migrations(engine)
+    else:
+        from .migrations import run_pg_migrations
+        run_pg_migrations(engine)
 
     # Funde linhas de ProductReliableCatalog que colidem depois de recalcular
     # canonical_key com a normalização atual (idempotente — vira no-op depois
