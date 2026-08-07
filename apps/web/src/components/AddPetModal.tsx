@@ -9,6 +9,7 @@ import { PetPhotoPicker } from './PetPhotoPicker';
 import { ModalPortal } from '@/components/ModalPortal';
 import { localTodayISO } from '@/lib/localDate';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
+import { openHomeShoppingPartner } from '@/features/commerce/homeShoppingPartners';
 
 // ── Breed data (sincronizado com register-pet) ────────────────────────────────
 
@@ -405,6 +406,7 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
   const [loading,         setLoading]         = useState(false);
   const [error,           setError]           = useState('');
+  const [showLeishmaniose, setShowLeishmaniose] = useState(false);
 
   const speciesSeg = ['dog', 'cat'].includes(species) ? species : 'other';
   const today = localTodayISO();
@@ -467,13 +469,58 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
 
       trackV1Metric('pet_created', { pet_id: savedPet.id, species, has_photo: Boolean(petPhotoDataUrl), source: 'add_pet_modal' });
       onComplete();
-      onClose();
+      // Cães recém-cadastrados por aqui (segundo pet em diante) nunca passam
+      // pelo tour de onboarding do /register-pet, onde esse alerta também
+      // aparece — sem isso, só quem cadastra o primeiro pet da conta veria.
+      if (species === 'dog') {
+        setShowLeishmaniose(true);
+      } else {
+        onClose();
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Erro ao salvar pet.');
     } finally {
       setLoading(false);
     }
   };
+
+  if (showLeishmaniose) {
+    const petLabel = name.trim() || 'seu pet';
+    return (
+      <ModalPortal>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="w-full sm:max-w-sm rounded-[32px] bg-gradient-to-br from-rose-50 to-red-50 border border-rose-100 shadow-2xl animate-scaleIn p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-14 h-14 rounded-2xl bg-rose-500 flex items-center justify-center text-3xl flex-shrink-0">
+                🦟
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-rose-600">Atenção</p>
+                <h2 className="text-[20px] font-black text-slate-900 leading-tight">Leishmaniose: um risco real para cães</h2>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Transmitida pela picada do mosquito-palha, é uma doença séria e ainda sem cura definitiva — mas com prevenção acessível. A coleira antiparasitária específica é hoje a principal proteção do {petLabel}. Converse com o veterinário sobre a melhor opção.
+            </p>
+            <button
+              type="button"
+              onClick={() => openHomeShoppingPartner('cobasi', 'coleira antipulgas carrapato leishmaniose cão')}
+              className="mt-4 w-full py-3 rounded-xl bg-white border border-rose-200 text-rose-700 text-sm font-bold active:scale-[0.98] transition-transform"
+            >
+              Ver coleiras recomendadas
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="mt-3 w-full py-4 rounded-2xl bg-[#0056D2] text-white text-sm font-black shadow-lg active:scale-[0.98]"
+            >
+              Entendi, vamos lá!
+            </button>
+          </div>
+        </div>
+      </ModalPortal>
+    );
+  }
 
   return (
     <ModalPortal>
