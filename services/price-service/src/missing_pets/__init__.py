@@ -493,6 +493,7 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
             "tag": f"missing-pet-{mp.id}",
             "renotify": True,
             "requireInteraction": True,
+            "vibrate": [300, 150, 300, 150, 300],
             "icon": "/icons/icon-192x192.png",
             "badge": "/icons/icon-72x72.png",
             "data": {"url": f"/achei-um-pet?id={mp.id}"},
@@ -2288,6 +2289,7 @@ def _push_owner_found(mp: MissingPet, finder_contact: str, finder_location: str 
             "tag": f"found-report-{mp_id}",
             "renotify": True,
             "requireInteraction": True,
+            "vibrate": [300, 150, 300, 150, 300],
             "icon": "/icons/icon-192x192.png",
             "data": {"url": f"/home"},
         })

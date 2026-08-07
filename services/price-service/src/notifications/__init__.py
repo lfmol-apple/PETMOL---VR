@@ -259,6 +259,7 @@ def send_due_reminders() -> None:
                 "tag": f"petmol-{reminder.type}-{reminder.pet_id or 'x'}",
                 "renotify": True,
                 "requireInteraction": True,
+                "vibrate": [300, 150, 300, 150, 300],
                 "actions": [
                     {"action": action_id, "title": action_label},
                     {"action": "dismiss", "title": "Dispensar"},

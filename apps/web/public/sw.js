@@ -14,6 +14,7 @@
  *   actions: [{ action: string, title: string, icon?: string }],
  *   requireInteraction: boolean,
  *   autoCloseMs: number,
+ *   vibrate:  number[],  // padrão em ms, ex: [300, 150, 300, 150, 300]. Só Android.
  * }
  */
 
@@ -46,6 +47,7 @@ self.addEventListener('push', (event) => {
     actions: normalized.actions,
     requireInteraction: normalized.requireInteraction === true,
     renotify: normalized.renotify === true,
+    vibrate: normalized.vibrate,
   };
 
   const notifPromise = self.registration.showNotification(title, options);
@@ -97,6 +99,14 @@ function normalizePushPayload(payload) {
   const requireInteraction = source.requireInteraction === true;
   if (requireInteraction) autoCloseMs = 0;
 
+  const DEFAULT_URGENT_VIBRATE = [300, 150, 300, 150, 300];
+  let vibrate = Array.isArray(source.vibrate)
+    ? source.vibrate.filter((n) => Number.isFinite(n) && n >= 0)
+    : null;
+  if (!vibrate || vibrate.length === 0) {
+    vibrate = requireInteraction ? DEFAULT_URGENT_VIBRATE : undefined;
+  }
+
   return {
     title,
     body: rawBody,
@@ -109,6 +119,7 @@ function normalizePushPayload(payload) {
     requireInteraction,
     autoCloseMs,
     renotify: source.renotify === true,
+    vibrate,
   };
 }
 
