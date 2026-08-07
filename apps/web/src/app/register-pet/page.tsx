@@ -9,6 +9,7 @@ import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { subscribeToPush } from '@/features/notifications/pushService';
 import { needsIosInstallForPush } from '@/lib/pwaPlatform';
+import { openHomeShoppingPartner } from '@/features/commerce/homeShoppingPartners';
 import { Camera } from 'lucide-react';
 
 // ── Breed data ────────────────────────────────────────────────────────────────
@@ -172,7 +173,7 @@ export default function RegisterPetPage() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ name?: string; species?: string; sex?: string; general?: string }>({});
   const [savedPetId, setSavedPetId] = useState<string | null>(null);
-  const [onboardStep, setOnboardStep] = useState<0 | 1 | 2 | 'done'>(0);
+  const [onboardStep, setOnboardStep] = useState<number | 'done'>(0);
   const [notifStep, setNotifStep] = useState<'ask' | 'ios-install' | 'done'>('ask');
   const [notifLoading, setNotifLoading] = useState(false);
 
@@ -291,8 +292,9 @@ export default function RegisterPetPage() {
         tagColor: 'text-emerald-600',
         title: 'Do WhatsApp direto na Guarda de Documentos',
         body: `O vet mandou exame ou receita pelo WhatsApp? Compartilhe com o PETMOL — o arquivo é salvo automaticamente na Guarda de Documentos do ${label}. Sem baixar, sem organizar.`,
-        flow: ['WhatsApp', 'Compartilhar', 'PETMOL salva'],
+        flow: ['WhatsApp', 'Compartilhar', 'PETMOL salva'] as string[] | null,
         flowColor: 'text-emerald-700',
+        cta: null as { label: string; onClick: () => void } | null,
       },
       {
         icon: '💉',
@@ -305,6 +307,7 @@ export default function RegisterPetPage() {
         body: `Registre vacinas, vermífugos, remédios e antiparasitários do ${label}. O PETMOL avisa antes do prazo vencer — sem precisar lembrar de nada.`,
         flow: null,
         flowColor: '',
+        cta: null,
       },
       {
         icon: '🍗',
@@ -317,12 +320,32 @@ export default function RegisterPetPage() {
         body: `Informe quanto tem de ração. O PETMOL calcula o consumo diário e avisa antes de acabar. Chega de chegar em casa e a vasilha estar vazia.`,
         flow: null,
         flowColor: '',
+        cta: null,
       },
-    ] as const;
+      // Leishmaniose é essencialmente uma doença canina no contexto de
+      // prevenção por coleira — não mostrar para gatos/outros.
+      ...(species === 'dog' ? [{
+        icon: '🦟',
+        bg: 'from-rose-50 to-red-50',
+        border: 'border-rose-100',
+        iconBg: 'bg-rose-500',
+        tag: 'Atenção',
+        tagColor: 'text-rose-600',
+        title: 'Leishmaniose: um risco real para cães',
+        body: `Transmitida pela picada do mosquito-palha, é uma doença séria e ainda sem cura definitiva — mas com prevenção acessível. A coleira antiparasitária específica é hoje a principal proteção do ${label}. Converse com o veterinário sobre a melhor opção.`,
+        flow: null,
+        flowColor: '',
+        cta: {
+          label: 'Ver coleiras recomendadas',
+          onClick: () => openHomeShoppingPartner('cobasi', 'coleira antipulgas carrapato leishmaniose cão'),
+        },
+      }] : []),
+    ];
 
     if (onboardStep !== 'done') {
-      const card = ONBOARD_CARDS[onboardStep];
-      const isLast = onboardStep === 2;
+      const stepIndex = typeof onboardStep === 'number' ? onboardStep : 0;
+      const card = ONBOARD_CARDS[stepIndex];
+      const isLast = stepIndex === ONBOARD_CARDS.length - 1;
 
       return (
         <BrandBackground showLogo={false}>
@@ -331,9 +354,9 @@ export default function RegisterPetPage() {
 
               {/* Progress dots */}
               <div className="flex justify-center gap-2 mb-6">
-                {([0, 1, 2] as const).map(i => (
+                {ONBOARD_CARDS.map((_, i) => (
                   <div key={i}
-                    className={`h-1.5 rounded-full transition-all duration-300 ${i === onboardStep ? 'w-8 bg-[#0056D2]' : 'w-1.5 bg-slate-200'}`}
+                    className={`h-1.5 rounded-full transition-all duration-300 ${i === stepIndex ? 'w-8 bg-[#0056D2]' : 'w-1.5 bg-slate-200'}`}
                   />
                 ))}
               </div>
@@ -352,22 +375,31 @@ export default function RegisterPetPage() {
                 <p className="text-sm text-slate-600 leading-relaxed">{card.body}</p>
                 {card.flow && (
                   <div className={`mt-4 flex items-center gap-2 text-xs font-bold ${card.flowColor}`}>
-                    {card.flow.map((step, i) => (
-                      <span key={step} className="flex items-center gap-2">
+                    {card.flow.map((flowStep, i) => (
+                      <span key={flowStep} className="flex items-center gap-2">
                         {i > 0 && <span className="text-slate-300">→</span>}
-                        {step}
+                        {flowStep}
                       </span>
                     ))}
                   </div>
+                )}
+                {card.cta && (
+                  <button
+                    type="button"
+                    onClick={card.cta.onClick}
+                    className="mt-4 w-full py-3 rounded-xl bg-white border border-rose-200 text-rose-700 text-sm font-bold active:scale-[0.98] transition-transform"
+                  >
+                    {card.cta.label}
+                  </button>
                 )}
               </div>
 
               {/* Navigation */}
               <div className="mt-5 flex gap-3">
-                {onboardStep > 0 && (
+                {stepIndex > 0 && (
                   <button
                     type="button"
-                    onClick={() => setOnboardStep(prev => (prev === 1 ? 0 : prev === 2 ? 1 : 0) as 0 | 1 | 2 | 'done')}
+                    onClick={() => setOnboardStep(stepIndex - 1)}
                     className="flex-shrink-0 px-5 py-4 rounded-2xl border border-slate-200 bg-white text-slate-600 text-sm font-bold active:bg-slate-50"
                   >
                     Voltar
@@ -375,7 +407,7 @@ export default function RegisterPetPage() {
                 )}
                 <button
                   type="button"
-                  onClick={() => setOnboardStep(isLast ? 'done' : (onboardStep + 1) as 0 | 1 | 2 | 'done')}
+                  onClick={() => setOnboardStep(isLast ? 'done' : stepIndex + 1)}
                   className="flex-1 py-4 rounded-2xl bg-[#0056D2] text-white text-sm font-black shadow-lg active:scale-[0.98]"
                 >
                   {isLast ? 'Entendi, vamos lá!' : 'Próximo'}
