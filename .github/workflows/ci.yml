@@ -153,7 +153,12 @@ jobs:
 
       - name: Create tarball
         run: |
-          tar -czf "/tmp/petmol-${GITHUB_SHA}.tar.gz" -C /tmp/release .
+          # List top-level entries explicitly (not ".") so archive members
+          # are named e.g. "deploy/release/activate.sh" instead of
+          # "./deploy/release/activate.sh" — deploy-atomic.yml extracts a
+          # single named member with `tar -xzOf ... deploy/release/activate.sh`,
+          # which only matches without the leading "./".
+          tar -czf "/tmp/petmol-${GITHUB_SHA}.tar.gz" -C /tmp/release apps services deploy manifest.json
           echo "Package size: $(du -sh "/tmp/petmol-${GITHUB_SHA}.tar.gz" | cut -f1)"
 
       - uses: actions/upload-artifact@v4
