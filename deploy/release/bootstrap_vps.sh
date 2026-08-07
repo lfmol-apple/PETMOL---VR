@@ -36,6 +36,13 @@ fi
 [ -d "$LEGACY_APP/services/price-service/.venv" ] && \
     rsync -a "$LEGACY_APP/services/price-service/.venv/" "$SHARED_DIR/venv/"
 
+# The legacy files above are typically root-owned with restrictive modes
+# (e.g. .env at 600). The new systemd units run api/web as the petmol user,
+# so a straight `cp -n` leaves api.env unreadable by the service — chown/chmod
+# everything copied into shared/ to the petmol user now, once, here.
+chown -R petmol:petmol "$SHARED_DIR"
+find "$SHARED_DIR/env" -type f -exec chmod 640 {} \;
+
 echo ""
 echo "Copied into $SHARED_DIR. Legacy files at $LEGACY_APP were left untouched."
 echo ""

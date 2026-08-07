@@ -158,7 +158,11 @@ jobs:
           # "./deploy/release/activate.sh" — deploy-atomic.yml extracts a
           # single named member with `tar -xzOf ... deploy/release/activate.sh`,
           # which only matches without the leading "./".
-          tar -czf "/tmp/petmol-${GITHUB_SHA}.tar.gz" -C /tmp/release apps services deploy manifest.json
+          # node_modules/ and package.json also land at the release root —
+          # Next's standalone output traces node_modules relative to the
+          # monorepo root (outputFileTracingRoot), not into apps/web/, so
+          # apps/web/server.js needs them here to resolve its dependencies.
+          tar -czf "/tmp/petmol-${GITHUB_SHA}.tar.gz" -C /tmp/release apps services deploy manifest.json node_modules package.json
           echo "Package size: $(du -sh "/tmp/petmol-${GITHUB_SHA}.tar.gz" | cut -f1)"
 
       - uses: actions/upload-artifact@v4
