@@ -1,19 +1,23 @@
-name: Deploy → VPS (atomic releases — NEW, not yet official)
+name: Deploy → VPS (atomic releases)
 
-# This is the new atomic-release pipeline (see docs/DEPLOYMENT.md). It is
-# intentionally workflow_dispatch-only for now: it does NOT auto-trigger on
-# push to main. deploy.yml (SSH + in-place rsync/build on the VPS) remains
-# the only automatic production path until this has been validated against
-# the real VPS and deploy.yml is retired in a follow-up change. Do not wire
-# this to auto-trigger without removing/disabling deploy.yml first — running
-# both on the same push would mean two independent things deploying to the
-# same box.
+# The official production deploy path (see docs/DEPLOYMENT.md). Auto-triggers
+# after CI finishes packaging a release on main; can also be run manually for
+# a specific already-packaged SHA (e.g. to redeploy an older commit).
+# deploy.yml (the legacy SSH + in-place rsync/build pipeline) is retired from
+# the automatic path as of the same change that added this trigger — it's
+# workflow_dispatch-only now, kept only as a manual emergency fallback. Do not
+# re-enable its automatic trigger alongside this one: both writing to the
+# same VPS paths on the same push is what atomic releases exist to prevent.
 on:
   workflow_dispatch:
     inputs:
       sha:
-        description: 'Commit SHA to deploy (must have a successful CI run on main with a packaged artifact)'
-        required: true
+        description: 'Commit SHA to deploy (must have a successful CI run on main with a packaged artifact). Leave empty to deploy the latest.'
+        required: false
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
 
 concurrency:
   group: deploy-vps-atomic
@@ -26,19 +30,37 @@ permissions:
 jobs:
   deploy:
     name: Activate release on petmol.com.br
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
+      - name: Resolve SHA to deploy
+        id: resolve_sha
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_SHA: ${{ github.event.inputs.sha }}
+          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          SHA="${INPUT_SHA:-$WORKFLOW_RUN_SHA}"
+          if [ -z "$SHA" ]; then
+            # Manual dispatch with no sha given — deploy the latest successful
+            # CI run on main.
+            SHA=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml \
+              --branch main --status success --json headSha --jq '.[0].headSha')
+          fi
+          [ -n "$SHA" ] || { echo "Could not resolve a SHA to deploy."; exit 1; }
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.sha }}
+          ref: ${{ steps.resolve_sha.outputs.sha }}
 
       - name: Find the CI run that packaged this SHA
         id: find_run
         env:
           GH_TOKEN: ${{ github.token }}
-          SHA: ${{ github.event.inputs.sha }}
+          SHA: ${{ steps.resolve_sha.outputs.sha }}
         run: |
           RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml \
             --commit "$SHA" --status success --json databaseId --jq '.[0].databaseId')
@@ -51,7 +73,7 @@ jobs:
       - name: Download packaged artifact from that run
         uses: actions/download-artifact@v4
         with:
-          name: petmol-release-${{ github.event.inputs.sha }}
+          name: petmol-release-${{ steps.resolve_sha.outputs.sha }}
           run-id: ${{ steps.find_run.outputs.run_id }}
           github-token: ${{ github.token }}
           path: /tmp/release-artifact
@@ -61,7 +83,7 @@ jobs:
           VPS_IP: ${{ secrets.VPS_IP }}
           VPS_USER: ${{ secrets.VPS_USER }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SHA: ${{ github.event.inputs.sha }}
+          SHA: ${{ steps.resolve_sha.outputs.sha }}
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key

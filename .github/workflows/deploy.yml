@@ -1,11 +1,14 @@
 name: Deploy → VPS
 
+# Retired from the automatic path — deploy-atomic.yml (atomic releases, see
+# docs/DEPLOYMENT.md) is now what auto-triggers after CI on main. This stays
+# workflow_dispatch-only: a manual emergency fallback, not something that
+# should ever run alongside the new pipeline unprompted. Do not restore the
+# workflow_run trigger below without first disabling deploy-atomic.yml's —
+# both deploying to the same VPS paths on the same push is exactly the
+# failure mode atomic releases were built to eliminate.
 on:
   workflow_dispatch:  # manual trigger no GitHub — bypasses the CI gate below on purpose
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [main]
 
 # Nothing prevented two deploy runs from executing on the VPS at the same
 # time (e.g. a manual dispatch overlapping a workflow_run-triggered one) —
