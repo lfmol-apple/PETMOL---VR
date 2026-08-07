@@ -22,8 +22,20 @@ echo "Legacy production is at sha=$SHA. Copying persistent data into $SHARED_DIR
 
 mkdir -p "$SHARED_DIR/env" "$SHARED_DIR/uploads" "$SHARED_DIR/logs" "$SHARED_DIR/persistent" "$SHARED_DIR/venv"
 
-[ -f "$LEGACY_APP/services/price-service/.env" ] && \
+# The real production secrets live in /etc/petmol/petmol.env — both legacy
+# units (petmol-api.service and petmol-web.service) load it via
+# EnvironmentFile. services/price-service/.env, if present, is a partial
+# local/dev-style file and is NOT what's actually running in prod — do not
+# use it as the source here (caught during first cutover: it was missing
+# JWT_SECRET, DATABASE_URL, and most other required config).
+if [ -f /etc/petmol/petmol.env ]; then
+    cp -n /etc/petmol/petmol.env "$SHARED_DIR/env/api.env"
+    cp -n /etc/petmol/petmol.env "$SHARED_DIR/env/web.env"
+elif [ -f "$LEGACY_APP/services/price-service/.env" ]; then
+    echo "WARNING: /etc/petmol/petmol.env not found — falling back to" >&2
+    echo "$LEGACY_APP/services/price-service/.env, which may be incomplete." >&2
     cp -n "$LEGACY_APP/services/price-service/.env" "$SHARED_DIR/env/api.env"
+fi
 [ -f "$LEGACY_APP/apps/web/.env.local" ] && \
     cp -n "$LEGACY_APP/apps/web/.env.local" "$SHARED_DIR/env/web.env.local"
 [ -d "$LEGACY_APP/services/price-service/uploads" ] && \
