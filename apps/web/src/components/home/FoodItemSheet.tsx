@@ -207,6 +207,40 @@ function DaysScrollPicker({ value, onChange, min = 1, max = 90 }: {
   );
 }
 
+// ── pet photo bubble ─────────────────────────────────────────────────────────
+// Hoisted to module scope on purpose: this was previously declared *inside*
+// FoodItemSheet's body, so every re-render (any state change anywhere in a
+// component with dozens of useState calls, not just photo-related ones)
+// produced a brand-new function reference. React then treated <PhotoBubble>
+// as a different component type each time and remounted it from scratch —
+// destroying and recreating the <img> DOM node, which made the browser
+// re-fetch/redecode the photo and visibly flash. A stable module-level
+// component reference fixes that: only its props change now, no remount.
+function PhotoBubble({
+  size, photoSrc, photoFailed, onPhotoError, species, petName,
+}: {
+  size: number;
+  photoSrc: string | null;
+  photoFailed: boolean;
+  onPhotoError: () => void;
+  species?: string;
+  petName?: string;
+}) {
+  return (
+    <div
+      className="rounded-full overflow-hidden bg-amber-100 flex items-center justify-center flex-shrink-0 shadow-sm ring-2 ring-white"
+      style={{ width: size, height: size, fontSize: size * 0.45 }}
+    >
+      {photoSrc && !photoFailed ? (
+        <img src={photoSrc} alt={petName} className="w-full h-full object-cover" loading="lazy"
+          onError={onPhotoError} />
+      ) : (
+        <span>{species === 'cat' ? '🐱' : '🐶'}</span>
+      )}
+    </div>
+  );
+}
+
 // ── component ─────────────────────────────────────────────────────────────────
 
 export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, petPhotoUrl, racaoEventId }: FoodItemSheetProps) {
@@ -713,22 +747,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     scrollBodyRef.current?.scrollTo({ top: 0, behavior: 'instant' });
   }, [subMode]);
 
-  // ── Pet photo ──────────────────────────────────────────────────────────────
-
-  const PhotoBubble = ({ size }: { size: number }) => (
-    <div
-      className="rounded-full overflow-hidden bg-amber-100 flex items-center justify-center flex-shrink-0 shadow-sm ring-2 ring-white"
-      style={{ width: size, height: size, fontSize: size * 0.45 }}
-    >
-      {petPhotoSrc && !photoLoadFailed ? (
-        <img src={petPhotoSrc} alt={pet.pet_name} className="w-full h-full object-cover" loading="lazy"
-          onError={() => setPhotoLoadFailed(true)} />
-      ) : (
-        <span>{pet.species === 'cat' ? '🐱' : '🐶'}</span>
-      )}
-    </div>
-  );
-
   // ── Back button (shared) ───────────────────────────────────────────────────
 
   const BackBtn = ({ onClick }: { onClick: () => void }) => (
@@ -804,7 +822,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
           {mode === 'edit' && (
             <>
               <div className="relative z-10 flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-white flex-shrink-0">
-                <PhotoBubble size={36} />
+                <PhotoBubble size={36} photoSrc={petPhotoSrc} photoFailed={photoLoadFailed} onPhotoError={() => setPhotoLoadFailed(true)} species={pet.species} petName={pet.pet_name} />
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                     Editar plano
@@ -916,7 +934,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
             <>
               {/* Fixed header */}
               <div className="px-4 pt-1 pb-3 flex items-center gap-3 flex-shrink-0">
-                <PhotoBubble size={44} />
+                <PhotoBubble size={44} photoSrc={petPhotoSrc} photoFailed={photoLoadFailed} onPhotoError={() => setPhotoLoadFailed(true)} species={pet.species} petName={pet.pet_name} />
                 <div className="flex-1 min-w-0">
                   <h2 className="text-[18px] font-black text-gray-900 leading-tight">
                     Ração {petDo(pet)} {pet.pet_name}
@@ -993,7 +1011,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                           className="w-full flex items-center justify-center gap-2 py-3 min-h-[44px] rounded-2xl border border-gray-200 bg-white text-[14px] font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 disabled:opacity-50 transition-all"
                         >
                           <span className="text-lg">🍲</span>
-                          {declaringNonKibble ? 'Salvando...' : 'Não uso ração de saco'}
+                          {declaringNonKibble ? 'Salvando...' : 'Alimentação Caseira'}
                         </button>
 
                         <button
