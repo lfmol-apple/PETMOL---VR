@@ -149,7 +149,15 @@ export function VaccineItemSheet({
     const d = diffDays(v.next_dose_date);
     return d !== null && d >= 0 && d <= 60;
   });
-  const applied = [...vaccines].sort((a, b) => b.date_administered.localeCompare(a.date_administered));
+  // Histórico não repete o que já está visível em Atrasadas/Próximas logo
+  // acima — mesmo registro (uma vacina só tem uma linha, com data aplicada
+  // E próxima dose juntas) não precisa aparecer duas vezes na tela só
+  // porque uma seção olha "quando foi" e a outra "quando é a próxima".
+  const upcomingShown = upcoming.slice(0, 3);
+  const shownAboveIds = new Set([...overdue, ...upcomingShown].map(v => v.id));
+  const applied = [...vaccines]
+    .filter(v => !shownAboveIds.has(v.id))
+    .sort((a, b) => b.date_administered.localeCompare(a.date_administered));
 
   const nextDiff = upcoming.length > 0 ? diffDays(upcoming[0].next_dose_date) : null;
   const status = computeStatus(overdue.length, nextDiff);
@@ -437,9 +445,15 @@ export function VaccineItemSheet({
                 <div className="px-4 py-3 bg-sky-50 flex items-center gap-2">
                   <span className="text-sm flex-shrink-0">📅</span>
                   <p className="text-sm font-bold text-sky-700 flex-1 truncate">
-                    {upcoming[0].vaccine_name}
-                    {diffDays(upcoming[0].next_dose_date) !== null && (
-                      <span className="font-normal text-sky-600 ml-1">· {fmtRelativeDays(diffDays(upcoming[0].next_dose_date))}</span>
+                    {upcoming.length === 1 ? (
+                      <>
+                        {upcoming[0].vaccine_name}
+                        {diffDays(upcoming[0].next_dose_date) !== null && (
+                          <span className="font-normal text-sky-600 ml-1">· {fmtRelativeDays(diffDays(upcoming[0].next_dose_date))}</span>
+                        )}
+                      </>
+                    ) : (
+                      `${upcoming.length} vacinas nos próximos dias`
                     )}
                   </p>
                 </div>
