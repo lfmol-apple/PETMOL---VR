@@ -28,6 +28,15 @@ function fmtDate(s?: string | null): string {
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
+// Notas geradas automaticamente pelo próprio app (importação OCR, quick-add)
+// — não são anotações do tutor, são metadado de "como isso foi cadastrado".
+// Úteis numa tela de edição/detalhe, só ruído repetido numa lista compacta
+// onde toda vacina importada mostra a mesma frase idêntica.
+const SYSTEM_GENERATED_NOTES = new Set([
+  'Importado via OCR do cartão de vacina',
+  'Adicionado via Quick Add',
+]);
+
 function fmtRelativeDays(diff: number | null): string {
   if (diff === null) return '';
   if (diff < 0) {
@@ -753,7 +762,11 @@ function VaccineRow({
               <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">✅ Atual</span>
             )}
           </div>
-          <p className="text-xs text-gray-400 mt-0.5 truncate">
+          {/* Sem `truncate` de propósito: essa linha é a resposta pra "quando
+              preciso agir", cortar com "..." escondia justamente o contador
+              relativo (em N dias) no fim da frase — deixa quebrar em 2 linhas
+              em vez de sumir com a parte mais importante. */}
+          <p className="text-xs text-gray-400 mt-0.5 leading-snug">
             {v.record_type === 'estimated_control_start' ? 'Controle iniciado em ' : ''}
             {fmtDate(v.date_administered)}
             {v.next_dose_date && (
@@ -775,7 +788,7 @@ function VaccineRow({
             )}
             {v.veterinarian ? ` · ${v.veterinarian}` : ''}
           </p>
-          {v.notes && (
+          {v.notes && !SYSTEM_GENERATED_NOTES.has(v.notes.trim()) && (
             <p className="text-xs text-gray-500 mt-1 italic line-clamp-2">📝 {v.notes}</p>
           )}
         </div>
