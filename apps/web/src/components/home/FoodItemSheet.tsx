@@ -273,6 +273,12 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   // rastreamento, então a tela não deve insistir em pedir marca/peso/consumo.
   const [isNonKibbleDeclared, setIsNonKibbleDeclared] = useState(false);
   const [declaringNonKibble, setDeclaringNonKibble] = useState(false);
+  // "Mudei de ideia" a partir da tela de alimentação caseira: mostra de novo
+  // as 3 opções (foto/manual/caseira), igual primeira vez — não pula direto
+  // pro formulário manual. Reseta sozinho sempre que o plano é recarregado
+  // do servidor (refreshFoodPlan), já que nesse ponto vamos mostrar o estado
+  // real de novo, não mais a escolha "finge que está vazio".
+  const [showFreshChoice, setShowFreshChoice] = useState(false);
   const [alertDaysBefore, setAlertDaysBefore]     = useState<number | null>(null);
   const [nextReminderDate, setNextReminderDate]   = useState<string | null>(null);
   const [reminderTime, setReminderTime]           = useState<string | null>(null);
@@ -393,6 +399,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   type RefreshedPlanAlert = { recommendedAlertDate: string | null; reminderTime: string | null; brand: string } | null;
 
   const refreshFoodPlan = async (): Promise<RefreshedPlanAlert> => {
+    setShowFreshChoice(false);
     try {
       const response = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan`, {
         headers: authH(),
@@ -976,7 +983,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
               <div ref={scrollBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <div className="px-4 pb-8 space-y-4">
                   {/* ── SEM RAÇÃO ──────────────────────────────────────────── */}
-                  {!hasFood && (
+                  {(!hasFood || showFreshChoice) && (
                     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 space-y-4">
                       <div>
                         <h3 className="text-[20px] font-black text-gray-900 leading-tight">Como {pet.pet_name} se alimenta?</h3>
@@ -1016,17 +1023,17 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
 
                         <button
                           type="button"
-                          onClick={handleClose}
+                          onClick={() => (showFreshChoice ? setShowFreshChoice(false) : handleClose())}
                           className="w-full py-2 text-[12px] font-medium text-gray-300 hover:text-gray-500 transition-colors"
                         >
-                          Fazer depois
+                          {showFreshChoice ? 'Cancelar' : 'Fazer depois'}
                         </button>
                       </div>
                     </div>
                   )}
 
                   {/* ── ALIMENTAÇÃO NÃO-RAÇÃO DECLARADA ─────────────────────── */}
-                  {hasFood && isNonKibbleDeclared && (
+                  {hasFood && isNonKibbleDeclared && !showFreshChoice && (
                     <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5 space-y-4">
                       <div>
                         <h3 className="text-[17px] font-bold text-gray-900 leading-tight">Alimentação de {pet.pet_name}</h3>
@@ -1034,16 +1041,16 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                       </div>
                       <button
                         type="button"
-                        onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
+                        onClick={() => setShowFreshChoice(true)}
                         className="w-full py-3 min-h-[44px] rounded-2xl border border-gray-200 bg-white text-[13px] font-semibold text-gray-600 hover:bg-gray-50 active:scale-95 transition-all"
                       >
-                        Na verdade, quero cadastrar uma ração
+                        Na verdade, mudei de ideia
                       </button>
                     </div>
                   )}
 
                   {/* ── COM RAÇÃO ──────────────────────────────────────────── */}
-                  {hasFood && !isNonKibbleDeclared && (
+                  {hasFood && !isNonKibbleDeclared && !showFreshChoice && (
                     <>
                       {/* ─── SUBMODE: main ─────────────────────────────────── */}
                       {subMode === 'main' && (
