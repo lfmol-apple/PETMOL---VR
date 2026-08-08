@@ -48,6 +48,7 @@ type FeedingPlanApiResponse = {
     pet_id?: string | null;
     enabled?: boolean | null;
     no_consumption_control?: boolean | null;
+    mode?: string | null;
     food_brand?: string | null;
     package_size_kg?: number | null;
     daily_amount_g?: number | null;
@@ -233,6 +234,11 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   const [justSaved, setJustSaved]                 = useState(false);
   const [selectedDays, setSelectedDays]           = useState(7);
   const [hasFoodConfigured, setHasFoodConfigured] = useState(false);
+  // Declaração explícita "não uso ração" (mode !== 'kibble' + no_consumption_control) —
+  // não confundir com "ainda não configurou": aqui o tutor já disse que não quer
+  // rastreamento, então a tela não deve insistir em pedir marca/peso/consumo.
+  const [isNonKibbleDeclared, setIsNonKibbleDeclared] = useState(false);
+  const [declaringNonKibble, setDeclaringNonKibble] = useState(false);
   const [alertDaysBefore, setAlertDaysBefore]     = useState<number | null>(null);
   const [nextReminderDate, setNextReminderDate]   = useState<string | null>(null);
   const [reminderTime, setReminderTime]           = useState<string | null>(null);
@@ -361,6 +367,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
 
       if (response.status === 404) {
         setHasFoodConfigured(false);
+        setIsNonKibbleDeclared(false);
         setAlertDaysBefore(null);
         setNextReminderDate(null);
         setReminderTime(null);
@@ -402,6 +409,10 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
       const nextReminder = estimate?.recommended_alert_date
         ?? (estimatedEndDate && resolvedReminderDays != null ? addDaysLocal(estimatedEndDate, -resolvedReminderDays) : null);
       const hasPersistedPlan = Boolean(plan && plan.enabled !== false);
+      const nonKibbleDeclared = Boolean(
+        plan?.no_consumption_control && plan?.mode && plan.mode !== 'kibble' && !brand,
+      );
+      setIsNonKibbleDeclared(nonKibbleDeclared);
 
       const hasConfiguredData = Boolean(
         hasPersistedPlan ||
@@ -450,6 +461,35 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   const authH = (): Record<string, string> => {
     const t = getToken();
     return t ? { Authorization: `Bearer ${t}` } : {};
+  };
+
+  // "Não uso ração" — declaração explícita e mínima (sem marca, peso, consumo).
+  // Feedback do usuário: pra quem dá comida natural/caseira, o card da home
+  // deve ficar calmo ("não rastreado"), não insistir em pedir dados que não
+  // existem. O backend já suporta isso (mode + no_consumption_control, todo
+  // o resto opcional) — só faltava um jeito de declarar isso em 1 toque.
+  const handleDeclareNonKibble = async () => {
+    setDeclaringNonKibble(true);
+    try {
+      const res = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authH() },
+        credentials: 'include',
+        body: JSON.stringify({ mode: 'homemade', no_consumption_control: true, enabled: true }),
+      });
+      if (!res.ok) {
+        setFeedback({ msg: 'Não deu pra salvar agora. Tente de novo.', tone: 'red' });
+        return;
+      }
+      await refreshFoodPlan();
+      dispatchFoodPlanUpdated();
+      onSaved?.();
+      showSuccessAndReturnToMain('Combinado — não vamos controlar estoque para esta alimentação.');
+    } catch {
+      setFeedback({ msg: 'Não deu pra salvar agora. Tente de novo.', tone: 'red' });
+    } finally {
+      setDeclaringNonKibble(false);
+    }
   };
 
   const upsertRacaoEvent = async (date: string) => {
@@ -946,8 +986,17 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
 
                         <button
                           type="button"
+                          onClick={handleDeclareNonKibble}
+                          disabled={declaringNonKibble}
+                          className="w-full py-2 text-[12px] font-medium text-gray-400 hover:text-gray-600 disabled:opacity-50 transition-colors"
+                        >
+                          {declaringNonKibble ? 'Salvando...' : `Não uso ração — ${pet.pet_name} come outra coisa`}
+                        </button>
+
+                        <button
+                          type="button"
                           onClick={handleClose}
-                          className="w-full py-2 text-[12px] font-medium text-gray-400 hover:text-gray-600 transition-colors"
+                          className="w-full py-2 text-[12px] font-medium text-gray-300 hover:text-gray-500 transition-colors"
                         >
                           Fazer depois
                         </button>
@@ -955,8 +1004,25 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                     </div>
                   )}
 
+                  {/* ── ALIMENTAÇÃO NÃO-RAÇÃO DECLARADA ─────────────────────── */}
+                  {hasFood && isNonKibbleDeclared && (
+                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5 space-y-4">
+                      <div>
+                        <h3 className="text-[17px] font-bold text-gray-900 leading-tight">Alimentação de {pet.pet_name}</h3>
+                        <p className="text-[13px] text-gray-500 mt-1">Você disse que não usa ração de saco — não vamos controlar estoque nem avisar antes de acabar.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
+                        className="w-full py-3 min-h-[44px] rounded-2xl border border-gray-200 bg-white text-[13px] font-semibold text-gray-600 hover:bg-gray-50 active:scale-95 transition-all"
+                      >
+                        Na verdade, quero cadastrar uma ração
+                      </button>
+                    </div>
+                  )}
+
                   {/* ── COM RAÇÃO ──────────────────────────────────────────── */}
-                  {hasFood && (
+                  {hasFood && !isNonKibbleDeclared && (
                     <>
                       {/* ─── SUBMODE: main ─────────────────────────────────── */}
                       {subMode === 'main' && (

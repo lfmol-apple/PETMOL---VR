@@ -263,7 +263,15 @@ export function HomePetDashboard({
         ? 'Tudo em dia' // conquista — não é só ausência de alerta
         : undefined; // sem dado — cai no texto estático de convite do card
 
-  const hasFoodData = Object.keys(feedingPlan).length > 0 && (() => {
+  const foodPlan = feedingPlan[currentPet.pet_id] ?? null;
+  // Tutor declarou explicitamente que não usa ração de saco (natural,
+  // caseira etc.) — card fica calmo/informativo, sem cobrar marca/peso/
+  // consumo que nunca vão existir. Ver FoodItemSheet.handleDeclareNonKibble.
+  const isNonKibbleDeclared = Boolean(
+    foodPlan?.no_consumption_control && foodPlan?.mode && foodPlan.mode !== 'kibble' &&
+    !foodPlan?.food_brand && !foodPlan?.brand,
+  );
+  const hasFoodData = isNonKibbleDeclared || (Object.keys(feedingPlan).length > 0 && (() => {
     const plan = feedingPlan[currentPet.pet_id];
     if (!plan) return false;
     return Boolean(
@@ -274,28 +282,33 @@ export function HomePetDashboard({
       plan.estimated_end_date ||
       typeof plan.estimated_days_left === 'number',
     );
-  })();
-  const foodPlan = feedingPlan[currentPet.pet_id] ?? null;
+  })());
   const durationEndDate = addDaysIso(foodPlan?.last_refill_date, typeof foodPlan?.duration_days === 'number' ? foodPlan.duration_days : null);
   const resolvedFoodEndDate = foodPlan?.estimated_end_date ?? durationEndDate ?? foodPlan?.next_purchase_date ?? null;
   const foodDaysLeft = typeof foodPlan?.estimated_days_left === 'number'
     ? foodPlan.estimated_days_left
     : (resolvedFoodEndDate ? diffDaysFromIso(resolvedFoodEndDate) : null);
-  const foodTitle = `Ração ${petDo(currentPet)} ${currentPet.pet_name}`;
-  const foodHeadline = !hasFoodData
-    ? 'Cadastre a ração para o PETMOL avisar antes de acabar.'
-    : foodDaysLeft != null
-      ? foodDaysLeft < 0
-        ? 'Pode estar sem ração!'
-        : foodDaysLeft === 0
-          ? 'Acaba hoje!'
-          : `${foodDaysLeft} dias restantes`
-      : 'Toque para atualizar o estoque';
-  const foodSubline = !hasFoodData
-    ? 'Adicionar ração'
-    : resolvedFoodEndDate
-      ? `Previsão: ${formatFoodDateShort(resolvedFoodEndDate)}`
-      : null;
+  const foodTitle = isNonKibbleDeclared
+    ? `Alimentação ${petDo(currentPet)} ${currentPet.pet_name}`
+    : `Ração ${petDo(currentPet)} ${currentPet.pet_name}`;
+  const foodHeadline = isNonKibbleDeclared
+    ? 'Sem controle de estoque'
+    : !hasFoodData
+      ? 'Cadastre a ração para o PETMOL avisar antes de acabar.'
+      : foodDaysLeft != null
+        ? foodDaysLeft < 0
+          ? 'Pode estar sem ração!'
+          : foodDaysLeft === 0
+            ? 'Acaba hoje!'
+            : `${foodDaysLeft} dias restantes`
+        : 'Toque para atualizar o estoque';
+  const foodSubline = isNonKibbleDeclared
+    ? null
+    : !hasFoodData
+      ? 'Adicionar ração'
+      : resolvedFoodEndDate
+        ? `Previsão: ${formatFoodDateShort(resolvedFoodEndDate)}`
+        : null;
 
   return (
     <div className="relative px-2 pt-1 pb-4 space-y-3 sm:pt-2 sm:pb-6 sm:space-y-4">

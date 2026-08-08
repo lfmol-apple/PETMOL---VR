@@ -4,6 +4,8 @@ import type { GroomingType, ParasiteControlType } from '@/lib/types/home';
 
 export interface FeedingPlanEntry {
   items?: FeedingPlanItemEntry[];
+  mode?: string | null;
+  no_consumption_control?: boolean | null;
   food_brand?: string | null;
   brand?: string | null;
   next_purchase_date?: string | null;
