@@ -961,8 +961,8 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                   {!hasFood && (
                     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 space-y-4">
                       <div>
-                        <h3 className="text-[20px] font-black text-gray-900 leading-tight">Vamos cadastrar a ração {petDo(pet)} {pet.pet_name}?</h3>
-                        <p className="text-[13px] text-amber-900/80 mt-1">Fotografe a embalagem para identificar automaticamente, ou preencha manualmente.</p>
+                        <h3 className="text-[20px] font-black text-gray-900 leading-tight">Como {pet.pet_name} se alimenta?</h3>
+                        <p className="text-[13px] text-amber-900/80 mt-1">Fotografe a embalagem da ração, preencha manualmente, ou diga que não usa ração de saco.</p>
                       </div>
                       <div className="space-y-2">
                         {/* Opção 1 — foto ou galeria */}
@@ -979,18 +979,21 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                         <button
                           type="button"
                           onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
-                          className="w-full py-3 min-h-[44px] rounded-2xl border border-gray-200 bg-white text-[13px] font-semibold text-gray-600 hover:bg-gray-50 active:scale-95 transition-all"
+                          className="w-full flex items-center justify-center gap-2 py-3 min-h-[44px] rounded-2xl border border-gray-200 bg-white text-[14px] font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
                         >
-                          ✏️ Cadastrar manualmente
+                          <span className="text-lg">✏️</span>
+                          Cadastrar manualmente
                         </button>
 
+                        {/* Opção 3 — não usa ração de saco */}
                         <button
                           type="button"
                           onClick={handleDeclareNonKibble}
                           disabled={declaringNonKibble}
-                          className="w-full py-2 text-[12px] font-medium text-gray-400 hover:text-gray-600 disabled:opacity-50 transition-colors"
+                          className="w-full flex items-center justify-center gap-2 py-3 min-h-[44px] rounded-2xl border border-gray-200 bg-white text-[14px] font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 disabled:opacity-50 transition-all"
                         >
-                          {declaringNonKibble ? 'Salvando...' : `Não uso ração — ${pet.pet_name} come outra coisa`}
+                          <span className="text-lg">🍲</span>
+                          {declaringNonKibble ? 'Salvando...' : 'Não uso ração de saco'}
                         </button>
 
                         <button
