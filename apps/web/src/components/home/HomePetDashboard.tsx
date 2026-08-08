@@ -287,7 +287,7 @@ export function HomePetDashboard({
   const foodDaysLeft = typeof foodPlan?.estimated_days_left === 'number'
     ? foodPlan.estimated_days_left
     : (resolvedFoodEndDate ? diffDaysFromIso(resolvedFoodEndDate) : null);
-  const foodTitle = isNonKibbleDeclared ? 'Alimentação' : 'Ração';
+  const foodTitle = 'Alimentação';
   const foodHeadline = isNonKibbleDeclared
     ? 'Sem controle de estoque'
     : !hasFoodData
