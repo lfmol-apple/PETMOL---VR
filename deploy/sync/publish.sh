@@ -8,6 +8,7 @@ set -e
 # ============================================
 VPS_IP="${PETMOL_VPS_IP:-147.93.33.24}"
 VPS_USER="${PETMOL_VPS_USER:-root}"
+VPS_PORT="${PETMOL_VPS_PORT:-22}"
 REMOTE_DIR="${PETMOL_REMOTE_DIR:-/opt/petmol}"
 DOMAIN="${PETMOL_DOMAIN:-petmol.com.br}"
 ALLOW_DIRTY="${PETMOL_ALLOW_DIRTY:-false}"
@@ -30,7 +31,7 @@ ZIP_NAME="PETMOL.zip"
 ZIP_PATH="/tmp/$ZIP_NAME"
 
 log "============================================"
-log "PETMOL Publish: $PROJECT_DIR → $VPS_USER@$VPS_IP"
+log "PETMOL Publish: $PROJECT_DIR → $VPS_USER@$VPS_IP:$VPS_PORT"
 log "============================================"
 
 # ============================================
@@ -121,13 +122,13 @@ log "Package created: $ZIP_PATH ($ZIP_SIZE)"
 # Step 2: Upload to VPS
 # ============================================
 log "Uploading to VPS..."
-scp "$ZIP_PATH" "$VPS_USER@$VPS_IP:$REMOTE_DIR/"
+scp -P "$VPS_PORT" "$ZIP_PATH" "$VPS_USER@$VPS_IP:$REMOTE_DIR/"
 
 # ============================================
 # Step 3: Run apply script on VPS
 # ============================================
 log "Applying on VPS..."
-ssh "$VPS_USER@$VPS_IP" \
+ssh -p "$VPS_PORT" "$VPS_USER@$VPS_IP" \
     "PETMOL_DEPLOY_SHA='$GIT_SHA' PETMOL_DEPLOY_BRANCH='$GIT_BRANCH' bash -s" \
     < "$SCRIPT_DIR/apply_on_vps.sh"
 
@@ -136,9 +137,10 @@ ssh "$VPS_USER@$VPS_IP" \
 # ============================================
 log "Syncing uploads..."
 rsync -az \
+    -e "ssh -p $VPS_PORT" \
     "$PROJECT_DIR/services/price-service/uploads/" \
     "$VPS_USER@$VPS_IP:$REMOTE_DIR/app/services/price-service/uploads/"
-ssh "$VPS_USER@$VPS_IP" "chown -R petmol:petmol $REMOTE_DIR/app/services/price-service/uploads/"
+ssh -p "$VPS_PORT" "$VPS_USER@$VPS_IP" "chown -R petmol:petmol $REMOTE_DIR/app/services/price-service/uploads/"
 log "Uploads synced and permissions fixed"
 
 log "============================================"

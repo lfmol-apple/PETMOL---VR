@@ -82,15 +82,17 @@ jobs:
         env:
           VPS_IP: ${{ secrets.VPS_IP }}
           VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SHA: ${{ steps.resolve_sha.outputs.sha }}
         run: |
+          VPS_PORT="${VPS_PORT:-22}"
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o BatchMode=yes -o ServerAliveInterval=10 -o ServerAliveCountMax=2"
+          SSH_OPTS="-i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o BatchMode=yes -o ServerAliveInterval=10 -o ServerAliveCountMax=2"
           SSH="ssh $SSH_OPTS $VPS_USER@$VPS_IP"
           SCP="scp $SSH_OPTS"
 

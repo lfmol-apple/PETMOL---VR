@@ -1,6 +1,94 @@
 # Handoff para Claude - Deploy PETMOL
 
-Data: 2026-08-06
+Data: 2026-08-10
+
+## Atualizacao de acesso - 2026-08-10
+
+Teste executado a partir deste workspace em 2026-08-10:
+
+```bash
+ssh -vvv -o BatchMode=yes -o ConnectTimeout=30 root@147.93.33.24 'hostname; whoami; date'
+```
+
+Resultado relevante:
+
+```text
+Connecting to 147.93.33.24 [147.93.33.24] port 22.
+Connection established.
+Local version string SSH-2.0-OpenSSH_9.9
+kex_exchange_identification: read: Operation timed out
+banner exchange: Connection to 147.93.33.24 port 22: Operation timed out
+```
+
+Conclusao: a porta 22 aceita TCP, mas o servidor nao envia o banner SSH. Nao
+e falha de senha/chave, porque a autenticacao nem comeca.
+
+Producao HTTP/HTTPS esta acessivel:
+
+```bash
+curl -I --connect-timeout 10 http://147.93.33.24
+curl -I --connect-timeout 10 https://www.petmol.com.br/
+curl -sS --connect-timeout 10 https://www.petmol.com.br/version.json
+```
+
+Resultados observados:
+
+```text
+http://147.93.33.24 -> HTTP/1.1 308 Permanent Redirect
+Server: nginx/1.24.0 (Ubuntu)
+Location: https://www.petmol.com.br/
+
+https://www.petmol.com.br/ -> HTTP/1.1 200 OK
+Server: nginx/1.24.0 (Ubuntu)
+X-Powered-By: Next.js
+
+version.json -> {"v":"4509084d7673944287c74c5fd29df1ea701259a2-1786155743"}
+```
+
+Isso prova que a producao web esta no ar e no commit atual `4509084`, mas o
+canal SSH inbound esta quebrado. Para corrigir o servidor agora, use o Web
+Console da Hostinger (`srv1335464.hstgr.cloud`, usuario `root`) e rode:
+
+```bash
+set -euxo pipefail
+
+date
+hostname
+whoami
+
+systemctl status ssh.socket --no-pager || true
+systemctl status ssh --no-pager || true
+journalctl -u ssh.socket -u ssh -n 120 --no-pager || true
+ss -ltnp | grep -E ':(22|2222)\b' || true
+
+install -d /etc/systemd/system/ssh.socket.d
+cat >/etc/systemd/system/ssh.socket.d/petmol-listen.conf <<'EOF'
+[Socket]
+ListenStream=
+ListenStream=22
+ListenStream=2222
+EOF
+
+sshd -t
+systemctl daemon-reload
+systemctl restart ssh.socket
+systemctl restart ssh || true
+
+ufw status verbose || true
+iptables -S || true
+ss -ltnp | grep -E ':(22|2222)\b'
+```
+
+Depois do console, testar daqui:
+
+```bash
+ssh -o BatchMode=yes -o ConnectTimeout=15 root@147.93.33.24 'hostname; whoami; date'
+ssh -p 2222 -o BatchMode=yes -o ConnectTimeout=15 root@147.93.33.24 'hostname; whoami; date'
+```
+
+Se porta 2222 passar, configurar o GitHub secret `VPS_PORT=2222` para os
+workflows usarem a porta alternativa. Se nenhuma porta passar, verificar as
+regras de firewall no painel Hostinger e liberar TCP 22 e/ou 2222.
 
 ## Estado atual resumido
 

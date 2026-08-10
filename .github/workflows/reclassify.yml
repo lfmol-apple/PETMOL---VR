@@ -24,19 +24,21 @@ jobs:
         env:
           VPS_IP: ${{ secrets.VPS_IP }}
           VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           PET_NAME: ${{ github.event.inputs.pet_name }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
+          VPS_PORT="${VPS_PORT:-22}"
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 $VPS_USER@$VPS_IP"
+          SSH="ssh -i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=30 $VPS_USER@$VPS_IP"
 
           # Copia o script para o VPS
-          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+          scp -i ~/.ssh/deploy_key -o Port="$VPS_PORT" -o StrictHostKeyChecking=no \
             deploy/scripts/reclassify_pet_docs.py \
             "$VPS_USER@$VPS_IP:/opt/petmol/reclassify_pet_docs.py"
 

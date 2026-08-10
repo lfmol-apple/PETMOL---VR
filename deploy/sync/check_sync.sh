@@ -4,6 +4,7 @@ set -e
 
 VPS_IP="${PETMOL_VPS_IP:-147.93.33.24}"
 VPS_USER="${PETMOL_VPS_USER:-root}"
+VPS_PORT="${PETMOL_VPS_PORT:-22}"
 REMOTE_DIR="${PETMOL_REMOTE_DIR:-/opt/petmol}"
 
 GREEN='\033[0;32m'
@@ -41,7 +42,7 @@ else
     warn "No upstream configured; skipping GitHub comparison."
 fi
 
-REMOTE_REVISION="$(ssh "$VPS_USER@$VPS_IP" "cat '$REMOTE_DIR/app/REVISION' 2>/dev/null || true")"
+REMOTE_REVISION="$(ssh -p "$VPS_PORT" "$VPS_USER@$VPS_IP" "cat '$REMOTE_DIR/app/REVISION' 2>/dev/null || true")"
 REMOTE_SHA="$(printf '%s\n' "$REMOTE_REVISION" | awk -F= '$1 == "sha" {print $2}')"
 
 if [ -z "$REMOTE_SHA" ]; then
@@ -52,6 +53,7 @@ else
 fi
 
 RSYNC_DIFF="$(rsync -anic --delete \
+    -e "ssh -p $VPS_PORT" \
     --exclude '.git' \
     --exclude '.gitignore' \
     --exclude '.github' \

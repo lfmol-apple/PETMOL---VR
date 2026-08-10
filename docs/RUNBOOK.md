@@ -22,6 +22,63 @@ O que `apply_on_vps.sh` faz, em ordem: extrai o pacote, faz `rsync --delete` pre
 gh workflow run deploy.yml --repo lfmol-apple/PETMOL---VR --ref main
 ```
 
+### Quando o SSH nao entra
+
+Sintoma ja observado em 2026-08-10:
+
+```text
+Connection established.
+kex_exchange_identification: read: Operation timed out
+banner exchange: Connection to 147.93.33.24 port 22: Operation timed out
+```
+
+Isso significa que o TCP na porta 22 abriu, mas o `sshd` nao respondeu o
+banner. Nao e erro de senha/chave. A producao pode continuar no ar via nginx
+enquanto o SSH esta quebrado; confirme com:
+
+```bash
+curl -I --connect-timeout 10 http://147.93.33.24
+curl -I --connect-timeout 10 https://www.petmol.com.br/
+curl -sS --connect-timeout 10 https://www.petmol.com.br/version.json
+```
+
+Sem SSH funcional, o canal de correcao e o **Web Console da Hostinger**. Entrar
+como `root` e rodar:
+
+```bash
+set -euxo pipefail
+
+systemctl status ssh.socket --no-pager || true
+systemctl status ssh --no-pager || true
+journalctl -u ssh.socket -u ssh -n 120 --no-pager || true
+ss -ltnp | grep -E ':(22|2222)\b' || true
+
+install -d /etc/systemd/system/ssh.socket.d
+cat >/etc/systemd/system/ssh.socket.d/petmol-listen.conf <<'EOF'
+[Socket]
+ListenStream=
+ListenStream=22
+ListenStream=2222
+EOF
+
+sshd -t
+systemctl daemon-reload
+systemctl restart ssh.socket
+systemctl restart ssh || true
+ss -ltnp | grep -E ':(22|2222)\b'
+```
+
+Depois testar de fora:
+
+```bash
+ssh -o BatchMode=yes -o ConnectTimeout=15 root@147.93.33.24 'hostname; whoami; date'
+ssh -p 2222 -o BatchMode=yes -o ConnectTimeout=15 root@147.93.33.24 'hostname; whoami; date'
+```
+
+Se a porta 2222 funcionar e a 22 nao, liberar TCP 2222 no firewall da
+Hostinger e configurar o GitHub secret `VPS_PORT=2222`. Os workflows e scripts
+locais ja aceitam porta alternativa; localmente use `PETMOL_VPS_PORT=2222`.
+
 **Verificar se um deploy realmente aplicou** — compare o SHA:
 ```bash
 git log -1 --format=%H main          # local/GitHub
