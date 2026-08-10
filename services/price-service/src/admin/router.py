@@ -18,7 +18,7 @@ from ..user_auth.models import User
 from ..user_auth.security import hash_password
 from ..user_auth.router import COOKIE_NAME
 from ..pets.models import Pet
-from .deps import get_current_admin
+from .deps import get_current_admin, get_current_admin_or_readonly_key
 from .models import AdminUser
 from .schemas import (
     AdminBootstrapPromoteRequest,
@@ -112,7 +112,7 @@ def admin_me(current=Depends(get_current_admin)):
 
 
 @router.get("/stats", response_model=GlobalStatsOut)
-def admin_stats(db: Session = Depends(get_db), current=Depends(get_current_admin)):
+def admin_stats(db: Session = Depends(get_db), current=Depends(get_current_admin_or_readonly_key)):
     total_users = db.query(User).count()
     total_owners = total_users  # Agora users = owners
     total_pets = db.query(Pet).count()
@@ -147,7 +147,7 @@ def admin_stats(db: Session = Depends(get_db), current=Depends(get_current_admin
 @router.get("/all-accounts", response_model=AccountsListOut)
 def admin_all_accounts(
     db: Session = Depends(get_db),
-    current=Depends(get_current_admin),
+    current=Depends(get_current_admin_or_readonly_key),
     limit: int = 200,
     offset: int = 0,
 ):
@@ -208,7 +208,7 @@ def admin_logout(response: Response):
 @router.get("/users", response_model=UsersListOut)
 def admin_list_users(
     db: Session = Depends(get_db),
-    current=Depends(get_current_admin),
+    current=Depends(get_current_admin_or_readonly_key),
     limit: int = 100,
     offset: int = 0,
     email: Optional[str] = None,
@@ -256,7 +256,7 @@ def admin_create_user(
 def admin_get_user(
     user_id: str,
     db: Session = Depends(get_db),
-    current=Depends(get_current_admin),
+    current=Depends(get_current_admin_or_readonly_key),
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:

@@ -5,6 +5,7 @@ Supports either:
 - Cookie session (same as user_auth)
 """
 
+import hmac
 from typing import Optional, Tuple
 
 from fastapi import Depends, HTTPException, status, Cookie, Header
@@ -56,3 +57,27 @@ def get_current_admin(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso admin negado")
 
     return user, admin
+
+
+def get_current_admin_or_readonly_key(
+    db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(default=None),
+    cookie_token: Optional[str] = Cookie(default=None, alias=COOKIE_NAME),
+    x_admin_api_key: Optional[str] = Header(default=None, alias="X-Admin-Api-Key"),
+) -> Optional[Tuple[User, AdminUser]]:
+    """Auth gate for GET-only admin endpoints.
+
+    Accepts the normal JWT/cookie admin login, OR a standing API key
+    (ADMIN_OPS_API_KEY) for scripted read access without a password.
+    Only wire this into GET routes — it must never guard a write/delete
+    endpoint, since the API key has no per-action audit trail.
+    """
+    settings = get_settings()
+    if x_admin_api_key:
+        if not settings.admin_ops_api_key or not hmac.compare_digest(
+            x_admin_api_key, settings.admin_ops_api_key
+        ):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API key inválida")
+        return None
+
+    return get_current_admin(db=db, authorization=authorization, cookie_token=cookie_token)

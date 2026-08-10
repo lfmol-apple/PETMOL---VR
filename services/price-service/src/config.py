@@ -96,6 +96,12 @@ class Settings(BaseSettings):
     admin_master_name: Optional[str] = None
     admin_master_role: str = "master"
 
+    # Read-only ops API key: grants GET-only admin endpoints (stats,
+    # user listing) without a password login. Never accepted on any
+    # write/delete route. Unset by default — disabled unless configured
+    # in the server's env file.
+    admin_ops_api_key: Optional[str] = None
+
     # ── Storage ──────────────────────────────────────────────────────────
     storage_backend: str = "local"     # "local" | "r2"
     uploads_dir: str = "uploads"
