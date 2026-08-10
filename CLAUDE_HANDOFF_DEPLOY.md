@@ -90,6 +90,52 @@ Se porta 2222 passar, configurar o GitHub secret `VPS_PORT=2222` para os
 workflows usarem a porta alternativa. Se nenhuma porta passar, verificar as
 regras de firewall no painel Hostinger e liberar TCP 22 e/ou 2222.
 
+## Correcao aplicada via Web Console - 2026-08-10
+
+Foi usado o Web Console da Hostinger aberto em
+`https://asc.hostingervps.com/1065/`.
+
+Comandos aplicados no VPS:
+
+```bash
+cat >/etc/ssh/sshd_config.d/99-petmol-ports.conf <<'CONF'
+Port 22
+Port 2222
+CONF
+
+sshd -t
+systemctl disable --now ssh.socket || true
+systemctl enable ssh
+systemctl restart ssh
+```
+
+Nao foram alteradas as politicas de autenticacao (`PermitRootLogin`,
+`PasswordAuthentication`, chaves, senhas etc.).
+
+Evidencia no VPS:
+
+```text
+sshd: Server listening on 0.0.0.0 port 2222.
+sshd: Server listening on 0.0.0.0 port 22.
+Accepted publickey for root from 135.232.208.136 ...
+```
+
+Resultado apos push do commit `7537051`:
+
+```text
+CI 31395780233: success
+Deploy atomic 31396136881: success
+https://www.petmol.com.br/version.json:
+{"v":"753705196e29044936fc41a876a960918affe10a-1786370556"}
+https://www.petmol.com.br/api/health:
+{"status":"ok","version":"0.1.0","providers":["mercadolivre"]}
+```
+
+Observacao: o ambiente local desta sessao ainda recebeu timeout no banner ao
+tentar `ssh root@147.93.33.24`, mas o GitHub Actions acessou e implantou com
+sucesso depois da correcao. Para deploy operacional, o canal GitHub Actions
+esta validado.
+
 ## Estado atual resumido
 
 - Branch local: `main`

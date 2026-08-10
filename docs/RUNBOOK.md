@@ -79,6 +79,16 @@ Se a porta 2222 funcionar e a 22 nao, liberar TCP 2222 no firewall da
 Hostinger e configurar o GitHub secret `VPS_PORT=2222`. Os workflows e scripts
 locais ja aceitam porta alternativa; localmente use `PETMOL_VPS_PORT=2222`.
 
+Correcao aplicada em 2026-08-10: o `ssh.socket` foi desativado e o `ssh.service`
+passou a escutar diretamente em `22` e `2222`, com validacao por `sshd -t`.
+Depois disso, o deploy atomico `31396136881` do commit `7537051` passou e a
+producao respondeu:
+
+```text
+version.json -> 753705196e29044936fc41a876a960918affe10a-1786370556
+api/health -> {"status":"ok","version":"0.1.0","providers":["mercadolivre"]}
+```
+
 **Verificar se um deploy realmente aplicou** — compare o SHA:
 ```bash
 git log -1 --format=%H main          # local/GitHub
