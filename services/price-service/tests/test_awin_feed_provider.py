@@ -131,7 +131,7 @@ def test_monetize_returns_feed_affiliate_url():
         from src.commerce_provider import DiscoveredOffer
         offer = DiscoveredOffer(merchant="cobasi", price=100.0, direct_url=row.merchant_url, ean=GTIN, external_id=row.external_product_id)
         result = provider.monetize(offer, ProductContext(gtin=GTIN))
-        assert result == ("https://track.awin.com/deep-link-teste", "affiliate_product")
+        assert result == ("https://track.awin.com/deep-link-teste", "affiliate_product", "awin")
     finally:
         db.close()
 

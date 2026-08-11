@@ -21,6 +21,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Protocol
 
+from .merchant_routes import preferred_route_for
+
 
 @dataclass
 class ProductContext:
@@ -60,6 +62,11 @@ class MonetizedOffer:
     merchant: str
     url: str
     link_type: str  # affiliate_product | affiliate_marketplace_offer | affiliate_store | direct
+    # Mecanismo de monetização usado (ex: "mais" para Cobasi via MAIS/UTM,
+    # "awin" para merchants via feed Awin) — usado só internamente pelo
+    # CommerceEngine para dedupe por merchant_routes.py. Opcional porque
+    # providers antigos/de teste podem não informar.
+    route: Optional[str] = None
     product_name: Optional[str] = None
     brand: Optional[str] = None
     price: Optional[float] = None
@@ -78,15 +85,18 @@ class CommerceProvider(Protocol):
         QUALQUER produto, existindo ou não link afiliado para ele."""
         ...
 
-    def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str]]:
-        """Tenta transformar a oferta descoberta em (url, link_type)
-        monetizável. Retorna None se não for possível monetizar agora —
-        a oferta é então descartada, nunca exibida sem comissão."""
+    def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str] | tuple[str, str, str]]:
+        """Tenta transformar a oferta descoberta em (url, link_type) — ou
+        (url, link_type, route), quando o provider distingue mais de um
+        mecanismo de monetização pro mesmo merchant (ver merchant_routes.py).
+        Retorna None se não for possível monetizar agora — a oferta é então
+        descartada, nunca exibida sem comissão."""
         ...
 
 
 class CommerceEngine:
-    """Orquestra providers: discovery → monetize → filter → sort (menor preço primeiro)."""
+    """Orquestra providers: discovery → monetize → filter → dedupe por
+    merchant (merchant_routes.py) → sort (menor preço primeiro)."""
 
     def __init__(self, providers: list[CommerceProvider]):
         self._providers = providers
@@ -102,11 +112,17 @@ class CommerceEngine:
             if monetized is None:
                 continue
 
-            url, link_type = monetized
+            if len(monetized) == 3:
+                url, link_type, route = monetized
+            else:
+                url, link_type = monetized
+                route = None
+
             offers.append(MonetizedOffer(
                 merchant=discovered.merchant,
                 url=url,
                 link_type=link_type,
+                route=route,
                 product_name=discovered.product_name,
                 brand=discovered.brand,
                 price=discovered.price,
@@ -114,5 +130,24 @@ class CommerceEngine:
                 is_available=discovered.is_available,
             ))
 
+        offers = _dedupe_by_merchant(offers)
         offers.sort(key=lambda o: o.price if o.price is not None else float("inf"))
         return offers
+
+
+def _dedupe_by_merchant(offers: list[MonetizedOffer]) -> list[MonetizedOffer]:
+    """Nunca exibe o mesmo merchant duas vezes (ex: "Cobasi via MAIS" e
+    "Cobasi via Awin" como se fossem duas lojas diferentes). Quando mais
+    de um provider resolve oferta pro mesmo merchant, mantém a da rota
+    preferida (merchant_routes.py); sem preferência configurada, mantém a
+    primeira encontrada (ordem de registro em build_default_engine)."""
+    kept: dict[str, MonetizedOffer] = {}
+    for offer in offers:
+        existing = kept.get(offer.merchant)
+        if existing is None:
+            kept[offer.merchant] = offer
+            continue
+        preferred = preferred_route_for(offer.merchant)
+        if preferred is not None and offer.route == preferred and existing.route != preferred:
+            kept[offer.merchant] = offer
+    return list(kept.values())

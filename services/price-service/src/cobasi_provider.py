@@ -6,16 +6,22 @@ API pública VTEX da Cobasi, ao vivo. Roda para QUALQUER produto, sem
 depender de link afiliado cadastrado previamente (ver commerce_provider.py
 para o princípio geral).
 
-monetize(): estratégia configurável via settings.cobasi_affiliate_mode
-(config.py), sem precisar de deploy de frontend para trocar:
-  - "cached" (padrão) — usa ProductAffiliateLink cadastrado manualmente.
-    Único modo confirmado até hoje. Sem link cadastrado → não monetiza
-    (oferta é descartada pelo CommerceEngine, nunca exibida sem comissão).
-  - "utm" — gera URL com UTM dinamicamente (cobasi_utm.py), sem cadastro
-    manual. NÃO ativado por padrão — precisa de confirmação formal da
-    Cobasi/MAIS antes de virar o padrão de produção.
+monetize(): um link cadastrado manualmente (ProductAffiliateLink) SEMPRE
+tem prioridade, em qualquer modo != "disabled" — nunca abandona um link
+já comprovado (ex: Baby/mais.app/IvUCAG) só porque o modo global mudou.
+Sem link cadastrado, o modo decide o que fazer com o restante do catálogo:
+  - "cached" (padrão) — sem link, não monetiza (em prod) ou cai pra URL
+    crua só em dev (nunca em produção; affiliate_only_commerce_enforced).
+  - "utm" — sem link, gera URL com UTM dinamicamente (cobasi_utm.py).
+    NÃO ativado por padrão — precisa de confirmação formal da Cobasi/MAIS
+    antes de virar o padrão de produção.
   - "api" — reservado para API oficial futura. Não implementado.
-  - "disabled" — Cobasi nunca monetiza.
+  - "disabled" — Cobasi nunca monetiza (nem link cadastrado é usado).
+
+route retornado é sempre "mais" (link cadastrado ou UTM — ambos via
+programa MAIS da Cobasi) — usado por commerce_provider.py pra nunca
+mostrar Cobasi duas vezes quando um futuro AwinFeedProvider("cobasi")
+também estiver registrado (ver merchant_routes.py).
 """
 from __future__ import annotations
 
@@ -64,16 +70,32 @@ class CobasiProvider:
             ean=price.ean,
         )
 
-    def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str]]:
+    def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str, str]]:
         settings = get_settings()
         mode = settings.cobasi_affiliate_mode
 
         if mode == "disabled":
             return None
+
+        # Link cadastrado manualmente sempre tem prioridade, em qualquer
+        # modo != "disabled" — ver docstring do módulo.
+        cached = self._lookup_cached_link(offer, context)
+        if cached is not None:
+            url, link_type = cached
+            return url, link_type, "mais"
+
         if mode == "cached":
-            return self._monetize_cached(offer, context, settings)
+            fallback = self._dev_fallback(offer, settings)
+            if fallback is None:
+                return None
+            url, link_type = fallback
+            return url, link_type, "mais"
         if mode == "utm":
-            return self._monetize_utm(offer)
+            utm = self._monetize_utm(offer)
+            if utm is None:
+                return None
+            url, link_type = utm
+            return url, link_type, "mais"
 
         # "api" reservado — sem implementação oficial ainda.
         return None
@@ -89,21 +111,21 @@ class CobasiProvider:
         )
         return product.id if product else None
 
-    def _monetize_cached(
-        self, offer: DiscoveredOffer, context: ProductContext, settings: Settings
-    ) -> Optional[tuple[str, str]]:
+    def _lookup_cached_link(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str]]:
         product_id = self._resolve_product_id(offer, context)
-        if product_id is not None:
-            link = get_active_link(self._db, product_id, self.merchant)
-            if link:
-                return link.affiliate_product_url, "affiliate_product"
+        if product_id is None:
+            return None
+        link = get_active_link(self._db, product_id, self.merchant)
+        if not link:
+            return None
+        return link.affiliate_product_url, "affiliate_product"
 
+    def _dev_fallback(self, offer: DiscoveredOffer, settings: Settings) -> Optional[tuple[str, str]]:
         # Sem link cadastrado: em dev, cai pra URL crua da Cobasi só pra
         # não travar o teste local a cada query — nunca em produção (ver
         # affiliate_only_commerce_enforced / docs/AFFILIATES.md).
         if not settings.affiliate_only_commerce_enforced and offer.direct_url:
             return offer.direct_url, "direct"
-
         return None
 
     def _monetize_utm(self, offer: DiscoveredOffer) -> Optional[tuple[str, str]]:

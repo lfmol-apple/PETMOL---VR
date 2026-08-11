@@ -86,9 +86,12 @@ class AwinFeedProvider:
             external_id=row.external_product_id,
         )
 
-    def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str]]:
+    def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str, str]]:
         """affiliate_url já vem pronta do feed — nunca gerada aqui, nunca
-        cai para merchant_url limpa em produção (ver §17)."""
+        cai para merchant_url limpa em produção (ver §17). route="awin"
+        (ver merchant_routes.py) — usado pro CommerceEngine nunca exibir o
+        mesmo merchant duas vezes quando também houver um CobasiProvider
+        (route="mais") ativo pro mesmo merchant."""
         if not is_awin_merchant_enabled(self.merchant):
             return None
         if not offer.external_id:
@@ -105,7 +108,7 @@ class AwinFeedProvider:
         if not row or not row.affiliate_url:
             return None
 
-        return row.affiliate_url, "affiliate_product"
+        return row.affiliate_url, "affiliate_product", "awin"
 
 
 def _select_row_by_weight(rows: list[AffiliateFeedOffer], target_weight_kg: Optional[float]) -> AffiliateFeedOffer:

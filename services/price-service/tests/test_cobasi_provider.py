@@ -59,7 +59,7 @@ def test_cached_mode_uses_registered_link():
 
         provider = CobasiProvider(db)
         result = provider.monetize(_offer(), ProductContext(product_id=product_id))
-        assert result == ("https://mais.app/ABC", "affiliate_product")
+        assert result == ("https://mais.app/ABC", "affiliate_product", "mais")
     finally:
         db.close()
 
@@ -83,7 +83,7 @@ def test_cached_mode_without_link_and_dev_falls_back_to_direct():
     try:
         provider = CobasiProvider(db)
         result = provider.monetize(_offer(), ProductContext(product_id=product_id))
-        assert result == ("https://www.cobasi.com.br/produto/p", "direct")
+        assert result == ("https://www.cobasi.com.br/produto/p", "direct", "mais")
     finally:
         db.close()
 
@@ -96,9 +96,32 @@ def test_utm_mode_generates_url_when_explicitly_enabled(monkeypatch):
         provider = CobasiProvider(db)
         result = provider.monetize(_offer(), ProductContext())
         assert result is not None
-        url, link_type = result
+        url, link_type, route = result
         assert "utm_source=mais" in url
         assert link_type == "affiliate_product"
+        assert route == "mais"
+    finally:
+        db.close()
+
+
+def test_utm_mode_still_prefers_cached_link_when_one_exists(monkeypatch):
+    """§19-20: mudar cobasi_affiliate_mode pra 'utm' nunca deve abandonar
+    um link já cadastrado e comprovado (ex: Baby/mais.app/IvUCAG) — o link
+    manual sempre tem prioridade, mesmo em modo 'utm'."""
+    monkeypatch.setenv("COBASI_AFFILIATE_MODE", "utm")
+    get_settings.cache_clear()
+    product_id = _register_product()
+    db = SessionLocal()
+    try:
+        db.add(ProductAffiliateLink(
+            product_id=product_id, merchant="cobasi",
+            affiliate_product_url="https://mais.app/IvUCAG", active=True,
+        ))
+        db.commit()
+
+        provider = CobasiProvider(db)
+        result = provider.monetize(_offer(), ProductContext(product_id=product_id))
+        assert result == ("https://mais.app/IvUCAG", "affiliate_product", "mais")
     finally:
         db.close()
 

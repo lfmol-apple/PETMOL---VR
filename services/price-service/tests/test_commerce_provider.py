@@ -11,10 +11,11 @@ from src.commerce_provider import CommerceEngine, DiscoveredOffer, ProductContex
 
 
 class _FakeProvider:
-    def __init__(self, merchant: str, price: Optional[float], monetizable: bool = True):
+    def __init__(self, merchant: str, price: Optional[float], monetizable: bool = True, route: Optional[str] = None):
         self.merchant = merchant
         self._price = price
         self._monetizable = monetizable
+        self._route = route
 
     async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
         if self._price is None:
@@ -24,6 +25,8 @@ class _FakeProvider:
     def monetize(self, offer: DiscoveredOffer, context: ProductContext):
         if not self._monetizable:
             return None
+        if self._route is not None:
+            return (f"https://{self.merchant}.example/produto", "affiliate_product", self._route)
         return (f"https://{self.merchant}.example/produto", "affiliate_product")
 
 
@@ -80,3 +83,33 @@ async def test_engine_does_not_require_prior_manual_registration():
     offers = await engine.get_offers(ProductContext(gtin="nunca-visto-antes"))
     assert len(offers) == 1
     assert offers[0].price == 99.9
+
+
+@pytest.mark.asyncio
+async def test_dedupes_same_merchant_keeping_preferred_route():
+    """merchant_routes.py: PREFERRED_ROUTE_BY_MERCHANT['cobasi'] == 'mais'
+    — se um provider 'awin' e um provider 'mais' resolverem oferta pra
+    Cobasi ao mesmo tempo, nunca mostra as duas, só a preferida."""
+    engine = CommerceEngine([
+        _FakeProvider("cobasi", 100.0, route="awin"),
+        _FakeProvider("cobasi", 105.0, route="mais"),
+        _FakeProvider("shopee", 90.0),
+    ])
+    offers = await engine.get_offers(ProductContext(gtin="123"))
+    cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
+    assert len(cobasi_offers) == 1
+    assert cobasi_offers[0].route == "mais"
+    assert len(offers) == 2
+
+
+@pytest.mark.asyncio
+async def test_dedupes_same_merchant_keeping_first_when_no_preference_configured():
+    """Merchant sem preferência configurada em merchant_routes.py: mantém
+    a primeira oferta encontrada (ordem de registro de providers)."""
+    engine = CommerceEngine([
+        _FakeProvider("shopee", 100.0, route="marketplace_a"),
+        _FakeProvider("shopee", 90.0, route="marketplace_b"),
+    ])
+    offers = await engine.get_offers(ProductContext(gtin="123"))
+    assert len(offers) == 1
+    assert offers[0].route == "marketplace_a"
