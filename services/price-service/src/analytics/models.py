@@ -43,8 +43,8 @@ class AnalyticsEvent(Base):
     # Natureza do link comercial de fato aberto (infra de afiliados) —
     # ausente em cliques não-comerciais. Ver docs/AFFILIATES.md.
     link_type: Mapped[Optional[str]] = mapped_column(
-        String(24), nullable=True
-    )  # affiliate_product | affiliate_store | affiliate_search | direct
+        String(32), nullable=True
+    )  # affiliate_product | affiliate_marketplace_offer | affiliate_store | affiliate_service | affiliate_search | direct
 
     # Refs opcionais (não PII)
     pet_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)

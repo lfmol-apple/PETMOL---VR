@@ -310,7 +310,7 @@ def run_pg_migrations(engine: Engine) -> None:
         _migrate_push_subscriptions_from_json(conn)
 
         # analytics_events: distinguish monetized vs unmonetized clicks (Aug 2026)
-        _pg_add_column_if_missing(conn, "analytics_events", "link_type", "VARCHAR(24)")
+        _pg_add_column_if_missing(conn, "analytics_events", "link_type", "VARCHAR(32)")
 
 
 def _migrate_push_subscriptions_from_json(conn) -> None:

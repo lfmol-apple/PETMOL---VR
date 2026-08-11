@@ -48,6 +48,7 @@ from .admin import admin_router
 from .admin import affiliate_links_admin_router
 from .admin import models as _admin_models
 from .affiliate_links import ProductAffiliateLink as _product_affiliate_link_model  # noqa: F401 — register with Base
+from .affiliate_links import MarketplaceOffer as _marketplace_offer_model  # noqa: F401 — register with Base
 from .admin.models import AdminUser
 from .user_auth.models import PasswordResetToken as _password_reset_token_model  # noqa: F401
 from .user_auth.models import User
@@ -1408,8 +1409,8 @@ async def commerce_product_offer(
 @app.get("/commerce/monetized-offer", tags=["Catalog"])
 async def commerce_monetized_offer(
     merchant: str = Query(..., description="cobasi, petz, etc."),
-    context: str = Query("product", pattern="^(product|store)$", description="product | store"),
-    gtin: Optional[str] = Query(default=None, description="Obrigatório quando context=product"),
+    context: str = Query("product", pattern="^(product|store|marketplace)$", description="product | store | marketplace"),
+    gtin: Optional[str] = Query(default=None, description="Obrigatório quando context=product ou marketplace"),
     db: Session = Depends(get_db),
 ):
     """
@@ -1425,9 +1426,9 @@ async def commerce_monetized_offer(
 
     merchant_normalized = merchant.strip().lower()
     product_id = None
-    if context == "product":
+    if context in ("product", "marketplace"):
         if not gtin:
-            raise HTTPException(status_code=400, detail="gtin é obrigatório quando context=product")
+            raise HTTPException(status_code=400, detail="gtin é obrigatório quando context=product ou marketplace")
         gtin_normalized = normalize_gtin(gtin)
         product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
         product_id = product.id if product else None

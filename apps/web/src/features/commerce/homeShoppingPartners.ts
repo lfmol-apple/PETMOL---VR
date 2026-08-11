@@ -4,12 +4,28 @@ export type HomeShoppingPartnerId = 'cobasi' | 'petz' | 'amazon' | 'petlove' | '
 
 /**
  * Estado real da integração de afiliado do merchant — não confundir com
- * "a loja aparece na UI hoje". 'disabled' até haver credencial/link
- * afiliado de fato funcionando em código; 'configured' quando o mecanismo
- * está ligado mas ainda não confirmado gerando comissão; 'approved' quando
- * o programa está aprovado e validado ponta a ponta.
+ * "a loja aparece na UI hoje". Ciclo de vida esperado:
+ *  - pending   : cadastro/aprovação comercial em andamento, nada tecnicamente ligado
+ *  - approved  : programa aprovado comercialmente, mas ainda não ligado em código
+ *  - active    : ligado em código E com caminho monetizável real testável
+ *  - disabled  : desativado deliberadamente (sem programa adequado no momento)
+ *
+ * Regra de visibilidade em produção: SOMENTE 'active' pode aparecer. 'pending'
+ * e 'approved' ficam ocultos até o mecanismo estar de fato ligado — programa
+ * aprovado comercialmente não é a mesma coisa que gerar comissão de verdade.
  */
-export type AffiliateStatus = 'disabled' | 'configured' | 'approved';
+export type AffiliateStatus = 'disabled' | 'pending' | 'approved' | 'active';
+
+/**
+ * Tipo de relação comercial do merchant — cada um precisa de tratamento
+ * diferente (ver docs/AFFILIATES.md):
+ *  - retailer    : varejista direto — produto → link afiliado do produto
+ *  - marketplace : produto → oferta/publicação de um vendedor → link afiliado
+ *                  (a oferta pode expirar/mudar; não é vínculo permanente com o GTIN)
+ *  - amazon      : tratado separadamente (Associates tem regras/ferramentas próprias)
+ *  - service      : afiliação de serviço/plano, não de produto/GTIN (ex: plano de saúde)
+ */
+export type MerchantType = 'retailer' | 'marketplace' | 'amazon' | 'service';
 
 /**
  * Mecanismo pelo qual o merchant monetiza — cada rede/programa tem o seu,
@@ -33,6 +49,8 @@ export interface HomeShoppingPartner {
   directUrl?: string;
   /** Estado real da integração — ver AffiliateStatus. */
   affiliateStatus: AffiliateStatus;
+  /** Tipo de relação comercial — ver MerchantType. */
+  merchantType: MerchantType;
   /** Mecanismo de monetização do merchant — ver AffiliateMode. */
   affiliateMode: AffiliateMode;
   /** Este merchant tem (ou terá) link afiliado por produto/GTIN específico. */
@@ -110,7 +128,9 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     // /v1/admin/affiliate-links (ver affiliate_links.py no backend); até lá,
     // a área "Lojas" já usa a storefront, mas "Comprar novamente" de um
     // produto específico só mostra Cobasi quando esse cadastro existir.
-    affiliateStatus: 'approved',
+    // 'active': único merchant hoje com mecanismo de fato ligado em código.
+    affiliateStatus: 'active',
+    merchantType: 'retailer',
     affiliateMode: 'product_deeplink',
     supportsProductDeepLink: true,
     supportsStorefrontAffiliate: true,
@@ -125,8 +145,11 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/petz.png',
     logoAlt: 'Petz',
     fallbackUrl: 'https://www.petz.com.br',
-    // Aprovação/configuração ainda em resolução — nenhum mecanismo confirmado.
-    affiliateStatus: 'disabled',
+    // Cadastro PJ bloqueado por validação de CNAE (CNPJ já tem 7319-0/02,
+    // questão está em tratamento) — pending, não disabled: não é recusa,
+    // é aprovação comercial em andamento.
+    affiliateStatus: 'pending',
+    merchantType: 'retailer',
     affiliateMode: 'none',
     supportsProductDeepLink: false,
     supportsStorefrontAffiliate: false,
@@ -140,8 +163,9 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/amazon.svg',
     logoAlt: 'Amazon',
     fallbackUrl: 'https://www.amazon.com.br/s?k=pet+shop',
-    // Amazon Associates: tag anexada à URL — sem tag configurada, sem programa.
-    affiliateStatus: 'disabled',
+    // Cadastro no Programa de Associados ainda será feito — pending.
+    affiliateStatus: 'pending',
+    merchantType: 'amazon',
     affiliateMode: 'tracking_tag',
     supportsProductDeepLink: false,
     supportsStorefrontAffiliate: false,
@@ -155,8 +179,13 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/petlove.png',
     logoAlt: 'Petlove',
     fallbackUrl: 'https://www.petlove.com.br',
-    // Programa próprio ainda não aprovado/documentado — não presumir Lomadee.
+    // "Petlove Produtos" (varejo geral) — sem programa de catálogo completo
+    // confirmado para o modelo PETMOL hoje. Desativado deliberadamente, não
+    // "em aprovação" — não presumir Lomadee nem confundir com Petlove Saúde
+    // (afiliação de serviço/plano, tratada separadamente, não integrada
+    // nesta tarefa).
     affiliateStatus: 'disabled',
+    merchantType: 'retailer',
     affiliateMode: 'none',
     supportsProductDeepLink: false,
     supportsStorefrontAffiliate: false,
@@ -170,7 +199,14 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/doglife.svg',
     logoAlt: 'DogLife',
     fallbackUrl: 'https://www.doglife.com.br',
-    affiliateStatus: 'disabled',
+    // No backend, este ID resolve para `petlove_dog_life_url`/`handoff_doglife`
+    // (plano PetLove), o que sugere ser o MESMO relacionamento comercial que
+    // docs/AFFILIATES.md descreve como "Petlove Plano de Saúde" (service) —
+    // não confirmado, sinalizado como pendência de esclarecimento. Não
+    // assumir integração automática por associação com Petlove Produtos
+    // (merchant 'petlove' acima, que é retailer e é uma relação diferente).
+    affiliateStatus: 'pending',
+    merchantType: 'service',
     affiliateMode: 'none',
     supportsProductDeepLink: false,
     supportsStorefrontAffiliate: false,
@@ -184,7 +220,11 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/shopee.png',
     logoAlt: 'Shopee',
     directUrl: 'https://shopee.com.br/search?keyword=pet',
-    affiliateStatus: 'disabled',
+    // Cadastro empresarial (site + rede social oficial) em andamento,
+    // aguardando aprovação — marketplace: oferta é por publicação/vendedor,
+    // não vínculo permanente com o produto (ver docs/AFFILIATES.md).
+    affiliateStatus: 'pending',
+    merchantType: 'marketplace',
     affiliateMode: 'none',
     supportsProductDeepLink: false,
     supportsStorefrontAffiliate: false,
@@ -198,8 +238,11 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/mercadolivre.png',
     logoAlt: 'Mercado Livre',
     directUrl: 'https://www.mercadolivre.com.br/c/pet-shop',
-    // "affId" arbitrário não confirma comissão real — programa não validado.
-    affiliateStatus: 'disabled',
+    // "affId" arbitrário não confirma comissão real — cadastro ainda por
+    // fazer. Marketplace: oferta é por publicação/vendedor, não vínculo
+    // permanente com o produto.
+    affiliateStatus: 'pending',
+    merchantType: 'marketplace',
     affiliateMode: 'none',
     supportsProductDeepLink: false,
     supportsStorefrontAffiliate: false,
@@ -213,7 +256,9 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/araujo.png',
     logoAlt: 'Drogaria Araújo',
     directUrl: 'https://www.araujo.com.br/busca?q=pet',
-    affiliateStatus: 'disabled',
+    // Aguardando programa de afiliação aprovado para o PETMOL.
+    affiliateStatus: 'pending',
+    merchantType: 'retailer',
     affiliateMode: 'none',
     supportsProductDeepLink: false,
     supportsStorefrontAffiliate: false,
@@ -363,20 +408,25 @@ export function countActiveAffiliates(): number {
 // nunca um merchant que só vai cair no DIRECT_SEARCH_URLS/fallback comum.
 
 /**
- * Área geral "Lojas": visível se tem storefront afiliada fixa (abre direto,
- * sem busca — ver storefrontAffiliateUrl) OU se tem afiliado configurado
- * para busca por categoria (buildAffiliateUrl com AFF[id] setado).
+ * Área geral "Lojas": visível se o merchant está 'active' (ligado em código
+ * de fato, não só aprovado comercialmente — ver AffiliateStatus) E tem
+ * storefront afiliada fixa (abre direto, sem busca — ver
+ * storefrontAffiliateUrl) OU afiliado configurado para busca por categoria
+ * (buildAffiliateUrl com AFF[id] setado).
  */
 export function isPartnerVisibleInStoreArea(partner: HomeShoppingPartner): boolean {
   if (!AFFILIATE_ONLY_COMMERCE) return true;
+  if (partner.affiliateStatus !== 'active') return false;
   return Boolean(partner.storefrontAffiliateUrl) || partnerHasAffiliate(partner.id);
 }
 
 /**
  * Fluxos por busca de texto (recompra rápida, fallback do PriceCompareList):
- * a storefront não serve aqui — precisa de afiliado que funcione com query.
+ * a storefront não serve aqui — precisa de afiliado 'active' que funcione
+ * com query.
  */
 export function isPartnerVisibleForSearch(partner: HomeShoppingPartner): boolean {
   if (!AFFILIATE_ONLY_COMMERCE) return true;
+  if (partner.affiliateStatus !== 'active') return false;
   return partnerHasAffiliate(partner.id);
 }

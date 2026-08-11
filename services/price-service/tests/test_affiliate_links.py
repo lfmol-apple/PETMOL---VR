@@ -8,7 +8,7 @@ nunca devem depender da API externa da Cobasi estar no ar.
 """
 import pytest
 
-from src.affiliate_links import ProductAffiliateLink, STOREFRONT_AFFILIATE_URLS
+from src.affiliate_links import MarketplaceOffer, ProductAffiliateLink, STOREFRONT_AFFILIATE_URLS, get_monetized_offer
 from src.admin.deps import get_current_admin, get_current_admin_or_readonly_key
 from src.commerce_pricing import ProductPriceResult
 from src.config import get_settings
@@ -285,3 +285,98 @@ def test_admin_list_filters_by_gtin_and_merchant(client):
     data = r.json()["data"]
     assert len(data) == 1
     assert data[0]["gtin"] == GTIN
+
+
+# ── Marketplace (Shopee/ML) — arquitetura pronta, nada integrado ainda ────
+# PRODUCT != MARKETPLACE OFFER: uma oferta de marketplace pode expirar sem
+# afetar o produto PETMOL (§8 do complemento). Sem crawler/job aqui — só a
+# resolução determinística sobre linhas inseridas manualmente no teste.
+
+def test_marketplace_offer_with_no_listing_is_none():
+    """Nenhum merchant popula marketplace_offers ainda — equivalente a
+    'marketplace pending/pendente' na prática: sem oferta, não aparece."""
+    product_id = _register_product()
+    db = SessionLocal()
+    try:
+        assert get_monetized_offer(db, merchant="shopee", context="marketplace", product_id=product_id) is None
+    finally:
+        db.close()
+
+
+def test_marketplace_offer_active_listing_appears():
+    product_id = _register_product()
+    db = SessionLocal()
+    try:
+        db.add(MarketplaceOffer(
+            product_id=product_id,
+            merchant="shopee",
+            external_listing_id="shopee-listing-123",
+            seller_name="Loja Exemplo",
+            affiliate_url="https://s.shopee.com.br/exemplo-afiliado",
+            price=89.9,
+            is_available=True,
+            active=True,
+        ))
+        db.commit()
+
+        offer = get_monetized_offer(db, merchant="shopee", context="marketplace", product_id=product_id)
+        assert offer is not None
+        assert offer["url"] == "https://s.shopee.com.br/exemplo-afiliado"
+        assert offer["link_type"] == "affiliate_marketplace_offer"
+    finally:
+        db.close()
+
+
+def test_marketplace_offer_inactive_listing_does_not_appear():
+    """Oferta expirada/fora de estoque (active=False) — não deve aparecer."""
+    product_id = _register_product()
+    db = SessionLocal()
+    try:
+        db.add(MarketplaceOffer(
+            product_id=product_id,
+            merchant="shopee",
+            affiliate_url="https://s.shopee.com.br/exemplo-expirado",
+            active=False,
+        ))
+        db.commit()
+
+        offer = get_monetized_offer(db, merchant="shopee", context="marketplace", product_id=product_id)
+        assert offer is None
+    finally:
+        db.close()
+
+
+def test_product_survives_marketplace_offer_deactivation():
+    """Desativar a oferta nunca apaga/altera o produto PETMOL (GTIN/catálogo)."""
+    product_id = _register_product()
+    db = SessionLocal()
+    try:
+        offer = MarketplaceOffer(product_id=product_id, merchant="shopee", affiliate_url="https://s.shopee.com.br/x", active=True)
+        db.add(offer)
+        db.commit()
+        db.refresh(offer)
+
+        offer.active = False
+        db.commit()
+
+        product = db.get(ProductCatalog, product_id)
+        assert product is not None
+        assert product.barcode_normalized == GTIN
+    finally:
+        db.close()
+
+
+def test_marketplace_context_via_http_endpoint(client):
+    product_id = _register_product()
+    db = SessionLocal()
+    try:
+        db.add(MarketplaceOffer(product_id=product_id, merchant="shopee", affiliate_url="https://s.shopee.com.br/http-test", active=True))
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.get("/commerce/monetized-offer", params={"merchant": "shopee", "context": "marketplace", "gtin": GTIN})
+    assert r.status_code == 200
+    offer = r.json()["offer"]
+    assert offer["url"] == "https://s.shopee.com.br/http-test"
+    assert offer["link_type"] == "affiliate_marketplace_offer"
