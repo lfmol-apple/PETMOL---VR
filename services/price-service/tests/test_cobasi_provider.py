@@ -8,6 +8,7 @@ import pytest
 
 from src.affiliate_links import ProductAffiliateLink
 from src.cobasi_provider import CobasiProvider
+from src.commerce_pricing import ProductPriceResult
 from src.commerce_provider import DiscoveredOffer, ProductContext
 from src.config import get_settings
 from src.db import SessionLocal
@@ -135,3 +136,79 @@ def test_invalid_mode_rejected_by_settings(monkeypatch):
     get_settings.cache_clear()
     with pytest.raises(Exception):
         get_settings()
+
+
+# ── find_offer() — descoberta dinâmica, sem qualquer cadastro prévio ──────
+
+@pytest.mark.asyncio
+async def test_find_offer_works_with_no_product_catalog_row_at_all(monkeypatch):
+    """§13: ProductAffiliateLink não é mais condição de discovery — nem
+    products_catalog precisa ter o produto pra find_offer() funcionar.
+    Nenhum ProductCatalog, nenhum ProductAffiliateLink, banco vazio."""
+    async def fake_fetch(query, target_weight_kg=None):
+        return ProductPriceResult(
+            found=True, store="cobasi", product_name="Produto Nunca Visto",
+            brand="Marca X", price=59.9, list_price=None, is_available=True,
+            url="https://www.cobasi.com.br/produto-x/p", ean="9999999999999",
+        )
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+
+    db = SessionLocal()
+    try:
+        provider = CobasiProvider(db)
+        offer = await provider.find_offer(ProductContext(query="produto nunca visto"))
+        assert offer is not None
+        assert offer.price == 59.9
+        assert offer.ean == "9999999999999"
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_find_offer_returns_none_when_not_found(monkeypatch):
+    async def fake_fetch(query, target_weight_kg=None):
+        return ProductPriceResult(found=False)
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+
+    db = SessionLocal()
+    try:
+        provider = CobasiProvider(db)
+        offer = await provider.find_offer(ProductContext(query="produto qualquer"))
+        assert offer is None
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_find_offer_passes_through_weight_for_sku_selection(monkeypatch):
+    captured = {}
+
+    async def fake_fetch(query, target_weight_kg=None):
+        captured["weight"] = target_weight_kg
+        return ProductPriceResult(found=True, price=10.0, url="https://www.cobasi.com.br/p")
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+
+    db = SessionLocal()
+    try:
+        provider = CobasiProvider(db)
+        await provider.find_offer(ProductContext(query="ração", weight_kg=7.5))
+        assert captured["weight"] == 7.5
+    finally:
+        db.close()
+
+
+def test_prod_env_default_mode_is_still_cached(monkeypatch):
+    """§ 'UTM Cobasi ainda não foi ativada em produção sem confirmação
+    formal' — mesmo com ENV=prod, sem COBASI_AFFILIATE_MODE explícito o
+    padrão continua 'cached', nunca 'utm' automaticamente por estar em prod."""
+    monkeypatch.setenv("ENV", "prod")
+    monkeypatch.delenv("COBASI_AFFILIATE_MODE", raising=False)
+    get_settings.cache_clear()
+    try:
+        assert get_settings().cobasi_affiliate_mode == "cached"
+    finally:
+        monkeypatch.setenv("ENV", "dev")
+        get_settings.cache_clear()

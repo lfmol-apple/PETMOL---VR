@@ -21,7 +21,70 @@ Essas quatro coisas nunca são confundidas no código: ASIN/listing_id de
 marketplace é referência externa, nunca substitui o GTIN; um anúncio
 Shopee/ML nunca se torna a identidade do produto.
 
-## Como funciona
+## Discovery vs monetização (CommerceEngine)
+
+A busca de produto/preço (`find_offer`) é **sempre dinâmica** e nunca
+depende de cadastro manual prévio. Cadastro manual (`ProductAffiliateLink`)
+é uma **estratégia de monetização** (`monetize`), não uma pré-condição
+para o produto ser encontrado. Isso significa: o PETMOL não precisa
+cadastrar milhares de links como pré-requisito de lançamento — a
+descoberta funciona pra qualquer produto desde o primeiro dia; só a
+comissão fica pendente de cadastro (ou de UTM confirmada) enquanto isso.
+
+Fluxo por provider, sempre nesta ordem:
+
+```
+DISCOVERY → MONETIZATION → FILTER (descarta sem monetização) → SORT (menor preço primeiro)
+```
+
+Nunca o inverso — nunca "existe link cadastrado? então busca o produto".
+
+- `services/price-service/src/commerce_provider.py` — `ProductContext`
+  (identidade: gtin/name/brand/weight_kg/query), `DiscoveredOffer`
+  (resultado de `find_offer`), `MonetizedOffer` (resultado final, com
+  URL+link_type), `CommerceProvider` (protocolo: `find_offer`+`monetize`),
+  `CommerceEngine` (orquestra providers → filtra → ordena por preço).
+- `services/price-service/src/cobasi_provider.py` — `CobasiProvider`:
+  - `find_offer()`: chama `commerce_pricing.fetch_cobasi_price` (API
+    pública VTEX da Cobasi, ao vivo) — roda para qualquer produto.
+  - `monetize()`: estratégia por `cobasi_affiliate_mode` (config.py):
+    - `cached` (padrão) — consulta `ProductAffiliateLink`; sem link
+      cadastrado, em dev cai pro link cru da Cobasi (`link_type=direct`),
+      em prod não monetiza.
+    - `utm` — gera URL com UTM dinamicamente (`cobasi_utm.py`), sem
+      cadastro manual. **Não ativado por padrão** — precisa confirmação
+      formal da Cobasi/MAIS de que UTM sozinho gera comissão (não
+      confirmado; painel MAIS gera `mais.app/...`, não uma URL com UTM
+      simples — ver seção "UTM Cobasi" abaixo).
+    - `api` — reservado para API oficial futura. Não implementado.
+    - `disabled` — Cobasi nunca monetiza.
+- `services/price-service/src/commerce_offers.py` —
+  `build_default_engine(db)` (lista central de providers ativos — hoje só
+  `CobasiProvider`; novo provider = uma linha aqui), `get_commerce_offers()`
+  (lista completa, ordenada), `resolve_cobasi_product_offer()` (wrapper de
+  compatibilidade, primeiro item da lista — usado por
+  `/commerce/product-offer`).
+- `GET /commerce/offers?q=...&weight_kg=...` — lista de ofertas
+  monetizáveis, menor preço primeiro. Contrato multi-provider desde já:
+  Amazon/Shopee/ML/Petz aparecem na mesma lista quando aprovados, sem
+  mudar o contrato nem o frontend.
+- `GET /commerce/product-offer?q=...&weight_kg=...` — mantido por
+  compatibilidade (mesmo formato de sempre, `found`/`url`/`link_type`),
+  internamente usa o mesmo `CommerceEngine`.
+
+## UTM Cobasi — por que não está ativada
+
+O painel Minha Loja/MAIS gera links no formato `mais.app/XXXXXX`
+(shortlink próprio), não uma URL da Cobasi com UTM simples. Não está
+confirmado que anexar `utm_source=mais&utm_medium=maisplataforma&
+utm_campaign=lojapetmol` diretamente a uma URL de produto Cobasi (sem
+passar pelo painel) gera comissão do mesmo jeito. `build_cobasi_affiliate_url`
+(`cobasi_utm.py`) existe, é testada, e está pronta para o dia em que essa
+confirmação vier — nesse dia, virar produção é só `COBASI_AFFILIATE_MODE=utm`
+no ambiente, sem tocar em código/frontend. Até lá, `cached` continua sendo
+o único modo real.
+
+## Como funciona (infra de suporte)
 
 - `apps/web/src/features/commerce/homeShoppingPartners.ts` — capacidades de
   cada merchant: `merchantType` (`retailer` | `marketplace` | `amazon` |
@@ -31,8 +94,9 @@ Shopee/ML nunca se torna a identidade do produto.
   `storefrontAffiliateUrl`. `AFFILIATE_ONLY_COMMERCE` decide se o fallback
   sem afiliado é permitido (só em dev).
 - `services/price-service/src/affiliate_links.py`:
-  - `ProductAffiliateLink` (tabela `product_affiliate_links`) — deep link
-    afiliado de **retailer** por produto/GTIN. Um por produto+merchant
+  - `ProductAffiliateLink` (tabela `product_affiliate_links`) — override/
+    cache da estratégia `cached` de `CobasiProvider.monetize` (ver seção
+    acima), não pré-condição de discovery. Um por produto+merchant
     (`UniqueConstraint`) — é uma relação estável, não uma oferta que expira.
   - `MarketplaceOffer` (tabela `marketplace_offers`) — oferta/publicação de
     um vendedor em um **marketplace** (Shopee, ML) para um produto. Pode
@@ -51,37 +115,39 @@ Shopee/ML nunca se torna a identidade do produto.
       ativa daquele produto+merchant.
 - `GET /commerce/monetized-offer?merchant=...&context=product|store|marketplace&gtin=...`
   — endpoint público de leitura para testar a resolução acima.
-- `services/price-service/src/commerce_offers.py` — `resolve_cobasi_product_offer()`,
-  usado por `GET /commerce/product-offer?q=...` (consumido pela tela
-  "Comprar novamente"). Casa o preço real da Cobasi (`commerce_pricing.py`,
-  API pública VTEX) com o `ProductAffiliateLink` cadastrado do MESMO
-  produto — o casamento é pelo campo `ean` que a própria API da Cobasi
-  retorna por SKU, cruzado com `products_catalog.barcode_normalized`. Isso
+- O casamento produto↔link é pelo campo `ean` que a própria API da Cobasi
+  retorna por SKU, cruzado com `products_catalog.barcode_normalized` —
   evita precisar de GTIN vindo do frontend/scanner (não alterado nesta
   tarefa) e evita casar por nome/marca (embalagens diferentes do mesmo
-  produto têm GTINs diferentes). Em prod, sem link ativo para o EAN
-  encontrado → `found=False`. Em dev, cai para a URL crua da Cobasi
-  (`link_type=direct`) só para não travar o teste local. Hoje só existe
-  para Cobasi (retailer) — não serve marketplace.
+  produto têm GTINs diferentes; ver `_select_item_by_weight` em
+  `commerce_pricing.py`).
 - `/v1/admin/affiliate-links` (GET/POST/PATCH/DELETE, protegido por
   `get_current_admin`/`get_current_admin_or_readonly_key`) — cadastro
-  manual de `ProductAffiliateLink` por GTIN, enquanto não há API oficial
-  da rede para gerar isso automaticamente. `config.affiliate_only_commerce_enforced`
-  amarra a aplicação estrita ao `env` (prod → true; dev → fallback direto
+  manual de `ProductAffiliateLink` por GTIN, enquanto `cobasi_affiliate_mode`
+  estiver em `cached` (padrão) e não houver API oficial da rede para gerar
+  isso automaticamente. `config.affiliate_only_commerce_enforced` amarra a
+  aplicação estrita ao `env` (prod → true; dev → fallback direto
   permitido). Não existe ainda admin CRUD para `MarketplaceOffer`
-  (nada popula essa tabela hoje).
+  (nada popula essa tabela hoje — nem deveria, ver seção Marketplace).
 - `isPartnerVisibleInStoreArea`/`isPartnerVisibleForSearch`
   (`homeShoppingPartners.ts`) — filtram quais merchants aparecem na área
-  geral "Lojas" e nos pickers de busca (QuickBuyRow, fallback do
-  PriceCompareList) em produção: exigem `affiliateStatus === 'active'` E
-  (storefront OU afiliado de busca configurado). Em dev mostram os 8
-  sempre, para teste.
+  geral "Lojas" e no picker de busca manual (`QuickBuyRow`, em
+  `HomeShoppingSheet.tsx`) em produção: exigem `affiliateStatus === 'active'`
+  E (storefront OU afiliado de busca configurado). Em dev mostram os 8
+  sempre, para teste. Distinto de `useCommerceOffers`/`MonetizedOffersList`
+  (ofertas auto-descobertas e ranqueadas) — `QuickBuyRow` é a escolha
+  manual do tutor entre lojas quando nenhuma oferta automática existe.
 - `trackClick`/`AnalyticsEvent.link_type` — todo clique comercial registra
   se o link aberto foi `affiliate_product`, `affiliate_marketplace_offer`,
   `affiliate_store`, `affiliate_service`, `affiliate_search` ou `direct`
   (este último só aparece em dev).
 
-## Cadastrar um deep link de retailer (Cobasi)
+## Cadastrar um deep link de retailer (Cobasi) — só o modo "cached"
+
+Isto NÃO é pré-requisito para o produto aparecer na busca — é como
+adicionar comissão a um produto que o `CobasiProvider` já encontra e
+mostra preço de qualquer forma (`link_type=direct` em dev, ou nada em
+prod até cadastrar). Enquanto `cobasi_affiliate_mode=cached` (padrão):
 
 1. Confirme o GTIN já está em `products_catalog` (escaneie o produto no app
    ou use `GET /products/catalog/search?q=...`).
@@ -90,7 +156,8 @@ Shopee/ML nunca se torna a identidade do produto.
 3. `POST /v1/admin/affiliate-links` com `{"gtin": "...", "merchant":
    "cobasi", "affiliate_product_url": "https://..."}` (precisa de sessão
    admin — mesmo login usado no resto do admin).
-4. Confirme com `GET /commerce/monetized-offer?merchant=cobasi&context=product&gtin=...`.
+4. Confirme com `GET /commerce/offers?q=...&weight_kg=...` (ou
+   `GET /commerce/monetized-offer?merchant=cobasi&context=product&gtin=...`).
 
 Desativar um link: `PATCH /v1/admin/affiliate-links/{id}` com
 `{"active": false}` — some da UI sem deploy de frontend.
@@ -119,19 +186,32 @@ no início, como a Cobasi hoje) — não redesenhar nada disso.
 
 ## Testes
 
-`services/price-service/tests/test_affiliate_links.py` (22 testes) — cobre:
-storefront geral (Cobasi aparece, Petz não), recompra sem/com deep link,
-GTIN diferente não reaproveita link de outro produto, dev vs prod
-(fallback direto só em dev), desativar link esconde a oferta na hora,
-validação de URL do cadastro admin (https obrigatório, `javascript:`
-bloqueado), e a matriz de marketplace (sem oferta → oculto; oferta ativa →
-aparece; oferta inativa → oculto; produto sobrevive à desativação da
-oferta). Roda com `pytest tests/test_affiliate_links.py` — sempre
-monkeypatcha `fetch_cobasi_price`, nunca chama a API real da Cobasi.
+70 testes em `services/price-service/tests/` (nenhum chama a API real da
+Cobasi — `fetch_cobasi_price` é sempre monkeypatchado quando o teste
+precisa de discovery):
+
+- `test_affiliate_links.py` (22) — storefront geral (Cobasi aparece, Petz
+  não), recompra sem/com deep link, GTIN diferente não reaproveita link
+  de outro produto, dev vs prod, desativar link esconde a oferta na hora,
+  validação de URL do cadastro admin, matriz de marketplace.
+- `test_commerce_provider.py` (5) — `CommerceEngine`: ordena por menor
+  preço (3 providers fake), descarta oferta sem monetização, provider sem
+  discovery é ignorado, discovery roda sem qualquer cadastro prévio.
+- `test_commerce_pricing.py` (5) — `_select_item_by_weight`: escolhe o
+  SKU certo entre variantes de tamanho (kg e g), sem peso alvo preserva
+  comportamento antigo (primeiro item).
+- `test_cobasi_utm.py` (9) — `build_cobasi_affiliate_url`: adiciona/
+  preserva/remove UTM corretamente, idempotente em chamadas repetidas,
+  rejeita não-https/domínio não-Cobasi/`javascript:`.
+- `test_cobasi_provider.py` (12) — `CobasiProvider` por modo
+  (cached/utm/api/disabled), confirma que o padrão é `cached` mesmo com
+  `ENV=prod`, `find_offer()` funciona sem `ProductCatalog`/
+  `ProductAffiliateLink` nenhum no banco.
 
 Não há test runner de frontend configurado neste repo (sem Jest/Vitest) —
 a regra `affiliateStatus === 'active'` em `isPartnerVisibleInStoreArea`/
-`isPartnerVisibleForSearch` foi verificada por leitura de código e
+`isPartnerVisibleForSearch`, e o uso de `useCommerceOffers` nas 3 telas de
+"Comprar novamente", foram verificados por leitura de código e
 `tsc --noEmit`, não por teste automatizado de frontend.
 
 ## Prioridade comercial (estratégia, não hardcode)
@@ -344,15 +424,25 @@ preencher informação desconhecida como se fosse conhecida.
 ## Ativar a próxima loja
 
 1. Confirmar aprovação/termos do programa real do merchant.
-2. Atualizar a linha do merchant em `homeShoppingPartners.ts`:
+2. Implementar um novo `CommerceProvider` (`find_offer`/`monetize`), no
+   formato de `cobasi_provider.py` — descoberta dinâmica primeiro,
+   monetização depois, nunca o inverso. Registrar em
+   `commerce_offers.build_default_engine()` (uma linha).
+3. Atualizar a linha do merchant em `homeShoppingPartners.ts`:
    `merchantType`, `affiliateStatus` (só marcar `'active'` quando o
    mecanismo estiver de fato ligado em código, não só aprovado
    comercialmente), `affiliateMode`, `supportsProductDeepLink`/
    `supportsStorefrontAffiliate`, e `storefrontAffiliateUrl` se houver.
-3. Retailer com deep link por produto → cadastrar via
-   `/v1/admin/affiliate-links` como na Cobasi.
-4. Marketplace com oferta → popular `marketplace_offers` (sem crawler —
-   manual, como a Cobasi hoje, até haver ferramenta oficial).
-5. Espelhar a storefront (se houver) em
+4. Retailer com deep link por produto → cadastrar via
+   `/v1/admin/affiliate-links` como na Cobasi (estratégia `cached`), ou
+   implementar UTM/API dinâmica se o programa confirmar que funciona sem
+   cadastro manual.
+5. Marketplace com oferta → popular `marketplace_offers` manualmente
+   pra testar, sem crawler — nunca como requisito de lançamento (ver
+   seção Marketplace).
+6. Espelhar a storefront (se houver) em
    `affiliate_links.STOREFRONT_AFFILIATE_URLS` no backend.
-6. Atualizar a tabela de compliance deste documento.
+7. Atualizar a tabela de compliance deste documento.
+
+`GET /commerce/offers` e o frontend (`useCommerceOffers`/
+`MonetizedOffersList`) não precisam mudar — a lista já é multi-provider.
