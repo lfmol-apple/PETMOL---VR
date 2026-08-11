@@ -40,6 +40,12 @@ export interface HomeShoppingPartner {
   /** Este merchant tem (ou terá) uma storefront/vitrine afiliada fixa para navegação geral. */
   supportsStorefrontAffiliate: boolean;
   /**
+   * URL fixa da storefront afiliada (área geral "Lojas"), quando existir.
+   * Nunca modificar/concatenar query nela — é a URL exata cadastrada no
+   * programa do merchant (ex: Cobasi Minha Loja/MAIS).
+   */
+  storefrontAffiliateUrl?: string;
+  /**
    * Monta a URL de busca afiliada dado um produto e o ID de afiliado.
    * Quando não definida, usa o comportamento padrão (fallbackUrl/directUrl).
    * O ID vem de NEXT_PUBLIC_AFFILIATE_{ID_MAIUSCULO}.
@@ -99,13 +105,16 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     // confirmada + deep link por produto gerado manualmente no painel MAIS
     // (não é Lomadee; o buildAffiliateUrl abaixo é legado/nunca ativado por
     // env var e será substituído quando o deep link real for ligado).
-    // affiliateStatus segue 'disabled' até esse mecanismo real ser ligado em
-    // código (commit seguinte) — supportsProductDeepLink/StorefrontAffiliate
-    // documentam o que já sabemos ser possível pelo programa.
-    affiliateStatus: 'disabled',
+    // PJ cadastrada, storefront confirmada e ligada (Minha Loja/MAIS) — ver
+    // docs/AFFILIATES.md. Deep link por produto exige cadastro manual via
+    // /v1/admin/affiliate-links (ver affiliate_links.py no backend); até lá,
+    // a área "Lojas" já usa a storefront, mas "Comprar novamente" de um
+    // produto específico só mostra Cobasi quando esse cadastro existir.
+    affiliateStatus: 'approved',
     affiliateMode: 'product_deeplink',
     supportsProductDeepLink: true,
     supportsStorefrontAffiliate: true,
+    storefrontAffiliateUrl: 'https://minhaloja.cobasi.com.br?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol',
     buildAffiliateUrl: (query, base) =>
       `${base}&url=${encodeURIComponent(`https://www.cobasi.com.br/busca?q=${encodeURIComponent(query)}`)}`,
   },

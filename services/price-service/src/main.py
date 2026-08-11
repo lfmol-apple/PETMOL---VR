@@ -34,7 +34,9 @@ from .search import clear_cache, search_offers
 from .utils.weights import parse_weight_to_kg, calculate_price_per_kg
 from .auth import ml_oauth_router
 from .auth.ml_oauth import debug_router as ml_debug_router
-from .db import Base, engine, SessionLocal
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from .db import Base, engine, SessionLocal, get_db
 from .user_auth import user_auth_router
 from .pets import pets_router
 from .pets import models as _pets_models
@@ -43,7 +45,9 @@ from .pets.parasite_models import ParasiteControlRecord as _pcr  # register with
 from .pets.grooming_models import GroomingRecord as _gr  # register with Base
 from .health import models as _health_models  # Import health models to register with Base
 from .admin import admin_router
+from .admin import affiliate_links_admin_router
 from .admin import models as _admin_models
+from .affiliate_links import ProductAffiliateLink as _product_affiliate_link_model  # noqa: F401 — register with Base
 from .admin.models import AdminUser
 from .user_auth.models import PasswordResetToken as _password_reset_token_model  # noqa: F401
 from .user_auth.models import User
@@ -259,8 +263,10 @@ app.include_router(checkin_router)
 
 # Admin (master)
 app.include_router(admin_router)
+app.include_router(affiliate_links_admin_router)
 # Some deployments forward /api/* without stripping the prefix.
 app.include_router(admin_router, prefix="/api")
+app.include_router(affiliate_links_admin_router, prefix="/api")
 
 # Servir arquivos estáticos (fotos de pets) — sempre que storage for local
 # Em prod com R2/S3: as fotos têm URL pública direta, sem precisar deste mount
@@ -1381,6 +1387,37 @@ async def commerce_product_price(
     """
     from .commerce_pricing import fetch_cobasi_price
     return await fetch_cobasi_price(q)
+
+
+@app.get("/commerce/monetized-offer", tags=["Catalog"])
+async def commerce_monetized_offer(
+    merchant: str = Query(..., description="cobasi, petz, etc."),
+    context: str = Query("product", pattern="^(product|store)$", description="product | store"),
+    gtin: Optional[str] = Query(default=None, description="Obrigatório quando context=product"),
+    db: Session = Depends(get_db),
+):
+    """
+    Resolve se existe caminho monetizável (afiliado) para um merchant, no
+    contexto de um produto específico (deep link) ou da loja em geral
+    (storefront) — ver affiliate_links.py / docs/AFFILIATES.md.
+
+    Nunca retorna link comum sem comissão: `offer: null` significa "este
+    merchant deve ficar invisível aqui", não "use um link de busca direto".
+    """
+    from .affiliate_links import get_monetized_offer
+    from .product_catalog_lookup import ProductCatalog, normalize_gtin
+
+    merchant_normalized = merchant.strip().lower()
+    product_id = None
+    if context == "product":
+        if not gtin:
+            raise HTTPException(status_code=400, detail="gtin é obrigatório quando context=product")
+        gtin_normalized = normalize_gtin(gtin)
+        product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
+        product_id = product.id if product else None
+
+    offer = get_monetized_offer(db, merchant=merchant_normalized, context=context, product_id=product_id)
+    return {"offer": offer}
 
 
 @app.get("/commerce/product-candidates", tags=["Catalog"])

@@ -17,6 +17,11 @@ export interface ClickPayload {
   cta_type: string;
   /** Destination partner or internal section (e.g. 'petz', 'petlove') */
   target?: string;
+  /**
+   * Natureza do link comercial de fato aberto — para distinguir clique
+   * monetizado de fallback sem afiliado. Ausente em cliques não-comerciais.
+   */
+  link_type?: 'affiliate_product' | 'affiliate_store' | 'direct';
   /** Pet context, if available */
   pet_id?: string;
   /** Free-form metadata — no PII */

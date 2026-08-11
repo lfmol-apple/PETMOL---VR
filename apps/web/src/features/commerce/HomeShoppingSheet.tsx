@@ -67,6 +67,25 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
     });
   }
 
+  // Merchants com storefront afiliada fixa (ex: Cobasi Minha Loja/MAIS) não
+  // têm parâmetro de busca na vitrine — abrir a categoria lá cairia sempre
+  // no fallback sem afiliado. Para esses, tocar no card já abre a storefront
+  // direto; os demais continuam no drill-down de categoria de sempre.
+  function handlePartnerTap(partner: HomeShoppingPartner) {
+    if (partner.storefrontAffiliateUrl) {
+      navigateToPartnerUrl(partner.storefrontAffiliateUrl);
+      void trackClick({
+        source: 'home',
+        cta_type: 'shop_storefront_click',
+        target: partner.id,
+        link_type: 'affiliate_store',
+        pet_id: currentPet.pet_id,
+      });
+      return;
+    }
+    setBrowsingPartner(partner);
+  }
+
   function handleStoreCategory(category: StoreCategoryOption) {
     if (!browsingPartner) return;
     const query = buildStoreCategoryQuery(category, currentPet.species);
@@ -187,7 +206,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                     <button
                       key={partner.id}
                       type="button"
-                      onClick={() => setBrowsingPartner(partner)}
+                      onClick={() => handlePartnerTap(partner)}
                       className="flex flex-col items-center gap-2.5 p-4 bg-white border border-gray-200 rounded-2xl hover:border-blue-200 hover:bg-blue-50/30 active:scale-[0.97] transition-all text-center shadow-sm"
                     >
                       <div className="w-14 h-14 rounded-2xl overflow-hidden flex items-center justify-center bg-gray-50 border border-gray-100 flex-shrink-0 p-1.5">

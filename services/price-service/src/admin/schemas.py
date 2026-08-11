@@ -4,7 +4,7 @@ from typing import Optional, List
 
 from pydantic import BaseModel, EmailStr, Field
 
-from ..serialization.utc_instant import UtcInstant
+from ..serialization.utc_instant import UtcInstant, OptionalUtcInstant
 
 
 class AdminBootstrapPromoteRequest(BaseModel):
@@ -145,3 +145,47 @@ class PetsListOut(BaseModel):
 class DeletedOut(BaseModel):
     success: bool = True
     message: str = "Excluído com sucesso"
+
+
+# Affiliate links (deep link por produto/GTIN → merchant)
+class AffiliateLinkCreateRequest(BaseModel):
+    gtin: str
+    merchant: str
+    affiliate_product_url: str
+    direct_product_url: Optional[str] = None
+    affiliate_program: Optional[str] = None
+    active: bool = True
+
+
+class AffiliateLinkUpdateRequest(BaseModel):
+    affiliate_product_url: Optional[str] = None
+    direct_product_url: Optional[str] = None
+    affiliate_program: Optional[str] = None
+    active: Optional[bool] = None
+    # True → marca verified_at=now(); False → limpa. Nunca aceita timestamp
+    # do cliente, para não permitir "verificação" retroativa forjada.
+    verified: Optional[bool] = None
+
+
+class AffiliateLinkOut(BaseModel):
+    id: int
+    product_id: int
+    gtin: str
+    merchant: str
+    affiliate_product_url: str
+    direct_product_url: Optional[str] = None
+    affiliate_program: Optional[str] = None
+    active: bool
+    verified_at: OptionalUtcInstant = None
+    created_at: UtcInstant
+    updated_at: UtcInstant
+
+
+class AffiliateLinkDetailOut(BaseModel):
+    success: bool = True
+    data: AffiliateLinkOut
+
+
+class AffiliateLinksListOut(BaseModel):
+    success: bool = True
+    data: List[AffiliateLinkOut]
