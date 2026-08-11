@@ -51,7 +51,7 @@ class ProductPriceResult(BaseModel):
     ean: Optional[str] = None
 
 
-def _cache_key(query: str, target_weight_kg: Optional[float]) -> str:
+def _cache_key(query: str, target_weight_kg: Optional[float] = None) -> str:
     weight_part = f"{target_weight_kg:.2f}" if target_weight_kg is not None else "-"
     return f"{weight_part}:{query.strip().lower()}"
 
