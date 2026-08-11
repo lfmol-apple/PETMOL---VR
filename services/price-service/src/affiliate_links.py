@@ -1,15 +1,18 @@
 """
 Links de afiliado por produto — infraestrutura comercial/afiliados.
 
+IMPORTANTE (reclassificado — ver docs/AFFILIATES.md e commerce_provider.py):
+ProductAffiliateLink NÃO é mais pré-condição para um produto ser
+descoberto/buscado. A descoberta (CobasiProvider.find_offer) é sempre
+dinâmica e roda para qualquer produto. Esta tabela é uma das ESTRATÉGIAS
+de monetização que um provider pode consultar (modo "cached" em
+CobasiProvider.monetize/cobasi_affiliate_mode) — hoje a única confirmada
+para a Cobasi, mas um override/cache, não um gate.
+
 Um GTIN/apresentação pode ter, por merchant, um deep link afiliado
 específico (ex: gerado no painel Cobasi MAIS). Isso é dado comercial
 dinâmico e por isso fica no banco, não em env var/build do frontend —
 ativar/desativar um link não deve exigir deploy de frontend.
-
-Regra de exibição (ver docs/AFFILIATES.md): uma oferta de produto só é
-"monetizável" quando existe ProductAffiliateLink ativo para aquele
-product_id+merchant. Sem isso, o merchant fica invisível para aquele
-produto — nunca cai para link comum sem comissão.
 """
 from __future__ import annotations
 
@@ -52,7 +55,15 @@ def validate_affiliate_url(url: str) -> None:
 
 
 class ProductAffiliateLink(Base):
-    """Deep link afiliado de um produto (products_catalog) para um merchant."""
+    """Deep link afiliado de um produto (products_catalog) para um merchant.
+
+    Papel: override/cache manual da estratégia "cached" de monetização
+    (ver CobasiProvider.monetize) — não é pré-requisito de descoberta.
+    Cadastro manual continua sendo necessário na prática enquanto
+    cobasi_affiliate_mode == "cached" (padrão hoje, sem confirmação
+    formal para ativar "utm"), mas a arquitetura já não depende dela
+    para buscar produto/preço.
+    """
 
     __tablename__ = "product_affiliate_links"
     __table_args__ = (UniqueConstraint("product_id", "merchant", name="uq_affiliate_link_product_merchant"),)
@@ -94,6 +105,11 @@ class MarketplaceOffer(Base):
     ativos — ver docs/AFFILIATES.md). Existe apenas para a arquitetura já
     suportar o conceito quando os programas forem aprovados, sem precisar
     de crawler/job/fila nesta tarefa.
+
+    Papel: cache/estado operacional de uma oferta descoberta (por um
+    futuro MarketplaceProvider, no mesmo formato de CobasiProvider) — NÃO
+    é uma tabela para preenchimento manual em massa. Ativar um
+    marketplace não deve significar cadastrar milhares de linhas aqui.
     """
 
     __tablename__ = "marketplace_offers"
