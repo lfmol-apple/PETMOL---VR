@@ -1411,6 +1411,27 @@ async def commerce_product_offer(
     return await resolve_cobasi_product_offer(db, q, target_weight_kg=weight_kg)
 
 
+@app.get("/commerce/offers", tags=["Catalog"])
+async def commerce_offers(
+    q: str = Query(..., min_length=2, max_length=150, description="Product search query"),
+    weight_kg: Optional[float] = Query(default=None, description="Peso real do pacote, quando aplicável"),
+    db: Session = Depends(get_db),
+):
+    """
+    Lista de ofertas monetizáveis para um produto, menor preço primeiro —
+    ver commerce_offers.py/commerce_provider.py. Hoje só a Cobasi está
+    ativa (0 ou 1 item); a forma já é multi-provider — Amazon/Shopee/ML/
+    Petz entram sem mudar este contrato quando aprovados.
+
+    Nunca inclui oferta sem link monetizável: lista vazia = "estamos
+    buscando opções", nunca "use o link direto sem comissão" (exceto em
+    dev, sinalizado por link_type="direct").
+    """
+    from .commerce_offers import CommerceOfferOut, get_commerce_offers
+    offers = await get_commerce_offers(db, q, target_weight_kg=weight_kg)
+    return {"offers": [CommerceOfferOut(**vars(o)) for o in offers]}
+
+
 @app.get("/commerce/monetized-offer", tags=["Catalog"])
 async def commerce_monetized_offer(
     merchant: str = Query(..., description="cobasi, petz, etc."),

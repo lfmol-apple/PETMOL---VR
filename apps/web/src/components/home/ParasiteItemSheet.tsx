@@ -5,7 +5,7 @@ import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import type { ParasiteControl } from '@/lib/types/home';
 import { trackV1Metric } from '@/lib/v1Metrics';
-import { MonetizedOfferCard } from '@/features/commerce/MonetizedOfferCard';
+import { MonetizedOffersList } from '@/features/commerce/MonetizedOffersList';
 import { ModalPortal } from '@/components/ModalPortal';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
@@ -874,7 +874,7 @@ export function ParasiteItemSheet({
               {/* Mesma oferta monetizável usada em "Comprar novamente" na Loja
                   do Pet e na ficha da ração — nunca mostra loja sem link
                   afiliado ativo (ver docs/AFFILIATES.md). */}
-              <MonetizedOfferCard
+              <MonetizedOffersList
                 query={
                   current?.product_name
                     ? current.product_name

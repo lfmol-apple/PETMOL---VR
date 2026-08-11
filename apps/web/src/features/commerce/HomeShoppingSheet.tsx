@@ -15,7 +15,8 @@ import {
   type HomeShoppingPartner,
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
-import { fetchProductOffer, formatBRLPrice, type ProductOfferResult } from './productPricing';
+import { formatBRLPrice, type CommerceOffer } from './productPricing';
+import { useCommerceOffers } from './useCommerceOffers';
 import {
   buildReorderCards,
   STORE_CATEGORIES,
@@ -276,35 +277,20 @@ interface ReorderCardItemProps {
   visibleQuickBuyPartners: HomeShoppingPartner[];
   onTogglePicker: () => void;
   onQuickBuy: (partnerId: HomeShoppingPartnerId) => void;
-  onDirectBuy: (offer: ProductOfferResult) => void;
+  onDirectBuy: (offer: CommerceOffer) => void;
 }
 
-// Busca a oferta real (preço Cobasi casado com link afiliado do MESMO
-// produto por EAN — ver commerce_offers.py) ao montar. `found` só vem true
-// quando existe caminho monetizável; em produção, sem isso, nunca cai para
-// a URL crua da Cobasi. Enquanto carrega ou quando não encontrado, cai no
+// Busca a lista de ofertas monetizáveis (mesma fonte usada em toda tela de
+// "Comprar novamente" — ver useCommerceOffers/commerce_offers.py) ao
+// montar. Lista vazia = nenhum caminho monetizável; em produção, nunca
+// cai para a URL crua da Cobasi. Enquanto carrega ou sem oferta, cai no
 // comportamento anterior (escolha entre lojas visíveis) — nunca trava a
-// experiência esperando a Cobasi responder.
+// experiência esperando o provider responder.
 function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy }: ReorderCardItemProps) {
-  const [offer, setOffer] = useState<ProductOfferResult | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { offers, loading } = useCommerceOffers(card.searchQuery, card.packageSizeKg);
+  const offer = offers[0] ?? null;
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setOffer(null);
-    fetchProductOffer(card.searchQuery, card.packageSizeKg).then((result) => {
-      if (!cancelled) {
-        setOffer(result);
-        setLoading(false);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [card.searchQuery, card.packageSizeKg]);
-
-  const hasMonetizedOffer = Boolean(offer?.found && typeof offer.price === 'number' && offer.url);
+  const hasMonetizedOffer = Boolean(offer && typeof offer.price === 'number' && offer.url);
   const hasDiscount = Boolean(
     hasMonetizedOffer && offer && typeof offer.list_price === 'number' && offer.list_price > (offer.price ?? 0),
   );

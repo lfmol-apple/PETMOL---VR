@@ -14,7 +14,7 @@ import { petDo } from '@/lib/petGender';
 import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
 import type { ScannedProduct } from '@/lib/productScanner';
 import { resolveFoodCommerceSnapshot } from '@/features/commerce/homeContextualCommerce';
-import { MonetizedOfferCard } from '@/features/commerce/MonetizedOfferCard';
+import { MonetizedOffersList } from '@/features/commerce/MonetizedOffersList';
 
 export interface FoodItemSheetProps {
   pet: PetHealthProfile;
@@ -877,7 +877,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                   {/* Mesma oferta monetizável do card "Comprar novamente" da
                       Loja do Pet — mesma query, mesmo peso real do pacote.
                       Nunca mostra loja sem link afiliado ativo. */}
-                  <MonetizedOfferCard
+                  <MonetizedOffersList
                     query={foodBrand ? `${foodBrand} ração` : 'ração pet'}
                     packageSizeKg={foodState.packageSizeKg}
                     petId={pet.pet_id}
