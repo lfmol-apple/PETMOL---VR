@@ -31,6 +31,11 @@ class ProductContext:
     brand: Optional[str] = None
     weight_kg: Optional[float] = None
     product_id: Optional[int] = None  # products_catalog.id, quando já resolvido
+    # Texto de busca já montado pelo chamador (ex: "Royal Canin ração"),
+    # quando o provider usa busca textual (Cobasi hoje). Providers com API
+    # estruturada (ex: Amazon PA-API por GTIN) podem ignorar isto e usar
+    # gtin/name/brand diretamente.
+    query: Optional[str] = None
 
 
 @dataclass
