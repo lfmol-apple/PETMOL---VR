@@ -68,11 +68,16 @@ export interface HomeShoppingPartner {
    * Quando não definida, usa o comportamento padrão (fallbackUrl/directUrl).
    * O ID vem de NEXT_PUBLIC_AFFILIATE_{ID_MAIUSCULO}.
    *
-   * Formatos por rede:
+   * Formatos por rede (nenhum é Awin — Awin ainda não está ligado em
+   * nenhuma superfície; ver services/price-service/src/awin_advertisers.py):
    *  - Amazon Associates : tag=seuId-20
-   *  - Lomadee (Cobasi, Petz, Petlove) : URL base do painel + &url={destino}
+   *  - Lomadee (Petz, Petlove) : URL base do painel + &url={destino}
    *  - Shopee Affiliates : URL base do painel (opaco, sem query)
    *  - ML Afiliados : affId=seuId na URL de busca
+   *  - Cobasi NÃO usa este mecanismo — sua monetização real (Minha
+   *    Loja/MAIS) é resolvida por services/price-service (CommerceEngine/
+   *    CobasiProvider), não por AFF/buildAffiliateUrl. O buildAffiliateUrl
+   *    da Cobasi abaixo é legado, nunca ligado por env var real.
    */
   buildAffiliateUrl?: (query: string, affiliateId: string) => string;
 }
@@ -120,14 +125,20 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoAlt: 'Cobasi',
     fallbackUrl: 'https://www.cobasi.com.br',
     // Programa real: Minha Loja Cobasi / Empreendedor MAIS — storefront fixa
-    // confirmada + deep link por produto gerado manualmente no painel MAIS
-    // (não é Lomadee; o buildAffiliateUrl abaixo é legado/nunca ativado por
-    // env var e será substituído quando o deep link real for ligado).
-    // PJ cadastrada, storefront confirmada e ligada (Minha Loja/MAIS) — ver
-    // docs/AFFILIATES.md. Deep link por produto exige cadastro manual via
-    // /v1/admin/affiliate-links (ver affiliate_links.py no backend); até lá,
-    // a área "Lojas" já usa a storefront, mas "Comprar novamente" de um
-    // produto específico só mostra Cobasi quando esse cadastro existir.
+    // confirmada e ligada (usada só pela área geral "Lojas", abaixo em
+    // storefrontAffiliateUrl). O buildAffiliateUrl desta entrada é legado,
+    // nunca ativado por env var real (ver comentário na interface acima).
+    //
+    // "Comprar novamente" de um produto específico NÃO usa este arquivo —
+    // é resolvido dinamicamente por services/price-service (CommerceEngine/
+    // CobasiProvider, GET /commerce/offers), via ProductAffiliateLink
+    // cadastrado (modo "cached") ou UTM (modo "utm") — ver docs/AFFILIATES.md.
+    //
+    // Awin (rede) também lista a Cobasi como advertiser (17870, feed
+    // disponível) — status comercial ainda 'pending' junto à Awin; não
+    // confundir com o programa MAIS acima, que é o único de fato ligado
+    // hoje. Ver services/price-service/src/awin_advertisers.py.
+    //
     // 'active': único merchant hoje com mecanismo de fato ligado em código.
     affiliateStatus: 'active',
     merchantType: 'retailer',
@@ -145,9 +156,15 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/petz.png',
     logoAlt: 'Petz',
     fallbackUrl: 'https://www.petz.com.br',
-    // Cadastro PJ bloqueado por validação de CNAE (CNPJ já tem 7319-0/02,
-    // questão está em tratamento) — pending, não disabled: não é recusa,
-    // é aprovação comercial em andamento.
+    // Dois caminhos possíveis, nenhum ligado ainda — 'pending' cobre ambos:
+    //  1. Cadastro PJ direto (Lomadee-style, buildAffiliateUrl abaixo)
+    //     bloqueado por validação de CNAE (CNPJ já tem 7319-0/02, questão
+    //     em tratamento).
+    //  2. Via Awin: advertiser 127553, status comercial 'pending' junto à
+    //     Awin, feed_available=False (ver awin_advertisers.py) — mesmo
+    //     aprovado, exigiria monetização por texto/API, não por feed
+    //     estruturado (GTIN), diferente do caminho da Cobasi.
+    // 'pending', não 'disabled': não é recusa, é aprovação em andamento.
     affiliateStatus: 'pending',
     merchantType: 'retailer',
     affiliateMode: 'none',
