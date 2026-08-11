@@ -96,55 +96,123 @@ def _select_item_by_weight(items: list[dict], target_weight_kg: Optional[float])
     return items[0]
 
 
+def _shorten_query_variants(query: str) -> list[str]:
+    """Consultas muito longas/descritivas (ex: texto integral do produto
+    vindo do scanner) podem não bater em NADA na busca da Cobasi mesmo
+    quando o produto existe lá — confirmado com um caso real (ração
+    Premier Gastrointestinal: a string completa de 13 palavras não
+    encontra nada, mas os primeiros termos + a última palavra encontram o
+    produto certo). Gera prefixos mais curtos, preservando a última
+    palavra (geralmente a categoria, ex: "ração"), pra tentar de novo
+    antes de desistir. Poucas tentativas, mais curtas primeiro nunca —
+    da mais específica pra menos específica, pra não perder precisão
+    quando a busca completa já funcionaria.
+    """
+    words = query.split()
+    if len(words) <= 6:
+        return []
+
+    last_word = words[-1]
+    variants = []
+    for word_count in (6, 3):
+        if len(words) <= word_count:
+            continue
+        prefix_words = words[:word_count]
+        if prefix_words[-1] != last_word:
+            prefix_words.append(last_word)
+        variants.append(" ".join(prefix_words))
+    return variants
+
+
+def _select_product_by_port(products: list[dict], query: str) -> dict:
+    """A Cobasi pode devolver vários produtos distintos pra mesma busca
+    (não só variantes de peso do MESMO produto) — ex: "Ração Premier ...
+    Raças Pequenas" E "... Raças Médias e Grandes" pra uma busca sobre
+    ração de porte médio/grande, com "Pequenas" rankeada primeiro pela
+    própria Cobasi. Sem isso, o primeiro resultado pode ser o porte
+    errado mesmo com a query "certa". Quando a query menciona um porte,
+    prefere o produto cujo nome também infere esse porte; sem porte na
+    query (ou sem produto batendo), mantém o primeiro resultado — nunca
+    piora o caso comum (produto único, ex: Royal Canin Urinary)."""
+    if not products:
+        return {}
+    query_port = _infer_port(query)
+    if query_port:
+        for product in products:
+            if _infer_port(product.get("productName") or "") == query_port:
+                return product
+    return products[0]
+
+
+async def _search_cobasi_once(
+    query: str, target_weight_kg: Optional[float], port_reference_text: Optional[str] = None
+) -> ProductPriceResult:
+    """`port_reference_text`: texto usado só para desambiguar porte entre
+    vários produtos retornados — sempre a query ORIGINAL completa, mesmo
+    quando `query` (o que de fato vai pra busca) é um fallback encurtado
+    que já perdeu a palavra de porte (ver _shorten_query_variants)."""
+    url = _COBASI_SEARCH_URL.format(query=urllib.parse.quote(query))
+    async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
+        response = await client.get(
+            url,
+            params={"_from": 0, "_to": 4, "sc": 1},
+            headers={"Accept": "application/json"},
+        )
+    if response.status_code not in (200, 206):
+        logger.info("[commerce_pricing] cobasi status=%s query=%r", response.status_code, query)
+        return ProductPriceResult(found=False)
+
+    products = response.json()
+    if not isinstance(products, list) or not products:
+        return ProductPriceResult(found=False)
+
+    product = _select_product_by_port(products, port_reference_text or query)
+    items = product.get("items") or []
+    selected_item = _select_item_by_weight(items, target_weight_kg)
+    offer: dict = {}
+    ean: Optional[str] = None
+    if selected_item:
+        sellers = selected_item.get("sellers") or []
+        if sellers:
+            offer = sellers[0].get("commertialOffer") or {}
+        raw_ean = selected_item.get("ean")
+        if isinstance(raw_ean, str) and raw_ean.strip().isdigit():
+            ean = raw_ean.strip()
+
+    link_text = product.get("linkText")
+    product_url = f"https://www.cobasi.com.br/{link_text}/p" if link_text else None
+
+    price = offer.get("Price")
+    return ProductPriceResult(
+        found=bool(price),
+        store="cobasi",
+        product_name=selected_item.get("nameComplete") or product.get("productName"),
+        brand=product.get("brand"),
+        price=float(price) if isinstance(price, (int, float)) else None,
+        list_price=float(offer["ListPrice"]) if isinstance(offer.get("ListPrice"), (int, float)) else None,
+        is_available=offer.get("IsAvailable"),
+        url=product_url,
+        ean=ean,
+    )
+
+
 async def _fetch_cobasi_price_uncached(query: str, target_weight_kg: Optional[float] = None) -> ProductPriceResult:
     settings = get_settings()
     if not settings.commerce_pricing_enabled:
         return ProductPriceResult(found=False)
 
-    url = _COBASI_SEARCH_URL.format(query=urllib.parse.quote(query))
     try:
-        async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
-            response = await client.get(
-                url,
-                params={"_from": 0, "_to": 0, "sc": 1},
-                headers={"Accept": "application/json"},
-            )
-        if response.status_code not in (200, 206):
-            logger.info("[commerce_pricing] cobasi status=%s query=%r", response.status_code, query)
-            return ProductPriceResult(found=False)
+        result = await _search_cobasi_once(query, target_weight_kg)
+        if result.found:
+            return result
 
-        products = response.json()
-        if not isinstance(products, list) or not products:
-            return ProductPriceResult(found=False)
+        for fallback_query in _shorten_query_variants(query):
+            result = await _search_cobasi_once(fallback_query, target_weight_kg, port_reference_text=query)
+            if result.found:
+                logger.info("[commerce_pricing] cobasi fallback query matched: %r -> %r", query, fallback_query)
+                return result
 
-        product = products[0]
-        items = product.get("items") or []
-        selected_item = _select_item_by_weight(items, target_weight_kg)
-        offer: dict = {}
-        ean: Optional[str] = None
-        if selected_item:
-            sellers = selected_item.get("sellers") or []
-            if sellers:
-                offer = sellers[0].get("commertialOffer") or {}
-            raw_ean = selected_item.get("ean")
-            if isinstance(raw_ean, str) and raw_ean.strip().isdigit():
-                ean = raw_ean.strip()
-
-        link_text = product.get("linkText")
-        product_url = f"https://www.cobasi.com.br/{link_text}/p" if link_text else None
-
-        price = offer.get("Price")
-        return ProductPriceResult(
-            found=bool(price),
-            store="cobasi",
-            product_name=selected_item.get("nameComplete") or product.get("productName"),
-            brand=product.get("brand"),
-            price=float(price) if isinstance(price, (int, float)) else None,
-            list_price=float(offer["ListPrice"]) if isinstance(offer.get("ListPrice"), (int, float)) else None,
-            is_available=offer.get("IsAvailable"),
-            url=product_url,
-            ean=ean,
-        )
+        return result
     except Exception as exc:
         logger.info("[commerce_pricing] cobasi lookup failed query=%r error=%s", query, exc)
         return ProductPriceResult(found=False)
@@ -203,7 +271,11 @@ def _infer_port(text: str) -> Optional[str]:
         return "mini"
     if "pequeno" in lowered or "pequena" in lowered or "small" in lowered:
         return "pequeno"
-    if "médio" in lowered or "medio" in lowered or "media" in lowered or "medium" in lowered:
+    # "média"/"médias" (concordância de gênero com "raça") não batiam com
+    # "médio"/"media" (sem acento) — confirmado com um caso real (Premier
+    # Gastrointestinal "Cães Raças Médias e Grandes" caindo no check de
+    # "grande" abaixo em vez de "medio", já que só "grandes" batia).
+    if "médio" in lowered or "medio" in lowered or "média" in lowered or "médias" in lowered or "medium" in lowered:
         return "medio"
     if "gigante" in lowered or "giant" in lowered:
         return "gigante"

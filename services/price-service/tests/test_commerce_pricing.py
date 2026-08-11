@@ -7,7 +7,7 @@ Dog vem em 2kg E 7,5kg sob o mesmo productId, com EANs diferentes).
 _select_item_by_weight é função pura sobre os dicts que a API da Cobasi
 devolve — sem rede, sem mock de httpx.
 """
-from src.commerce_pricing import _select_item_by_weight
+from src.commerce_pricing import _select_item_by_weight, _select_product_by_port, _shorten_query_variants, _infer_port
 
 _ITEMS = [
     {"nameComplete": "Ração Royal Canin Urinary Small Dog 2kg", "ean": "111"},
@@ -42,3 +42,56 @@ def test_handles_weight_in_grams():
 def test_empty_items_returns_empty_dict():
     assert _select_item_by_weight([], 7.5) == {}
     assert _select_item_by_weight([], None) == {}
+
+
+# ── _infer_port: concordância de gênero (raça é feminino: "média(s)") ─────
+
+def test_infer_port_handles_feminine_agreement():
+    """Caso real: 'Cães Raças Médias e Grandes' caía no check de 'grande'
+    (só 'grandes' batia) em vez de 'medio', porque nem 'médio' nem 'media'
+    (sem acento) são substring de 'médias' (com acento, terminação -as)."""
+    assert _infer_port("Ração Premier Cães Raças Médias e Grandes") == "medio"
+    assert _infer_port("Ração Premier Cães Raças Pequenas") == "pequeno"
+
+
+# ── _select_product_by_port: várias RAÇÕES distintas, não só tamanhos ─────
+# (diferente de _select_item_by_weight: aqui são productId diferentes)
+
+_PRODUCTS = [
+    {"productName": "Ração Premier Nutrição Clínica Gastrointestinal Cães Raças Pequenas"},
+    {"productName": "Ração Premier Nutrição Clínica Gastrointestinal Cães Raças Médias e Grandes"},
+]
+
+
+def test_select_product_by_port_matches_query_port():
+    query = "PremierPet Gastrointestinal Nutrição Clínica Cães de Portes Médio e Grande ração"
+    selected = _select_product_by_port(_PRODUCTS, query)
+    assert "Médias e Grandes" in selected["productName"]
+
+
+def test_select_product_by_port_falls_back_to_first_without_port_signal():
+    """Sem porte na query (ex: query já veio encurtada e perdeu a palavra
+    de porte), mantém o primeiro resultado — nunca piora o caso comum de
+    um produto só (ex: Royal Canin Urinary, sem ambiguidade de porte)."""
+    query = "PremierPet Gastrointestinal ração"
+    selected = _select_product_by_port(_PRODUCTS, query)
+    assert selected is _PRODUCTS[0]
+
+
+def test_select_product_by_port_empty_list_returns_empty_dict():
+    assert _select_product_by_port([], "ração médio") == {}
+
+
+# ── _shorten_query_variants: fallback pra buscas verbosas demais ──────────
+
+def test_shorten_query_variants_short_query_returns_nothing():
+    assert _shorten_query_variants("Royal Canin ração") == []
+
+
+def test_shorten_query_variants_preserves_last_word():
+    query = "PremierPet Gastrointestinal Nutrição Clínica Cães de Portes Médio e Grande Todas as idades Cão 10,1 kg ração"
+    variants = _shorten_query_variants(query)
+    assert len(variants) > 0
+    for variant in variants:
+        assert variant.endswith("ração")
+        assert len(variant.split()) <= 7
