@@ -173,6 +173,27 @@ class Settings(BaseSettings):
             return self.affiliate_only_commerce
         return self.env == "prod"
 
+    # ── Awin (rede de afiliados) — preparação, NÃO ativação ────────────────
+    # Situação real em 11/08/2026 (ver docs/AFFILIATES.md e
+    # awin_advertisers.py): publisher cadastrado, todos os programas
+    # "pending" (aguardando aprovação). Nada aqui liga chamada real —
+    # ver awin_enabled/awin_shadow_mode, ambos False por padrão.
+    #
+    # Publisher ID não é segredo (é público, aparece no painel/contrato) —
+    # por isso tem valor padrão no código. Token/API key vem só quando os
+    # programas forem aprovados; nunca commitar um valor real.
+    awin_publisher_id: str = "3032803"
+    awin_api_token: Optional[str] = None
+    # Liga chamadas reais à API/feed da Awin. Deve continuar False até
+    # haver credencial real E aprovação confirmada.
+    awin_enabled: bool = False
+    # Sincroniza e resolve ofertas Awin internamente para comparar com a
+    # Cobasi atual, mas nunca exibe ao tutor nem abre links — ver §29 do
+    # documento de arquitetura interno. Só faz sentido com awin_enabled=True.
+    awin_shadow_mode: bool = False
+    # Conservador de propósito — feeds de afiliados não mudam a cada minuto.
+    awin_sync_interval_minutes: int = 1440
+
     @field_validator("debug", mode="before")
     @classmethod
     def _coerce_bool_like(cls, value):
