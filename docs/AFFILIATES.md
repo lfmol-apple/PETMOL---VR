@@ -22,11 +22,29 @@ produto específico ou storefront geral.
     (`STOREFRONT_AFFILIATE_URLS`), quando existir.
 - `GET /commerce/monetized-offer?merchant=...&context=product|store&gtin=...`
   — endpoint público de leitura para testar a resolução acima.
+- `services/price-service/src/commerce_offers.py` — `resolve_cobasi_product_offer()`,
+  usado por `GET /commerce/product-offer?q=...` (consumido pela tela
+  "Comprar novamente"). Casa o preço real da Cobasi (`commerce_pricing.py`,
+  API pública VTEX) com o link afiliado cadastrado do MESMO produto —
+  o casamento é pelo campo `ean` que a própria API da Cobasi retorna por
+  SKU, cruzado com `products_catalog.barcode_normalized`. Isso evita
+  precisar de GTIN vindo do frontend/scanner (não alterado nesta tarefa) e
+  evita casar por nome/marca (§12 — embalagens diferentes do mesmo produto
+  têm GTINs diferentes). Em prod, sem link ativo para o EAN encontrado →
+  `found=False`. Em dev, cai para a URL crua da Cobasi (`link_type=direct`)
+  só para não travar o teste local.
 - `/v1/admin/affiliate-links` (GET/POST/PATCH/DELETE, protegido por
   `get_current_admin`/`get_current_admin_or_readonly_key`) — cadastro manual
   de deep links por GTIN, enquanto não há API oficial da rede para gerar
   isso automaticamente. `config.affiliate_only_commerce_enforced` amarra a
   aplicação estrita ao `env` (prod → true; dev → fallback direto permitido).
+- `isPartnerVisibleInStoreArea`/`isPartnerVisibleForSearch`
+  (`homeShoppingPartners.ts`) — filtram quais merchants aparecem na área
+  geral "Lojas" e nos pickers de busca (QuickBuyRow, fallback do
+  PriceCompareList) em produção; em dev mostram os 8 sempre, para teste.
+- `trackClick`/`AnalyticsEvent.link_type` — todo clique comercial registra
+  se o link aberto foi `affiliate_product`, `affiliate_store`,
+  `affiliate_search` ou `direct` (só aparece em dev).
 
 ## Cadastrar um deep link (Cobasi)
 
@@ -41,6 +59,16 @@ produto específico ou storefront geral.
 
 Desativar um link: `PATCH /v1/admin/affiliate-links/{id}` com
 `{"active": false}` — some da UI sem deploy de frontend.
+
+## Testes
+
+`services/price-service/tests/test_affiliate_links.py` — cobre a matriz do
+§35: storefront geral (Cobasi aparece, Petz não), recompra sem/com deep
+link, GTIN diferente não reaproveita link de outro produto, dev vs prod
+(fallback direto só em dev), desativar link esconde a oferta na hora, e
+validação de URL do cadastro admin (https obrigatório, `javascript:`
+bloqueado). Roda com `pytest tests/test_affiliate_links.py` — sempre
+monkeypatcha `fetch_cobasi_price`, nunca chama a API real da Cobasi.
 
 ## Status por merchant
 
