@@ -5,8 +5,16 @@ import { petDo } from '@/lib/petGender';
 import { trackClick } from '@/lib/analytics/click';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import type { PetCareReminder } from '@/lib/petCareDomain';
-import { HOME_SHOPPING_PARTNERS, openHomeShoppingPartner, navigateToPartnerUrl, type HomeShoppingPartner, type HomeShoppingPartnerId } from './homeShoppingPartners';
-import { fetchProductPrice, formatBRLPrice, type ProductPriceResult } from './productPricing';
+import {
+  HOME_SHOPPING_PARTNERS,
+  openHomeShoppingPartner,
+  navigateToPartnerUrl,
+  isPartnerVisibleInStoreArea,
+  isPartnerVisibleForSearch,
+  type HomeShoppingPartner,
+  type HomeShoppingPartnerId,
+} from './homeShoppingPartners';
+import { fetchProductOffer, formatBRLPrice, type ProductOfferResult } from './productPricing';
 import {
   buildReorderCards,
   STORE_CATEGORIES,
@@ -45,6 +53,18 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   }, [open, currentPet.pet_id]);
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
+
+  const visibleStorePartners = useMemo(
+    () => HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea),
+    [],
+  );
+  const visibleQuickBuyPartners = useMemo(
+    () =>
+      QUICK_BUY_PARTNERS
+        .map((id) => HOME_SHOPPING_PARTNERS.find((p) => p.id === id))
+        .filter((p): p is HomeShoppingPartner => Boolean(p) && isPartnerVisibleForSearch(p as HomeShoppingPartner)),
+    [],
+  );
 
   if (!open) return null;
 
@@ -173,16 +193,18 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                           key={card.id}
                           card={card}
                           isPickerOpen={quickBuyFor === pickerKey}
+                          visibleQuickBuyPartners={visibleQuickBuyPartners}
                           onTogglePicker={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
                           onQuickBuy={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, label: card.label })}
-                          onDirectBuy={(price) => {
-                            if (price.url) navigateToPartnerUrl(price.url);
+                          onDirectBuy={(offer) => {
+                            if (offer.url) navigateToPartnerUrl(offer.url);
                             void trackClick({
                               source: 'home',
                               cta_type: 'shop_reorder_buy_direct',
-                              target: 'cobasi',
+                              target: offer.merchant,
+                              link_type: offer.link_type === 'affiliate_product' ? 'affiliate_product' : 'direct',
                               pet_id: currentPet.pet_id,
-                              metadata: { domain: card.domain, label: card.label, price: price.price },
+                              metadata: { domain: card.domain, label: card.label, price: offer.price },
                             });
                           }}
                         />
@@ -202,7 +224,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🏪 Lojas</p>
                 <div className="grid grid-cols-2 gap-3">
-                  {HOME_SHOPPING_PARTNERS.map((partner) => (
+                  {visibleStorePartners.map((partner) => (
                     <button
                       key={partner.id}
                       type="button"
@@ -243,27 +265,29 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 interface ReorderCardItemProps {
   card: ReorderCard;
   isPickerOpen: boolean;
+  visibleQuickBuyPartners: HomeShoppingPartner[];
   onTogglePicker: () => void;
   onQuickBuy: (partnerId: HomeShoppingPartnerId) => void;
-  onDirectBuy: (price: ProductPriceResult) => void;
+  onDirectBuy: (offer: ProductOfferResult) => void;
 }
 
-// Busca o preço real (Cobasi) ao montar. Enquanto carrega ou quando não
-// encontrado, cai no comportamento anterior (escolha entre 3 lojas sem
-// preço) — nunca trava a experiência esperando a Cobasi responder. Quando
-// há preço real E ele está abaixo do preço de tabela, isso É a promoção —
-// só de itens que o Baby realmente usa, sem seção genérica separada.
-function ReorderCardItem({ card, isPickerOpen, onTogglePicker, onQuickBuy, onDirectBuy }: ReorderCardItemProps) {
-  const [price, setPrice] = useState<ProductPriceResult | null>(null);
+// Busca a oferta real (preço Cobasi casado com link afiliado do MESMO
+// produto por EAN — ver commerce_offers.py) ao montar. `found` só vem true
+// quando existe caminho monetizável; em produção, sem isso, nunca cai para
+// a URL crua da Cobasi. Enquanto carrega ou quando não encontrado, cai no
+// comportamento anterior (escolha entre lojas visíveis) — nunca trava a
+// experiência esperando a Cobasi responder.
+function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy }: ReorderCardItemProps) {
+  const [offer, setOffer] = useState<ProductOfferResult | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setPrice(null);
-    fetchProductPrice(card.searchQuery).then((result) => {
+    setOffer(null);
+    fetchProductOffer(card.searchQuery).then((result) => {
       if (!cancelled) {
-        setPrice(result);
+        setOffer(result);
         setLoading(false);
       }
     });
@@ -272,10 +296,11 @@ function ReorderCardItem({ card, isPickerOpen, onTogglePicker, onQuickBuy, onDir
     };
   }, [card.searchQuery]);
 
-  const hasRealPrice = Boolean(price?.found && typeof price.price === 'number' && price.url);
+  const hasMonetizedOffer = Boolean(offer?.found && typeof offer.price === 'number' && offer.url);
   const hasDiscount = Boolean(
-    hasRealPrice && price && typeof price.list_price === 'number' && price.list_price > (price.price ?? 0),
+    hasMonetizedOffer && offer && typeof offer.list_price === 'number' && offer.list_price > (offer.price ?? 0),
   );
+  const noBuyOptionAtAll = !hasMonetizedOffer && visibleQuickBuyPartners.length === 0;
 
   return (
     <div className={`p-3.5 bg-white border rounded-2xl shadow-sm ${hasDiscount ? 'border-orange-300' : 'border-gray-200'}`}>
@@ -293,47 +318,50 @@ function ReorderCardItem({ card, isPickerOpen, onTogglePicker, onQuickBuy, onDir
           <p className={`text-[11px] mt-0.5 font-semibold ${card.urgencyTone === 'overdue' ? 'text-rose-600' : card.urgencyTone === 'today' ? 'text-amber-600' : 'text-gray-400'}`}>
             {card.urgencyText}
           </p>
-          {loading && <p className="text-[10px] mt-1 text-gray-300">Buscando preço...</p>}
-          {!loading && hasRealPrice && price && (
+          {loading && <p className="text-[10px] mt-1 text-gray-300">Buscando oferta...</p>}
+          {!loading && hasMonetizedOffer && offer && (
             <p className="text-[12px] mt-1 font-bold text-emerald-700">
-              {formatBRLPrice(price.price as number)} na Cobasi
+              {formatBRLPrice(offer.price as number)} na Cobasi
               {hasDiscount && (
-                <span className="ml-1.5 text-[10px] font-semibold text-gray-400 line-through">{formatBRLPrice(price.list_price as number)}</span>
+                <span className="ml-1.5 text-[10px] font-semibold text-gray-400 line-through">{formatBRLPrice(offer.list_price as number)}</span>
               )}
             </p>
           )}
+          {!loading && noBuyOptionAtAll && (
+            <p className="text-[11px] mt-1 text-gray-400">Estamos buscando opções de compra para este produto.</p>
+          )}
         </div>
-        <button
-          type="button"
-          disabled={loading}
-          onClick={() => (hasRealPrice && price ? onDirectBuy(price) : onTogglePicker())}
-          className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[12px] font-bold px-3 py-1.5 active:scale-95 transition-all disabled:opacity-50"
-        >
-          🛒 Comprar
-        </button>
+        {!noBuyOptionAtAll && (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => (hasMonetizedOffer && offer ? onDirectBuy(offer) : onTogglePicker())}
+            className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[12px] font-bold px-3 py-1.5 active:scale-95 transition-all disabled:opacity-50"
+          >
+            🛒 Comprar
+          </button>
+        )}
       </div>
-      {!hasRealPrice && isPickerOpen && <QuickBuyRow onPick={onQuickBuy} />}
+      {!hasMonetizedOffer && isPickerOpen && visibleQuickBuyPartners.length > 0 && (
+        <QuickBuyRow partners={visibleQuickBuyPartners} onPick={onQuickBuy} />
+      )}
     </div>
   );
 }
 
-function QuickBuyRow({ onPick }: { onPick: (partnerId: HomeShoppingPartnerId) => void }) {
+function QuickBuyRow({ partners, onPick }: { partners: HomeShoppingPartner[]; onPick: (partnerId: HomeShoppingPartnerId) => void }) {
   return (
     <div className="mt-2.5 flex gap-2" onClick={(e) => e.stopPropagation()}>
-      {QUICK_BUY_PARTNERS.map((partnerId) => {
-        const partner = HOME_SHOPPING_PARTNERS.find((p) => p.id === partnerId);
-        if (!partner) return null;
-        return (
-          <button
-            key={partnerId}
-            type="button"
-            onClick={() => onPick(partnerId)}
-            className="flex-1 rounded-xl border border-gray-200 bg-gray-50 py-2 text-[12px] font-bold text-gray-700 hover:bg-white hover:border-emerald-300 active:scale-95 transition-all"
-          >
-            {partner.name}
-          </button>
-        );
-      })}
+      {partners.map((partner) => (
+        <button
+          key={partner.id}
+          type="button"
+          onClick={() => onPick(partner.id)}
+          className="flex-1 rounded-xl border border-gray-200 bg-gray-50 py-2 text-[12px] font-bold text-gray-700 hover:bg-white hover:border-emerald-300 active:scale-95 transition-all"
+        >
+          {partner.name}
+        </button>
+      ))}
     </div>
   );
 }

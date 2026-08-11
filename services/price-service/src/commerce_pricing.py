@@ -44,6 +44,11 @@ class ProductPriceResult(BaseModel):
     list_price: Optional[float] = None
     is_available: Optional[bool] = None
     url: Optional[str] = None
+    # EAN do SKU retornado pela própria API VTEX da Cobasi (campo `ean` do
+    # item) — usado para cruzar com products_catalog.barcode_normalized e
+    # achar um link afiliado por produto, sem precisar de GTIN vindo do
+    # frontend. Ver affiliate_links.py / commerce_offers.py.
+    ean: Optional[str] = None
 
 
 def _cache_key(query: str) -> str:
@@ -89,10 +94,14 @@ async def _fetch_cobasi_price_uncached(query: str) -> ProductPriceResult:
         product = products[0]
         items = product.get("items") or []
         offer: dict = {}
+        ean: Optional[str] = None
         if items:
             sellers = items[0].get("sellers") or []
             if sellers:
                 offer = sellers[0].get("commertialOffer") or {}
+            raw_ean = items[0].get("ean")
+            if isinstance(raw_ean, str) and raw_ean.strip().isdigit():
+                ean = raw_ean.strip()
 
         link_text = product.get("linkText")
         product_url = f"https://www.cobasi.com.br/{link_text}/p" if link_text else None
@@ -107,6 +116,7 @@ async def _fetch_cobasi_price_uncached(query: str) -> ProductPriceResult:
             list_price=float(offer["ListPrice"]) if isinstance(offer.get("ListPrice"), (int, float)) else None,
             is_available=offer.get("IsAvailable"),
             url=product_url,
+            ean=ean,
         )
     except Exception as exc:
         logger.info("[commerce_pricing] cobasi lookup failed query=%r error=%s", query, exc)

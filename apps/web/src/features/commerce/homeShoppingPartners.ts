@@ -354,3 +354,28 @@ export function partnerHasAffiliate(partnerId: HomeShoppingPartnerId): boolean {
 export function countActiveAffiliates(): number {
   return Object.values(AFF).filter(Boolean).length;
 }
+
+// ── Visibilidade comercial (affiliate-only) ────────────────────────────────
+// Em dev, mostra todos os 8 (comportamento de sempre, para poder testar o
+// fluxo sem precisar configurar nada). Em prod, cada superfície só mostra
+// merchants que de fato resolvem para algo monetizável naquele contexto —
+// nunca um merchant que só vai cair no DIRECT_SEARCH_URLS/fallback comum.
+
+/**
+ * Área geral "Lojas": visível se tem storefront afiliada fixa (abre direto,
+ * sem busca — ver storefrontAffiliateUrl) OU se tem afiliado configurado
+ * para busca por categoria (buildAffiliateUrl com AFF[id] setado).
+ */
+export function isPartnerVisibleInStoreArea(partner: HomeShoppingPartner): boolean {
+  if (!AFFILIATE_ONLY_COMMERCE) return true;
+  return Boolean(partner.storefrontAffiliateUrl) || partnerHasAffiliate(partner.id);
+}
+
+/**
+ * Fluxos por busca de texto (recompra rápida, fallback do PriceCompareList):
+ * a storefront não serve aqui — precisa de afiliado que funcione com query.
+ */
+export function isPartnerVisibleForSearch(partner: HomeShoppingPartner): boolean {
+  if (!AFFILIATE_ONLY_COMMERCE) return true;
+  return partnerHasAffiliate(partner.id);
+}

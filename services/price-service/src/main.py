@@ -1389,6 +1389,22 @@ async def commerce_product_price(
     return await fetch_cobasi_price(q)
 
 
+@app.get("/commerce/product-offer", tags=["Catalog"])
+async def commerce_product_offer(
+    q: str = Query(..., min_length=2, max_length=150, description="Product search query"),
+    db: Session = Depends(get_db),
+):
+    """
+    Oferta monetizável real para "Comprar novamente" — casa o preço da
+    Cobasi (por EAN) com o link afiliado cadastrado daquele produto. Ver
+    commerce_offers.py. `found=False` significa "não ofereça este
+    merchant para este produto", nunca "use o link direto sem comissão"
+    (exceto em dev, sinalizado por link_type="direct").
+    """
+    from .commerce_offers import resolve_cobasi_product_offer
+    return await resolve_cobasi_product_offer(db, q)
+
+
 @app.get("/commerce/monetized-offer", tags=["Catalog"])
 async def commerce_monetized_offer(
     merchant: str = Query(..., description="cobasi, petz, etc."),

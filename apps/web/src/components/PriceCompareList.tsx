@@ -13,6 +13,7 @@ import { API_BASE_URL } from '@/lib/api';
 import {
   HOME_SHOPPING_PARTNERS,
   openHomeShoppingPartner,
+  isPartnerVisibleForSearch,
 } from '@/features/commerce/homeShoppingPartners';
 import { trackPartnerClicked } from '@/lib/v1Metrics';
 
@@ -111,7 +112,7 @@ export function PriceCompareList({ query, petId, label }: PriceCompareListProps)
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
           Onde comprar{label ? ` ${label}` : ''}
         </p>
-        {HOME_SHOPPING_PARTNERS.map((partner) => (
+        {HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => (
           <button
             key={partner.id}
             type="button"
