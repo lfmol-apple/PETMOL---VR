@@ -49,6 +49,7 @@ from .admin import affiliate_links_admin_router
 from .admin import models as _admin_models
 from .affiliate_links import ProductAffiliateLink as _product_affiliate_link_model  # noqa: F401 — register with Base
 from .affiliate_links import MarketplaceOffer as _marketplace_offer_model  # noqa: F401 — register with Base
+from .affiliate_feed import AffiliateFeedOffer as _affiliate_feed_offer_model  # noqa: F401 — register with Base
 from .admin.models import AdminUser
 from .user_auth.models import PasswordResetToken as _password_reset_token_model  # noqa: F401
 from .user_auth.models import User
