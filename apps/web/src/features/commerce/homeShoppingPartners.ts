@@ -324,6 +324,7 @@ export function openHomeShoppingPartner(
     source: 'home',
     cta_type: 'shop_redirect',
     target: partner.id,
+    link_type: AFF[partner.id] ? 'affiliate_search' : 'direct',
   });
 }
 

@@ -309,6 +309,9 @@ def run_pg_migrations(engine: Engine) -> None:
 
         _migrate_push_subscriptions_from_json(conn)
 
+        # analytics_events: distinguish monetized vs unmonetized clicks (Aug 2026)
+        _pg_add_column_if_missing(conn, "analytics_events", "link_type", "VARCHAR(24)")
+
 
 def _migrate_push_subscriptions_from_json(conn) -> None:
     """One-time import of the legacy push_subscriptions.json (file-based,
@@ -765,6 +768,9 @@ def run_sqlite_migrations(engine: Engine) -> None:
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_public_missing_pet_submissions_ip ON public_missing_pet_submissions (ip_address)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_public_missing_pet_submissions_created ON public_missing_pet_submissions (created_at)"))
+
+        # analytics_events: distinguish monetized vs unmonetized clicks (Aug 2026)
+        changed |= _sqlite_add_column_if_missing(conn, "analytics_events", "link_type", "TEXT")
 
         # `changed` is intentionally unused; kept for potential logging later.
         _ = changed

@@ -24,6 +24,7 @@ class ClickRequest(BaseModel):
     source: str          # rg_public | home | sos | vaccines | rg_generator
     cta_type: str        # rg_share | found_pet | create_rg | benefits_view | shop_redirect | doglife_redirect
     target: Optional[str] = None   # petz | cobasi | petlove | internal
+    link_type: Optional[str] = None  # affiliate_product | affiliate_store | affiliate_search | direct
     pet_id: Optional[str] = None
     rg_public_id: Optional[str] = None
     metadata: Optional[dict] = None  # livre, sem PII
@@ -82,6 +83,7 @@ def record_click(
         source=body.source[:40],
         cta_type=body.cta_type[:40],
         target=body.target[:60] if body.target else None,
+        link_type=body.link_type[:24] if body.link_type else None,
         pet_id=body.pet_id,
         rg_public_id=body.rg_public_id,
         metadata_json=meta_str,

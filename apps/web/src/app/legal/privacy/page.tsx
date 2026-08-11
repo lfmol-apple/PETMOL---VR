@@ -8,7 +8,7 @@ export default function PrivacyPage() {
       backHref="/"
     >
       <PremiumCard>
-        <p className="text-slate-500 text-xs mb-6">Última atualização: 05 de agosto de 2026</p>
+        <p className="text-slate-500 text-xs mb-6">Última atualização: 11 de agosto de 2026</p>
         <div className="prose prose-sm prose-slate max-w-none">
           <h2>1. Introdução</h2>
           <p>
@@ -110,6 +110,11 @@ export default function PrivacyPage() {
           <h3>5.3. Compartilhamento com Cuidadores</h3>
           <p>
             Se você convidar outra pessoa para cuidar do seu pet junto com você (recurso de família/cuidador), essa pessoa passa a ter acesso aos dados daquele pet específico — não aos seus dados pessoais de conta. Você pode remover o acesso dela a qualquer momento.
+          </p>
+
+          <h3>5.4. Links de Afiliados e Lojas Parceiras</h3>
+          <p>
+            O PETMOL pode apresentar links para lojas e serviços de terceiros (ex: na seção &quot;Lojas&quot; e em &quot;Comprar novamente&quot;). Alguns desses links fazem parte de programas de afiliação e podem gerar comissão ao PETMOL quando você realiza uma compra, sem custo adicional para você decorrente dessa relação. Ao acessar a loja externa, você passa a estar sujeito aos termos, política de privacidade e condições de pagamento e entrega dessa loja — o PETMOL não participa da transação, não processa pagamentos e não recebe dados financeiros da sua compra.
           </p>
 
           <h2>6. Armazenamento e Segurança</h2>
@@ -232,8 +237,8 @@ export default function PrivacyPage() {
 
           <div className="mt-4 p-6 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-blue-900">
-              <strong>Versão:</strong> 2026-08-05<br />
-              <strong>Data de vigência:</strong> 05 de agosto de 2026<br />
+              <strong>Versão:</strong> 2026-08-11<br />
+              <strong>Data de vigência:</strong> 11 de agosto de 2026<br />
               <strong>Conformidade:</strong> LGPD (Lei 13.709/2018)
             </p>
           </div>

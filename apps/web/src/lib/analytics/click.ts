@@ -21,7 +21,7 @@ export interface ClickPayload {
    * Natureza do link comercial de fato aberto — para distinguir clique
    * monetizado de fallback sem afiliado. Ausente em cliques não-comerciais.
    */
-  link_type?: 'affiliate_product' | 'affiliate_store' | 'direct';
+  link_type?: 'affiliate_product' | 'affiliate_store' | 'affiliate_search' | 'direct';
   /** Pet context, if available */
   pet_id?: string;
   /** Free-form metadata — no PII */

@@ -11,6 +11,7 @@ import {
   navigateToPartnerUrl,
   isPartnerVisibleInStoreArea,
   isPartnerVisibleForSearch,
+  partnerHasAffiliate,
   type HomeShoppingPartner,
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
@@ -82,6 +83,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
       source: 'home',
       cta_type: ctaType,
       target: partnerId,
+      link_type: partnerHasAffiliate(partnerId) ? 'affiliate_search' : 'direct',
       pet_id: currentPet.pet_id,
       metadata,
     });
@@ -114,6 +116,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
       source: 'home',
       cta_type: 'shop_partner_category_click',
       target: browsingPartner.id,
+      link_type: partnerHasAffiliate(browsingPartner.id) ? 'affiliate_search' : 'direct',
       pet_id: currentPet.pet_id,
       metadata: { category: category.id },
     });
@@ -254,6 +257,11 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                   ))}
                 </div>
               </div>
+
+              <p className="text-center text-[10px] text-gray-400 pt-1">
+                Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
+                A disponibilidade, preço, pagamento e entrega são de responsabilidade da loja escolhida.
+              </p>
             </>
           )}
         </div>
