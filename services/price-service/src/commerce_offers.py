@@ -73,16 +73,43 @@ def _to_result(offer: MonetizedOffer) -> ProductOfferResult:
 
 
 async def resolve_cobasi_product_offer(
-    db: Session, query: str, target_weight_kg: Optional[float] = None
+    db: Session,
+    query: Optional[str] = None,
+    target_weight_kg: Optional[float] = None,
+    *,
+    gtin: Optional[str] = None,
+    product_id: Optional[int] = None,
 ) -> ProductOfferResult:
-    offers = await get_commerce_offers(db, query, target_weight_kg)
+    offers = await get_commerce_offers(db, query, target_weight_kg, gtin=gtin, product_id=product_id)
     if not offers:
         return _NOT_FOUND
     return _to_result(offers[0])
 
 
 async def get_commerce_offers(
-    db: Session, query: str, target_weight_kg: Optional[float] = None
+    db: Session,
+    query: Optional[str] = None,
+    target_weight_kg: Optional[float] = None,
+    *,
+    gtin: Optional[str] = None,
+    product_id: Optional[int] = None,
+    name: Optional[str] = None,
+    brand: Optional[str] = None,
 ) -> list[MonetizedOffer]:
+    """`query`/`target_weight_kg` continuam funcionando exatamente como
+    antes (compatibilidade). `gtin`/`product_id`/`name`/`brand` são novos
+    e opcionais — quando o frontend souber o GTIN do produto (ex: já
+    escaneado), passar aqui é o caminho preferido pra providers
+    estruturados (ex: AwinFeedProvider, que só resolve por GTIN exato,
+    nunca por texto). Providers de busca textual (Cobasi/VTEX hoje)
+    continuam usando `query`."""
     engine = build_default_engine(db)
-    return await engine.get_offers(ProductContext(query=query, weight_kg=target_weight_kg))
+    context = ProductContext(
+        query=query,
+        weight_kg=target_weight_kg,
+        gtin=gtin,
+        product_id=product_id,
+        name=name,
+        brand=brand,
+    )
+    return await engine.get_offers(context)

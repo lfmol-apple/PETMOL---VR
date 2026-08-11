@@ -1393,8 +1393,9 @@ async def commerce_product_price(
 
 @app.get("/commerce/product-offer", tags=["Catalog"])
 async def commerce_product_offer(
-    q: str = Query(..., min_length=2, max_length=150, description="Product search query"),
+    q: Optional[str] = Query(default=None, min_length=2, max_length=150, description="Product search query"),
     weight_kg: Optional[float] = Query(default=None, description="Peso real do pacote (ex: 7.5) para escolher o SKU certo entre variantes de tamanho"),
+    gtin: Optional[str] = Query(default=None, description="GTIN do produto, quando já conhecido (ex: escaneado) — preferido para providers estruturados"),
     db: Session = Depends(get_db),
 ):
     """
@@ -1406,16 +1407,21 @@ async def commerce_product_offer(
 
     `weight_kg`: a Cobasi agrupa vários tamanhos de pacote sob o mesmo
     produto — sem isso, o item padrão deles (não necessariamente o
-    tamanho real do tutor) é usado.
+    tamanho real do tutor) é usado. `gtin`: opcional, usado por providers
+    estruturados (ex: futuro AwinFeedProvider) que não dependem de busca
+    textual — `q` continua funcionando exatamente como antes.
     """
+    if not q and not gtin:
+        raise HTTPException(status_code=400, detail="informe ao menos q ou gtin")
     from .commerce_offers import resolve_cobasi_product_offer
-    return await resolve_cobasi_product_offer(db, q, target_weight_kg=weight_kg)
+    return await resolve_cobasi_product_offer(db, q, target_weight_kg=weight_kg, gtin=gtin)
 
 
 @app.get("/commerce/offers", tags=["Catalog"])
 async def commerce_offers(
-    q: str = Query(..., min_length=2, max_length=150, description="Product search query"),
+    q: Optional[str] = Query(default=None, min_length=2, max_length=150, description="Product search query"),
     weight_kg: Optional[float] = Query(default=None, description="Peso real do pacote, quando aplicável"),
+    gtin: Optional[str] = Query(default=None, description="GTIN do produto, quando já conhecido (ex: escaneado) — preferido para providers estruturados"),
     db: Session = Depends(get_db),
 ):
     """
@@ -1426,10 +1432,14 @@ async def commerce_offers(
 
     Nunca inclui oferta sem link monetizável: lista vazia = "estamos
     buscando opções", nunca "use o link direto sem comissão" (exceto em
-    dev, sinalizado por link_type="direct").
+    dev, sinalizado por link_type="direct"). `gtin`: opcional — o
+    frontend deve enviar quando souber (ex: produto já escaneado);
+    providers de busca textual (Cobasi/VTEX) continuam usando `q`.
     """
+    if not q and not gtin:
+        raise HTTPException(status_code=400, detail="informe ao menos q ou gtin")
     from .commerce_offers import CommerceOfferOut, get_commerce_offers
-    offers = await get_commerce_offers(db, q, target_weight_kg=weight_kg)
+    offers = await get_commerce_offers(db, q, target_weight_kg=weight_kg, gtin=gtin)
     return {"offers": [CommerceOfferOut(**vars(o)) for o in offers]}
 
 

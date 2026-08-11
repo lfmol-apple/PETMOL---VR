@@ -380,3 +380,32 @@ def test_marketplace_context_via_http_endpoint(client):
     offer = r.json()["offer"]
     assert offer["url"] == "https://s.shopee.com.br/http-test"
     assert offer["link_type"] == "affiliate_marketplace_offer"
+
+
+# ── /commerce/offers e /commerce/product-offer aceitam gtin opcional ──────
+# (preparação para providers estruturados como AwinFeedProvider — ver
+# awin_feed_provider.py; não quebra o contrato query-only existente)
+
+def test_offers_endpoint_requires_q_or_gtin(client):
+    r = client.get("/commerce/offers")
+    assert r.status_code == 400
+
+
+def test_product_offer_endpoint_requires_q_or_gtin(client):
+    r = client.get("/commerce/product-offer")
+    assert r.status_code == 400
+
+
+def test_offers_endpoint_accepts_gtin_only_without_query(client):
+    """Sem provider estruturado registrado ainda, gtin sozinho retorna
+    lista vazia (não erro) — Cobasi/VTEX exige texto, não GTIN."""
+    r = client.get("/commerce/offers", params={"gtin": GTIN})
+    assert r.status_code == 200
+    assert r.json()["offers"] == []
+
+
+def test_offers_endpoint_still_works_with_query_only(client):
+    """Compatibilidade: nenhum caller existente que só manda `q` quebra."""
+    r = client.get("/commerce/offers", params={"q": "produto que não existe xyz123"})
+    assert r.status_code == 200
+    assert "offers" in r.json()

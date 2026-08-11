@@ -20,20 +20,28 @@ export interface CommerceOffer {
  * Lista de ofertas monetizáveis para um produto, menor preço primeiro —
  * ver commerce_offers.py/commerce_provider.py no backend. Hoje só a
  * Cobasi está ativa (0 ou 1 item), mas o contrato já é multi-provider:
- * Amazon/Shopee/ML/Petz entram na mesma lista quando aprovados, sem
+ * Amazon/Shopee/ML/Petz/Awin entram na mesma lista quando aprovados, sem
  * mudar esta função nem quem a chama.
+ *
+ * `gtin`: opcional — quando o produto já foi escaneado e temos o GTIN,
+ * enviar aqui é o caminho preferido para providers estruturados (ex:
+ * futuro AwinFeedProvider, que só resolve por GTIN exato). Nenhuma tela
+ * hoje tem GTIN disponível nesse ponto, então nenhum chamador precisa
+ * passar isso ainda — é só o contrato já pronto pra quando tiver.
  *
  * Nunca lança erro: timeout/falha vira lista vazia, e quem chama mostra
  * "estamos buscando opções" — nunca um link sem comissão.
  */
-export async function fetchCommerceOffers(query: string, packageSizeKg?: number): Promise<CommerceOffer[]> {
+export async function fetchCommerceOffers(query: string, packageSizeKg?: number, gtin?: string): Promise<CommerceOffer[]> {
   const trimmed = query.trim();
-  if (!trimmed) return [];
+  if (!trimmed && !gtin) return [];
   try {
-    const params = new URLSearchParams({ q: trimmed });
+    const params = new URLSearchParams();
+    if (trimmed) params.set('q', trimmed);
     if (typeof packageSizeKg === 'number' && packageSizeKg > 0) {
       params.set('weight_kg', String(packageSizeKg));
     }
+    if (gtin) params.set('gtin', gtin);
     const res = await fetch(`${API_BASE_URL}/commerce/offers?${params.toString()}`, {
       signal: AbortSignal.timeout(5000),
     });
