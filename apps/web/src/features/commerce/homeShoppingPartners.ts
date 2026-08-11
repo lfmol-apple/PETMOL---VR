@@ -2,6 +2,27 @@ import { trackClick } from '@/lib/analytics/click';
 
 export type HomeShoppingPartnerId = 'cobasi' | 'petz' | 'amazon' | 'petlove' | 'doglife' | 'shopee' | 'mercadolivre' | 'araujo';
 
+/**
+ * Estado real da integração de afiliado do merchant — não confundir com
+ * "a loja aparece na UI hoje". 'disabled' até haver credencial/link
+ * afiliado de fato funcionando em código; 'configured' quando o mecanismo
+ * está ligado mas ainda não confirmado gerando comissão; 'approved' quando
+ * o programa está aprovado e validado ponta a ponta.
+ */
+export type AffiliateStatus = 'disabled' | 'configured' | 'approved';
+
+/**
+ * Mecanismo pelo qual o merchant monetiza — cada rede/programa tem o seu,
+ * não dá para tratar todos como se fossem iguais (ex: Cobasi/Petz/Petlove
+ * NÃO usam necessariamente a mesma rede só por serem do mesmo setor).
+ *  - fixed_store        : storefront afiliada fixa (sem deep link por produto)
+ *  - product_deeplink   : link afiliado específico por produto/GTIN
+ *  - search_template     : template de busca com ID de afiliado embutido
+ *  - tracking_tag        : tag de afiliado anexada à URL (ex: Amazon Associates)
+ *  - none                : mecanismo ainda não confirmado/documentado
+ */
+export type AffiliateMode = 'fixed_store' | 'product_deeplink' | 'search_template' | 'tracking_tag' | 'none';
+
 export interface HomeShoppingPartner {
   id: HomeShoppingPartnerId;
   name: string;
@@ -10,6 +31,14 @@ export interface HomeShoppingPartner {
   logoAlt: string;
   fallbackUrl?: string;
   directUrl?: string;
+  /** Estado real da integração — ver AffiliateStatus. */
+  affiliateStatus: AffiliateStatus;
+  /** Mecanismo de monetização do merchant — ver AffiliateMode. */
+  affiliateMode: AffiliateMode;
+  /** Este merchant tem (ou terá) link afiliado por produto/GTIN específico. */
+  supportsProductDeepLink: boolean;
+  /** Este merchant tem (ou terá) uma storefront/vitrine afiliada fixa para navegação geral. */
+  supportsStorefrontAffiliate: boolean;
   /**
    * Monta a URL de busca afiliada dado um produto e o ID de afiliado.
    * Quando não definida, usa o comportamento padrão (fallbackUrl/directUrl).
@@ -23,6 +52,19 @@ export interface HomeShoppingPartner {
    */
   buildAffiliateUrl?: (query: string, affiliateId: string) => string;
 }
+
+// ── Affiliate-only commerce ────────────────────────────────────────────────
+// Em produção, uma loja só pode aparecer/ser oferecida como CTA de compra
+// quando existe caminho monetizável real (afiliado). Fallback para link
+// comum (sem comissão) só é permitido em dev, para poder testar o fluxo.
+// Ainda não é consumido por resolvePartnerUrl/openHomeShoppingPartner nem
+// pela UI — isso entra em um commit seguinte de filtragem; por ora é só a
+// flag disponível para quem for aplicá-la.
+const _affiliateOnlyOverride = process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE;
+export const AFFILIATE_ONLY_COMMERCE: boolean =
+  _affiliateOnlyOverride != null
+    ? _affiliateOnlyOverride === 'true' || _affiliateOnlyOverride === '1'
+    : process.env.NODE_ENV === 'production';
 
 // ── IDs de afiliado lidos das env vars (bakeadas no build) ────────────────────
 // Configure em .env.local ou no VPS /etc/petmol/petmol.env:
@@ -53,8 +95,17 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/cobasi.png',
     logoAlt: 'Cobasi',
     fallbackUrl: 'https://www.cobasi.com.br',
-    // Lomadee: cole a URL base do painel em NEXT_PUBLIC_AFFILIATE_COBASI
-    // A URL de destino é appended via &url=
+    // Programa real: Minha Loja Cobasi / Empreendedor MAIS — storefront fixa
+    // confirmada + deep link por produto gerado manualmente no painel MAIS
+    // (não é Lomadee; o buildAffiliateUrl abaixo é legado/nunca ativado por
+    // env var e será substituído quando o deep link real for ligado).
+    // affiliateStatus segue 'disabled' até esse mecanismo real ser ligado em
+    // código (commit seguinte) — supportsProductDeepLink/StorefrontAffiliate
+    // documentam o que já sabemos ser possível pelo programa.
+    affiliateStatus: 'disabled',
+    affiliateMode: 'product_deeplink',
+    supportsProductDeepLink: true,
+    supportsStorefrontAffiliate: true,
     buildAffiliateUrl: (query, base) =>
       `${base}&url=${encodeURIComponent(`https://www.cobasi.com.br/busca?q=${encodeURIComponent(query)}`)}`,
   },
@@ -65,6 +116,11 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/petz.png',
     logoAlt: 'Petz',
     fallbackUrl: 'https://www.petz.com.br',
+    // Aprovação/configuração ainda em resolução — nenhum mecanismo confirmado.
+    affiliateStatus: 'disabled',
+    affiliateMode: 'none',
+    supportsProductDeepLink: false,
+    supportsStorefrontAffiliate: false,
     buildAffiliateUrl: (query, base) =>
       `${base}&url=${encodeURIComponent(`https://www.petz.com.br/busca?q=${encodeURIComponent(query)}`)}`,
   },
@@ -75,7 +131,11 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/amazon.svg',
     logoAlt: 'Amazon',
     fallbackUrl: 'https://www.amazon.com.br/s?k=pet+shop',
-    // Amazon Associates: formato fixo, tag no query param
+    // Amazon Associates: tag anexada à URL — sem tag configurada, sem programa.
+    affiliateStatus: 'disabled',
+    affiliateMode: 'tracking_tag',
+    supportsProductDeepLink: false,
+    supportsStorefrontAffiliate: false,
     buildAffiliateUrl: (query, tag) =>
       `https://www.amazon.com.br/s?k=${encodeURIComponent(query)}&tag=${tag}`,
   },
@@ -86,6 +146,11 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/petlove.png',
     logoAlt: 'Petlove',
     fallbackUrl: 'https://www.petlove.com.br',
+    // Programa próprio ainda não aprovado/documentado — não presumir Lomadee.
+    affiliateStatus: 'disabled',
+    affiliateMode: 'none',
+    supportsProductDeepLink: false,
+    supportsStorefrontAffiliate: false,
     buildAffiliateUrl: (query, base) =>
       `${base}&url=${encodeURIComponent(`https://www.petlove.com.br/busca?q=${encodeURIComponent(query)}`)}`,
   },
@@ -96,6 +161,10 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/doglife.svg',
     logoAlt: 'DogLife',
     fallbackUrl: 'https://www.doglife.com.br',
+    affiliateStatus: 'disabled',
+    affiliateMode: 'none',
+    supportsProductDeepLink: false,
+    supportsStorefrontAffiliate: false,
     // URL opaca do painel de afiliados — não adiciona query
     buildAffiliateUrl: (_query, base) => base,
   },
@@ -106,6 +175,10 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/shopee.png',
     logoAlt: 'Shopee',
     directUrl: 'https://shopee.com.br/search?keyword=pet',
+    affiliateStatus: 'disabled',
+    affiliateMode: 'none',
+    supportsProductDeepLink: false,
+    supportsStorefrontAffiliate: false,
     // Shopee Affiliate: URL base do painel, sem query (landing page afiliada)
     buildAffiliateUrl: (_query, base) => base,
   },
@@ -116,6 +189,11 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/mercadolivre.png',
     logoAlt: 'Mercado Livre',
     directUrl: 'https://www.mercadolivre.com.br/c/pet-shop',
+    // "affId" arbitrário não confirma comissão real — programa não validado.
+    affiliateStatus: 'disabled',
+    affiliateMode: 'none',
+    supportsProductDeepLink: false,
+    supportsStorefrontAffiliate: false,
     buildAffiliateUrl: (query, affId) =>
       `https://lista.mercadolivre.com.br/${encodeURIComponent(query)}?affId=${affId}`,
   },
@@ -126,6 +204,10 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/araujo.png',
     logoAlt: 'Drogaria Araújo',
     directUrl: 'https://www.araujo.com.br/busca?q=pet',
+    affiliateStatus: 'disabled',
+    affiliateMode: 'none',
+    supportsProductDeepLink: false,
+    supportsStorefrontAffiliate: false,
     buildAffiliateUrl: (_query, base) => base,
   },
 ];

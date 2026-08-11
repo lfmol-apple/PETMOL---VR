@@ -140,6 +140,19 @@ class Settings(BaseSettings):
     cobasi_affiliate_url: Optional[str] = None
     petlove_dog_life_url: Optional[str] = None
 
+    # Affiliate-only commerce: em produção, uma loja/oferta só pode ser
+    # apresentada como opção de compra quando existe link monetizável real.
+    # None (padrão) = amarrado a `env` (prod → exigido; dev → fallback
+    # direto permitido para teste). Setar explicitamente só se precisar
+    # destoar do `env` (ex: testar o modo estrito em dev).
+    affiliate_only_commerce: Optional[bool] = None
+
+    @property
+    def affiliate_only_commerce_enforced(self) -> bool:
+        if self.affiliate_only_commerce is not None:
+            return self.affiliate_only_commerce
+        return self.env == "prod"
+
     @field_validator("debug", mode="before")
     @classmethod
     def _coerce_bool_like(cls, value):
