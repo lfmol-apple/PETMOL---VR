@@ -144,7 +144,7 @@ def _fake_price(ean: str | None, price: float = 16.9, url: str = "https://www.co
 
 
 def test_product_offer_dev_fallback_when_no_link_registered(client, monkeypatch):
-    async def fake_fetch(query: str) -> ProductPriceResult:
+    async def fake_fetch(query: str, target_weight_kg=None) -> ProductPriceResult:
         return _fake_price(ean=None)
 
     monkeypatch.setattr("src.commerce_offers.fetch_cobasi_price", fake_fetch)
@@ -157,7 +157,7 @@ def test_product_offer_dev_fallback_when_no_link_registered(client, monkeypatch)
 
 
 def test_product_offer_prod_hides_when_no_link_registered(client, monkeypatch):
-    async def fake_fetch(query: str) -> ProductPriceResult:
+    async def fake_fetch(query: str, target_weight_kg=None) -> ProductPriceResult:
         return _fake_price(ean=None)
 
     monkeypatch.setattr("src.commerce_offers.fetch_cobasi_price", fake_fetch)
@@ -177,7 +177,7 @@ def test_product_offer_prefers_registered_affiliate_link_over_raw_url(client, mo
     finally:
         db.close()
 
-    async def fake_fetch(query: str) -> ProductPriceResult:
+    async def fake_fetch(query: str, target_weight_kg=None) -> ProductPriceResult:
         return _fake_price(ean=GTIN)
 
     monkeypatch.setattr("src.commerce_offers.fetch_cobasi_price", fake_fetch)
@@ -198,7 +198,7 @@ def test_product_offer_prod_with_registered_link_still_works(client, monkeypatch
     finally:
         db.close()
 
-    async def fake_fetch(query: str) -> ProductPriceResult:
+    async def fake_fetch(query: str, target_weight_kg=None) -> ProductPriceResult:
         return _fake_price(ean=GTIN)
 
     monkeypatch.setattr("src.commerce_offers.fetch_cobasi_price", fake_fetch)
@@ -224,7 +224,7 @@ def test_deactivating_link_hides_offer_immediately(client, monkeypatch):
     finally:
         db.close()
 
-    async def fake_fetch(query: str) -> ProductPriceResult:
+    async def fake_fetch(query: str, target_weight_kg=None) -> ProductPriceResult:
         return _fake_price(ean=GTIN)
 
     monkeypatch.setattr("src.commerce_offers.fetch_cobasi_price", fake_fetch)

@@ -57,11 +57,15 @@ const OFFER_NOT_FOUND: ProductOfferResult = { found: false, merchant: 'cobasi' }
  * casados por EAN no backend — ver commerce_offers.py). Diferente de
  * fetchProductPrice: nunca retorna uma URL sem comissão em produção.
  */
-export async function fetchProductOffer(query: string): Promise<ProductOfferResult> {
+export async function fetchProductOffer(query: string, packageSizeKg?: number): Promise<ProductOfferResult> {
   const trimmed = query.trim();
   if (!trimmed) return OFFER_NOT_FOUND;
   try {
-    const res = await fetch(`${API_BASE_URL}/commerce/product-offer?q=${encodeURIComponent(trimmed)}`, {
+    const params = new URLSearchParams({ q: trimmed });
+    if (typeof packageSizeKg === 'number' && packageSizeKg > 0) {
+      params.set('weight_kg', String(packageSizeKg));
+    }
+    const res = await fetch(`${API_BASE_URL}/commerce/product-offer?${params.toString()}`, {
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return OFFER_NOT_FOUND;

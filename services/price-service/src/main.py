@@ -1393,6 +1393,7 @@ async def commerce_product_price(
 @app.get("/commerce/product-offer", tags=["Catalog"])
 async def commerce_product_offer(
     q: str = Query(..., min_length=2, max_length=150, description="Product search query"),
+    weight_kg: Optional[float] = Query(default=None, description="Peso real do pacote (ex: 7.5) para escolher o SKU certo entre variantes de tamanho"),
     db: Session = Depends(get_db),
 ):
     """
@@ -1401,9 +1402,13 @@ async def commerce_product_offer(
     commerce_offers.py. `found=False` significa "não ofereça este
     merchant para este produto", nunca "use o link direto sem comissão"
     (exceto em dev, sinalizado por link_type="direct").
+
+    `weight_kg`: a Cobasi agrupa vários tamanhos de pacote sob o mesmo
+    produto — sem isso, o item padrão deles (não necessariamente o
+    tamanho real do tutor) é usado.
     """
     from .commerce_offers import resolve_cobasi_product_offer
-    return await resolve_cobasi_product_offer(db, q)
+    return await resolve_cobasi_product_offer(db, q, target_weight_kg=weight_kg)
 
 
 @app.get("/commerce/monetized-offer", tags=["Catalog"])

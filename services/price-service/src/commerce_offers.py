@@ -38,8 +38,10 @@ class ProductOfferResult(BaseModel):
 _NOT_FOUND = ProductOfferResult(found=False)
 
 
-async def resolve_cobasi_product_offer(db: Session, query: str) -> ProductOfferResult:
-    price = await fetch_cobasi_price(query)
+async def resolve_cobasi_product_offer(
+    db: Session, query: str, target_weight_kg: Optional[float] = None
+) -> ProductOfferResult:
+    price = await fetch_cobasi_price(query, target_weight_kg=target_weight_kg)
     if not price.found or not price.price:
         return _NOT_FOUND
 

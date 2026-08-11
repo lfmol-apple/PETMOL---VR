@@ -51,26 +51,52 @@ class ProductPriceResult(BaseModel):
     ean: Optional[str] = None
 
 
-def _cache_key(query: str) -> str:
-    return query.strip().lower()
+def _cache_key(query: str, target_weight_kg: Optional[float]) -> str:
+    weight_part = f"{target_weight_kg:.2f}" if target_weight_kg is not None else "-"
+    return f"{weight_part}:{query.strip().lower()}"
 
 
-async def fetch_cobasi_price(query: str) -> ProductPriceResult:
+async def fetch_cobasi_price(query: str, target_weight_kg: Optional[float] = None) -> ProductPriceResult:
     query = (query or "").strip()
     if not query:
         return ProductPriceResult(found=False)
 
-    key = _cache_key(query)
+    key = _cache_key(query, target_weight_kg)
     cached = _cache.get(key)
     if cached is not None:
         return cached
 
-    result = await _fetch_cobasi_price_uncached(query)
+    result = await _fetch_cobasi_price_uncached(query, target_weight_kg)
     _cache[key] = result
     return result
 
 
-async def _fetch_cobasi_price_uncached(query: str) -> ProductPriceResult:
+def _select_item_by_weight(items: list[dict], target_weight_kg: Optional[float]) -> dict:
+    """Cobasi agrupa vários tamanhos de pacote (SKUs) sob o mesmo produto —
+    `items[0]` é só a ordem padrão do catálogo deles, não necessariamente o
+    pacote que o tutor tem. Quando sabemos o peso real (package_size_kg do
+    plano de alimentação), escolhemos o item cujo peso extraído do nome bate
+    exatamente; sem isso (ou sem bater nenhum), mantém o comportamento
+    anterior (primeiro item) — nunca regride quando não há peso alvo.
+    """
+    if not items:
+        return {}
+    if target_weight_kg is None:
+        return items[0]
+
+    for item in items:
+        text = item.get("nameComplete") or item.get("name") or ""
+        sizes = _extract_pack_sizes(text)
+        if not sizes:
+            continue
+        value_kg = sizes[0]["value"] / 1000 if sizes[0]["unit"] == "g" else sizes[0]["value"]
+        if round(value_kg, 2) == round(target_weight_kg, 2):
+            return item
+
+    return items[0]
+
+
+async def _fetch_cobasi_price_uncached(query: str, target_weight_kg: Optional[float] = None) -> ProductPriceResult:
     settings = get_settings()
     if not settings.commerce_pricing_enabled:
         return ProductPriceResult(found=False)
@@ -93,13 +119,14 @@ async def _fetch_cobasi_price_uncached(query: str) -> ProductPriceResult:
 
         product = products[0]
         items = product.get("items") or []
+        selected_item = _select_item_by_weight(items, target_weight_kg)
         offer: dict = {}
         ean: Optional[str] = None
-        if items:
-            sellers = items[0].get("sellers") or []
+        if selected_item:
+            sellers = selected_item.get("sellers") or []
             if sellers:
                 offer = sellers[0].get("commertialOffer") or {}
-            raw_ean = items[0].get("ean")
+            raw_ean = selected_item.get("ean")
             if isinstance(raw_ean, str) and raw_ean.strip().isdigit():
                 ean = raw_ean.strip()
 
@@ -110,7 +137,7 @@ async def _fetch_cobasi_price_uncached(query: str) -> ProductPriceResult:
         return ProductPriceResult(
             found=bool(price),
             store="cobasi",
-            product_name=product.get("productName"),
+            product_name=selected_item.get("nameComplete") or product.get("productName"),
             brand=product.get("brand"),
             price=float(price) if isinstance(price, (int, float)) else None,
             list_price=float(offer["ListPrice"]) if isinstance(offer.get("ListPrice"), (int, float)) else None,

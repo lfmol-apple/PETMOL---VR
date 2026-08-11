@@ -293,7 +293,7 @@ function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onToggle
     let cancelled = false;
     setLoading(true);
     setOffer(null);
-    fetchProductOffer(card.searchQuery).then((result) => {
+    fetchProductOffer(card.searchQuery, card.packageSizeKg).then((result) => {
       if (!cancelled) {
         setOffer(result);
         setLoading(false);
@@ -302,7 +302,7 @@ function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onToggle
     return () => {
       cancelled = true;
     };
-  }, [card.searchQuery]);
+  }, [card.searchQuery, card.packageSizeKg]);
 
   const hasMonetizedOffer = Boolean(offer?.found && typeof offer.price === 'number' && offer.url);
   const hasDiscount = Boolean(

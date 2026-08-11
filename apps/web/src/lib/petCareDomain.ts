@@ -90,6 +90,14 @@ export interface PetCareReminder {
   source_record_id?: string;
 
   /**
+   * Só para domain='food': peso real do pacote (kg) que o tutor cadastrou.
+   * Sem isso, a busca de oferta comercial pega o tamanho padrão que a loja
+   * lista primeiro no catálogo dela, que pode não ser o pacote real do
+   * tutor (ex: Royal Canin Urinary Small Dog vem em 2kg e 7,5kg).
+   */
+  packageSizeKg?: number;
+
+  /**
    * true  → data calculada/derivada (ex: lastDate + frequencyDays)
    * false → data explicitamente salva no backend
    */
@@ -403,6 +411,7 @@ function processFood(p: PetCareDomainParams): PetCareReminder[] {
 
   const alertDiff = diffFromToday(nextDate);
   const brand = (plan.food_brand || plan.brand || primaryItem?.food_brand || '').trim() || undefined;
+  const packageSizeKg = Number(plan.package_size_kg ?? primaryItem?.package_size_kg ?? 0) || undefined;
 
   // Status do card deve refletir quando a ração VAI ACABAR, não quando o lembrete de compra disparou.
   // O lembrete de compra pode ter passado (alertDiff < 0) enquanto a ração ainda tem dias restantes —
@@ -425,6 +434,7 @@ function processFood(p: PetCareDomainParams): PetCareReminder[] {
     status: toStatus(cardDiff),
     action_target: 'health/food',
     is_derived: reminderDateStr !== (plan.next_purchase_date ?? ''),
+    packageSizeKg,
   }];
 }
 

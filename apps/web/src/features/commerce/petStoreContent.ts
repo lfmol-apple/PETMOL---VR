@@ -24,6 +24,8 @@ export interface ReorderCard {
   urgencyTone: 'overdue' | 'today' | 'upcoming';
   searchQuery: string;
   domain: CareReminderDomain;
+  /** Peso real do pacote (kg), quando domain='food' — ver PetCareReminder.packageSizeKg. */
+  packageSizeKg?: number;
 }
 
 function formatUrgencyText(domain: CareReminderDomain, diff: number): string {
@@ -60,6 +62,7 @@ export function buildReorderCards(reminders: PetCareReminder[]): ReorderCard[] {
       urgencyTone: r.status,
       searchQuery: buildReminderSearchQuery(r),
       domain: r.domain,
+      packageSizeKg: r.packageSizeKg,
     }));
 }
 
