@@ -147,6 +147,26 @@ class Settings(BaseSettings):
     # destoar do `env` (ex: testar o modo estrito em dev).
     affiliate_only_commerce: Optional[bool] = None
 
+    # Estratégia de monetização da Cobasi (ver cobasi_provider.py /
+    # cobasi_utm.py / docs/AFFILIATES.md):
+    #   cached   (padrão) — usa ProductAffiliateLink cadastrado manualmente.
+    #             Único modo confirmado até hoje.
+    #   utm      — gera URL com UTM dinamicamente, sem cadastro manual.
+    #             NÃO ativar em produção sem confirmação formal da
+    #             Cobasi/MAIS de que UTM sozinho gera comissão (não
+    #             confirmado — ver documento de arquitetura interno).
+    #   api      — reservado para API oficial futura. Não implementado.
+    #   disabled — Cobasi nunca monetiza (fica invisível).
+    cobasi_affiliate_mode: str = "cached"
+
+    @field_validator("cobasi_affiliate_mode")
+    @classmethod
+    def _validate_cobasi_affiliate_mode(cls, value: str) -> str:
+        allowed = {"cached", "utm", "api", "disabled"}
+        if value not in allowed:
+            raise ValueError(f"cobasi_affiliate_mode deve ser um de {sorted(allowed)}, recebeu {value!r}")
+        return value
+
     @property
     def affiliate_only_commerce_enforced(self) -> bool:
         if self.affiliate_only_commerce is not None:
