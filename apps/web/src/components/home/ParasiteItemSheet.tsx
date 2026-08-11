@@ -4,11 +4,8 @@ import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import type { ParasiteControl } from '@/lib/types/home';
-import { trackPartnerClicked, trackV1Metric } from '@/lib/v1Metrics';
-import { HOME_SHOPPING_PARTNERS, openHomeShoppingPartner } from '@/features/commerce/homeShoppingPartners';
-import { PriceCompareList } from '@/components/PriceCompareList';
-
-const PRICE_COMPARE_ENABLED = process.env.NEXT_PUBLIC_ENABLE_PRICE_COMPARE === 'true';
+import { trackV1Metric } from '@/lib/v1Metrics';
+import { MonetizedOfferCard } from '@/features/commerce/MonetizedOfferCard';
 import { ModalPortal } from '@/components/ModalPortal';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
@@ -870,57 +867,30 @@ export function ParasiteItemSheet({
                 </div>
                 <div>
                   <h3 className="text-[16px] font-bold text-gray-900">Compras Pet</h3>
-                  <p className="text-xs text-gray-500">
-                    {PRICE_COMPARE_ENABLED && type !== 'collar' ? 'Comparando preços…' : 'Escolha onde comprar'}
-                  </p>
+                  <p className="text-xs text-gray-500">Buscando oferta…</p>
                 </div>
               </div>
 
-              {/* TODO: adicionar comparação de preços para coleira (collar) em próximo pass —
-                   requer estrutura de dados recorrente própria, análoga a FoodItemSheet. */}
-              {PRICE_COMPARE_ENABLED && type !== 'collar' ? (
-                /* ── Comparação de preços (NEXT_PUBLIC_ENABLE_PRICE_COMPARE=true) ── */
-                <PriceCompareList
-                  query={
-                    current?.product_name
-                      ? current.product_name
-                      : type === 'dewormer'
-                        ? 'vermífugo cão'
+              {/* Mesma oferta monetizável usada em "Comprar novamente" na Loja
+                  do Pet e na ficha da ração — nunca mostra loja sem link
+                  afiliado ativo (ver docs/AFFILIATES.md). */}
+              <MonetizedOfferCard
+                query={
+                  current?.product_name
+                    ? current.product_name
+                    : type === 'dewormer'
+                      ? 'vermífugo cão'
+                      : type === 'collar'
+                        ? 'coleira antipulgas cão'
                         : 'antipulgas cão'
-                  }
-                  petId={petId}
-                  label={cfg.title}
-                />
-              ) : (
-                /* ── Fallback: parceiros (comportamento atual) ── */
-                <div className="space-y-3">
-                  {HOME_SHOPPING_PARTNERS.map(partner => (
-                    <button
-                      key={partner.id}
-                      onClick={() => {
-                        trackPartnerClicked({
-                          source: 'parasite_sheet',
-                          partner: partner.id,
-                          pet_id: petId,
-                          control_type: type,
-                          product_name: current?.product_name ?? null,
-                        });
-                        void openHomeShoppingPartner(partner.id);
-                      }}
-                      className="w-full flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-2xl hover:shadow-md active:scale-[0.98] transition-all text-left"
-                    >
-                      <div className="w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center bg-white border border-gray-100 flex-shrink-0 p-1">
-                        <img src={partner.logoSrc} alt={partner.logoAlt} className="w-full h-full object-contain" loading="lazy" decoding="async" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-bold text-gray-900 text-sm">{partner.name}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{partner.description}</p>
-                      </div>
-                      <span className="text-gray-400 text-lg">›</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+                }
+                petId={petId}
+                productLabel={current?.product_name || cfg.title}
+                icon={cfg.icon}
+                source="parasite_sheet"
+                ctaType="parasite_buy_direct"
+                controlType={type}
+              />
 
               <button
                 onClick={() => setMode('apply')}

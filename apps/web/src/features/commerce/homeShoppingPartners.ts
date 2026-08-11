@@ -373,24 +373,6 @@ export function openHomeShoppingPartner(
   });
 }
 
-/**
- * Builds a contextual handoff URL for food/ração purchase.
- * Uses affiliate link when configured, otherwise proxy.
- */
-export function buildFoodHandoffUrl(
-  brand: string,
-  petId: string,
-  partnerId: HomeShoppingPartnerId,
-): string {
-  const partner = HOME_SHOPPING_PARTNERS.find((p) => p.id === partnerId);
-  if (!partner) return '#';
-
-  const searchQuery = [brand.trim(), 'ração'].filter(Boolean).join(' ');
-  const leadId = `food-${petId}-${Date.now()}`;
-
-  return resolvePartnerUrl(partner, searchQuery, leadId);
-}
-
 /** Retorna true se o parceiro tem ID de afiliado configurado. */
 export function partnerHasAffiliate(partnerId: HomeShoppingPartnerId): boolean {
   return Boolean(AFF[partnerId]);
@@ -421,7 +403,7 @@ export function isPartnerVisibleInStoreArea(partner: HomeShoppingPartner): boole
 }
 
 /**
- * Fluxos por busca de texto (recompra rápida, fallback do PriceCompareList):
+ * Fluxos por busca de texto (QuickBuyRow — recompra rápida na Loja do Pet):
  * a storefront não serve aqui — precisa de afiliado 'active' que funcione
  * com query.
  */

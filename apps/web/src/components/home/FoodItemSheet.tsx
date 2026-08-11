@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FoodControlTab, type FoodControlTabFormRequest, type FoodControlTabState } from '@/components/FoodControlTab';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { ModalPortal } from '@/components/ModalPortal';
-import { trackPartnerClicked, trackV1Metric } from '@/lib/v1Metrics';
+import { trackV1Metric } from '@/lib/v1Metrics';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { localTodayISO } from '@/lib/localDate';
@@ -13,15 +13,8 @@ import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { petDo } from '@/lib/petGender';
 import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
 import type { ScannedProduct } from '@/lib/productScanner';
-import {
-  HOME_SHOPPING_PARTNERS,
-  buildFoodHandoffUrl,
-  type HomeShoppingPartnerId,
-} from '@/features/commerce/homeShoppingPartners';
 import { resolveFoodCommerceSnapshot } from '@/features/commerce/homeContextualCommerce';
-import { PriceCompareList } from '@/components/PriceCompareList';
-
-const PRICE_COMPARE_ENABLED = process.env.NEXT_PUBLIC_ENABLE_PRICE_COMPARE === 'true';
+import { MonetizedOfferCard } from '@/features/commerce/MonetizedOfferCard';
 
 export interface FoodItemSheetProps {
   pet: PetHealthProfile;
@@ -698,12 +691,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     });
   };
 
-  const handlePartnerClick = (partnerId: HomeShoppingPartnerId) => {
-    trackV1Metric('food_partner_selected', { source: 'food_sheet', pet_id: pet.pet_id, store: partnerId });
-    trackPartnerClicked({ source: 'food_sheet', partner: partnerId, pet_id: pet.pet_id, control_type: 'food' });
-    window.open(buildFoodHandoffUrl(foodBrand || '', pet.pet_id, partnerId), '_blank', 'noopener,noreferrer');
-  };
-
   // ── Effects ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -887,48 +874,19 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <div className="p-5 pb-8 space-y-4">
-                  {PRICE_COMPARE_ENABLED ? (
-                    /* ── Modo comparação de preços (NEXT_PUBLIC_ENABLE_PRICE_COMPARE=true) ── */
-                    <PriceCompareList
-                      query={
-                        foodBrand
-                          ? `${foodBrand}${foodState.packageSizeKg ? ` ${foodState.packageSizeKg}kg` : ''} ração`
-                          : 'ração pet'
-                      }
-                      petId={pet.pet_id}
-                      label={foodBrand || 'ração'}
-                    />
-                  ) : (
-                    /* ── Fallback: parceiros (comportamento atual) ── */
-                    <>
-                      <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">
-                        Petmol pode receber comissão. Preço não muda para você.
-                      </p>
-                      <div className="grid grid-cols-1 gap-3">
-                        {HOME_SHOPPING_PARTNERS.map((partner) => (
-                          <button
-                            key={partner.id}
-                            type="button"
-                            onClick={() => handlePartnerClick(partner.id)}
-                            className="w-full flex items-center gap-4 p-4 border border-gray-200 rounded-2xl bg-white hover:bg-gray-50 active:scale-[0.98] transition-all text-left"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={partner.logoSrc}
-                              alt={partner.logoAlt}
-                              className="w-12 h-12 rounded-xl object-contain bg-white p-1.5 flex-shrink-0 shadow-sm border border-gray-100"
-                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="font-bold text-gray-900 text-[15px] leading-tight truncate">{partner.name}</p>
-                              <p className="text-[12px] text-gray-500">{partner.description}</p>
-                            </div>
-                            <span className="text-sm font-bold text-blue-700">Abrir</span>
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
+                  {/* Mesma oferta monetizável do card "Comprar novamente" da
+                      Loja do Pet — mesma query, mesmo peso real do pacote.
+                      Nunca mostra loja sem link afiliado ativo. */}
+                  <MonetizedOfferCard
+                    query={foodBrand ? `${foodBrand} ração` : 'ração pet'}
+                    packageSizeKg={foodState.packageSizeKg}
+                    petId={pet.pet_id}
+                    productLabel={foodBrand || 'Ração'}
+                    icon="🥣"
+                    source="food_sheet"
+                    ctaType="food_buy_direct"
+                    controlType="food"
+                  />
                 </div>
               </div>
             </>
