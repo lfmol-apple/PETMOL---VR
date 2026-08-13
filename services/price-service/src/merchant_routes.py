@@ -8,21 +8,24 @@ A escolha NUNCA é por maior comissão — é por confiabilidade/validação
 CommerceEngine mantém a primeira oferta encontrada (ordem de registro em
 commerce_offers.build_default_engine).
 
-TESTE TEMPORÁRIO EM PRODUÇÃO (13/08/2026): "cobasi" trocado pra "awin" só
-pra validar com uma compra real se a Awin de fato gera comissão (8,5% é
-o CPA nominal, não confirmado; cookie de 1 dia). Produtos com link
-cadastrado manualmente (ex: Baby/mais.app) NÃO são afetados — blindados
-no dedupe por is_manually_cached, ver commerce_provider.py e
-test_commerce_offers_awin_dedupe.py::test_manually_cached_link_survives_even_with_awin_preferred.
-REVERTER pra "mais" assim que o teste terminar — não é decisão
-permanente, é só a janela do teste.
+Tentativa de teste real em 13/08/2026: cheguei a trocar temporariamente
+"cobasi" pra "awin" pra validar comissão com uma compra de teste, mas
+descobri que nenhuma tela do frontend envia `gtin` hoje
+(useCommerceOffers(query, packageSizeKg) — sem o terceiro argumento
+opcional; ver apps/web/src/features/commerce/useCommerceOffers.ts) —
+sem gtin, AwinFeedProvider.find_offer() sempre retorna None, então a
+troca de rota não tinha nenhum efeito real no app. Revertido pra "mais"
+até o frontend ganhar um caminho que envie gtin (só aí faz sentido
+tentar de novo). Produtos com link cadastrado manualmente continuam
+blindados de qualquer forma (is_manually_cached, ver
+commerce_provider.py) — vale manter essa proteção mesmo sem uso ainda.
 """
 from __future__ import annotations
 
 from typing import Optional
 
 PREFERRED_ROUTE_BY_MERCHANT: dict[str, str] = {
-    "cobasi": "awin",
+    "cobasi": "mais",
 }
 
 
