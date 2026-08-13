@@ -22,6 +22,7 @@ from typing import Optional
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from .awin_advertisers import awin_merchants_with_feed, is_awin_merchant_enabled
 from .awin_feed_provider import AwinFeedProvider
 from .cobasi_provider import CobasiProvider
 from .commerce_provider import CommerceEngine, CommerceProvider, MonetizedOffer, ProductContext
@@ -54,15 +55,25 @@ _NOT_FOUND = ProductOfferResult(found=False)
 
 
 def build_default_engine(db: Session) -> CommerceEngine:
-    """Lista central de providers ativos. Novo provider = uma linha aqui.
+    """Lista central de providers ativos. Novo provider MANUAL (Amazon/
+    Shopee/ML, quando aprovados — sem feed estruturado) = uma linha aqui.
 
-    AwinFeedProvider("cobasi") registrado desde 13/08/2026 — mas
+    Providers Awin (feed estruturado) são genéricos — um AwinFeedProvider
+    por merchant habilitado com feed (awin_merchants_with_feed() ∩
+    is_awin_merchant_enabled()), sem precisar editar este arquivo quando
+    Petz/Zee Now/Zee Dog forem aprovados e sincronizados (só
+    awin_advertisers.py muda). Hoje só cobasi está enabled=True.
+
     merchant_routes.PREFERRED_ROUTE_BY_MERCHANT["cobasi"] ainda é "mais",
     então o dedupe por merchant (_dedupe_by_merchant) sempre mantém a
     oferta do CobasiProvider quando os dois resolverem a mesma oferta.
-    Registrar aqui não muda o que o tutor vê até essa preferência mudar
-    (ver docs/AFFILIATES.md — validar comissão real antes de trocar)."""
-    providers: list[CommerceProvider] = [CobasiProvider(db), AwinFeedProvider(db, "cobasi")]
+    Registrar o AwinFeedProvider não muda o que o tutor vê até essa
+    preferência mudar (ver docs/AFFILIATES.md — validar comissão real
+    antes de trocar)."""
+    providers: list[CommerceProvider] = [CobasiProvider(db)]
+    for merchant in awin_merchants_with_feed():
+        if is_awin_merchant_enabled(merchant):
+            providers.append(AwinFeedProvider(db, merchant))
     return CommerceEngine(providers)
 
 

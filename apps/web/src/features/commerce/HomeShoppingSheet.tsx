@@ -15,6 +15,7 @@ import {
   type HomeShoppingPartner,
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
+import { CobasiAwinSearch } from './CobasiAwinSearch';
 import { formatBRLPrice, type CommerceOffer } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
 import {
@@ -56,8 +57,10 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
 
+  // Cobasi sai do grid de ícones estáticos — vira busca (CobasiAwinSearch)
+  // com produtos reais do catálogo Awin sincronizado, GTIN conhecido.
   const visibleStorePartners = useMemo(
-    () => HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea),
+    () => HOME_SHOPPING_PARTNERS.filter((p) => p.id !== 'cobasi' && isPartnerVisibleInStoreArea(p)),
     [],
   );
   const visibleQuickBuyPartners = useMemo(
@@ -222,6 +225,13 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                     </p>
                   </div>
                 )}
+              </div>
+
+              {/* 🐾 Buscar na Cobasi — catálogo Awin sincronizado, no lugar
+                  do ícone estático que só levava pro site sem contexto */}
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🐾 Buscar na Cobasi</p>
+                <CobasiAwinSearch petId={currentPet.pet_id} />
               </div>
 
               {/* 🏪 Lojas */}

@@ -1,6 +1,6 @@
 import { trackClick } from '@/lib/analytics/click';
 
-export type HomeShoppingPartnerId = 'cobasi' | 'petz' | 'amazon' | 'petlove' | 'doglife' | 'shopee' | 'mercadolivre' | 'araujo';
+export type HomeShoppingPartnerId = 'cobasi' | 'petz' | 'amazon' | 'petlove' | 'doglife' | 'shopee' | 'mercadolivre' | 'araujo' | 'zeenow' | 'zeedog';
 
 /**
  * Estado real da integração de afiliado do merchant — não confundir com
@@ -114,6 +114,8 @@ const AFF: Record<HomeShoppingPartnerId, string | undefined> = {
   mercadolivre: process.env.NEXT_PUBLIC_AFFILIATE_ML,
   doglife:      process.env.NEXT_PUBLIC_AFFILIATE_DOGLIFE,
   araujo:       process.env.NEXT_PUBLIC_AFFILIATE_ARAUJO,
+  zeenow:       undefined, // Awin (advertiser 127557, pending) — sem link genérico Lomadee-style
+  zeedog:       undefined, // Awin (advertiser 127555, pending) — sem link genérico Lomadee-style
 };
 
 export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
@@ -267,6 +269,45 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
       `https://lista.mercadolivre.com.br/${encodeURIComponent(query)}?affId=${affId}`,
   },
   {
+    id: 'zeenow',
+    name: 'Zee Now',
+    description: 'Entrega rápida de produtos pet',
+    logoSrc: '/partner-logos/zeenow.png',
+    logoAlt: 'Zee Now',
+    fallbackUrl: 'https://www.zeenow.com.br',
+    // Awin advertiser 127557 — feed_available=True (~13.746 produtos
+    // observados no ShopWindow Awin), commercial_status 'pending' — assim
+    // que aprovada e sincronizada (mesmo caminho da Cobasi hoje, ver
+    // awin_feed_sync.py), passa a aparecer automaticamente na busca de
+    // GET /commerce/awin-search sem precisar mudar nada aqui. Até lá, só
+    // link de busca genérico (sem comissão).
+    affiliateStatus: 'pending',
+    merchantType: 'retailer',
+    affiliateMode: 'none',
+    supportsProductDeepLink: false,
+    supportsStorefrontAffiliate: false,
+    buildAffiliateUrl: (query, base) =>
+      `${base}&url=${encodeURIComponent(`https://www.zeenow.com.br/busca?q=${encodeURIComponent(query)}`)}`,
+  },
+  {
+    id: 'zeedog',
+    name: 'Zee Dog',
+    description: 'Produtos e acessórios de design para pets',
+    logoSrc: '/partner-logos/zeedog.png',
+    logoAlt: 'Zee Dog',
+    fallbackUrl: 'https://www.zeedog.com.br',
+    // Awin advertiser 127555 — feed_available=True (~1.742 produtos
+    // observados no ShopWindow Awin), commercial_status 'pending' — mesmo
+    // caminho de ativação da Zee Now acima.
+    affiliateStatus: 'pending',
+    merchantType: 'retailer',
+    affiliateMode: 'none',
+    supportsProductDeepLink: false,
+    supportsStorefrontAffiliate: false,
+    buildAffiliateUrl: (query, base) =>
+      `${base}&url=${encodeURIComponent(`https://www.zeedog.com.br/busca?q=${encodeURIComponent(query)}`)}`,
+  },
+  {
     id: 'araujo',
     name: 'Drogaria Araújo',
     description: 'Medicamentos e produtos de saúde pet',
@@ -294,6 +335,8 @@ const DIRECT_SEARCH_URLS: Record<HomeShoppingPartnerId, (q: string) => string> =
   mercadolivre: (q) => `https://lista.mercadolivre.com.br/${encodeURIComponent(q)}`,
   doglife:      (_q) => 'https://www.doglife.com.br',
   araujo:       (q) => `https://www.araujo.com.br/busca?q=${encodeURIComponent(q)}`,
+  zeenow:       (q) => `https://www.zeenow.com.br/busca?q=${encodeURIComponent(q)}`,
+  zeedog:       (q) => `https://www.zeedog.com.br/busca?q=${encodeURIComponent(q)}`,
 };
 
 // Cobasi's "Minha Loja"/"Mais" storefront (minhaloja.cobasi.com.br/paco)

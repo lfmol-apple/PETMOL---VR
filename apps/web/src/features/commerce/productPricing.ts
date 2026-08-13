@@ -32,6 +32,46 @@ export interface CommerceOffer {
  * Nunca lança erro: timeout/falha vira lista vazia, e quem chama mostra
  * "estamos buscando opções" — nunca um link sem comissão.
  */
+export interface AwinSearchResult {
+  gtin: string;
+  title: string | null;
+  brand: string | null;
+  price: number | null;
+  list_price: number | null;
+  image_url: string | null;
+  /** Loja do preço mais baixo (quando o mesmo GTIN existe em mais de uma). */
+  merchant: string;
+  /** Quantas lojas Awin habilitadas têm esse GTIN — >1 vira um grid de preços. */
+  offer_count: number;
+}
+
+/**
+ * Busca textual no catálogo Awin já sincronizado (AffiliateFeedOffer, ver
+ * awin_feed_sync.py) — GET /commerce/awin-search. Sem `merchant`, busca em
+ * TODOS os merchants Awin habilitados de uma vez, agrupando por GTIN — hoje
+ * só cobasi tem dado real, mas Petz/Zee Now/Zee Dog entram automaticamente
+ * quando aprovados+sincronizados, sem precisar mudar esta chamada. Cada
+ * resultado já vem com GTIN; passar esse GTIN pra fetchCommerceOffers() é
+ * o único jeito hoje de o app exercitar AwinFeedProvider (busca textual
+ * normal nunca envia GTIN).
+ */
+export async function searchAwinCatalog(query: string, merchant?: string): Promise<AwinSearchResult[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+  try {
+    const params = new URLSearchParams({ q: trimmed });
+    if (merchant) params.set('merchant', merchant);
+    const res = await fetch(`${API_BASE_URL}/commerce/awin-search?${params.toString()}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { results?: AwinSearchResult[] };
+    return Array.isArray(data.results) ? data.results : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchCommerceOffers(query: string, packageSizeKg?: number, gtin?: string): Promise<CommerceOffer[]> {
   const trimmed = query.trim();
   if (!trimmed && !gtin) return [];

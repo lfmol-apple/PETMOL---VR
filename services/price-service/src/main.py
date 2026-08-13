@@ -1489,6 +1489,83 @@ async def commerce_product_candidates(
     return {"candidates": candidates, "query": q}
 
 
+@app.get("/commerce/awin-search", tags=["Catalog"])
+async def commerce_awin_search(
+    q: str = Query(..., min_length=2, max_length=150, description="Busca por nome/marca no catálogo sincronizado"),
+    merchant: Optional[str] = Query(None, description="Filtra por um merchant específico — por padrão busca em todos os merchants Awin habilitados"),
+    limit: int = Query(20, ge=1, le=30),
+    db: Session = Depends(get_db),
+):
+    """
+    Busca textual dentro do catálogo já sincronizado da Awin
+    (AffiliateFeedOffer — ver awin_feed_sync.py), agrupada por GTIN — um
+    mesmo produto pode estar no feed de mais de um merchant (ex: Cobasi e
+    futuramente Petz/Zee Now/Zee Dog, quando aprovados e sincronizados),
+    e o resultado já vem com o "a partir de" e quantas outras lojas têm
+    aquele GTIN, pronto pra virar um grid de preços — sem precisar mudar
+    este endpoint quando um novo merchant Awin for habilitado.
+
+    Existe pra dar ao tutor um jeito de encontrar um produto real com GTIN
+    conhecido dentro do app — sem GTIN, nenhuma tela hoje consegue
+    exercitar AwinFeedProvider (ver docs/AFFILIATES.md). O GTIN de cada
+    resultado é pra ser passado em GET /commerce/offers na hora de comprar
+    — esse endpoint (não este) decide o link final por loja, respeitando
+    link cadastrado manualmente (ver commerce_provider.py::_dedupe_by_merchant).
+
+    Amazon/Mercado Livre/Shopee NÃO entram aqui — não têm feed/catálogo
+    estruturado, continuam no mecanismo de link por template
+    (homeShoppingPartners.ts).
+
+    Só busca local (sem chamada à Awin) — mesmo princípio de
+    AwinFeedProvider: sync em lote, leitura local rápida.
+    """
+    from .affiliate_feed import AffiliateFeedOffer
+    from .awin_advertisers import is_awin_merchant_enabled, awin_merchants_with_feed
+
+    merchants = [merchant] if merchant else [m for m in awin_merchants_with_feed() if is_awin_merchant_enabled(m)]
+    if not merchants:
+        return {"results": []}
+
+    like = f"%{q.strip()}%"
+    rows = db.scalars(
+        select(AffiliateFeedOffer)
+        .where(
+            AffiliateFeedOffer.network == "awin",
+            AffiliateFeedOffer.merchant.in_(merchants),
+            AffiliateFeedOffer.active.is_(True),
+            AffiliateFeedOffer.in_stock.is_(True),
+            AffiliateFeedOffer.gtin.isnot(None),
+            (AffiliateFeedOffer.title.ilike(like) | AffiliateFeedOffer.brand.ilike(like)),
+        )
+        .order_by(AffiliateFeedOffer.price.asc())
+    ).all()
+
+    # Agrupa por GTIN — várias linhas (uma por merchant) podem ser o mesmo
+    # produto físico. A primeira linha vista por GTIN já é a mais barata
+    # (rows vem ordenado por price.asc()).
+    grouped: dict[str, dict] = {}
+    for row in rows:
+        existing = grouped.get(row.gtin)
+        if existing is None:
+            grouped[row.gtin] = {
+                "gtin": row.gtin,
+                "title": row.title,
+                "brand": row.brand,
+                "price": row.price,
+                "list_price": row.list_price,
+                "image_url": row.image_url,
+                "merchant": row.merchant,
+                "offer_count": 1,
+            }
+        else:
+            existing["offer_count"] += 1
+            if not existing["image_url"] and row.image_url:
+                existing["image_url"] = row.image_url
+
+    results = sorted(grouped.values(), key=lambda r: r["price"] if r["price"] is not None else float("inf"))[:limit]
+    return {"results": results}
+
+
 @app.get("/catalog/normalize", response_model=NormalizeResult, tags=["Catalog"])
 async def normalize_catalog_candidate(
     source: str = Query(..., description="Source of the candidate (ml, amazon, etc.)"),
