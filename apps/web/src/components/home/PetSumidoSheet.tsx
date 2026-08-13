@@ -535,17 +535,13 @@ export function PetSumidoSheet({
                   ) : (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-red-50 px-6 text-center">
                       <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-red-500 shadow-md ring-1 ring-red-100">
-                        {photoLoadFailed ? (
-                          <span className="text-3xl">⚠️</span>
-                        ) : (
-                          <CameraIcon className="h-8 w-8" />
-                        )}
+                        <CameraIcon className="h-8 w-8" />
                       </span>
                       <p className="text-[14px] font-bold text-red-500">
-                        {photoLoadFailed ? 'Não foi possível carregar a foto atual' : `Toque para adicionar a foto de ${pet.pet_name}`}
+                        Carregue a foto mais atual de {pet.pet_name}
                       </p>
                       <p className="text-[11px] text-red-400">
-                        {photoLoadFailed ? `Toque para escolher uma nova foto de ${pet.pet_name}` : 'Escolha a foto mais recente e com o rosto visível'}
+                        Rosto visível e boa iluminação ajudam quem encontrar
                       </p>
                     </div>
                   )}
