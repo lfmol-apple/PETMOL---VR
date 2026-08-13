@@ -20,6 +20,15 @@ interface PetSumidoSheetProps {
 
 type Step = 'form' | 'card';
 
+function CameraIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M9 3 7.5 5H4a1.5 1.5 0 0 0-1.5 1.5v11A1.5 1.5 0 0 0 4 19h16a1.5 1.5 0 0 0 1.5-1.5v-11A1.5 1.5 0 0 0 20 5h-3.5L15 3H9Z" />
+      <circle cx="12" cy="12" r="3.75" />
+    </svg>
+  );
+}
+
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -524,19 +533,23 @@ export function PetSumidoSheet({
                       onError={() => setPhotoLoadFailed(true)}
                     />
                   ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-red-50 px-6 text-center">
-                      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-3xl">
-                        {photoLoadFailed ? '⚠️' : '📷'}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-red-50 px-6 text-center">
+                      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-red-500 shadow-md ring-1 ring-red-100">
+                        {photoLoadFailed ? (
+                          <span className="text-3xl">⚠️</span>
+                        ) : (
+                          <CameraIcon className="h-8 w-8" />
+                        )}
                       </span>
                       <p className="text-[14px] font-bold text-red-500">
-                        {photoLoadFailed ? 'Não foi possível carregar a foto atual' : `Adicionar foto de ${pet.pet_name}`}
+                        {photoLoadFailed ? 'Não foi possível carregar a foto atual' : `Toque para adicionar a foto de ${pet.pet_name}`}
                       </p>
                       <p className="text-[11px] text-red-400">
-                        {photoLoadFailed ? `Toque para escolher uma nova foto de ${pet.pet_name}` : 'Toque aqui · rosto visível, foto recente'}
+                        {photoLoadFailed ? `Toque para escolher uma nova foto de ${pet.pet_name}` : 'Escolha a foto mais recente e com o rosto visível'}
                       </p>
                     </div>
                   )}
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent px-4 pt-10 pb-3 flex items-end justify-between gap-2">
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-3 flex items-end justify-between gap-3">
                     <div className="min-w-0 text-left">
                       <p className="truncate text-[17px] font-black leading-tight text-white drop-shadow-sm">{pet.pet_name}</p>
                       <p className="truncate text-[12px] text-white/80">
@@ -544,11 +557,11 @@ export function PetSumidoSheet({
                         {(pet as unknown as { breed?: string }).breed ? ` · ${(pet as unknown as { breed?: string }).breed}` : ''}
                       </p>
                     </div>
-                    {hasPhoto && (
-                      <span className="flex-shrink-0 rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
-                        Trocar foto
-                      </span>
-                    )}
+                    {/* Selo de câmera fixo — mesmo padrão universal de "editar foto" do
+                        WhatsApp/Instagram, sempre visível independente do estado da foto */}
+                    <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg ring-2 ring-white/70">
+                      <CameraIcon className="h-5 w-5" />
+                    </span>
                   </div>
                 </button>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
@@ -566,7 +579,7 @@ export function PetSumidoSheet({
                   placeholder="(00) 00000-0000"
                   onFocus={() => setFocusedField('contact')}
                   onBlur={() => setFocusedField(null)}
-                  className={`w-full border-2 rounded-2xl px-4 text-gray-900 placeholder-slate-300 outline-none transition-all ${
+                  className={`w-full border-2 rounded-2xl px-4 text-gray-900 placeholder-slate-500 outline-none transition-all ${
                     focusedField === 'contact' ? 'border-red-400 py-5 text-xl' : 'border-slate-400 py-3 text-[15px]'
                   }`}
                 />
@@ -635,7 +648,7 @@ export function PetSumidoSheet({
                     placeholder="CEP (preenche o endereço automaticamente)"
                     onFocus={() => setFocusedField('cep')}
                     onBlur={() => setFocusedField(null)}
-                    className={`w-full border-2 rounded-2xl px-4 pr-10 text-[15px] text-gray-900 placeholder-slate-300 outline-none transition-colors ${
+                    className={`w-full border-2 rounded-2xl px-4 pr-10 text-[15px] text-gray-900 placeholder-slate-500 outline-none transition-colors ${
                       focusedField === 'cep' ? 'border-red-400 py-5 text-xl' : 'border-slate-400 py-3'
                     }`}
                   />
@@ -651,7 +664,7 @@ export function PetSumidoSheet({
                   placeholder="Endereço (preenchido pelo CEP ou digitar)"
                   onFocus={() => setFocusedField('location')}
                   onBlur={() => setFocusedField(null)}
-                  className={`w-full border-2 rounded-2xl px-4 text-[15px] text-gray-900 placeholder-slate-300 outline-none transition-colors ${
+                  className={`w-full border-2 rounded-2xl px-4 text-[15px] text-gray-900 placeholder-slate-500 outline-none transition-colors ${
                     focusedField === 'location' ? 'border-red-400 py-5 text-lg' : 'border-slate-400 py-3'
                   }`}
                 />
@@ -670,7 +683,7 @@ export function PetSumidoSheet({
                   rows={focusedField === 'characteristics' ? 6 : 3}
                   onFocus={() => setFocusedField('characteristics')}
                   onBlur={() => setFocusedField(null)}
-                  className="w-full border-2 border-slate-400 rounded-2xl px-4 py-3 text-[15px] text-gray-900 placeholder-slate-300 outline-none focus:border-red-400 transition-colors resize-none leading-relaxed"
+                  className="w-full border-2 border-slate-400 rounded-2xl px-4 py-3 text-[15px] text-gray-900 placeholder-slate-500 outline-none focus:border-red-400 transition-colors resize-none leading-relaxed"
                 />
               </div>
 
