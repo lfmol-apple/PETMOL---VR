@@ -106,6 +106,8 @@ export function PetSumidoSheet({
   const [cep, setCep] = useState('');
   const [cepLoading, setCepLoading] = useState(false);
   const [cepError, setCepError] = useState('');
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState('');
 
   const handleCepChange = async (raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 8);
@@ -128,6 +130,36 @@ export function PetSumidoSheet({
       }
       setCepLoading(false);
     }
+  };
+
+  const handleUseCurrentLocation = async () => {
+    setGpsError('');
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+      setGpsError('Geolocalização não disponível neste dispositivo');
+      return;
+    }
+    setGpsLoading(true);
+    try {
+      const pos = await new Promise<GeolocationPosition>((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000, maximumAge: 60000 })
+      );
+      const { latitude, longitude } = pos.coords;
+      const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=pt`);
+      const data = await geoRes.json();
+      const parts = [data.locality, data.city, data.principalSubdivision].filter(
+        (v: unknown, i: number, arr: unknown[]) => Boolean(v) && arr.indexOf(v) === i
+      );
+      if (parts.length) {
+        setLastSeenLocation(parts.join(', '));
+        setCep('');
+        setCepError('');
+      } else {
+        setGpsError('Não foi possível identificar o endereço');
+      }
+    } catch {
+      setGpsError('Permita acesso à localização para usar esta opção');
+    }
+    setGpsLoading(false);
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -406,7 +438,10 @@ export function PetSumidoSheet({
     setShareSuccess(true);
   }, [cardDataUrl, pet, contact]);
 
-  const canGenerate = contact.trim().length >= 8;
+  const hasPhoto = Boolean(photoPreview);
+  const hasContact = contact.trim().length >= 8;
+  const canGenerate = hasPhoto && hasContact;
+  const missingParts = [!hasPhoto && 'foto', !hasContact && 'WhatsApp'].filter(Boolean) as string[];
 
   return (
     <>
@@ -453,21 +488,7 @@ export function PetSumidoSheet({
           {step === 'form' && (
             <div className="px-5 py-5 space-y-5 pb-10">
 
-              {/* Pet info */}
-              <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3 border border-gray-100">
-                <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
-                  <span className="text-2xl">{pet.species === 'cat' ? '🐈' : '🐕'}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-gray-900 text-[15px] truncate">{pet.pet_name}</p>
-                  <p className="text-[12px] text-slate-400 truncate">
-                    {pet.species === 'cat' ? 'Gato' : 'Cão'}
-                    {(pet as unknown as { breed?: string }).breed ? ` · ${(pet as unknown as { breed?: string }).breed}` : ''}
-                  </p>
-                </div>
-              </div>
-
-              {/* Foto */}
+              {/* Hero: foto + identidade do pet — é o que faz alguém reconhecer o pet na rua */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
                   Foto atual do pet <span className="text-red-500 normal-case font-semibold">obrigatório</span>
@@ -475,29 +496,55 @@ export function PetSumidoSheet({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className={`w-full rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center gap-2 py-5 active:scale-[0.99] ${
-                    photoPreview
-                      ? 'border-emerald-300 bg-emerald-50'
-                      : 'border-slate-200 bg-slate-50 hover:border-red-300'
+                  className={`relative block w-full overflow-hidden rounded-3xl border-2 transition-all active:scale-[0.99] ${
+                    photoPreview ? 'border-emerald-300' : 'border-dashed border-red-300'
                   }`}
+                  style={{ aspectRatio: '4 / 3' }}
                 >
                   {photoPreview ? (
-                    <div className="flex items-center gap-3 w-full px-4">
-                      <img src={photoPreview} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
-                      <div className="text-left">
-                        <p className="text-[13px] font-bold text-emerald-600">Foto selecionada ✓</p>
-                        <p className="text-[11px] text-slate-400">Toque para trocar</p>
-                      </div>
-                    </div>
+                    <img src={photoPreview} alt={pet.pet_name} className="absolute inset-0 w-full h-full object-cover" />
                   ) : (
-                    <>
-                      <span className="text-3xl">📷</span>
-                      <p className="text-[13px] font-bold text-slate-500">Adicionar foto do pet</p>
-                      <p className="text-[11px] text-slate-400">Rosto visível, foto recente</p>
-                    </>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-red-50">
+                      <span className="text-4xl">📷</span>
+                      <p className="text-[14px] font-bold text-red-500">Adicionar foto de {pet.pet_name}</p>
+                      <p className="text-[11px] text-red-400">Rosto visível, foto recente</p>
+                    </div>
                   )}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent px-4 pt-10 pb-3 flex items-end justify-between gap-2">
+                    <div className="min-w-0 text-left">
+                      <p className="truncate text-[17px] font-black leading-tight text-white drop-shadow-sm">{pet.pet_name}</p>
+                      <p className="truncate text-[12px] text-white/80">
+                        {pet.species === 'cat' ? 'Gato' : 'Cão'}
+                        {(pet as unknown as { breed?: string }).breed ? ` · ${(pet as unknown as { breed?: string }).breed}` : ''}
+                      </p>
+                    </div>
+                    {photoPreview && (
+                      <span className="flex-shrink-0 rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                        Trocar foto
+                      </span>
+                    )}
+                  </div>
                 </button>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+              </div>
+
+              {/* Contato */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                  WhatsApp para contato <span className="text-red-500 normal-case font-semibold">obrigatório</span>
+                </label>
+                <input
+                  type="tel"
+                  value={contact}
+                  onChange={e => setContact(e.target.value)}
+                  placeholder="(00) 00000-0000"
+                  onFocus={() => setFocusedField('contact')}
+                  onBlur={() => setFocusedField(null)}
+                  className={`w-full border-2 rounded-2xl px-4 text-gray-900 placeholder-slate-300 outline-none transition-all ${
+                    focusedField === 'contact' ? 'border-red-400 py-5 text-xl' : 'border-slate-200 py-3 text-[15px]'
+                  }`}
+                />
+                <p className="text-[11px] text-slate-400 mt-1">Aparece no card compartilhado</p>
               </div>
 
               {/* Quando sumiu */}
@@ -542,8 +589,17 @@ export function PetSumidoSheet({
               {/* Onde sumiu — CEP */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Onde desapareceu
+                  Onde desapareceu <span className="normal-case font-normal text-slate-300 ml-1">(opcional)</span>
                 </label>
+                <button
+                  type="button"
+                  onClick={handleUseCurrentLocation}
+                  disabled={gpsLoading}
+                  className="w-full mb-2 flex items-center justify-center gap-2 rounded-2xl border border-blue-100 bg-blue-50 py-2.5 text-[13px] font-bold text-blue-600 active:scale-[0.98] transition-all disabled:opacity-60"
+                >
+                  {gpsLoading ? '⏳ Localizando...' : '📍 Usar minha localização atual'}
+                </button>
+                {gpsError && <p className="text-[11px] text-red-500 font-semibold mb-1.5 text-center">{gpsError}</p>}
                 <div className="relative mb-2">
                   <input
                     type="text"
@@ -575,30 +631,11 @@ export function PetSumidoSheet({
                 />
               </div>
 
-              {/* Contato */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  WhatsApp para contato <span className="text-red-500 normal-case font-semibold">obrigatório</span>
-                </label>
-                <input
-                  type="tel"
-                  value={contact}
-                  onChange={e => setContact(e.target.value)}
-                  placeholder="(00) 00000-0000"
-                  onFocus={() => setFocusedField('contact')}
-                  onBlur={() => setFocusedField(null)}
-                  className={`w-full border-2 rounded-2xl px-4 text-gray-900 placeholder-slate-300 outline-none transition-all ${
-                    focusedField === 'contact' ? 'border-red-400 py-5 text-xl' : 'border-slate-200 py-3 text-[15px]'
-                  }`}
-                />
-                <p className="text-[11px] text-slate-400 mt-1">Aparece no card compartilhado</p>
-              </div>
-
               {/* Características */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
                   Características únicas
-                  <span className="normal-case font-normal text-slate-400 ml-1">— só você sabe</span>
+                  <span className="normal-case font-normal text-slate-300 ml-1">(opcional) — só você sabe</span>
                 </label>
                 <textarea
                   value={characteristics}
@@ -619,26 +656,6 @@ export function PetSumidoSheet({
                   Quem encontrar acessa <strong className="text-rose-700">petmol.com.br/achei-um-pet</strong>.
                 </p>
               </div>
-
-              {/* Gerar */}
-              <button
-                type="button"
-                onClick={generateCard}
-                disabled={!canGenerate || generating}
-                className={`w-full py-4 rounded-2xl font-black text-[16px] transition-all active:scale-[0.98] ${
-                  canGenerate && !generating
-                    ? 'bg-red-500 text-white shadow-lg shadow-red-500/25'
-                    : 'bg-gray-100 text-gray-300 cursor-not-allowed'
-                }`}
-              >
-                {generating ? '⏳ Aguarde...' : isEditMode ? '📣 Salvar e reenviar alerta' : '🚨 Gerar alerta e card'}
-              </button>
-
-              {!canGenerate && (
-                <p className="text-center text-[12px] text-slate-400 -mt-2">
-                  Preencha o WhatsApp para continuar
-                </p>
-              )}
 
               {alertBlocked && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-center">
@@ -761,6 +778,32 @@ export function PetSumidoSheet({
             </div>
           )}
         </div>
+
+        {/* CTA fixo — sempre visível, sem depender de rolar até o fim do form */}
+        {step === 'form' && (
+          <div
+            className="flex-shrink-0 border-t border-gray-100 bg-white px-5 pt-3"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}
+          >
+            {missingParts.length > 0 && (
+              <p className="text-center text-[12px] text-slate-400 mb-2">
+                Falta: {missingParts.join(' e ')}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={generateCard}
+              disabled={!canGenerate || generating}
+              className={`w-full py-4 rounded-2xl font-black text-[16px] transition-all active:scale-[0.98] ${
+                canGenerate && !generating
+                  ? 'bg-red-500 text-white shadow-lg shadow-red-500/25'
+                  : 'bg-gray-100 text-gray-300 cursor-not-allowed'
+              }`}
+            >
+              {generating ? '⏳ Aguarde...' : isEditMode ? '📣 Salvar e reenviar alerta' : '🚨 Gerar alerta e card'}
+            </button>
+          </div>
+        )}
 
         <canvas ref={canvasRef} className="hidden" />
       </div>
