@@ -455,13 +455,9 @@ export function PetSumidoSheet({
 
               {/* Pet info */}
               <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3 border border-gray-100">
-                {photoPreview ? (
-                  <img src={photoPreview} alt={pet.pet_name} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
-                ) : (
-                  <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
-                    <span className="text-2xl">{pet.species === 'cat' ? '🐈' : '🐕'}</span>
-                  </div>
-                )}
+                <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
+                  <span className="text-2xl">{pet.species === 'cat' ? '🐈' : '🐕'}</span>
+                </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-gray-900 text-[15px] truncate">{pet.pet_name}</p>
                   <p className="text-[12px] text-slate-400 truncate">
