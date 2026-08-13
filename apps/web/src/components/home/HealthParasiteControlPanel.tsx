@@ -10,6 +10,7 @@ import { dateToLocalISO } from '@/lib/localDate';
 
 interface HealthParasiteControlPanelProps {
   petName?: string;
+  species?: string;
   parasiteControls: ParasiteControl[];
   showParasiteForm: boolean;
   setShowParasiteForm: (value: boolean) => void;
@@ -48,6 +49,7 @@ function calculateNextDose(dateApplied: string, frequencyDays: number): string {
 
 export function HealthParasiteControlPanel({
   petName,
+  species,
   parasiteControls,
   showParasiteForm,
   setShowParasiteForm,
@@ -60,6 +62,9 @@ export function HealthParasiteControlPanel({
   resetParasiteForm,
 }: HealthParasiteControlPanelProps) {
   const { t, locale } = useI18n();
+  const availableParasiteTypes = PARASITE_TYPES.filter(
+    (type) => type.value !== 'collar' || species === 'dog'
+  );
 
   return (
     <PremiumPanelShell title={t('health.parasite_control')} icon="💊" subtitle={petName}>
@@ -90,7 +95,7 @@ export function HealthParasiteControlPanel({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Tipo de Controle *</label>
               <div className="grid grid-cols-3 gap-2">
-                {PARASITE_TYPES.map((type) => (
+                {availableParasiteTypes.map((type) => (
                   <button
                     key={type.value}
                     type="button"
@@ -211,7 +216,7 @@ export function HealthParasiteControlPanel({
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
                   >
                     {parasiteFormData.type === 'dewormer' && (<><option value="oral">💊 Comprimido/Oral</option><option value="topical">💧 Pasta/Suspensão</option></>)}
-                    {parasiteFormData.type === 'flea_tick' && (<><option value="topical">💧 Pipeta/Tópico</option><option value="oral">💊 Comprimido</option><option value="collar">⭕ Coleira</option></>)}
+                    {parasiteFormData.type === 'flea_tick' && (<><option value="topical">💧 Pipeta/Tópico</option><option value="oral">💊 Comprimido</option>{species === 'dog' && <option value="collar">⭕ Coleira</option>}</>)}
                   </select>
                 </div>
                 <div>

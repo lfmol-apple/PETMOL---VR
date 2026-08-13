@@ -514,6 +514,7 @@ export function HealthModal({
                   )}
                   <HealthParasiteControlPanel
                     petName={currentPet?.pet_name}
+                    species={currentPet?.species}
                     parasiteControls={parasiteControls}
                     showParasiteForm={showParasiteForm}
                     setShowParasiteForm={setShowParasiteForm}
