@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { getToken } from '@/lib/auth-token';
 
@@ -93,6 +93,7 @@ export function PetSumidoSheet({
   const [missingDate, setMissingDate] = useState(initialMissingDate ?? todayISO());
   const [missingTime, setMissingTime] = useState(initialMissingTime ?? nowTime());
   const [photoPreview, setPhotoPreview] = useState<string | null>(petPhotoUrl || null);
+  const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
   const [cardDataUrl, setCardDataUrl] = useState<string | null>(null);
@@ -132,6 +133,20 @@ export function PetSumidoSheet({
     }
   };
 
+  // Checagem ativa (não só onError na <img>): se a imagem já veio quebrada no
+  // HTML de SSR, o navegador pode falhar o load antes do React hidratar e
+  // conectar o onError — perdendo o evento. Um Image() novo, criado só no
+  // client, garante que o handler está plugado antes do request começar.
+  useEffect(() => {
+    if (!photoPreview) return;
+    let cancelled = false;
+    const img = new window.Image();
+    img.onload = () => { if (!cancelled) setPhotoLoadFailed(false); };
+    img.onerror = () => { if (!cancelled) setPhotoLoadFailed(true); };
+    img.src = photoPreview;
+    return () => { cancelled = true; };
+  }, [photoPreview]);
+
   const handleUseCurrentLocation = async () => {
     setGpsError('');
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
@@ -166,7 +181,7 @@ export function PetSumidoSheet({
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => setPhotoPreview(ev.target?.result as string);
+    reader.onload = (ev) => { setPhotoPreview(ev.target?.result as string); setPhotoLoadFailed(false); };
     reader.readAsDataURL(file);
   };
 
@@ -438,7 +453,7 @@ export function PetSumidoSheet({
     setShareSuccess(true);
   }, [cardDataUrl, pet, contact]);
 
-  const hasPhoto = Boolean(photoPreview);
+  const hasPhoto = Boolean(photoPreview) && !photoLoadFailed;
   const hasContact = contact.trim().length >= 8;
   const canGenerate = hasPhoto && hasContact;
   const missingParts = [!hasPhoto && 'foto', !hasContact && 'WhatsApp'].filter(Boolean) as string[];
@@ -497,17 +512,28 @@ export function PetSumidoSheet({
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className={`relative block w-full overflow-hidden rounded-3xl border-2 transition-all active:scale-[0.99] ${
-                    photoPreview ? 'border-emerald-300' : 'border-dashed border-red-300'
+                    hasPhoto ? 'border-emerald-300' : 'border-dashed border-red-300'
                   }`}
                   style={{ aspectRatio: '4 / 3' }}
                 >
-                  {photoPreview ? (
-                    <img src={photoPreview} alt={pet.pet_name} className="absolute inset-0 w-full h-full object-cover" />
+                  {hasPhoto ? (
+                    <img
+                      src={photoPreview!}
+                      alt=""
+                      className="absolute inset-0 w-full h-full object-cover"
+                      onError={() => setPhotoLoadFailed(true)}
+                    />
                   ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-red-50">
-                      <span className="text-4xl">📷</span>
-                      <p className="text-[14px] font-bold text-red-500">Adicionar foto de {pet.pet_name}</p>
-                      <p className="text-[11px] text-red-400">Rosto visível, foto recente</p>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-red-50 px-6 text-center">
+                      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-3xl">
+                        {photoLoadFailed ? '⚠️' : '📷'}
+                      </span>
+                      <p className="text-[14px] font-bold text-red-500">
+                        {photoLoadFailed ? 'Não foi possível carregar a foto atual' : `Adicionar foto de ${pet.pet_name}`}
+                      </p>
+                      <p className="text-[11px] text-red-400">
+                        {photoLoadFailed ? `Toque para escolher uma nova foto de ${pet.pet_name}` : 'Toque aqui · rosto visível, foto recente'}
+                      </p>
                     </div>
                   )}
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent px-4 pt-10 pb-3 flex items-end justify-between gap-2">
@@ -518,7 +544,7 @@ export function PetSumidoSheet({
                         {(pet as unknown as { breed?: string }).breed ? ` · ${(pet as unknown as { breed?: string }).breed}` : ''}
                       </p>
                     </div>
-                    {photoPreview && (
+                    {hasPhoto && (
                       <span className="flex-shrink-0 rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
                         Trocar foto
                       </span>
@@ -541,7 +567,7 @@ export function PetSumidoSheet({
                   onFocus={() => setFocusedField('contact')}
                   onBlur={() => setFocusedField(null)}
                   className={`w-full border-2 rounded-2xl px-4 text-gray-900 placeholder-slate-300 outline-none transition-all ${
-                    focusedField === 'contact' ? 'border-red-400 py-5 text-xl' : 'border-slate-200 py-3 text-[15px]'
+                    focusedField === 'contact' ? 'border-red-400 py-5 text-xl' : 'border-slate-400 py-3 text-[15px]'
                   }`}
                 />
                 <p className="text-[11px] text-slate-400 mt-1">Aparece no card compartilhado</p>
@@ -558,14 +584,14 @@ export function PetSumidoSheet({
                     value={missingDate}
                     max={todayISO()}
                     onChange={e => { setMissingDate(e.target.value); setLiveRadius(calcAutoRadius(e.target.value, missingTime, pet.species || 'dog')); }}
-                    className="flex-1 border-2 border-slate-200 rounded-2xl px-4 py-3 text-[15px] text-gray-900 outline-none focus:border-red-400 transition-colors"
+                    className="flex-1 border-2 border-slate-400 rounded-2xl px-4 py-3 text-[15px] text-gray-900 outline-none focus:border-red-400 transition-colors"
                     style={{ colorScheme: 'light' }}
                   />
                   <input
                     type="time"
                     value={missingTime}
                     onChange={e => { setMissingTime(e.target.value); setLiveRadius(calcAutoRadius(missingDate, e.target.value, pet.species || 'dog')); }}
-                    className="w-[116px] border-2 border-slate-200 rounded-2xl px-4 py-3 text-[15px] text-gray-900 outline-none focus:border-red-400 transition-colors"
+                    className="w-[116px] border-2 border-slate-400 rounded-2xl px-4 py-3 text-[15px] text-gray-900 outline-none focus:border-red-400 transition-colors"
                     style={{ colorScheme: 'light' }}
                   />
                 </div>
@@ -610,7 +636,7 @@ export function PetSumidoSheet({
                     onFocus={() => setFocusedField('cep')}
                     onBlur={() => setFocusedField(null)}
                     className={`w-full border-2 rounded-2xl px-4 pr-10 text-[15px] text-gray-900 placeholder-slate-300 outline-none transition-colors ${
-                      focusedField === 'cep' ? 'border-red-400 py-5 text-xl' : 'border-slate-200 py-3'
+                      focusedField === 'cep' ? 'border-red-400 py-5 text-xl' : 'border-slate-400 py-3'
                     }`}
                   />
                   <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[13px]">
@@ -626,7 +652,7 @@ export function PetSumidoSheet({
                   onFocus={() => setFocusedField('location')}
                   onBlur={() => setFocusedField(null)}
                   className={`w-full border-2 rounded-2xl px-4 text-[15px] text-gray-900 placeholder-slate-300 outline-none transition-colors ${
-                    focusedField === 'location' ? 'border-red-400 py-5 text-lg' : 'border-slate-200 py-3'
+                    focusedField === 'location' ? 'border-red-400 py-5 text-lg' : 'border-slate-400 py-3'
                   }`}
                 />
               </div>
@@ -644,7 +670,7 @@ export function PetSumidoSheet({
                   rows={focusedField === 'characteristics' ? 6 : 3}
                   onFocus={() => setFocusedField('characteristics')}
                   onBlur={() => setFocusedField(null)}
-                  className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3 text-[15px] text-gray-900 placeholder-slate-300 outline-none focus:border-red-400 transition-colors resize-none leading-relaxed"
+                  className="w-full border-2 border-slate-400 rounded-2xl px-4 py-3 text-[15px] text-gray-900 placeholder-slate-300 outline-none focus:border-red-400 transition-colors resize-none leading-relaxed"
                 />
               </div>
 
