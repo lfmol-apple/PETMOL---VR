@@ -173,17 +173,25 @@ class Settings(BaseSettings):
             return self.affiliate_only_commerce
         return self.env == "prod"
 
-    # ── Awin (rede de afiliados) — preparação, NÃO ativação ────────────────
-    # Situação real em 11/08/2026 (ver docs/AFFILIATES.md e
-    # awin_advertisers.py): publisher cadastrado, todos os programas
-    # "pending" (aguardando aprovação). Nada aqui liga chamada real —
-    # ver awin_enabled/awin_shadow_mode, ambos False por padrão.
+    # ── Awin (rede de afiliados) ────────────────────────────────────────────
+    # Cobasi (advertiser 17870) aprovada em 13/08/2026 (confirmado no painel
+    # Awin — ver awin_advertisers.py). Sync do feed já é real (awin_feed_sync.py),
+    # mas awin_enabled continua False até o AwinFeedProvider ser registrado em
+    # build_default_engine() e a rota ser validada (docs/AFFILIATES.md item 6)
+    # — a existência de dados sincronizados não implica exibir ao tutor.
     #
     # Publisher ID não é segredo (é público, aparece no painel/contrato) —
-    # por isso tem valor padrão no código. Token/API key vem só quando os
-    # programas forem aprovados; nunca commitar um valor real.
+    # por isso tem valor padrão no código.
     awin_publisher_id: str = "3032803"
-    awin_api_token: Optional[str] = None
+    # Token OAuth2 da Publisher API da Awin (reporting/transações) — NÃO é
+    # o mesmo usado pra baixar o feed de produtos. Não consumido em código
+    # ainda (reservado pra quando validarmos comissão via API de relatórios).
+    awin_oauth_token: Optional[str] = None
+    # Chave usada em productdata.awin.com/datafeed/download/apikey/{...}/ —
+    # é o que awin_feed_sync.py de fato usa pra baixar o feed. Segredo real;
+    # nunca commitar um valor válido (fica em env var no VPS, como as demais
+    # credenciais — ver docs/DEPLOYMENT.md pro caminho certo do env file).
+    awin_datafeed_key: Optional[str] = None
     # Liga chamadas reais à API/feed da Awin. Deve continuar False até
     # haver credencial real E aprovação confirmada.
     awin_enabled: bool = False

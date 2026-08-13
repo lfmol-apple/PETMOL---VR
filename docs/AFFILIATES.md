@@ -226,20 +226,23 @@ preparação de arquitetura para quando as contas forem aprovadas, sem
 segunda arquitetura paralela e sem exigir um refactor futuro do
 `CommerceEngine`.
 
-Situação real das contas em 11/08/2026 — todas `commercial_status=pending`,
-nenhuma habilitada:
+Situação real das contas em 13/08/2026 — **Cobasi aprovada** (confirmado
+no painel Awin: Anunciantes → Meus Programas → "Seus Anunciantes"), as
+outras três seguem `commercial_status=pending`. Nenhuma está `enabled`
+ainda — aprovada ≠ ligada ao tutor (ver `AwinFeedProvider` abaixo):
 
-| Merchant | advertiser_id | feed disponível | comissão | cookie |
-|---|---|---|---|---|
-| Cobasi | 17870 | sim | 8,5% | 1 dia |
-| Petz | 127553 | não | 3% | 14 dias |
-| Zee Now | 127557 | sim (~13.746 produtos observados) | 3% | 1 dia |
-| Zee Dog | 127555 | sim (~1.742 produtos observados) | 3% | 14 dias |
+| Merchant | advertiser_id | feed disponível | fid | comissão | cookie | status |
+|---|---|---|---|---|---|---|
+| Cobasi | 17870 | sim (8.398 produtos) | 48117 | 8,5% | 1 dia | **approved** |
+| Petz | 127553 | não | — | 3% | 14 dias | pending |
+| Zee Now | 127557 | sim (~13.746 produtos observados) | — | 3% | 1 dia | pending |
+| Zee Dog | 127555 | sim (~1.742 produtos observados) | — | 3% | 14 dias | pending |
 
 - `services/price-service/src/awin_advertisers.py` —
   `AWIN_ADVERTISERS: dict[str, AwinAdvertiser]` (chave: `"cobasi"`,
   `"petz"`, `"zeenow"`, `"zeedog"`) com os dados da tabela acima,
-  `enabled=False` em todos. `is_awin_merchant_enabled(merchant)` é o
+  `enabled=False` em todos (inclusive Cobasi, mesmo aprovada — ver
+  roteiro de ativação abaixo). `is_awin_merchant_enabled(merchant)` é o
   único ponto de decisão — hoje sempre `False`, então
   `AwinFeedProvider` nunca retorna oferta pra ninguém.
 - `services/price-service/src/affiliate_feed.py` — `AffiliateFeedOffer`
@@ -276,26 +279,55 @@ nenhuma habilitada:
   acontece hoje. Não apagado (histórico), não conectado a nada, não vira
   dependência de produção — `AwinFeedProvider`/`AffiliateFeedOffer` são
   a implementação real, deste documento, não uma evolução desse código.
+- `services/price-service/src/awin_feed_sync.py` (**implementado
+  13/08/2026**) — `sync_awin_feed(db, merchant)`, a única chamada real à
+  Awin em todo o código. Baixa o Product Feed (CSV gzip,
+  `productdata.awin.com/datafeed/download/...`) via `httpx`, faz parse
+  com `csv.DictReader` e upsert em `AffiliateFeedOffer` (chave: network +
+  advertiser_id + external_product_id). Produtos que somem do feed entre
+  duas rodadas são marcados `active=False` (nunca apagados — histórico
+  preservado); voltam a `active=True` se reaparecerem. Roda em lote via
+  `scripts/sync_awin_feed.py <merchant>` (cron/job externo, nunca por
+  requisição HTTP do frontend) — mesmo padrão descrito no doc de
+  arquitetura interno (§14: "job de sincronização → Postgres; tutor toca
+  Comprar → consulta Postgres local"). Rodar o sync não depende de
+  `enabled=True` — só popula a tabela; quem decide se aparece pro tutor é
+  `is_awin_merchant_enabled()`.
 - `config.py`: `awin_publisher_id` (`"3032803"`, não é segredo — é
   identificador público do publisher, pode aparecer em URL/HTML),
-  `awin_api_token` (segredo — nunca em frontend/`NEXT_PUBLIC_*`/git;
-  fica só em `/etc/petmol/petmol.env` no VPS, como as demais credenciais
-  server-side), `awin_enabled` (`False`), `awin_shadow_mode` (`False`),
+  `awin_datafeed_key` (segredo — a chave usada pra baixar o feed;
+  `AWIN_DATAFEED_KEY` só em env var server-side, nunca em
+  frontend/`NEXT_PUBLIC_*`/git), `awin_oauth_token` (segredo — token
+  OAuth2 da Publisher API, credencial **distinta** da anterior, ainda não
+  consumida em código, reservada pra validar comissão via API de
+  relatórios), `awin_enabled` (`False`), `awin_shadow_mode` (`False`),
   `awin_sync_interval_minutes` (`1440`, batch diário — nunca por clique).
-- **Não implementado nesta tarefa** (deliberado): nenhuma chamada real à
-  API/feed da Awin, nenhum `AwinFeedSyncService` ativo, nenhum merchant
-  habilitado (`enabled=True`), nenhum scraping, sem Redis/Elasticsearch,
-  sem armazenar imagens. Feed real só é lido quando existir e for
-  sincronizado por um job futuro — a leitura (`AwinFeedProvider`) já
-  existe e é testada contra dados fake, esperando dados reais.
+  Ver `/opt/petmol/shared/env/api.env` no VPS pro caminho real dos env
+  files de produção (não `/etc/petmol/petmol.env`, legado/não lido por
+  nenhum systemd unit — ver nota em `project_petmol_vred` na memória do
+  projeto).
+- **Roteiro de ativação (não pular etapas — docs deste arquivo, item 6
+  da seção "Como adicionar um novo merchant" abaixo se aplica aqui
+  também):** (1) ✅ token+fid obtidos, sync real implementado; (2)
+  `enabled=True` pro Cobasi em `AWIN_ADVERTISERS` — ainda não feito,
+  só depois de confirmar que o sync está escrevendo dados reais em
+  produção; (3) registrar `AwinFeedProvider(db, "cobasi")` em
+  `build_default_engine()`; (4) só trocar a rota preferida da Cobasi de
+  `mais` (UTM) pra `awin` em `merchant_routes.PREFERRED_ROUTE_BY_MERCHANT`
+  depois de validar que a rota Awin de fato gera comissão — nunca só por
+  ter feed disponível ou comissão nominal maior.
+- Nenhum merchant está `enabled=True` ainda, nenhum scraping, sem
+  Redis/Elasticsearch, sem armazenar imagens (só a URL do feed).
 
 ## Testes
 
-86 testes relevantes a afiliados/comércio em
-`services/price-service/tests/` (de 103 no total do serviço; nenhum chama
+96 testes relevantes a afiliados/comércio em
+`services/price-service/tests/` (de 113 no total do serviço; nenhum chama
 API real de Cobasi ou Awin — `fetch_cobasi_price` é sempre monkeypatchado
-quando o teste precisa de discovery, e nenhum teste faz chamada de rede
-pra Awin porque `AwinFeedProvider` só lê `AffiliateFeedOffer` local):
+quando o teste precisa de discovery, `AwinFeedProvider` só lê
+`AffiliateFeedOffer` local, e `awin_feed_sync.py` sempre tem
+`fetch_feed_csv` monkeypatchado com um CSV fixo em memória — nenhum teste
+baixa o feed real):
 
 - `test_affiliate_links.py` (26) — storefront geral (Cobasi aparece, Petz
   não), recompra sem/com deep link, GTIN diferente não reaproveita link
@@ -322,13 +354,20 @@ pra Awin porque `AwinFeedProvider` só lê `AffiliateFeedOffer` local):
   prioridade mesmo em modo `utm`** (não abandona link comprovado).
 - `test_affiliate_feed.py` (3) — `AffiliateFeedOffer`: constraint de
   unicidade (network+advertiser_id+external_product_id), índices.
-- `test_awin_advertisers.py` (8) — `AWIN_ADVERTISERS`: dados corretos
-  por merchant, todos `enabled=False`/`pending` por padrão,
+- `test_awin_advertisers.py` (10) — `AWIN_ADVERTISERS`: dados corretos
+  por merchant, todos `enabled=False` por padrão (Cobasi `approved` com
+  `feed_id`, as demais `pending`), nenhuma credencial commitada,
   `is_awin_merchant_enabled`/`awin_merchants_with_feed`.
 - `test_awin_feed_provider.py` (9) — `AwinFeedProvider`: só resolve por
   GTIN exato, ignora inativo/fora de estoque, escolhe linha certa por
   peso entre várias, `monetize()` nunca cai pra `merchant_url` limpa,
   merchant desabilitado nunca encontra nada.
+- `test_awin_feed_sync.py` (8) — `sync_awin_feed`: upsert a partir do CSV
+  do feed, produto que some do feed vira `active=False` (nunca apagado),
+  volta a `active=True` se reaparecer com dado atualizado (ex: preço),
+  `stock_status` vira `in_stock` corretamente, linha sem `aw_product_id`
+  é ignorada, merchant desconhecido/sem feed/sem `AWIN_DATAFEED_KEY`
+  levanta erro.
 
 Não há test runner de frontend configurado neste repo (sem Jest/Vitest) —
 a regra `affiliateStatus === 'active'` em `isPartnerVisibleInStoreArea`/
@@ -364,18 +403,19 @@ só tem publisher ID e token de API.
 |---|---|
 | network_name | Awin |
 | publisher_id | 3032803 (não é segredo) |
-| api_token | não commitado; server-side env only (`AWIN_API_TOKEN`), nunca `NEXT_PUBLIC_*` |
-| api_confirmed | não — nenhuma chamada real feita ainda nesta tarefa |
+| datafeed_key | não commitado; server-side env only (`AWIN_DATAFEED_KEY`), nunca `NEXT_PUBLIC_*` — usado por `awin_feed_sync.py` pra baixar o Product Feed |
+| oauth_token | não commitado; server-side env only (`AWIN_OAUTH_TOKEN`) — credencial distinta da anterior, Publisher API (reporting), ainda não consumida em código |
+| api_confirmed | sim — sync real do feed implementado 13/08/2026 (`awin_feed_sync.py`); comissão/API de relatórios ainda não validada |
 | sync_strategy | batch (`awin_sync_interval_minutes`, padrão 1440min/diário) → Postgres (`affiliate_feed_offers`) → leitura local; nunca chamada externa por clique |
-| last_terms_review | 2026-08-11 |
-| notes | preparação de arquitetura apenas — `awin_enabled=False`, nenhum advertiser `enabled=True` |
+| last_terms_review | 2026-08-13 |
+| notes | Cobasi aprovada 13/08/2026, sync do feed implementado — `awin_enabled=False` ainda (nenhum advertiser `enabled=True`), provider não registrado em `build_default_engine()` |
 
-| Advertiser | advertiser_id | commercial_status | feed_available | cpa | cookie |
-|---|---|---|---|---|---|
-| Cobasi | 17870 | pending | sim | 8,5% | 1 dia |
-| Petz | 127553 | pending | não | 3% | 14 dias |
-| Zee Now | 127557 | pending | sim | 3% | 1 dia |
-| Zee Dog | 127555 | pending | sim | 3% | 14 dias |
+| Advertiser | advertiser_id | commercial_status | feed_available | fid | cpa | cookie |
+|---|---|---|---|---|---|---|
+| Cobasi | 17870 | **approved** (13/08/2026) | sim | 48117 | 8,5% | 1 dia |
+| Petz | 127553 | pending | não | — | 3% | 14 dias |
+| Zee Now | 127557 | pending | sim | — | 3% | 1 dia |
+| Zee Dog | 127555 | pending | sim | — | 3% | 14 dias |
 
 ### Cobasi
 
@@ -396,7 +436,7 @@ só tem publisher ID e token de API.
 | paid_media_restrictions | proibido mídia paga com termos da marca Cobasi |
 | scraping | forbidden |
 | last_terms_review | 2026-08-11 |
-| notes | compra programada comissiona só a primeira transação; proibido usar outro programa de marketing Cobasi simultaneamente; não se apresentar como representante da Cobasi; preço real via API pública VTEX (`commerce_pricing.py`) é sinal interno de matching, nunca substitui a checagem de link afiliado; também listada na Awin (advertiser 17870, pending) como caminho alternativo futuro — ver seção Awin |
+| notes | compra programada comissiona só a primeira transação; proibido usar outro programa de marketing Cobasi simultaneamente; não se apresentar como representante da Cobasi; preço real via API pública VTEX (`commerce_pricing.py`) é sinal interno de matching, nunca substitui a checagem de link afiliado; também listada na Awin (advertiser 17870, **approved** 13/08/2026, feed sincronizando) como caminho alternativo — ver seção Awin |
 
 ### Shopee
 

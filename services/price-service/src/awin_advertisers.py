@@ -4,10 +4,14 @@ espalhado pelo código (ver docs/AFFILIATES.md para a tabela de
 compliance completa). Awin é REDE (network); cada entrada aqui é um
 MERCHANT dentro dela (Cobasi, Petz, Zee Now, Zee Dog).
 
-Situação real em 11/08/2026: publisher PETMOL cadastrado (ID 3032803),
-todos os programas abaixo estão "pending" (aguardando aprovação) — nenhum
-está `enabled`. Não mudar `enabled=True` para nenhum sem confirmação real
-de aprovação (ver §33 do documento de arquitetura interno).
+Situação real em 13/08/2026: publisher PETMOL cadastrado (ID 3032803).
+Cobasi (17870) foi APROVADA — confirmado no painel Awin (Anunciantes →
+Meus Programas → "Seus Anunciantes"), com feed ativo (fid 48117, 8.398
+produtos). Petz/Zee Now/Zee Dog continuam "pending". Não mudar
+`enabled=True` para nenhum sem confirmação real de aprovação (ver §33 do
+documento de arquitetura interno) — Cobasi aprovada não é o mesmo que
+Cobasi pronta pra exibir ao tutor: ainda faltam o AwinFeedProvider
+registrado em build_default_engine() e a validação de comissão real.
 """
 from __future__ import annotations
 
@@ -28,6 +32,11 @@ class AwinAdvertiser:
     enabled: bool
     cookie_days: int
     cpa_percent: Optional[float] = None
+    # ID do feed de produto (fid) usado na URL de download da Awin — não é
+    # segredo (é só um identificador de catálogo, como advertiser_id), mas
+    # só existe quando feed_available=True. A chave de API (secreta) fica
+    # em config.awin_datafeed_key, nunca aqui.
+    feed_id: Optional[str] = None
     notes: str = ""
 
 
@@ -35,16 +44,17 @@ AWIN_ADVERTISERS: dict[str, AwinAdvertiser] = {
     "cobasi": AwinAdvertiser(
         merchant="cobasi",
         advertiser_id="17870",
-        commercial_status="pending",
+        commercial_status="approved",
         feed_available=True,
         enabled=False,
         cookie_days=1,
         cpa_percent=8.5,
+        feed_id="48117",
         notes=(
-            "Cobasi já monetiza hoje via MAIS/UTM (cobasi_provider.py, "
-            "cobasi_affiliate_mode). Awin é a rota preferida quando "
-            "aprovada e validada; MAIS/UTM continua fallback — nunca "
-            "remover MAIS só porque a Awin foi aprovada (ver §28 do "
+            "Aprovada 13/08/2026. Cobasi já monetiza hoje via MAIS/UTM "
+            "(cobasi_provider.py, cobasi_affiliate_mode). Awin é a rota "
+            "preferida quando validada; MAIS/UTM continua fallback — "
+            "nunca remover MAIS só porque a Awin foi aprovada (ver §28 do "
             "documento de arquitetura interno: transição em fases, "
             "shadow mode antes de exibir ao tutor)."
         ),

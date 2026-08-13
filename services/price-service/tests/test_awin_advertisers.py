@@ -51,7 +51,22 @@ def test_advertiser_ids_match_known_real_values():
     assert get_awin_advertiser("zeedog").advertiser_id == "127555"
 
 
-def test_no_awin_api_token_committed():
-    """Nenhum valor real de token deve existir no código/padrão."""
+def test_no_awin_credential_committed():
+    """Nenhum valor real de credencial deve existir no código/padrão —
+    ambas vêm só de env var (ver config.py)."""
     settings = get_settings()
-    assert settings.awin_api_token is None
+    assert settings.awin_oauth_token is None
+    assert settings.awin_datafeed_key is None
+
+
+def test_cobasi_approved_with_feed_id():
+    """Aprovada em 13/08/2026 — ver awin_advertisers.py. Aprovado != enabled
+    (enabled continua False até o provider ser registrado e validado)."""
+    cobasi = get_awin_advertiser("cobasi")
+    assert cobasi.commercial_status == "approved"
+    assert cobasi.feed_id == "48117"
+    assert cobasi.enabled is False
+
+
+def test_merchants_without_feed_have_no_feed_id():
+    assert get_awin_advertiser("petz").feed_id is None
