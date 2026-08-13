@@ -49,7 +49,11 @@ FEED_COLUMNS = (
     "description,merchant_deep_link,merchant_image_url,search_price,"
     "condition,product_type,custom_1,custom_2,stock_status,product_GTIN"
 )
-_IN_STOCK_VALUES = {"1", "true", "yes", "in stock", "instock", "in_stock"}
+# Valor real observado no feed da Cobasi (13/08/2026): "disponível" — os
+# valores em inglês ficam como fallback pra outros merchants/formatos Awin,
+# nunca confirmados contra um feed real ainda (ver docs/AFFILIATES.md).
+_IN_STOCK_VALUES = {"1", "true", "yes", "in stock", "instock", "in_stock", "disponível", "disponivel"}
+_OUT_OF_STOCK_VALUES = {"0", "false", "no", "out of stock", "indisponível", "indisponivel"}
 TIMEOUT_SECONDS = 300  # feeds grandes (milhares de produtos) demoram
 
 
@@ -103,7 +107,17 @@ def _parse_float(value: str) -> Optional[float]:
 def _parse_in_stock(value: str) -> Optional[bool]:
     if value is None or value == "":
         return None
-    return value.strip().lower() in _IN_STOCK_VALUES
+    normalized = value.strip().lower()
+    if normalized in _IN_STOCK_VALUES:
+        return True
+    if normalized in _OUT_OF_STOCK_VALUES:
+        return False
+    # Valor desconhecido: não presumir estoque (find_offer só considera
+    # in_stock=True) nem falta de estoque — melhor não ofertar do que
+    # ofertar errado, mas também não some silenciosamente um valor real
+    # que só não reconhecemos ainda.
+    logger.warning("[awin_feed_sync] stock_status desconhecido: %r", value)
+    return None
 
 
 def _row_to_offer_fields(row: dict, merchant: str, advertiser_id: str, synced_at: datetime) -> Optional[dict]:

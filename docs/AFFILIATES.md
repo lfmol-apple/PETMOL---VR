@@ -241,10 +241,9 @@ ainda — aprovada ≠ ligada ao tutor (ver `AwinFeedProvider` abaixo):
 - `services/price-service/src/awin_advertisers.py` —
   `AWIN_ADVERTISERS: dict[str, AwinAdvertiser]` (chave: `"cobasi"`,
   `"petz"`, `"zeenow"`, `"zeedog"`) com os dados da tabela acima,
-  `enabled=False` em todos (inclusive Cobasi, mesmo aprovada — ver
+  `enabled=True` só para Cobasi (as outras três seguem `False` — ver
   roteiro de ativação abaixo). `is_awin_merchant_enabled(merchant)` é o
-  único ponto de decisão — hoje sempre `False`, então
-  `AwinFeedProvider` nunca retorna oferta pra ninguém.
+  único ponto de decisão consultado por `AwinFeedProvider`.
 - `services/price-service/src/affiliate_feed.py` — `AffiliateFeedOffer`
   (tabela `affiliate_feed_offers`, Postgres via `Base.metadata.create_all`
   como todo o resto — **sem** segundo banco/SQLite). Uma linha = uma
@@ -266,11 +265,17 @@ ainda — aprovada ≠ ligada ao tutor (ver `AwinFeedProvider` abaixo):
   `monetize()`: usa `affiliate_url` **da própria linha do feed** — nunca
   gera link, nunca cai pra `merchant_url` limpa em produção. Retorna
   `route="awin"` (ver "Rota/dedupe por merchant" acima). **Nunca chama a
-  API/feed da Awin diretamente** — só lê o que um futuro serviço de sync
-  já tiver gravado em `AffiliateFeedOffer` (sync em lote → Postgres →
-  leitura local rápida por clique, nunca uma chamada externa por clique).
-  Não registrado em `build_default_engine()` ainda — existe só pra
-  arquitetura estar pronta.
+  API/feed da Awin diretamente** — só lê o que `awin_feed_sync.py` já
+  gravou em `AffiliateFeedOffer` (sync em lote → Postgres → leitura
+  local rápida por clique, nunca uma chamada externa por clique).
+  **Registrado em `build_default_engine()` desde 13/08/2026** —
+  `AwinFeedProvider(db, "cobasi")`, junto com `CobasiProvider` (ver
+  `commerce_offers.py`). Isso sozinho não muda o link que o tutor vê:
+  `merchant_routes.PREFERRED_ROUTE_BY_MERCHANT["cobasi"]` continua
+  `"mais"`, então o dedupe (`_dedupe_by_merchant`) sempre mantém a
+  oferta do `CobasiProvider` quando os dois resolverem a mesma oferta —
+  provado com os dois providers reais (não fakes) em
+  `test_commerce_offers_awin_dedupe.py`.
 - `services/price-service/src/feeds/` (`base.py`, `awin.py`, `cityads.py`,
   `database.py`) — código legado/experimental de uma tentativa anterior.
   **Confirmado por auditoria: zero imports em qualquer caminho alcançável
@@ -279,20 +284,27 @@ ainda — aprovada ≠ ligada ao tutor (ver `AwinFeedProvider` abaixo):
   acontece hoje. Não apagado (histórico), não conectado a nada, não vira
   dependência de produção — `AwinFeedProvider`/`AffiliateFeedOffer` são
   a implementação real, deste documento, não uma evolução desse código.
-- `services/price-service/src/awin_feed_sync.py` (**implementado
-  13/08/2026**) — `sync_awin_feed(db, merchant)`, a única chamada real à
-  Awin em todo o código. Baixa o Product Feed (CSV gzip,
-  `productdata.awin.com/datafeed/download/...`) via `httpx`, faz parse
-  com `csv.DictReader` e upsert em `AffiliateFeedOffer` (chave: network +
-  advertiser_id + external_product_id). Produtos que somem do feed entre
-  duas rodadas são marcados `active=False` (nunca apagados — histórico
-  preservado); voltam a `active=True` se reaparecerem. Roda em lote via
-  `scripts/sync_awin_feed.py <merchant>` (cron/job externo, nunca por
-  requisição HTTP do frontend) — mesmo padrão descrito no doc de
-  arquitetura interno (§14: "job de sincronização → Postgres; tutor toca
-  Comprar → consulta Postgres local"). Rodar o sync não depende de
+- `services/price-service/src/awin_feed_sync.py` (**implementado e
+  rodado em produção 13/08/2026**) — `sync_awin_feed(db, merchant)`, a
+  única chamada real à Awin em todo o código. Baixa o Product Feed (CSV
+  gzip, `productdata.awin.com/datafeed/download/...`) via `httpx`, faz
+  parse com `csv.DictReader` e upsert em `AffiliateFeedOffer` (chave:
+  network + advertiser_id + external_product_id). Produtos que somem do
+  feed entre duas rodadas são marcados `active=False` (nunca apagados —
+  histórico preservado); voltam a `active=True` se reaparecerem. Roda em
+  lote via `scripts/sync_awin_feed.py <merchant>` (cron/job externo,
+  nunca por requisição HTTP do frontend) — mesmo padrão descrito no doc
+  de arquitetura interno (§14: "job de sincronização → Postgres; tutor
+  toca Comprar → consulta Postgres local"). Rodar o sync não depende de
   `enabled=True` — só popula a tabela; quem decide se aparece pro tutor é
   `is_awin_merchant_enabled()`.
+  **Primeira rodada real (13/08/2026): 8.398/8.398 produtos da Cobasi
+  sincronizados com sucesso**, todos com GTIN e `affiliate_url`
+  preenchidos. Achado um bug real nessa rodada: o feed usa
+  `stock_status="disponível"` (português) — o parser assumia valores em
+  inglês (`"in stock"` etc.) e marcou os 8.398 como `in_stock=False` até
+  ser corrigido (ver `test_real_cobasi_feed_stock_value_is_recognized`,
+  regressão coberta).
 - `config.py`: `awin_publisher_id` (`"3032803"`, não é segredo — é
   identificador público do publisher, pode aparecer em URL/HTML),
   `awin_datafeed_key` (segredo — a chave usada pra baixar o feed;
@@ -308,21 +320,25 @@ ainda — aprovada ≠ ligada ao tutor (ver `AwinFeedProvider` abaixo):
   projeto).
 - **Roteiro de ativação (não pular etapas — docs deste arquivo, item 6
   da seção "Como adicionar um novo merchant" abaixo se aplica aqui
-  também):** (1) ✅ token+fid obtidos, sync real implementado; (2)
-  `enabled=True` pro Cobasi em `AWIN_ADVERTISERS` — ainda não feito,
-  só depois de confirmar que o sync está escrevendo dados reais em
-  produção; (3) registrar `AwinFeedProvider(db, "cobasi")` em
-  `build_default_engine()`; (4) só trocar a rota preferida da Cobasi de
-  `mais` (UTM) pra `awin` em `merchant_routes.PREFERRED_ROUTE_BY_MERCHANT`
-  depois de validar que a rota Awin de fato gera comissão — nunca só por
-  ter feed disponível ou comissão nominal maior.
-- Nenhum merchant está `enabled=True` ainda, nenhum scraping, sem
+  também):** (1) ✅ token+fid obtidos, sync real implementado e rodado;
+  (2) ✅ `enabled=True` pro Cobasi em `AWIN_ADVERTISERS`; (3) ✅
+  `AwinFeedProvider(db, "cobasi")` registrado em `build_default_engine()`;
+  (4) **pendente** — só trocar a rota preferida da Cobasi de `mais`
+  (UTM) pra `awin` em `merchant_routes.PREFERRED_ROUTE_BY_MERCHANT`
+  depois de validar com uma compra real que a rota Awin de fato gera
+  comissão — nunca só por ter feed disponível ou comissão nominal maior
+  (8,5% é o CPA anunciado, não confirmado; cookie de só 1 dia torna a
+  comissão realizada potencialmente bem menor que a nominal). Etapa 4 é
+  deliberadamente manual/coordenada — nunca automatizada — pelo risco de
+  expor o link Awin (não validado) a todo tutor comprando Cobasi,
+  inclusive substituindo o link já comprovado da Baby se o GTIN bater.
+- Nenhum outro merchant está `enabled=True`, nenhum scraping, sem
   Redis/Elasticsearch, sem armazenar imagens (só a URL do feed).
 
 ## Testes
 
-96 testes relevantes a afiliados/comércio em
-`services/price-service/tests/` (de 113 no total do serviço; nenhum chama
+99 testes relevantes a afiliados/comércio em
+`services/price-service/tests/` (de 116 no total do serviço; nenhum chama
 API real de Cobasi ou Awin — `fetch_cobasi_price` é sempre monkeypatchado
 quando o teste precisa de discovery, `AwinFeedProvider` só lê
 `AffiliateFeedOffer` local, e `awin_feed_sync.py` sempre tem
@@ -355,18 +371,25 @@ baixa o feed real):
 - `test_affiliate_feed.py` (3) — `AffiliateFeedOffer`: constraint de
   unicidade (network+advertiser_id+external_product_id), índices.
 - `test_awin_advertisers.py` (10) — `AWIN_ADVERTISERS`: dados corretos
-  por merchant, todos `enabled=False` por padrão (Cobasi `approved` com
-  `feed_id`, as demais `pending`), nenhuma credencial commitada,
+  por merchant, Cobasi `approved`+`enabled=True`+`feed_id`, as demais
+  `pending`/`enabled=False`, nenhuma credencial commitada,
   `is_awin_merchant_enabled`/`awin_merchants_with_feed`.
+- `test_commerce_offers_awin_dedupe.py` (1) — prova, com `CobasiProvider`
+  e `AwinFeedProvider` **reais** (não fakes) registrados juntos em
+  `build_default_engine()`, que o link exibido ao tutor continua sendo o
+  da MAIS quando os dois resolvem oferta pro mesmo GTIN.
 - `test_awin_feed_provider.py` (9) — `AwinFeedProvider`: só resolve por
   GTIN exato, ignora inativo/fora de estoque, escolhe linha certa por
   peso entre várias, `monetize()` nunca cai pra `merchant_url` limpa,
   merchant desabilitado nunca encontra nada.
-- `test_awin_feed_sync.py` (8) — `sync_awin_feed`: upsert a partir do CSV
+- `test_awin_feed_sync.py` (10) — `sync_awin_feed`: upsert a partir do CSV
   do feed, produto que some do feed vira `active=False` (nunca apagado),
   volta a `active=True` se reaparecer com dado atualizado (ex: preço),
-  `stock_status` vira `in_stock` corretamente, linha sem `aw_product_id`
-  é ignorada, merchant desconhecido/sem feed/sem `AWIN_DATAFEED_KEY`
+  `stock_status` vira `in_stock` corretamente (inclusive `"disponível"`,
+  o valor real do feed da Cobasi — regressão do bug achado na primeira
+  sincronização real), valor desconhecido de estoque vira `None` (nunca
+  presume disponível nem indisponível), linha sem `aw_product_id` é
+  ignorada, merchant desconhecido/sem feed/sem `AWIN_DATAFEED_KEY`
   levanta erro.
 
 Não há test runner de frontend configurado neste repo (sem Jest/Vitest) —

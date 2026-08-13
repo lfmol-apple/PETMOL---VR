@@ -133,6 +133,38 @@ def test_sync_reactivates_product_that_returns_to_feed(monkeypatch):
         db.close()
 
 
+def test_real_cobasi_feed_stock_value_is_recognized(monkeypatch):
+    """Valor real observado no feed de produção da Cobasi em 13/08/2026 —
+    "disponível" (português), não os valores em inglês que a doc da Awin
+    sugere. Regressão: um sync real chegou a marcar 8.398/8.398 produtos
+    como in_stock=False por não reconhecer este valor."""
+    monkeypatch.setattr(
+        "src.awin_feed_sync.fetch_feed_csv",
+        lambda url: _csv(_row(aw_product_id="3001", stock="disponível")),
+    )
+    db = SessionLocal()
+    try:
+        sync_awin_feed(db, "cobasi", datafeed_key="fake-key")
+        row = db.scalar(select(AffiliateFeedOffer).where(AffiliateFeedOffer.external_product_id == "3001"))
+        assert row.in_stock is True
+    finally:
+        db.close()
+
+
+def test_unknown_stock_status_stores_none_not_false(monkeypatch):
+    monkeypatch.setattr(
+        "src.awin_feed_sync.fetch_feed_csv",
+        lambda url: _csv(_row(aw_product_id="3002", stock="algum-valor-novo-nunca-visto")),
+    )
+    db = SessionLocal()
+    try:
+        sync_awin_feed(db, "cobasi", datafeed_key="fake-key")
+        row = db.scalar(select(AffiliateFeedOffer).where(AffiliateFeedOffer.external_product_id == "3002"))
+        assert row.in_stock is None
+    finally:
+        db.close()
+
+
 def test_out_of_stock_row_stores_in_stock_false(monkeypatch):
     monkeypatch.setattr(
         "src.awin_feed_sync.fetch_feed_csv",

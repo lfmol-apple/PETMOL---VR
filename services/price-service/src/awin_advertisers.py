@@ -7,11 +7,18 @@ MERCHANT dentro dela (Cobasi, Petz, Zee Now, Zee Dog).
 Situação real em 13/08/2026: publisher PETMOL cadastrado (ID 3032803).
 Cobasi (17870) foi APROVADA — confirmado no painel Awin (Anunciantes →
 Meus Programas → "Seus Anunciantes"), com feed ativo (fid 48117, 8.398
-produtos). Petz/Zee Now/Zee Dog continuam "pending". Não mudar
-`enabled=True` para nenhum sem confirmação real de aprovação (ver §33 do
-documento de arquitetura interno) — Cobasi aprovada não é o mesmo que
-Cobasi pronta pra exibir ao tutor: ainda faltam o AwinFeedProvider
-registrado em build_default_engine() e a validação de comissão real.
+produtos) já sincronizado em AffiliateFeedOffer. Petz/Zee Now/Zee Dog
+continuam "pending". Não mudar `enabled=True` para nenhum sem
+confirmação real de aprovação (ver §33 do documento de arquitetura
+interno).
+
+`enabled=True` na Cobasi habilita o `AwinFeedProvider` a encontrar/
+monetizar ofertas SE ele estiver registrado em build_default_engine() —
+hoje ainda não está, então isto sozinho não muda nada pro tutor (ver
+awin_feed_provider.py). Quando for registrado, o dedupe por merchant
+(merchant_routes.py) continua preferindo a rota "mais" até a comissão
+Awin ser validada com uma compra real — Cobasi aprovada não é o mesmo
+que Cobasi pronta pra decidir o link que o tutor vê.
 """
 from __future__ import annotations
 
@@ -46,7 +53,7 @@ AWIN_ADVERTISERS: dict[str, AwinAdvertiser] = {
         advertiser_id="17870",
         commercial_status="approved",
         feed_available=True,
-        enabled=False,
+        enabled=True,
         cookie_days=1,
         cpa_percent=8.5,
         feed_id="48117",
