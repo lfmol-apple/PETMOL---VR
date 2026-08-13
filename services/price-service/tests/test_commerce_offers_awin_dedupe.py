@@ -91,3 +91,68 @@ async def test_registering_awin_provider_does_not_change_link_shown_to_tutor(mon
     assert len(cobasi_offers) == 1, "dedupe deveria manter só uma oferta pro merchant cobasi"
     assert cobasi_offers[0].route == "mais"
     assert cobasi_offers[0].url == "https://mais.app/link-comprovado"
+
+
+@pytest.mark.asyncio
+async def test_manually_cached_link_survives_even_with_awin_preferred(monkeypatch):
+    """O cenário exato do teste de compra real: PREFERRED_ROUTE_BY_MERCHANT
+    trocado pra 'awin' (pra validar comissão), mas o produto testado (aqui
+    simulando o GTIN da Royal Canin da Baby) tem link cadastrado manualmente
+    — precisa continuar mostrando o link comprovado, nunca o da Awin, ou
+    quem comprar esse produto específico durante o teste perderia a
+    comissão já validada. Ver commerce_provider.py::_dedupe_by_merchant."""
+    _register_cobasi_link()
+    _register_awin_offer()
+    monkeypatch.setattr("src.merchant_routes.PREFERRED_ROUTE_BY_MERCHANT", {"cobasi": "awin"})
+
+    async def _fake_fetch(query, target_weight_kg=None):
+        return ProductPriceResult(
+            found=True, price=100.0, is_available=True, ean=GTIN,
+            product_name="Produto Teste", brand="Marca Teste",
+            url="https://www.cobasi.com.br/produto-teste/p",
+        )
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", _fake_fetch)
+
+    db = SessionLocal()
+    try:
+        offers = await get_commerce_offers(db, name="Produto Teste", brand="Marca Teste", gtin=GTIN)
+    finally:
+        db.close()
+
+    cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
+    assert len(cobasi_offers) == 1
+    assert cobasi_offers[0].route == "mais", "link cadastrado nunca cede lugar, mesmo com awin preferida"
+    assert cobasi_offers[0].url == "https://mais.app/link-comprovado"
+
+
+@pytest.mark.asyncio
+async def test_awin_wins_when_no_manual_link_and_awin_preferred(monkeypatch):
+    """Controle do teste acima: SEM link cadastrado (o caso comum — o
+    resto do catálogo, hoje via UTM), trocar a rota preferida pra 'awin'
+    deve sim mudar o link exibido. Prova que a blindagem é específica de
+    link manual, não um bloqueio geral que inutilizaria o teste real."""
+    _register_awin_offer()
+    monkeypatch.setattr("src.merchant_routes.PREFERRED_ROUTE_BY_MERCHANT", {"cobasi": "awin"})
+    monkeypatch.setenv("COBASI_AFFILIATE_MODE", "utm")
+    get_settings.cache_clear()
+
+    async def _fake_fetch(query, target_weight_kg=None):
+        return ProductPriceResult(
+            found=True, price=100.0, is_available=True, ean=GTIN,
+            product_name="Produto Teste", brand="Marca Teste",
+            url="https://www.cobasi.com.br/produto-teste/p",
+        )
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", _fake_fetch)
+
+    db = SessionLocal()
+    try:
+        offers = await get_commerce_offers(db, name="Produto Teste", brand="Marca Teste", gtin=GTIN)
+    finally:
+        db.close()
+
+    cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
+    assert len(cobasi_offers) == 1
+    assert cobasi_offers[0].route == "awin"
+    assert cobasi_offers[0].url.startswith("https://www.awin1.com/")

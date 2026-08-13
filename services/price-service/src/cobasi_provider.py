@@ -20,8 +20,11 @@ Sem link cadastrado, o modo decide o que fazer com o restante do catálogo:
 
 route retornado é sempre "mais" (link cadastrado ou UTM — ambos via
 programa MAIS da Cobasi) — usado por commerce_provider.py pra nunca
-mostrar Cobasi duas vezes quando um futuro AwinFeedProvider("cobasi")
-também estiver registrado (ver merchant_routes.py).
+mostrar Cobasi duas vezes quando AwinFeedProvider("cobasi") também
+está registrado (ver merchant_routes.py). is_manually_cached=True SÓ
+no branch de link cadastrado (nunca em UTM/dev fallback) — blinda essa
+oferta específica contra qualquer troca de PREFERRED_ROUTE_BY_MERCHANT
+no dedupe do CommerceEngine (ver _dedupe_by_merchant).
 """
 from __future__ import annotations
 
@@ -70,7 +73,7 @@ class CobasiProvider:
             ean=price.ean,
         )
 
-    def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str, str]]:
+    def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str, str, bool]]:
         settings = get_settings()
         mode = settings.cobasi_affiliate_mode
 
@@ -78,11 +81,14 @@ class CobasiProvider:
             return None
 
         # Link cadastrado manualmente sempre tem prioridade, em qualquer
-        # modo != "disabled" — ver docstring do módulo.
+        # modo != "disabled" — ver docstring do módulo. is_manually_cached=True
+        # também blinda esta oferta no dedupe do CommerceEngine contra troca
+        # de merchant_routes.PREFERRED_ROUTE_BY_MERCHANT (ex: quando a rota
+        # da Cobasi for "awin" mas ESTE produto tem link manual comprovado).
         cached = self._lookup_cached_link(offer, context)
         if cached is not None:
             url, link_type = cached
-            return url, link_type, "mais"
+            return url, link_type, "mais", True
 
         if mode == "cached":
             fallback = self._dev_fallback(offer, settings)

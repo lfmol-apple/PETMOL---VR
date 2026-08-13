@@ -11,11 +11,15 @@ from src.commerce_provider import CommerceEngine, DiscoveredOffer, ProductContex
 
 
 class _FakeProvider:
-    def __init__(self, merchant: str, price: Optional[float], monetizable: bool = True, route: Optional[str] = None):
+    def __init__(
+        self, merchant: str, price: Optional[float], monetizable: bool = True,
+        route: Optional[str] = None, manually_cached: bool = False,
+    ):
         self.merchant = merchant
         self._price = price
         self._monetizable = monetizable
         self._route = route
+        self._manually_cached = manually_cached
 
     async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
         if self._price is None:
@@ -25,6 +29,8 @@ class _FakeProvider:
     def monetize(self, offer: DiscoveredOffer, context: ProductContext):
         if not self._monetizable:
             return None
+        if self._manually_cached:
+            return (f"https://{self.merchant}.example/produto", "affiliate_product", self._route, True)
         if self._route is not None:
             return (f"https://{self.merchant}.example/produto", "affiliate_product", self._route)
         return (f"https://{self.merchant}.example/produto", "affiliate_product")
@@ -86,10 +92,13 @@ async def test_engine_does_not_require_prior_manual_registration():
 
 
 @pytest.mark.asyncio
-async def test_dedupes_same_merchant_keeping_preferred_route():
-    """merchant_routes.py: PREFERRED_ROUTE_BY_MERCHANT['cobasi'] == 'mais'
-    — se um provider 'awin' e um provider 'mais' resolverem oferta pra
-    Cobasi ao mesmo tempo, nunca mostra as duas, só a preferida."""
+async def test_dedupes_same_merchant_keeping_preferred_route(monkeypatch):
+    """Se um provider 'awin' e um provider 'mais' resolverem oferta pra
+    Cobasi ao mesmo tempo, nunca mostra as duas, só a preferida — fixado
+    explicitamente aqui (não depende do valor real de
+    merchant_routes.PREFERRED_ROUTE_BY_MERCHANT, que pode estar em
+    'awin' temporariamente durante um teste de validação de comissão)."""
+    monkeypatch.setattr("src.merchant_routes.PREFERRED_ROUTE_BY_MERCHANT", {"cobasi": "mais"})
     engine = CommerceEngine([
         _FakeProvider("cobasi", 100.0, route="awin"),
         _FakeProvider("cobasi", 105.0, route="mais"),
@@ -113,3 +122,34 @@ async def test_dedupes_same_merchant_keeping_first_when_no_preference_configured
     offers = await engine.get_offers(ProductContext(gtin="123"))
     assert len(offers) == 1
     assert offers[0].route == "marketplace_a"
+
+
+@pytest.mark.asyncio
+async def test_manually_cached_offer_survives_even_when_other_route_is_preferred():
+    """O caso que importa (13/08/2026 — teste de compra real Awin/Cobasi):
+    se PREFERRED_ROUTE_BY_MERCHANT['cobasi'] virar 'awin' mas ESTE produto
+    tem link cadastrado manualmente (ex: Baby/mais.app), o dedupe nunca
+    troca — link comprovado nunca cede lugar pra rota preferida."""
+    engine = CommerceEngine([
+        _FakeProvider("cobasi", 105.0, route="mais", manually_cached=True),
+        _FakeProvider("cobasi", 90.0, route="awin", manually_cached=False),
+    ])
+    offers = await engine.get_offers(ProductContext(gtin="123"))
+    cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
+    assert len(cobasi_offers) == 1
+    assert cobasi_offers[0].route == "mais"
+    assert cobasi_offers[0].is_manually_cached is True
+
+
+@pytest.mark.asyncio
+async def test_manually_cached_offer_survives_regardless_of_registration_order():
+    """Mesmo teste acima, mas com a oferta cacheada chegando DEPOIS —
+    a blindagem não pode depender de qual provider roda primeiro."""
+    engine = CommerceEngine([
+        _FakeProvider("cobasi", 90.0, route="awin", manually_cached=False),
+        _FakeProvider("cobasi", 105.0, route="mais", manually_cached=True),
+    ])
+    offers = await engine.get_offers(ProductContext(gtin="123"))
+    cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
+    assert len(cobasi_offers) == 1
+    assert cobasi_offers[0].route == "mais"

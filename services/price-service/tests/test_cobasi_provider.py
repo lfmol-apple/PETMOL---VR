@@ -59,7 +59,7 @@ def test_cached_mode_uses_registered_link():
 
         provider = CobasiProvider(db)
         result = provider.monetize(_offer(), ProductContext(product_id=product_id))
-        assert result == ("https://mais.app/ABC", "affiliate_product", "mais")
+        assert result == ("https://mais.app/ABC", "affiliate_product", "mais", True)
     finally:
         db.close()
 
@@ -121,7 +121,23 @@ def test_utm_mode_still_prefers_cached_link_when_one_exists(monkeypatch):
 
         provider = CobasiProvider(db)
         result = provider.monetize(_offer(), ProductContext(product_id=product_id))
-        assert result == ("https://mais.app/IvUCAG", "affiliate_product", "mais")
+        assert result == ("https://mais.app/IvUCAG", "affiliate_product", "mais", True)
+    finally:
+        db.close()
+
+
+def test_utm_mode_offer_is_not_flagged_as_manually_cached(monkeypatch):
+    """Distingue UTM (gerado) de link cadastrado — só o segundo blinda a
+    oferta no dedupe do CommerceEngine (ver commerce_provider.py). UTM
+    continua retornando 3-tupla (sem is_manually_cached explícito),
+    consumido pelo CommerceEngine como is_manually_cached=False."""
+    monkeypatch.setenv("COBASI_AFFILIATE_MODE", "utm")
+    get_settings.cache_clear()
+    db = SessionLocal()
+    try:
+        provider = CobasiProvider(db)
+        result = provider.monetize(_offer(), ProductContext())
+        assert len(result) == 3
     finally:
         db.close()
 

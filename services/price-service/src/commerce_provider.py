@@ -67,6 +67,14 @@ class MonetizedOffer:
     # CommerceEngine para dedupe por merchant_routes.py. Opcional porque
     # providers antigos/de teste podem não informar.
     route: Optional[str] = None
+    # True só quando a oferta vem de um link cadastrado manualmente
+    # (ex: ProductAffiliateLink da Baby) — nunca de UTM/geração automática,
+    # mesmo que ambos tenham route="mais". Ofertas cacheadas manualmente
+    # NUNCA são substituídas no dedupe por merchant, independente de
+    # merchant_routes.PREFERRED_ROUTE_BY_MERCHANT (ver _dedupe_by_merchant)
+    # — um link já comprovado nunca cede espaço pra uma rota "preferida"
+    # ainda não validada.
+    is_manually_cached: bool = False
     product_name: Optional[str] = None
     brand: Optional[str] = None
     price: Optional[float] = None
@@ -85,10 +93,15 @@ class CommerceProvider(Protocol):
         QUALQUER produto, existindo ou não link afiliado para ele."""
         ...
 
-    def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str] | tuple[str, str, str]]:
+    def monetize(
+        self, offer: DiscoveredOffer, context: ProductContext
+    ) -> Optional[tuple[str, str] | tuple[str, str, str] | tuple[str, str, str, bool]]:
         """Tenta transformar a oferta descoberta em (url, link_type) — ou
         (url, link_type, route), quando o provider distingue mais de um
-        mecanismo de monetização pro mesmo merchant (ver merchant_routes.py).
+        mecanismo de monetização pro mesmo merchant (ver merchant_routes.py)
+        — ou (url, link_type, route, is_manually_cached), quando o provider
+        também distingue link cadastrado manualmente de geração automática
+        (ver CobasiProvider — um link manual nunca cede lugar no dedupe).
         Retorna None se não for possível monetizar agora — a oferta é então
         descartada, nunca exibida sem comissão."""
         ...
@@ -112,7 +125,10 @@ class CommerceEngine:
             if monetized is None:
                 continue
 
-            if len(monetized) == 3:
+            is_manually_cached = False
+            if len(monetized) == 4:
+                url, link_type, route, is_manually_cached = monetized
+            elif len(monetized) == 3:
                 url, link_type, route = monetized
             else:
                 url, link_type = monetized
@@ -123,6 +139,7 @@ class CommerceEngine:
                 url=url,
                 link_type=link_type,
                 route=route,
+                is_manually_cached=is_manually_cached,
                 product_name=discovered.product_name,
                 brand=discovered.brand,
                 price=discovered.price,
@@ -138,13 +155,23 @@ class CommerceEngine:
 def _dedupe_by_merchant(offers: list[MonetizedOffer]) -> list[MonetizedOffer]:
     """Nunca exibe o mesmo merchant duas vezes (ex: "Cobasi via MAIS" e
     "Cobasi via Awin" como se fossem duas lojas diferentes). Quando mais
-    de um provider resolve oferta pro mesmo merchant, mantém a da rota
-    preferida (merchant_routes.py); sem preferência configurada, mantém a
-    primeira encontrada (ordem de registro em build_default_engine)."""
+    de um provider resolve oferta pro mesmo merchant:
+      1. Uma oferta com link cadastrado manualmente (is_manually_cached)
+         NUNCA é substituída por uma que não é — mesmo que a outra seja a
+         rota "preferida" em merchant_routes.py. Link já comprovado nunca
+         cede lugar pra rota ainda não validada (ver docs/AFFILIATES.md).
+      2. Sem link manual dos dois lados, mantém a da rota preferida.
+      3. Sem preferência configurada, mantém a primeira encontrada (ordem
+         de registro em build_default_engine)."""
     kept: dict[str, MonetizedOffer] = {}
     for offer in offers:
         existing = kept.get(offer.merchant)
         if existing is None:
+            kept[offer.merchant] = offer
+            continue
+        if existing.is_manually_cached and not offer.is_manually_cached:
+            continue
+        if offer.is_manually_cached and not existing.is_manually_cached:
             kept[offer.merchant] = offer
             continue
         preferred = preferred_route_for(offer.merchant)
