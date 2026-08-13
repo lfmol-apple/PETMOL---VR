@@ -312,6 +312,12 @@ def run_pg_migrations(engine: Engine) -> None:
         # analytics_events: distinguish monetized vs unmonetized clicks (Aug 2026)
         _pg_add_column_if_missing(conn, "analytics_events", "link_type", "VARCHAR(32)")
 
+        # GET /commerce/awin-search: busca de produto ignorando acento
+        # ("racao" precisa achar "Ração" — teclado de celular raramente
+        # acentua). unaccent() é extensão contrib nativa do Postgres, não
+        # instalada por padrão em todo banco novo (Ago 2026).
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent"))
+
 
 def _migrate_push_subscriptions_from_json(conn) -> None:
     """One-time import of the legacy push_subscriptions.json (file-based,

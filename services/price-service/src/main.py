@@ -34,7 +34,7 @@ from .search import clear_cache, search_offers
 from .utils.weights import parse_weight_to_kg, calculate_price_per_kg
 from .auth import ml_oauth_router
 from .auth.ml_oauth import debug_router as ml_debug_router
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from .db import Base, engine, SessionLocal, get_db
 from .user_auth import user_auth_router
@@ -1527,6 +1527,18 @@ async def commerce_awin_search(
         return {"results": []}
 
     like = f"%{q.strip()}%"
+    # Teclado de celular raramente acentua ("racao" pra achar "Ração") — sem
+    # isso a busca falha silenciosamente pra boa parte das buscas reais em
+    # português. unaccent() é extensão nativa do Postgres (habilitada em
+    # produção via `CREATE EXTENSION unaccent`); SQLite (testes/dev local)
+    # não tem, cai pro ILIKE simples (sensível a acento só nesse ambiente).
+    if db.bind.dialect.name == "postgresql":
+        title_match = func.unaccent(AffiliateFeedOffer.title).ilike(func.unaccent(like))
+        brand_match = func.unaccent(AffiliateFeedOffer.brand).ilike(func.unaccent(like))
+    else:
+        title_match = AffiliateFeedOffer.title.ilike(like)
+        brand_match = AffiliateFeedOffer.brand.ilike(like)
+
     rows = db.scalars(
         select(AffiliateFeedOffer)
         .where(
@@ -1535,7 +1547,7 @@ async def commerce_awin_search(
             AffiliateFeedOffer.active.is_(True),
             AffiliateFeedOffer.in_stock.is_(True),
             AffiliateFeedOffer.gtin.isnot(None),
-            (AffiliateFeedOffer.title.ilike(like) | AffiliateFeedOffer.brand.ilike(like)),
+            (title_match | brand_match),
         )
         .order_by(AffiliateFeedOffer.price.asc())
     ).all()
