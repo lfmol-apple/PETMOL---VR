@@ -47,6 +47,7 @@ from .health import models as _health_models  # Import health models to register
 from .admin import admin_router
 from .admin import affiliate_links_admin_router
 from .admin import affiliate_feed_metrics_admin_router
+from .admin import marketplace_offers_admin_router
 from .admin import models as _admin_models
 from .affiliate_links import ProductAffiliateLink as _product_affiliate_link_model  # noqa: F401 — register with Base
 from .affiliate_links import MarketplaceOffer as _marketplace_offer_model  # noqa: F401 — register with Base
@@ -268,10 +269,12 @@ app.include_router(checkin_router)
 app.include_router(admin_router)
 app.include_router(affiliate_links_admin_router)
 app.include_router(affiliate_feed_metrics_admin_router)
+app.include_router(marketplace_offers_admin_router)
 # Some deployments forward /api/* without stripping the prefix.
 app.include_router(admin_router, prefix="/api")
 app.include_router(affiliate_links_admin_router, prefix="/api")
 app.include_router(affiliate_feed_metrics_admin_router, prefix="/api")
+app.include_router(marketplace_offers_admin_router, prefix="/api")
 
 # Servir arquivos estáticos (fotos de pets) — sempre que storage for local
 # Em prod com R2/S3: as fotos têm URL pública direta, sem precisar deste mount

@@ -189,3 +189,56 @@ class AffiliateLinkDetailOut(BaseModel):
 class AffiliateLinksListOut(BaseModel):
     success: bool = True
     data: List[AffiliateLinkOut]
+
+
+# Marketplace offers (link oficial de vendedor/marketplace por produto —
+# Shopee hoje; NUNCA gerado por template, sempre colado do Portal do
+# Afiliado — ver marketplace_offer_provider.py / shopee_link_validator.py)
+class MarketplaceOfferCreateRequest(BaseModel):
+    gtin: str
+    merchant: str
+    affiliate_url: str
+    direct_url: Optional[str] = None
+    seller_name: Optional[str] = None
+    external_listing_id: Optional[str] = None
+    price: Optional[float] = None
+    is_available: Optional[bool] = None
+    active: bool = True
+
+
+class MarketplaceOfferUpdateRequest(BaseModel):
+    affiliate_url: Optional[str] = None
+    direct_url: Optional[str] = None
+    seller_name: Optional[str] = None
+    external_listing_id: Optional[str] = None
+    price: Optional[float] = None
+    is_available: Optional[bool] = None
+    active: Optional[bool] = None
+    verified: Optional[bool] = None
+
+
+class MarketplaceOfferOut(BaseModel):
+    id: int
+    product_id: int
+    gtin: str
+    merchant: str
+    affiliate_url: str
+    direct_url: Optional[str] = None
+    seller_name: Optional[str] = None
+    external_listing_id: Optional[str] = None
+    price: Optional[float] = None
+    is_available: Optional[bool] = None
+    active: bool
+    verified_at: OptionalUtcInstant = None
+    created_at: UtcInstant
+    updated_at: UtcInstant
+
+
+class MarketplaceOfferDetailOut(BaseModel):
+    success: bool = True
+    data: MarketplaceOfferOut
+
+
+class MarketplaceOffersListOut(BaseModel):
+    success: bool = True
+    data: List[MarketplaceOfferOut]
