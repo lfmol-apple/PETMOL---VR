@@ -26,6 +26,10 @@ export interface MonetizedOffersListProps {
   query: string;
   /** Peso real do pacote (kg), quando aplicável — escolhe o SKU certo entre variantes de tamanho. */
   packageSizeKg?: number | null;
+  /** GTIN/EAN real do produto, quando conhecido — permite resolver por
+   * identidade exata (ex: AwinFeedProvider, que só resolve por GTIN, nunca
+   * por texto) em vez de só a busca textual da Cobasi. */
+  gtin?: string | null;
   petId: string;
   /** Nome exibido no card. */
   productLabel: string;
@@ -38,9 +42,9 @@ export interface MonetizedOffersListProps {
 }
 
 export function MonetizedOffersList({
-  query, packageSizeKg, petId, productLabel, icon = '🛒', source, ctaType, controlType,
+  query, packageSizeKg, gtin, petId, productLabel, icon = '🛒', source, ctaType, controlType,
 }: MonetizedOffersListProps) {
-  const { offers, loading } = useCommerceOffers(query, packageSizeKg);
+  const { offers, loading } = useCommerceOffers(query, packageSizeKg, gtin);
 
   if (loading) {
     return (

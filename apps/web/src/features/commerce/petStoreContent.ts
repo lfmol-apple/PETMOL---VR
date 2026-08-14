@@ -26,6 +26,8 @@ export interface ReorderCard {
   domain: CareReminderDomain;
   /** Peso real do pacote (kg), quando domain='food' — ver PetCareReminder.packageSizeKg. */
   packageSizeKg?: number;
+  /** GTIN/EAN conhecido, quando domain='food' — ver PetCareReminder.gtin. */
+  gtin?: string;
 }
 
 function formatUrgencyText(domain: CareReminderDomain, diff: number): string {
@@ -63,6 +65,7 @@ export function buildReorderCards(reminders: PetCareReminder[]): ReorderCard[] {
       searchQuery: buildReminderSearchQuery(r),
       domain: r.domain,
       packageSizeKg: r.packageSizeKg,
+      gtin: r.gtin,
     }));
 }
 

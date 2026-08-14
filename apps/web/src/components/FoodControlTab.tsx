@@ -53,6 +53,8 @@ export interface FoodControlTabState {
   dailyConsumptionG: number | null;
   durationDays: number | null;
   startDate: string | null;
+  /** GTIN/EAN escaneado do item primário, quando conhecido. */
+  gtin: string | null;
 }
 
 export interface FoodControlTabFormRequest {
@@ -761,12 +763,14 @@ export function FoodControlTab({
       dailyConsumptionG: primaryMetrics.dailyConsumptionG ?? null,
       durationDays: primaryMetrics.days ?? null,
       startDate: primaryItem.startDate || null,
+      gtin: (primaryItem.barcode || '').trim() || null,
     });
   }, [
     commerceSnapshot?.status,
     displayDaysLeft,
     displayEndDate,
     onStateChange,
+    primaryItem.barcode,
     primaryItem.brand,
     primaryItem.startDate,
     primaryMetrics.dailyConsumptionG,

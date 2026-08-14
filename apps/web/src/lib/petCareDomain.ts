@@ -98,6 +98,14 @@ export interface PetCareReminder {
   packageSizeKg?: number;
 
   /**
+   * GTIN/EAN do produto quando conhecido (hoje só domain='food', via
+   * FeedingPlanItemEntry.barcode) — permite que a busca de oferta
+   * comercial resolva por GTIN exato (ex: AwinFeedProvider) em vez de só
+   * texto. Ausente sempre que o item não foi escaneado.
+   */
+  gtin?: string;
+
+  /**
    * true  → data calculada/derivada (ex: lastDate + frequencyDays)
    * false → data explicitamente salva no backend
    */
@@ -412,6 +420,7 @@ function processFood(p: PetCareDomainParams): PetCareReminder[] {
   const alertDiff = diffFromToday(nextDate);
   const brand = (plan.food_brand || plan.brand || primaryItem?.food_brand || '').trim() || undefined;
   const packageSizeKg = Number(plan.package_size_kg ?? primaryItem?.package_size_kg ?? 0) || undefined;
+  const gtin = (primaryItem?.barcode || '').trim() || undefined;
 
   // Status do card deve refletir quando a ração VAI ACABAR, não quando o lembrete de compra disparou.
   // O lembrete de compra pode ter passado (alertDiff < 0) enquanto a ração ainda tem dias restantes —
@@ -435,6 +444,7 @@ function processFood(p: PetCareDomainParams): PetCareReminder[] {
     action_target: 'health/food',
     is_derived: reminderDateStr !== (plan.next_purchase_date ?? ''),
     packageSizeKg,
+    gtin,
   }];
 }
 

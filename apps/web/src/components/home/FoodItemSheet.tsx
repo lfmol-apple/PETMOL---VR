@@ -58,6 +58,7 @@ type FeedingPlanApiResponse = {
       duration_days?: number | null;
       last_refill_date?: string | null;
       is_primary?: boolean;
+      barcode?: string | null;
     }>;
   } | null;
   estimate?: {
@@ -247,6 +248,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     showForm: false, commerceStatus: null, foodBrand: '',
     daysLeft: null, restockDate: null, packageSizeKg: null,
     dailyConsumptionG: null, durationDays: null, startDate: null,
+    gtin: null,
   });
 
   // Partner / commerce
@@ -416,6 +418,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
           dailyConsumptionG: null,
           durationDays: null,
           startDate: null,
+          gtin: null,
         });
         return null;
       }
@@ -433,6 +436,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
       const dailyConsumptionG = primary?.daily_amount_g ?? plan?.daily_amount_g ?? null;
       const durationDays = primary?.duration_days ?? plan?.duration_days ?? null;
       const startDate = (primary?.last_refill_date ?? plan?.last_refill_date ?? null);
+      const gtin = (primary?.barcode || '').trim() || null;
       const manualReminderDays = plan?.manual_reminder_days_before ?? null;
       const safetyBufferDays = plan?.safety_buffer_days ?? null;
       const resolvedReminderDays = manualReminderDays ?? safetyBufferDays;
@@ -481,6 +485,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
         dailyConsumptionG: dailyConsumptionG ?? null,
         durationDays: durationDays ?? null,
         startDate: startDateOnly,
+        gtin,
       });
 
       return { recommendedAlertDate: nextReminder, reminderTime: plan?.reminder_time ?? null, brand };
@@ -880,6 +885,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                   <MonetizedOffersList
                     query={foodBrand ? `${foodBrand} ração` : 'ração pet'}
                     packageSizeKg={foodState.packageSizeKg}
+                    gtin={foodState.gtin}
                     petId={pet.pet_id}
                     productLabel={foodBrand || 'Ração'}
                     icon="🥣"

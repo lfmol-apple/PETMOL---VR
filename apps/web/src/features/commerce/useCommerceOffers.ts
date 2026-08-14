@@ -8,8 +8,10 @@ import { fetchCommerceOffers, type CommerceOffer } from './productPricing';
  * novamente" (Home, ficha da ração, ficha de antiparasitário). Mesma
  * query/peso/GTIN reais sempre resolvem a mesma lista, em qualquer tela.
  *
- * `gtin` é opcional (ver fetchCommerceOffers) — nenhuma tela hoje tem
- * GTIN disponível, então nenhuma precisa passar isso ainda.
+ * `gtin` é opcional (ver fetchCommerceOffers) — só a ficha de ração passa
+ * hoje (via FeedingPlanItemEntry.barcode escaneado, ver petCareDomain.ts
+ * processFood/MonetizedOffersListProps.gtin); nem toda tela tem um GTIN
+ * real disponível, então segue opcional.
  */
 export function useCommerceOffers(query: string, packageSizeKg?: number | null, gtin?: string | null) {
   const [offers, setOffers] = useState<CommerceOffer[]>([]);
