@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { trackClick } from '@/lib/analytics/click';
-import { showAppToast } from '@/features/interactions/userPromptChannel';
-import { isStandaloneInstalledApp, navigateToPartnerUrl } from './homeShoppingPartners';
+import { isStandaloneInstalledApp } from './homeShoppingPartners';
 import { formatBRLPrice, fetchCommerceOffers, searchAwinCatalog, type AwinSearchResult, type CommerceOffer } from './productPricing';
 
 interface AffiliateCatalogSearchProps {
@@ -21,6 +20,8 @@ function merchantLabel(merchant: string): string {
   return MERCHANT_LABELS[merchant] ?? merchant;
 }
 
+type ResolvedOffers = CommerceOffer[] | 'loading' | 'error';
+
 // Substitui o card estático "Cobasi" (Lojas) — em vez de só levar pro site
 // de uma loja sem contexto, deixa o tutor achar o produto real dentro do
 // catálogo já sincronizado da Awin e comprar direto. GTIN é o que falta pro
@@ -29,14 +30,24 @@ function merchantLabel(merchant: string): string {
 // específico da Cobasi: quando Petz/Zee Now/Zee Dog forem aprovadas e
 // sincronizadas, aparecem aqui sem mudar este componente (offer_count > 1
 // já monta o grid de preços).
+//
+// Oferta é resolvida assim que o resultado da busca chega (useEffect
+// abaixo), não no toque em "Comprar" — descoberto com um tutor real num
+// PWA instalado (iOS): resolver no clique obriga a navegação a acontecer
+// depois de um `await`, e nesse contexto específico o clique deixa de se
+// comportar como um link de verdade. Pré-resolvendo, "Comprar" vira um
+// <a href> real (mesmo padrão de MonetizedOffersList/o card da Amazon) —
+// a navegação mais parecida possível com "tocar num link", que é o que
+// as restrições do iOS pra apps instalados esperam.
 export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<AwinSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [buyingGtin, setBuyingGtin] = useState<string | null>(null);
   const [failedImageGtins, setFailedImageGtins] = useState<Set<string>>(new Set());
-  const [storeChoicesForGtin, setStoreChoicesForGtin] = useState<{ gtin: string; offers: CommerceOffer[] } | null>(null);
+  const [offersByGtin, setOffersByGtin] = useState<Record<string, ResolvedOffers>>({});
+  const [storeChoicesForGtin, setStoreChoicesForGtin] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const standalone = isStandaloneInstalledApp();
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -57,18 +68,28 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
     };
   }, [query]);
 
-  function goToOffer(gtin: string, offer: CommerceOffer, pendingWindow?: Window | null) {
-    if (!offer.url) {
-      pendingWindow?.close();
-      return;
+  useEffect(() => {
+    for (const item of results) {
+      if (offersByGtin[item.gtin] !== undefined) continue;
+      setOffersByGtin((prev) => ({ ...prev, [item.gtin]: 'loading' }));
+      // Passa pelo commerce engine de verdade (GET /commerce/offers), mas
+      // SEM texto de busca — só gtin. Descoberto testando: mandar o título
+      // junto fazia o CobasiProvider rodar sua própria busca textual ao
+      // vivo (imprecisa) em paralelo, e como a rota preferida é "awin",
+      // isso não muda o vencedor, mas evita uma chamada redundante à API
+      // da Cobasi. Só gtin faz o CobasiProvider nem tentar (sem query,
+      // find_offer retorna cedo — ver cobasi_provider.py), deixando o
+      // AwinFeedProvider resolver sozinho o produto certo. Já volta
+      // deduplicado por loja — se mais de uma loja tiver o mesmo GTIN,
+      // aqui é o grid de preços de verdade.
+      fetchCommerceOffers('', undefined, item.gtin)
+        .then((offers) => setOffersByGtin((prev) => ({ ...prev, [item.gtin]: offers })))
+        .catch(() => setOffersByGtin((prev) => ({ ...prev, [item.gtin]: 'error' })));
     }
-    if (pendingWindow && !pendingWindow.closed) {
-      // Já temos a aba aberta (sincronamente, no toque — ver handleBuy);
-      // só trocamos o destino agora que sabemos a URL real.
-      pendingWindow.location.href = offer.url;
-    } else {
-      navigateToPartnerUrl(offer.url);
-    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results]);
+
+  function trackBuyClick(gtin: string, offer: CommerceOffer) {
     void trackClick({
       source: 'home',
       cta_type: 'shop_awin_search_buy',
@@ -78,50 +99,6 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
       metadata: { gtin },
     });
     setStoreChoicesForGtin(null);
-  }
-
-  async function handleBuy(item: AwinSearchResult) {
-    setBuyingGtin(item.gtin);
-    // Safari/PWA trata window.open() chamado depois de um `await` como
-    // popup bloqueado (perde o "user gesture" do toque) e falha em
-    // silêncio — diferente de MonetizedOffersList, aqui a oferta só é
-    // buscada NO clique, não antes. Abrimos a aba já, sincronamente,
-    // dentro do próprio gesto, e só trocamos a URL quando o fetch
-    // responder. No PWA instalado (iOS standalone) a navegação usa a
-    // própria janela (navigateToPartnerUrl → location.href), que não
-    // sofre desse bloqueio — não precisa de aba prévia.
-    const pendingWindow = isStandaloneInstalledApp()
-      ? null
-      : window.open('about:blank', '_blank', 'noopener,noreferrer');
-    try {
-      // Passa pelo commerce engine de verdade (GET /commerce/offers), mas
-      // SEM texto de busca — só gtin. Descoberto testando: mandar o título
-      // junto fazia o CobasiProvider rodar sua própria busca textual ao
-      // vivo (imprecisa) em paralelo, e como a rota preferida é "mais",
-      // o resultado errado dessa busca vencia o produto certo achado pelo
-      // AwinFeedProvider (GTIN exato). Só gtin faz o CobasiProvider nem
-      // tentar (sem query, find_offer retorna cedo — ver cobasi_provider.py),
-      // deixando o AwinFeedProvider resolver sozinho o produto certo. Já
-      // volta deduplicado por loja (ver commerce_provider.py) — se mais de
-      // uma loja tiver o mesmo GTIN, aqui é o grid de preços de verdade.
-      const offers = await fetchCommerceOffers('', undefined, item.gtin);
-      if (offers.length === 0) {
-        pendingWindow?.close();
-        // fetchCommerceOffers nunca lança (qualquer falha vira [] —
-        // productPricing.ts) — sem isto, um timeout/erro de rede parecia
-        // "não fez nada" pro tutor, sem nenhuma pista do que houve.
-        showAppToast('Não conseguimos abrir a oferta agora. Verifique sua conexão e tente de novo.', { tone: 'warning' });
-        return;
-      }
-      if (offers.length === 1) {
-        goToOffer(item.gtin, offers[0], pendingWindow);
-        return;
-      }
-      pendingWindow?.close();
-      setStoreChoicesForGtin({ gtin: item.gtin, offers });
-    } finally {
-      setBuyingGtin(null);
-    }
   }
 
   return (
@@ -148,7 +125,12 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
       {results.length > 0 && (
         <div className="mt-2.5 space-y-2 max-h-72 overflow-y-auto">
           {results.map((item) => {
-            const choosingStore = storeChoicesForGtin?.gtin === item.gtin;
+            const resolved = offersByGtin[item.gtin];
+            const choosingStore = storeChoicesForGtin === item.gtin;
+            const singleOffer = Array.isArray(resolved) && resolved.length === 1 ? resolved[0] : null;
+            const multipleOffers = Array.isArray(resolved) && resolved.length > 1 ? resolved : null;
+            const unavailable = Array.isArray(resolved) && resolved.length === 0;
+
             return (
               <div
                 key={item.gtin}
@@ -181,31 +163,60 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
                       </p>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    disabled={buyingGtin === item.gtin}
-                    onClick={() => handleBuy(item)}
-                    className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[11px] font-bold px-3 py-1.5 active:scale-95 transition-all disabled:opacity-50"
-                  >
-                    {buyingGtin === item.gtin ? '...' : '🛒 Comprar'}
-                  </button>
+
+                  {singleOffer && singleOffer.url ? (
+                    // <a href> real — navegação nativa do navegador, sem
+                    // JS entre o toque e a saída da página. target="_blank"
+                    // só fora do PWA instalado: dentro dele, sem target,
+                    // navega a própria janela (mesmo efeito de
+                    // navigateToPartnerUrl, mas via clique real de link).
+                    <a
+                      href={singleOffer.url}
+                      target={standalone ? undefined : '_blank'}
+                      rel="noopener noreferrer"
+                      onClick={() => trackBuyClick(item.gtin, singleOffer)}
+                      className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[11px] font-bold px-3 py-1.5 active:scale-95 transition-all"
+                    >
+                      🛒 Comprar
+                    </a>
+                  ) : multipleOffers ? (
+                    <button
+                      type="button"
+                      onClick={() => setStoreChoicesForGtin(choosingStore ? null : item.gtin)}
+                      className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[11px] font-bold px-3 py-1.5 active:scale-95 transition-all"
+                    >
+                      🛒 Comprar
+                    </button>
+                  ) : unavailable ? (
+                    <span className="flex-shrink-0 rounded-full bg-gray-100 text-gray-400 text-[11px] font-bold px-3 py-1.5">
+                      Indisponível
+                    </span>
+                  ) : (
+                    <span className="flex-shrink-0 rounded-full bg-gray-100 text-gray-400 text-[11px] font-bold px-3 py-1.5">
+                      ...
+                    </span>
+                  )}
                 </div>
 
-                {choosingStore && (
+                {choosingStore && multipleOffers && (
                   <div className="mt-2.5 pt-2.5 border-t border-gray-100 space-y-1.5">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Escolha a loja</p>
-                    {storeChoicesForGtin.offers.map((offer) => (
-                      <button
-                        key={offer.merchant}
-                        type="button"
-                        onClick={() => goToOffer(item.gtin, offer)}
-                        className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-emerald-300 px-3 py-2 transition-all active:scale-[0.98]"
-                      >
-                        <span className="text-[12px] font-bold text-gray-800">{merchantLabel(offer.merchant)}</span>
-                        {typeof offer.price === 'number' && (
-                          <span className="text-[12px] font-bold text-emerald-700">{formatBRLPrice(offer.price)}</span>
-                        )}
-                      </button>
+                    {multipleOffers.map((offer) => (
+                      offer.url ? (
+                        <a
+                          key={offer.merchant}
+                          href={offer.url}
+                          target={standalone ? undefined : '_blank'}
+                          rel="noopener noreferrer"
+                          onClick={() => trackBuyClick(item.gtin, offer)}
+                          className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-emerald-300 px-3 py-2 transition-all active:scale-[0.98]"
+                        >
+                          <span className="text-[12px] font-bold text-gray-800">{merchantLabel(offer.merchant)}</span>
+                          {typeof offer.price === 'number' && (
+                            <span className="text-[12px] font-bold text-emerald-700">{formatBRLPrice(offer.price)}</span>
+                          )}
+                        </a>
+                      ) : null
                     ))}
                   </div>
                 )}
