@@ -242,6 +242,39 @@ class Settings(BaseSettings):
     # direto no env do VPS; reversível a qualquer momento sem deploy.
     awin_test_gtin: Optional[str] = None
 
+    # ── Amazon Associados ────────────────────────────────────────────────
+    # MVP real (14/08/2026): conta PJ aprovada, categoria Pet Shop, 11%
+    # informado, cadastro fiscal/bancário concluído. Tag não é segredo —
+    # aparece em toda URL gerada (igual awin_publisher_id) — mas fica
+    # centralizada aqui em vez de espalhada, já com o valor real conhecido
+    # como default. O MVP em si (link de busca com tag, ver
+    # apps/web/src/features/commerce/amazonAffiliate.ts) roda inteiro no
+    # frontend, sem round-trip a este backend — este campo existe pra uma
+    # futura integração server-side (Creators API) reusar o mesmo valor,
+    # não porque algo aqui o consome hoje.
+    amazon_associate_tag: str = "petmol-20"
+    # Credenciais da Creators API — a Amazon ainda não emitiu (a PA-API 5
+    # antiga está descontinuada). Reservado, NUNCA usado no MVP, nenhum
+    # endpoint depende disso hoje — só pra não precisar inventar nomes de
+    # variável quando a integração real for implementada.
+    amazon_creators_client_id: Optional[str] = None
+    amazon_creators_client_secret: Optional[str] = None
+    amazon_marketplace: str = "amazon.com.br"
+
+    # ── Shopee Affiliates ────────────────────────────────────────────────
+    # Master gate — separado de qualquer status "commercial"/"cadastrado"
+    # (mesmo padrão do awin_enabled): False até termos (1) fiscal/bancário
+    # aprovado, (2) petmol.com.br confirmado como mídia aprovada no Portal
+    # do Afiliado, e (3) o primeiro link oficial de verdade cadastrado via
+    # admin (ver marketplace_offer_provider.py). Nenhuma oferta Shopee
+    # aparece em produção enquanto isto for False, mesmo que
+    # MarketplaceOffer tenha linhas — ver is_shopee_publicly_servable().
+    shopee_affiliate_enabled: bool = False
+    # Documentação de pendência externa, não uma flag de gate — setar isto
+    # não aprova nada sozinho; é só pra não perder de vista qual mídia
+    # estamos tentando confirmar no Portal do Afiliado.
+    shopee_approved_media: str = "https://www.petmol.com.br"
+
     @field_validator("debug", mode="before")
     @classmethod
     def _coerce_bool_like(cls, value):

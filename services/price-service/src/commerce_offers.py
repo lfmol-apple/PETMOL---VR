@@ -26,6 +26,14 @@ from .awin_advertisers import AWIN_ADVERTISERS, is_awin_merchant_registrable
 from .awin_feed_provider import AwinFeedProvider
 from .cobasi_provider import CobasiProvider
 from .commerce_provider import CommerceEngine, CommerceProvider, MonetizedOffer, ProductContext
+from .marketplace_offer_provider import MarketplaceOfferProvider
+
+# Merchants marketplace conhecidos (Shopee hoje) — sempre registrados,
+# nunca condicionado a settings aqui: is_marketplace_merchant_publicly_servable()
+# é revalidada dentro de find_offer()/monetize() a cada chamada (defesa em
+# profundidade, mesmo padrão do AwinFeedProvider) — sem custo de rede
+# nenhum em registrar sem uso (só lê Postgres local quando de fato chamado).
+_MARKETPLACE_MERCHANTS = ("shopee",)
 
 
 class ProductOfferResult(BaseModel):
@@ -76,14 +84,27 @@ def build_default_engine(db: Session) -> CommerceEngine:
     Now/Zee Dog forem aprovados e sincronizados, entram sem editar este
     arquivo (só awin_advertisers.py muda).
 
-    merchant_routes.PREFERRED_ROUTE_BY_MERCHANT["cobasi"] é "mais", então
-    o dedupe por merchant (_dedupe_by_merchant) sempre mantém a oferta do
-    CobasiProvider quando os dois resolverem a mesma oferta — trocar isso
-    exige validar comissão real antes (ver docs/AFFILIATES.md)."""
+    merchant_routes.MERCHANT_ROUTE_POLICIES["cobasi"] decide qual rota
+    vence quando mais de um provider resolver a mesma oferta — trocar
+    isso exige validar comissão real antes (ver docs/AFFILIATES.md).
+
+    Providers de marketplace (Shopee hoje) seguem o mesmo padrão dos
+    Awin: sempre registrados, gate real (config.shopee_affiliate_enabled)
+    checado dentro de MarketplaceOfferProvider a cada chamada — nunca
+    aparecem em produção sem a flag ligada, mesmo que MarketplaceOffer
+    tenha linhas cadastradas (ver marketplace_offer_provider.py).
+
+    Amazon MVP (link de busca com tag, sem preço/API estruturada) NÃO
+    entra aqui — CommerceEngine descarta qualquer oferta sem preço, então
+    não há o que "descobrir"; o mecanismo real vive inteiramente no
+    frontend (amazonAffiliate.ts + homeShoppingPartners.ts), não neste
+    engine de comparação de preço."""
     providers: list[CommerceProvider] = [CobasiProvider(db)]
     for merchant in AWIN_ADVERTISERS:
         if is_awin_merchant_registrable(merchant):
             providers.append(AwinFeedProvider(db, merchant))
+    for merchant in _MARKETPLACE_MERCHANTS:
+        providers.append(MarketplaceOfferProvider(db, merchant))
     return CommerceEngine(providers)
 
 
