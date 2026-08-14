@@ -35,9 +35,9 @@ libera exposição, ver seção Awin abaixo).
 | Zee Dog | Awin (advertiser 127555, pending) | idem | nenhuma | sim (~1.742 produtos observados, **nunca sincronizado**) | preparado, aguardando aprovação comercial |
 | Petz | Awin (advertiser 127553, pending) + programa próprio (CNAE em tratamento) | nenhum | nenhuma | não | pending nos dois caminhos, nenhum ligado |
 | Araújo | Awin (advertiser 17919, pending/not_joined) | nenhum | nenhuma | **não** (0 produtos no ShopWindow) | nunca pode virar `AwinFeedProvider` — exigiria outra fonte de discovery |
-| Shopee | Shopee Affiliates | nenhum | nenhuma (`MarketplaceOffer` não populada) | n/a | cadastro empresarial em andamento |
+| Shopee | Shopee Affiliates | nenhum | nenhuma (`MarketplaceOffer`/`MarketplaceOfferProvider` prontos, gated por `SHOPEE_AFFILIATE_ENABLED=false`) | n/a | PJ, fiscal/bancário em avaliação, mídia aprovada e primeiro link oficial ainda pendentes |
 | Mercado Livre | ML Afiliados | nenhum | nenhuma | n/a | pending |
-| Amazon | Amazon Associates | nenhum | nenhuma | n/a | pending |
+| Amazon | Amazon Associates (PJ aprovada, tag `petmol-20`, 11% categoria Pet Shop) | nenhum (não passa por `CommerceEngine` — sem preço) | link de busca com tag, validado por domínio/esquema (`amazonAffiliate.ts`), sem Creators API ainda | n/a | **MVP ativo** desde 14/08/2026 |
 | Petlove Produtos | — | nenhum | nenhuma | n/a | disabled deliberadamente |
 | Petlove Plano de Saúde | — | n/a (service, não produto) | nenhuma | n/a | pending — possível duplicata de DogLife, não confirmado |
 | DogLife | — | n/a (service, não produto) | nenhuma | n/a | pending — mesma pendência de esclarecimento |
@@ -258,27 +258,163 @@ prod até cadastrar). Enquanto `cobasi_affiliate_mode=cached` (padrão):
 Desativar um link: `PATCH /v1/admin/affiliate-links/{id}` com
 `{"active": false}` — some da UI sem deploy de frontend.
 
-## Marketplace (Shopee, Mercado Livre) — arquitetura pronta, nada integrado
+## Shopee — preparada, desativada em produção (14/08/2026)
 
-Deliberadamente **não implementado** nesta tarefa: busca automática de
-anúncios, scraping, crawler, fila, cron, escolha automática de vendedor, ou
-qualquer API não documentada. As contas ainda estão em aprovação — a
-integração real só deve ser desenhada depois de sabermos quais
-ferramentas oficiais cada programa vai liberar.
+Status real: a conta virou pessoa jurídica, dados fiscais/bancários em
+avaliação, Instagram conectado ao Portal do Afiliado — mas ainda falta
+confirmar `petmol.com.br` como **mídia aprovada** e obter o **primeiro
+link oficial real**. Até isso acontecer, deliberadamente **não
+implementado**: busca automática de anúncios, scraping, crawler, fila,
+cron, escolha automática de vendedor, geração de link por template, ou
+qualquer API não documentada — regras do próprio programa proíbem
+modificar o link emitido e exigem clique voluntário (sem redirect
+automático, sem cookie stuffing).
 
-O que já existe, pronto para quando isso acontecer:
+O que já existe, pronto e **desligado**:
 
-- Tabela `marketplace_offers` (ver acima) — uma linha = uma
-  oferta/publicação de um vendedor, não o produto.
-- `get_monetized_offer(..., context="marketplace")` já resolve
-  corretamente: sem oferta ativa → oculto; com oferta ativa → aparece;
-  oferta desativada → volta a ficar oculta, sem tocar no produto PETMOL.
-- `merchantType: 'marketplace'` já diferencia Shopee/ML de retailers na
-  UI (`homeShoppingPartners.ts`).
+- `services/price-service/src/shopee_link_validator.py` —
+  `validate_shopee_affiliate_url(url)`: aceita só https + domínio da
+  allowlist (`shopee.com.br`, `s.shopee.com.br` — documentada no próprio
+  módulo, nunca "qualquer coisa terminando em shopee"), nunca adiciona/
+  remove parâmetro, rejeita ataque de prefixo (`shopee.com.br.golpe.com`)
+  e de domínio colado (`golpeshopee.com.br`) pela mesma lógica de
+  subdomínio real que o validador da Amazon usa no frontend.
+- `services/price-service/src/marketplace_offer_provider.py` —
+  `MarketplaceOfferProvider(db, merchant)`, um `CommerceProvider` que só
+  lê `MarketplaceOffer` (nunca chama a rede da Shopee, nunca gera link).
+  `is_marketplace_merchant_publicly_servable(merchant)` é o master gate —
+  hoje só cobre `"shopee"`, via `config.shopee_affiliate_enabled`
+  (**`False` por padrão**); revalidado a cada `find_offer()`/`monetize()`,
+  não só no registro em `build_default_engine()` (defesa em profundidade,
+  mesmo padrão do Awin). `monetize()` **revalida o domínio no momento do
+  clique** antes de retornar a URL — nunca confia só na validação feita
+  no cadastro. Ofertas sem preço nunca aparecem (`CommerceEngine`
+  descarta oferta sem preço) — como nunca fazemos scraping de preço, uma
+  oferta só é visível quando o admin confirmou um preço real junto do
+  link oficial.
+- `POST/GET/PATCH/DELETE /v1/admin/marketplace-offers` (admin CRUD,
+  `admin/marketplace_offers_router.py`) — cadastra `MarketplaceOffer` a
+  partir do link oficial que o Portal do Afiliado emitir; rejeita
+  qualquer URL que não passe por `validate_shopee_affiliate_url` (400),
+  nunca aceita merchant sem validador próprio configurado. É o único
+  jeito de um link Shopee entrar no sistema — nunca por template/UI.
+- `merchantType: 'marketplace'` já diferencia Shopee/ML de retailers em
+  `homeShoppingPartners.ts` — a entrada `shopee` ali é só o ícone/link
+  genérico da área "Lojas" (`directUrl`, sem afiliado), continua
+  `affiliateStatus: 'pending'` (invisível em produção pelas mesmas
+  checagens de sempre) e **não** é o caminho do link oficial por produto
+  — esse vive inteiramente no backend acima.
 
-Quando o programa for aprovado e a ferramenta oficial de geração de link
-estiver definida, o trabalho é popular `marketplace_offers` (manualmente
-no início, como a Cobasi hoje) — não redesenhar nada disso.
+### Como ativar a Shopee quando o link oficial chegar
+
+1. Confirmar `petmol.com.br` como mídia aprovada no Portal do Afiliado.
+2. Copiar o link oficial de um produto real (nunca digitar/adivinhar).
+3. `POST /v1/admin/marketplace-offers` com `{"gtin", "merchant": "shopee",
+   "affiliate_url": "<link exato colado>", "price": <preço real, se
+   souber>}` — rejeitado automaticamente se o domínio não bater.
+4. Confirmar com `GET /v1/admin/marketplace-offers?gtin=...`.
+5. Só depois disso, com pelo menos uma oferta real cadastrada e validada
+   manualmente na Shopee (clique de teste, sem compra automática), setar
+   `SHOPEE_AFFILIATE_ENABLED=true` em produção — antes disso, nenhuma
+   oferta aparece a nenhum tutor mesmo com linhas cadastradas.
+6. Nunca reescrever a URL cadastrada — se a Shopee trocar o formato do
+   link, o procedimento é cadastrar de novo (passo 3), não "consertar" a
+   URL antiga.
+
+## Amazon — MVP ativo (link de busca com tag, sem preço/API)
+
+Conta Amazon Associados (Programa de Associados) pessoa jurídica
+aprovada, StoreID/Partner Tag **`petmol-20`**, categoria Pet Shop com
+**11%** informado, cadastro fiscal e bancário concluído. A **Creators
+API ainda não tem credenciais emitidas** (a PA-API 5 antiga está
+descontinuada) — o MVP é deliberadamente mais simples: um link de busca
+(ou de produto já conhecido) com a tag aplicada, nunca preço/imagem/nota
+vindos da Amazon (proibido fazer scraping de qualquer um dos três).
+
+- `apps/web/src/features/commerce/amazonAffiliate.ts` — inteiramente
+  client-side, sem round-trip a este backend (a tag não é segredo,
+  aparece em toda URL gerada, e a Amazon espera navegação direta no
+  clique). `AMAZON_ASSOCIATE_TAG` (default real `"petmol-20"`, com
+  `NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG` como override se a tag mudar).
+  - `buildAmazonSearchUrl(query, tag)` — monta a URL de busca a partir do
+    nome do produto, sempre segura por construção (nunca recebe URL
+    externa). Encoding manual (não `URLSearchParams`, que usaria `+` em
+    vez de `%20`) pra bater com o formato real de busca da Amazon.
+  - `buildAmazonProductUrl(rawUrl, tag)` — valida uma URL de produto já
+    conhecida (https obrigatório, domínio `amazon.com.br` exato ou
+    subdomínio real — nunca por `includes()`/prefixo, que aceitaria
+    `amazon.com.br.golpe.com`), substitui/adiciona só `tag=`, preserva
+    qualquer outro parâmetro. `null` se a URL for inválida — quem chamar
+    nunca deve cair pra URL crua nesse caso. Não usado no MVP hoje (não
+    há um catálogo de URLs de produto Amazon conhecidas), reservado pra
+    quando houver.
+  - `isAllowedAmazonHost(hostname)` — mesma lógica de allowlist por
+    sufixo real usada pelo validador Shopee no backend.
+  - 20 testes unitários (`amazonAffiliate.test.ts`,
+    `MonetizedOffersList.test.tsx`) via Vitest — **primeiro test runner
+    de frontend deste repo** (`apps/web/vitest.config.ts`, `npm run
+    test`/`npm run web:test`), adicionado especificamente pra cobrir
+    isto (não é infraestrutura geral de testes de UI).
+- `apps/web/src/features/commerce/homeShoppingPartners.ts` — entrada
+  `amazon` com `affiliateStatus: 'active'` (era `'pending'`),
+  `affiliateMode: 'search_template'`, `buildAffiliateUrl` usando
+  `buildAmazonSearchUrl` — aparece na área geral "Lojas" pelas mesmas
+  checagens de sempre (`isPartnerVisibleInStoreArea`), sem mecanismo
+  paralelo.
+- `apps/web/src/features/commerce/MonetizedOffersList.tsx` — card
+  "Ver na Amazon" **fora** do loop de ofertas priceadas do
+  `CommerceEngine` (que descarta qualquer oferta sem preço — Amazon
+  nunca teria uma real aqui sem scraping). Sempre aparece quando há um
+  termo de busca e o merchant Amazon está `active`
+  (`isPartnerVisibleForSearch`, mesma regra de "Lojas"), nunca disputa o
+  selo "Menor preço" com Cobasi/Awin. Regras de UI seguidas à risca:
+  texto "Consulte o preço e a disponibilidade na loja" (nunca preço,
+  nunca imagem da Amazon), link `<a>` real com
+  `rel="sponsored nofollow noopener noreferrer"` e `target="_blank"`
+  (não `window.open` via JS — permite o `rel` literal pedido pelas
+  diretrizes de link patrocinado), clique registra `trackClick` sem
+  bloquear a navegação (sem `preventDefault`), aviso "Como associado da
+  Amazon, o PETMOL recebe por compras qualificadas." mostrado junto do
+  card (uma vez por tela, já que só existe um card por sheet).
+- `services/price-service/src/config.py` — `amazon_associate_tag`
+  (default `"petmol-20"`, centralizado mas não consumido por nenhum
+  endpoint hoje — o MVP roda todo no frontend), e três campos reservados
+  pra quando a Creators API tiver credenciais:
+  `amazon_creators_client_id`, `amazon_creators_client_secret`,
+  `amazon_marketplace` (default `"amazon.com.br"`) — nenhum usado, nenhum
+  endpoint falso criado.
+
+### Procedimento futuro: migrar para a Creators API
+
+1. Obter credenciais reais da Creators API (a Amazon precisa emitir —
+   não inventar client_id/secret).
+2. Preencher `AMAZON_CREATORS_CLIENT_ID`/`AMAZON_CREATORS_CLIENT_SECRET`
+   no ambiente de produção (server-side only, nunca `NEXT_PUBLIC_*`).
+3. Implementar um client OAuth2 análogo ao reservado pra Awin
+   (`awin_oauth_token`, ainda não consumido) — módulo novo, não reescrever
+   `amazonAffiliate.ts`.
+4. Correspondência GTIN↔ASIN via API oficial (nunca scraping/heurística
+   de nome) — só então um preço/imagem real da Amazon pode aparecer,
+   e só então faz sentido um `AmazonProvider` dentro do `CommerceEngine`
+   (hoje não existe, de propósito — ver seção "Discovery vs
+   monetização" acima).
+5. Até lá, `buildAmazonSearchUrl`/`buildAmazonProductUrl` continuam
+   sendo o mecanismo real — a migração é aditiva, não substitui nada
+   silenciosamente.
+
+### Variáveis de ambiente — Amazon/Shopee
+
+Nenhuma delas é obrigatória pra manter o comportamento atual (todas têm
+default seguro). Awin já tem as próprias documentadas na seção abaixo.
+
+| Variável | Onde | Default | Efeito |
+|---|---|---|---|
+| `NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG` | frontend | `petmol-20` (embutido) | Override da tag, se ela mudar — não é segredo |
+| `AMAZON_ASSOCIATE_TAG` | backend (`config.py`) | `"petmol-20"` | Centralizado, não consumido por endpoint algum hoje (MVP roda no frontend) |
+| `AMAZON_CREATORS_CLIENT_ID` / `AMAZON_CREATORS_CLIENT_SECRET` | backend | não setado | Reservado, sem uso — Creators API ainda sem credenciais |
+| `AMAZON_MARKETPLACE` | backend | `"amazon.com.br"` | Reservado, sem uso |
+| `SHOPEE_AFFILIATE_ENABLED` | backend | `false` | Master gate — `true` só depois do primeiro link oficial validado (ver procedimento acima) |
+| `SHOPEE_APPROVED_MEDIA` | backend | `"https://www.petmol.com.br"` | Documentação de qual mídia estamos tentando confirmar no Portal — **não aprova nada sozinho** |
 
 ## Awin — rede de afiliados (não merchant)
 
@@ -462,8 +598,8 @@ sem deploy de código.
 
 ## Testes
 
-145 testes relevantes a afiliados/comércio em
-`services/price-service/tests/` (de 162 no total do serviço; nenhum chama
+176 testes relevantes a afiliados/comércio em
+`services/price-service/tests/` (de 193 no total do serviço; nenhum chama
 API real de Cobasi ou Awin — `fetch_cobasi_price` é sempre monkeypatchado
 quando o teste precisa de discovery, `AwinFeedProvider` só lê
 `AffiliateFeedOffer` local, e `awin_feed_sync.py` sempre tem
@@ -540,20 +676,54 @@ baixa o feed real):
   cobertura calculadas corretamente, staleness reflete o último sync de
   sucesso real, `publicly_servable` no relatório usa o mesmo cálculo do
   master gate real.
+- `test_shopee_link_validator.py` (12) — `validate_shopee_affiliate_url`:
+  link oficial passa sem alteração (byte a byte), domínio apex e
+  subdomínio aceitos, parâmetros nunca alterados, rejeita http/`javascript:`/
+  `data:`, rejeita domínio forjado por prefixo (`shopee.com.br.golpe.com`)
+  e por colagem (`golpeshopee.com.br`), rejeita domínio não relacionado/
+  vazio/malformado.
+- `test_marketplace_offer_provider.py` (10) — `MarketplaceOfferProvider`:
+  desligado por padrão nunca encontra nada, resolve por GTIN ou
+  `product_id` direto quando ligado, oferta sem preço nunca é inventada
+  (fica `None`, quem descarta é o `CommerceEngine`), oferta inativa
+  nunca aparece, `monetize()` retorna a URL oficial sem alteração,
+  revalida o domínio no clique (rejeita se o dado salvo ficou inválido),
+  desligado bloqueia `monetize()` também, merchant marketplace
+  desconhecido nunca é "publicly servable".
+- `test_marketplace_offers_router.py` (9) — admin CRUD
+  `/v1/admin/marketplace-offers`: cria com link oficial válido, rejeita
+  domínio Shopee forjado e http, rejeita merchant sem validador
+  configurado (nunca aceita "qualquer https://" por omissão), exige
+  produto já no catálogo, PATCH com URL inválida não altera o valor
+  salvo, desativar/deletar, filtro por gtin/merchant.
 
-Não há test runner de frontend configurado neste repo (sem Jest/Vitest) —
-a regra `affiliateStatus === 'active'` em `isPartnerVisibleInStoreArea`/
-`isPartnerVisibleForSearch`, o uso de `useCommerceOffers` nas telas de
-"Comprar novamente", e o fluxo de GTIN ponta a ponta na ficha de ração
-foram verificados por leitura de código e `tsc --noEmit`, não por teste
-automatizado de frontend.
+Frontend: `apps/web/vitest.config.ts` (primeiro test runner de frontend
+deste repo — setup mínimo, cobre só o gerador de link Amazon e o
+componente que depende dele):
+- `amazonAffiliate.test.ts` (17) — `buildAmazonSearchUrl`: bate
+  byte-a-byte com o exemplo real do brief (encoding, tag), usa a tag
+  padrão do projeto, codifica caracteres especiais, remove espaços nas
+  pontas; `isAllowedAmazonHost`: aceita apex/subdomínio real
+  (case-insensitive), rejeita prefixo forjado e domínio colado;
+  `buildAmazonProductUrl`: inclui/substitui `tag=`, preserva outros
+  parâmetros, rejeita domínio falso/http/`javascript:`/`data:`/URL
+  malformada (`null`).
+- `MonetizedOffersList.test.tsx` (3) — card "Ver na Amazon" renderiza
+  sem preço/imagem, com `rel="sponsored nofollow noopener noreferrer"` e
+  href com `tag=petmol-20`, nunca reivindica "Menor preço"; aviso de
+  associado aparece uma única vez; card não aparece sem termo de busca.
+
+`isPartnerVisibleInStoreArea`/`isPartnerVisibleForSearch` (regra
+`affiliateStatus === 'active'`) e o fluxo de GTIN ponta a ponta na ficha
+de ração continuam verificados por leitura de código e `tsc --noEmit`
+além dos testes acima, não por teste automatizado dedicado.
 
 ## Prioridade comercial (estratégia, não hardcode)
 
-1. Cobasi (ativo)
-2. Shopee (cadastro em andamento)
-3. Mercado Livre (pending)
-4. Amazon (pending)
+1. Cobasi (ativo — MAIS + Awin)
+2. Amazon (ativo — MVP link de busca com tag)
+3. Shopee (PJ aprovada, fiscal/bancário em avaliação, falta mídia aprovada + primeiro link oficial)
+4. Mercado Livre (pending)
 5. Petz (pending — após resolução do CNAE)
 
 Petlove Produtos: aguardar programa de catálogo completo adequado.
@@ -619,20 +789,20 @@ só tem publisher ID e token de API.
 |---|---|
 | program_name | Shopee Affiliates |
 | merchant_type | marketplace |
-| status | pending (cadastro empresarial em andamento/aguardando aprovação) |
-| affiliate_mode | none (nada ligado em código ainda) |
-| storefront_available | pending verification |
-| product_deeplink_available | não — marketplace usa `MarketplaceOffer` (oferta por vendedor), não deep link fixo |
-| api_available | pending verification |
+| status | pending — conta PJ, fiscal/bancário em avaliação, Instagram conectado; falta confirmar `petmol.com.br` como mídia aprovada e obter o primeiro link oficial |
+| affiliate_mode | none em produção (`SHOPEE_AFFILIATE_ENABLED=false`) — mecanismo pronto e testado, desligado até haver link oficial real |
+| storefront_available | não |
+| product_deeplink_available | via `MarketplaceOffer`/`MarketplaceOfferProvider` (oferta por vendedor, cadastrada manualmente a partir do link oficial — nunca gerada) |
+| api_available | não — só o Portal do Afiliado (geração manual de link) |
 | api_confirmed | não |
-| manual_generation | pending verification |
-| attribution_window | 7 dias (conforme termos analisados) |
+| manual_generation | sim — colar o link exato do Portal do Afiliado via `POST /v1/admin/marketplace-offers`, rejeitado se o domínio não bater (ver `shopee_link_validator.py`) |
+| attribution_window | 7 dias, último clique |
 | attribution_model | último clique |
 | invoice_requirements | unknown |
-| paid_media_restrictions | unknown |
+| paid_media_restrictions | Google Ads e Bing Ads não podem promover link afiliado Shopee |
 | scraping | forbidden |
-| last_terms_review | 2026-08-11 |
-| notes | PETMOL cadastrado como empresa + site + rede social oficial; clique deve partir de ação consciente do tutor (sem cookie dropping/iframe/redirect automático); oferta nunca é vínculo permanente com o GTIN |
+| last_terms_review | 2026-08-14 |
+| notes | link nunca pode ser modificado (parâmetro adicionado/removido) nem indexado (sitemap/canônico/dados estruturados — confirmado que a geração de sitemap deste repo não toca em URL de afiliado); sem redirecionamento automático, sem cookie stuffing, clique precisa ser ação voluntária; compra do próprio afiliado pelo link pode ser desqualificada; oferta nunca é vínculo permanente com o GTIN (pode expirar sem afetar o produto PETMOL) |
 
 ### Mercado Livre
 
@@ -661,20 +831,21 @@ só tem publisher ID e token de API.
 |---|---|
 | program_name | Amazon Associates (Programa de Associados) |
 | merchant_type | amazon |
-| status | pending (cadastro ainda por fazer) |
-| affiliate_mode | tracking_tag (Link Especial, quando aprovado) |
+| status | **active** — PJ aprovada, tag `petmol-20`, categoria Pet Shop, cadastro fiscal/bancário concluído |
+| affiliate_mode | search_template — link de busca com tag (`amazonAffiliate.ts`), não `tracking_tag` genérica (sempre construído/validado, nunca colado numa URL qualquer) |
 | storefront_available | não |
-| product_deeplink_available | não nesta tarefa — futura correspondência GTIN↔ASIN via ferramentas oficiais |
-| api_available | PA-API existe, mas não implementada nesta tarefa |
+| product_deeplink_available | `buildAmazonProductUrl` existe e é testada, mas não usada na UI ainda (sem catálogo de URLs de produto Amazon conhecidas hoje) |
+| api_available | Creators API existe como programa, mas **sem credenciais emitidas ainda**; PA-API 5 (antiga) está descontinuada |
 | api_confirmed | não |
-| manual_generation | pending verification |
-| attribution_window | unknown |
+| manual_generation | n/a — MVP gera o link automaticamente (busca por nome), nunca por cadastro manual |
+| cpa | 11% informado (categoria Pet Shop) |
+| attribution_window | unknown (não documentado nos termos revisados) |
 | attribution_model | unknown |
 | invoice_requirements | unknown |
 | paid_media_restrictions | unknown |
-| scraping | forbidden |
-| last_terms_review | 2026-08-11 |
-| notes | qualquer automação futura deve usar ferramentas/APIs oficiais do Programa de Associados; não fazer scraping |
+| scraping | forbidden — nunca preço, imagem ou nota/avaliação da Amazon |
+| last_terms_review | 2026-08-14 |
+| notes | aviso de associado obrigatório exibido junto do link ("Como associado da Amazon, o PETMOL recebe por compras qualificadas."); link real `<a rel="sponsored nofollow noopener noreferrer">`, nunca reivindica ser o menor preço (nunca mostra preço nenhum); qualquer automação futura (Creators API) deve usar ferramentas/APIs oficiais — ver "Procedimento futuro: migrar para a Creators API" acima |
 
 ### Petz
 
@@ -848,3 +1019,16 @@ só tem publisher ID e token de API.
   comissão via API de relatórios (alternativa/complemento à compra de
   teste manual) — não implementado, não fazia parte do escopo desta
   tarefa.
+- **Shopee — primeiro link oficial** — nenhum link real foi recebido do
+  Portal do Afiliado ainda; `SHOPEE_AFFILIATE_ENABLED` continua `false`
+  até isso acontecer E `petmol.com.br` ser confirmado como mídia
+  aprovada. Mecanismo (validador, provider, admin CRUD) pronto e
+  testado, mas inerte sem esses dois fatores externos.
+- **Amazon — Creators API** — sem credenciais emitidas pela Amazon ainda
+  (a PA-API 5 antiga está descontinuada); o MVP atual (link de busca com
+  tag) não depende disso e continua funcionando quando/se a API chegar
+  (ver "Procedimento futuro: migrar para a Creators API").
+- **Amazon — logo/imagem do card "Ver na Amazon"** — usa só o emoji 📦 e
+  texto, nunca uma imagem/logo baixada da Amazon (proibido usar imagem
+  da Amazon sem fonte autorizada) — um logo próprio poderia ser
+  adicionado depois via asset local do PETMOL, não é bloqueio funcional.
