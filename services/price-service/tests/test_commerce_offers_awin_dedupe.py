@@ -34,6 +34,18 @@ def _force_env(monkeypatch):
     get_settings.cache_clear()
 
 
+def _enable_awin_globally(monkeypatch) -> None:
+    """Estes testes precisam do AwinFeedProvider genuinamente registrado
+    em build_default_engine() pra provar o dedupe de verdade (não só "não
+    tem Awin nenhum pra disputar") — ver awin_advertisers.py
+    is_awin_merchant_publicly_servable. Master gate desligado é o padrão
+    de produção; ligar aqui é só pra exercitar o cenário com os dois
+    providers realmente presentes."""
+    monkeypatch.setenv("AWIN_ENABLED", "true")
+    monkeypatch.setenv("AWIN_SHADOW_MODE", "false")
+    get_settings.cache_clear()
+
+
 def _register_cobasi_link(gtin: str = GTIN) -> None:
     db = SessionLocal()
     try:
@@ -69,6 +81,7 @@ def _register_awin_offer(gtin: str = GTIN) -> None:
 async def test_registering_awin_provider_does_not_change_link_shown_to_tutor(monkeypatch):
     """O teste que importa: mesmo com os dois providers reais resolvendo
     oferta pro mesmo GTIN, o link exibido continua sendo o da MAIS."""
+    _enable_awin_globally(monkeypatch)
     _register_cobasi_link()
     _register_awin_offer()
 
@@ -101,6 +114,7 @@ async def test_manually_cached_link_survives_even_with_awin_preferred(monkeypatc
     — precisa continuar mostrando o link comprovado, nunca o da Awin, ou
     quem comprar esse produto específico durante o teste perderia a
     comissão já validada. Ver commerce_provider.py::_dedupe_by_merchant."""
+    _enable_awin_globally(monkeypatch)
     _register_cobasi_link()
     _register_awin_offer()
     monkeypatch.setattr("src.merchant_routes.PREFERRED_ROUTE_BY_MERCHANT", {"cobasi": "awin"})
@@ -132,6 +146,7 @@ async def test_awin_wins_when_no_manual_link_and_awin_preferred(monkeypatch):
     resto do catálogo, hoje via UTM), trocar a rota preferida pra 'awin'
     deve sim mudar o link exibido. Prova que a blindagem é específica de
     link manual, não um bloqueio geral que inutilizaria o teste real."""
+    _enable_awin_globally(monkeypatch)
     _register_awin_offer()
     monkeypatch.setattr("src.merchant_routes.PREFERRED_ROUTE_BY_MERCHANT", {"cobasi": "awin"})
     monkeypatch.setenv("COBASI_AFFILIATE_MODE", "utm")
@@ -156,3 +171,51 @@ async def test_awin_wins_when_no_manual_link_and_awin_preferred(monkeypatch):
     assert len(cobasi_offers) == 1
     assert cobasi_offers[0].route == "awin"
     assert cobasi_offers[0].url.startswith("https://www.awin1.com/")
+
+
+@pytest.mark.asyncio
+async def test_awin_never_leaks_when_master_gate_off_even_as_sole_resolver(monkeypatch):
+    """O BUG CRÍTICO que motivou esta correção: quando CobasiProvider não
+    resolve nada (contexto sem query/name/brand — exatamente o que a busca
+    do catálogo manda hoje, só gtin) e o AwinFeedProvider é o ÚNICO
+    provider capaz de responder, o dedupe por preferência de rota nunca
+    entra em ação (não há duas ofertas do merchant pra escolher entre
+    elas) — o link Awin vazava mesmo com AWIN_ENABLED=false, porque
+    build_default_engine() registrava o provider sem checar o master gate.
+    Este teste reproduz exatamente esse cenário (contexto só com gtin,
+    sem query) e prova que agora nenhuma oferta cobasi aparece."""
+    _register_awin_offer()
+    # awin_enabled NÃO foi ligado — este é o padrão real de produção hoje.
+    assert get_settings().awin_enabled is False
+
+    db = SessionLocal()
+    try:
+        # Contexto só com gtin — exatamente o que AffiliateCatalogSearch
+        # manda pro back-end na hora de comprar (sem query/name/brand),
+        # então CobasiProvider.find_offer() nem tenta (query vazia).
+        offers = await get_commerce_offers(db, gtin=GTIN)
+    finally:
+        db.close()
+
+    cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
+    assert cobasi_offers == [], "Awin nunca pode ser a única oferta visível com o master gate desligado"
+
+
+@pytest.mark.asyncio
+async def test_awin_shadow_mode_blocks_even_with_master_gate_on(monkeypatch):
+    """awin_shadow_mode=True é sempre mais restritivo — nunca uma
+    liberação parcial. Mesmo com awin_enabled=True, shadow mode ligado
+    bloqueia a mesma forma que o master gate desligado."""
+    monkeypatch.setenv("AWIN_ENABLED", "true")
+    monkeypatch.setenv("AWIN_SHADOW_MODE", "true")
+    get_settings.cache_clear()
+    _register_awin_offer()
+
+    db = SessionLocal()
+    try:
+        offers = await get_commerce_offers(db, gtin=GTIN)
+    finally:
+        db.close()
+
+    cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
+    assert cobasi_offers == []

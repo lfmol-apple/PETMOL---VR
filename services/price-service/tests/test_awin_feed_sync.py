@@ -116,7 +116,10 @@ def test_sync_reactivates_product_that_returns_to_feed(monkeypatch):
         monkeypatch.setattr("src.awin_feed_sync.fetch_feed_csv", lambda url: _csv(_row(aw_product_id="1001")))
         sync_awin_feed(db, "cobasi", datafeed_key="fake-key")
 
-        monkeypatch.setattr("src.awin_feed_sync.fetch_feed_csv", lambda url: _csv())
+        # Feed com OUTRO produto (rows_seen > 0) — não um feed vazio, que
+        # agora é tratado como falha e nunca desativa nada (ver
+        # test_empty_feed_never_deactivates_previous_catalog).
+        monkeypatch.setattr("src.awin_feed_sync.fetch_feed_csv", lambda url: _csv(_row(aw_product_id="9999")))
         sync_awin_feed(db, "cobasi", datafeed_key="fake-key")
         gone = db.scalar(select(AffiliateFeedOffer).where(AffiliateFeedOffer.external_product_id == "1001"))
         assert gone.active is False
@@ -214,10 +217,126 @@ def test_merchant_without_feed_raises():
 
 
 def test_missing_datafeed_key_raises(monkeypatch):
-    monkeypatch.setattr("src.awin_feed_sync.get_settings", lambda: type("S", (), {"awin_datafeed_key": None})())
+    monkeypatch.setattr(
+        "src.awin_feed_sync.get_settings",
+        lambda: type("S", (), {"awin_datafeed_key": None, "awin_sync_enabled": True})(),
+    )
     db = SessionLocal()
     try:
         with pytest.raises(AwinFeedSyncError):
             sync_awin_feed(db, "cobasi")
     finally:
+        db.close()
+
+
+def test_sync_disabled_raises_and_does_not_touch_network(monkeypatch):
+    monkeypatch.setattr(
+        "src.awin_feed_sync.get_settings",
+        lambda: type("S", (), {"awin_datafeed_key": "fake-key", "awin_sync_enabled": False})(),
+    )
+
+    def _boom(url):
+        raise AssertionError("fetch_feed_csv não deveria ser chamado com awin_sync_enabled=False")
+
+    monkeypatch.setattr("src.awin_feed_sync.fetch_feed_csv", _boom)
+    db = SessionLocal()
+    try:
+        with pytest.raises(AwinFeedSyncError, match="AWIN_SYNC_ENABLED"):
+            sync_awin_feed(db, "cobasi")
+    finally:
+        db.close()
+
+
+def test_empty_feed_never_deactivates_previous_catalog(monkeypatch):
+    """§11: feed vazio NUNCA é tratado como sincronização válida — nunca
+    desativa o catálogo anterior silenciosamente."""
+    db = SessionLocal()
+    try:
+        monkeypatch.setattr("src.awin_feed_sync.fetch_feed_csv", lambda url: _csv(_row(aw_product_id="1001")))
+        sync_awin_feed(db, "cobasi", datafeed_key="fake-key")
+
+        monkeypatch.setattr("src.awin_feed_sync.fetch_feed_csv", lambda url: _csv())
+        with pytest.raises(AwinFeedSyncError, match="vazio"):
+            sync_awin_feed(db, "cobasi", datafeed_key="fake-key")
+
+        still_there = db.scalar(select(AffiliateFeedOffer).where(AffiliateFeedOffer.external_product_id == "1001"))
+        assert still_there is not None
+        assert still_there.active is True
+    finally:
+        db.close()
+
+
+def test_concurrent_sync_same_merchant_is_blocked(monkeypatch):
+    """Duas sincronizações do mesmo merchant não podem rodar ao mesmo
+    tempo — a segunda chamada, enquanto a primeira "está rodando" (run sem
+    finished_at), levanta erro em vez de disputar a mesma tabela."""
+    from src.affiliate_feed import AffiliateFeedSyncRun
+    from src.awin_advertisers import get_awin_advertiser
+
+    db = SessionLocal()
+    try:
+        advertiser = get_awin_advertiser("cobasi")
+        running = AffiliateFeedSyncRun(
+            network="awin", merchant="cobasi", advertiser_id=advertiser.advertiser_id,
+            feed_id=advertiser.feed_id, status="running",
+        )
+        db.add(running)
+        db.commit()
+
+        monkeypatch.setattr("src.awin_feed_sync.fetch_feed_csv", lambda url: _csv(_row()))
+        with pytest.raises(AwinFeedSyncError, match="em andamento"):
+            sync_awin_feed(db, "cobasi", datafeed_key="fake-key")
+    finally:
+        db.query(AffiliateFeedSyncRun).filter(AffiliateFeedSyncRun.merchant == "cobasi").delete()
+        db.commit()
+        db.close()
+
+
+def test_sync_run_is_recorded_on_success(monkeypatch):
+    from src.affiliate_feed import AffiliateFeedSyncRun
+
+    monkeypatch.setattr(
+        "src.awin_feed_sync.fetch_feed_csv",
+        lambda url: _csv(_row(aw_product_id="1001", gtin="7891234567890")),
+    )
+    db = SessionLocal()
+    try:
+        result = sync_awin_feed(db, "cobasi", datafeed_key="fake-key")
+        assert result.run_id is not None
+
+        run = db.get(AffiliateFeedSyncRun, result.run_id)
+        assert run.status == "success"
+        assert run.finished_at is not None
+        assert run.rows_seen == 1
+        assert run.rows_upserted == 1
+        assert run.rows_with_gtin == 1
+        assert run.rows_with_affiliate_url == 1
+    finally:
+        db.query(AffiliateFeedSyncRun).filter(AffiliateFeedSyncRun.merchant == "cobasi").delete()
+        db.commit()
+        db.close()
+
+
+def test_sync_run_recorded_on_failure_never_leaks_url(monkeypatch):
+    from src.affiliate_feed import AffiliateFeedSyncRun
+
+    def _boom(url):
+        raise RuntimeError(f"conexão falhou pra {url}")  # url contém a apikey de propósito, pra testar a sanitização
+
+    monkeypatch.setattr("src.awin_feed_sync.fetch_feed_csv", _boom)
+    db = SessionLocal()
+    try:
+        with pytest.raises(AwinFeedSyncError):
+            sync_awin_feed(db, "cobasi", datafeed_key="segredo-nao-pode-vazar")
+
+        run = db.scalar(
+            select(AffiliateFeedSyncRun)
+            .where(AffiliateFeedSyncRun.merchant == "cobasi")
+            .order_by(AffiliateFeedSyncRun.id.desc())
+        )
+        assert run.status == "failed"
+        assert "segredo-nao-pode-vazar" not in (run.error_message or "")
+    finally:
+        db.query(AffiliateFeedSyncRun).filter(AffiliateFeedSyncRun.merchant == "cobasi").delete()
+        db.commit()
         db.close()

@@ -22,7 +22,7 @@ from typing import Optional
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .awin_advertisers import awin_merchants_with_feed, is_awin_merchant_enabled
+from .awin_advertisers import awin_merchants_publicly_servable
 from .awin_feed_provider import AwinFeedProvider
 from .cobasi_provider import CobasiProvider
 from .commerce_provider import CommerceEngine, CommerceProvider, MonetizedOffer, ProductContext
@@ -55,25 +55,30 @@ _NOT_FOUND = ProductOfferResult(found=False)
 
 
 def build_default_engine(db: Session) -> CommerceEngine:
-    """Lista central de providers ativos. Novo provider MANUAL (Amazon/
-    Shopee/ML, quando aprovados — sem feed estruturado) = uma linha aqui.
+    """Lista central de providers ativos — usada por TODO endpoint
+    público (/commerce/offers, /commerce/awin-search). Novo provider
+    MANUAL (Amazon/Shopee/ML/Petz direto, quando aprovados — sem feed
+    estruturado) = uma linha aqui.
 
     Providers Awin (feed estruturado) são genéricos — um AwinFeedProvider
-    por merchant habilitado com feed (awin_merchants_with_feed() ∩
-    is_awin_merchant_enabled()), sem precisar editar este arquivo quando
-    Petz/Zee Now/Zee Dog forem aprovados e sincronizados (só
-    awin_advertisers.py muda). Hoje só cobasi está enabled=True.
+    por merchant em awin_merchants_publicly_servable(), que já combina o
+    master gate global (config.awin_enabled/awin_shadow_mode) com o
+    status técnico de cada merchant (awin_advertisers.py). Isso significa:
+    com awin_enabled=False (padrão), NENHUM AwinFeedProvider é registrado
+    aqui, mesmo que algum merchant esteja tecnicamente enabled=True — o
+    master gate sempre vence. Quando Petz/Zee Now/Zee Dog forem aprovados
+    e sincronizados, entram sem editar este arquivo (só awin_advertisers.py
+    muda). AwinFeedProvider também revalida o mesmo gate internamente
+    (defesa em profundidade — ver awin_feed_provider.py), então mesmo um
+    registro indevido aqui não vazaria oferta.
 
-    merchant_routes.PREFERRED_ROUTE_BY_MERCHANT["cobasi"] ainda é "mais",
-    então o dedupe por merchant (_dedupe_by_merchant) sempre mantém a
-    oferta do CobasiProvider quando os dois resolverem a mesma oferta.
-    Registrar o AwinFeedProvider não muda o que o tutor vê até essa
-    preferência mudar (ver docs/AFFILIATES.md — validar comissão real
-    antes de trocar)."""
+    merchant_routes.PREFERRED_ROUTE_BY_MERCHANT["cobasi"] é "mais", então
+    o dedupe por merchant (_dedupe_by_merchant) sempre mantém a oferta do
+    CobasiProvider quando os dois resolverem a mesma oferta — trocar isso
+    exige validar comissão real antes (ver docs/AFFILIATES.md)."""
     providers: list[CommerceProvider] = [CobasiProvider(db)]
-    for merchant in awin_merchants_with_feed():
-        if is_awin_merchant_enabled(merchant):
-            providers.append(AwinFeedProvider(db, merchant))
+    for merchant in awin_merchants_publicly_servable():
+        providers.append(AwinFeedProvider(db, merchant))
     return CommerceEngine(providers)
 
 

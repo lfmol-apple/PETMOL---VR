@@ -110,11 +110,51 @@ def get_awin_advertiser(merchant: str) -> Optional[AwinAdvertiser]:
 
 
 def is_awin_merchant_enabled(merchant: str) -> bool:
+    """Status TÉCNICO por merchant, isolado do master gate global (ver
+    is_awin_merchant_publicly_servable). Usado por código interno/sync que
+    precisa saber "este merchant está pronto tecnicamente" sem se importar
+    com awin_enabled/awin_shadow_mode (ex: decidir se vale a pena rodar o
+    sync). NUNCA usar isto sozinho pra decidir se algo é exposto ao tutor
+    — qualquer caminho que possa chegar numa resposta HTTP pública precisa
+    de is_awin_merchant_publicly_servable()."""
     advertiser = AWIN_ADVERTISERS.get(merchant)
     return bool(advertiser and advertiser.enabled)
+
+
+def is_awin_merchant_publicly_servable(merchant: str) -> bool:
+    """O único ponto de decisão pra "este merchant pode gerar uma oferta
+    Awin visível/clicável pelo tutor agora". Exige TODOS:
+      1. master gate global (config.awin_enabled=True);
+      2. não estar em shadow mode (config.awin_shadow_mode=False) — shadow
+         é sempre mais restritivo, nunca uma liberação parcial;
+      3. o merchant estar individualmente enabled=True em AWIN_ADVERTISERS;
+      4. o merchant ter Product Feed (feed_available=True) — sem feed não
+         há AffiliateFeedOffer possível (ex: Araújo), então nunca pode ser
+         "servable" mesmo que alguém marque enabled=True por engano.
+    Usado por build_default_engine() (registro do AwinFeedProvider) e por
+    GET /commerce/awin-search — os dois únicos caminhos que podem colocar
+    um link Awin na frente de um tutor real. Um `merchant=` explícito não
+    pode contornar isto (ver main.py)."""
+    from .config import get_settings
+
+    settings = get_settings()
+    if not settings.awin_enabled or settings.awin_shadow_mode:
+        return False
+    if not is_awin_merchant_enabled(merchant):
+        return False
+    advertiser = AWIN_ADVERTISERS.get(merchant)
+    return bool(advertiser and advertiser.feed_available)
 
 
 def awin_merchants_with_feed() -> list[str]:
     """Merchants cujo programa Awin oferece Product Feed — pré-requisito
     pra popular AffiliateFeedOffer via sync (quando aprovado)."""
     return [m for m, a in AWIN_ADVERTISERS.items() if a.feed_available]
+
+
+def awin_merchants_publicly_servable() -> list[str]:
+    """Merchants que podem aparecer pro tutor agora mesmo — combina o
+    master gate global com o status técnico de cada merchant. Lista vazia
+    sempre que awin_enabled=False ou awin_shadow_mode=True, mesmo que
+    algum merchant esteja enabled=True individualmente."""
+    return [m for m in AWIN_ADVERTISERS if is_awin_merchant_publicly_servable(m)]

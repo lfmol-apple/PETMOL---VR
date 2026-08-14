@@ -173,12 +173,34 @@ class Settings(BaseSettings):
             return self.affiliate_only_commerce
         return self.env == "prod"
 
-    # ── Awin (rede de afiliados) ────────────────────────────────────────────
-    # Cobasi (advertiser 17870) aprovada em 13/08/2026 (confirmado no painel
-    # Awin — ver awin_advertisers.py). Sync do feed já é real (awin_feed_sync.py),
-    # mas awin_enabled continua False até o AwinFeedProvider ser registrado em
-    # build_default_engine() e a rota ser validada (docs/AFFILIATES.md item 6)
-    # — a existência de dados sincronizados não implica exibir ao tutor.
+    # ── Awin (rede de afiliados) — MASTER GATE de exposição pública ─────────
+    # Semântica única e testável (ver test_awin_flags.py):
+    #
+    #   awin_enabled=False (padrão)
+    #     Nenhum link Awin pode chegar ao tutor, ponto final. Nenhum
+    #     provider Awin é registrado em build_default_engine() (o engine
+    #     usado por TODOS os endpoints públicos: /commerce/offers,
+    #     /commerce/awin-search). Um `merchant=` explícito no endpoint de
+    #     busca NÃO contorna isto — ver main.py. NÃO afeta sincronização:
+    #     o job de sync (awin_feed_sync.py) roda independente deste flag,
+    #     controlado só por awin_sync_enabled abaixo — "sincronizar
+    #     catálogo" e "exibir oferta" são decisões separadas de propósito.
+    #
+    #   awin_enabled=True e awin_shadow_mode=True
+    #     Ainda nenhum link Awin chega ao tutor — shadow mode é sempre mais
+    #     restritivo, nunca um jeito de "ligar parcialmente". Serve só pra
+    #     preparar/validar resolução interna (ex: métricas de cobertura,
+    #     comando admin/CLI) antes de expor de verdade. Nenhum endpoint
+    #     público pode ficar mais permissivo por causa deste flag.
+    #
+    #   awin_enabled=True e awin_shadow_mode=False
+    #     AwinFeedProvider é registrado SÓ para merchants com
+    #     is_awin_merchant_enabled(merchant)=True individualmente (ver
+    #     awin_advertisers.py) — meta-flag global não substitui a checagem
+    #     por merchant, as duas precisam estar True. Mesmo assim, a rota
+    #     Awin só "vence" um merchant que já tem oferta MAIS quando
+    #     merchant_routes.py autorizar (ver preferred_route/fallback_routes)
+    #     — nunca troca a rota preferida sozinho.
     #
     # Publisher ID não é segredo (é público, aparece no painel/contrato) —
     # por isso tem valor padrão no código.
@@ -192,15 +214,26 @@ class Settings(BaseSettings):
     # nunca commitar um valor válido (fica em env var no VPS, como as demais
     # credenciais — ver docs/DEPLOYMENT.md pro caminho certo do env file).
     awin_datafeed_key: Optional[str] = None
-    # Liga chamadas reais à API/feed da Awin. Deve continuar False até
-    # haver credencial real E aprovação confirmada.
+    # MASTER GATE — controla exposição pública (ver docstring acima).
+    # Deve continuar False até validação comercial+técnica real autorizada.
     awin_enabled: bool = False
-    # Sincroniza e resolve ofertas Awin internamente para comparar com a
-    # Cobasi atual, mas nunca exibe ao tutor nem abre links — ver §29 do
-    # documento de arquitetura interno. Só faz sentido com awin_enabled=True.
+    # Restringe awin_enabled=True a resolução interna — nunca expõe link
+    # nem torna o catálogo pesquisável publicamente (ver docstring acima).
     awin_shadow_mode: bool = False
+    # Kill-switch do JOB DE SYNC (scripts/sync_awin_feed.py) — independente
+    # de awin_enabled/awin_shadow_mode de propósito: deve ser possível
+    # sincronizar/atualizar o catálogo (inclusive pra preparar shadow mode
+    # ou a próxima loja) sem que isso ligue qualquer exposição ao tutor.
+    # Default True — sync em si é seguro (só grava Postgres local, nunca
+    # abre link pro tutor); False só pra pausar o job sem mexer no restante.
+    awin_sync_enabled: bool = True
     # Conservador de propósito — feeds de afiliados não mudam a cada minuto.
     awin_sync_interval_minutes: int = 1440
+    # Catálogo mais velho que isso é considerado stale — AwinFeedProvider
+    # não oferta nada de um merchant cujo último sync bem-sucedido passou
+    # desse limite (ver awin_feed_provider.py). Coerente com sync diário
+    # (1440min): folga de meio dia antes de considerar stale.
+    awin_stale_after_hours: int = 36
 
     @field_validator("debug", mode="before")
     @classmethod

@@ -8,11 +8,24 @@ externo, não por clique de usuário), nunca a partir de uma requisição HTTP
 do frontend. AwinFeedProvider só lê o resultado já sincronizado; nunca
 chama isto diretamente.
 
+Sincronizar catálogo é uma decisão INDEPENDENTE de expor oferta ao tutor —
+controlada só por config.awin_sync_enabled, nunca por awin_enabled/
+awin_shadow_mode (ver config.py). É seguro rodar mesmo com Awin totalmente
+desligada pro tutor: só grava Postgres local, nunca abre link.
+
 Rodar manualmente: `python3 scripts/sync_awin_feed.py cobasi`. Idempotente
-e re-executável — cada linha do feed vira um upsert (chave: network +
-advertiser_id + external_product_id); produtos que desaparecem do feed
-entre uma sincronização e outra são marcados active=False, nunca
-apagados (histórico de preço/oferta fica preservado).
+e re-executável — cada linha do feed vira um upsert em lote (chave:
+network + advertiser_id + external_product_id); produtos que desaparecem
+do feed entre uma sincronização e outra são marcados active=False, nunca
+apagados (histórico de preço/oferta fica preservado) — EXCETO quando o
+feed baixado veio vazio (0 linhas): tratado como falha, nunca desativa o
+catálogo anterior por um download ruim (ver §11 do doc de arquitetura
+interno). Cada execução fica registrada em AffiliateFeedSyncRun — nunca o
+feed bruto, nunca a URL (que contém a chave de API), nunca credenciais.
+
+Lock: duas sincronizações do mesmo merchant não podem rodar ao mesmo
+tempo — checado via uma linha "running" sem finished_at em
+AffiliateFeedSyncRun (ver _acquire_lock).
 """
 from __future__ import annotations
 
@@ -21,16 +34,16 @@ import gzip
 import io
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import httpx
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
-from .affiliate_feed import AffiliateFeedOffer
+from .affiliate_feed import AffiliateFeedOffer, AffiliateFeedSyncRun
 from .awin_advertisers import AwinAdvertiser, get_awin_advertiser
 from .config import get_settings
 from .product_catalog_lookup import normalize_gtin
@@ -49,12 +62,21 @@ FEED_COLUMNS = (
     "description,merchant_deep_link,merchant_image_url,search_price,"
     "condition,product_type,custom_1,custom_2,stock_status,product_GTIN"
 )
-# Valor real observado no feed da Cobasi (13/08/2026): "disponível" — os
-# valores em inglês ficam como fallback pra outros merchants/formatos Awin,
-# nunca confirmados contra um feed real ainda (ver docs/AFFILIATES.md).
+# Valores observados em feeds Awin reais até hoje: "disponível" é o valor
+# confirmado no feed da Cobasi (13/08/2026, português); os demais ficam
+# como fallback pra outros merchants/formatos, nunca confirmados contra um
+# feed real ainda (ver docs/AFFILIATES.md). Zee Now/Zee Dog podem usar
+# valores diferentes — NÃO presumir, observar e cobrir com teste quando o
+# feed real desses merchants for sincronizado pela primeira vez (ver §14
+# do gate de ativação).
 _IN_STOCK_VALUES = {"1", "true", "yes", "in stock", "instock", "in_stock", "disponível", "disponivel"}
 _OUT_OF_STOCK_VALUES = {"0", "false", "no", "out of stock", "indisponível", "indisponivel"}
 TIMEOUT_SECONDS = 300  # feeds grandes (milhares de produtos) demoram
+UPSERT_BATCH_SIZE = 500
+# Uma sincronização "running" sem finished_at por mais que isso é
+# considerada travada/morta (processo que crashou), não um lock válido —
+# evita que uma falha sem cleanup bloqueie sync pra sempre.
+STALE_LOCK_AFTER_MINUTES = 30
 
 
 class AwinFeedSyncError(RuntimeError):
@@ -67,6 +89,19 @@ class AwinFeedSyncResult:
     rows_seen: int
     rows_upserted: int
     rows_deactivated: int
+    run_id: Optional[int] = None
+
+
+def _sanitize_error(exc: Exception) -> str:
+    """Mensagem curta e segura pra AffiliateFeedSyncRun.error_message —
+    nunca stack trace inteiro, nunca a URL do feed (contém a datafeed
+    key). Trunca de propósito."""
+    text = f"{type(exc).__name__}: {exc}"
+    # httpx inclui a URL completa (com a apikey) na representação de
+    # HTTPStatusError/RequestError — nunca deixar isso ir pro banco.
+    if "apikey" in text.lower():
+        text = f"{type(exc).__name__} (detalhes omitidos — continham a URL do feed)"
+    return text[:300]
 
 
 def build_feed_url(advertiser: AwinAdvertiser, datafeed_key: str) -> str:
@@ -146,57 +181,153 @@ def _row_to_offer_fields(row: dict, merchant: str, advertiser_id: str, synced_at
     )
 
 
-def _upsert_offer(db: Session, fields: dict) -> None:
-    """Upsert por (network, advertiser_id, external_product_id) — mesma
-    unique constraint da tabela. Dialeto SQLite nos testes, Postgres em
-    produção; ambos suportam ON CONFLICT DO UPDATE nesse formato."""
+def _upsert_batch(db: Session, batch: list[dict]) -> None:
+    """Upsert em lote de verdade — UM statement compilado (com `excluded`,
+    não valores per-row na cláusula SET) executado com a lista inteira do
+    batch via executemany, em vez de um INSERT por linha. Chave:
+    (network, advertiser_id, external_product_id), mesma unique
+    constraint da tabela."""
+    if not batch:
+        return
     insert_fn = sqlite_insert if db.bind.dialect.name == "sqlite" else pg_insert
-    stmt = insert_fn(AffiliateFeedOffer).values(**fields)
-    update_cols = {k: v for k, v in fields.items() if k not in ("network", "advertiser_id", "external_product_id")}
+    stmt = insert_fn(AffiliateFeedOffer)
+    update_cols = {
+        k: getattr(stmt.excluded, k)
+        for k in batch[0]
+        if k not in ("network", "advertiser_id", "external_product_id")
+    }
     stmt = stmt.on_conflict_do_update(
         index_elements=["network", "advertiser_id", "external_product_id"],
         set_=update_cols,
     )
-    db.execute(stmt)
+    db.execute(stmt, batch)
+
+
+def _acquire_lock(db: Session, merchant: str) -> None:
+    """Impede duas sincronizações simultâneas do mesmo merchant. Uma
+    "running" sem finished_at mais nova que STALE_LOCK_AFTER_MINUTES conta
+    como lock ativo; mais velha que isso é considerada travada (processo
+    morto sem cleanup) e não bloqueia — evita lock permanente por um crash
+    sem tratamento."""
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=STALE_LOCK_AFTER_MINUTES)
+    running = db.scalar(
+        select(AffiliateFeedSyncRun).where(
+            AffiliateFeedSyncRun.merchant == merchant,
+            AffiliateFeedSyncRun.status == "running",
+            AffiliateFeedSyncRun.finished_at.is_(None),
+            AffiliateFeedSyncRun.started_at >= cutoff,
+        )
+    )
+    if running is not None:
+        raise AwinFeedSyncError(
+            f"Já existe uma sincronização em andamento pra '{merchant}' (run_id={running.id}, "
+            f"iniciada às {running.started_at.isoformat()}) — aguarde terminar."
+        )
 
 
 def sync_awin_feed(db: Session, merchant: str, *, datafeed_key: Optional[str] = None) -> AwinFeedSyncResult:
+    settings = get_settings()
+    if not settings.awin_sync_enabled:
+        raise AwinFeedSyncError(
+            "AWIN_SYNC_ENABLED=false — sync pausado deliberadamente (independente de "
+            "awin_enabled/awin_shadow_mode, ver config.py)"
+        )
+
     advertiser = get_awin_advertiser(merchant)
     if not advertiser:
         raise AwinFeedSyncError(f"Merchant desconhecido: {merchant!r}")
     if not advertiser.feed_available:
         raise AwinFeedSyncError(f"Merchant '{merchant}' não tem Product Feed disponível na Awin")
 
-    key = datafeed_key or get_settings().awin_datafeed_key
+    key = datafeed_key or settings.awin_datafeed_key
     if not key:
         raise AwinFeedSyncError(
             "AWIN_DATAFEED_KEY não configurada — ver docs/AFFILIATES.md seção Awin"
         )
 
-    url = build_feed_url(advertiser, key)
-    logger.info("[awin_feed_sync] baixando feed de %s (fid=%s)", merchant, advertiser.feed_id)
-    csv_text = fetch_feed_csv(url)
+    _acquire_lock(db, merchant)
+
+    run = AffiliateFeedSyncRun(
+        network="awin",
+        merchant=merchant,
+        advertiser_id=advertiser.advertiser_id,
+        feed_id=advertiser.feed_id,
+        status="running",
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
+    try:
+        url = build_feed_url(advertiser, key)
+        logger.info("[awin_feed_sync] baixando feed de %s (fid=%s, run_id=%s)", merchant, advertiser.feed_id, run.id)
+        csv_text = fetch_feed_csv(url)
+    except Exception as exc:  # noqa: BLE001 — precisa registrar qualquer falha e re-lançar
+        run.status = "failed"
+        run.finished_at = datetime.now(timezone.utc)
+        run.error_message = _sanitize_error(exc)
+        db.commit()
+        raise AwinFeedSyncError(f"Falha ao baixar/descomprimir feed de '{merchant}': {run.error_message}") from exc
 
     synced_at = datetime.now(timezone.utc)
     rows_seen = 0
     rows_upserted = 0
+    rows_with_gtin = 0
+    rows_with_affiliate_url = 0
+    rows_in_stock = 0
+    batch: list[dict] = []
 
-    reader = csv.DictReader(io.StringIO(csv_text))
-    for row in reader:
-        rows_seen += 1
-        fields = _row_to_offer_fields(row, merchant, advertiser.advertiser_id, synced_at)
-        if fields is None:
-            continue
-        _upsert_offer(db, fields)
-        rows_upserted += 1
-        if rows_upserted % 500 == 0:
+    try:
+        reader = csv.DictReader(io.StringIO(csv_text))
+        for row in reader:
+            rows_seen += 1
+            fields = _row_to_offer_fields(row, merchant, advertiser.advertiser_id, synced_at)
+            if fields is None:
+                continue
+            batch.append(fields)
+            rows_upserted += 1
+            if fields.get("gtin"):
+                rows_with_gtin += 1
+            if fields.get("affiliate_url"):
+                rows_with_affiliate_url += 1
+            if fields.get("in_stock"):
+                rows_in_stock += 1
+            if len(batch) >= UPSERT_BATCH_SIZE:
+                _upsert_batch(db, batch)
+                db.commit()
+                batch = []
+        if batch:
+            _upsert_batch(db, batch)
             db.commit()
-    db.commit()
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        run.status = "failed"
+        run.finished_at = datetime.now(timezone.utc)
+        run.error_message = _sanitize_error(exc)
+        run.rows_seen = rows_seen
+        db.commit()
+        raise AwinFeedSyncError(f"Falha ao processar feed de '{merchant}': {run.error_message}") from exc
+
+    if rows_seen == 0:
+        # Feed baixou (sem erro HTTP) mas veio vazio — nunca tratar como
+        # sincronização válida: um feed vazio NUNCA deve desativar o
+        # catálogo anterior silenciosamente (ver §11 do doc de arquitetura
+        # interno). Marca a run como empty_feed e para aqui, sem tocar em
+        # AffiliateFeedOffer.
+        run.status = "empty_feed"
+        run.finished_at = datetime.now(timezone.utc)
+        run.rows_seen = 0
+        db.commit()
+        raise AwinFeedSyncError(
+            f"Feed de '{merchant}' voltou vazio (0 linhas) — tratado como falha, "
+            f"catálogo anterior preservado (run_id={run.id})"
+        )
 
     # Produtos que saíram do feed entre uma sincronização e outra: marca
     # inativo em vez de apagar (histórico preservado; find_offer já filtra
     # active=True). Qualquer linha não tocada nesta rodada (last_synced_at
-    # antigo) é considerada removida do catálogo do merchant.
+    # antigo) é considerada removida do catálogo do merchant. Só chega
+    # aqui depois de confirmar rows_seen > 0 acima.
     deactivate_stmt = (
         update(AffiliateFeedOffer)
         .where(
@@ -208,16 +339,26 @@ def sync_awin_feed(db: Session, merchant: str, *, datafeed_key: Optional[str] = 
         .values(active=False)
     )
     result = db.execute(deactivate_stmt)
-    db.commit()
     rows_deactivated = result.rowcount or 0
 
+    run.status = "success"
+    run.finished_at = datetime.now(timezone.utc)
+    run.rows_seen = rows_seen
+    run.rows_upserted = rows_upserted
+    run.rows_deactivated = rows_deactivated
+    run.rows_with_gtin = rows_with_gtin
+    run.rows_with_affiliate_url = rows_with_affiliate_url
+    run.rows_in_stock = rows_in_stock
+    db.commit()
+
     logger.info(
-        "[awin_feed_sync] %s: %d linhas no feed, %d upserted, %d desativados",
-        merchant, rows_seen, rows_upserted, rows_deactivated,
+        "[awin_feed_sync] %s: %d linhas no feed, %d upserted, %d desativados (run_id=%s)",
+        merchant, rows_seen, rows_upserted, rows_deactivated, run.id,
     )
     return AwinFeedSyncResult(
         merchant=merchant,
         rows_seen=rows_seen,
         rows_upserted=rows_upserted,
         rows_deactivated=rows_deactivated,
+        run_id=run.id,
     )

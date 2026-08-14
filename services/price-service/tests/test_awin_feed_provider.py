@@ -1,8 +1,10 @@
 """
 AwinFeedProvider — lê só AffiliateFeedOffer (Postgres local), nunca chama
-a Awin. Como nenhum merchant está enabled em awin_advertisers.py hoje,
-estes testes monkeypatcham is_awin_merchant_enabled pra exercitar a
-lógica — nenhuma chamada de rede em nenhum caso.
+a Awin. Estes testes monkeypatcham is_awin_merchant_publicly_servable
+(master gate + status por merchant, ver awin_advertisers.py) pra
+exercitar a lógica de discovery/monetize isoladamente — a cobertura do
+master gate em si (awin_enabled/awin_shadow_mode reais) fica em
+test_awin_flags.py. Nenhuma chamada de rede em nenhum caso.
 """
 import pytest
 
@@ -16,7 +18,7 @@ GTIN = "7891234567890"
 
 @pytest.fixture(autouse=True)
 def _enable_cobasi_for_test(monkeypatch):
-    monkeypatch.setattr("src.awin_feed_provider.is_awin_merchant_enabled", lambda merchant: merchant == "cobasi")
+    monkeypatch.setattr("src.awin_feed_provider.is_awin_merchant_publicly_servable", lambda merchant: merchant == "cobasi")
     yield
 
 

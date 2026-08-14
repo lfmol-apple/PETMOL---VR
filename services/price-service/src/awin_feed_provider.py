@@ -1,28 +1,38 @@
 """
 AwinFeedProvider — implementação de CommerceProvider para merchants
-sincronizados via feed da Awin (Cobasi, Zee Now, Zee Dog — quando
+sincronizados via feed da Awin (Cobasi hoje; Zee Now/Zee Dog quando
 aprovados; ver awin_advertisers.py).
 
 IMPORTANTE: este provider NUNCA chama a API/feed da Awin diretamente.
-Ele só LÊ o que um futuro AwinFeedSyncService já tiver sincronizado em
+Ele só LÊ o que awin_feed_sync.py já tiver sincronizado em
 AffiliateFeedOffer (Postgres local) — ver §14 do documento de
 arquitetura interno: "job de sincronização → Postgres; tutor toca
 Comprar → consulta Postgres local", nunca uma chamada externa por clique.
 
-Como nenhuma conta Awin está aprovada ainda, este provider hoje sempre
-encontra 0 ofertas (tabela vazia) e não é registrado em
-build_default_engine — existe só para a arquitetura estar pronta.
+Duas camadas de proteção contra expor Awin sem autorização (defesa em
+profundidade — não depender só de build_default_engine() lembrar de
+filtrar no registro):
+  1. is_awin_merchant_publicly_servable(): master gate global
+     (awin_enabled/awin_shadow_mode) + status técnico do merchant — ver
+     awin_advertisers.py. find_offer()/monetize() checam isto sempre,
+     mesmo que o provider tenha sido registrado por engano.
+  2. Staleness: mesmo com o merchant publicamente liberado, uma oferta só
+     é considerada se o último sync bem-sucedido não estiver mais velho
+     que config.awin_stale_after_hours — catálogo desatualizado nunca
+     abre link silenciosamente (ver §12 do doc de arquitetura interno).
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .affiliate_feed import AffiliateFeedOffer
-from .awin_advertisers import is_awin_merchant_enabled
+from .affiliate_feed import AffiliateFeedOffer, AffiliateFeedSyncRun
+from .awin_advertisers import is_awin_merchant_publicly_servable
 from .commerce_provider import DiscoveredOffer, ProductContext
+from .config import get_settings
 from .product_catalog_lookup import normalize_gtin
 
 
@@ -37,8 +47,32 @@ class AwinFeedProvider:
         self.merchant = merchant
         self._db = db
 
+    def _is_catalog_fresh(self) -> bool:
+        settings = get_settings()
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=settings.awin_stale_after_hours)
+        last_success = self._db.scalar(
+            select(AffiliateFeedSyncRun.finished_at)
+            .where(
+                AffiliateFeedSyncRun.network == self.network,
+                AffiliateFeedSyncRun.merchant == self.merchant,
+                AffiliateFeedSyncRun.status == "success",
+            )
+            .order_by(AffiliateFeedSyncRun.finished_at.desc())
+            .limit(1)
+        )
+        if last_success is None:
+            # Nunca sincronizado com sucesso (ou tabela de runs vazia, ex:
+            # dado seedado direto em teste) — não bloqueia por staleness
+            # aqui; find_offer() simplesmente não vai achar linha nenhuma
+            # se de fato não houver dado. Evita depender de todo teste
+            # popular AffiliateFeedSyncRun só pra exercitar AffiliateFeedOffer.
+            return True
+        return last_success >= cutoff
+
     async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
-        if not is_awin_merchant_enabled(self.merchant):
+        if not is_awin_merchant_publicly_servable(self.merchant):
+            return None
+        if not self._is_catalog_fresh():
             return None
 
         # 1. GTIN exato primeiro — feeds de afiliados são estruturados
@@ -92,7 +126,7 @@ class AwinFeedProvider:
         (ver merchant_routes.py) — usado pro CommerceEngine nunca exibir o
         mesmo merchant duas vezes quando também houver um CobasiProvider
         (route="mais") ativo pro mesmo merchant."""
-        if not is_awin_merchant_enabled(self.merchant):
+        if not is_awin_merchant_publicly_servable(self.merchant):
             return None
         if not offer.external_id:
             return None

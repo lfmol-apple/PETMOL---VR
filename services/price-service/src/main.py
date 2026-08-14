@@ -1516,13 +1516,29 @@ async def commerce_awin_search(
     estruturado, continuam no mecanismo de link por template
     (homeShoppingPartners.ts).
 
+    Master gate: só busca merchants em awin_merchants_publicly_servable()
+    (awin_enabled=True, awin_shadow_mode=False, merchant individualmente
+    enabled=True — ver awin_advertisers.py). Um `merchant=` explícito
+    NUNCA contorna isto — se o merchant pedido não estiver na lista
+    liberada (pending/disabled/master gate desligado), retorna lista
+    vazia sem consultar nenhuma linha daquele merchant.
+
+    Agrupamento por GTIN e "menor preço" são calculados no PRÓPRIO SQL
+    (window functions ROW_NUMBER/COUNT, Postgres e SQLite — nunca
+    Elasticsearch/Redis) — não materializa em Python todas as linhas que
+    baterem no ILIKE antes de agrupar, só as `limit` vencedoras.
+
     Só busca local (sem chamada à Awin) — mesmo princípio de
     AwinFeedProvider: sync em lote, leitura local rápida.
     """
     from .affiliate_feed import AffiliateFeedOffer
-    from .awin_advertisers import is_awin_merchant_enabled, awin_merchants_with_feed
+    from .awin_advertisers import awin_merchants_publicly_servable
 
-    merchants = [merchant] if merchant else [m for m in awin_merchants_with_feed() if is_awin_merchant_enabled(m)]
+    allowed = set(awin_merchants_publicly_servable())
+    if merchant:
+        merchants = [merchant] if merchant in allowed else []
+    else:
+        merchants = list(allowed)
     if not merchants:
         return {"results": []}
 
@@ -1532,15 +1548,33 @@ async def commerce_awin_search(
     # português. unaccent() é extensão nativa do Postgres (habilitada em
     # produção via `CREATE EXTENSION unaccent`); SQLite (testes/dev local)
     # não tem, cai pro ILIKE simples (sensível a acento só nesse ambiente).
-    if db.bind.dialect.name == "postgresql":
+    is_postgres = db.bind.dialect.name == "postgresql"
+    if is_postgres:
         title_match = func.unaccent(AffiliateFeedOffer.title).ilike(func.unaccent(like))
         brand_match = func.unaccent(AffiliateFeedOffer.brand).ilike(func.unaccent(like))
     else:
         title_match = AffiliateFeedOffer.title.ilike(like)
         brand_match = AffiliateFeedOffer.brand.ilike(like)
 
-    rows = db.scalars(
-        select(AffiliateFeedOffer)
+    # Uma linha por (gtin, merchant) que bate no filtro; rn=1 é a mais
+    # barata daquele gtin entre TODOS os merchants liberados, offer_count
+    # é quantas lojas (liberadas) têm aquele gtin — tudo calculado pelo
+    # Postgres, nunca em Python.
+    ranked = (
+        select(
+            AffiliateFeedOffer.gtin,
+            AffiliateFeedOffer.title,
+            AffiliateFeedOffer.brand,
+            AffiliateFeedOffer.price,
+            AffiliateFeedOffer.list_price,
+            AffiliateFeedOffer.image_url,
+            AffiliateFeedOffer.merchant,
+            func.row_number().over(
+                partition_by=AffiliateFeedOffer.gtin,
+                order_by=AffiliateFeedOffer.price.asc(),
+            ).label("rn"),
+            func.count().over(partition_by=AffiliateFeedOffer.gtin).label("offer_count"),
+        )
         .where(
             AffiliateFeedOffer.network == "awin",
             AffiliateFeedOffer.merchant.in_(merchants),
@@ -1549,17 +1583,19 @@ async def commerce_awin_search(
             AffiliateFeedOffer.gtin.isnot(None),
             (title_match | brand_match),
         )
-        .order_by(AffiliateFeedOffer.price.asc())
-    ).all()
+        .subquery()
+    )
+    final_stmt = (
+        select(ranked)
+        .where(ranked.c.rn == 1)
+        .order_by(ranked.c.price.asc())
+        .limit(limit)
+    )
+    rows = db.execute(final_stmt).all()
 
-    # Agrupa por GTIN — várias linhas (uma por merchant) podem ser o mesmo
-    # produto físico. A primeira linha vista por GTIN já é a mais barata
-    # (rows vem ordenado por price.asc()).
-    grouped: dict[str, dict] = {}
-    for row in rows:
-        existing = grouped.get(row.gtin)
-        if existing is None:
-            grouped[row.gtin] = {
+    return {
+        "results": [
+            {
                 "gtin": row.gtin,
                 "title": row.title,
                 "brand": row.brand,
@@ -1567,15 +1603,11 @@ async def commerce_awin_search(
                 "list_price": row.list_price,
                 "image_url": row.image_url,
                 "merchant": row.merchant,
-                "offer_count": 1,
+                "offer_count": row.offer_count,
             }
-        else:
-            existing["offer_count"] += 1
-            if not existing["image_url"] and row.image_url:
-                existing["image_url"] = row.image_url
-
-    results = sorted(grouped.values(), key=lambda r: r["price"] if r["price"] is not None else float("inf"))[:limit]
-    return {"results": results}
+            for row in rows
+        ],
+    }
 
 
 @app.get("/catalog/normalize", response_model=NormalizeResult, tags=["Catalog"])

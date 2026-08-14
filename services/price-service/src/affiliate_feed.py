@@ -17,9 +17,12 @@ Fica no Postgres principal — NÃO um SQLite separado (ver feeds/database.py,
 legado/órfão, não usado por nada em produção; ver §25 do doc de
 arquitetura interno).
 
-Nada popula esta tabela ainda: nenhuma conta Awin foi aprovada até
-11/08/2026. Existe só para a arquitetura já estar pronta — sem crawler,
-sem chamada real, sem dado fake.
+Cobasi (advertiser 17870) aprovada e sincronizada desde 13/08/2026 — ver
+awin_feed_sync.py e docs/AFFILIATES.md. `enabled=True` técnico no
+merchant não implica exposição pública: o master gate
+(config.awin_enabled/awin_shadow_mode, ver awin_advertisers.py
+is_awin_merchant_publicly_servable) decide se uma linha daqui pode virar
+link clicável pro tutor.
 """
 from __future__ import annotations
 
@@ -85,3 +88,49 @@ class AffiliateFeedOffer(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class AffiliateFeedSyncRun(Base):
+    """Uma linha = uma execução de awin_feed_sync.py pra um merchant —
+    histórico/observabilidade do job de sincronização (ver §11 do doc de
+    arquitetura interno). NUNCA guarda o feed bruto/CSV/gzip/token/payload
+    — só contadores e um erro curto e sanitizado (nunca a URL com a chave
+    de API embutida).
+
+    status:
+      "running"       — em andamento (lock: outra sync do mesmo merchant
+                         não pode começar enquanto existir uma "running"
+                         sem finished_at — ver sync_awin_feed()).
+      "success"       — completou e o catálogo foi atualizado normalmente.
+      "empty_feed"    — feed baixou mas veio com 0 linhas; tratado como
+                         falha de propósito (nunca desativa o catálogo
+                         anterior só por isso — ver §11).
+      "failed"        — download/parse falhou antes de qualquer upsert.
+    """
+
+    __tablename__ = "affiliate_feed_sync_runs"
+    __table_args__ = (
+        Index("ix_affiliate_feed_sync_runs_merchant", "merchant"),
+        Index("ix_affiliate_feed_sync_runs_merchant_status", "merchant", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    network: Mapped[str] = mapped_column(String(32), nullable=False)
+    merchant: Mapped[str] = mapped_column(String(32), nullable=False)
+    advertiser_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    feed_id: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="running")
+
+    rows_seen: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rows_upserted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rows_deactivated: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rows_with_gtin: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rows_with_affiliate_url: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rows_in_stock: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # Curto e sanitizado de propósito — nunca stack trace inteiro, nunca URL
+    # (que contém a datafeed key). Ver _sanitize_error em awin_feed_sync.py.
+    error_message: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
