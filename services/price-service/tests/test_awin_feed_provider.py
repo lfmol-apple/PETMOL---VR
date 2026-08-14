@@ -6,9 +6,11 @@ exercitar a lógica de discovery/monetize isoladamente — a cobertura do
 master gate em si (awin_enabled/awin_shadow_mode reais) fica em
 test_awin_flags.py. Nenhuma chamada de rede em nenhum caso.
 """
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
-from src.affiliate_feed import AffiliateFeedOffer
+from src.affiliate_feed import AffiliateFeedOffer, AffiliateFeedSyncRun
 from src.awin_feed_provider import AwinFeedProvider
 from src.commerce_provider import DiscoveredOffer, ProductContext
 from src.config import get_settings
@@ -262,5 +264,57 @@ async def test_no_test_gtin_configured_means_no_exception_ever(_not_publicly_ser
         provider = AwinFeedProvider(db, "cobasi")
         offer = await provider.find_offer(ProductContext(gtin=GTIN))
         assert offer is None
+    finally:
+        db.close()
+
+
+def _add_sync_run(finished_at) -> None:
+    db = SessionLocal()
+    try:
+        db.add(AffiliateFeedSyncRun(
+            network="awin", merchant="cobasi", advertiser_id="17870",
+            started_at=finished_at, finished_at=finished_at,
+            status="success", rows_seen=1, rows_upserted=1,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_stale_catalog_blocks_resolution_even_when_authorized():
+    """Merchant publicamente liberado (via fixture autouse) + dado
+    presente, mas o último sync de sucesso passou de
+    config.awin_stale_after_hours — catálogo desatualizado nunca vira
+    link clicável (ver docstring do módulo, camada 2 de proteção). Cobre
+    o gap real de teste: nenhum outro teste populava AffiliateFeedSyncRun
+    com um finished_at de verdade pra exercitar essa comparação."""
+    _add_sync_run(datetime.now(timezone.utc) - timedelta(hours=100))  # > 36h padrão
+    db = SessionLocal()
+    try:
+        db.add(_row())
+        db.commit()
+
+        provider = AwinFeedProvider(db, "cobasi")
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is None
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_fresh_catalog_allows_resolution():
+    """Contraprova do teste acima: sync de sucesso recente (dentro da
+    janela) não bloqueia nada — exercita a comparação de datas real (não
+    só o caminho 'nunca sincronizou' que os outros testes cobrem)."""
+    _add_sync_run(datetime.now(timezone.utc) - timedelta(hours=1))
+    db = SessionLocal()
+    try:
+        db.add(_row())
+        db.commit()
+
+        provider = AwinFeedProvider(db, "cobasi")
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is not None
     finally:
         db.close()

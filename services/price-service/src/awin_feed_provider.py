@@ -84,6 +84,10 @@ class AwinFeedProvider:
             # se de fato não houver dado. Evita depender de todo teste
             # popular AffiliateFeedSyncRun só pra exercitar AffiliateFeedOffer.
             return True
+        if last_success.tzinfo is None:
+            # SQLite (dev/teste) não preserva tzinfo mesmo em coluna
+            # DateTime(timezone=True) — Postgres (prod) preserva.
+            last_success = last_success.replace(tzinfo=timezone.utc)
         return last_success >= cutoff
 
     async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
