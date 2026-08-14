@@ -12,7 +12,8 @@
  */
 
 import { formatBRLPrice, type CommerceOffer } from './productPricing';
-import { navigateToPartnerUrl } from './homeShoppingPartners';
+import { HOME_SHOPPING_PARTNERS, isPartnerVisibleForSearch, navigateToPartnerUrl } from './homeShoppingPartners';
+import { buildAmazonSearchUrl } from './amazonAffiliate';
 import { useCommerceOffers } from './useCommerceOffers';
 import { trackClick } from '@/lib/analytics/click';
 import { trackPartnerClicked } from '@/lib/v1Metrics';
@@ -20,6 +21,11 @@ import { trackPartnerClicked } from '@/lib/v1Metrics';
 const MERCHANT_LABELS: Record<string, string> = {
   cobasi: 'Cobasi',
 };
+
+// Mesma regra de visibilidade usada em "Lojas"/QuickBuyRow
+// (isPartnerVisibleForSearch — active + afiliado configurado) — nunca uma
+// checagem paralela que possa divergir em prod vs dev.
+const AMAZON_PARTNER = HOME_SHOPPING_PARTNERS.find((p) => p.id === 'amazon');
 
 export interface MonetizedOffersListProps {
   /** Texto de busca (marca/produto), mesma convenção usada nos lembretes. */
@@ -54,14 +60,6 @@ export function MonetizedOffersList({
     );
   }
 
-  if (offers.length === 0) {
-    return (
-      <p className="text-center text-[13px] text-gray-500 py-4">
-        Estamos buscando opções de compra para este produto.
-      </p>
-    );
-  }
-
   function handleBuy(offer: CommerceOffer) {
     navigateToPartnerUrl(offer.url);
     void trackClick({
@@ -74,11 +72,45 @@ export function MonetizedOffersList({
     trackPartnerClicked({ source, partner: offer.merchant, pet_id: petId, control_type: controlType ?? null, product_name: productLabel });
   }
 
+  // AMAZON_PARTNER.affiliateStatus === 'active' hoje (tag real petmol-20,
+  // cadastro fiscal/bancário concluído) — nunca passa por CommerceEngine
+  // (que descarta oferta sem preço, ver commerce_provider.py): é sempre um
+  // link de busca por nome de produto, nunca preço/imagem/nota da Amazon
+  // (sem scraping, sem PA-API/Creators API ainda — ver docs/AFFILIATES.md).
+  const showAmazonCard = Boolean(AMAZON_PARTNER) && isPartnerVisibleForSearch(AMAZON_PARTNER!) && query.trim().length > 0;
+  const amazonUrl = showAmazonCard ? buildAmazonSearchUrl(query) : null;
+
+  function handleAmazonClick() {
+    void trackClick({
+      source,
+      cta_type: ctaType,
+      target: 'amazon',
+      link_type: 'affiliate_search',
+      pet_id: petId,
+    });
+    trackPartnerClicked({ source, partner: 'amazon', pet_id: petId, control_type: controlType ?? null, product_name: productLabel });
+    // Sem preventDefault — o <a href> abre o destino Amazon diretamente
+    // depois do clique, trackClick nunca bloqueia a navegação (fire-and-forget).
+  }
+
+  if (offers.length === 0 && !amazonUrl) {
+    return (
+      <p className="text-center text-[13px] text-gray-500 py-4">
+        Estamos buscando opções de compra para este produto.
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {offers.length > 1 && (
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
           {offers.length} ofertas encontradas
+        </p>
+      )}
+      {offers.length === 0 && (
+        <p className="text-center text-[13px] text-gray-500 py-1">
+          Ainda sem oferta com preço pra este produto — consulte na Amazon abaixo.
         </p>
       )}
       {offers.map((offer, index) => {
@@ -125,8 +157,29 @@ export function MonetizedOffersList({
           </div>
         );
       })}
+      {amazonUrl && (
+        <div className="p-4 bg-white border border-gray-200 rounded-2xl shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl flex-shrink-0">📦</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-gray-900 text-[15px] leading-tight truncate">{productLabel}</p>
+              <p className="text-[12px] text-gray-500">Consulte o preço e a disponibilidade na loja</p>
+            </div>
+          </div>
+          <a
+            href={amazonUrl}
+            target="_blank"
+            rel="sponsored nofollow noopener noreferrer"
+            onClick={handleAmazonClick}
+            className="mt-2.5 flex items-center justify-center w-full rounded-xl bg-gray-900 text-white text-[13px] font-bold py-2 active:scale-95 transition-all"
+          >
+            Ver na Amazon
+          </a>
+        </div>
+      )}
       <p className="text-center text-[10px] text-gray-400 pt-1">
         Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
+        {amazonUrl && ' Como associado da Amazon, o PETMOL recebe por compras qualificadas.'}
       </p>
     </div>
   );

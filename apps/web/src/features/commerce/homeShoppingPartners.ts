@@ -1,4 +1,5 @@
 import { trackClick } from '@/lib/analytics/click';
+import { AMAZON_ASSOCIATE_TAG, buildAmazonSearchUrl } from './amazonAffiliate';
 
 export type HomeShoppingPartnerId = 'cobasi' | 'petz' | 'amazon' | 'petlove' | 'doglife' | 'shopee' | 'mercadolivre' | 'araujo' | 'zeenow' | 'zeedog';
 
@@ -106,7 +107,12 @@ export const AFFILIATE_ONLY_COMMERCE: boolean =
 //   NEXT_PUBLIC_AFFILIATE_DOGLIFE=https://url-afiliada-doglife
 //   NEXT_PUBLIC_AFFILIATE_ARAUJO=https://url-afiliada-araujo
 const AFF: Record<HomeShoppingPartnerId, string | undefined> = {
-  amazon:       process.env.NEXT_PUBLIC_AFFILIATE_AMAZON,
+  // Amazon tem tag real (petmol-20, Programa de Associados PJ aprovado,
+  // categoria Pet Shop 11% informado) — NEXT_PUBLIC_AFFILIATE_AMAZON só
+  // serve pra sobrescrever em caso de troca de tag; sem ela, cai no
+  // default real embutido em amazonAffiliate.ts (não é segredo, aparece
+  // em toda URL gerada, como o publisher ID da Awin).
+  amazon:       process.env.NEXT_PUBLIC_AFFILIATE_AMAZON || AMAZON_ASSOCIATE_TAG,
   cobasi:       process.env.NEXT_PUBLIC_AFFILIATE_COBASI,
   petz:         process.env.NEXT_PUBLIC_AFFILIATE_PETZ,
   petlove:      process.env.NEXT_PUBLIC_AFFILIATE_PETLOVE,
@@ -178,18 +184,25 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   {
     id: 'amazon',
     name: 'Amazon',
-    description: 'Compare preço e entrega em pet shop online',
+    description: 'Consulte preço e disponibilidade na Amazon',
     logoSrc: '/partner-logos/amazon.svg',
     logoAlt: 'Amazon',
     fallbackUrl: 'https://www.amazon.com.br/s?k=pet+shop',
-    // Cadastro no Programa de Associados ainda será feito — pending.
-    affiliateStatus: 'pending',
+    // MVP real (14/08/2026): conta Amazon Associados PJ aprovada, tag
+    // petmol-20, categoria Pet Shop com 11% informado, cadastro fiscal e
+    // bancário concluído. Sem Creators API ainda (credenciais não
+    // emitidas; a PA-API 5 antiga está descontinuada) — o mecanismo real
+    // é só link de busca com tag, gerado por buildAmazonSearchUrl
+    // (amazonAffiliate.ts), nunca preço/imagem/nota da Amazon (sem
+    // scraping). affiliateMode 'search_template' (não 'tracking_tag':
+    // não é uma tag colada numa URL qualquer, é sempre um link de busca
+    // construído e validado por domínio/esquema) — ver docs/AFFILIATES.md.
+    affiliateStatus: 'active',
     merchantType: 'amazon',
-    affiliateMode: 'tracking_tag',
+    affiliateMode: 'search_template',
     supportsProductDeepLink: false,
     supportsStorefrontAffiliate: false,
-    buildAffiliateUrl: (query, tag) =>
-      `https://www.amazon.com.br/s?k=${encodeURIComponent(query)}&tag=${tag}`,
+    buildAffiliateUrl: (query, tag) => buildAmazonSearchUrl(query, tag),
   },
   {
     id: 'petlove',
@@ -239,16 +252,25 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/shopee.png',
     logoAlt: 'Shopee',
     directUrl: 'https://shopee.com.br/search?keyword=pet',
-    // Cadastro empresarial (site + rede social oficial) em andamento,
-    // aguardando aprovação — marketplace: oferta é por publicação/vendedor,
-    // não vínculo permanente com o produto (ver docs/AFFILIATES.md).
+    // Status real 14/08/2026: conta virou PJ, dados fiscais/bancários em
+    // avaliação, Instagram conectado — mas AINDA falta confirmar
+    // petmol.com.br como "mídia aprovada" no Portal do Afiliado E obter o
+    // primeiro link oficial real. 'pending' (não 'active') mantém isto
+    // fora de produção pelas duas checagens de sempre
+    // (isPartnerVisibleInStoreArea/ForSearch exigem affiliateStatus
+    // 'active') — sem precisar de uma flag nova aqui. affiliateMode
+    // 'none' porque não existe mecanismo confirmado ainda (nem para esta
+    // entrada genérica de "Lojas", nem para o link oficial por produto,
+    // que vive à parte em MarketplaceOffer/MarketplaceOfferProvider no
+    // backend, gated por SHOPEE_AFFILIATE_ENABLED — ver
+    // marketplace_offer_provider.py e docs/AFFILIATES.md). Quando isso
+    // mudar, o link a usar aqui é o que a Shopee de fato fornecer — NUNCA
+    // um template construído por nós (proibido pelas regras do programa).
     affiliateStatus: 'pending',
     merchantType: 'marketplace',
     affiliateMode: 'none',
     supportsProductDeepLink: false,
     supportsStorefrontAffiliate: false,
-    // Shopee Affiliate: URL base do painel, sem query (landing page afiliada)
-    buildAffiliateUrl: (_query, base) => base,
   },
   {
     id: 'mercadolivre',
