@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { trackClick } from '@/lib/analytics/click';
-import { navigateToPartnerUrl } from './homeShoppingPartners';
+import { showAppToast } from '@/features/interactions/userPromptChannel';
+import { isStandaloneInstalledApp, navigateToPartnerUrl } from './homeShoppingPartners';
 import { formatBRLPrice, fetchCommerceOffers, searchAwinCatalog, type AwinSearchResult, type CommerceOffer } from './productPricing';
 
 interface AffiliateCatalogSearchProps {
@@ -56,9 +57,18 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
     };
   }, [query]);
 
-  function goToOffer(gtin: string, offer: CommerceOffer) {
-    if (!offer.url) return;
-    navigateToPartnerUrl(offer.url);
+  function goToOffer(gtin: string, offer: CommerceOffer, pendingWindow?: Window | null) {
+    if (!offer.url) {
+      pendingWindow?.close();
+      return;
+    }
+    if (pendingWindow && !pendingWindow.closed) {
+      // Já temos a aba aberta (sincronamente, no toque — ver handleBuy);
+      // só trocamos o destino agora que sabemos a URL real.
+      pendingWindow.location.href = offer.url;
+    } else {
+      navigateToPartnerUrl(offer.url);
+    }
     void trackClick({
       source: 'home',
       cta_type: 'shop_awin_search_buy',
@@ -72,6 +82,17 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
 
   async function handleBuy(item: AwinSearchResult) {
     setBuyingGtin(item.gtin);
+    // Safari/PWA trata window.open() chamado depois de um `await` como
+    // popup bloqueado (perde o "user gesture" do toque) e falha em
+    // silêncio — diferente de MonetizedOffersList, aqui a oferta só é
+    // buscada NO clique, não antes. Abrimos a aba já, sincronamente,
+    // dentro do próprio gesto, e só trocamos a URL quando o fetch
+    // responder. No PWA instalado (iOS standalone) a navegação usa a
+    // própria janela (navigateToPartnerUrl → location.href), que não
+    // sofre desse bloqueio — não precisa de aba prévia.
+    const pendingWindow = isStandaloneInstalledApp()
+      ? null
+      : window.open('about:blank', '_blank', 'noopener,noreferrer');
     try {
       // Passa pelo commerce engine de verdade (GET /commerce/offers), mas
       // SEM texto de busca — só gtin. Descoberto testando: mandar o título
@@ -84,11 +105,19 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
       // volta deduplicado por loja (ver commerce_provider.py) — se mais de
       // uma loja tiver o mesmo GTIN, aqui é o grid de preços de verdade.
       const offers = await fetchCommerceOffers('', undefined, item.gtin);
-      if (offers.length === 0) return;
-      if (offers.length === 1) {
-        goToOffer(item.gtin, offers[0]);
+      if (offers.length === 0) {
+        pendingWindow?.close();
+        // fetchCommerceOffers nunca lança (qualquer falha vira [] —
+        // productPricing.ts) — sem isto, um timeout/erro de rede parecia
+        // "não fez nada" pro tutor, sem nenhuma pista do que houve.
+        showAppToast('Não conseguimos abrir a oferta agora. Verifique sua conexão e tente de novo.', { tone: 'warning' });
         return;
       }
+      if (offers.length === 1) {
+        goToOffer(item.gtin, offers[0], pendingWindow);
+        return;
+      }
+      pendingWindow?.close();
       setStoreChoicesForGtin({ gtin: item.gtin, offers });
     } finally {
       setBuyingGtin(null);

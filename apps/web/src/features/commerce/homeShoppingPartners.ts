@@ -405,7 +405,7 @@ export function resolvePartnerUrl(
   return `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(query)}`;
 }
 
-function isStandaloneInstalledApp(): boolean {
+export function isStandaloneInstalledApp(): boolean {
   if (typeof window === 'undefined') return false;
   const iosStandalone = (window.navigator as unknown as { standalone?: boolean }).standalone === true;
   return iosStandalone || Boolean(window.matchMedia?.('(display-mode: standalone)').matches);
