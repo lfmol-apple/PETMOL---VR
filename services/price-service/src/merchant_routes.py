@@ -45,15 +45,19 @@ class MerchantRoutePolicy:
     fallback_routes: tuple[str, ...] = field(default_factory=tuple)
 
 
-# Cobasi: "mais" é a única rota validada/comprovada em produção hoje —
-# permanece preferida até uma compra real confirmar que a Awin comissiona
-# de fato (ver docs/AFFILIATES.md). "awin" já é aceita como fallback
-# estrutural (a rota "resolve por si só se mais não resolver" já é como
-# o dedupe funciona), mas awin_enabled=False no master gate global
-# (config.py) é o que efetivamente impede qualquer oferta Awin de existir
-# hoje — mudar a lista aqui sozinho não libera nada.
+# Cobasi: decisão de produto em 14/08/2026 — Awin (8,5% nominal, ainda não
+# confirmado por venda real, cookie de 1 dia) vira a rota preferida sobre
+# MAIS (7%, confirmado), aceitando o risco de a comissão realizada da Awin
+# ficar abaixo do nominal por causa da janela curta de atribuição. "mais"
+# passa a ser o fallback — continua vencendo quando a Awin não resolver
+# nada pro produto (sem feed sincronizado, fora de estoque, etc.).
+# IMPORTANTE: isto sozinho não expõe nada — awin_enabled=False no master
+# gate global (config.py) continua sendo o que efetivamente decide se
+# qualquer oferta Awin existe. Link cadastrado manualmente
+# (is_manually_cached, ex: Baby/Royal Canin) continua vencendo os dois,
+# sempre — ver docstring do módulo, critério 2.
 MERCHANT_ROUTE_POLICIES: dict[str, MerchantRoutePolicy] = {
-    "cobasi": MerchantRoutePolicy(merchant="cobasi", preferred_route="mais", fallback_routes=("awin",)),
+    "cobasi": MerchantRoutePolicy(merchant="cobasi", preferred_route="awin", fallback_routes=("mais",)),
 }
 
 # Mantido por compatibilidade com código/testes existentes — dict simples

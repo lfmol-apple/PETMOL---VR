@@ -80,7 +80,13 @@ def _register_awin_offer(gtin: str = GTIN) -> None:
 @pytest.mark.asyncio
 async def test_registering_awin_provider_does_not_change_link_shown_to_tutor(monkeypatch):
     """O teste que importa: mesmo com os dois providers reais resolvendo
-    oferta pro mesmo GTIN, o link exibido continua sendo o da MAIS."""
+    oferta pro mesmo GTIN, o link exibido continua sendo o da MAIS — não
+    porque "mais" seja a rota preferida (não é mais, desde a decisão de
+    14/08/2026 em merchant_routes.py), mas porque este produto tem link
+    cadastrado manualmente (is_manually_cached), que sempre vence
+    independente de preferência de rota. Ver
+    test_awin_wins_when_no_manual_link_and_awin_preferred para o caso sem
+    link cadastrado, onde a Awin de fato vence hoje."""
     _enable_awin_globally(monkeypatch)
     _register_cobasi_link()
     _register_awin_offer()
@@ -108,12 +114,16 @@ async def test_registering_awin_provider_does_not_change_link_shown_to_tutor(mon
 
 @pytest.mark.asyncio
 async def test_manually_cached_link_survives_even_with_awin_preferred(monkeypatch):
-    """O cenário exato do teste de compra real: PREFERRED_ROUTE_BY_MERCHANT
-    trocado pra 'awin' (pra validar comissão), mas o produto testado (aqui
-    simulando o GTIN da Royal Canin da Baby) tem link cadastrado manualmente
-    — precisa continuar mostrando o link comprovado, nunca o da Awin, ou
-    quem comprar esse produto específico durante o teste perderia a
-    comissão já validada. Ver commerce_provider.py::_dedupe_by_merchant."""
+    """O cenário real desde a decisão de 14/08/2026 (Awin virou a rota
+    preferida da Cobasi, 8,5% nominal vs. 7% confirmado da MAIS): o
+    produto testado (aqui simulando o GTIN da Royal Canin da Baby) tem
+    link cadastrado manualmente — precisa continuar mostrando o link
+    comprovado, nunca o da Awin (ainda não validada por venda real), ou
+    quem comprar esse produto específico perderia a comissão já
+    confirmada. O monkeypatch abaixo é redundante com o default real de
+    merchant_routes.py hoje, mantido explícito pra o teste não depender
+    silenciosamente de qual é o default atual. Ver
+    commerce_provider.py::_dedupe_by_merchant."""
     _enable_awin_globally(monkeypatch)
     _register_cobasi_link()
     _register_awin_offer()
@@ -143,9 +153,10 @@ async def test_manually_cached_link_survives_even_with_awin_preferred(monkeypatc
 @pytest.mark.asyncio
 async def test_awin_wins_when_no_manual_link_and_awin_preferred(monkeypatch):
     """Controle do teste acima: SEM link cadastrado (o caso comum — o
-    resto do catálogo, hoje via UTM), trocar a rota preferida pra 'awin'
-    deve sim mudar o link exibido. Prova que a blindagem é específica de
-    link manual, não um bloqueio geral que inutilizaria o teste real."""
+    resto do catálogo, hoje via UTM), a Awin de fato vence — o real
+    default desde 14/08/2026, não só uma simulação. Prova que a
+    blindagem do teste acima é específica de link manual, não um
+    bloqueio geral que inutilizaria a decisão de trocar a rota."""
     _enable_awin_globally(monkeypatch)
     _register_awin_offer()
     monkeypatch.setattr("src.merchant_routes.PREFERRED_ROUTE_BY_MERCHANT", {"cobasi": "awin"})
@@ -203,11 +214,13 @@ async def test_awin_never_leaks_when_master_gate_off_even_as_sole_resolver(monke
 
 @pytest.mark.asyncio
 async def test_awin_fills_in_as_fallback_when_mais_does_not_resolve(monkeypatch):
-    """Direção que faltava provar: MAIS não resolve nada (modo disabled,
-    sem link cadastrado) mas a Awin resolve (habilitada) — a Cobasi ainda
-    aparece, via fallback (merchant_routes.fallback_routes_for), em vez de
-    sumir só porque a rota preferida não teve oferta (ver docstring de
-    merchant_routes.py, critério 3)."""
+    """MAIS não resolve nada (modo disabled, sem link cadastrado) mas a
+    Awin resolve (habilitada) — a Cobasi ainda aparece, via Awin. Desde a
+    decisão de 14/08/2026, Awin já é a rota PREFERIDA (não fallback) —
+    este teste continua válido como prova de que o merchant nunca some
+    quando só uma rota resolve, mas a direção inversa (Awin ausente, MAIS
+    preenche como fallback real) é quem prova `fallback_routes` de
+    verdade hoje — ver test_mais_fills_in_as_fallback_when_awin_does_not_resolve."""
     _enable_awin_globally(monkeypatch)
     monkeypatch.setenv("COBASI_AFFILIATE_MODE", "disabled")
     get_settings.cache_clear()
@@ -222,6 +235,38 @@ async def test_awin_fills_in_as_fallback_when_mais_does_not_resolve(monkeypatch)
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
     assert len(cobasi_offers) == 1
     assert cobasi_offers[0].route == "awin"
+
+
+@pytest.mark.asyncio
+async def test_mais_fills_in_as_fallback_when_awin_does_not_resolve(monkeypatch):
+    """Direção real de fallback hoje (Awin é a rota preferida desde
+    14/08/2026): sem nenhuma AffiliateFeedOffer pra este GTIN (ex: produto
+    fora do catálogo sincronizado, ou Awin indisponível), mas com link
+    MAIS cadastrado, a Cobasi continua aparecendo via MAIS — nunca some
+    só porque a rota preferida não teve oferta."""
+    _enable_awin_globally(monkeypatch)
+    _register_cobasi_link()
+    # Nenhuma _register_awin_offer() — Awin não tem nada pra este GTIN.
+
+    async def _fake_fetch(query, target_weight_kg=None):
+        return ProductPriceResult(
+            found=True, price=100.0, is_available=True, ean=GTIN,
+            product_name="Produto Teste", brand="Marca Teste",
+            url="https://www.cobasi.com.br/produto-teste/p",
+        )
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", _fake_fetch)
+
+    db = SessionLocal()
+    try:
+        offers = await get_commerce_offers(db, name="Produto Teste", brand="Marca Teste", gtin=GTIN)
+    finally:
+        db.close()
+
+    cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
+    assert len(cobasi_offers) == 1
+    assert cobasi_offers[0].route == "mais"
+    assert cobasi_offers[0].url == "https://mais.app/link-comprovado"
 
 
 @pytest.mark.asyncio

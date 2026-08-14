@@ -30,7 +30,7 @@ libera exposição, ver seção Awin abaixo).
 
 | Merchant | Rede/programa | Discovery | Monetização real hoje | Feed Awin | Estado |
 |---|---|---|---|---|---|
-| Cobasi | MAIS/UTM (ativo) + Awin (advertiser 17870, approved) | API pública VTEX (dinâmico) + Awin feed (GTIN exato) | `route=mais` sempre vence o dedupe — Awin é fallback estrutural, não a rota preferida | sim, 8.398 produtos sincronizados | único merchant com monetização real ligada |
+| Cobasi | MAIS/UTM (7%, confirmado) + Awin (advertiser 17870, approved, 8,5% nominal) | API pública VTEX (dinâmico) + Awin feed (GTIN exato) | `route=awin` preferida desde 14/08/2026 (decisão de produto, comissão Awin ainda não validada por venda real); `route=mais` é o fallback e **sempre** vence quando há link cadastrado manualmente (`is_manually_cached`), independente de preferência | sim, 8.398 produtos sincronizados | monetização real ligada; exposição ainda depende de `AWIN_ENABLED=true` em produção |
 | Zee Now | Awin (advertiser 127557, pending) | nenhum (provider só existe se `awin_enabled=true` ou GTIN de teste) | nenhuma | sim (~13.746 produtos observados, **nunca sincronizado**) | preparado, aguardando aprovação comercial |
 | Zee Dog | Awin (advertiser 127555, pending) | idem | nenhuma | sim (~1.742 produtos observados, **nunca sincronizado**) | preparado, aguardando aprovação comercial |
 | Petz | Awin (advertiser 127553, pending) + programa próprio (CNAE em tratamento) | nenhum | nenhuma | não | pending nos dois caminhos, nenhum ligado |
@@ -104,17 +104,26 @@ Nunca o inverso — nunca "existe link cadastrado? então busca o produto".
   internamente usa o mesmo `CommerceEngine`.
 - `services/price-service/src/merchant_routes.py` —
   `MERCHANT_ROUTE_POLICIES: dict[str, MerchantRoutePolicy]` (hoje só
-  `{"cobasi": MerchantRoutePolicy(preferred_route="mais",
-  fallback_routes=("awin",))}`), `PREFERRED_ROUTE_BY_MERCHANT` (dict
-  derivado, mantido por compatibilidade) e
+  `{"cobasi": MerchantRoutePolicy(preferred_route="awin",
+  fallback_routes=("mais",))}` — **invertido em 14/08/2026**: Awin (8,5%
+  nominal) virou a rota preferida sobre MAIS (7%, confirmado), decisão de
+  produto que aceita o risco de a comissão Awin ainda não ter sido
+  validada por uma venda real e ter cookie de só 1 dia. Isso sozinho não
+  expõe nada — `AWIN_ENABLED=false` no master gate global continua
+  controlando se qualquer oferta Awin existe. `PREFERRED_ROUTE_BY_MERCHANT`
+  (dict derivado, mantido por compatibilidade) e
   `CommerceEngine._dedupe_by_merchant` (chamado dentro de `get_offers`,
   entre FILTER e SORT): se mais de um provider resolver oferta pro mesmo
   merchant (ex: `CobasiProvider` route="mais" e `AwinFeedProvider("cobasi")`
   route="awin"), mantém só a da rota preferida — nunca mostra "Cobasi"
-  duas vezes como se fossem duas lojas. `fallback_routes` é a rota aceita
-  quando a preferida não resolveu nada (ex: MAIS desativado) — o merchant
-  não some do resultado só porque a rota preferida ficou vazia; o dedupe
-  já se comporta assim naturalmente (mantém a única oferta que existir),
+  duas vezes como se fossem duas lojas. Link cadastrado manualmente
+  (`is_manually_cached`) sempre vence os dois, independente de
+  preferência — proteção testada explicitamente (ver
+  `test_manually_cached_link_survives_even_with_awin_preferred`).
+  `fallback_routes` é a rota aceita quando a preferida não resolveu nada
+  (ex: produto fora do catálogo Awin sincronizado) — o merchant não some
+  do resultado só porque a rota preferida ficou vazia; o dedupe já se
+  comporta assim naturalmente (mantém a única oferta que existir),
   `fallback_routes` só torna essa intenção explícita e testável. Sem
   preferência configurada para um merchant, mantém a primeira oferta
   encontrada (ordem de registro em `build_default_engine`).
@@ -142,10 +151,12 @@ mecanismo. Por isso:
   acima) — UTM só cobre produtos sem link manual ainda.
 - Ativação em produção passa pelo gate de push/deploy deste documento
   (ver seção "Testes"), não é automática só por este documento existir.
-- Awin (ver seção abaixo) é o caminho de validação formal de longo prazo
-  — quando aprovado e confirmado, substitui UTM como rota preferida da
-  Cobasi via `merchant_routes.PREFERRED_ROUTE_BY_MERCHANT`, não via
-  reescrita do `CommerceEngine`.
+- Awin (ver seção abaixo) já é a rota preferida da Cobasi desde 14/08/2026
+  (`merchant_routes.MERCHANT_ROUTE_POLICIES`, não via reescrita do
+  `CommerceEngine`) — decisão tomada com a comissão nominal (8,5%) ainda
+  não confirmada por venda real, então UTM/MAIS segue relevante como
+  fallback pra quando a Awin não resolver algo (produto fora do catálogo
+  sincronizado, feed desatualizado, etc.).
 
 ## Como funciona (infra de suporte)
 
@@ -419,19 +430,20 @@ sem deploy de código.
   `awin_sync_interval_minutes` (`1440`, batch diário). Ver
   `/opt/petmol/shared/env/api.env` no VPS pro caminho real dos env files
   de produção.
-- **Roteiro de ativação da Cobasi (não pular etapas):** (1) ✅ token+fid
-  obtidos, sync real implementado e rodado; (2) ✅ `enabled=True` pro
-  Cobasi em `AWIN_ADVERTISERS`; (3) ✅ master gate real implementado
+- **Roteiro de ativação da Cobasi:** (1) ✅ token+fid obtidos, sync real
+  implementado e rodado; (2) ✅ `enabled=True` pro Cobasi em
+  `AWIN_ADVERTISERS`; (3) ✅ master gate real implementado
   (`is_awin_merchant_publicly_servable`), provider registrado
-  condicionalmente via `is_awin_merchant_registrable`; (4) **pendente** —
-  trocar a rota preferida da Cobasi de `mais` pra `awin` em
-  `MERCHANT_ROUTE_POLICIES` só depois de validar com uma compra real
-  (mecanismo de GTIN único acima) que a rota Awin de fato gera comissão
-  — nunca só por ter feed disponível ou comissão nominal maior (8,5% é o
-  CPA anunciado, não confirmado; cookie de só 1 dia torna a comissão
-  realizada potencialmente bem menor). Etapa 4 é deliberadamente manual/
-  coordenada, exige `AWIN_ENABLED=true` em produção com autorização
-  expressa antes.
+  condicionalmente via `is_awin_merchant_registrable`; (4) ✅ **decisão de
+  produto em 14/08/2026** — rota preferida da Cobasi trocada de `mais`
+  pra `awin` em `MERCHANT_ROUTE_POLICIES`, aceitando o risco de a
+  comissão Awin (8,5% nominal, contra 7% confirmado da MAIS) ainda não
+  ter sido validada por uma compra real — cookie de só 1 dia pode reduzir
+  o valor realizado abaixo do nominal. Link cadastrado manualmente
+  continua protegido independente disso. (5) **pendente** — ligar
+  `AWIN_ENABLED=true` em produção (`/opt/petmol/shared/env/api.env`) é o
+  que de fato expõe qualquer link Awin a um tutor; até lá, a troca de
+  rota acima não tem efeito visível nenhum.
 - **Roteiro de ativação da Zee Now (próxima loja via Product Feed)**:
   mesmo roteiro da Cobasi a partir da etapa 1 — feed já disponível
   (~13.746 produtos observados), falta (a) aprovação comercial confirmada
@@ -450,8 +462,8 @@ sem deploy de código.
 
 ## Testes
 
-144 testes relevantes a afiliados/comércio em
-`services/price-service/tests/` (de 161 no total do serviço; nenhum chama
+145 testes relevantes a afiliados/comércio em
+`services/price-service/tests/` (de 162 no total do serviço; nenhum chama
 API real de Cobasi ou Awin — `fetch_cobasi_price` é sempre monkeypatchado
 quando o teste precisa de discovery, `AwinFeedProvider` só lê
 `AffiliateFeedOffer` local, e `awin_feed_sync.py` sempre tem
@@ -489,13 +501,15 @@ baixa o feed real):
   mesmo com master gate ligado e `enabled` forçado por engano, nenhuma
   credencial commitada, `awin_merchants_publicly_servable()` vazia por
   padrão.
-- `test_commerce_offers_awin_dedupe.py` (6) — prova, com `CobasiProvider`
-  e `AwinFeedProvider` **reais** (não fakes) registrados juntos, que o
-  link exibido continua sendo o da MAIS quando os dois resolvem oferta
-  pro mesmo GTIN; **o bug crítico do master gate** (Awin nunca é a única
-  oferta visível com `awin_enabled=false`, mesmo como único resolvedor);
-  shadow mode bloqueia mesmo com master gate ligado; Awin entra como
-  fallback quando MAIS não resolve nada.
+- `test_commerce_offers_awin_dedupe.py` (7) — prova, com `CobasiProvider`
+  e `AwinFeedProvider` **reais** (não fakes) registrados juntos, que
+  link cadastrado manualmente sempre vence os dois, independente de
+  preferência de rota; **o bug crítico do master gate** (Awin nunca é a
+  única oferta visível com `awin_enabled=false`, mesmo como único
+  resolvedor); shadow mode bloqueia mesmo com master gate ligado; Awin
+  (rota preferida desde 14/08/2026) resolve quando MAIS não tem nada; e
+  a direção inversa — MAIS entra como fallback quando a Awin não resolve
+  nada pro GTIN (produto fora do catálogo sincronizado).
 - `test_awin_feed_provider.py` (15) — `AwinFeedProvider`: só resolve por
   GTIN exato, ignora inativo/fora de estoque, escolhe linha certa por
   peso entre várias, `monetize()` nunca cai pra `merchant_url` limpa,
@@ -512,9 +526,9 @@ baixa o feed real):
   concorrente do mesmo merchant é bloqueada pelo lock, `AffiliateFeedSyncRun`
   registrada em sucesso e falha (sem vazar URL/token no erro sanitizado).
 - `test_merchant_routes.py` (4) — `MerchantRoutePolicy`: Cobasi prefere
-  `mais` até validação, lista `awin` como fallback, merchant desconhecido
-  não tem preferência nem fallback, `PREFERRED_ROUTE_BY_MERCHANT`
-  derivado corretamente.
+  `awin` desde a decisão de 14/08/2026, lista `mais` como fallback,
+  merchant desconhecido não tem preferência nem fallback,
+  `PREFERRED_ROUTE_BY_MERCHANT` derivado corretamente.
 - `test_commerce_awin_search.py` (14) — `GET /commerce/awin-search`:
   master gate desligado bloqueia mesmo com dado real, `merchant=`
   explícito **não contorna** o master gate (o bug corrigido), shadow mode
@@ -590,13 +604,14 @@ só tem publisher ID e token de API.
 | api_available | não confirmada |
 | api_confirmed | não |
 | manual_generation | sim — colar URL no painel MAIS, clicar "gerar" |
+| cpa | 7% (confirmado) |
 | attribution_window | unknown (não documentado nos termos revisados) |
 | attribution_model | unknown |
 | invoice_requirements | NF de serviços obrigatória |
 | paid_media_restrictions | proibido mídia paga com termos da marca Cobasi |
 | scraping | forbidden |
-| last_terms_review | 2026-08-11 |
-| notes | compra programada comissiona só a primeira transação; proibido usar outro programa de marketing Cobasi simultaneamente; não se apresentar como representante da Cobasi; preço real via API pública VTEX (`commerce_pricing.py`) é sinal interno de matching, nunca substitui a checagem de link afiliado; também listada na Awin (advertiser 17870, **approved** 13/08/2026, feed sincronizando) como caminho alternativo — ver seção Awin |
+| last_terms_review | 2026-08-14 |
+| notes | compra programada comissiona só a primeira transação; proibido usar outro programa de marketing Cobasi simultaneamente; não se apresentar como representante da Cobasi; preço real via API pública VTEX (`commerce_pricing.py`) é sinal interno de matching, nunca substitui a checagem de link afiliado; também listada na Awin (advertiser 17870, **approved**, 8,5% nominal — **preferida sobre MAIS desde 14/08/2026**, decisão de produto sem venda de teste confirmada ainda, ver seção Awin) |
 
 ### Shopee
 
