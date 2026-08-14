@@ -55,14 +55,44 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ steps.resolve_sha.outputs.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Detect whether VPS deploy is needed
         id: changed_files
         env:
           SHA: ${{ steps.resolve_sha.outputs.sha }}
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-          CHANGED_FILES="$(git diff-tree --no-commit-id --name-only -r "$SHA")"
+          # BUG FIXED HERE (14/08/2026): this used to diff only the single
+          # tip commit (`git diff-tree` on $SHA alone) instead of everything
+          # that changed since what's actually live. A push that bundles
+          # several commits where the LAST one happens to be docs-only made
+          # this wrongly conclude "only docs changed" and skip activation —
+          # even when earlier commits in the very same push had real code.
+          # (Caught 14/08/2026: the Amazon/Shopee affiliate work — 5 code
+          # commits + 1 trailing docs commit — never made it to the VPS
+          # because of exactly this.) Fix: diff against the SHA that's
+          # CURRENTLY deployed (read straight off the VPS's `current`
+          # symlink), never against just the new push's tip commit.
+          VPS_PORT="${VPS_PORT:-22}"
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+          SSH="ssh -i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o BatchMode=yes $VPS_USER@$VPS_IP"
+
+          DEPLOYED_SHA="$($SSH 'basename "$(readlink -f /opt/petmol/current)"' 2>/dev/null || true)"
+          echo "Currently deployed SHA on VPS: ${DEPLOYED_SHA:-<unknown>}"
+
+          if [ -n "$DEPLOYED_SHA" ] && git cat-file -e "$DEPLOYED_SHA" 2>/dev/null; then
+            CHANGED_FILES="$(git diff --no-commit-id --name-only "$DEPLOYED_SHA" "$SHA")"
+          else
+            echo "Could not resolve the currently-deployed SHA (or it's not in this checkout's history) — never skip in this case, safe default is to activate."
+            CHANGED_FILES="$SHA"
+          fi
           printf '%s\n' "$CHANGED_FILES"
 
           if [ -z "$CHANGED_FILES" ]; then
@@ -70,7 +100,7 @@ jobs:
           elif printf '%s\n' "$CHANGED_FILES" | grep -Ev '^($|docs/|CLAUDE_HANDOFF_DEPLOY\.md$|README\.md$|.*\.md$|\.github/)'; then
             echo "skip_vps=false" >> "$GITHUB_OUTPUT"
           else
-            echo "Only docs/workflow files changed; skipping VPS activation."
+            echo "Only docs/workflow files changed since the deployed SHA; skipping VPS activation."
             echo "skip_vps=true" >> "$GITHUB_OUTPUT"
           fi
 
