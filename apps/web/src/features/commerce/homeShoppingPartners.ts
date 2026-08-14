@@ -188,16 +188,20 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/amazon.svg',
     logoAlt: 'Amazon',
     fallbackUrl: 'https://www.amazon.com.br/s?k=pet+shop',
-    // MVP real (14/08/2026): conta Amazon Associados PJ aprovada, tag
-    // petmol-20, categoria Pet Shop com 11% informado, cadastro fiscal e
-    // bancário concluído. Sem Creators API ainda (credenciais não
-    // emitidas; a PA-API 5 antiga está descontinuada) — o mecanismo real
-    // é só link de busca com tag, gerado por buildAmazonSearchUrl
-    // (amazonAffiliate.ts), nunca preço/imagem/nota da Amazon (sem
-    // scraping). affiliateMode 'search_template' (não 'tracking_tag':
-    // não é uma tag colada numa URL qualquer, é sempre um link de busca
-    // construído e validado por domínio/esquema) — ver docs/AFFILIATES.md.
-    affiliateStatus: 'active',
+    // MVP pronto e testado (14/08/2026): conta Amazon Associados PJ
+    // aprovada, tag petmol-20, categoria Pet Shop com 11% informado,
+    // cadastro fiscal e bancário concluído. Sem Creators API ainda
+    // (credenciais não emitidas; a PA-API 5 antiga está descontinuada) —
+    // o mecanismo real é só link de busca com tag, gerado por
+    // buildAmazonSearchUrl (amazonAffiliate.ts), nunca preço/imagem/nota
+    // da Amazon (sem scraping). affiliateMode 'search_template' (não
+    // 'tracking_tag': não é uma tag colada numa URL qualquer, é sempre um
+    // link de busca construído e validado por domínio/esquema).
+    // DESATIVADA DE PROPÓSITO (decisão de produto, 14/08/2026): pronta
+    // pra ligar quando Shopee também estiver liberada — as duas devem
+    // entrar juntas, seguindo a estratégia combinada, não uma de cada vez.
+    // Reativar: trocar 'pending' por 'active' aqui, nada mais precisa mudar.
+    affiliateStatus: 'pending',
     merchantType: 'amazon',
     affiliateMode: 'search_template',
     supportsProductDeepLink: false,
