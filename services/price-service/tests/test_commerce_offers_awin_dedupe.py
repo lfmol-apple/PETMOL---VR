@@ -202,6 +202,29 @@ async def test_awin_never_leaks_when_master_gate_off_even_as_sole_resolver(monke
 
 
 @pytest.mark.asyncio
+async def test_awin_fills_in_as_fallback_when_mais_does_not_resolve(monkeypatch):
+    """Direção que faltava provar: MAIS não resolve nada (modo disabled,
+    sem link cadastrado) mas a Awin resolve (habilitada) — a Cobasi ainda
+    aparece, via fallback (merchant_routes.fallback_routes_for), em vez de
+    sumir só porque a rota preferida não teve oferta (ver docstring de
+    merchant_routes.py, critério 3)."""
+    _enable_awin_globally(monkeypatch)
+    monkeypatch.setenv("COBASI_AFFILIATE_MODE", "disabled")
+    get_settings.cache_clear()
+    _register_awin_offer()
+
+    db = SessionLocal()
+    try:
+        offers = await get_commerce_offers(db, gtin=GTIN)
+    finally:
+        db.close()
+
+    cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
+    assert len(cobasi_offers) == 1
+    assert cobasi_offers[0].route == "awin"
+
+
+@pytest.mark.asyncio
 async def test_awin_shadow_mode_blocks_even_with_master_gate_on(monkeypatch):
     """awin_shadow_mode=True é sempre mais restritivo — nunca uma
     liberação parcial. Mesmo com awin_enabled=True, shadow mode ligado
