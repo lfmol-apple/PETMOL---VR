@@ -15,7 +15,12 @@ filtrar no registro):
   1. is_awin_merchant_publicly_servable(): master gate global
      (awin_enabled/awin_shadow_mode) + status técnico do merchant — ver
      awin_advertisers.py. find_offer()/monetize() checam isto sempre,
-     mesmo que o provider tenha sido registrado por engano.
+     mesmo que o provider tenha sido registrado por engano. A ÚNICA
+     exceção é o GTIN de teste único (config.awin_test_gtin — ver §7 do
+     documento de arquitetura interno): quando o GTIN do contexto bate
+     exatamente com ele (após normalize_gtin), a resolução é permitida
+     mesmo com awin_enabled=False, pra validar uma compra real controlada
+     sem abrir o catálogo inteiro. Nenhum outro GTIN se beneficia disso.
   2. Staleness: mesmo com o merchant publicamente liberado, uma oferta só
      é considerada se o último sync bem-sucedido não estiver mais velho
      que config.awin_stale_after_hours — catálogo desatualizado nunca
@@ -47,6 +52,18 @@ class AwinFeedProvider:
         self.merchant = merchant
         self._db = db
 
+    def _is_authorized(self, context: ProductContext) -> bool:
+        """Autoriza resolução se o merchant está publicamente liberado OU
+        (exceção estreita) se o GTIN do contexto é exatamente o GTIN de
+        teste configurado pra validação de compra real controlada — ver
+        docstring do módulo e is_awin_merchant_registrable()."""
+        if is_awin_merchant_publicly_servable(self.merchant):
+            return True
+        settings = get_settings()
+        if not settings.awin_test_gtin or not context.gtin:
+            return False
+        return normalize_gtin(context.gtin) == normalize_gtin(settings.awin_test_gtin)
+
     def _is_catalog_fresh(self) -> bool:
         settings = get_settings()
         cutoff = datetime.now(timezone.utc) - timedelta(hours=settings.awin_stale_after_hours)
@@ -70,7 +87,7 @@ class AwinFeedProvider:
         return last_success >= cutoff
 
     async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
-        if not is_awin_merchant_publicly_servable(self.merchant):
+        if not self._is_authorized(context):
             return None
         if not self._is_catalog_fresh():
             return None
@@ -126,7 +143,7 @@ class AwinFeedProvider:
         (ver merchant_routes.py) — usado pro CommerceEngine nunca exibir o
         mesmo merchant duas vezes quando também houver um CobasiProvider
         (route="mais") ativo pro mesmo merchant."""
-        if not is_awin_merchant_publicly_servable(self.merchant):
+        if not self._is_authorized(context):
             return None
         if not offer.external_id:
             return None

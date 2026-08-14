@@ -234,6 +234,13 @@ class Settings(BaseSettings):
     # desse limite (ver awin_feed_provider.py). Coerente com sync diário
     # (1440min): folga de meio dia antes de considerar stale.
     awin_stale_after_hours: int = 36
+    # Mecanismo de teste controlado pra validar comissão com uma compra
+    # real (ver docs/AFFILIATES.md §7): um GTIN específico, setado só
+    # server-side (nunca endpoint público, nunca frontend), que a Awin
+    # pode responder mesmo com awin_enabled=False globalmente — NÃO liga
+    # a Awin pro resto do catálogo, só pra este produto. Setar/limpar
+    # direto no env do VPS; reversível a qualquer momento sem deploy.
+    awin_test_gtin: Optional[str] = None
 
     @field_validator("debug", mode="before")
     @classmethod

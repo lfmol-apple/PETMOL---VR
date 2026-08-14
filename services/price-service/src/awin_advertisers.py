@@ -102,6 +102,28 @@ AWIN_ADVERTISERS: dict[str, AwinAdvertiser] = {
         cpa_percent=3.0,
         notes="1.742 produtos observados no ShopWindow Awin. Rastreamento de app: não.",
     ),
+    "araujo": AwinAdvertiser(
+        merchant="araujo",
+        advertiser_id="17919",
+        commercial_status="pending",
+        # SEM Product Feed (ShopWindow: 0 produtos observados) — nunca
+        # deve entrar em awin_merchants_with_feed()/receber um
+        # AwinFeedProvider (checado explicitamente em
+        # is_awin_merchant_publicly_servable). Uma futura integração
+        # exigiria uma fonte de discovery/preço separada da rota de
+        # monetização Awin — não inventar catálogo, não fazer scraping.
+        feed_available=False,
+        enabled=False,
+        cookie_days=1,
+        cpa_percent=3.1,
+        notes=(
+            "Não permite pessoa física. Rastreamento de app: não. "
+            "Otimização para celular: não. Sem Product Feed — "
+            "discovery de produto/preço precisaria vir de outra fonte "
+            "autorizada; monetization_route continuaria awin (link "
+            "afiliado), mas nunca via AwinFeedProvider genérico."
+        ),
+    ),
 }
 
 
@@ -158,3 +180,27 @@ def awin_merchants_publicly_servable() -> list[str]:
     sempre que awin_enabled=False ou awin_shadow_mode=True, mesmo que
     algum merchant esteja enabled=True individualmente."""
     return [m for m in AWIN_ADVERTISERS if is_awin_merchant_publicly_servable(m)]
+
+
+def is_awin_merchant_registrable(merchant: str) -> bool:
+    """Decide se AwinFeedProvider(merchant) vale a pena ser INSTANCIADO em
+    build_default_engine() — mais permissivo que
+    is_awin_merchant_publicly_servable() de propósito, porque também
+    cobre o mecanismo de teste por GTIN único (config.awin_test_gtin, ver
+    docs/AFFILIATES.md §7): mesmo com awin_enabled=False, se houver um
+    GTIN de teste configurado, o provider precisa existir pra poder
+    resolver JUSTO aquele produto — mas cada chamada de find_offer()/
+    monetize() ainda revalida por conta própria se É o GTIN de teste ou
+    se o merchant está publicamente liberado (ver awin_feed_provider.py).
+    Sem isso, "registrável" nunca significa "aberto pro catálogo inteiro"
+    — só "vale a pena consultar"."""
+    from .config import get_settings
+
+    if is_awin_merchant_publicly_servable(merchant):
+        return True
+    settings = get_settings()
+    if not settings.awin_test_gtin:
+        return False
+    return is_awin_merchant_enabled(merchant) and bool(
+        (advertiser := AWIN_ADVERTISERS.get(merchant)) and advertiser.feed_available
+    )

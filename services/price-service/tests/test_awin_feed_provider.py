@@ -10,10 +10,12 @@ import pytest
 
 from src.affiliate_feed import AffiliateFeedOffer
 from src.awin_feed_provider import AwinFeedProvider
-from src.commerce_provider import ProductContext
+from src.commerce_provider import DiscoveredOffer, ProductContext
+from src.config import get_settings
 from src.db import SessionLocal
 
 GTIN = "7891234567890"
+OTHER_GTIN = "7899999999999"
 
 
 @pytest.fixture(autouse=True)
@@ -171,5 +173,94 @@ def test_monetize_disabled_merchant_returns_none():
         offer = DiscoveredOffer(merchant="zeenow", price=100.0, external_id=row.external_product_id)
         result = provider.monetize(offer, ProductContext(gtin=GTIN))
         assert result is None
+    finally:
+        db.close()
+
+
+@pytest.fixture
+def _not_publicly_servable(monkeypatch):
+    """Simula o estado real de produção hoje: merchant NÃO publicamente
+    liberado (awin_enabled=False), pra exercitar só a exceção estreita do
+    GTIN de teste (§7), não a permissão ampla usada pela fixture autouse
+    do módulo (que assume cobasi sempre liberada)."""
+    monkeypatch.setattr("src.awin_feed_provider.is_awin_merchant_publicly_servable", lambda merchant: False)
+
+
+@pytest.mark.asyncio
+async def test_awin_test_gtin_allows_single_product_even_when_not_publicly_servable(monkeypatch, _not_publicly_servable):
+    """§7: mecanismo de teste único, server-side, reversível, sem endpoint
+    público — permite resolver JUSTO o GTIN configurado mesmo com o
+    merchant fechado pro resto do catálogo (awin_enabled=False real)."""
+    monkeypatch.setenv("AWIN_TEST_GTIN", GTIN)
+    get_settings.cache_clear()
+    db = SessionLocal()
+    try:
+        db.add(_row())
+        db.commit()
+
+        provider = AwinFeedProvider(db, "cobasi")
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is not None
+        assert offer.price == 100.0
+    finally:
+        db.close()
+        get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_awin_test_gtin_does_not_open_rest_of_catalog(monkeypatch, _not_publicly_servable):
+    """A exceção é estreita: um GTIN diferente do configurado continua
+    bloqueado, mesmo do mesmo merchant — não é um flip geral disfarçado."""
+    monkeypatch.setenv("AWIN_TEST_GTIN", GTIN)
+    get_settings.cache_clear()
+    db = SessionLocal()
+    try:
+        db.add(_row(external_product_id="outro", gtin=OTHER_GTIN))
+        db.commit()
+
+        provider = AwinFeedProvider(db, "cobasi")
+        offer = await provider.find_offer(ProductContext(gtin=OTHER_GTIN))
+        assert offer is None
+    finally:
+        db.close()
+        get_settings.cache_clear()
+
+
+def test_awin_test_gtin_authorizes_monetize_too(monkeypatch, _not_publicly_servable):
+    """A exceção precisa valer nos dois métodos — monetize() sozinho não
+    pode ficar bloqueado enquanto find_offer() libera (senão o mecanismo
+    nunca chega a gerar um link clicável pro teste de compra real)."""
+    monkeypatch.setenv("AWIN_TEST_GTIN", GTIN)
+    get_settings.cache_clear()
+    db = SessionLocal()
+    try:
+        row = _row()
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+
+        provider = AwinFeedProvider(db, "cobasi")
+        offer = DiscoveredOffer(merchant="cobasi", price=100.0, direct_url=row.merchant_url, ean=GTIN, external_id=row.external_product_id)
+        result = provider.monetize(offer, ProductContext(gtin=GTIN))
+        assert result == ("https://track.awin.com/deep-link-teste", "affiliate_product", "awin")
+    finally:
+        db.close()
+        get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_no_test_gtin_configured_means_no_exception_ever(_not_publicly_servable):
+    """Padrão real (AWIN_TEST_GTIN não configurado): não existe exceção
+    nenhuma — merchant não publicamente liberado nunca resolve, nem por
+    GTIN exato."""
+    assert get_settings().awin_test_gtin is None
+    db = SessionLocal()
+    try:
+        db.add(_row())
+        db.commit()
+
+        provider = AwinFeedProvider(db, "cobasi")
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is None
     finally:
         db.close()
