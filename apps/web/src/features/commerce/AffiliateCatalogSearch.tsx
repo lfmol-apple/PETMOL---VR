@@ -5,7 +5,7 @@ import { trackClick } from '@/lib/analytics/click';
 import { navigateToPartnerUrl } from './homeShoppingPartners';
 import { formatBRLPrice, fetchCommerceOffers, searchAwinCatalog, type AwinSearchResult, type CommerceOffer } from './productPricing';
 
-interface CobasiAwinSearchProps {
+interface AffiliateCatalogSearchProps {
   petId: string;
 }
 
@@ -21,13 +21,14 @@ function merchantLabel(merchant: string): string {
 }
 
 // Substitui o card estático "Cobasi" (Lojas) — em vez de só levar pro site
-// da Cobasi sem contexto, deixa o tutor achar o produto real dentro do
+// de uma loja sem contexto, deixa o tutor achar o produto real dentro do
 // catálogo já sincronizado da Awin e comprar direto. GTIN é o que falta pro
 // app conseguir exercitar AwinFeedProvider (busca textual normal nunca
-// envia GTIN — ver docs/AFFILIATES.md). A busca já é multi-loja: quando
-// Petz/Zee Now/Zee Dog forem aprovadas e sincronizadas, aparecem aqui sem
-// mudar este componente (offer_count > 1 já monta o grid de preços).
-export function CobasiAwinSearch({ petId }: CobasiAwinSearchProps) {
+// envia GTIN — ver docs/AFFILIATES.md). Multi-loja por natureza — não é
+// específico da Cobasi: quando Petz/Zee Now/Zee Dog forem aprovadas e
+// sincronizadas, aparecem aqui sem mudar este componente (offer_count > 1
+// já monta o grid de preços).
+export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<AwinSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -101,7 +102,7 @@ export function CobasiAwinSearch({ petId }: CobasiAwinSearchProps) {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar produto na Cobasi..."
+          placeholder="Buscar produto..."
           className="w-full border-2 border-gray-200 rounded-2xl pl-10 pr-4 py-3 text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-400 transition-colors"
         />
         <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-[15px]">🔎</span>
