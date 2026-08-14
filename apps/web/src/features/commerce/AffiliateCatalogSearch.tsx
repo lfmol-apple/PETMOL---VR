@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { trackClick } from '@/lib/analytics/click';
-import { isStandaloneInstalledApp } from './homeShoppingPartners';
 import { formatBRLPrice, fetchCommerceOffers, searchAwinCatalog, type AwinSearchResult, type CommerceOffer } from './productPricing';
 
 interface AffiliateCatalogSearchProps {
@@ -36,9 +35,14 @@ type ResolvedOffers = CommerceOffer[] | 'loading' | 'error';
 // PWA instalado (iOS): resolver no clique obriga a navegação a acontecer
 // depois de um `await`, e nesse contexto específico o clique deixa de se
 // comportar como um link de verdade. Pré-resolvendo, "Comprar" vira um
-// <a href> real (mesmo padrão de MonetizedOffersList/o card da Amazon) —
-// a navegação mais parecida possível com "tocar num link", que é o que
-// as restrições do iOS pra apps instalados esperam.
+// <a href target="_blank"> real (nunca window.open()/location.href via
+// JS) — a navegação mais parecida possível com "tocar num link", que é
+// o que as restrições do iOS pra apps instalados esperam. target="_blank"
+// sempre, mesmo dentro do PWA instalado: usar a mesma janela
+// (location.href) fazia o redirecionamento em cadeia da Awin/Cobasi
+// (awin1.com → cobasi.onelink.me → cobasi.com.br) cair na home da
+// Cobasi em vez do produto — aba nova evita compartilhar o contexto
+// (cookies/ITP) restrito da webview embutida do app instalado.
 export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<AwinSearchResult[]>([]);
@@ -47,7 +51,6 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
   const [offersByGtin, setOffersByGtin] = useState<Record<string, ResolvedOffers>>({});
   const [storeChoicesForGtin, setStoreChoicesForGtin] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const standalone = isStandaloneInstalledApp();
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -165,14 +168,12 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
                   </div>
 
                   {singleOffer && singleOffer.url ? (
-                    // <a href> real — navegação nativa do navegador, sem
-                    // JS entre o toque e a saída da página. target="_blank"
-                    // só fora do PWA instalado: dentro dele, sem target,
-                    // navega a própria janela (mesmo efeito de
-                    // navigateToPartnerUrl, mas via clique real de link).
+                    // <a href target="_blank"> real — navegação nativa do
+                    // navegador, sem JS entre o toque e a saída da página,
+                    // sempre em aba nova (ver docstring do componente).
                     <a
                       href={singleOffer.url}
-                      target={standalone ? undefined : '_blank'}
+                      target="_blank"
                       rel="noopener noreferrer"
                       onClick={() => trackBuyClick(item.gtin, singleOffer)}
                       className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[11px] font-bold px-3 py-1.5 active:scale-95 transition-all"
@@ -206,7 +207,7 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
                         <a
                           key={offer.merchant}
                           href={offer.url}
-                          target={standalone ? undefined : '_blank'}
+                          target="_blank"
                           rel="noopener noreferrer"
                           onClick={() => trackBuyClick(item.gtin, offer)}
                           className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-emerald-300 px-3 py-2 transition-all active:scale-[0.98]"
