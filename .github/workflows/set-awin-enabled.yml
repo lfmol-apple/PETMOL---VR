@@ -1,0 +1,62 @@
+name: Set AWIN_ENABLED
+
+on:
+  workflow_dispatch:
+    inputs:
+      value:
+        description: "Valor para AWIN_ENABLED (true ou false)"
+        required: true
+        default: "true"
+
+# One-off admin tool: liga/desliga o master gate da Awin
+# (services/price-service/src/awin_advertisers.py::is_awin_merchant_publicly_servable)
+# editando /opt/petmol/shared/env/api.env no VPS e reiniciando petmol-api —
+# mesmo padrão de acesso SSH já usado em fix_vps.yml/vps-unlock.yml. Nunca
+# roda automaticamente (workflow_dispatch only).
+jobs:
+  set-flag:
+    name: Set AWIN_ENABLED in api.env and restart petmol-api
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: SSH in, update flag, restart service
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          FLAG_VALUE: ${{ github.event.inputs.value }}
+        run: |
+          VPS_PORT="${VPS_PORT:-22}"
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          SSH_OPTS="-i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o BatchMode=yes"
+          SSH="ssh $SSH_OPTS $VPS_USER@$VPS_IP"
+
+          $SSH "bash -s" <<REMOTE
+            set -euo pipefail
+            ENV_FILE="/opt/petmol/shared/env/api.env"
+
+            echo "=== antes ==="
+            grep -E '^AWIN_ENABLED=|^AWIN_SHADOW_MODE=' "\$ENV_FILE" || echo "(AWIN_ENABLED nao presente ainda)"
+
+            if grep -q '^AWIN_ENABLED=' "\$ENV_FILE"; then
+              sed -i 's/^AWIN_ENABLED=.*/AWIN_ENABLED=${FLAG_VALUE}/' "\$ENV_FILE"
+            else
+              echo 'AWIN_ENABLED=${FLAG_VALUE}' >> "\$ENV_FILE"
+            fi
+
+            echo "=== depois ==="
+            grep -E '^AWIN_ENABLED=|^AWIN_SHADOW_MODE=' "\$ENV_FILE" || true
+
+            echo "=== restart ==="
+            systemctl restart petmol-api
+            sleep 3
+            systemctl is-active petmol-api
+            echo ""
+            echo "=== ultimas linhas do log ==="
+            journalctl -u petmol-api --no-pager -n 15
+          REMOTE
