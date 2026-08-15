@@ -1032,6 +1032,7 @@ export function FoodControlTab({
                   <ProductBarcodeScanner
                     label="Escanear código de barras"
                     expectedCategory="food"
+                    defaultMode="scan"
                     petId={petId}
                     petName={_petName}
                     onProductConfirmed={(product) => applyScannedProduct(item.id, product)}

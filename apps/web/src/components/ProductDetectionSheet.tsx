@@ -652,10 +652,35 @@ export function ProductDetectionSheetGold({
   const [editSpecies, setEditSpecies] = useState('');
   const [editLifeStage, setEditLifeStage] = useState('');
   const [editFlavor, setEditFlavor] = useState('');
+  // Só aparece pra corrigir/completar um produto SEM GTIN real (tipicamente
+  // vindo de foto) — permite o tutor digitar o código visível na embalagem
+  // em vez de deixar a compra sem GTIN pra sempre.
+  const [editBarcode, setEditBarcode] = useState('');
   // A new scan result (different product identity) should never inherit a
-  // stale open edit form from whatever was being corrected before it.
+  // stale open edit form from whatever was being corrected before it — mas
+  // um resultado vindo de FOTO sem GTIN real abre a correção já editável
+  // por padrão (conferência obrigatória do tutor, ver pedido de ago/2026):
+  // nunca aceitar o palpite da IA com um toque só quando não há GTIN.
   useEffect(() => {
-    setIsEditingProduct(false);
+    if (!confirmed) {
+      setIsEditingProduct(false);
+      return;
+    }
+    const source = decisionSourceRef.current;
+    const isPhotoDerived = source !== 'gtin' && source !== 'manual';
+    if (!fromHistory && isPhotoDerived && !confirmed.barcode) {
+      setEditName(confirmed.name ?? '');
+      setEditBrand(confirmed.brand ?? '');
+      setEditWeight(confirmed.weight ?? '');
+      setEditSpecies(speciesRef.current ?? '');
+      setEditLifeStage(lifeStageRef.current ?? '');
+      setEditFlavor(flavorRef.current ?? '');
+      setEditBarcode('');
+      setIsEditingProduct(true);
+    } else {
+      setIsEditingProduct(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [confirmed?.barcode, confirmed?.name]);
   const [fromHistory, setFromHistory] = useState(false);
   const [photoProcessingProgress, setPhotoProcessingProgress] = useState(0);
@@ -687,6 +712,16 @@ export function ProductDetectionSheetGold({
   const [scannerError, setScannerError] = useState<string | null>(null);
   const [manualBarcode, setManualBarcode] = useState('');
   const [kbdBottom, setKbdBottom] = useState(0);
+  // Progressivo (pedido do tutor, ago/2026): só escanear aparece de cara.
+  // Foto libera depois de 3 tentativas de scan sem achar o produto; digitar
+  // manualmente só libera depois que a foto TAMBÉM foi tentada e rejeitada
+  // — nunca as 3 vias juntas, pra não tentar pular direto pro caminho menos
+  // preciso. Contadores resetam a cada abertura do sheet (não persistem).
+  const [scanFailCount, setScanFailCount] = useState(0);
+  const [photoFailCount, setPhotoFailCount] = useState(0);
+  const photoUnlocked = photoFailCount > 0 || scanFailCount >= 3;
+  const manualUnlocked = photoFailCount >= 1;
+  const remainingScanAttempts = Math.max(0, 3 - scanFailCount);
 
   const emitProductTelemetry = useCallback((eventType: string, payload: Record<string, unknown>) => {
     const enriched = {
@@ -1317,14 +1352,16 @@ export function ProductDetectionSheetGold({
       activeResolveRef.current += 1;
       setConfirmed({ barcode, name: '', category: hint ?? 'other', found: false });
       setScannerError('lookup_timeout');
-      setStep('manual');
+      setScanFailCount((n) => n + 1);
+      setStep('not-found');
     }, 6000);
 
     if (rejectedBarcodesRef.current.has(barcode)) {
       clearResolveTimeout();
       setConfirmed({ barcode, name: '', category: hint ?? 'other', found: false });
       setScannerError(null);
-      setStep('manual');
+      setScanFailCount((n) => n + 1);
+      setStep('not-found');
       decisionScoreRef.current = 0.2;
       decisionResultTypeRef.current = 'fallback';
       return;
@@ -1387,6 +1424,7 @@ export function ProductDetectionSheetGold({
         queueMessage: final.queueMessage,
       });
       setScannerError(null);
+      setScanFailCount((n) => n + 1);
       setStep('not-found');
       decisionScoreRef.current = 0.2;
       decisionResultTypeRef.current = 'fallback';
@@ -1402,7 +1440,8 @@ export function ProductDetectionSheetGold({
 
     setConfirmed({ barcode, name: '', category: hint ?? 'other', found: false });
     setScannerError('product_not_found');
-    setStep('manual');
+    setScanFailCount((n) => n + 1);
+    setStep('not-found');
     decisionScoreRef.current = 0.2;
     decisionResultTypeRef.current = 'fallback';
     emitProductTelemetry('resolved', {
@@ -1625,6 +1664,7 @@ export function ProductDetectionSheetGold({
     setScannerError(identifiedFromPhoto.errorCode ?? 'photo_barcode_not_found');
     setManualBarcode('');
     setConfirmed(null);
+    setPhotoFailCount((n) => n + 1);
     setStep('not-found');
     decisionScoreRef.current = 0.15;
     decisionResultTypeRef.current = 'fallback';
@@ -1753,10 +1793,19 @@ export function ProductDetectionSheetGold({
         brand: confirmed.brand ?? null,
       });
     }
+    // Rejeitar também conta como tentativa fracassada da via que originou o
+    // resultado — mantém o progressivo consistente mesmo quando o tutor só
+    // percebe que está errado na tela de confirmação, não no scan/foto em si.
+    const source = decisionSourceRef.current;
+    if (source === 'gtin') {
+      setScanFailCount((n) => n + 1);
+    } else if (source !== 'manual') {
+      setPhotoFailCount((n) => n + 1);
+    }
     clearPendingScannedProduct();
     setConfirmed(null);
     setFromHistory(false);
-    setStep('manual');
+    setStep(source === 'manual' ? 'manual' : 'not-found');
     setQuery('');
   };
 
@@ -1796,7 +1845,9 @@ export function ProductDetectionSheetGold({
       <div className="pb-1 pt-2 text-center">
         <p className="mb-3 text-5xl">🔍</p>
         <h2 className="text-[19px] font-bold text-gray-900">Como quer identificar?</h2>
-        <p className="mt-1 text-sm text-gray-500">Escolha o jeito mais fácil para você</p>
+        <p className="mt-1 text-sm text-gray-500">
+          {photoUnlocked ? 'Escolha o jeito mais fácil para você' : 'Escanear é o jeito mais rápido e preciso'}
+        </p>
       </div>
 
       <div className="space-y-3">
@@ -1817,35 +1868,43 @@ export function ProductDetectionSheetGold({
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={() => setStep('photo-capture')}
-          className="w-full rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left transition-all active:scale-[0.98]"
-        >
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-2xl">🖼️</div>
-            <div className="flex-1">
-              <p className="text-[15px] font-bold text-emerald-900">Fotografar a embalagem</p>
-              <p className="mt-0.5 text-xs text-emerald-600">Tire uma foto e tentamos identificar o produto</p>
+        {/* Foto e digitar só aparecem depois que o scan (e, no caso de
+            digitar, também a foto) já foram tentados sem sucesso — ver
+            scanFailCount/photoFailCount. Evita que o tutor pule direto pro
+            caminho menos preciso só porque estava visível. */}
+        {photoUnlocked && (
+          <button
+            type="button"
+            onClick={() => setStep('photo-capture')}
+            className="w-full rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left transition-all active:scale-[0.98]"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-2xl">🖼️</div>
+              <div className="flex-1">
+                <p className="text-[15px] font-bold text-emerald-900">Fotografar a embalagem</p>
+                <p className="mt-0.5 text-xs text-emerald-600">Tire uma foto e tentamos identificar o produto</p>
+              </div>
+              <span className="flex-shrink-0 text-xl text-emerald-300">›</span>
             </div>
-            <span className="flex-shrink-0 text-xl text-emerald-300">›</span>
-          </div>
-        </button>
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setStep('manual')}
-          className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-4 text-left transition-all active:scale-[0.98]"
-        >
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 text-2xl">✏️</div>
-            <div className="flex-1">
-              <p className="text-[15px] font-bold text-gray-800">Digitar o nome do produto</p>
-              <p className="mt-0.5 text-xs text-gray-500">Busque por nome ou marca com sugestões</p>
+        {manualUnlocked && (
+          <button
+            type="button"
+            onClick={() => setStep('manual')}
+            className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-4 text-left transition-all active:scale-[0.98]"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 text-2xl">✏️</div>
+              <div className="flex-1">
+                <p className="text-[15px] font-bold text-gray-800">Digitar o nome do produto</p>
+                <p className="mt-0.5 text-xs text-gray-500">Busque por nome ou marca com sugestões</p>
+              </div>
+              <span className="flex-shrink-0 text-xl text-gray-300">›</span>
             </div>
-            <span className="flex-shrink-0 text-xl text-gray-300">›</span>
-          </div>
-        </button>
+          </button>
+        )}
       </div>
 
       {history.length > 0 && (
@@ -1929,8 +1988,10 @@ export function ProductDetectionSheetGold({
         <div className="rounded-[28px] bg-black/58 p-4 text-white backdrop-blur-xl">
           {scanHintVisible ? (
             <div className="mb-3 rounded-2xl border border-amber-300/40 bg-amber-400/12 px-4 py-3">
-              <p className="text-sm font-semibold text-amber-100">Não consegui ler. Vamos por outro caminho</p>
-              <p className="mt-1 text-xs text-amber-50/80">Aproxime mais o código ou use foto, digitação e lista abaixo.</p>
+              <p className="text-sm font-semibold text-amber-100">Não consegui ler ainda</p>
+              <p className="mt-1 text-xs text-amber-50/80">
+                {photoUnlocked ? 'Aproxime mais o código ou use foto/digitação abaixo.' : 'Aproxime mais o código de barras da câmera.'}
+              </p>
             </div>
           ) : (
             <div className="mb-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
@@ -1939,7 +2000,12 @@ export function ProductDetectionSheetGold({
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-2">
+          {/* Foto/digitar só aparecem aqui depois de algumas tentativas de
+              scan sem sucesso (ver scanFailCount/photoFailCount) — evita
+              oferecer o atalho menos preciso enquanto o scan ainda pode dar certo. */}
+          {(photoUnlocked || manualUnlocked) && (
+          <div className={`grid gap-2 ${photoUnlocked && manualUnlocked ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            {photoUnlocked && (
             <button
               type="button"
               onClick={async () => {
@@ -1950,6 +2016,8 @@ export function ProductDetectionSheetGold({
             >
               📷 Tirar foto agora
             </button>
+            )}
+            {photoUnlocked && (
             <button
               type="button"
               onClick={async () => {
@@ -1960,6 +2028,8 @@ export function ProductDetectionSheetGold({
             >
               🖼️ Escolher do celular
             </button>
+            )}
+            {manualUnlocked && (
             <button
               type="button"
               onClick={async () => {
@@ -1970,7 +2040,9 @@ export function ProductDetectionSheetGold({
             >
               ✏️ Digitar produto
             </button>
+            )}
           </div>
+          )}
         </div>
       </div>
 
@@ -2341,12 +2413,14 @@ export function ProductDetectionSheetGold({
       <div className="py-4 text-center">
         <p className="mb-3 text-5xl">{confirmed?.queued ? '📬' : '🤔'}</p>
         <h3 className="text-[18px] font-bold text-gray-900">
-          {confirmed?.queued ? 'Produto enviado para fila de catalogação' : 'Não consegui ler. Vamos por outro caminho'}
+          {confirmed?.queued ? 'Produto enviado para fila de catalogação' : 'Não consegui ler'}
         </h3>
         <p className="mt-1 text-sm leading-relaxed text-gray-500">
           {confirmed?.queued
             ? (confirmed.queueMessage || 'Produto enviado para fila de catalogação')
-            : 'A leitura automática da foto não fechou um produto confiável. Você ainda pode tentar outra foto, escanear de novo ou escolher o item sem perder o fluxo.'}
+            : photoUnlocked
+              ? 'A leitura automática não fechou um produto confiável. Você ainda pode tentar de novo, usar uma foto ou escolher o item sem perder o fluxo.'
+              : `Tente escanear de novo — aponte com calma pro código de barras. Faltam ${remainingScanAttempts} tentativa${remainingScanAttempts === 1 ? '' : 's'} pra liberarmos foto como alternativa.`}
         </p>
         {confirmed?.barcode && <p className="mt-2 font-mono text-xs text-gray-300">EAN: {confirmed.barcode}</p>}
       </div>
@@ -2369,6 +2443,10 @@ export function ProductDetectionSheetGold({
           </button>
         )}
 
+        {/* Foto e "digitar/escolher da lista" só aparecem depois que o scan
+            (e, pra digitar, também a foto) já foram tentados sem sucesso —
+            ver scanFailCount/photoFailCount/pedido do tutor ago/2026. */}
+        {photoUnlocked && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button
             type="button"
@@ -2398,7 +2476,9 @@ export function ProductDetectionSheetGold({
             </div>
           </button>
         </div>
+        )}
 
+        {manualUnlocked && (
         <button
           type="button"
           onClick={() => setStep('manual')}
@@ -2413,7 +2493,9 @@ export function ProductDetectionSheetGold({
             <span className="flex-shrink-0 text-xl text-blue-300">›</span>
           </div>
         </button>
+        )}
 
+        {manualUnlocked && (
         <button
           type="button"
           onClick={() => {
@@ -2431,6 +2513,7 @@ export function ProductDetectionSheetGold({
             <span className="flex-shrink-0 text-xl text-gray-300">›</span>
           </div>
         </button>
+        )}
       </div>
     </div>
   );
@@ -2446,6 +2529,11 @@ export function ProductDetectionSheetGold({
         {isEditingProduct ? (
           <div className="space-y-3 rounded-2xl border-2 border-blue-200 bg-blue-50 p-4">
             <p className="text-[11px] font-bold uppercase tracking-wider text-blue-700">Corrigir produto</p>
+            {!confirmed.barcode && (
+              <p className="-mt-1 text-xs text-blue-600">
+                A foto não trouxe um código de barras — confira o nome e, se conseguir ver na embalagem, digite o código abaixo. Isso ajuda a achar o preço certo da próxima vez.
+              </p>
+            )}
             <div>
               <label className="mb-1 block text-xs font-semibold text-gray-500">Nome</label>
               <input
@@ -2467,6 +2555,29 @@ export function ProductDetectionSheetGold({
                 placeholder="Marca"
               />
             </div>
+            {!confirmed.barcode && (
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-gray-500">Código de barras (se visível na embalagem)</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={editBarcode}
+                  onChange={event => setEditBarcode(event.target.value.replace(/\D/g, ''))}
+                  className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none"
+                  placeholder="Ex: 7891234567890"
+                />
+              </div>
+            )}
+            {!confirmed.barcode && !editBarcode && (editBrand.trim() || editName.trim()) && (
+              <AwinCatalogConfirmSearch
+                seedQuery={[editBrand, editName].filter(Boolean).join(' ')}
+                onPick={(result) => {
+                  setEditBarcode(result.gtin);
+                  if (result.title) setEditName(result.title);
+                  if (result.brand) setEditBrand(result.brand);
+                }}
+              />
+            )}
             <div>
               <label className="mb-1 block text-xs font-semibold text-gray-500">Peso</label>
               <input
@@ -2593,11 +2704,14 @@ export function ProductDetectionSheetGold({
                 const nameWithFlavor = trimmedFlavor && !editName.toLowerCase().includes(trimmedFlavor.toLowerCase())
                   ? `${editName.trim()} ${trimmedFlavor}`
                   : editName.trim();
+                const typedBarcode = editBarcode.replace(/\D/g, '');
                 const corrected: ScannedProduct = {
                   ...confirmed,
                   name: nameWithFlavor,
                   brand: editBrand.trim() || undefined,
                   weight: editWeight.trim() || undefined,
+                  barcode: typedBarcode || confirmed.barcode,
+                  found: typedBarcode ? true : confirmed.found,
                 };
                 // handleConfirm reads species/life_stage/flavor off these refs,
                 // not off the product object — keep them in sync with what was
@@ -2643,6 +2757,7 @@ export function ProductDetectionSheetGold({
             setEditSpecies(speciesRef.current ?? '');
             setEditLifeStage(lifeStageRef.current ?? '');
             setEditFlavor(flavorRef.current ?? '');
+            setEditBarcode('');
             setIsEditingProduct(true);
           }}
           className="w-full rounded-xl border border-blue-200 bg-blue-50 py-3 text-sm font-semibold text-blue-700 transition-all active:scale-95"

@@ -862,6 +862,7 @@ export function MedicationItemSheet({
               <ProductBarcodeScanner
                 label="Escanear medicamento"
                 expectedCategory="medication"
+                defaultMode="scan"
                 petId={petId}
                 petName={petName}
                 onProductConfirmed={(product) => { applyScannedProduct(product); setShowManualForm(true); }}

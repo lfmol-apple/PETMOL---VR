@@ -278,8 +278,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   const [nextReminderDate, setNextReminderDate]   = useState<string | null>(null);
   const [reminderTime, setReminderTime]           = useState<string | null>(null);
   const [showFoodPhotoFlow, setShowFoodPhotoFlow] = useState(false);
-  const [foodDetectionMode, setFoodDetectionMode] = useState<'scan' | 'photo'>('scan');
-  const [foodPhotoEntry, setFoodPhotoEntry] = useState<'camera' | 'gallery' | null>(null);
   // "Editar plano" numa ração já cadastrada pulava direto pro formulário
   // manual — só o cadastro inicial oferecia foto. Reabrir a câmera aqui
   // deixa o tutor trocar de embalagem/sabor sem redigitar tudo, reusando o
@@ -361,17 +359,10 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   };
 
   // Código de barras é a via principal (leitura exata, sem ambiguidade) —
-  // a foto (openFoodPhotoFlow) fica como alternativa pra quando o código
-  // não lê ou a embalagem não tem um código legível.
+  // foto e cadastro manual são liberados progressivamente DENTRO do sheet
+  // de detecção depois de tentativas sem sucesso (ver ProductDetectionSheet
+  // scanFailCount/photoFailCount), não oferecidos aqui de cara.
   const openFoodScanFlow = () => {
-    setFoodDetectionMode('scan');
-    setFoodPhotoEntry(null);
-    setShowFoodPhotoFlow(true);
-  };
-
-  const openFoodPhotoFlow = (entry?: 'camera' | 'gallery') => {
-    setFoodDetectionMode('photo');
-    setFoodPhotoEntry(entry ?? null);
     setShowFoodPhotoFlow(true);
   };
 
@@ -391,7 +382,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
       // non-blocking
     }
     setShowFoodPhotoFlow(false);
-    setFoodPhotoEntry(null);
     setFormRequest({ id: Date.now(), mode: 'edit' });
     setMode('edit');
   };
@@ -962,10 +952,16 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 space-y-4">
                       <div>
                         <h3 className="text-[20px] font-black text-gray-900 leading-tight">Como {pet.pet_name} se alimenta?</h3>
-                        <p className="text-[13px] text-amber-900/80 mt-1">Escaneie o código de barras da embalagem, ou use foto/cadastro manual se o código não ler.</p>
+                        <p className="text-[13px] text-amber-900/80 mt-1">Escaneie o código de barras da embalagem — se não der, a gente libera foto e cadastro manual na hora.</p>
                       </div>
                       <div className="space-y-2">
-                        {/* Opção 1 — escanear código de barras (via principal) */}
+                        {/* Escanear é a única opção oferecida aqui — foto e
+                            cadastro manual são liberados progressivamente
+                            DENTRO do próprio sheet de detecção depois de
+                            tentativas sem sucesso (ver ProductDetectionSheet
+                            scanFailCount/photoFailCount, pedido do tutor
+                            ago/2026), em vez de mostrar os 3 caminhos juntos
+                            já de cara. */}
                         <button
                           type="button"
                           onClick={() => openFoodScanFlow()}
@@ -975,27 +971,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                           Escanear código de barras
                         </button>
 
-                        {/* Opção 1b — foto (alternativa quando o código não lê) */}
-                        <button
-                          type="button"
-                          onClick={() => openFoodPhotoFlow()}
-                          className="w-full flex items-center justify-center gap-2 py-3 min-h-[44px] rounded-2xl border border-gray-200 bg-white text-[14px] font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
-                        >
-                          <span className="text-lg">🖼️</span>
-                          Fotografar a embalagem
-                        </button>
-
-                        {/* Opção 2 — manual */}
-                        <button
-                          type="button"
-                          onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
-                          className="w-full flex items-center justify-center gap-2 py-3 min-h-[44px] rounded-2xl border border-gray-200 bg-white text-[14px] font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
-                        >
-                          <span className="text-lg">✏️</span>
-                          Cadastrar manualmente
-                        </button>
-
-                        {/* Opção 3 — não usa ração de saco */}
+                        {/* Não usa ração de saco */}
                         <button
                           type="button"
                           onClick={handleDeclareNonKibble}
@@ -1141,11 +1117,13 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             </>
                           )}
 
-                          {/* Escolha: fotografar a nova embalagem (pré-preenche o
-                              formulário) ou seguir direto pro form manual. */}
+                          {/* Escanear é a única opção oferecida aqui — foto e
+                              edição manual são liberadas progressivamente
+                              DENTRO do sheet de detecção depois de tentativas
+                              sem sucesso (ver ProductDetectionSheet). */}
                           {showEditPlanChoice && (
                             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-2">
-                              <p className="text-[13px] font-semibold text-gray-700">Como quer atualizar o plano?</p>
+                              <p className="text-[13px] font-semibold text-gray-700">Atualizar o plano</p>
                               <button
                                 type="button"
                                 onClick={() => { setShowEditPlanChoice(false); openFoodScanFlow(); }}
@@ -1153,21 +1131,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               >
                                 <span className="text-lg">📷</span>
                                 Escanear novo código de barras
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => { setShowEditPlanChoice(false); openFoodPhotoFlow(); }}
-                                className="w-full flex items-center justify-center gap-2 py-2.5 min-h-[40px] rounded-xl border border-gray-200 bg-white text-[13px] font-semibold text-gray-600 hover:bg-gray-50 active:scale-[0.98] transition-all"
-                              >
-                                <span>🖼️</span>
-                                Fotografar nova embalagem
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => { setShowEditPlanChoice(false); setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
-                                className="w-full py-2.5 min-h-[40px] rounded-xl text-[13px] font-semibold text-gray-500 hover:text-gray-700 hover:bg-white active:scale-[0.98] transition-all"
-                              >
-                                ✏️ Editar manualmente
                               </button>
                               <button
                                 type="button"
@@ -1354,14 +1317,12 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
           petId={pet.pet_id}
           petName={pet.pet_name}
           hint="food"
-          defaultMode={foodDetectionMode}
-          photoEntry={foodPhotoEntry ?? undefined}
+          defaultMode="scan"
           allowScanning
           onProductConfirmed={handleFoodProductConfirmed}
           onClose={() => {
             clearPendingScannedProduct();
             setShowFoodPhotoFlow(false);
-            setFoodPhotoEntry(null);
           }}
         />
       )}

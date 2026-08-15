@@ -716,6 +716,7 @@ export function ParasiteItemSheet({
               <ProductBarcodeScanner
                 label="Escanear produto"
                 expectedCategory={expectedCategoryForType()}
+                defaultMode="scan"
                 petId={petId}
                 petName={petName}
                 onProductConfirmed={(product) => { applyScannedProduct(product); setShowManualForm(true); }}

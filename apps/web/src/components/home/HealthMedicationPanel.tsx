@@ -64,6 +64,7 @@ export function HealthMedicationPanel({
           <ProductBarcodeScanner
             label="Escanear medicamento"
             expectedCategory="medication"
+            defaultMode="scan"
             petId={selectedPetId ?? undefined}
             petName={petName}
             onProductConfirmed={(product: ScannedProduct) => {
