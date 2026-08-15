@@ -56,6 +56,17 @@ export interface FoodControlTabState {
   startDate: string | null;
   /** GTIN/EAN escaneado do item primário, quando conhecido. */
   gtin: string | null;
+  /** Petiscos/outros alimentos do mesmo plano (itens não-primários) — sem
+   * ciclo de dias-restantes, só o suficiente pra um card de "comprar
+   * novamente" próprio (ver FoodItemSheet.tsx). */
+  secondaryItems: FoodSecondaryItemSummary[];
+}
+
+export interface FoodSecondaryItemSummary {
+  id: string;
+  brand: string;
+  barcode: string | null;
+  packageSizeKg: number | null;
 }
 
 export interface FoodControlTabFormRequest {
@@ -786,11 +797,23 @@ export function FoodControlTab({
       durationDays: primaryMetrics.days ?? null,
       startDate: primaryItem.startDate || null,
       gtin: (primaryItem.barcode || '').trim() || null,
+      // Deriva de `items` (state estável), não de `normalizedItems` (nova
+      // referência a cada render mesmo sem mudança real) — evita disparar
+      // este efeito toda renderização.
+      secondaryItems: items
+        .filter((item) => !item.isPrimary && item.brand.trim())
+        .map((item) => ({
+          id: item.id,
+          brand: item.brand.trim(),
+          barcode: (item.barcode || '').trim() || null,
+          packageSizeKg: Number(item.packageSizeKg) || null,
+        })),
     });
   }, [
     commerceSnapshot?.status,
     displayDaysLeft,
     displayEndDate,
+    items,
     onStateChange,
     primaryItem.barcode,
     primaryItem.brand,

@@ -52,6 +52,7 @@ type FeedingPlanApiResponse = {
     reminder_time?: string | null;
     next_purchase_date?: string | null;
     items?: Array<{
+      id?: string | null;
       food_brand?: string | null;
       package_size_kg?: number | null;
       daily_amount_g?: number | null;
@@ -248,7 +249,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     showForm: false, commerceStatus: null, foodBrand: '',
     daysLeft: null, restockDate: null, packageSizeKg: null,
     dailyConsumptionG: null, durationDays: null, startDate: null,
-    gtin: null,
+    gtin: null, secondaryItems: [],
   });
 
   // Partner / commerce
@@ -282,6 +283,11 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   // "petisco/outro alimento" — só usado quando já existe uma ração
   // configurada (ver handleFoodProductConfirmed).
   const [pendingClassifyProduct, setPendingClassifyProduct] = useState<ScannedProduct | null>(null);
+  const [foodScanIntent, setFoodScanIntent] = useState<'ask' | 'secondary'>('ask');
+  // Quando definido, a tela "Comprar" usa a busca/GTIN desse item
+  // secundário (petisco) em vez do item primário (ração) — ver botão
+  // "🛒 Comprar" na seção "Outros alimentos".
+  const [buyTargetItem, setBuyTargetItem] = useState<{ label: string; query: string; gtin: string | null; packageSizeKg: number | null } | null>(null);
   // "Editar plano" numa ração já cadastrada pulava direto pro formulário
   // manual — só o cadastro inicial oferecia foto. Reabrir a câmera aqui
   // deixa o tutor trocar de embalagem/sabor sem redigitar tudo, reusando o
@@ -366,7 +372,15 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   // foto e cadastro manual são liberados progressivamente DENTRO do sheet
   // de detecção depois de tentativas sem sucesso (ver ProductDetectionSheet
   // scanFailCount/photoFailCount), não oferecidos aqui de cara.
-  const openFoodScanFlow = () => {
+  //
+  // `intent` decide o que acontece depois de confirmar o produto:
+  //  - 'ask'       (padrão) — pergunta "ração principal ou petisco?"
+  //                 quando já existe uma ração configurada.
+  //  - 'secondary' — pula a pergunta, vai direto pra petisco/outro
+  //                 alimento (usado pelo botão "+ Adicionar outro
+  //                 alimento", onde a intenção já é explícita).
+  const openFoodScanFlow = (intent: 'ask' | 'secondary' = 'ask') => {
+    setFoodScanIntent(intent);
     setShowFoodPhotoFlow(true);
   };
 
@@ -401,6 +415,10 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
       // pergunta "ração ou petisco?" quando já existe uma ração configurada
       // (aí sim um novo scan pode ser um item adicional, não substituição).
       persistScannedFoodProduct(product, true);
+      return;
+    }
+    if (foodScanIntent === 'secondary') {
+      persistScannedFoodProduct(product, false);
       return;
     }
     setPendingClassifyProduct(product);
@@ -440,6 +458,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
           durationDays: null,
           startDate: null,
           gtin: null,
+          secondaryItems: [],
         });
         return null;
       }
@@ -458,6 +477,14 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
       const durationDays = primary?.duration_days ?? plan?.duration_days ?? null;
       const startDate = (primary?.last_refill_date ?? plan?.last_refill_date ?? null);
       const gtin = (primary?.barcode || '').trim() || null;
+      const secondaryItems = items
+        .filter((item) => !item?.is_primary && (item?.food_brand || '').trim())
+        .map((item, index) => ({
+          id: item.id || `secondary-${index}`,
+          brand: (item.food_brand || '').trim(),
+          barcode: (item.barcode || '').trim() || null,
+          packageSizeKg: item.package_size_kg ?? null,
+        }));
       const manualReminderDays = plan?.manual_reminder_days_before ?? null;
       const safetyBufferDays = plan?.safety_buffer_days ?? null;
       const resolvedReminderDays = manualReminderDays ?? safetyBufferDays;
@@ -507,6 +534,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
         durationDays: durationDays ?? null,
         startDate: startDateOnly,
         gtin,
+        secondaryItems,
       });
 
       return { recommendedAlertDate: nextReminder, reminderTime: plan?.reminder_time ?? null, brand };
@@ -893,23 +921,28 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
               <div className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 flex-shrink-0">
                 <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-xl flex-shrink-0">🛒</div>
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-base font-bold text-gray-900 truncate">{foodBrand ? `Comprar ${foodBrand}` : 'Comprar ração'}</h2>
+                  <h2 className="text-base font-bold text-gray-900 truncate">
+                    {buyTargetItem ? `Comprar ${buyTargetItem.label}` : (foodBrand ? `Comprar ${foodBrand}` : 'Comprar ração')}
+                  </h2>
                   <p className="text-xs text-gray-400">{pet.pet_name}</p>
                 </div>
-                <BackBtn onClick={() => setMode('view')} />
+                <BackBtn onClick={() => { setMode('view'); setBuyTargetItem(null); }} />
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <div className="p-5 pb-8 space-y-4">
                   {/* Mesma oferta monetizável do card "Comprar novamente" da
                       Loja do Pet — mesma query, mesmo peso real do pacote.
-                      Nunca mostra loja sem link afiliado ativo. */}
+                      Nunca mostra loja sem link afiliado ativo. Quando
+                      buyTargetItem está definido, é a compra de um petisco/
+                      outro alimento (ver seção "Outros alimentos"), não da
+                      ração principal. */}
                   <MonetizedOffersList
-                    query={foodBrand ? `${foodBrand} ração` : 'ração pet'}
-                    packageSizeKg={foodState.packageSizeKg}
-                    gtin={foodState.gtin}
+                    query={buyTargetItem ? buyTargetItem.query : (foodBrand ? `${foodBrand} ração` : 'ração pet')}
+                    packageSizeKg={buyTargetItem ? buyTargetItem.packageSizeKg : foodState.packageSizeKg}
+                    gtin={buyTargetItem ? buyTargetItem.gtin : foodState.gtin}
                     petId={pet.pet_id}
-                    productLabel={foodBrand || 'Ração'}
-                    icon="🥣"
+                    productLabel={buyTargetItem ? buyTargetItem.label : (foodBrand || 'Ração')}
+                    icon={buyTargetItem ? '🦴' : '🥣'}
                     source="food_sheet"
                     ctaType="food_buy_direct"
                     controlType="food"
@@ -1087,6 +1120,58 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                                 </p>
                               </div>
                             </div>
+                          )}
+
+                          {/* 2.1 Outros alimentos (petiscos, etc.) — itens secundários do
+                              plano, sempre visíveis aqui independente do modo de edição. */}
+                          {foodState.secondaryItems.length > 0 && (
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3 space-y-2.5">
+                              <p className="text-[12px] font-bold text-amber-700 uppercase tracking-wide">🦴 Outros alimentos</p>
+                              {foodState.secondaryItems.map((item) => (
+                                <div key={item.id} className="flex items-center gap-3 rounded-xl bg-white border border-amber-100 px-3 py-2.5">
+                                  <span className="text-xl flex-shrink-0">🦴</span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[14px] font-semibold text-gray-900 line-clamp-2 break-words leading-tight">{item.brand}</p>
+                                    {item.packageSizeKg != null && (
+                                      <p className="text-[11px] text-gray-400">
+                                        {item.packageSizeKg % 1 === 0 ? item.packageSizeKg : item.packageSizeKg.toFixed(1)} kg
+                                      </p>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setBuyTargetItem({
+                                        label: item.brand,
+                                        query: item.brand,
+                                        gtin: item.barcode,
+                                        packageSizeKg: item.packageSizeKg,
+                                      });
+                                      setMode('buy');
+                                    }}
+                                    className="flex-shrink-0 rounded-lg bg-amber-500 px-3 py-1.5 text-[12px] font-bold text-white active:bg-amber-600"
+                                  >
+                                    🛒 Comprar
+                                  </button>
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => openFoodScanFlow('secondary')}
+                                className="w-full text-center text-[13px] font-semibold text-amber-700 py-1.5"
+                              >
+                                + Adicionar outro alimento
+                              </button>
+                            </div>
+                          )}
+                          {foodState.secondaryItems.length === 0 && (
+                            <button
+                              type="button"
+                              onClick={() => openFoodScanFlow('secondary')}
+                              className="w-full rounded-2xl border border-dashed border-amber-300 bg-amber-50/40 px-4 py-2.5 text-[13px] font-semibold text-amber-700 flex items-center justify-center gap-2"
+                            >
+                              <span className="text-lg">🦴</span> Adicionar petisco ou outro alimento
+                            </button>
                           )}
 
                           {/* Feedback banner */}
