@@ -98,10 +98,11 @@ export interface PetCareReminder {
   packageSizeKg?: number;
 
   /**
-   * GTIN/EAN do produto quando conhecido (hoje só domain='food', via
-   * FeedingPlanItemEntry.barcode) — permite que a busca de oferta
-   * comercial resolva por GTIN exato (ex: AwinFeedProvider) em vez de só
-   * texto. Ausente sempre que o item não foi escaneado.
+   * GTIN/EAN do produto quando conhecido (domain='food' via
+   * FeedingPlanItemEntry.barcode, domain='parasite' via
+   * ParasiteControl.barcode) — permite que a busca de oferta comercial
+   * resolva por GTIN exato (ex: AwinFeedProvider) em vez de só texto.
+   * Ausente sempre que o item não foi escaneado.
    */
   gtin?: string;
 
@@ -298,6 +299,7 @@ function processParasites(p: PetCareDomainParams): PetCareReminder[] {
       action_target: (typeTargets[normalizedType] ?? 'health/parasites') as CareActionTarget,
       source_record_id: c.id,
       is_derived: c.frequency_days != null,
+      gtin: c.barcode || undefined,
     });
   }
   return result;

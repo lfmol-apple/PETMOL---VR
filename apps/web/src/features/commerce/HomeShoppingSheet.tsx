@@ -299,7 +299,7 @@ interface ReorderCardItemProps {
 // comportamento anterior (escolha entre lojas visíveis) — nunca trava a
 // experiência esperando o provider responder.
 function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy }: ReorderCardItemProps) {
-  const { offers, loading } = useCommerceOffers(card.searchQuery, card.packageSizeKg);
+  const { offers, loading } = useCommerceOffers(card.searchQuery, card.packageSizeKg, card.gtin);
   const offer = offers[0] ?? null;
 
   const hasMonetizedOffer = Boolean(offer && typeof offer.price === 'number' && offer.url);
