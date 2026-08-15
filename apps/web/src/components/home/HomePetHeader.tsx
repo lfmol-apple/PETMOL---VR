@@ -195,6 +195,14 @@ export function HomePetHeader({
         style={{
           aspectRatio: '1.25 / 1',
           maxHeight: 'min(33dvh, 285px)',
+          // Sem isto, a largura (w-full, até ~576px em telas largas via
+          // max-w-xl/max-w-2xl dos pais) continua livre enquanto a altura
+          // é travada em 285px no desktop — a caixa real vira ~2:1 em vez
+          // de 1.25:1, e o object-cover centralizado corta o topo da
+          // cabeça/orelhas do pet pra preencher essa largura sobrando.
+          // Travar a largura na mesma proporção mantém a caixa fiel ao
+          // aspectRatio declarado em qualquer tamanho de tela.
+          maxWidth: 'calc(min(33dvh, 285px) * 1.25)',
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
           transform: 'translate3d(0,0,0)',
