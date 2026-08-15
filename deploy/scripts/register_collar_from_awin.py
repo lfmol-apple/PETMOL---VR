@@ -39,6 +39,13 @@ if env_file.exists():
             k, v = line.split("=", 1)
             os.environ.setdefault(k.strip(), v.strip())
 
+# Importa o app inteiro primeiro (não só os models usados aqui) — Pet tem
+# relationship() por nome de string (ex: "FeedingPlan") que só resolve
+# depois que TODOS os models da aplicação foram importados pelo menos uma
+# vez em algum lugar; main.py já faz isso pra a API real, então reusar o
+# mesmo import garante o registro completo do SQLAlchemy antes de qualquer
+# query.
+import src.main  # noqa: F401
 from src.db import SessionLocal
 from src.pets.models import Pet
 from src.pets.parasite_models import ParasiteControlRecord
