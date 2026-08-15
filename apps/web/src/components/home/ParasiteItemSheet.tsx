@@ -178,6 +178,7 @@ export function ParasiteItemSheet({
     frequency_days: String(cfg.defaultFrequency),
     reminder_days: '3',
     reminder_time: '09:00',
+    barcode: '',
   });
 
   useEffect(() => {
@@ -190,6 +191,7 @@ export function ParasiteItemSheet({
         frequency_days: String(cfg.defaultFrequency),
         reminder_days: String((current as unknown as Record<string, unknown> | null)?.alert_days_before ?? 3),
         reminder_time: String((current as unknown as Record<string, unknown> | null)?.reminder_time ?? '09:00'),
+        barcode: '',
       });
     }
   }, [mode, current, cfg.defaultFrequency]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -229,6 +231,10 @@ export function ParasiteItemSheet({
         product.barcode ? `EAN/GTIN: ${product.barcode}` : '',
         product.category ? `Categoria: ${product.category}` : '',
       ].filter(Boolean).join('\n'),
+      // Campo estruturado — permite resolver oferta comercial por GTIN
+      // exato (AwinFeedProvider), além do texto livre em `notes` acima
+      // (mantido por retrocompatibilidade/legibilidade humana).
+      barcode: product.barcode || f.barcode,
     }));
     if (!product.found) showToast('Não encontramos os dados. Preencha manualmente.');
   }
@@ -276,6 +282,7 @@ export function ParasiteItemSheet({
         reminder_enabled: true,
         alert_days_before: parseInt(applyForm.reminder_days) || 3,
         reminder_time: applyForm.reminder_time || '09:00',
+        barcode: applyForm.barcode || null,
       };
 
       const res = await fetch(`${API_BASE_URL}/pets/${petId}/parasites`, {
@@ -884,6 +891,7 @@ export function ParasiteItemSheet({
                         ? 'coleira antipulgas cão'
                         : 'antipulgas cão'
                 }
+                gtin={current?.barcode}
                 petId={petId}
                 productLabel={current?.product_name || cfg.title}
                 icon={cfg.icon}

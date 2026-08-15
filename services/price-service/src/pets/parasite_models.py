@@ -45,6 +45,12 @@ class ParasiteControlRecord(Base):
     cost: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     purchase_location: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
 
+    # GTIN/EAN escaneado do produto (Ago 2026) — permite resolver oferta
+    # comercial por identidade exata (AwinFeedProvider), mesmo caminho já
+    # usado por FeedingPlanItemEntry.barcode pra ração. Antes disso, um
+    # código escaneado aqui só ia pro texto livre de `notes`.
+    barcode: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+
     # Coleira (dados específicos)
     collar_expiry_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 

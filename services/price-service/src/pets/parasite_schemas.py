@@ -28,6 +28,7 @@ class ParasiteControlBase(BaseModel):
     alert_days_before: Optional[int] = None
     reminder_time: Optional[str] = Field(None, max_length=8)
     notes: Optional[str] = None
+    barcode: Optional[str] = Field(None, max_length=64)
 
 
 class ParasiteControlCreate(ParasiteControlBase):
@@ -56,6 +57,7 @@ class ParasiteControlUpdate(BaseModel):
     alert_days_before: Optional[int] = None
     reminder_time: Optional[str] = None
     notes: Optional[str] = None
+    barcode: Optional[str] = None
     deleted: Optional[bool] = None
 
 

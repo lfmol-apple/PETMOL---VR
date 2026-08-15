@@ -318,6 +318,12 @@ def run_pg_migrations(engine: Engine) -> None:
         # instalada por padrão em todo banco novo (Ago 2026).
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS unaccent"))
 
+        # parasite_control_records: GTIN/EAN escaneado (Ago 2026) — antes só
+        # existia pra ração (feeding_plans); sem isto, AwinFeedProvider nunca
+        # conseguia resolver oferta de antiparasitário por GTIN exato, só
+        # MAIS/busca textual (ver docs/AFFILIATES.md e commerce_provider.py).
+        _pg_add_column_if_missing(conn, "parasite_control_records", "barcode", "VARCHAR(64)")
+
 
 def _migrate_push_subscriptions_from_json(conn) -> None:
     """One-time import of the legacy push_subscriptions.json (file-based,
@@ -777,6 +783,10 @@ def run_sqlite_migrations(engine: Engine) -> None:
 
         # analytics_events: distinguish monetized vs unmonetized clicks (Aug 2026)
         changed |= _sqlite_add_column_if_missing(conn, "analytics_events", "link_type", "TEXT")
+
+        # parasite_control_records: GTIN/EAN escaneado (Ago 2026) — ver
+        # comentário equivalente em run_pg_migrations.
+        changed |= _sqlite_add_column_if_missing(conn, "parasite_control_records", "barcode", "TEXT")
 
         # `changed` is intentionally unused; kept for potential logging later.
         _ = changed

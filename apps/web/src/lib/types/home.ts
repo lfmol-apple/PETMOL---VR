@@ -26,6 +26,7 @@ export interface ParasiteControl {
   reminder_time?: string;
   purchase_location?: string; // Onde foi comprado (Petz, Cobasi, internet, etc)
   reminder_enabled?: boolean; // Se o lembrete está ativo
+  barcode?: string; // GTIN/EAN escaneado — permite resolver oferta comercial por identidade exata (ver MonetizedOffersList)
 }
 
 // Tipos para controle de higiene (banho e tosa)
