@@ -19,11 +19,17 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SRC = REPO_ROOT / "services" / "price-service" / "src"
+
+# Roda copiado standalone pra /tmp no VPS (não dentro do checkout do repo),
+# invocado com cwd == services/price-service — path relativo a __file__
+# (como deploy/scripts/*.py fazem quando rodam DE DENTRO do repo) não serve
+# aqui. Usa .env com parser próprio (split simples, não bash `source`) pra
+# não quebrar em valores com parênteses/espaços (ex: OFF_USER_AGENT).
+PRICE_SERVICE_DIR = Path.cwd()
+SRC = PRICE_SERVICE_DIR / "src"
 sys.path.insert(0, str(SRC))
 
-env_file = REPO_ROOT / "services" / "price-service" / ".env"
+env_file = PRICE_SERVICE_DIR / ".env"
 if env_file.exists():
     for line in env_file.read_text().splitlines():
         line = line.strip()

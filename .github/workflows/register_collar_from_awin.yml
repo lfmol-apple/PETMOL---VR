@@ -27,7 +27,7 @@ on:
       commit:
         description: "Gravar de verdade? (false = dry-run)"
         required: true
-        default: "false"
+        default: false
         type: boolean
 
 jobs:
@@ -75,6 +75,5 @@ jobs:
 
           $SSH "
             cd /opt/petmol/current/services/price-service
-            set -a; [ -f .env ] && source .env; set +a
             .venv/bin/python /tmp/register_collar_from_awin.py $ARGS
           "
