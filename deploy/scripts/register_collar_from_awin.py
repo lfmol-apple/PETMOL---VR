@@ -22,12 +22,14 @@ from pathlib import Path
 
 # Roda copiado standalone pra /tmp no VPS (não dentro do checkout do repo),
 # invocado com cwd == services/price-service — path relativo a __file__
-# (como deploy/scripts/*.py fazem quando rodam DE DENTRO do repo) não serve
-# aqui. Usa .env com parser próprio (split simples, não bash `source`) pra
-# não quebrar em valores com parênteses/espaços (ex: OFF_USER_AGENT).
+# não serve aqui. `src/` usa imports relativos internos (ex: db.py faz
+# `from .config import ...`), então precisa ser importado como PACOTE
+# ("src.db"), não como módulo solto — sys.path aponta pro diretório PAI
+# de src/, igual à própria aplicação (uvicorn src.main:app). Usa .env com
+# parser próprio (split simples, não bash `source`) pra não quebrar em
+# valores com parênteses/espaços (ex: OFF_USER_AGENT).
 PRICE_SERVICE_DIR = Path.cwd()
-SRC = PRICE_SERVICE_DIR / "src"
-sys.path.insert(0, str(SRC))
+sys.path.insert(0, str(PRICE_SERVICE_DIR))
 
 env_file = PRICE_SERVICE_DIR / ".env"
 if env_file.exists():
@@ -37,10 +39,10 @@ if env_file.exists():
             k, v = line.split("=", 1)
             os.environ.setdefault(k.strip(), v.strip())
 
-from db import SessionLocal
-from pets.models import Pet
-from pets.parasite_models import ParasiteControlRecord
-from affiliate_feed import AffiliateFeedOffer
+from src.db import SessionLocal
+from src.pets.models import Pet
+from src.pets.parasite_models import ParasiteControlRecord
+from src.affiliate_feed import AffiliateFeedOffer
 
 
 def main() -> None:
