@@ -61,6 +61,12 @@ def main() -> None:
     ap.add_argument("--date-applied", default=datetime.now(timezone.utc).strftime("%Y-%m-%d"))
     ap.add_argument("--frequency-days", type=int, default=120, help="Padrão pra coleira, ver ParasiteItemSheet.tsx CONFIG.collar")
     ap.add_argument("--commit", action="store_true")
+    ap.add_argument(
+        "--attach-to-latest",
+        action="store_true",
+        help="Em vez de criar um registro novo, anexa o GTIN escolhido (barcode+product_name) ao registro mais recente do tipo já existente pro pet — evita duplicar quando já existe uma entrada (ex: cadastrada manualmente sem GTIN).",
+    )
+    ap.add_argument("--record-type", default="collar")
     args = ap.parse_args()
 
     db = SessionLocal()
@@ -112,6 +118,28 @@ def main() -> None:
         if offer is None:
             print(f"\nERRO: gtin {args.gtin} não está entre as ofertas listadas acima. Aborting.")
             sys.exit(1)
+
+        if args.attach_to_latest:
+            existing = (
+                db.query(ParasiteControlRecord)
+                .filter(
+                    ParasiteControlRecord.pet_id == pet.id,
+                    ParasiteControlRecord.type == args.record_type,
+                    ParasiteControlRecord.deleted.is_(False),
+                )
+                .order_by(ParasiteControlRecord.date_applied.desc())
+                .first()
+            )
+            if existing is None:
+                print(f"\nERRO: nenhum registro tipo={args.record_type!r} encontrado pro pet — nada pra anexar. Aborting.")
+                sys.exit(1)
+            existing.product_name = offer.title
+            existing.barcode = offer.gtin
+            db.commit()
+            print(f"\n=== ATUALIZADO (GTIN anexado a registro existente) ===")
+            print(f"  id={existing.id} pet_id={existing.pet_id} product_name={existing.product_name}")
+            print(f"  barcode={existing.barcode} date_applied={existing.date_applied} collar_expiry_date={existing.collar_expiry_date}")
+            return
 
         date_applied = datetime.strptime(args.date_applied, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         collar_expiry = date_applied + timedelta(days=args.frequency_days)

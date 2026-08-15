@@ -33,6 +33,11 @@ on:
         required: true
         default: false
         type: boolean
+      attach_to_latest:
+        description: "Anexar GTIN ao registro mais recente já existente (em vez de criar um novo) — evita duplicar"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   register:
@@ -69,6 +74,7 @@ jobs:
           GTIN: ${{ github.event.inputs.gtin }}
           DATE_APPLIED: ${{ github.event.inputs.date_applied }}
           COMMIT_FLAG: ${{ github.event.inputs.commit }}
+          ATTACH_TO_LATEST: ${{ github.event.inputs.attach_to_latest }}
         run: |
           VPS_PORT="${VPS_PORT:-22}"
           SSH="ssh -i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP"
@@ -78,6 +84,7 @@ jobs:
           [ -n "$GTIN" ] && ARGS="$ARGS --gtin \"$GTIN\""
           [ -n "$DATE_APPLIED" ] && ARGS="$ARGS --date-applied \"$DATE_APPLIED\""
           [ "$COMMIT_FLAG" = "true" ] && ARGS="$ARGS --commit"
+          [ "$ATTACH_TO_LATEST" = "true" ] && ARGS="$ARGS --attach-to-latest"
 
           $SSH "
             cd /opt/petmol/current/services/price-service
