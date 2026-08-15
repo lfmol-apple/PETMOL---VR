@@ -1117,10 +1117,14 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             </>
                           )}
 
-                          {/* Escanear é a única opção oferecida aqui — foto e
-                              edição manual são liberadas progressivamente
-                              DENTRO do sheet de detecção depois de tentativas
-                              sem sucesso (ver ProductDetectionSheet). */}
+                          {/* Escanear é o destaque (troca rápida de
+                              embalagem), mas "editar plano" é um contexto
+                              diferente do cadastro inicial — o tutor já tem
+                              um plano configurado e pode querer excluir,
+                              mudar peso/duração à mão, ou declarar que não
+                              usa mais ração de saco. Nenhuma dessas ações
+                              deve ficar escondida atrás do progressivo de
+                              scan (esse é só pra IDENTIFICAR produto novo). */}
                           {showEditPlanChoice && (
                             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-2">
                               <p className="text-[13px] font-semibold text-gray-700">Atualizar o plano</p>
@@ -1131,6 +1135,23 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               >
                                 <span className="text-lg">📷</span>
                                 Escanear novo código de barras
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setShowEditPlanChoice(false); setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 min-h-[40px] rounded-xl border border-gray-200 bg-white text-[13px] font-semibold text-gray-600 hover:bg-gray-50 active:scale-[0.98] transition-all"
+                              >
+                                <span>✏️</span>
+                                Editar manualmente (peso, duração, excluir)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setShowEditPlanChoice(false); void handleDeclareNonKibble(); }}
+                                disabled={declaringNonKibble}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 min-h-[40px] rounded-xl border border-gray-200 bg-white text-[13px] font-semibold text-gray-600 hover:bg-gray-50 active:scale-[0.98] disabled:opacity-50 transition-all"
+                              >
+                                <span>🍲</span>
+                                {declaringNonKibble ? 'Salvando...' : 'Não uso mais ração de saco'}
                               </button>
                               <button
                                 type="button"
