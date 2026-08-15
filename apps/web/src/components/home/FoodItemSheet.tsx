@@ -1073,58 +1073,33 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                           <FeedbackBanner />
 
                           {/* 3. Ações principais */}
-                          {foodState.daysLeft !== null && foodState.daysLeft <= 5 ? (
-                            <>
-                              <button type="button"
-                                onClick={() => {
-                                  trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
-                                  setMode('buy');
-                                }}
-                                className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.97] transition-all text-white text-[16px] font-black shadow-lg shadow-amber-500/25 flex items-center justify-center gap-3"
-                              >
-                                <span className="text-xl">🛒</span>
-                                Comprar novamente
-                              </button>
+                          <button type="button"
+                            onClick={() => {
+                              trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
+                              setMode('buy');
+                            }}
+                            className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.97] transition-all text-white text-[16px] font-black shadow-lg shadow-amber-500/25 flex items-center justify-center gap-3"
+                          >
+                            <span className="text-xl">🛒</span>
+                            Comprar novamente
+                          </button>
 
-                              <button type="button"
-                                onClick={() => setShowEditPlanChoice(true)}
-                                className="w-full py-4 min-h-[52px] rounded-2xl bg-white border border-gray-200 text-[16px] font-bold text-gray-600 hover:bg-gray-50 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
-                              >
-                                <span className="text-xl">✏️</span>
-                                Editar plano
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button type="button"
-                                onClick={() => {
-                                  trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
-                                  setMode('buy');
-                                }}
-                                className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.97] transition-all text-white text-[16px] font-black shadow-lg shadow-amber-500/25 flex items-center justify-center gap-3"
-                              >
-                                <span className="text-xl">🛒</span>
-                                Comprar novamente
-                              </button>
-
-                              <button type="button"
-                                onClick={() => setShowEditPlanChoice(true)}
-                                className="w-full py-3 min-h-[48px] rounded-2xl bg-white border border-gray-200 text-gray-600 text-[14px] font-semibold hover:bg-gray-50 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
-                              >
-                                <span>✏️</span>
-                                Editar plano de alimentação
-                              </button>
-                            </>
+                          {/* O botão "Editar" e o painel de opções (escanear/
+                              editar manualmente/excluir/não uso mais ração)
+                              nunca ficam visíveis ao mesmo tempo — um
+                              substitui o outro, em vez de empilhar duas UIs
+                              de "editar" na mesma tela (confuso, reportado
+                              pelo tutor). */}
+                          {!showEditPlanChoice && (
+                            <button type="button"
+                              onClick={() => setShowEditPlanChoice(true)}
+                              className="w-full py-3 min-h-[48px] rounded-2xl bg-white border border-gray-200 text-gray-600 text-[14px] font-semibold hover:bg-gray-50 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                            >
+                              <span>✏️</span>
+                              Editar plano de alimentação
+                            </button>
                           )}
 
-                          {/* Escanear é o destaque (troca rápida de
-                              embalagem), mas "editar plano" é um contexto
-                              diferente do cadastro inicial — o tutor já tem
-                              um plano configurado e pode querer excluir,
-                              mudar peso/duração à mão, ou declarar que não
-                              usa mais ração de saco. Nenhuma dessas ações
-                              deve ficar escondida atrás do progressivo de
-                              scan (esse é só pra IDENTIFICAR produto novo). */}
                           {showEditPlanChoice && (
                             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-2">
                               <p className="text-[13px] font-semibold text-gray-700">Atualizar o plano</p>
