@@ -1407,26 +1407,41 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
           }}
         />
       )}
+      {/* Passo de classificação ração x petisco — tela cheia dedicada em vez
+          de modal pequeno em cima da tela principal (já lotada). Pedido do
+          tutor: precisa ser óbvio até pra quem tem dificuldade com apps,
+          então cada opção já explica o que ela significa (mesmo texto das
+          seções "Ração principal"/"Petiscos e outros" da tela principal,
+          pra reforçar o mesmo modelo mental em vez de introduzir termos
+          novos aqui). */}
       {pendingClassifyProduct && (
         <ModalPortal>
-          <div
-            className="fixed inset-0 z-[210] flex items-end sm:items-center justify-center p-4"
-            onClick={() => setPendingClassifyProduct(null)}
-          >
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
-            <div
-              className="relative w-full max-w-sm bg-white rounded-[28px] shadow-2xl p-5 space-y-4 animate-scaleIn"
-              onClick={(e) => e.stopPropagation()}
-            >
+          <div className="fixed inset-0 z-[210] flex flex-col bg-white">
+            <div className="flex items-center px-4 pt-4 pb-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setPendingClassifyProduct(null)}
+                className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 active:scale-90 transition-all"
+                aria-label="Cancelar"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 pb-10 flex flex-col items-center justify-center gap-7 text-center">
               <div>
-                <h3 className="text-[17px] font-black text-gray-900 leading-tight">
+                <p className="text-[44px] leading-none mb-3">🛒</p>
+                <h3 className="text-[22px] font-black text-gray-900 leading-tight">
                   {pendingClassifyProduct.name ? `O que é "${pendingClassifyProduct.name}"?` : 'O que é esse produto?'}
                 </h3>
-                <p className="text-[13px] text-gray-500 mt-1">
-                  Isso ajuda a saber se é a ração do dia a dia {petDo(pet)} {pet.pet_name} ou um extra (petisco, ração molhada, etc).
+                <p className="text-[14px] text-gray-500 mt-2 max-w-[280px] mx-auto">
+                  Toque na opção certa para {pet.pet_name}
                 </p>
               </div>
-              <div className="space-y-2">
+
+              <div className="w-full max-w-sm space-y-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -1434,11 +1449,15 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                     setPendingClassifyProduct(null);
                     if (product) persistScannedFoodProduct(product, true);
                   }}
-                  className="w-full flex items-center justify-center gap-2.5 py-3.5 min-h-[44px] rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-[15px] font-black shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all"
+                  className="w-full flex items-center gap-4 p-5 rounded-3xl border-2 border-blue-500 bg-blue-50 hover:bg-blue-100 active:scale-[0.98] transition-all text-left"
                 >
-                  <span className="text-xl">🥣</span>
-                  Ração principal
+                  <span className="text-4xl flex-shrink-0">🥣</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[17px] font-black text-blue-950">Ração de todo dia</p>
+                    <p className="text-[13px] text-blue-900/70 mt-0.5">Controla peso e avisa quando for acabar</p>
+                  </div>
                 </button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -1446,19 +1465,23 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                     setPendingClassifyProduct(null);
                     if (product) persistScannedFoodProduct(product, false);
                   }}
-                  className="w-full flex items-center justify-center gap-2 py-3 min-h-[44px] rounded-2xl border border-gray-200 bg-white text-[14px] font-bold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
+                  className="w-full flex items-center gap-4 p-5 rounded-3xl border-2 border-amber-400 bg-amber-50 hover:bg-amber-100 active:scale-[0.98] transition-all text-left"
                 >
-                  <span className="text-lg">🦴</span>
-                  Petisco / outro alimento
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPendingClassifyProduct(null)}
-                  className="w-full py-2 text-[12px] font-medium text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  Cancelar
+                  <span className="text-4xl flex-shrink-0">🦴</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[17px] font-black text-amber-950">Petisco ou extra</p>
+                    <p className="text-[13px] text-amber-900/70 mt-0.5">Compra ocasional, sem contar os dias</p>
+                  </div>
                 </button>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setPendingClassifyProduct(null)}
+                className="text-[13px] font-semibold text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </ModalPortal>
