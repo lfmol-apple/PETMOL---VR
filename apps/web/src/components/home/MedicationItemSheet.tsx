@@ -8,7 +8,7 @@ import { ModalPortal } from '@/components/ModalPortal';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { buildRemindAt, listReminders, deleteReminder, createReminder, refreshSubscription } from '@/features/notifications/pushService';
 import { trackPartnerClicked } from '@/lib/v1Metrics';
-import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
+import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
 import { IosSwitch } from '@/components/ui/IosSwitch';
 import type { ScannedProduct } from '@/lib/productScanner';
 import { requestUserDecision } from '@/features/interactions/userPromptChannel';
@@ -136,6 +136,7 @@ export function MedicationItemSheet({
   // dispensar o scanner, ou escolher preencher na mão — scan é o caminho
   // feliz, não só uma opção ao lado de um form já visível.
   const [showManualForm, setShowManualForm] = useState(false);
+  const [showScanFlow, setShowScanFlow] = useState(false);
 
   useEffect(() => {
     void onRefresh();
@@ -859,24 +860,26 @@ export function MedicationItemSheet({
           {/* ── ADD / EDIT FORM ───────────────────────────────────────────── */}
           {(mode === 'add' || mode === 'edit') && (
             <div className="p-5 pb-8 space-y-4">
-              <ProductBarcodeScanner
-                label="Escanear medicamento"
-                expectedCategory="medication"
-                defaultMode="scan"
-                petId={petId}
-                petName={petName}
-                onProductConfirmed={(product) => { applyScannedProduct(product); setShowManualForm(true); }}
-                onDismiss={() => setShowManualForm(true)}
-              />
-
+              {/* Escanear é a única opção oferecida aqui — foto e cadastro
+                  manual são liberados progressivamente DENTRO do sheet de
+                  detecção depois de tentativas sem sucesso (ver
+                  ProductDetectionSheet scanFailCount/photoFailCount), em
+                  vez de mostrar os 3 caminhos juntos já de cara. */}
               {!showManualForm && mode === 'add' && (
-                <button
-                  type="button"
-                  onClick={() => setShowManualForm(true)}
-                  className="w-full py-2.5 text-[13px] font-semibold text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                  Preencher manualmente
-                </button>
+                <div className="rounded-2xl border border-purple-200 bg-purple-50 p-5 space-y-4">
+                  <div>
+                    <h3 className="text-[18px] font-black text-gray-900 leading-tight">Escaneie o medicamento</h3>
+                    <p className="text-[13px] text-gray-600 mt-1">Aponte pro código de barras da embalagem — se não der, a gente libera foto e cadastro manual na hora.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowScanFlow(true)}
+                    className="w-full flex items-center justify-center gap-2.5 py-3.5 min-h-[44px] rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-[15px] font-black shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all"
+                  >
+                    <span className="text-xl">📷</span>
+                    Escanear código de barras
+                  </button>
+                </div>
               )}
 
               {showManualForm && (
@@ -1115,6 +1118,24 @@ export function MedicationItemSheet({
         </div>
       </div>
     </div>
+    {showScanFlow && (
+      <ProductDetectionSheetGold
+        petId={petId}
+        petName={petName}
+        hint="medication"
+        defaultMode="scan"
+        allowScanning
+        onProductConfirmed={(product) => {
+          applyScannedProduct(product);
+          setShowManualForm(true);
+          setShowScanFlow(false);
+        }}
+        onClose={() => {
+          setShowScanFlow(false);
+          setShowManualForm(true);
+        }}
+      />
+    )}
     </ModalPortal>
   );
 }
