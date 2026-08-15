@@ -1,0 +1,61 @@
+name: Set VPS env var
+
+# One-off utility to edit a single key in the price-service's server-side
+# env file (/opt/petmol/shared/env/api.env) and restart petmol-api. This
+# file is NOT tracked in git (EnvironmentFile in deploy/systemd/petmol-api.service)
+# — an explicit value set here silently overrides any default baked into
+# src/config.py, so a code change alone (e.g. changing a Settings default)
+# is not enough if this file already pins the old value. Use this workflow
+# to bring the two back in sync, or to flip a flag without a code deploy.
+
+on:
+  workflow_dispatch:
+    inputs:
+      var_name:
+        description: "Env var name (ex: COBASI_AFFILIATE_MODE)"
+        required: true
+      var_value:
+        description: "Value to set (ex: disabled)"
+        required: true
+
+jobs:
+  set-env:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Update env file on VPS and restart petmol-api
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VAR_NAME: ${{ github.event.inputs.var_name }}
+          VAR_VALUE: ${{ github.event.inputs.var_value }}
+        run: |
+          VPS_PORT="${VPS_PORT:-22}"
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+          SSH="ssh -i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o BatchMode=yes $VPS_USER@$VPS_IP"
+
+          $SSH "
+            set -e
+            ENV_FILE=/opt/petmol/shared/env/api.env
+            touch \"\$ENV_FILE\"
+            echo '=== BEFORE ==='
+            grep -E '^${VAR_NAME}=' \"\$ENV_FILE\" || echo '(not set — code default from src/config.py applies)'
+
+            if grep -qE '^${VAR_NAME}=' \"\$ENV_FILE\"; then
+              sed -i 's|^${VAR_NAME}=.*|${VAR_NAME}=${VAR_VALUE}|' \"\$ENV_FILE\"
+            else
+              echo '${VAR_NAME}=${VAR_VALUE}' >> \"\$ENV_FILE\"
+            fi
+
+            echo '=== AFTER ==='
+            grep -E '^${VAR_NAME}=' \"\$ENV_FILE\"
+
+            systemctl restart petmol-api
+            sleep 3
+            systemctl is-active petmol-api
+          "
