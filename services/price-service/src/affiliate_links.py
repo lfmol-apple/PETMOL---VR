@@ -59,10 +59,11 @@ class ProductAffiliateLink(Base):
 
     Papel: override/cache manual da estratégia "cached" de monetização
     (ver CobasiProvider.monetize) — não é pré-requisito de descoberta.
-    Cadastro manual continua sendo necessário na prática enquanto
-    cobasi_affiliate_mode == "cached" (padrão hoje, sem confirmação
-    formal para ativar "utm"), mas a arquitetura já não depende dela
-    para buscar produto/preço.
+    Desde 15/08/2026 o padrão de cobasi_affiliate_mode é "disabled" (MAIS
+    totalmente desativado, decisão de produto — ver config.py); um link
+    aqui só volta a valer quando o modo for religado explicitamente pra
+    "cached" ou "utm". A arquitetura em si nunca dependeu desta tabela
+    para buscar produto/preço — só para a etapa de monetização.
     """
 
     __tablename__ = "product_affiliate_links"

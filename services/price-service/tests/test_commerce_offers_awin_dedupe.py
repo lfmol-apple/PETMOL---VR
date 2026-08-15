@@ -87,6 +87,8 @@ async def test_registering_awin_provider_does_not_change_link_shown_to_tutor(mon
     independente de preferência de rota. Ver
     test_awin_wins_when_no_manual_link_and_awin_preferred para o caso sem
     link cadastrado, onde a Awin de fato vence hoje."""
+    monkeypatch.setenv("COBASI_AFFILIATE_MODE", "cached")
+    get_settings.cache_clear()
     _enable_awin_globally(monkeypatch)
     _register_cobasi_link()
     _register_awin_offer()
@@ -124,6 +126,8 @@ async def test_manually_cached_link_survives_even_with_awin_preferred(monkeypatc
     merchant_routes.py hoje, mantido explícito pra o teste não depender
     silenciosamente de qual é o default atual. Ver
     commerce_provider.py::_dedupe_by_merchant."""
+    monkeypatch.setenv("COBASI_AFFILIATE_MODE", "cached")
+    get_settings.cache_clear()
     _enable_awin_globally(monkeypatch)
     _register_cobasi_link()
     _register_awin_offer()
@@ -244,6 +248,8 @@ async def test_mais_fills_in_as_fallback_when_awin_does_not_resolve(monkeypatch)
     fora do catálogo sincronizado, ou Awin indisponível), mas com link
     MAIS cadastrado, a Cobasi continua aparecendo via MAIS — nunca some
     só porque a rota preferida não teve oferta."""
+    monkeypatch.setenv("COBASI_AFFILIATE_MODE", "cached")
+    get_settings.cache_clear()
     _enable_awin_globally(monkeypatch)
     _register_cobasi_link()
     # Nenhuma _register_awin_offer() — Awin não tem nada pra este GTIN.

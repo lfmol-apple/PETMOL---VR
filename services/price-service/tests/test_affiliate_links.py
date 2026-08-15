@@ -32,8 +32,14 @@ def _admin_auth_override():
 
 @pytest.fixture(autouse=True)
 def _force_env(monkeypatch):
-    """Garante ENV=dev por padrão; testes de prod chamam _force_prod()."""
+    """Garante ENV=dev por padrão; testes de prod chamam _force_prod().
+    COBASI_AFFILIATE_MODE=cached é explícito aqui porque o padrão real de
+    produção desde 15/08/2026 é "disabled" (MAIS desativado, decisão de
+    produto — ver config.py) — este arquivo testa especificamente a
+    lógica de resolução da Cobasi via MAIS, então precisa do modo ligado
+    independente de qual é o padrão vigente."""
     monkeypatch.setenv("ENV", "dev")
+    monkeypatch.setenv("COBASI_AFFILIATE_MODE", "cached")
     monkeypatch.delenv("AFFILIATE_ONLY_COMMERCE", raising=False)
     get_settings.cache_clear()
     yield

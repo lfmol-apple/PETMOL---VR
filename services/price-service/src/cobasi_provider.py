@@ -10,13 +10,15 @@ monetize(): um link cadastrado manualmente (ProductAffiliateLink) SEMPRE
 tem prioridade, em qualquer modo != "disabled" — nunca abandona um link
 já comprovado (ex: Baby/mais.app/IvUCAG) só porque o modo global mudou.
 Sem link cadastrado, o modo decide o que fazer com o restante do catálogo:
-  - "cached" (padrão) — sem link, não monetiza (em prod) ou cai pra URL
-    crua só em dev (nunca em produção; affiliate_only_commerce_enforced).
+  - "cached" — sem link, não monetiza (em prod) ou cai pra URL crua só
+    em dev (nunca em produção; affiliate_only_commerce_enforced).
   - "utm" — sem link, gera URL com UTM dinamicamente (cobasi_utm.py).
     NÃO ativado por padrão — precisa de confirmação formal da Cobasi/MAIS
     antes de virar o padrão de produção.
   - "api" — reservado para API oficial futura. Não implementado.
-  - "disabled" — Cobasi nunca monetiza (nem link cadastrado é usado).
+  - "disabled" (padrão desde 15/08/2026) — Cobasi nunca monetiza, nem
+    link cadastrado é usado; ver should_run() abaixo — o provider nem
+    roda mais nesse modo.
 
 route retornado é sempre "mais" (link cadastrado ou UTM — ambos via
 programa MAIS da Cobasi) — usado por commerce_provider.py pra nunca
@@ -26,13 +28,18 @@ no branch de link cadastrado (nunca em UTM/dev fallback) — blinda essa
 oferta específica contra qualquer troca de PREFERRED_ROUTE_BY_MERCHANT
 no dedupe do CommerceEngine (ver _dedupe_by_merchant).
 
-should_run(): quando o GTIN escaneado já resolveu por identidade exata
-via Awin (rota preferida da Cobasi desde 14/08/2026), a busca ao vivo na
-VTEX (fetch_cobasi_price) é redundante — o feed Awin já traz preço, nome
-e link monetizável completos pro mesmo produto. Só roda mesmo assim
-quando existe link cadastrado manualmente pra esse GTIN (ex: Baby/Royal
-Canin), porque esse link precisa ter a chance de vencer o dedupe mesmo
-com Awin preferida — ver docstring acima e commerce_provider.py.
+should_run(): dois motivos pra pular find_offer() (nem a busca ao vivo
+na VTEX roda):
+  1. cobasi_affiliate_mode == "disabled" (padrão desde 15/08/2026, decisão
+     de produto — MAIS totalmente fora do ar por enquanto, só Awin
+     resolve a Cobasi) — curto-circuito incondicional, nem olha Awin.
+  2. Mesmo com MAIS habilitado: quando o GTIN escaneado já resolveu por
+     identidade exata via Awin (rota preferida da Cobasi), a busca ao
+     vivo na VTEX é redundante — o feed Awin já traz preço, nome e link
+     monetizável completos pro mesmo produto. Só roda mesmo assim quando
+     existe link cadastrado manualmente pra esse GTIN (ex: Baby/Royal
+     Canin), porque esse link precisa ter a chance de vencer o dedupe
+     mesmo com Awin preferida — ver docstring acima e commerce_provider.py.
 """
 from __future__ import annotations
 
@@ -63,6 +70,8 @@ class CobasiProvider:
         self._db = db
 
     def should_run(self, context: ProductContext, offers_so_far: list[MonetizedOffer]) -> bool:
+        if get_settings().cobasi_affiliate_mode == "disabled":
+            return False
         if preferred_route_for(self.merchant) != "awin":
             return True
         has_preferred_offer = any(

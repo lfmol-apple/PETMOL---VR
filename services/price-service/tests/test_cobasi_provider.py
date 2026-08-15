@@ -1,8 +1,13 @@
 """
-CobasiProvider.monetize() por modo (cobasi_affiliate_mode). O padrão é
-"cached" — UTM NÃO é ativada em produção sem confirmação formal (ver
-docs/AFFILIATES.md e cobasi_utm.py). fetch_cobasi_price é sempre
-monkeypatchado; nunca chama a API real da Cobasi.
+CobasiProvider.monetize() por modo (cobasi_affiliate_mode). O padrão
+desde 15/08/2026 é "disabled" (MAIS totalmente desativado, decisão de
+produto — só Awin resolve a Cobasi enquanto isso não é revisitado); UTM
+NÃO é ativada em produção sem confirmação formal (ver docs/AFFILIATES.md
+e cobasi_utm.py). Os testes abaixo que exercitam "cached"/"utm" ligam o
+modo explicitamente via COBASI_AFFILIATE_MODE — não dependem do padrão
+atual, só provam que a lógica de cada modo continua correta quando
+alguém o reativar. fetch_cobasi_price é sempre monkeypatchado; nunca
+chama a API real da Cobasi.
 """
 import pytest
 
@@ -44,13 +49,17 @@ def _offer(direct_url="https://www.cobasi.com.br/produto/p") -> DiscoveredOffer:
     return DiscoveredOffer(merchant="cobasi", price=100.0, direct_url=direct_url, ean=GTIN)
 
 
-def test_default_mode_is_cached_not_utm(monkeypatch):
+def test_default_mode_is_disabled_not_utm(monkeypatch):
     """§ 'UTM Cobasi ainda não foi ativada em produção sem confirmação
-    formal' — o padrão nunca deve ser 'utm' sem configuração explícita."""
-    assert get_settings().cobasi_affiliate_mode == "cached"
+    formal' — o padrão nunca deve ser 'utm' sem configuração explícita.
+    Desde 15/08/2026, o padrão é 'disabled' (MAIS totalmente desativado,
+    decisão de produto — ver config.py)."""
+    assert get_settings().cobasi_affiliate_mode == "disabled"
 
 
-def test_cached_mode_uses_registered_link():
+def test_cached_mode_uses_registered_link(monkeypatch):
+    monkeypatch.setenv("COBASI_AFFILIATE_MODE", "cached")
+    get_settings.cache_clear()
     product_id = _register_product()
     db = SessionLocal()
     try:
@@ -65,6 +74,7 @@ def test_cached_mode_uses_registered_link():
 
 
 def test_cached_mode_without_link_and_prod_returns_none(monkeypatch):
+    monkeypatch.setenv("COBASI_AFFILIATE_MODE", "cached")
     monkeypatch.setenv("AFFILIATE_ONLY_COMMERCE", "true")
     get_settings.cache_clear()
     product_id = _register_product()
@@ -77,7 +87,9 @@ def test_cached_mode_without_link_and_prod_returns_none(monkeypatch):
         db.close()
 
 
-def test_cached_mode_without_link_and_dev_falls_back_to_direct():
+def test_cached_mode_without_link_and_dev_falls_back_to_direct(monkeypatch):
+    monkeypatch.setenv("COBASI_AFFILIATE_MODE", "cached")
+    get_settings.cache_clear()
     product_id = _register_product()
     db = SessionLocal()
     try:
@@ -154,6 +166,24 @@ def test_disabled_mode_never_monetizes(monkeypatch):
         provider = CobasiProvider(db)
         result = provider.monetize(_offer(), ProductContext(product_id=product_id))
         assert result is None
+    finally:
+        db.close()
+
+
+def test_should_run_false_when_mode_disabled_regardless_of_manual_link(monkeypatch):
+    """Desativação total (padrão desde 15/08/2026): should_run() nem
+    verifica se existe link cadastrado ou oferta Awin — o provider inteiro
+    fica fora do ar, sem sequer a chamada de rede em find_offer()."""
+    monkeypatch.setenv("COBASI_AFFILIATE_MODE", "disabled")
+    get_settings.cache_clear()
+    product_id = _register_product()
+    db = SessionLocal()
+    try:
+        db.add(ProductAffiliateLink(product_id=product_id, merchant="cobasi", affiliate_product_url="https://mais.app/ABC", active=True))
+        db.commit()
+
+        provider = CobasiProvider(db)
+        assert provider.should_run(ProductContext(gtin=GTIN, product_id=product_id), []) is False
     finally:
         db.close()
 
@@ -239,15 +269,16 @@ async def test_find_offer_passes_through_weight_for_sku_selection(monkeypatch):
         db.close()
 
 
-def test_prod_env_default_mode_is_still_cached(monkeypatch):
+def test_prod_env_default_mode_is_still_disabled(monkeypatch):
     """§ 'UTM Cobasi ainda não foi ativada em produção sem confirmação
     formal' — mesmo com ENV=prod, sem COBASI_AFFILIATE_MODE explícito o
-    padrão continua 'cached', nunca 'utm' automaticamente por estar em prod."""
+    padrão continua 'disabled' (desde 15/08/2026), nunca 'utm'
+    automaticamente por estar em prod."""
     monkeypatch.setenv("ENV", "prod")
     monkeypatch.delenv("COBASI_AFFILIATE_MODE", raising=False)
     get_settings.cache_clear()
     try:
-        assert get_settings().cobasi_affiliate_mode == "cached"
+        assert get_settings().cobasi_affiliate_mode == "disabled"
     finally:
         monkeypatch.setenv("ENV", "dev")
         get_settings.cache_clear()

@@ -149,15 +149,17 @@ class Settings(BaseSettings):
 
     # Estratégia de monetização da Cobasi (ver cobasi_provider.py /
     # cobasi_utm.py / docs/AFFILIATES.md):
-    #   cached   (padrão) — usa ProductAffiliateLink cadastrado manualmente.
-    #             Único modo confirmado até hoje.
+    #   cached   — usa ProductAffiliateLink cadastrado manualmente.
     #   utm      — gera URL com UTM dinamicamente, sem cadastro manual.
     #             NÃO ativar em produção sem confirmação formal da
     #             Cobasi/MAIS de que UTM sozinho gera comissão (não
     #             confirmado — ver documento de arquitetura interno).
     #   api      — reservado para API oficial futura. Não implementado.
-    #   disabled — Cobasi nunca monetiza (fica invisível).
-    cobasi_affiliate_mode: str = "cached"
+    #   disabled (padrão, decisão de produto em 15/08/2026) — MAIS
+    #             completamente desativado (nem a busca ao vivo na VTEX
+    #             roda — ver CobasiProvider.should_run()); só Awin resolve
+    #             a Cobasi enquanto essa decisão não é revisitada.
+    cobasi_affiliate_mode: str = "disabled"
 
     @field_validator("cobasi_affiliate_mode")
     @classmethod
