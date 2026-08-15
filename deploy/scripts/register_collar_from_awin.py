@@ -55,6 +55,7 @@ from src.affiliate_feed import AffiliateFeedOffer
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pet-name", required=True)
+    ap.add_argument("--pet-id", help="Desambigua quando --pet-name bate em mais de um pet (ex: 'Baby' vs 'Baby 2') — obrigatório pra --commit nesse caso")
     ap.add_argument("--search", required=True, help="Texto a buscar no título da oferta Awin/Cobasi")
     ap.add_argument("--gtin", help="GTIN escolhido dentre as ofertas listadas — cadastra usando esse produto")
     ap.add_argument("--date-applied", default=datetime.now(timezone.utc).strftime("%Y-%m-%d"))
@@ -96,10 +97,16 @@ def main() -> None:
             print(f"\n(dry-run — gtin={args.gtin} seria usado; passe --commit para gravar de verdade)")
             return
 
-        if len(pets) != 1:
-            print(f"\nERRO: esperava exatamente 1 pet chamado '{args.pet_name}', encontrei {len(pets)}. Aborting.")
+        if args.pet_id:
+            pet = next((p for p in pets if p.id == args.pet_id), None)
+            if pet is None:
+                print(f"\nERRO: --pet-id {args.pet_id} não está entre os pets listados acima. Aborting.")
+                sys.exit(1)
+        elif len(pets) == 1:
+            pet = pets[0]
+        else:
+            print(f"\nERRO: {len(pets)} pets batem com '{args.pet_name}' — passe --pet-id pra desambiguar. Aborting.")
             sys.exit(1)
-        pet = pets[0]
 
         offer = next((o for o in offers if o.gtin == args.gtin), None)
         if offer is None:

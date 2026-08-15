@@ -14,6 +14,10 @@ on:
         description: "Nome do pet"
         required: true
         default: "Baby"
+      pet_id:
+        description: "ID exato do pet (desambigua se --pet-name bater em mais de um)"
+        required: false
+        default: ""
       search:
         description: "Termo de busca no catálogo Awin/Cobasi (ex: scalibor)"
         required: true
@@ -60,6 +64,7 @@ jobs:
           VPS_PORT: ${{ secrets.VPS_PORT }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           PET_NAME: ${{ github.event.inputs.pet_name }}
+          PET_ID: ${{ github.event.inputs.pet_id }}
           SEARCH: ${{ github.event.inputs.search }}
           GTIN: ${{ github.event.inputs.gtin }}
           DATE_APPLIED: ${{ github.event.inputs.date_applied }}
@@ -69,6 +74,7 @@ jobs:
           SSH="ssh -i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP"
 
           ARGS="--pet-name \"$PET_NAME\" --search \"$SEARCH\""
+          [ -n "$PET_ID" ] && ARGS="$ARGS --pet-id \"$PET_ID\""
           [ -n "$GTIN" ] && ARGS="$ARGS --gtin \"$GTIN\""
           [ -n "$DATE_APPLIED" ] && ARGS="$ARGS --date-applied \"$DATE_APPLIED\""
           [ "$COMMIT_FLAG" = "true" ] && ARGS="$ARGS --commit"
