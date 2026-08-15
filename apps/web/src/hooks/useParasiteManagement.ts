@@ -252,6 +252,7 @@ export function useParasiteManagement({
         reminder_time?: string | null;
         reminder_enabled?: boolean;
         notes?: string | null;
+        barcode?: string | null;
       }> = await res.json();
       const _d = (raw: string | null | undefined): string =>
         raw ? raw.replace('T', ' ').split(' ')[0] : '';
@@ -273,6 +274,7 @@ export function useParasiteManagement({
         reminder_time: p.reminder_time || undefined,
         reminder_enabled: p.reminder_enabled,
         notes: p.notes || '',
+        barcode: p.barcode || undefined,
       } as ParasiteControl));
       const sorted = mapped.sort(
         (a, b) =>
