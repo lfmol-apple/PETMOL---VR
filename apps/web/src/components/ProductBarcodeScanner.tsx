@@ -12,6 +12,10 @@ interface ProductBarcodeScannerProps {
   defaultMode?: 'scan' | 'manual' | 'photo';
   allowScanning?: boolean;
   onProductConfirmed: (product: ScannedProduct) => void;
+  /** Disparado quando o sheet é fechado sem confirmar produto (escaneou e
+   * cancelou, ou fechou direto) — permite ao chamador liberar um caminho
+   * alternativo (ex: formulário manual) sem travar o tutor no scanner. */
+  onDismiss?: () => void;
 }
 
 /**
@@ -27,6 +31,7 @@ export function ProductBarcodeScanner({
   defaultMode,
   allowScanning,
   onProductConfirmed,
+  onDismiss,
 }: ProductBarcodeScannerProps) {
   const [open, setOpen] = useState(false);
 
@@ -53,7 +58,7 @@ export function ProductBarcodeScanner({
             setOpen(false);
             onProductConfirmed(product);
           }}
-          onClose={() => setOpen(false)}
+          onClose={() => { setOpen(false); onDismiss?.(); }}
         />
       )}
     </>

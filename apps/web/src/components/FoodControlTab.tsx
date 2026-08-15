@@ -6,6 +6,7 @@ import { API_BACKEND_BASE } from '@/lib/api';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
+import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import type { ScannedProduct } from '@/lib/productScanner';
 import { googleShoppingUrl } from '@/lib/externalShopping';
 import { resolveFoodCommerceSnapshot } from '@/features/commerce/homeContextualCommerce';
@@ -1024,6 +1025,17 @@ export function FoodControlTab({
                       </div>
                     </div>
                   )}
+
+                  {/* Escanear é a via principal de identificação — mais preciso
+                      que digitar a mão e resolve oferta comercial por GTIN
+                      exato (AwinFeedProvider). */}
+                  <ProductBarcodeScanner
+                    label="Escanear código de barras"
+                    expectedCategory="food"
+                    petId={petId}
+                    petName={_petName}
+                    onProductConfirmed={(product) => applyScannedProduct(item.id, product)}
+                  />
 
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1">Marca / Produto</label>

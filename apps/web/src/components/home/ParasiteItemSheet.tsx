@@ -154,6 +154,10 @@ export function ParasiteItemSheet({
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [historyShowAll, setHistoryShowAll] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  // Formulário manual fica escondido até o tutor escanear com sucesso,
+  // dispensar o scanner, ou escolher preencher na mão — scan é o caminho
+  // feliz, não só uma opção ao lado de um form já visível.
+  const [showManualForm, setShowManualForm] = useState(false);
 
   useEffect(() => {
     void onRefresh();
@@ -183,6 +187,7 @@ export function ParasiteItemSheet({
 
   useEffect(() => {
     if (mode === 'apply') {
+      setShowManualForm(false);
       setApplyForm({
         date: localTodayISO(),
         product_name: current?.product_name ?? '',
@@ -253,6 +258,7 @@ export function ParasiteItemSheet({
       if (!matches) return;
       setMode('apply');
       applyScannedProduct(product);
+      setShowManualForm(true);
       sessionStorage.removeItem('petmol_pending_scanned_product');
     } catch { /* silent */ }
   }, [petId, type]);
@@ -712,73 +718,86 @@ export function ParasiteItemSheet({
                 expectedCategory={expectedCategoryForType()}
                 petId={petId}
                 petName={petName}
-                onProductConfirmed={applyScannedProduct}
+                onProductConfirmed={(product) => { applyScannedProduct(product); setShowManualForm(true); }}
+                onDismiss={() => setShowManualForm(true)}
               />
 
-              <div>
-                <label className={labelCls}>Data *</label>
-                <input
-                  type="date"
-                  className={inputCls}
-                  value={applyForm.date}
-                  onChange={e => setApplyForm(f => ({
-                    ...f,
-                    date: e.target.value,
-                  }))}
-                />
-              </div>
+              {!showManualForm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowManualForm(true)}
+                  className="w-full py-2.5 text-[13px] font-semibold text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Preencher manualmente
+                </button>
+              ) : (
+                <>
+                  <div>
+                    <label className={labelCls}>Data *</label>
+                    <input
+                      type="date"
+                      className={inputCls}
+                      value={applyForm.date}
+                      onChange={e => setApplyForm(f => ({
+                        ...f,
+                        date: e.target.value,
+                      }))}
+                    />
+                  </div>
 
-              <div>
-                <label className={labelCls}>Produto *</label>
-                <input
-                  type="text"
-                  className={inputCls}
-                  placeholder={cfg.productHint}
-                  value={applyForm.product_name}
-                  onChange={e => setApplyForm(f => ({ ...f, product_name: e.target.value }))}
-                />
-              </div>
+                  <div>
+                    <label className={labelCls}>Produto *</label>
+                    <input
+                      type="text"
+                      className={inputCls}
+                      placeholder={cfg.productHint}
+                      value={applyForm.product_name}
+                      onChange={e => setApplyForm(f => ({ ...f, product_name: e.target.value }))}
+                    />
+                  </div>
 
-              <div>
-                <label className={labelCls}>Repetir a cada (dias)</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="365"
-                  className={inputCls}
-                  value={applyForm.frequency_days}
-                  onChange={e => setApplyForm(f => ({ ...f, frequency_days: e.target.value }))}
-                />
-                <p className="text-xs text-gray-400 mt-1">Recomendado: {cfg.defaultFrequency} dias</p>
-              </div>
+                  <div>
+                    <label className={labelCls}>Repetir a cada (dias)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="365"
+                      className={inputCls}
+                      value={applyForm.frequency_days}
+                      onChange={e => setApplyForm(f => ({ ...f, frequency_days: e.target.value }))}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Recomendado: {cfg.defaultFrequency} dias</p>
+                  </div>
 
-              <div>
-                <label className={labelCls}>Valor pago (opcional)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className={inputCls}
-                  placeholder="Ex: 89,90"
-                  value={applyForm.cost}
-                  onChange={e => setApplyForm(f => ({ ...f, cost: e.target.value }))}
-                />
-              </div>
+                  <div>
+                    <label className={labelCls}>Valor pago (opcional)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className={inputCls}
+                      placeholder="Ex: 89,90"
+                      value={applyForm.cost}
+                      onChange={e => setApplyForm(f => ({ ...f, cost: e.target.value }))}
+                    />
+                  </div>
 
-              <ReminderPicker
-                days={applyForm.reminder_days}
-                time={applyForm.reminder_time}
-                onDaysChange={v => setApplyForm(f => ({ ...f, reminder_days: v }))}
-                onTimeChange={v => setApplyForm(f => ({ ...f, reminder_time: v }))}
-              />
+                  <ReminderPicker
+                    days={applyForm.reminder_days}
+                    time={applyForm.reminder_time}
+                    onDaysChange={v => setApplyForm(f => ({ ...f, reminder_days: v }))}
+                    onTimeChange={v => setApplyForm(f => ({ ...f, reminder_time: v }))}
+                  />
 
-              <button
-                onClick={handleApply}
-                disabled={saving || !applyForm.date || !applyForm.product_name.trim()}
-                className={`w-full py-4 rounded-2xl text-[15px] font-bold shadow-sm disabled:opacity-50 ${cfg.colorBtn}`}
-              >
-                {saving ? 'Salvando...' : '✅ Confirmar registro'}
-              </button>
+                  <button
+                    onClick={handleApply}
+                    disabled={saving || !applyForm.date || !applyForm.product_name.trim()}
+                    className={`w-full py-4 rounded-2xl text-[15px] font-bold shadow-sm disabled:opacity-50 ${cfg.colorBtn}`}
+                  >
+                    {saving ? 'Salvando...' : '✅ Confirmar registro'}
+                  </button>
+                </>
+              )}
             </div>
           )}
 

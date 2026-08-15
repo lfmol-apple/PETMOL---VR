@@ -6,6 +6,8 @@ import { IosSwitch } from '@/components/ui/IosSwitch';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
 import type { EventFormState } from '@/hooks/usePetEventManagement';
 import { localTodayISO } from '@/lib/localDate';
+import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
+import type { ScannedProduct } from '@/lib/productScanner';
 
 interface HealthMedicationPanelProps {
   petName: string | undefined;
@@ -26,6 +28,7 @@ interface HealthMedicationPanelProps {
 
 export function HealthMedicationPanel({
   petName,
+  selectedPetId,
   eventFormData,
   setEventFormData,
   editingEventId,
@@ -55,6 +58,22 @@ export function HealthMedicationPanel({
               <span className="font-semibold text-gray-800">Prescrição / Medicação</span>
             </div>
           </div>
+
+          {/* Escanear é a via principal de identificação — mais preciso que
+              digitar a mão. */}
+          <ProductBarcodeScanner
+            label="Escanear medicamento"
+            expectedCategory="medication"
+            petId={selectedPetId ?? undefined}
+            petName={petName}
+            onProductConfirmed={(product: ScannedProduct) => {
+              setEventFormData(prev => ({
+                ...prev,
+                title: [product.brand, product.name].filter(Boolean).join(' ').trim() || prev.title,
+                notes: [prev.notes, product.barcode ? `EAN/GTIN: ${product.barcode}` : ''].filter(Boolean).join('\n'),
+              }));
+            }}
+          />
 
           {/* Nome do medicamento */}
           <div>

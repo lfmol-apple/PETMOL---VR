@@ -132,6 +132,10 @@ export function MedicationItemSheet({
   const [medHistoryExpanded, setMedHistoryExpanded] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [selectedDatesMap, setSelectedDatesMap] = useState<Record<string, string>>({});
+  // Formulário manual fica escondido até o tutor escanear com sucesso,
+  // dispensar o scanner, ou escolher preencher na mão — scan é o caminho
+  // feliz, não só uma opção ao lado de um form já visível.
+  const [showManualForm, setShowManualForm] = useState(false);
 
   useEffect(() => {
     void onRefresh();
@@ -182,6 +186,7 @@ export function MedicationItemSheet({
       setEditingId(null);
       setMode('add');
       applyScannedProduct(payload.product);
+      setShowManualForm(true);
       sessionStorage.removeItem('petmol_pending_scanned_product');
     } catch { /* silent */ }
   }, [petId]);
@@ -189,6 +194,7 @@ export function MedicationItemSheet({
   function openAdd() {
     setForm({ ...EMPTY_FORM, scheduled_date: localTodayISO() });
     setEditingId(null);
+    setShowManualForm(false);
     setMode('add');
   }
 
@@ -228,6 +234,7 @@ export function MedicationItemSheet({
       barcode: '',
     });
     setEditingId(ev.id);
+    setShowManualForm(true);
     setMode('edit');
   }
 
@@ -857,9 +864,22 @@ export function MedicationItemSheet({
                 expectedCategory="medication"
                 petId={petId}
                 petName={petName}
-                onProductConfirmed={applyScannedProduct}
+                onProductConfirmed={(product) => { applyScannedProduct(product); setShowManualForm(true); }}
+                onDismiss={() => setShowManualForm(true)}
               />
 
+              {!showManualForm && mode === 'add' && (
+                <button
+                  type="button"
+                  onClick={() => setShowManualForm(true)}
+                  className="w-full py-2.5 text-[13px] font-semibold text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Preencher manualmente
+                </button>
+              )}
+
+              {showManualForm && (
+              <>
               <div>
                 <label className={labelCls}>Nome do medicamento *</label>
                 <input
@@ -1085,6 +1105,8 @@ export function MedicationItemSheet({
                 >
                   {saving ? 'Excluindo...' : '🗑 Excluir medicação'}
                 </button>
+              )}
+              </>
               )}
             </div>
           )}

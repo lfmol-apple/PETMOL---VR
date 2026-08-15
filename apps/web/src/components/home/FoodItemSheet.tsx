@@ -278,6 +278,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   const [nextReminderDate, setNextReminderDate]   = useState<string | null>(null);
   const [reminderTime, setReminderTime]           = useState<string | null>(null);
   const [showFoodPhotoFlow, setShowFoodPhotoFlow] = useState(false);
+  const [foodDetectionMode, setFoodDetectionMode] = useState<'scan' | 'photo'>('scan');
   const [foodPhotoEntry, setFoodPhotoEntry] = useState<'camera' | 'gallery' | null>(null);
   // "Editar plano" numa ração já cadastrada pulava direto pro formulário
   // manual — só o cadastro inicial oferecia foto. Reabrir a câmera aqui
@@ -359,7 +360,17 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     setFeedback(null);
   };
 
+  // Código de barras é a via principal (leitura exata, sem ambiguidade) —
+  // a foto (openFoodPhotoFlow) fica como alternativa pra quando o código
+  // não lê ou a embalagem não tem um código legível.
+  const openFoodScanFlow = () => {
+    setFoodDetectionMode('scan');
+    setFoodPhotoEntry(null);
+    setShowFoodPhotoFlow(true);
+  };
+
   const openFoodPhotoFlow = (entry?: 'camera' | 'gallery') => {
+    setFoodDetectionMode('photo');
     setFoodPhotoEntry(entry ?? null);
     setShowFoodPhotoFlow(true);
   };
@@ -951,17 +962,27 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 space-y-4">
                       <div>
                         <h3 className="text-[20px] font-black text-gray-900 leading-tight">Como {pet.pet_name} se alimenta?</h3>
-                        <p className="text-[13px] text-amber-900/80 mt-1">Fotografe a embalagem da ração, preencha manualmente, ou diga que não usa ração de saco.</p>
+                        <p className="text-[13px] text-amber-900/80 mt-1">Escaneie o código de barras da embalagem, ou use foto/cadastro manual se o código não ler.</p>
                       </div>
                       <div className="space-y-2">
-                        {/* Opção 1 — foto ou galeria */}
+                        {/* Opção 1 — escanear código de barras (via principal) */}
                         <button
                           type="button"
-                          onClick={() => openFoodPhotoFlow()}
+                          onClick={() => openFoodScanFlow()}
                           className="w-full flex items-center justify-center gap-2.5 py-3.5 min-h-[44px] rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-[15px] font-black shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all"
                         >
                           <span className="text-xl">📷</span>
-                          Fotografar ou escolher imagem
+                          Escanear código de barras
+                        </button>
+
+                        {/* Opção 1b — foto (alternativa quando o código não lê) */}
+                        <button
+                          type="button"
+                          onClick={() => openFoodPhotoFlow()}
+                          className="w-full flex items-center justify-center gap-2 py-3 min-h-[44px] rounded-2xl border border-gray-200 bg-white text-[14px] font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
+                        >
+                          <span className="text-lg">🖼️</span>
+                          Fotografar a embalagem
                         </button>
 
                         {/* Opção 2 — manual */}
@@ -1127,10 +1148,18 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               <p className="text-[13px] font-semibold text-gray-700">Como quer atualizar o plano?</p>
                               <button
                                 type="button"
-                                onClick={() => { setShowEditPlanChoice(false); openFoodPhotoFlow(); }}
+                                onClick={() => { setShowEditPlanChoice(false); openFoodScanFlow(); }}
                                 className="w-full flex items-center justify-center gap-2.5 py-3 min-h-[44px] rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-[14px] font-black shadow-md shadow-blue-500/20 active:scale-[0.98] transition-all"
                               >
                                 <span className="text-lg">📷</span>
+                                Escanear novo código de barras
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setShowEditPlanChoice(false); openFoodPhotoFlow(); }}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 min-h-[40px] rounded-xl border border-gray-200 bg-white text-[13px] font-semibold text-gray-600 hover:bg-gray-50 active:scale-[0.98] transition-all"
+                              >
+                                <span>🖼️</span>
                                 Fotografar nova embalagem
                               </button>
                               <button
@@ -1325,9 +1354,9 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
           petId={pet.pet_id}
           petName={pet.pet_name}
           hint="food"
-          defaultMode="photo"
+          defaultMode={foodDetectionMode}
           photoEntry={foodPhotoEntry ?? undefined}
-          allowScanning={false}
+          allowScanning
           onProductConfirmed={handleFoodProductConfirmed}
           onClose={() => {
             clearPendingScannedProduct();

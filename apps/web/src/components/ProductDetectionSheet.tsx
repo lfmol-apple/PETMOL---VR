@@ -26,6 +26,7 @@ import {
 } from '@/features/product-detection/resolver';
 import { buildPartialFoodName, extractFoodFields } from '@/features/product-detection/foodParser';
 import { submitLearningConfirmation, findLocalCorrection, type ScanDecisionSource } from '@/features/product-detection/learningStore';
+import { searchAwinCatalog, type AwinSearchResult, formatBRLPrice } from '@/features/commerce/productPricing';
 
 type Step =
   | 'entry'
@@ -500,6 +501,80 @@ function describeScannerError(errorCode: string | null): string | null {
     default:
       return 'Não foi possível usar a câmera agora. Você pode continuar por foto, código manual ou nome do produto.';
   }
+}
+
+// A identificação por foto (IA) só extrai nome/marca aproximados, sem GTIN —
+// diferente do scan, que já traz um código exato. Antes de aceitar esse
+// palpite, buscamos o nome no catálogo Awin já sincronizado (mesmo texto
+// usado em AffiliateCatalogSearch): se houver um item real correspondente,
+// o tutor troca o "achismo" por um GTIN de verdade, que resolve oferta
+// comissionada exata. Se não houver correspondência, não bloqueia nada —
+// o fluxo de confirmação normal segue, e a compra cai no caminho MAIS
+// (busca textual), que já é o fallback automático quando não há GTIN
+// (ver merchant_routes.py: preferred=awin, fallback=mais).
+function AwinCatalogConfirmSearch({
+  seedQuery,
+  onPick,
+}: {
+  seedQuery: string;
+  onPick: (result: AwinSearchResult) => void;
+}) {
+  const [status, setStatus] = useState<'loading' | 'done'>('loading');
+  const [results, setResults] = useState<AwinSearchResult[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setStatus('loading');
+    searchAwinCatalog(seedQuery).then((found) => {
+      if (cancelled) return;
+      setResults(found.slice(0, 4));
+      setStatus('done');
+    });
+    return () => { cancelled = true; };
+  }, [seedQuery]);
+
+  if (status === 'loading') {
+    return (
+      <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-center text-xs text-gray-400">
+        Procurando este produto no catálogo das lojas parceiras…
+      </div>
+    );
+  }
+
+  if (results.length === 0) return null;
+
+  return (
+    <div className="space-y-2 rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-blue-700">
+        Achamos {results.length > 1 ? 'estes produtos' : 'este produto'} nas lojas parceiras
+      </p>
+      <p className="text-xs text-gray-500">Confirme qual é o certo para gerar um link de compra exato.</p>
+      <div className="space-y-1.5">
+        {results.map((result) => (
+          <button
+            key={result.gtin}
+            type="button"
+            onClick={() => onPick(result)}
+            className="flex w-full items-center gap-3 rounded-xl border border-white bg-white px-3 py-2.5 text-left shadow-sm transition-all active:scale-[0.98]"
+          >
+            {result.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={result.image_url} alt="" className="h-10 w-10 flex-shrink-0 rounded-lg object-contain bg-gray-50" />
+            ) : (
+              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-gray-50 text-lg">📦</span>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-semibold text-gray-900">{result.title || 'Produto'}</p>
+              {result.brand && <p className="truncate text-[11px] text-gray-400">{result.brand}</p>}
+            </div>
+            {result.price != null && (
+              <span className="flex-shrink-0 text-[12px] font-bold text-emerald-600">{formatBRLPrice(result.price)}</span>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export interface ProductDetectionSheetProps {
@@ -2482,6 +2557,23 @@ export function ProductDetectionSheetGold({
                 )}
               </div>
             </div>
+
+            {!confirmed.barcode && (confirmed.brand || confirmed.name) && (
+              <AwinCatalogConfirmSearch
+                seedQuery={[confirmed.brand, confirmed.name].filter(Boolean).join(' ')}
+                onPick={(result) => {
+                  const withGtin: ScannedProduct = {
+                    ...confirmed,
+                    barcode: result.gtin,
+                    name: result.title || confirmed.name,
+                    brand: result.brand || confirmed.brand,
+                    found: true,
+                  };
+                  setConfirmed(withGtin);
+                  handleConfirm(withGtin);
+                }}
+              />
+            )}
           </>
         )}
       </div>
