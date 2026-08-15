@@ -181,7 +181,7 @@ async def test_awin_wins_when_no_manual_link_and_awin_preferred(monkeypatch):
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
     assert len(cobasi_offers) == 1
     assert cobasi_offers[0].route == "awin"
-    assert cobasi_offers[0].url.startswith("https://www.awin1.com/")
+    assert cobasi_offers[0].url.startswith("/commerce/awin-click?u=")
 
 
 @pytest.mark.asyncio

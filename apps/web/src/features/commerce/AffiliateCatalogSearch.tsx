@@ -37,12 +37,11 @@ type ResolvedOffers = CommerceOffer[] | 'loading' | 'error';
 // comportar como um link de verdade. Pré-resolvendo, "Comprar" vira um
 // <a href target="_blank"> real (nunca window.open()/location.href via
 // JS) — a navegação mais parecida possível com "tocar num link", que é
-// o que as restrições do iOS pra apps instalados esperam. target="_blank"
-// sempre, mesmo dentro do PWA instalado: usar a mesma janela
-// (location.href) fazia o redirecionamento em cadeia da Awin/Cobasi
-// (awin1.com → cobasi.onelink.me → cobasi.com.br) cair na home da
-// Cobasi em vez do produto — aba nova evita compartilhar o contexto
-// (cookies/ITP) restrito da webview embutida do app instalado.
+// o que as restrições do iOS pra apps instalados esperam. Para Cobasi via
+// Awin, o backend agora troca o pclick por /commerce/awin-click: no clique
+// real ele resolve a Awin com user-agent desktop e redireciona direto para
+// a URL web afiliada da Cobasi, sem expor o Safari iPhone ao OneLink
+// AppsFlyer (`af_dp=appcobasi://`), que foi o salto que caía na home.
 export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<AwinSearchResult[]>([]);

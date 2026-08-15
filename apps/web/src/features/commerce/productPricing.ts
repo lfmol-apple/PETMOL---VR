@@ -16,6 +16,13 @@ export interface CommerceOffer {
   is_available?: boolean | null;
 }
 
+function normalizeOfferUrl(url: string): string {
+  if (url.startsWith('/commerce/awin-click')) {
+    return `${API_BASE_URL}${url}`;
+  }
+  return url;
+}
+
 /**
  * Lista de ofertas monetizáveis para um produto, menor preço primeiro —
  * ver commerce_offers.py/commerce_provider.py no backend. Hoje só a
@@ -87,7 +94,9 @@ export async function fetchCommerceOffers(query: string, packageSizeKg?: number,
     });
     if (!res.ok) return [];
     const data = (await res.json()) as { offers?: CommerceOffer[] };
-    return Array.isArray(data.offers) ? data.offers : [];
+    return Array.isArray(data.offers)
+      ? data.offers.map((offer) => ({ ...offer, url: normalizeOfferUrl(offer.url) }))
+      : [];
   } catch {
     return [];
   }

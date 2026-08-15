@@ -36,6 +36,7 @@ from sqlalchemy.orm import Session
 
 from .affiliate_feed import AffiliateFeedOffer, AffiliateFeedSyncRun
 from .awin_advertisers import is_awin_merchant_publicly_servable
+from .awin_click_redirect import build_awin_click_redirect_url
 from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
 from .product_catalog_lookup import normalize_gtin
@@ -163,7 +164,7 @@ class AwinFeedProvider:
         if not row or not row.affiliate_url:
             return None
 
-        return row.affiliate_url, "affiliate_product", "awin"
+        return build_awin_click_redirect_url(row.affiliate_url), "affiliate_product", "awin"
 
 
 def _select_row_by_weight(rows: list[AffiliateFeedOffer], target_weight_kg: Optional[float]) -> AffiliateFeedOffer:

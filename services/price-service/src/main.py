@@ -1449,6 +1449,30 @@ async def commerce_offers(
     return {"offers": [CommerceOfferOut(**vars(o)) for o in offers]}
 
 
+@app.get("/commerce/awin-click", tags=["Catalog"])
+async def commerce_awin_click(
+    u: str = Query(..., min_length=8, description="URL Awin codificada pelo backend"),
+):
+    """Resolve clique Awin/Cobasi sem passar o Safari iPhone pelo OneLink.
+
+    O parâmetro `u` só aceita URLs `https://www.awin1.com/pclick.php...`
+    geradas por AwinFeedProvider. O destino final também é validado para
+    `https://www.cobasi.com.br/.../p...` antes do 302.
+    """
+    from fastapi.responses import RedirectResponse
+    from .awin_click_redirect import decode_awin_click_url, resolve_awin_click_target
+
+    try:
+        awin_url = decode_awin_click_url(u)
+        target = await resolve_awin_click_target(awin_url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="falha ao resolver clique Awin") from exc
+
+    return RedirectResponse(url=target, status_code=302)
+
+
 @app.get("/commerce/monetized-offer", tags=["Catalog"])
 async def commerce_monetized_offer(
     merchant: str = Query(..., description="cobasi, petz, etc."),
