@@ -258,7 +258,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   // UI state
   const [busy, setBusy]                           = useState(false);
   const [feedback, setFeedback]                   = useState<{ msg: string; tone: 'green' | 'blue' | 'red' } | null>(null);
-  const [showDetails, setShowDetails]             = useState(false);
   const [photoLoadFailed, setPhotoLoadFailed]     = useState(false);
   const [successMessage, setSuccessMessage]       = useState<string | null>(null);
   const [justSaved, setJustSaved]                 = useState(false);
@@ -275,7 +274,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   // do servidor (refreshFoodPlan), já que nesse ponto vamos mostrar o estado
   // real de novo, não mais a escolha "finge que está vazio".
   const [showFreshChoice, setShowFreshChoice] = useState(false);
-  const [alertDaysBefore, setAlertDaysBefore]     = useState<number | null>(null);
   const [nextReminderDate, setNextReminderDate]   = useState<string | null>(null);
   const [reminderTime, setReminderTime]           = useState<string | null>(null);
   const [showFoodPhotoFlow, setShowFoodPhotoFlow] = useState(false);
@@ -443,7 +441,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
       if (response.status === 404) {
         setHasFoodConfigured(false);
         setIsNonKibbleDeclared(false);
-        setAlertDaysBefore(null);
         setNextReminderDate(null);
         setReminderTime(null);
         setFoodBrand('');
@@ -519,7 +516,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
       });
 
       setHasFoodConfigured(hasConfiguredData);
-      setAlertDaysBefore(resolvedReminderDays);
       setNextReminderDate(nextReminder);
       setReminderTime(plan?.reminder_time ?? null);
       setFoodBrand(brand);
@@ -1262,44 +1258,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               {busy ? '…' : 'Acabou'}
                             </button>
                           </div>
-
-                          {/* 5. Detalhes do cálculo — recolhível */}
-                          <button type="button" onClick={() => setShowDetails((v) => !v)}
-                            className="w-full flex items-center justify-between text-[12px] font-semibold text-gray-400 hover:text-gray-600 transition-colors py-1">
-                            <span>Detalhes do cálculo</span>
-                            <span className="text-[10px]">{showDetails ? '▲' : '▼'}</span>
-                          </button>
-
-                          {showDetails && (
-                            <div className="rounded-2xl border border-gray-100 bg-gray-50 divide-y divide-gray-100 overflow-hidden -mt-2">
-                              {(foodState.durationDays != null
-                                ? [
-                                    ['Produto', foodBrand || 'Ração'],
-                                    ['Pacote', foodState.packageSizeKg != null ? `${foodState.packageSizeKg % 1 === 0 ? foodState.packageSizeKg : foodState.packageSizeKg.toFixed(1)} kg` : 'Não informado'],
-                                    ['Início do ciclo', fmtDateShort(foodState.startDate)],
-                                    ['Duração informada', `${foodState.durationDays} dias`],
-                                    ['Previsão de término', fmtDateShort(estEnd)],
-                                    ['Dias restantes', foodState.daysLeft !== null ? `${Math.max(0, foodState.daysLeft)} dias` : 'Calculando'],
-                                    ['Alerta', `${alertDaysBefore ?? 3} dias antes às ${reminderTime ?? '09:00'}`],
-                                    ['Próximo alerta', nextReminderDate ? `${fmtDateShort(nextReminderDate)} às ${reminderTime ?? '09:00'}` : 'Calculando'],
-                                  ]
-                                : [
-                                    ['Produto', foodBrand || '—'],
-                                    ['Pacote', foodState.packageSizeKg != null ? `${foodState.packageSizeKg % 1 === 0 ? foodState.packageSizeKg : foodState.packageSizeKg.toFixed(1)} kg` : '—'],
-                                    ['Consumo estimado', foodState.dailyConsumptionG != null ? `${Math.round(foodState.dailyConsumptionG)} g/dia` : '—'],
-                                    ['Início do ciclo', fmtDate(foodState.startDate)],
-                                    ['Previsão de término', fmtDate(estEnd)],
-                                    ['Dias restantes', foodState.daysLeft !== null ? `${Math.max(0, foodState.daysLeft)} dias` : '—'],
-                                    ['Dias antes do alerta', alertDaysBefore != null ? `${alertDaysBefore} dias` : '—'],
-                                    ['Próximo alerta', nextReminderDate ? `${fmtDate(nextReminderDate)} às ${reminderTime ?? '09:00'}` : '—'],
-                                  ]).map(([label, value]) => (
-                                <div key={label} className="flex items-center justify-between px-4 py-2.5">
-                                  <span className="text-[12px] text-gray-500">{label}</span>
-                                  <span className="text-[12px] font-semibold text-gray-800">{value}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
 
                         </>
                       )}
