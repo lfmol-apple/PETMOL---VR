@@ -369,9 +369,8 @@ function processGrooming(p: PetCareDomainParams): PetCareReminder[] {
 function processFood(p: PetCareDomainParams): PetCareReminder[] {
   const plan = p.feedingPlan;
   if (!plan) return [];
-  const primaryItem = Array.isArray(plan.items)
-    ? plan.items.find((item) => Boolean(item?.is_primary)) ?? plan.items[0]
-    : null;
+  const items = Array.isArray(plan.items) ? plan.items : [];
+  const primaryItem = items.find((item) => Boolean(item?.is_primary)) ?? items[0] ?? null;
 
   const manualPurchaseDate = parseLocalDate(plan.next_purchase_date);
   const manualReminderOffsetRaw = Number(
@@ -414,10 +413,39 @@ function processFood(p: PetCareDomainParams): PetCareReminder[] {
     }
   }
 
-  if (!reminderDateStr) return [];
+  // Itens secundários (petiscos/outros alimentos, ver "ração principal vs
+  // petisco" no scan) não entram no ciclo de dias-restantes/alerta de
+  // reposição — não faz sentido rastrear consumo de um item comprado
+  // avulso — só precisam existir aqui pra ganhar um card de "comprar
+  // novamente" na Loja do Pet quando têm GTIN conhecido. Independente do
+  // item primário ter ou não uma data de lembrete computável (early
+  // returns abaixo), então calculado antes deles.
+  const secondaryReminders: PetCareReminder[] = items
+    .filter((item) => !item?.is_primary && (item?.barcode || '').trim())
+    .map((item) => {
+      const itemBrand = (item.food_brand || '').trim() || 'Outro alimento';
+      return {
+        key: makeKey(p.pet_id, 'food', 'secondary', String(item.id ?? itemBrand), 'none'),
+        pet_id: p.pet_id,
+        pet_name: p.pet_name,
+        domain: 'food',
+        label: itemBrand,
+        sublabel: itemBrand,
+        icon: '🦴',
+        due_date: dateToLocalISO(new Date()),
+        diff: 9999,
+        status: toStatus(9999),
+        action_target: 'health/food',
+        is_derived: false,
+        packageSizeKg: Number(item.package_size_kg ?? 0) || undefined,
+        gtin: (item.barcode || '').trim() || undefined,
+      };
+    });
+
+  if (!reminderDateStr) return secondaryReminders;
 
   const nextDate = parseLocalDate(reminderDateStr);
-  if (!nextDate) return [];
+  if (!nextDate) return secondaryReminders;
 
   const alertDiff = diffFromToday(nextDate);
   const brand = (plan.food_brand || plan.brand || primaryItem?.food_brand || '').trim() || undefined;
@@ -447,7 +475,7 @@ function processFood(p: PetCareDomainParams): PetCareReminder[] {
     is_derived: reminderDateStr !== (plan.next_purchase_date ?? ''),
     packageSizeKg,
     gtin,
-  }];
+  }, ...secondaryReminders];
 }
 
 function processEvents(p: PetCareDomainParams): PetCareReminder[] {

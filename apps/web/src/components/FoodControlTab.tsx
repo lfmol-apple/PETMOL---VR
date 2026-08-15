@@ -342,32 +342,41 @@ export function FoodControlTab({
   const [deleteFeedback, setDeleteFeedback] = useState<string | null>(null);
   const [apiEstimate, setApiEstimate] = useState<{ estimated_end_date: string | null; estimated_days_left: number | null } | null>(null);
 
-  const applyScannedProduct = (itemId: string, product: ScannedProduct) => {
-    setItems((current) => ensurePrimaryItem(current.map((item) => {
-      if (item.id !== itemId) return item;
-      // Resolver packageSizeKg a partir do peso do produto
-      let resolvedPackageKg = item.packageSizeKg;
-      const rawWeight = product.weight?.trim() ?? '';
-      if (rawWeight) {
-        const kgMatch = rawWeight.match(/^([\d.,]+)\s*kg/i);
-        const gMatch = rawWeight.match(/^([\d.,]+)\s*g\b/i);
-        if (kgMatch) {
-          resolvedPackageKg = kgMatch[1].replace(',', '.');
-        } else if (gMatch) {
-          const grams = parseFloat(gMatch[1].replace(',', '.'));
-          if (Number.isFinite(grams) && grams > 0) {
-            resolvedPackageKg = String(grams / 1000);
-          }
+  // Extraído como função pura (não mexe em state) pra poder tanto atualizar
+  // um item já existente (applyScannedProduct) quanto construir um item
+  // secundário NOVO já com os dados escaneados aplicados, numa única
+  // chamada de setItems — ver efeito de petmol_pending_scanned_product
+  // abaixo, que precisa criar+preencher atomicamente pra não correr risco
+  // de o item recém-criado ser perdido pela mesma renderização.
+  const mergeScannedProductIntoItem = (item: SimpleFoodData, product: ScannedProduct): SimpleFoodData => {
+    // Resolver packageSizeKg a partir do peso do produto
+    let resolvedPackageKg = item.packageSizeKg;
+    const rawWeight = product.weight?.trim() ?? '';
+    if (rawWeight) {
+      const kgMatch = rawWeight.match(/^([\d.,]+)\s*kg/i);
+      const gMatch = rawWeight.match(/^([\d.,]+)\s*g\b/i);
+      if (kgMatch) {
+        resolvedPackageKg = kgMatch[1].replace(',', '.');
+      } else if (gMatch) {
+        const grams = parseFloat(gMatch[1].replace(',', '.'));
+        if (Number.isFinite(grams) && grams > 0) {
+          resolvedPackageKg = String(grams / 1000);
         }
       }
-      return {
-        ...item,
-        brand: normalizeScannedFoodName(product) || item.brand,
-        packageSizeKg: resolvedPackageKg,
-        barcode: product.barcode,
-        category: product.category,
-      };
-    })));
+    }
+    return {
+      ...item,
+      brand: normalizeScannedFoodName(product) || item.brand,
+      packageSizeKg: resolvedPackageKg,
+      barcode: product.barcode,
+      category: product.category,
+    };
+  };
+
+  const applyScannedProduct = (itemId: string, product: ScannedProduct) => {
+    setItems((current) => ensurePrimaryItem(current.map((item) => (
+      item.id === itemId ? mergeScannedProductIntoItem(item, product) : item
+    ))));
     try {
       sessionStorage.removeItem('petmol_pending_scanned_product');
     } catch { /* silent */ }
@@ -432,11 +441,23 @@ export function FoodControlTab({
     try {
       const raw = sessionStorage.getItem('petmol_pending_scanned_product');
       if (!raw) return;
-      const payload = JSON.parse(raw) as { petId?: string; product?: ScannedProduct };
+      const payload = JSON.parse(raw) as { petId?: string; product?: ScannedProduct; asPrimary?: boolean };
       if (payload.petId !== petId || !payload.product || payload.product.category !== 'food') return;
-      const primary = getPrimaryItem(items);
-      applyScannedProduct(primary.id, payload.product);
       sessionStorage.removeItem('petmol_pending_scanned_product');
+      if (payload.asPrimary === false) {
+        // Petisco/outro alimento — cria o item secundário e já aplica os
+        // dados escaneados na MESMA chamada de setItems (não em dois passos
+        // via formRequest.mode='add' + este efeito), pra nunca correr risco
+        // de o item recém-criado ser descartado por um load() concorrente
+        // do plano ainda em andamento.
+        setItems((current) => ensurePrimaryItem([
+          ...current,
+          mergeScannedProductIntoItem(createEmptyFoodItem(false), payload.product!),
+        ]));
+      } else {
+        const primary = getPrimaryItem(items);
+        applyScannedProduct(primary.id, payload.product);
+      }
     } catch { /* silent */ }
   }, [items, loadedExisting, petId]);
 

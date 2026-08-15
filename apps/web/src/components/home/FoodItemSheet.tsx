@@ -278,6 +278,10 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   const [nextReminderDate, setNextReminderDate]   = useState<string | null>(null);
   const [reminderTime, setReminderTime]           = useState<string | null>(null);
   const [showFoodPhotoFlow, setShowFoodPhotoFlow] = useState(false);
+  // Produto recém-escaneado aguardando a escolha "ração principal" vs
+  // "petisco/outro alimento" — só usado quando já existe uma ração
+  // configurada (ver handleFoodProductConfirmed).
+  const [pendingClassifyProduct, setPendingClassifyProduct] = useState<ScannedProduct | null>(null);
   // "Editar plano" numa ração já cadastrada pulava direto pro formulário
   // manual — só o cadastro inicial oferecia foto. Reabrir a câmera aqui
   // deixa o tutor trocar de embalagem/sabor sem redigitar tudo, reusando o
@@ -366,12 +370,17 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     setShowFoodPhotoFlow(true);
   };
 
-  const handleFoodProductConfirmed = (product: ScannedProduct) => {
+  // Grava o produto escaneado como item primário (ração do dia a dia) ou
+  // secundário (petisco/outro alimento) do plano — ambos cabem no mesmo
+  // items_json (ver FoodControlTab.tsx), só o secundário não exige peso/
+  // duração e não entra no ciclo de "dias restantes"/alerta de reposição.
+  const persistScannedFoodProduct = (product: ScannedProduct, asPrimary: boolean) => {
     try {
       sessionStorage.setItem(
         'petmol_pending_scanned_product',
         JSON.stringify({
           petId: pet.pet_id,
+          asPrimary,
           product: {
             ...product,
             category: 'food',
@@ -381,9 +390,20 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     } catch {
       // non-blocking
     }
-    setShowFoodPhotoFlow(false);
     setFormRequest({ id: Date.now(), mode: 'edit' });
     setMode('edit');
+  };
+
+  const handleFoodProductConfirmed = (product: ScannedProduct) => {
+    setShowFoodPhotoFlow(false);
+    if (!hasFood) {
+      // Primeiro cadastro — sem ambiguidade, é a ração principal. Só
+      // pergunta "ração ou petisco?" quando já existe uma ração configurada
+      // (aí sim um novo scan pode ser um item adicional, não substituição).
+      persistScannedFoodProduct(product, true);
+      return;
+    }
+    setPendingClassifyProduct(product);
   };
 
   const handleClose = useCallback(() => {
@@ -1321,6 +1341,62 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
             setShowFoodPhotoFlow(false);
           }}
         />
+      )}
+      {pendingClassifyProduct && (
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-[210] flex items-end sm:items-center justify-center p-4"
+            onClick={() => setPendingClassifyProduct(null)}
+          >
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+            <div
+              className="relative w-full max-w-sm bg-white rounded-[28px] shadow-2xl p-5 space-y-4 animate-scaleIn"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div>
+                <h3 className="text-[17px] font-black text-gray-900 leading-tight">
+                  {pendingClassifyProduct.name ? `O que é "${pendingClassifyProduct.name}"?` : 'O que é esse produto?'}
+                </h3>
+                <p className="text-[13px] text-gray-500 mt-1">
+                  Isso ajuda a saber se é a ração do dia a dia {petDo(pet)} {pet.pet_name} ou um extra (petisco, ração molhada, etc).
+                </p>
+              </div>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const product = pendingClassifyProduct;
+                    setPendingClassifyProduct(null);
+                    if (product) persistScannedFoodProduct(product, true);
+                  }}
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 min-h-[44px] rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-[15px] font-black shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all"
+                >
+                  <span className="text-xl">🥣</span>
+                  Ração principal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const product = pendingClassifyProduct;
+                    setPendingClassifyProduct(null);
+                    if (product) persistScannedFoodProduct(product, false);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 min-h-[44px] rounded-2xl border border-gray-200 bg-white text-[14px] font-bold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
+                >
+                  <span className="text-lg">🦴</span>
+                  Petisco / outro alimento
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingClassifyProduct(null)}
+                  className="w-full py-2 text-[12px] font-medium text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
       )}
     </ModalPortal>
   );

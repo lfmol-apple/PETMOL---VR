@@ -46,7 +46,12 @@ function formatUrgencyText(domain: CareReminderDomain, diff: number): string {
 // sublabel ("Antipulgas e carrapatos") — verbose queries were coming back
 // with zero results on real store search (confirmed by the user).
 function buildReminderSearchQuery(r: PetCareReminder): string {
-  if (r.domain === 'food') {
+  // "Compra de ração" é o label fixo do item PRIMÁRIO (processFood) — só
+  // esse caso deve forçar "ração" na query. Itens secundários (petisco/
+  // outro alimento) usam o próprio nome do produto como label (ver
+  // processFood), e "petisco ração" ficaria errado — segue a mesma regra
+  // genérica dos outros domínios.
+  if (r.domain === 'food' && r.label === 'Compra de ração') {
     return r.sublabel ? `${r.sublabel} ração` : 'ração pet';
   }
   return r.label?.trim() || r.sublabel || 'produto pet';
