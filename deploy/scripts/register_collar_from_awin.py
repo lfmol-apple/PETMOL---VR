@@ -135,6 +135,11 @@ def main() -> None:
                 sys.exit(1)
             existing.product_name = offer.title
             existing.barcode = offer.gtin
+            date_applied = datetime.strptime(args.date_applied, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            existing.date_applied = date_applied
+            freq = existing.frequency_days or args.frequency_days
+            if existing.type == "collar":
+                existing.collar_expiry_date = date_applied + timedelta(days=freq)
             db.commit()
             print(f"\n=== ATUALIZADO (GTIN anexado a registro existente) ===")
             print(f"  id={existing.id} pet_id={existing.pet_id} product_name={existing.product_name}")
