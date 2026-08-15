@@ -25,6 +25,14 @@ está registrado (ver merchant_routes.py). is_manually_cached=True SÓ
 no branch de link cadastrado (nunca em UTM/dev fallback) — blinda essa
 oferta específica contra qualquer troca de PREFERRED_ROUTE_BY_MERCHANT
 no dedupe do CommerceEngine (ver _dedupe_by_merchant).
+
+should_run(): quando o GTIN escaneado já resolveu por identidade exata
+via Awin (rota preferida da Cobasi desde 14/08/2026), a busca ao vivo na
+VTEX (fetch_cobasi_price) é redundante — o feed Awin já traz preço, nome
+e link monetizável completos pro mesmo produto. Só roda mesmo assim
+quando existe link cadastrado manualmente pra esse GTIN (ex: Baby/Royal
+Canin), porque esse link precisa ter a chance de vencer o dedupe mesmo
+com Awin preferida — ver docstring acima e commerce_provider.py.
 """
 from __future__ import annotations
 
@@ -36,8 +44,9 @@ from sqlalchemy.orm import Session
 from .affiliate_links import get_active_link
 from .cobasi_utm import InvalidCobasiUrlError, build_cobasi_affiliate_url
 from .commerce_pricing import fetch_cobasi_price
-from .commerce_provider import DiscoveredOffer, ProductContext
+from .commerce_provider import DiscoveredOffer, MonetizedOffer, ProductContext
 from .config import Settings, get_settings
+from .merchant_routes import preferred_route_for
 from .product_catalog_lookup import ProductCatalog, normalize_gtin
 
 
@@ -52,6 +61,29 @@ class CobasiProvider:
 
     def __init__(self, db: Session):
         self._db = db
+
+    def should_run(self, context: ProductContext, offers_so_far: list[MonetizedOffer]) -> bool:
+        if preferred_route_for(self.merchant) != "awin":
+            return True
+        has_preferred_offer = any(
+            o.merchant == self.merchant and o.route == "awin" for o in offers_so_far
+        )
+        if not has_preferred_offer:
+            return True
+        if context.gtin and self._has_manual_link(context.gtin):
+            return True
+        return False
+
+    def _has_manual_link(self, gtin: str) -> bool:
+        gtin_normalized = normalize_gtin(gtin)
+        if not gtin_normalized:
+            return False
+        product = self._db.scalar(
+            select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized)
+        )
+        if product is None:
+            return False
+        return get_active_link(self._db, product.id, self.merchant) is not None
 
     async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
         query = _build_query(context)

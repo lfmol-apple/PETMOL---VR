@@ -15,6 +15,16 @@ Ordem de execução, por provider:
 Nunca o inverso — nunca checar se existe link afiliado antes de buscar o
 produto. find_offer() roda para QUALQUER produto, sempre; monetize() é
 quem decide se a oferta pode ser exibida.
+
+Exceção única e explícita: um provider pode implementar should_run(context,
+offers_so_far) pra declarar que sua descoberta é dispensável quando a rota
+preferida do merchant (merchant_routes.py) já resolveu uma oferta completa
+pro mesmo merchant nesta mesma chamada — hoje só CobasiProvider usa isso,
+pra não fazer uma busca ao vivo na VTEX quando o GTIN escaneado já resolveu
+por identidade exata via Awin. should_run() é sempre "opt-in": providers
+sem esse método sempre rodam (getattr(provider, "should_run", None) is
+None → sempre True), preservando o "find_offer() sempre roda" pra todo o
+resto.
 """
 from __future__ import annotations
 
@@ -117,6 +127,10 @@ class CommerceEngine:
     async def get_offers(self, context: ProductContext) -> list[MonetizedOffer]:
         offers: list[MonetizedOffer] = []
         for provider in self._providers:
+            should_run = getattr(provider, "should_run", None)
+            if should_run is not None and not should_run(context, offers):
+                continue
+
             discovered = await provider.find_offer(context)
             if discovered is None or discovered.price is None:
                 continue

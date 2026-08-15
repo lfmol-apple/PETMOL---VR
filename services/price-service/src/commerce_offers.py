@@ -99,10 +99,15 @@ def build_default_engine(db: Session) -> CommerceEngine:
     não há o que "descobrir"; o mecanismo real vive inteiramente no
     frontend (amazonAffiliate.ts + homeShoppingPartners.ts), não neste
     engine de comparação de preço."""
-    providers: list[CommerceProvider] = [CobasiProvider(db)]
+    # Awin primeiro, CobasiProvider (MAIS) depois: CobasiProvider.should_run()
+    # decide se vale a pena rodar com base em ofertas Awin já resolvidas
+    # nesta mesma chamada (ver cobasi_provider.py) — só funciona se Awin já
+    # tiver rodado antes dele na lista.
+    providers: list[CommerceProvider] = []
     for merchant in AWIN_ADVERTISERS:
         if is_awin_merchant_registrable(merchant):
             providers.append(AwinFeedProvider(db, merchant))
+    providers.append(CobasiProvider(db))
     for merchant in _MARKETPLACE_MERCHANTS:
         providers.append(MarketplaceOfferProvider(db, merchant))
     return CommerceEngine(providers)
