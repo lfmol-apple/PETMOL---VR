@@ -1065,6 +1065,16 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                       {/* ─── SUBMODE: main ─────────────────────────────────── */}
                       {subMode === 'main' && (
                         <>
+                          {/* ─── SEÇÃO A: RAÇÃO PRINCIPAL ────────────────────────
+                              Único item com controle de peso/duração/dias
+                              restantes — classificação explícita pedida pelo
+                              tutor pra não confundir com os itens esporádicos
+                              da seção de petiscos logo abaixo. */}
+                          <div className="flex items-baseline gap-1.5 px-1">
+                            <span className="text-[11px] font-black uppercase tracking-wider text-amber-700">🥣 Ração principal</span>
+                            <span className="text-[10px] text-gray-400">controle por peso e tempo</span>
+                          </div>
+
                           {/* 1. Status principal */}
                           <div className="rounded-3xl border border-amber-100 bg-amber-50/70 p-4">
                             {foodState.daysLeft !== null ? (
@@ -1118,68 +1128,18 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             </div>
                           )}
 
-                          {/* 2.1 Outros alimentos (petiscos, etc.) — itens secundários do
-                              plano, sempre visíveis aqui independente do modo de edição. */}
-                          {foodState.secondaryItems.length > 0 && (
-                            <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3 space-y-2.5">
-                              <p className="text-[12px] font-bold text-amber-700 uppercase tracking-wide">🦴 Outros alimentos</p>
-                              {foodState.secondaryItems.map((item) => (
-                                <div key={item.id} className="flex items-center gap-3 rounded-xl bg-white border border-amber-100 px-3 py-2.5">
-                                  <span className="text-xl flex-shrink-0">🦴</span>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-[14px] font-semibold text-gray-900 line-clamp-2 break-words leading-tight">{item.brand}</p>
-                                    {item.packageSizeKg != null && (
-                                      <p className="text-[11px] text-gray-400">
-                                        {item.packageSizeKg % 1 === 0 ? item.packageSizeKg : item.packageSizeKg.toFixed(1)} kg
-                                      </p>
-                                    )}
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setBuyTargetItem({
-                                        label: item.brand,
-                                        query: item.brand,
-                                        gtin: item.barcode,
-                                        packageSizeKg: item.packageSizeKg,
-                                      });
-                                      setMode('buy');
-                                    }}
-                                    className="flex-shrink-0 rounded-lg bg-amber-500 px-3 py-1.5 text-[12px] font-bold text-white active:bg-amber-600"
-                                  >
-                                    🛒 Comprar
-                                  </button>
-                                </div>
-                              ))}
-                              <button
-                                type="button"
-                                onClick={() => openFoodScanFlow('secondary')}
-                                className="w-full text-center text-[13px] font-semibold text-amber-700 py-1.5"
-                              >
-                                + Adicionar outro alimento
-                              </button>
-                            </div>
-                          )}
-                          {foodState.secondaryItems.length === 0 && (
-                            <button
-                              type="button"
-                              onClick={() => openFoodScanFlow('secondary')}
-                              className="w-full rounded-2xl border border-dashed border-amber-300 bg-amber-50/40 px-4 py-2.5 text-[13px] font-semibold text-amber-700 flex items-center justify-center gap-2"
-                            >
-                              <span className="text-lg">🦴</span> Adicionar petisco ou outro alimento
-                            </button>
-                          )}
-
                           {/* Feedback banner */}
                           <FeedbackBanner />
 
-                          {/* 3. Ações principais */}
+                          {/* 3. Ações principais — mesma cor do botão "Comprar" da
+                              Loja do Pet (emerald-500), pra reforçar que é a
+                              mesma ação em qualquer tela do app. */}
                           <button type="button"
                             onClick={() => {
                               trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
                               setMode('buy');
                             }}
-                            className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.97] transition-all text-white text-[16px] font-black shadow-lg shadow-amber-500/25 flex items-center justify-center gap-3"
+                            className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.97] transition-all text-white text-[16px] font-black shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-3"
                           >
                             <span className="text-xl">🛒</span>
                             Comprar novamente
@@ -1258,6 +1218,68 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               {busy ? '…' : 'Acabou'}
                             </button>
                           </div>
+
+                          {/* ─── SEÇÃO B: PETISCOS E OUTROS ──────────────────────
+                              Seção visualmente separada da ração principal —
+                              esses itens não têm controle de peso/duração/dias
+                              restantes, são compra esporádica (petisco, brinquedo
+                              comestível etc.), então nunca misturam com a
+                              contagem de dias da seção acima. */}
+                          <div className="border-t border-gray-100 pt-1" />
+
+                          <div className="flex items-baseline gap-1.5 px-1">
+                            <span className="text-[11px] font-black uppercase tracking-wider text-amber-700">🦴 Petiscos e outros</span>
+                            <span className="text-[10px] text-gray-400">sem controle de dias — compre quando precisar</span>
+                          </div>
+
+                          {foodState.secondaryItems.length > 0 && (
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3 space-y-2.5">
+                              {foodState.secondaryItems.map((item) => (
+                                <div key={item.id} className="flex items-center gap-3 rounded-xl bg-white border border-amber-100 px-3 py-2.5">
+                                  <span className="text-xl flex-shrink-0">🦴</span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[14px] font-semibold text-gray-900 line-clamp-2 break-words leading-tight">{item.brand}</p>
+                                    {item.packageSizeKg != null && (
+                                      <p className="text-[11px] text-gray-400">
+                                        {item.packageSizeKg % 1 === 0 ? item.packageSizeKg : item.packageSizeKg.toFixed(1)} kg
+                                      </p>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setBuyTargetItem({
+                                        label: item.brand,
+                                        query: item.brand,
+                                        gtin: item.barcode,
+                                        packageSizeKg: item.packageSizeKg,
+                                      });
+                                      setMode('buy');
+                                    }}
+                                    className="flex-shrink-0 rounded-lg bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 text-[12px] font-bold text-white active:scale-95 transition-all"
+                                  >
+                                    🛒 Comprar
+                                  </button>
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => openFoodScanFlow('secondary')}
+                                className="w-full text-center text-[13px] font-semibold text-amber-700 py-1.5"
+                              >
+                                + Adicionar outro alimento
+                              </button>
+                            </div>
+                          )}
+                          {foodState.secondaryItems.length === 0 && (
+                            <button
+                              type="button"
+                              onClick={() => openFoodScanFlow('secondary')}
+                              className="w-full rounded-2xl border border-dashed border-amber-300 bg-amber-50/40 px-4 py-2.5 text-[13px] font-semibold text-amber-700 flex items-center justify-center gap-2"
+                            >
+                              <span className="text-lg">🦴</span> Adicionar petisco ou outro alimento
+                            </button>
+                          )}
 
                         </>
                       )}
