@@ -1,0 +1,65 @@
+name: Export Cobasi catalog to CSV
+
+# Gera um CSV (gtin, brand, title, price) do catálogo Awin/Cobasi já
+# sincronizado, pra servir de lista de busca ao gerar links de afiliado
+# equivalentes na Shopee — ver deploy/scripts/export_cobasi_catalog_csv.py.
+# O CSV vira um artifact anexado à execução deste workflow (baixável na
+# aba Actions do GitHub, sem passar dado nenhum pelo chat).
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload script to VPS
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          VPS_PORT="${VPS_PORT:-22}"
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+          scp -i ~/.ssh/deploy_key -o Port="$VPS_PORT" -o StrictHostKeyChecking=no \
+            deploy/scripts/export_cobasi_catalog_csv.py \
+            "$VPS_USER@$VPS_IP:/tmp/export_cobasi_catalog_csv.py"
+
+      - name: Run export on VPS
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          VPS_PORT="${VPS_PORT:-22}"
+          SSH="ssh -i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP"
+          $SSH "
+            cd /opt/petmol/current/services/price-service
+            .venv/bin/python /tmp/export_cobasi_catalog_csv.py --out /tmp/cobasi_catalog.csv
+          "
+
+      - name: Download CSV from VPS
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          VPS_PORT="${VPS_PORT:-22}"
+          scp -i ~/.ssh/deploy_key -o Port="$VPS_PORT" -o StrictHostKeyChecking=no \
+            "$VPS_USER@$VPS_IP:/tmp/cobasi_catalog.csv" \
+            ./cobasi_catalog.csv
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cobasi-catalog
+          path: cobasi_catalog.csv
+          retention-days: 14
