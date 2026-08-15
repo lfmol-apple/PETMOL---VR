@@ -1,0 +1,80 @@
+name: Register collar from Awin catalog
+
+# One-off utility: cadastra um parasite_control_records (type=collar) usando
+# um produto real já sincronizado do catálogo Awin/Cobasi (mesma fonte de
+# GTIN que AwinFeedProvider resolve em produção) — ver
+# deploy/scripts/register_collar_from_awin.py. Rode primeiro sem `gtin`
+# preenchido pra descobrir o pet e as ofertas candidatas; rode de novo com
+# `gtin` + `commit: true` pra gravar de verdade.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pet_name:
+        description: "Nome do pet"
+        required: true
+        default: "Baby"
+      search:
+        description: "Termo de busca no catálogo Awin/Cobasi (ex: scalibor)"
+        required: true
+      gtin:
+        description: "GTIN escolhido (deixe vazio pra só descobrir as opções)"
+        required: false
+      date_applied:
+        description: "Data de aplicação (YYYY-MM-DD)"
+        required: false
+        default: ""
+      commit:
+        description: "Gravar de verdade? (false = dry-run)"
+        required: true
+        default: "false"
+        type: boolean
+
+jobs:
+  register:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload script to VPS
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          VPS_PORT="${VPS_PORT:-22}"
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+          scp -i ~/.ssh/deploy_key -o Port="$VPS_PORT" -o StrictHostKeyChecking=no \
+            deploy/scripts/register_collar_from_awin.py \
+            "$VPS_USER@$VPS_IP:/tmp/register_collar_from_awin.py"
+
+      - name: Run on VPS
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          PET_NAME: ${{ github.event.inputs.pet_name }}
+          SEARCH: ${{ github.event.inputs.search }}
+          GTIN: ${{ github.event.inputs.gtin }}
+          DATE_APPLIED: ${{ github.event.inputs.date_applied }}
+          COMMIT_FLAG: ${{ github.event.inputs.commit }}
+        run: |
+          VPS_PORT="${VPS_PORT:-22}"
+          SSH="ssh -i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP"
+
+          ARGS="--pet-name \"$PET_NAME\" --search \"$SEARCH\""
+          [ -n "$GTIN" ] && ARGS="$ARGS --gtin \"$GTIN\""
+          [ -n "$DATE_APPLIED" ] && ARGS="$ARGS --date-applied \"$DATE_APPLIED\""
+          [ "$COMMIT_FLAG" = "true" ] && ARGS="$ARGS --commit"
+
+          $SSH "
+            cd /opt/petmol/current/services/price-service
+            set -a; [ -f .env ] && source .env; set +a
+            .venv/bin/python /tmp/register_collar_from_awin.py $ARGS
+          "
