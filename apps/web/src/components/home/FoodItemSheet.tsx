@@ -291,6 +291,11 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   // deixa o tutor trocar de embalagem/sabor sem redigitar tudo, reusando o
   // mesmo fluxo (handleFoodProductConfirmed já pré-preenche o formulário).
   const [showEditPlanChoice, setShowEditPlanChoice] = useState(false);
+  // Alterna qual seção a tela principal mostra — ração (controle de peso/
+  // tempo) ou petiscos (compra esporádica, sem contagem). Pedido do tutor:
+  // as duas seções empilhadas numa rolagem só ficavam confusas pra um
+  // usuário com dificuldade; abas simples resolvem sem esconder nada.
+  const [viewSection, setViewSection] = useState<'racao' | 'petiscos'>('racao');
   const successMessageTimerRef                    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollBodyRef                               = useRef<HTMLDivElement>(null);
 
@@ -784,7 +789,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   useEffect(() => { setPhotoLoadFailed(false); }, [petPhotoSrc]);
 
   // Reset submode when switching to view
-  useEffect(() => { if (mode === 'view') setSubMode('main'); }, [mode]);
+  useEffect(() => { if (mode === 'view') { setSubMode('main'); setViewSection('racao'); } }, [mode]);
 
   // Scroll to top when subMode changes so new content is visible from the beginning
   useEffect(() => {
@@ -984,6 +989,30 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                 )}
               </div>
 
+              {/* Abas Ração / Petiscos — troca qual seção aparece, em vez de
+                  empilhar as duas numa rolagem só (pedido do tutor: mais
+                  simples e direto pra quem tem dificuldade com o app). */}
+              {hasFood && !isNonKibbleDeclared && !showFreshChoice && subMode === 'main' && (
+                <div className="px-4 pb-3 flex-shrink-0">
+                  <div className="flex rounded-full bg-gray-100 p-1 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setViewSection('racao')}
+                      className={`flex-1 rounded-full py-2 text-[13px] font-bold transition-all ${viewSection === 'racao' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-400'}`}
+                    >
+                      🥣 Ração
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewSection('petiscos')}
+                      className={`flex-1 rounded-full py-2 text-[13px] font-bold transition-all ${viewSection === 'petiscos' ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-400'}`}
+                    >
+                      🦴 Petiscos{foodState.secondaryItems.length > 0 ? ` (${foodState.secondaryItems.length})` : ''}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Fixed success toast — outside scroll area */}
               {successMessage && (
                 <div className="flex-shrink-0 px-4 pb-2">
@@ -1065,16 +1094,12 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                       {/* ─── SUBMODE: main ─────────────────────────────────── */}
                       {subMode === 'main' && (
                         <>
-                          {/* ─── SEÇÃO A: RAÇÃO PRINCIPAL ────────────────────────
-                              Único item com controle de peso/duração/dias
-                              restantes — classificação explícita pedida pelo
-                              tutor pra não confundir com os itens esporádicos
-                              da seção de petiscos logo abaixo. */}
-                          <div className="flex items-baseline gap-1.5 px-1">
-                            <span className="text-[11px] font-black uppercase tracking-wider text-amber-700">🥣 Ração principal</span>
-                            <span className="text-[10px] text-gray-400">controle por peso e tempo</span>
-                          </div>
-
+                        {/* ─── SEÇÃO A: RAÇÃO PRINCIPAL ──────────────────────────
+                            Só aparece na aba "🥣 Ração" — controle de peso/
+                            duração/dias restantes, nunca mistura com os itens
+                            esporádicos da aba "🦴 Petiscos". */}
+                        {viewSection === 'racao' && (
+                        <>
                           {/* 1. Status principal */}
                           <div className="rounded-3xl border border-amber-100 bg-amber-50/70 p-4">
                             {foodState.daysLeft !== null ? (
@@ -1218,19 +1243,15 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               {busy ? '…' : 'Acabou'}
                             </button>
                           </div>
+                        </>
+                        )}
 
-                          {/* ─── SEÇÃO B: PETISCOS E OUTROS ──────────────────────
-                              Seção visualmente separada da ração principal —
-                              esses itens não têm controle de peso/duração/dias
-                              restantes, são compra esporádica (petisco, brinquedo
-                              comestível etc.), então nunca misturam com a
-                              contagem de dias da seção acima. */}
-                          <div className="border-t border-gray-100 pt-1" />
-
-                          <div className="flex items-baseline gap-1.5 px-1">
-                            <span className="text-[11px] font-black uppercase tracking-wider text-amber-700">🦴 Petiscos e outros</span>
-                            <span className="text-[10px] text-gray-400">sem controle de dias — compre quando precisar</span>
-                          </div>
+                        {/* ─── SEÇÃO B: PETISCOS E OUTROS ────────────────────────
+                            Só aparece na aba "🦴 Petiscos" — compra esporádica,
+                            sem controle de peso/duração/dias restantes. */}
+                        {viewSection === 'petiscos' && (
+                        <>
+                          <p className="px-1 text-[12px] text-gray-400">Sem controle de dias — compre quando precisar.</p>
 
                           {foodState.secondaryItems.length > 0 && (
                             <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3 space-y-2.5">
@@ -1280,7 +1301,8 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               <span className="text-lg">🦴</span> Adicionar petisco ou outro alimento
                             </button>
                           )}
-
+                        </>
+                        )}
                         </>
                       )}
 
