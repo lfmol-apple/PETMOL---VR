@@ -411,7 +411,56 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   // secundário (petisco/outro alimento) do plano — ambos cabem no mesmo
   // items_json (ver FoodControlTab.tsx), só o secundário não exige peso/
   // duração e não entra no ciclo de "dias restantes"/alerta de reposição.
+  // Petisco escolhido como primeiro alimento do pet (nenhuma ração
+  // cadastrada ainda) nunca deve abrir o formulário completo de ração —
+  // isso obrigava o tutor a ver/preencher um card de "ração principal"
+  // vazio só pra conseguir salvar um petisco (bug real reportado: "se
+  // escolher petisco tem que abrir petisco e deixar ração pra depois ou
+  // nunca"). Salva direto pelo endpoint, sem passar pelo FoodControlTab —
+  // a ração fica como item vazio/pendente (o backend sempre exige um
+  // primário em items_json), mas o tutor nunca vê essa exigência, só o
+  // petisco aparecendo na aba certa.
+  const persistFirstPetiscoDirect = async (product: ScannedProduct) => {
+    setBusy(true);
+    const brand = normalizeFoodName(product.name || product.brand || '') || 'Petisco';
+    try {
+      const res = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authH() },
+        credentials: 'include',
+        body: JSON.stringify({
+          mode: 'kibble',
+          enabled: true,
+          items: [
+            { is_primary: true },
+            { is_primary: false, food_brand: brand, barcode: product.barcode || null, category: 'food' },
+          ],
+        }),
+      });
+      if (!res.ok) throw new Error('save failed');
+      dispatchFoodPlanUpdated();
+      onSaved?.();
+      await refreshFoodPlan();
+      setViewSection('petiscos');
+      clearSuccessMessageTimer();
+      setFeedback(null);
+      setSuccessMessage(`✅ ${brand} adicionado aos petiscos`);
+      successMessageTimerRef.current = setTimeout(() => {
+        setSuccessMessage(null);
+        successMessageTimerRef.current = null;
+      }, 3000);
+    } catch {
+      setFeedback({ msg: 'Não deu pra salvar agora. Tente de novo.', tone: 'red' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const persistScannedFoodProduct = (product: ScannedProduct, asPrimary: boolean) => {
+    if (!asPrimary && !hasFood) {
+      void persistFirstPetiscoDirect(product);
+      return;
+    }
     try {
       sessionStorage.setItem(
         'petmol_pending_scanned_product',
