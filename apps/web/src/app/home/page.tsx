@@ -2811,7 +2811,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
       {showPetSumidoSheet && currentPet && (
         <PetSumidoSheet
           pet={currentPet}
-          petPhotoUrl={currentPet.photo ?? null}
+          petPhotoUrl={currentPet.photo ? getPhotoUrl(currentPet.photo) : null}
           onClose={() => setShowPetSumidoSheet(false)}
           onGoHome={() => setShowPetSumidoSheet(false)}
         />
