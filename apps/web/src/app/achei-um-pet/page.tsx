@@ -444,7 +444,7 @@ function AcheiUmPetInner() {
     // ── Tela de sucesso ──────────────────────────────────────────────────────
     if (reported) {
       return (
-        <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(160deg,#059669 0%,#065f46 100%)' }}>
+        <div className="min-h-screen flex flex-col overflow-x-hidden overscroll-x-none touch-pan-y" style={{ background: 'linear-gradient(160deg,#059669 0%,#065f46 100%)' }}>
           {/* Foto de fundo desfocada */}
           {pet?.photo_url && (
             <div className="absolute inset-0 overflow-hidden">
@@ -498,7 +498,7 @@ function AcheiUmPetInner() {
 
     // ── Tela do achador ──────────────────────────────────────────────────────
     return (
-      <div className="min-h-screen bg-white flex flex-col">
+      <div className="min-h-screen bg-white flex flex-col overflow-x-hidden overscroll-x-none touch-pan-y">
 
         {/* Foto hero — ocupa topo da tela */}
         <div className="relative w-full flex-shrink-0 bg-[#0E0C0B]" style={{ height: '46vh', minHeight: 280, maxHeight: 430 }}>
@@ -781,7 +781,7 @@ function AcheiUmPetInner() {
   const activeCount = pets.filter(p => p.status === 'active').length;
 
   return (
-    <div className="min-h-screen bg-[#0E0C0B] text-white">
+    <div className="min-h-screen bg-[#0E0C0B] text-white overflow-x-hidden overscroll-x-none touch-pan-y">
 
       {/* Header */}
       <header className="sticky top-0 z-50 bg-[#0E0C0B]/95 backdrop-blur-xl border-b border-white/8">
