@@ -7,6 +7,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { LocationProvider } from '@/contexts/LocationContext';
 import { AppShell } from '@/components/AppShell';
 import { StorageMigrator } from '@/components/StorageMigrator';
+import { HorizontalSwipeGuard } from '@/components/HorizontalSwipeGuard';
 import { UserPromptHost } from '@/components/UserPromptHost';
 // GlobalAutoDetector removido — sem geolocalização (nova estratégia 2026-02)
 // import { GlobalAutoDetector } from '@/components/GlobalAutoDetector';
@@ -85,6 +86,7 @@ export default function RootLayout({
             <OfflineIndicator />
             <ConnectivityStatus />
             <StorageMigrator />
+            <HorizontalSwipeGuard />
             <PushAutoRefresh />
             <TravelDetectionNotification />
             <UserPromptHost />
