@@ -7,7 +7,7 @@ import { trackV1Metric } from '@/lib/v1Metrics';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
-import type { ScannedProduct } from '@/lib/productScanner';
+import { guessFoodKind, type ScannedProduct } from '@/lib/productScanner';
 import { googleShoppingUrl } from '@/lib/externalShopping';
 import { resolveFoodCommerceSnapshot } from '@/features/commerce/homeContextualCommerce';
 import { requestUserDecision } from '@/features/interactions/userPromptChannel';
@@ -385,13 +385,46 @@ export function FoodControlTab({
   };
 
   const applyScannedProduct = (itemId: string, product: ScannedProduct) => {
-    setItems((current) => ensurePrimaryItem(current.map((item) => (
-      item.id === itemId ? mergeScannedProductIntoItem(item, product) : item
-    ))));
     try {
       sessionStorage.removeItem('petmol_pending_scanned_product');
     } catch { /* silent */ }
     if (!product.found) setApiError('Não encontramos os dados. Preencha manualmente.');
+
+    // Esse scanner por item nunca perguntava ração x petisco — o card que
+    // recebe o produto é decidido só por qual botão "escanear" foi tocado,
+    // então escanear um petisco no card do "Plano principal" salvava ele
+    // como ração sem avisar (bug real reportado). Quando o card alvo é o
+    // principal e o nome escaneado parece petisco, confirma antes: manter
+    // como ração principal ou criar um item separado pro petisco.
+    const targetItem = items.find((item) => item.id === itemId);
+    if (targetItem?.isPrimary && guessFoodKind(`${product.name || ''} ${product.brand || ''}`) === 'petisco') {
+      void (async () => {
+        const keepAsPrimary = await requestUserDecision(
+          `"${product.name || 'Esse produto'}" parece um petisco, não a ração do dia a dia. Usar mesmo assim como ração principal?`,
+          {
+            title: 'Isso é petisco ou ração?',
+            tone: 'warning',
+            confirmLabel: 'É a ração principal',
+            cancelLabel: 'É petisco — item separado',
+          },
+        );
+        if (keepAsPrimary) {
+          setItems((current) => ensurePrimaryItem(current.map((item) => (
+            item.id === itemId ? mergeScannedProductIntoItem(item, product) : item
+          ))));
+        } else {
+          setItems((current) => ensurePrimaryItem([
+            ...current,
+            mergeScannedProductIntoItem(createEmptyFoodItem(false), product),
+          ]));
+        }
+      })();
+      return;
+    }
+
+    setItems((current) => ensurePrimaryItem(current.map((item) => (
+      item.id === itemId ? mergeScannedProductIntoItem(item, product) : item
+    ))));
   };
 
   const updateItem = (itemId: string, updater: (item: SimpleFoodData) => SimpleFoodData) => {
