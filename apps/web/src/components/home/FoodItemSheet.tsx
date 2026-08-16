@@ -963,7 +963,12 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                 <PhotoBubble size={44} photoSrc={petPhotoSrc} photoFailed={photoLoadFailed} onPhotoError={() => setPhotoLoadFailed(true)} species={pet.species} petName={pet.pet_name} />
                 <div className="flex-1 min-w-0">
                   <h2 className="text-[18px] font-black text-gray-900 leading-tight">
-                    Ração {petDo(pet)} {pet.pet_name}
+                    {/* "Alimentação" é o rótulo genérico só do botão da home —
+                        aqui dentro o título sempre reflete a aba selecionada,
+                        nunca mistura ração com petisco no mesmo título. */}
+                    {hasFood && !isNonKibbleDeclared && !showFreshChoice && subMode === 'main' && viewSection === 'petiscos'
+                      ? `Petiscos ${petDo(pet)} ${pet.pet_name}`
+                      : `Ração ${petDo(pet)} ${pet.pet_name}`}
                   </h2>
                 </div>
                 {subMode !== 'main' ? (
