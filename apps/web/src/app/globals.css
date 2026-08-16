@@ -109,6 +109,13 @@ body {
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     overscroll-behavior-y: none;
+    /* overscroll-behavior-y sozinho só travava o bounce vertical — nada
+       impedia o rubber-band/arraste horizontal solto do body em telas
+       cheias (ex: achei-um-pet, aberta direto do push, fora do shell de
+       modais do app). touch-action restringe o gesto em si; overscroll-
+       behavior-x trava a animação elástica nas bordas. */
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
   }
   
   /* Smooth scroll on mobile */

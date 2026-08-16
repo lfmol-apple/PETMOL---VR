@@ -1845,7 +1845,7 @@ export function PetDocumentVault({ petId, onDocsChanged, eventId, initialCategor
       )}
 
       {/* ── Category filter tabs ────────────────────────────────────── */}
-      {!hideCategoryTabs && <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' } as React.CSSProperties}>
+      {!hideCategoryTabs && <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none', touchAction: 'pan-x' } as React.CSSProperties}>
         <div style={{ display: 'flex', gap: 6, paddingBottom: 2, minWidth: 'max-content' }}>
           {CATEGORY_TABS.map((tab) => {
             const count = tab.id === 'all'

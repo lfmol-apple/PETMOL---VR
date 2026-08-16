@@ -653,7 +653,7 @@ export function VetHistoryModal({
                 {recentDocs.length > 0 && (
                   <div className="mt-4 px-4">
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Recentes</p>
-                    <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                    <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none', touchAction: 'pan-x' }}>
                       {recentDocs.map((doc) => {
                         const cat = doc.category || 'other';
                         const folder = DOC_FOLDERS.find((f) => f.id === cat);

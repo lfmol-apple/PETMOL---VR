@@ -99,7 +99,7 @@ export default function AdminFoodMetricsPage() {
                 <h2 className="text-sm font-bold text-slate-900">Por dia</h2>
                 <p className="text-xs text-slate-500">{data.period.start_date} até {data.period.end_date}</p>
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto [touch-action:pan-x]">
                 <table className="min-w-full text-sm">
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>

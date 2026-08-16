@@ -466,7 +466,7 @@ export default function AdminPetsPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto [touch-action:pan-x]">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>

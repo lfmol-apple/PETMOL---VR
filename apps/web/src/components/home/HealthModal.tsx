@@ -410,7 +410,7 @@ export function HealthModal({
                 {/* Navegação por Abas */}
                 {healthModalMode === 'full' && (
                 <div className="px-3 sm:px-6 pb-2.5 sm:pb-4 pt-1">
-                  <div className="flex gap-1.5 sm:gap-2.5 overflow-x-auto scrollbar-hide pb-2">
+                  <div className="flex gap-1.5 sm:gap-2.5 overflow-x-auto scrollbar-hide pb-2 [touch-action:pan-x]">
                     {healthTabs.map(tab => (
                       <button
                         key={tab.id}
