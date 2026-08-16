@@ -942,7 +942,7 @@ export function ParasiteItemSheet({
           <div className="flex-shrink-0 px-5 pt-3 pb-5 border-t border-gray-100 space-y-2 bg-white">
             <button
               onClick={() => setMode('buy')}
-              className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white text-[16px] font-black shadow-lg shadow-amber-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5"
+              className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-[16px] font-black shadow-lg shadow-emerald-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5"
             >
               <span>🛒</span>
               {cfg.buyLabel}

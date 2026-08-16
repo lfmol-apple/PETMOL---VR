@@ -802,7 +802,7 @@ export function MedicationItemSheet({
                 </button>
                 <button
                   onClick={() => setMode('buy')}
-                  className="w-full py-3 rounded-2xl border border-blue-200 bg-white text-sm font-semibold text-blue-700 hover:bg-blue-50 active:scale-95 transition-all"
+                  className="w-full py-3 rounded-2xl border border-emerald-200 bg-white text-sm font-semibold text-emerald-700 hover:bg-emerald-50 active:scale-95 transition-all"
                 >
                   Comprar medicamento
                 </button>
