@@ -1268,10 +1268,12 @@ def my_alerts(db: Session = Depends(get_db), current_user=Depends(get_current_us
         mp_id for mp_id, rec in notified_data.items()
         if user_id in rec.get("notified", [])
     ]
-    family_alert_ids = [
-        p.id for p in _family_missing_pets_query(db, user_id, "active").all()
-    ]
-    notified_pet_ids = list(set(notified_pet_ids + family_alert_ids))
+    # Alertas da própria família/dos pets que o usuário cuida NÃO entram
+    # aqui — esse endpoint alimenta só o banner "pet de outra pessoa pode
+    # estar na sua região", e /my-active (que já usa a mesma
+    # _family_missing_pets_query) é quem alimenta o card "seu pet está com
+    # alerta ativo". Incluir os dois aqui fazia o próprio dono ver o alerta
+    # do próprio pet no banner errado (reportado pelo tutor).
     if not notified_pet_ids:
         return []
     pets = (

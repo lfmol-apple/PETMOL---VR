@@ -2140,9 +2140,13 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           </div>
         )}
 
-        {/* Banner vermelho: pets sumidos na região (não são do usuário) */}
+        {/* Banner vermelho: pets sumidos na região (não são do usuário) —
+            filtro extra por user_id além do que o backend já exclui, pra
+            nunca mostrar pro próprio dono/família o alerta do próprio pet
+            aqui (esse caso já tem o card certo "Baby está com alerta
+            ativo" logo abaixo, ver ownMissingAlerts). */}
         {(() => {
-          const visibleAlerts = nearbyAlerts.filter(a => !handledAlertIds.includes(a.id));
+          const visibleAlerts = nearbyAlerts.filter(a => !handledAlertIds.includes(a.id) && a.user_id !== loggedUserId);
           return visibleAlerts.length > 0 && (
           <div className="mb-3 space-y-2">
             {visibleAlerts.map((alert) => {
