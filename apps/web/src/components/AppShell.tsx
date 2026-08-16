@@ -18,7 +18,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="h-dvh flex flex-col bg-gradient-to-b from-slate-50 to-white overflow-hidden">
       <Header />
-      <main className="flex-1 overflow-y-auto min-h-0 scroll-smooth">
+      {/* overflow-x-hidden explícito é obrigatório aqui — overflow-y-auto
+          sozinho faz o overflow-x computar pra "auto" também (regra do CSS
+          Overflow spec: um eixo non-visible força o outro a sair de
+          visible), transformando <main> num container de scroll
+          independente que nunca herdou o touch-action: pan-y do body
+          (touch-action não é herdado). Isso deixava QUALQUER página
+          arrastável pro lado, mesmo com o body travado. */}
+      <main className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 scroll-smooth [touch-action:pan-y]">
         {children}
       </main>
       <div className="hidden sm:block">
