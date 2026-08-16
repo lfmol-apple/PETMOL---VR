@@ -712,16 +712,18 @@ export function ProductDetectionSheetGold({
   const [scannerError, setScannerError] = useState<string | null>(null);
   const [manualBarcode, setManualBarcode] = useState('');
   const [kbdBottom, setKbdBottom] = useState(0);
-  // Progressivo (pedido do tutor, ago/2026): só escanear aparece de cara.
-  // Foto libera depois de 3 tentativas de scan sem achar o produto; digitar
-  // manualmente só libera depois que a foto TAMBÉM foi tentada e rejeitada
-  // — nunca as 3 vias juntas, pra não tentar pular direto pro caminho menos
-  // preciso. Contadores resetam a cada abertura do sheet (não persistem).
+  // Progressivo (pedido do tutor, ago/2026, threshold revisado pro tutor
+  // ago/2026): só escanear aparece de cara. Foto e digitar manualmente
+  // liberam juntas depois de 2 tentativas de scan sem achar o produto —
+  // antes exigia falhar na foto também pra liberar o manual, mas 2 scans
+  // sem sucesso já é considerado motivo suficiente pra oferecer as duas
+  // alternativas de uma vez. Contadores resetam a cada abertura do sheet
+  // (não persistem).
   const [scanFailCount, setScanFailCount] = useState(0);
   const [photoFailCount, setPhotoFailCount] = useState(0);
-  const photoUnlocked = photoFailCount > 0 || scanFailCount >= 3;
-  const manualUnlocked = photoFailCount >= 1;
-  const remainingScanAttempts = Math.max(0, 3 - scanFailCount);
+  const photoUnlocked = photoFailCount > 0 || scanFailCount >= 2;
+  const manualUnlocked = photoFailCount >= 1 || scanFailCount >= 2;
+  const remainingScanAttempts = Math.max(0, 2 - scanFailCount);
 
   const emitProductTelemetry = useCallback((eventType: string, payload: Record<string, unknown>) => {
     const enriched = {
