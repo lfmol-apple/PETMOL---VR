@@ -12,7 +12,7 @@ import { scheduleFoodReminder, cancelFoodRemindersForPet, buildRemindAt } from '
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { petDo } from '@/lib/petGender';
 import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
-import type { ScannedProduct } from '@/lib/productScanner';
+import { guessFoodKind, type ScannedProduct } from '@/lib/productScanner';
 import { resolveFoodCommerceSnapshot } from '@/features/commerce/homeContextualCommerce';
 import { MonetizedOffersList } from '@/features/commerce/MonetizedOffersList';
 import { requestUserDecision } from '@/features/interactions/userPromptChannel';
@@ -319,6 +319,14 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
 
   const hasFood  = hasFoodConfigured;
   const estEnd   = foodState.restockDate;
+
+  // Chute (não decisão) pra pré-destacar a opção provável na tela de
+  // classificação ração x petisco — baseado no nome do produto escaneado
+  // (ver guessFoodKind). O tutor sempre confirma; um falso positivo aqui só
+  // custa um toque a mais, nunca decide sozinho sem chance de correção.
+  const suggestedFoodKind = pendingClassifyProduct
+    ? guessFoodKind(`${pendingClassifyProduct.name || ''} ${pendingClassifyProduct.brand || ''}`)
+    : null;
 
   const handleFoodControlStateChange = useCallback((nextState: FoodControlTabState) => {
     setFoodState((previous) => {
@@ -1602,11 +1610,16 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                     setPendingClassifyProduct(null);
                     if (product) persistScannedFoodProduct(product, true);
                   }}
-                  className="w-full flex items-center gap-4 p-5 rounded-3xl border-2 border-blue-500 bg-blue-50 hover:bg-blue-100 active:scale-[0.98] transition-all text-left"
+                  className={`w-full flex items-center gap-4 p-5 rounded-3xl border-2 border-blue-500 bg-blue-50 hover:bg-blue-100 active:scale-[0.98] transition-all text-left ${suggestedFoodKind === 'racao' ? 'ring-2 ring-blue-300 ring-offset-2' : ''}`}
                 >
                   <span className="text-4xl flex-shrink-0">🥣</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[17px] font-black text-blue-950">Ração de todo dia</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-[17px] font-black text-blue-950">Ração de todo dia</p>
+                      {suggestedFoodKind === 'racao' && (
+                        <span className="rounded-full bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wide px-2 py-0.5">Achamos que é isso</span>
+                      )}
+                    </div>
                     <p className="text-[13px] text-blue-900/70 mt-0.5">Controla peso e avisa quando for acabar</p>
                   </div>
                 </button>
@@ -1618,11 +1631,16 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                     setPendingClassifyProduct(null);
                     if (product) persistScannedFoodProduct(product, false);
                   }}
-                  className="w-full flex items-center gap-4 p-5 rounded-3xl border-2 border-amber-400 bg-amber-50 hover:bg-amber-100 active:scale-[0.98] transition-all text-left"
+                  className={`w-full flex items-center gap-4 p-5 rounded-3xl border-2 border-amber-400 bg-amber-50 hover:bg-amber-100 active:scale-[0.98] transition-all text-left ${suggestedFoodKind === 'petisco' ? 'ring-2 ring-amber-300 ring-offset-2' : ''}`}
                 >
                   <span className="text-4xl flex-shrink-0">🦴</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[17px] font-black text-amber-950">Petisco ou extra</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-[17px] font-black text-amber-950">Petisco ou extra</p>
+                      {suggestedFoodKind === 'petisco' && (
+                        <span className="rounded-full bg-amber-600 text-white text-[10px] font-bold uppercase tracking-wide px-2 py-0.5">Achamos que é isso</span>
+                      )}
+                    </div>
                     <p className="text-[13px] text-amber-900/70 mt-0.5">Compra ocasional, sem contar os dias</p>
                   </div>
                 </button>

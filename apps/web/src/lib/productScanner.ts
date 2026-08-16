@@ -43,6 +43,27 @@ export function classifyProductText(text: string): ProductCategory {
   return 'other';
 }
 
+// Dentro da categoria 'food', ração e petisco ainda precisam ser
+// distinguidos (um tem controle de peso/dias, o outro é compra esporádica —
+// ver FoodItemSheet). Isso é só um CHUTE pra pré-selecionar a opção
+// provável na tela de classificação — o tutor sempre confirma/troca antes
+// de salvar, nunca decide sozinho sem chance de correção (um falso
+// positivo bagunçaria o controle de dias da ração principal).
+const TREAT_WORDS = [
+  'petisco', 'biscoito', 'snack', 'bites', 'bifinho', 'sticks', 'stick',
+  'osso mordedor', 'mordedor', 'recompensa', 'premio', 'treats', 'chew',
+  'barrinha', 'wafer', 'crocante', 'jerky', 'dog treat', 'cat treat',
+];
+
+function stripAccents(text: string): string {
+  return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+export function guessFoodKind(text: string): 'racao' | 'petisco' {
+  const normalized = stripAccents(text);
+  return TREAT_WORDS.some(word => normalized.includes(stripAccents(word))) ? 'petisco' : 'racao';
+}
+
 function extractWeight(text: string): string | undefined {
   return text.match(/\b\d+(?:[,.]\d+)?\s?(?:kg|g|ml|l)\b/i)?.[0];
 }
