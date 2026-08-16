@@ -1,0 +1,66 @@
+name: Resend missing-pet push to a person
+
+# Reenvia o push de "pet sumido" pra um cuidador/membro da família
+# específico, mesmo que ele já tenha sido notificado antes (o broadcast
+# normal só notifica gente nova) — ver deploy/scripts/resend_missing_pet_push.py.
+# Sem "commit": só mostra quem seria notificado, não envia nada.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pet_name:
+        description: "Nome do pet"
+        required: false
+        default: "Baby"
+      target_name:
+        description: "Nome ou e-mail (parcial) de quem deve receber o push de novo"
+        required: true
+      commit:
+        description: "Marque para realmente enviar o push (sem isso, só mostra quem seria notificado)"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  resend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload script to VPS
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          VPS_PORT="${VPS_PORT:-22}"
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+          scp -i ~/.ssh/deploy_key -o Port="$VPS_PORT" -o StrictHostKeyChecking=no \
+            deploy/scripts/resend_missing_pet_push.py \
+            "$VPS_USER@$VPS_IP:/tmp/resend_missing_pet_push.py"
+
+      - name: Run on VPS
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          PET_NAME: ${{ github.event.inputs.pet_name }}
+          TARGET_NAME: ${{ github.event.inputs.target_name }}
+          COMMIT_FLAG: ${{ github.event.inputs.commit }}
+        run: |
+          VPS_PORT="${VPS_PORT:-22}"
+          SSH="ssh -i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP"
+
+          ARGS="--pet-name \"$PET_NAME\" --target-name \"$TARGET_NAME\""
+          [ "$COMMIT_FLAG" = "true" ] && ARGS="$ARGS --commit"
+
+          $SSH "
+            cd /opt/petmol/current/services/price-service
+            .venv/bin/python /tmp/resend_missing_pet_push.py $ARGS
+          "
