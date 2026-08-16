@@ -43,6 +43,18 @@ function formatDate(iso: string | null): string {
   } catch { return iso; }
 }
 
+// PetSumidoSheet monta last_seen_location como "logradouro, bairro,
+// cidade/uf" (via CEP) — mostrar isso pro achador (um estranho, possível
+// golpista) revela o endereço exato de onde o pet mora/sumiu. Tira só o
+// primeiro pedaço (a rua) e mantém bairro/cidade, que já ajuda a
+// localizar sem expor o endereço completo. Pedido do tutor.
+function redactStreetFromLocation(location: string | null): string | null {
+  if (!location) return location;
+  const parts = location.split(',').map(p => p.trim()).filter(Boolean);
+  if (parts.length <= 1) return location;
+  return parts.slice(1).join(', ');
+}
+
 function formatMissingDate(date: string | null, time: string | null): string {
   if (!date) return 'Data não informada';
   const [yr, mo, dy] = date.split('-');
@@ -81,6 +93,10 @@ function AcheiUmPetInner() {
   // Report-found state
   const [reportingId, setReportingId] = useState<string | null>(focusedId);
   const [reportContact, setReportContact] = useState('');
+  // Vídeo-prova só faz sentido pra quem alega ter o pet fisicamente — pra
+  // quem só avistou de longe, exigir vídeo era fricção sem propósito
+  // (pedido do tutor). null = ainda não respondeu.
+  const [hasPossession, setHasPossession] = useState<boolean | null>(null);
   const [reportLocation, setReportLocation] = useState('');
   const [reportNotes, setReportNotes] = useState('');
   const [reportCep, setReportCep] = useState('');
@@ -385,7 +401,11 @@ function AcheiUmPetInner() {
 
   const handleSubmitReport = async (petId: string) => {
     if (!reportContact.trim()) return;
-    if (!reportVideo || !proofChallenge) {
+    // Vídeo só é exigido de quem confirmou que está com o pet fisicamente
+    // (hasPossession === true). Quem só avistou, ou o form simplificado do
+    // PetCard na lista (que nunca oferece gravar vídeo), envia sem essa
+    // etapa.
+    if (hasPossession === true && (!reportVideo || !proofChallenge)) {
       setReportMediaError('Grave a prova em vídeo com o desafio PETMOL antes de avisar o tutor.');
       return;
     }
@@ -543,7 +563,7 @@ function AcheiUmPetInner() {
               </h1>
               {pet.last_seen_location && (
                 <p className="text-[13px] text-white/80 mt-1 flex items-center gap-1">
-                  <span>📍</span>{pet.last_seen_location}
+                  <span>📍</span>{redactStreetFromLocation(pet.last_seen_location)}
                 </p>
               )}
             </div>
@@ -576,6 +596,40 @@ function AcheiUmPetInner() {
                 <p className="text-[14px] text-slate-500 mt-1">
                   Deixe seu telefone. O tutor recebe as fotos como possível match e confirma se é o pet.
                 </p>
+              </div>
+
+              {/* Você está com o pet agora? — decide se pedimos o vídeo-prova
+                  depois. Só faz sentido exigir prova forte de quem alega ter
+                  o pet em mãos; quem só avistou não deveria ter essa
+                  fricção (pedido do tutor). */}
+              <div>
+                <label className="block text-[12px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                  Você está com {pet.pet_name} agora?
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setHasPossession(true)}
+                    className={`py-3.5 rounded-2xl text-[14px] font-black border-2 transition-colors ${
+                      hasPossession === true
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        : 'border-slate-200 bg-white text-slate-500'
+                    }`}
+                  >
+                    Sim, está comigo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setHasPossession(false); setReportVideo(''); }}
+                    className={`py-3.5 rounded-2xl text-[14px] font-black border-2 transition-colors ${
+                      hasPossession === false
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        : 'border-slate-200 bg-white text-slate-500'
+                    }`}
+                  >
+                    Não, só avistei
+                  </button>
+                </div>
               </div>
 
               {/* Campo de telefone — principal e em destaque */}
@@ -631,23 +685,6 @@ function AcheiUmPetInner() {
                 />
               </div>
 
-              {/* Foto de referência — para o achador comparar */}
-              {pet?.photo_url && (
-                <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-3 py-2.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={resolvePetPhotoUrl(pet.photo_url) ?? ''}
-                    alt={pet.pet_name}
-                    className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-amber-200"
-                  />
-                  <div>
-                    <p className="text-[12px] font-bold text-amber-700 uppercase tracking-widest">Foto de referência</p>
-                    <p className="text-[14px] font-bold text-slate-900 mt-0.5">{pet.pet_name}</p>
-                    <p className="text-[12px] text-slate-500">Compare com as suas fotos abaixo</p>
-                  </div>
-                </div>
-              )}
-
               {/* Fotos do pet (até 2) */}
               <div>
                 <label className="block text-[12px] font-bold text-slate-400 uppercase tracking-widest mb-2">
@@ -686,50 +723,55 @@ function AcheiUmPetInner() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-3">
-                <label className="block text-[12px] font-black text-amber-800 uppercase tracking-widest">
-                  Prova obrigatória PETMOL Protege
-                </label>
-                <p className="mt-1 text-[12px] leading-snug text-amber-900/80">
-                  Grave até 10 segundos. Sem este vídeo, o tutor não recebe o possível match.
-                  {proofChallengeLoading
-                    ? ' Gerando desafio seguro...'
-                    : proofChallenge
-                      ? ` ${proofChallenge.instructions}`
-                      : ' Aguarde o desafio carregar antes de gravar.'}
-                </p>
-                <input
-                  ref={videoInputRef}
-                  type="file"
-                  accept="video/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={handleVideoCapture}
-                />
-                {reportVideo ? (
-                  <div className="mt-3 overflow-hidden rounded-2xl border border-amber-300 bg-black">
-                    <video src={reportVideo} controls playsInline className="h-44 w-full object-contain" />
+              {/* Vídeo-prova só é pedido — e só é obrigatório — quando o
+                  achador confirma que está com o pet fisicamente. Quem só
+                  avistou não passa por essa fricção. */}
+              {hasPossession === true && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-3">
+                  <label className="block text-[12px] font-black text-amber-800 uppercase tracking-widest">
+                    Prova obrigatória PETMOL Protege
+                  </label>
+                  <p className="mt-1 text-[12px] leading-snug text-amber-900/80">
+                    Grave até 10 segundos. Sem este vídeo, o tutor não recebe o possível match.
+                    {proofChallengeLoading
+                      ? ' Gerando desafio seguro...'
+                      : proofChallenge
+                        ? ` ${proofChallenge.instructions}`
+                        : ' Aguarde o desafio carregar antes de gravar.'}
+                  </p>
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handleVideoCapture}
+                  />
+                  {reportVideo ? (
+                    <div className="mt-3 overflow-hidden rounded-2xl border border-amber-300 bg-black">
+                      <video src={reportVideo} controls playsInline className="h-44 w-full object-contain" />
+                      <button
+                        type="button"
+                        onClick={() => setReportVideo('')}
+                        className="w-full bg-white px-3 py-2 text-[12px] font-black text-amber-800"
+                      >
+                        Remover vídeo
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => setReportVideo('')}
-                      className="w-full bg-white px-3 py-2 text-[12px] font-black text-amber-800"
+                      onClick={() => videoInputRef.current?.click()}
+                      disabled={!proofChallenge}
+                      className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-3 text-[14px] font-black text-white active:scale-[0.98] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Remover vídeo
+                      <span>🎥</span>
+                      {proofChallenge ? 'Gravar prova PETMOL Protege' : 'Aguardando desafio...'}
                     </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => videoInputRef.current?.click()}
-                    disabled={!proofChallenge}
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-3 text-[14px] font-black text-white active:scale-[0.98] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span>🎥</span>
-                    {proofChallenge ? 'Gravar prova PETMOL Protege' : 'Aguardando desafio...'}
-                  </button>
-                )}
-                {reportMediaError && <p className="mt-2 text-[11px] font-bold text-red-600">{reportMediaError}</p>}
-              </div>
+                  )}
+                  {reportMediaError && <p className="mt-2 text-[11px] font-bold text-red-600">{reportMediaError}</p>}
+                </div>
+              )}
 
               {/* Análise de compatibilidade — aparece quando há fotos */}
               {(preLoading || preConfidenceLabel) && (
@@ -761,10 +803,19 @@ function AcheiUmPetInner() {
                 <button
                   type="button"
                   onClick={() => handleSubmitReport(focusedId)}
-                  disabled={!reportContact.trim() || !reportVideo || !proofChallenge || submitting}
+                  disabled={
+                    !reportContact.trim()
+                    || hasPossession === null
+                    || (hasPossession === true && (!reportVideo || !proofChallenge))
+                    || submitting
+                  }
                   className="w-full py-4 rounded-2xl bg-emerald-500 text-white font-black text-[17px] shadow-lg shadow-emerald-200 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {submitting ? 'Enviando prova...' : `Enviar prova segura para o tutor`}
+                  {submitting
+                    ? 'Enviando...'
+                    : hasPossession === true
+                      ? 'Enviar prova segura para o tutor'
+                      : 'Enviar aviso para o tutor'}
                 </button>
 
                 <p className="rounded-2xl bg-slate-50 px-4 py-3 text-center text-[12px] font-bold leading-snug text-slate-500">
@@ -1239,7 +1290,7 @@ function PetCard({
         {pet.last_seen_location && (
           <div className="flex items-start gap-2 rounded-2xl bg-white/5 px-3.5 py-3 text-[12px] text-white/68 border border-white/8">
             <span className="flex-shrink-0 mt-0.5">📍</span>
-            <span className="leading-snug line-clamp-2">{pet.last_seen_location}</span>
+            <span className="leading-snug line-clamp-2">{redactStreetFromLocation(pet.last_seen_location)}</span>
           </div>
         )}
 
