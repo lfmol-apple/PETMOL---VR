@@ -434,9 +434,16 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   const handleFoodProductConfirmed = (product: ScannedProduct) => {
     setShowFoodPhotoFlow(false);
     if (!hasFood) {
-      // Primeiro cadastro — sem ambiguidade, é a ração principal. Só
-      // pergunta "ração ou petisco?" quando já existe uma ração configurada
-      // (aí sim um novo scan pode ser um item adicional, não substituição).
+      // Primeiro cadastro NÃO é garantia de ração principal — o tutor pode
+      // muito bem escanear um petisco primeiro (bug real reportado: um
+      // produto claramente petisco, ex. contendo "biscoito"/"snack" no
+      // nome, virava ração automaticamente sem nunca perguntar). Só pula a
+      // pergunta quando o nome não bate com nenhuma palavra de petisco —
+      // no caso ambíguo/petisco, mostra a mesma tela de classificação.
+      if (guessFoodKind(`${product.name || ''} ${product.brand || ''}`) === 'petisco') {
+        setPendingClassifyProduct(product);
+        return;
+      }
       persistScannedFoodProduct(product, true);
       return;
     }

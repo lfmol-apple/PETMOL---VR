@@ -50,9 +50,13 @@ export function classifyProductText(text: string): ProductCategory {
 // de salvar, nunca decide sozinho sem chance de correção (um falso
 // positivo bagunçaria o controle de dias da ração principal).
 const TREAT_WORDS = [
-  'petisco', 'biscoito', 'snack', 'bites', 'bifinho', 'sticks', 'stick',
-  'osso mordedor', 'mordedor', 'recompensa', 'premio', 'treats', 'chew',
-  'barrinha', 'wafer', 'crocante', 'jerky', 'dog treat', 'cat treat',
+  'petisco', 'petiscos', 'biscoito', 'biscoitos', 'snack', 'snacks',
+  'bites', 'bifinho', 'bifinhos', 'sticks', 'stick', 'palito', 'palitos',
+  'osso mordedor', 'ossinho', 'mordedor', 'recompensa', 'recompensas',
+  'premio', 'premios', 'treats', 'treat', 'chew', 'chews',
+  'barrinha', 'barrinhas', 'wafer', 'jerky', 'dog treat', 'cat treat',
+  'guloseima', 'guloseimas', 'cookie', 'cookies', 'tirinha', 'tirinhas',
+  'isca', 'dental stick', 'lasca', 'lascas', 'crocante recheado',
 ];
 
 function stripAccents(text: string): string {
