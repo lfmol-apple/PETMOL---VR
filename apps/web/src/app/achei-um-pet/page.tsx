@@ -97,6 +97,11 @@ function AcheiUmPetInner() {
   // quem só avistou de longe, exigir vídeo era fricção sem propósito
   // (pedido do tutor). null = ainda não respondeu.
   const [hasPossession, setHasPossession] = useState<boolean | null>(null);
+  // Mesmo padrão visual do PetSumidoSheet (tela de gerar o alerta) — campo
+  // cresce e borda fica vermelha no foco. Pedido do tutor: as duas telas
+  // do mesmo fluxo (pet sumido / achei um pet) devem ser visualmente
+  // consistentes.
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [reportLocation, setReportLocation] = useState('');
   const [reportNotes, setReportNotes] = useState('');
   const [reportCep, setReportCep] = useState('');
@@ -603,8 +608,8 @@ function AcheiUmPetInner() {
                   o pet em mãos; quem só avistou não deveria ter essa
                   fricção (pedido do tutor). */}
               <div>
-                <label className="block text-[12px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Você está com {pet.pet_name} agora?
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                  Você está com {pet.pet_name} agora? <span className="text-red-500 normal-case font-semibold">obrigatório</span>
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -612,8 +617,8 @@ function AcheiUmPetInner() {
                     onClick={() => setHasPossession(true)}
                     className={`py-3.5 rounded-2xl text-[14px] font-black border-2 transition-colors ${
                       hasPossession === true
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                        : 'border-slate-200 bg-white text-slate-500'
+                        ? 'border-red-400 bg-red-50 text-red-600'
+                        : 'border-slate-400 bg-white text-slate-500'
                     }`}
                   >
                     Sim, está comigo
@@ -623,8 +628,8 @@ function AcheiUmPetInner() {
                     onClick={() => { setHasPossession(false); setReportVideo(''); }}
                     className={`py-3.5 rounded-2xl text-[14px] font-black border-2 transition-colors ${
                       hasPossession === false
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                        : 'border-slate-200 bg-white text-slate-500'
+                        ? 'border-red-400 bg-red-50 text-red-600'
+                        : 'border-slate-400 bg-white text-slate-500'
                     }`}
                   >
                     Não, só avistei
@@ -634,8 +639,8 @@ function AcheiUmPetInner() {
 
               {/* Campo de telefone — principal e em destaque */}
               <div>
-                <label className="block text-[12px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Seu WhatsApp *
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                  Seu WhatsApp <span className="text-red-500 normal-case font-semibold">obrigatório</span>
                 </label>
                 <input
                   type="tel"
@@ -643,14 +648,18 @@ function AcheiUmPetInner() {
                   value={reportContact}
                   onChange={e => setReportContact(e.target.value)}
                   placeholder="(31) 9 9999-9999"
-                  className="w-full border-2 border-slate-200 rounded-2xl px-4 py-4 text-[20px] font-bold text-slate-900 placeholder-slate-300 outline-none focus:border-emerald-500 transition-colors"
+                  onFocus={() => setFocusedField('contact')}
+                  onBlur={() => setFocusedField(null)}
+                  className={`w-full border-2 rounded-2xl px-4 text-gray-900 placeholder-slate-500 outline-none transition-all ${
+                    focusedField === 'contact' ? 'border-red-400 py-5 text-xl' : 'border-slate-400 py-3 text-[15px]'
+                  }`}
                 />
               </div>
 
               {/* Onde está */}
               <div>
-                <label className="block text-[12px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Onde você está — CEP (opcional)
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                  Onde você está — CEP <span className="normal-case font-normal text-slate-300 ml-1">(opcional)</span>
                 </label>
                 <input
                   type="text"
@@ -658,7 +667,11 @@ function AcheiUmPetInner() {
                   value={reportCep}
                   onChange={e => void handleCepChange(e.target.value)}
                   placeholder="00000-000"
-                  className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-[16px] text-slate-900 placeholder-slate-300 outline-none focus:border-emerald-500 transition-colors"
+                  onFocus={() => setFocusedField('cep')}
+                  onBlur={() => setFocusedField(null)}
+                  className={`w-full border-2 rounded-2xl px-4 pr-10 text-gray-900 placeholder-slate-500 outline-none transition-colors ${
+                    focusedField === 'cep' ? 'border-red-400 py-5 text-xl' : 'border-slate-400 py-3 text-[15px]'
+                  }`}
                 />
                 {cepLoading && (
                   <p className="text-[12px] text-slate-400 mt-1.5 flex items-center gap-1.5">
@@ -667,28 +680,30 @@ function AcheiUmPetInner() {
                   </p>
                 )}
                 {!cepLoading && reportLocation && reportCep.replace(/\D/g, '').length === 8 && reportLocation !== reportCep.replace(/\D/g, '') && (
-                  <p className="text-[12px] text-emerald-600 mt-1.5 font-semibold">📍 {reportLocation}</p>
+                  <p className="text-[12px] text-red-500 mt-1.5 font-semibold">📍 {reportLocation}</p>
                 )}
               </div>
 
               {/* Observações */}
               <div>
-                <label className="block text-[12px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Observações (opcional)
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                  Observações <span className="normal-case font-normal text-slate-300 ml-1">(opcional)</span>
                 </label>
                 <textarea
                   value={reportNotes}
                   onChange={e => setReportNotes(e.target.value)}
                   placeholder="Ex: Está em boa saúde, sem coleira, dentro do meu quintal..."
                   rows={2}
-                  className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-[15px] text-slate-900 placeholder-slate-300 outline-none focus:border-emerald-500 transition-colors resize-none"
+                  onFocus={() => setFocusedField('notes')}
+                  onBlur={() => setFocusedField(null)}
+                  className="w-full border-2 border-slate-400 rounded-2xl px-4 py-3 text-[15px] text-gray-900 placeholder-slate-500 outline-none focus:border-red-400 transition-colors resize-none leading-relaxed"
                 />
               </div>
 
               {/* Fotos do pet (até 2) */}
               <div>
-                <label className="block text-[12px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Fotos do pet — até 2 (opcional)
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                  Fotos do pet — até 2 <span className="normal-case font-normal text-slate-300 ml-1">(opcional)</span>
                 </label>
                 <input
                   ref={photoInputRef}
@@ -701,7 +716,7 @@ function AcheiUmPetInner() {
                   {reportPhotos.map((photo, idx) => (
                     <div key={idx} className="relative flex-1">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={photo} alt={`Foto ${idx + 1}`} className="w-full h-32 object-cover rounded-2xl border-2 border-emerald-400" />
+                      <img src={photo} alt={`Foto ${idx + 1}`} className="w-full h-32 object-cover rounded-2xl border-2 border-red-300" />
                       <button
                         type="button"
                         onClick={() => setReportPhotos(prev => prev.filter((_, i) => i !== idx))}
@@ -713,7 +728,7 @@ function AcheiUmPetInner() {
                     <button
                       type="button"
                       onClick={() => photoInputRef.current?.click()}
-                      className={`flex-1 border-2 border-dashed border-slate-200 rounded-2xl py-4 flex flex-col items-center gap-1 text-slate-400 active:border-emerald-400 active:text-emerald-500 transition-colors ${reportPhotos.length === 0 ? 'min-h-[8rem]' : 'h-32'}`}
+                      className={`flex-1 border-2 border-dashed border-slate-300 rounded-2xl py-4 flex flex-col items-center gap-1 text-slate-400 active:border-red-400 active:text-red-500 transition-colors ${reportPhotos.length === 0 ? 'min-h-[8rem]' : 'h-32'}`}
                     >
                       <span className="text-2xl">📷</span>
                       <span className="text-[12px] font-bold">{reportPhotos.length === 0 ? 'Tirar ou escolher foto' : 'Adicionar 2ª foto'}</span>
@@ -800,25 +815,33 @@ function AcheiUmPetInner() {
 
               {/* Botões */}
               <div className="space-y-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => handleSubmitReport(focusedId)}
-                  disabled={
-                    !reportContact.trim()
-                    || hasPossession === null
-                    || (hasPossession === true && (!reportVideo || !proofChallenge))
-                    || submitting
-                  }
-                  className="w-full py-4 rounded-2xl bg-emerald-500 text-white font-black text-[17px] shadow-lg shadow-emerald-200 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {submitting
-                    ? 'Enviando...'
-                    : hasPossession === true
-                      ? 'Enviar prova segura para o tutor'
-                      : 'Enviar aviso para o tutor'}
-                </button>
+                {(() => {
+                  const canSubmit = Boolean(
+                    reportContact.trim()
+                    && hasPossession !== null
+                    && !(hasPossession === true && (!reportVideo || !proofChallenge)),
+                  );
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => handleSubmitReport(focusedId)}
+                      disabled={!canSubmit || submitting}
+                      className={`w-full py-4 rounded-2xl font-black text-[16px] transition-all active:scale-[0.98] ${
+                        canSubmit && !submitting
+                          ? 'bg-red-500 text-white shadow-lg shadow-red-500/25'
+                          : 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                      }`}
+                    >
+                      {submitting
+                        ? '⏳ Enviando...'
+                        : hasPossession === true
+                          ? '🚨 Enviar prova segura para o tutor'
+                          : '🚨 Enviar aviso para o tutor'}
+                    </button>
+                  );
+                })()}
 
-                <p className="rounded-2xl bg-slate-50 px-4 py-3 text-center text-[12px] font-bold leading-snug text-slate-500">
+                <p className="rounded-2xl bg-rose-50 border border-rose-100 px-4 py-3 text-center text-[12px] font-bold leading-snug text-rose-600">
                   O telefone do tutor não é exibido. O PETMOL entrega a prova, e o tutor decide se libera contato.
                 </p>
               </div>
