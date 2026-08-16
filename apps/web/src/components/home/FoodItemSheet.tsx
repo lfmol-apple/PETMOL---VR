@@ -15,6 +15,7 @@ import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
 import type { ScannedProduct } from '@/lib/productScanner';
 import { resolveFoodCommerceSnapshot } from '@/features/commerce/homeContextualCommerce';
 import { MonetizedOffersList } from '@/features/commerce/MonetizedOffersList';
+import { requestUserDecision } from '@/features/interactions/userPromptChannel';
 
 export interface FoodItemSheetProps {
   pet: PetHealthProfile;
@@ -34,11 +35,28 @@ type FoodSubMode = 'main' | 'adjustDuration' | 'finished' | 'channel' | 'restock
 
 type PurchaseChannel = 'petz' | 'cobasi' | 'amazon' | 'petlove' | 'loja_fisica' | 'outro';
 
+type FeedingPlanApiItem = {
+  id?: string | null;
+  label?: string | null;
+  food_brand?: string | null;
+  package_size_kg?: number | null;
+  daily_amount_g?: number | null;
+  duration_days?: number | null;
+  last_refill_date?: string | null;
+  mode?: string | null;
+  is_primary?: boolean;
+  barcode?: string | null;
+  category?: string | null;
+  notes?: string | null;
+};
+
 type FeedingPlanApiResponse = {
   status: string;
   pet_id: string;
   plan: {
     pet_id?: string | null;
+    species?: string | null;
+    country_code?: string | null;
     enabled?: boolean | null;
     no_consumption_control?: boolean | null;
     mode?: string | null;
@@ -51,16 +69,8 @@ type FeedingPlanApiResponse = {
     manual_reminder_days_before?: number | null;
     reminder_time?: string | null;
     next_purchase_date?: string | null;
-    items?: Array<{
-      id?: string | null;
-      food_brand?: string | null;
-      package_size_kg?: number | null;
-      daily_amount_g?: number | null;
-      duration_days?: number | null;
-      last_refill_date?: string | null;
-      is_primary?: boolean;
-      barcode?: string | null;
-    }>;
+    notes?: string | null;
+    items?: FeedingPlanApiItem[];
   } | null;
   estimate?: {
     estimated_end_date?: string | null;
@@ -291,6 +301,8 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   // deixa o tutor trocar de embalagem/sabor sem redigitar tudo, reusando o
   // mesmo fluxo (handleFoodProductConfirmed já pré-preenche o formulário).
   const [showEditPlanChoice, setShowEditPlanChoice] = useState(false);
+  const [deletingPlan, setDeletingPlan] = useState(false);
+  const [deletingSecondaryId, setDeletingSecondaryId] = useState<string | null>(null);
   // Alterna qual seção a tela principal mostra — ração (controle de peso/
   // tempo) ou petiscos (compra esporádica, sem contagem). Pedido do tutor:
   // as duas seções empilhadas numa rolagem só ficavam confusas pra um
@@ -578,6 +590,100 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
       setFeedback({ msg: 'Não deu pra salvar agora. Tente de novo.', tone: 'red' });
     } finally {
       setDeclaringNonKibble(false);
+    }
+  };
+
+  // "🗑️ Excluir plano" — ação direta na tela principal em vez de enterrada
+  // dentro de "Editar plano" → "Editar manualmente" → rolar até achar o
+  // botão. Remove ração principal E todos os petiscos (o backend só tem um
+  // DELETE de plano inteiro, não por item — mesmo comportamento do "Excluir
+  // controle" que já existia dentro do formulário).
+  const handleDeletePlan = async () => {
+    const accepted = await requestUserDecision(
+      `Excluir o plano de alimentação ${petDo(pet)} ${pet.pet_name}? Isso remove a ração principal e todos os petiscos cadastrados — não dá pra desfazer.`,
+      { title: 'Excluir plano de alimentação', tone: 'danger', confirmLabel: 'Excluir plano' },
+    );
+    if (!accepted) return;
+    setDeletingPlan(true);
+    try {
+      await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan`, {
+        method: 'DELETE',
+        headers: authH(),
+        credentials: 'include',
+      });
+      dispatchFoodPlanUpdated();
+      onSaved?.();
+      setShowEditPlanChoice(false);
+      await refreshFoodPlan();
+    } catch {
+      setFeedback({ msg: 'Não deu pra excluir agora. Tente de novo.', tone: 'red' });
+    } finally {
+      setDeletingPlan(false);
+    }
+  };
+
+  // "🗑️" por item na aba Petiscos — o backend substitui items_json inteiro
+  // a cada save (create_or_update_feeding_plan nunca faz merge), então
+  // excluir um item significa: buscar o plano atual, tirar só esse item da
+  // lista, e regravar o resto exatamente como veio (nenhum campo novo,
+  // nenhum default assumido) pra não corromper a ração principal nem
+  // resetar lembrete/duração dela.
+  const handleDeleteSecondaryItem = async (itemId: string, itemBrand: string) => {
+    const accepted = await requestUserDecision(
+      `Excluir "${itemBrand}" da lista de petiscos?`,
+      { title: 'Excluir item', tone: 'danger', confirmLabel: 'Excluir' },
+    );
+    if (!accepted) return;
+    setDeletingSecondaryId(itemId);
+    try {
+      const res = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan`, {
+        headers: authH(),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('fetch failed');
+      const payload: FeedingPlanApiResponse = await res.json();
+      const plan = payload.plan;
+      if (!plan) return;
+      const remaining = (plan.items || []).filter((item) => (item.id || '') !== itemId);
+      const saveRes = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authH() },
+        credentials: 'include',
+        body: JSON.stringify({
+          species: plan.species || pet.species || 'dog',
+          country_code: plan.country_code || 'BR',
+          safety_buffer_days: plan.safety_buffer_days ?? 3,
+          manual_reminder_days_before: plan.manual_reminder_days_before ?? null,
+          reminder_time: plan.reminder_time ?? null,
+          mode: plan.mode || 'kibble',
+          enabled: plan.enabled ?? true,
+          no_consumption_control: plan.no_consumption_control ?? false,
+          next_purchase_date: plan.next_purchase_date ?? null,
+          notes: plan.notes ?? null,
+          items: remaining.map((item) => ({
+            id: item.id ?? undefined,
+            label: item.label ?? undefined,
+            food_brand: item.food_brand ?? undefined,
+            package_size_kg: item.package_size_kg ?? undefined,
+            daily_amount_g: item.daily_amount_g ?? undefined,
+            duration_days: item.duration_days ?? undefined,
+            last_refill_date: item.last_refill_date ?? undefined,
+            mode: item.mode || 'kibble',
+            barcode: item.barcode ?? undefined,
+            category: item.category ?? undefined,
+            notes: item.notes ?? undefined,
+            is_primary: Boolean(item.is_primary),
+          })),
+        }),
+      });
+      if (!saveRes.ok) throw new Error('save failed');
+      dispatchFoodPlanUpdated();
+      onSaved?.();
+      await refreshFoodPlan();
+    } catch {
+      setFeedback({ msg: 'Não deu pra excluir agora. Tente de novo.', tone: 'red' });
+    } finally {
+      setDeletingSecondaryId(null);
     }
   };
 
@@ -1176,19 +1282,30 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                           </button>
 
                           {/* O botão "Editar" e o painel de opções (escanear/
-                              editar manualmente/excluir/não uso mais ração)
-                              nunca ficam visíveis ao mesmo tempo — um
-                              substitui o outro, em vez de empilhar duas UIs
-                              de "editar" na mesma tela (confuso, reportado
-                              pelo tutor). */}
+                              editar manualmente/não uso mais ração) nunca
+                              ficam visíveis ao mesmo tempo — um substitui o
+                              outro, em vez de empilhar duas UIs de "editar"
+                              na mesma tela (confuso, reportado pelo tutor).
+                              "Excluir" fica direto ao lado — ação decisiva,
+                              sem precisar entrar no painel pra achar. */}
                           {!showEditPlanChoice && (
-                            <button type="button"
-                              onClick={() => setShowEditPlanChoice(true)}
-                              className="w-full py-3 min-h-[48px] rounded-2xl bg-white border border-gray-200 text-gray-600 text-[14px] font-semibold hover:bg-gray-50 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
-                            >
-                              <span>✏️</span>
-                              Editar plano de alimentação
-                            </button>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button type="button"
+                                onClick={() => setShowEditPlanChoice(true)}
+                                className="py-3 min-h-[48px] rounded-2xl bg-white border border-gray-200 text-gray-600 text-[14px] font-semibold hover:bg-gray-50 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                              >
+                                <span>✏️</span>
+                                Editar
+                              </button>
+                              <button type="button"
+                                onClick={() => { void handleDeletePlan(); }}
+                                disabled={deletingPlan}
+                                className="py-3 min-h-[48px] rounded-2xl bg-white border border-red-200 text-red-600 text-[14px] font-semibold hover:bg-red-50 active:scale-[0.97] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                              >
+                                <span>🗑️</span>
+                                {deletingPlan ? 'Excluindo...' : 'Excluir'}
+                              </button>
+                            </div>
                           )}
 
                           {showEditPlanChoice && (
@@ -1285,6 +1402,15 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                                     className="flex-shrink-0 rounded-lg bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 text-[12px] font-bold text-white active:scale-95 transition-all"
                                   >
                                     🛒 Comprar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => { void handleDeleteSecondaryItem(item.id, item.brand); }}
+                                    disabled={deletingSecondaryId === item.id}
+                                    aria-label={`Excluir ${item.brand}`}
+                                    className="flex-shrink-0 w-9 h-9 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center"
+                                  >
+                                    🗑️
                                   </button>
                                 </div>
                               ))}
