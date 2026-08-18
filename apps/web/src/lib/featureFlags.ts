@@ -23,8 +23,3 @@ export function isNotificationPromptEnabled(): boolean {
   // Mantemos a função apenas para compatibilidade de import, sempre desativada.
   return false;
 }
-
-export function isAdmin(email?: string): boolean {
-  // Apenas leonardofmol@gmail.com é admin
-  return email === 'leonardofmol@gmail.com';
-}
