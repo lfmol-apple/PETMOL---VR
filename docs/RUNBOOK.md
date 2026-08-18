@@ -5,11 +5,11 @@ Este documento existe para que alguém além de quem escreveu o código consiga 
 ## Onde as coisas ficam
 
 - **Repositório**: `github.com/lfmol-apple/PETMOL---VR`, branch de produção é `main`.
-- **VPS**: Hostinger, `srv1335464.hstgr.cloud` (147.93.33.24), São Paulo. Painel: Hostinger → VPS. Acesso root via Web Console do painel ou `ssh root@147.93.33.24`.
+- **VPS**: Hostinger, `<VPS_HOST>` (`<VPS_IP>`), São Paulo. Painel: Hostinger → VPS. Acesso root via Web Console do painel ou `ssh root@<VPS_IP>` (valores reais só no cofre de segredos da equipe, nunca neste repositório público).
 - **Diretório da aplicação no VPS**: `/opt/petmol/app`.
 - **Serviços systemd**: `petmol-api` (FastAPI/Uvicorn, porta 8000) e `petmol-web` (Next.js standalone, porta 3000). nginx faz proxy reverso para ambos e serve `petmol.com.br` / `www.petmol.com.br`.
 - **Banco**: PostgreSQL local no VPS. `DATABASE_URL` em `services/price-service/.env` (nunca commitado).
-- **Admin master**: `leonardofmol@gmail.com` — único e-mail que `get_current_admin` aceita (hardcoded em `src/config.py`, ver `admin_master_email`).
+- **Admin master**: e-mail único que `get_current_admin` aceita, configurado via `ADMIN_MASTER_EMAIL` (`src/config.py`, ver `admin_master_email`) — obrigatório em produção (`validate_prod()` bloqueia o startup se ausente), não tem mais valor padrão hardcoded. Valor real: cofre de segredos da equipe, nunca neste repositório.
 
 ## Deploy
 
@@ -29,7 +29,7 @@ Sintoma ja observado em 2026-08-10:
 ```text
 Connection established.
 kex_exchange_identification: read: Operation timed out
-banner exchange: Connection to 147.93.33.24 port 22: Operation timed out
+banner exchange: Connection to <VPS_IP> port 22: Operation timed out
 ```
 
 Isso significa que o TCP na porta 22 abriu, mas o `sshd` nao respondeu o
@@ -37,7 +37,7 @@ banner. Nao e erro de senha/chave. A producao pode continuar no ar via nginx
 enquanto o SSH esta quebrado; confirme com:
 
 ```bash
-curl -I --connect-timeout 10 http://147.93.33.24
+curl -I --connect-timeout 10 http://<VPS_IP>
 curl -I --connect-timeout 10 https://www.petmol.com.br/
 curl -sS --connect-timeout 10 https://www.petmol.com.br/version.json
 ```
@@ -71,8 +71,8 @@ ss -ltnp | grep -E ':(22|2222)\b'
 Depois testar de fora:
 
 ```bash
-ssh -o BatchMode=yes -o ConnectTimeout=15 root@147.93.33.24 'hostname; whoami; date'
-ssh -p 2222 -o BatchMode=yes -o ConnectTimeout=15 root@147.93.33.24 'hostname; whoami; date'
+ssh -o BatchMode=yes -o ConnectTimeout=15 root@<VPS_IP> 'hostname; whoami; date'
+ssh -p 2222 -o BatchMode=yes -o ConnectTimeout=15 root@<VPS_IP> 'hostname; whoami; date'
 ```
 
 Se a porta 2222 funcionar e a 22 nao, liberar TCP 2222 no firewall da

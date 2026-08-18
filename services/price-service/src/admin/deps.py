@@ -49,7 +49,7 @@ def get_current_admin(
     # single hardcoded master email may ever pass, even if a stray row
     # exists in admin_users for someone else.
     settings = get_settings()
-    if user.email.strip().lower() != settings.admin_master_email.strip().lower():
+    if not settings.admin_master_email or user.email.strip().lower() != settings.admin_master_email.strip().lower():
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso admin negado")
 
     admin = db.query(AdminUser).filter(AdminUser.user_id == user.id).first()
