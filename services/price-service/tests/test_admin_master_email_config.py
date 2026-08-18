@@ -1,7 +1,7 @@
-"""admin_master_email no longer has a hardcoded default (was
-"leonardofmol@gmail.com") — it must come from ADMIN_MASTER_EMAIL, and prod
-must refuse to start without it. These are plain Settings/validate_prod
-unit tests: no DB, no TestClient, no app import needed.
+"""admin_master_email no longer has a hardcoded personal-email default — it
+must come from ADMIN_MASTER_EMAIL, and prod must refuse to start without it
+(empty or whitespace-only counts as unset). These are plain Settings/
+validate_prod unit tests: no DB, no TestClient, no app import needed.
 """
 from src.config import Settings
 
@@ -34,11 +34,22 @@ def test_dev_without_admin_master_email_is_allowed():
     settings.validate_prod()  # no-op outside prod — must not raise
 
 
-def test_error_message_never_reveals_the_old_hardcoded_email():
+def test_prod_with_whitespace_only_admin_master_email_fails_startup():
+    settings = Settings(env="prod", admin_master_email="   ", **_OTHER_VALID_PROD_FIELDS)
+    try:
+        settings.validate_prod()
+        assert False, "validate_prod() should have raised"
+    except RuntimeError as e:
+        assert "ADMIN_MASTER_EMAIL" in str(e)
+
+
+def test_error_message_never_reveals_an_email_address():
+    """Generic check: no error message from validate_prod() should ever
+    contain an email address, regardless of which one was previously
+    configured or hardcoded."""
     settings = Settings(env="prod", admin_master_email=None, **_OTHER_VALID_PROD_FIELDS)
     try:
         settings.validate_prod()
         assert False, "validate_prod() should have raised"
     except RuntimeError as e:
-        assert "leonardofmol" not in str(e).lower()
         assert "@" not in str(e)

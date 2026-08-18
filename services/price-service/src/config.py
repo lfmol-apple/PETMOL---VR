@@ -363,7 +363,7 @@ class Settings(BaseSettings):
             errors.append("ZIP_HMAC_SECRET must be set to a strong random value in prod")
         if not self.database_url.startswith("postgresql"):
             errors.append("DATABASE_URL must be a PostgreSQL URL in prod (got non-postgres URL)")
-        if not self.admin_master_email:
+        if not self.admin_master_email or not self.admin_master_email.strip():
             errors.append("ADMIN_MASTER_EMAIL must be set in prod")
         if self.storage_backend not in ("r2", "local"):
             errors.append(f"STORAGE_BACKEND must be 'r2' or 'local', got: {self.storage_backend!r}")
