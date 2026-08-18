@@ -86,11 +86,14 @@ Publicado como artefato nativo do GitHub Actions (`actions/upload-artifact`), re
 
 `manifest.json` (acima) descreve o **artefato** e é usado por `activate.sh` pra validar que o
 tarball extraído é mesmo o SHA esperado (falha o deploy se não bater). `version.json` é outra
-coisa: gerado pelo job `frontend` do CI (`echo "{\"v\":\"$GITHUB_SHA-$(date +%s)\"}" >
-apps/web/public/version.json`), vai dentro do build do Next.js e é servido como arquivo estático
-em `/version.json` pelo `petmol-web` já rodando — é o que o próprio frontend em produção usa
-(`apps/web/src/app/home/page.tsx`) pra detectar que existe uma versão mais nova e avisar o tutor
-a atualizar a página. Por isso é consultável via HTTP local no VPS (`127.0.0.1:3000`, sem
+coisa, carimbada no job **`package`** (não `frontend`) do CI, na etapa "Stamp version"
+(`echo "{\"v\":\"$GITHUB_SHA-$(date +%s)\"}" > apps/web/public/version.json`) — de propósito
+**antes** do passo seguinte, "Build frontend (standalone)", pra ficar embutido tanto na cópia do
+código-fonte quanto no bundle standalone que vai pro artefato de release. Uma vez no ar, é servido
+como arquivo estático em `/version.json` pelo `petmol-web` já rodando — é o que o próprio frontend
+em produção usa (`apps/web/src/app/home/page.tsx`) pra detectar que existe uma versão mais nova e
+avisar o tutor a atualizar a página. `version.json` representa a versão do **frontend empacotado e
+servido**, não do commit em si; é consultável via HTTP local no VPS (`127.0.0.1:3000`, sem
 precisar da API) e é a terceira perna da checagem de versão abaixo.
 
 ## Regra oficial de verificação de versão
@@ -108,6 +111,14 @@ curl -sS http://127.0.0.1:3000/version.json     # o que o frontend rodando de fa
 `activate.sh` como parte da ativação (ou do rollback automático, com `rolled_back_from=<sha>`).
 `/opt/petmol/app/REVISION` existe só como symlink legado pra esse mesmo arquivo; não usar como
 fonte separada.
+
+**A ponta de `main` não é o quarto indicador.** `deploy-atomic.yml` pula a ativação quando o diff
+entre a release ativa e o SHA a implantar contém só docs/workflow (ver step "Detect whether VPS
+deploy is needed" no workflow) — então `main` pode ficar legitimamente à frente da produção depois
+de commits desse tipo, sem que isso seja incidente. `main` é referência de desenvolvimento; os três
+comandos acima são a fonte de verdade sobre o que está de fato no ar. Só investigue divergência
+como incidente se os commits entre a release ativa e a ponta de `main` contiverem código que
+deveria ter sido implantado e não foi.
 
 ## Ativação (`deploy/release/activate.sh`)
 

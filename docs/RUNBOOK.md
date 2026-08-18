@@ -95,14 +95,15 @@ version.json -> 753705196e29044936fc41a876a960918affe10a-1786370556
 api/health -> {"status":"ok","version":"0.1.0","providers":["mercadolivre"]}
 ```
 
-**Verificar se um deploy realmente aplicou** — os três devem apontar pro mesmo SHA (rodar no VPS, exceto o primeiro):
+**Verificar se um deploy realmente aplicou** — os três indicadores abaixo (rodar no VPS) devem apontar pro mesmo SHA entre si; isso, não a ponta da `main`, é a fonte de verdade sobre o que está no ar:
 ```bash
-git log -1 --format=%H main                    # local/GitHub
 cat /opt/petmol/REVISION                        # o que activate.sh gravou como ativado
 readlink -f /opt/petmol/current                 # a release efetivamente servida
 curl -sS http://127.0.0.1:3000/version.json      # o que o frontend rodando de fato responde
 ```
-Qualquer divergência entre os três é incidente de deploy. (`/opt/petmol/app/REVISION` ainda existe como symlink legado pra `/opt/petmol/REVISION`, mas não deve ser consultado diretamente — é sobre o layout antigo, não a release servida.)
+Qualquer divergência entre esses três é incidente de deploy. (`/opt/petmol/app/REVISION` ainda existe como symlink legado pra `/opt/petmol/REVISION`, mas não deve ser consultado diretamente — é sobre o layout antigo, não a release servida.)
+
+Só depois disso compare com `git log -1 --format=%H main` — mas `main` pode legitimamente estar à frente do SHA ativado: `deploy-atomic.yml` pula a ativação quando o diff desde a release ativa contém só docs/workflow (ver "Detect whether VPS deploy is needed" no workflow). `main` mais à frente não é, sozinho, incidente; só investigue se os commits entre a release ativa e a ponta da `main` tiverem código que deveria ter sido implantado e não foi.
 
 **Acompanhar um deploy em andamento** (não precisa de acesso ao VPS, só `gh` autenticado):
 ```bash
