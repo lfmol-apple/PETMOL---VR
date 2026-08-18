@@ -33,11 +33,12 @@ deploy — só extrai um artefato já pronto e testado.
 
 ```text
 /opt/petmol/
+├── REVISION              # indicador OFICIAL — sha + activated_at (+ rolled_back_from se houve rollback)
 ├── releases/
 │   ├── <sha-1>/
 │   ├── <sha-2>/
 │   └── <sha-atual>/
-├── current -> releases/<sha-atual>          # symlink, trocado atomicamente
+├── current -> releases/<sha-atual>          # symlink, trocado atomicamente — release ativa
 ├── shared/
 │   ├── env/           # api.env, web.env.local — nunca dentro de uma release
 │   ├── uploads/        # services/price-service/uploads
@@ -45,7 +46,8 @@ deploy — só extrai um artefato já pronto e testado.
 │   ├── persistent/     # push_subscriptions.json
 │   └── venv/           # .venv Python COMPARTILHADO entre releases
 ├── incoming/            # tarball recém-enviado, antes de extrair
-└── app/                 # layout LEGADO — mantido até a migração ser confirmada
+└── app/                 # layout LEGADO — vestigial, não é mais checkout git nem release servida;
+                          # app/REVISION é hoje só um symlink pra ../REVISION, não consultar direto
 ```
 
 `activate.sh` cria symlinks dentro de cada release apontando para `shared/`:
@@ -79,6 +81,33 @@ depois que `frontend` e `backend` passam. Contém:
   ```
 
 Publicado como artefato nativo do GitHub Actions (`actions/upload-artifact`), retenção de 14 dias.
+
+### `version.json` — não confundir com `manifest.json`
+
+`manifest.json` (acima) descreve o **artefato** e é usado por `activate.sh` pra validar que o
+tarball extraído é mesmo o SHA esperado (falha o deploy se não bater). `version.json` é outra
+coisa: gerado pelo job `frontend` do CI (`echo "{\"v\":\"$GITHUB_SHA-$(date +%s)\"}" >
+apps/web/public/version.json`), vai dentro do build do Next.js e é servido como arquivo estático
+em `/version.json` pelo `petmol-web` já rodando — é o que o próprio frontend em produção usa
+(`apps/web/src/app/home/page.tsx`) pra detectar que existe uma versão mais nova e avisar o tutor
+a atualizar a página. Por isso é consultável via HTTP local no VPS (`127.0.0.1:3000`, sem
+precisar da API) e é a terceira perna da checagem de versão abaixo.
+
+## Regra oficial de verificação de versão
+
+Os três indicadores abaixo devem sempre apontar pro mesmo SHA — qualquer divergência entre eles é
+incidente de deploy, não normalidade:
+
+```bash
+cat /opt/petmol/REVISION                       # o que activate.sh gravou como ativado
+readlink -f /opt/petmol/current                # a release efetivamente servida
+curl -sS http://127.0.0.1:3000/version.json     # o que o frontend rodando de fato responde
+```
+
+`/opt/petmol/REVISION` é o indicador oficial — é o único dos três escrito diretamente por
+`activate.sh` como parte da ativação (ou do rollback automático, com `rolled_back_from=<sha>`).
+`/opt/petmol/app/REVISION` existe só como symlink legado pra esse mesmo arquivo; não usar como
+fonte separada.
 
 ## Ativação (`deploy/release/activate.sh`)
 
