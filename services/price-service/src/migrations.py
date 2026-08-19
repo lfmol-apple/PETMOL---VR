@@ -52,6 +52,9 @@ def run_pg_migrations(engine: Engine) -> None:
         return
 
     with engine.begin() as conn:
+        # users: email verification (Jul 2026)
+        _pg_add_column_if_missing(conn, "users", "email_verified", "BOOLEAN DEFAULT FALSE NOT NULL")
+
         # pets: insurance plan (Mar 2026)
         _pg_add_column_if_missing(conn, "pets", "insurance_provider", "TEXT")
 
