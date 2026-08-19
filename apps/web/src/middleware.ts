@@ -22,10 +22,26 @@ const PUBLIC_PATHS = [
   '/invite/',
   '/achei-um-pet',
   '/cuidar/',
+  '/loja',
+  '/guias',
 ];
 
-function isPublic(pathname: string): boolean {
-  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/') || pathname.startsWith(p));
+// Exportado só pra teste (middleware.test.ts) — comportamento idêntico,
+// nenhuma mudança de lógica, só visibilidade pro Vitest não precisar
+// simular o runtime de edge middleware do Next inteiro.
+export function isPublic(pathname: string): boolean {
+  return PUBLIC_PATHS.some((p) => {
+    // '/' só deve bater com a raiz exata — um startsWith('/') solto bateria
+    // com QUALQUER pathname (todos começam com '/'), o que tornava a
+    // autenticação da middleware um no-op para todas as rotas.
+    if (p === '/') return pathname === '/';
+    // Entradas com barra final (ex: '/v/', '/auth/') já são prefixos
+    // deliberados — cobrem qualquer coisa dentro delas.
+    if (p.endsWith('/')) return pathname.startsWith(p);
+    // Demais entradas: só a rota exata ou um filho dela ('/go' cobre
+    // '/go/abc', mas não '/google').
+    return pathname === p || pathname.startsWith(p + '/');
+  });
 }
 
 function firstHeaderValue(value: string | null): string | null {

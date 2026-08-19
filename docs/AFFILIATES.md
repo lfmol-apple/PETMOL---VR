@@ -37,7 +37,7 @@ libera exposição, ver seção Awin abaixo).
 | Araújo | Awin (advertiser 17919, pending/not_joined) | nenhum | nenhuma | **não** (0 produtos no ShopWindow) | nunca pode virar `AwinFeedProvider` — exigiria outra fonte de discovery |
 | Shopee | Shopee Affiliates | nenhum | nenhuma (`MarketplaceOffer`/`MarketplaceOfferProvider` prontos, gated por `SHOPEE_AFFILIATE_ENABLED=false`) | n/a | PJ, fiscal/bancário em avaliação, mídia aprovada e primeiro link oficial ainda pendentes |
 | Mercado Livre | ML Afiliados | nenhum | nenhuma | n/a | pending |
-| Amazon | Amazon Associates (PJ aprovada, tag `petmol-20`, 11% categoria Pet Shop) | nenhum (não passa por `CommerceEngine` — sem preço) | link de busca com tag, validado por domínio/esquema (`amazonAffiliate.ts`), sem Creators API ainda | n/a | **MVP ativo** desde 14/08/2026 |
+| Amazon | Amazon Associates (PJ criada, tag `petmol-20` tecnicamente ativa, 11% categoria Pet Shop — candidatura ainda em análise pela Amazon, **não aprovada definitivamente**; exige 3 vendas qualificadas nos primeiros 180 dias pra Amazon revisar) | nenhum (não passa por `CommerceEngine` — sem preço) | link de busca com tag, validado por domínio/esquema (`amazonAffiliate.ts`), sem Creators API ainda | n/a | **MVP ativo** (link com tag funcionando) desde 14/08/2026, desacoplado do Shopee em 19/08/2026 |
 | Petlove Produtos | — | nenhum | nenhuma | n/a | disabled deliberadamente |
 | Petlove Plano de Saúde | — | n/a (service, não produto) | nenhuma | n/a | pending — possível duplicata de DogLife, não confirmado |
 | DogLife | — | n/a (service, não produto) | nenhuma | n/a | pending — mesma pendência de esclarecimento |
@@ -324,12 +324,28 @@ O que já existe, pronto e **desligado**:
 ## Amazon — MVP ativo (link de busca com tag, sem preço/API)
 
 Conta Amazon Associados (Programa de Associados) pessoa jurídica
-aprovada, StoreID/Partner Tag **`petmol-20`**, categoria Pet Shop com
-**11%** informado, cadastro fiscal e bancário concluído. A **Creators
-API ainda não tem credenciais emitidas** (a PA-API 5 antiga está
-descontinuada) — o MVP é deliberadamente mais simples: um link de busca
-(ou de produto já conhecido) com a tag aplicada, nunca preço/imagem/nota
-vindos da Amazon (proibido fazer scraping de qualquer um dos três).
+**criada** — cadastro fiscal e bancário concluído, StoreID/Partner Tag
+**`petmol-20`** tecnicamente ativa, categoria Pet Shop com **11%**
+informado. **Importante não confundir isso com "conta aprovada":** a
+candidatura ao Programa de Associados ainda está em análise pela Amazon,
+que exige pelo menos **3 vendas qualificadas nos primeiros 180 dias**
+pra sequer revisar a conta — é exatamente pra isso que o link precisa
+estar ativo agora (a tag é como a Amazon rastreia essas vendas). Nunca
+declarar em código, comentário ou documentação que a conta ou a
+candidatura já foram aprovadas.
+
+Ativado desacoplado do Shopee (decisão revisada em 19/08/2026) — a
+decisão anterior de produto era ligar as duas contas juntas, mas isso só
+atrasava a Amazon acumular as vendas necessárias pra entrar em análise,
+sem necessidade real de esperar.
+
+A **Creators API ainda não tem credenciais emitidas** (a PA-API 5 antiga
+está descontinuada) — exige conta aprovada **e** pelo menos 10 vendas
+qualificadas nos últimos 30 dias, então também depende das vendas
+qualificadas acima. Enquanto isso, o MVP é deliberadamente mais simples:
+um link de busca (ou de produto já conhecido) com a tag aplicada, nunca
+preço/imagem/nota vindos da Amazon (proibido fazer scraping de qualquer
+um dos três).
 
 - `apps/web/src/features/commerce/amazonAffiliate.ts` — inteiramente
   client-side, sem round-trip a este backend (a tag não é segredo,
@@ -831,11 +847,11 @@ só tem publisher ID e token de API.
 |---|---|
 | program_name | Amazon Associates (Programa de Associados) |
 | merchant_type | amazon |
-| status | **active** — PJ aprovada, tag `petmol-20`, categoria Pet Shop, cadastro fiscal/bancário concluído |
+| status | **active** (link tecnicamente ativo) — PJ criada, tag `petmol-20`, categoria Pet Shop, cadastro fiscal/bancário concluído; candidatura ao programa ainda **em análise pela Amazon** (não aprovada definitivamente — exige 3 vendas qualificadas em 180 dias) |
 | affiliate_mode | search_template — link de busca com tag (`amazonAffiliate.ts`), não `tracking_tag` genérica (sempre construído/validado, nunca colado numa URL qualquer) |
 | storefront_available | não |
 | product_deeplink_available | `buildAmazonProductUrl` existe e é testada, mas não usada na UI ainda (sem catálogo de URLs de produto Amazon conhecidas hoje) |
-| api_available | Creators API existe como programa, mas **sem credenciais emitidas ainda**; PA-API 5 (antiga) está descontinuada |
+| api_available | Creators API existe como programa, mas **sem credenciais emitidas ainda**; exige conta aprovada e pelo menos 10 vendas qualificadas nos últimos 30 dias — ainda mais distante que a aprovação da candidatura em si; PA-API 5 (antiga) está descontinuada |
 | api_confirmed | não |
 | manual_generation | n/a — MVP gera o link automaticamente (busca por nome), nunca por cadastro manual |
 | cpa | 11% informado (categoria Pet Shop) |
