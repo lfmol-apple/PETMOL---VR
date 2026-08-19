@@ -22,6 +22,8 @@ const PUBLIC_PATHS = [
   '/invite/',
   '/achei-um-pet',
   '/cuidar/',
+  '/loja',
+  '/guias',
 ];
 
 // Exportado só pra teste (middleware.test.ts) — comportamento idêntico,

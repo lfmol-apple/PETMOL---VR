@@ -1,6 +1,21 @@
 import type { PetCareReminder, CareReminderDomain } from '@/lib/petCareDomain';
 import type { PetSpecies } from '@/lib/petHealth';
 import { HOME_SHOPPING_PARTNERS, type HomeShoppingPartnerId } from './homeShoppingPartners';
+import { petDo } from '@/lib/petGender';
+
+// Título da Loja do Pet autenticada — "Loja do [nome]"/"Loja da [nome]"
+// calculado pelo PET ATUALMENTE SELECIONADO (nunca um nome fixo tipo
+// "Loja do Baby" — Baby é só o nome de UM pet de UM tutor entre vários
+// usuários/pets do app). Sem pet_name (pet recém-criado, ainda sem nome)
+// cai no fallback genérico "Loja do Pet" — nunca quebra nem mostra
+// "Loja do undefined"/"Loja do null". Extraído como função pura (em vez
+// de inline no componente) especificamente pra ser testável sem precisar
+// montar toda a árvore de HomeShoppingSheet.tsx.
+export function buildPetStoreTitle(pet: { sex?: 'male' | 'female' | null; pet_name?: string | null }): string {
+  const name = pet.pet_name?.trim();
+  if (!name) return 'Loja do Pet';
+  return `Loja ${petDo(pet)} ${name}`;
+}
 
 // ── "❤️ Comprar novamente" ──────────────────────────────────────────────────
 // Deriva cards de recompra a partir dos MESMOS lembretes que já alimentam o

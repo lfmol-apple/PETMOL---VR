@@ -189,19 +189,29 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoAlt: 'Amazon',
     fallbackUrl: 'https://www.amazon.com.br/s?k=pet+shop',
     // MVP pronto e testado (14/08/2026): conta Amazon Associados PJ
-    // aprovada, tag petmol-20, categoria Pet Shop com 11% informado,
-    // cadastro fiscal e bancário concluído. Sem Creators API ainda
-    // (credenciais não emitidas; a PA-API 5 antiga está descontinuada) —
-    // o mecanismo real é só link de busca com tag, gerado por
-    // buildAmazonSearchUrl (amazonAffiliate.ts), nunca preço/imagem/nota
-    // da Amazon (sem scraping). affiliateMode 'search_template' (não
+    // criada, tag petmol-20 tecnicamente ativa, categoria Pet Shop com 11%
+    // informado, cadastro fiscal e bancário concluído. Sem Creators API
+    // ainda (credenciais não emitidas; a PA-API 5 antiga está
+    // descontinuada) — o mecanismo real é só link de busca com tag, gerado
+    // por buildAmazonSearchUrl (amazonAffiliate.ts), nunca preço/imagem/
+    // nota da Amazon (sem scraping). affiliateMode 'search_template' (não
     // 'tracking_tag': não é uma tag colada numa URL qualquer, é sempre um
     // link de busca construído e validado por domínio/esquema).
-    // DESATIVADA DE PROPÓSITO (decisão de produto, 14/08/2026): pronta
-    // pra ligar quando Shopee também estiver liberada — as duas devem
-    // entrar juntas, seguindo a estratégia combinada, não uma de cada vez.
-    // Reativar: trocar 'pending' por 'active' aqui, nada mais precisa mudar.
-    affiliateStatus: 'pending',
+    //
+    // IMPORTANTE — não confundir "link tecnicamente ativo" com "conta
+    // aprovada": a candidatura ao Programa de Associados ainda está em
+    // análise pela Amazon, que exige pelo menos 3 vendas qualificadas nos
+    // primeiros 180 dias pra revisar a conta. Até lá, o link com a tag
+    // funciona normalmente (é assim que a Amazon rastreia as vendas que
+    // qualificam a candidatura), mas não é correto afirmar em código ou
+    // documentação que a conta "já foi aprovada".
+    //
+    // Ativada de propósito, desacoplada do Shopee (revisão 19/08/2026) —
+    // a decisão anterior de "só ligar as duas juntas" foi abandonada:
+    // Amazon precisa gerar as 3 vendas qualificadas o quanto antes pra
+    // sequer entrar em análise, então esperar Shopee só atrasava isso sem
+    // necessidade.
+    affiliateStatus: 'active',
     merchantType: 'amazon',
     affiliateMode: 'search_template',
     supportsProductDeepLink: false,

@@ -16,10 +16,13 @@ import {
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
 import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
+import { StrategicProductGrid } from './StrategicProductGrid';
+import { getStrategicProductsForSpecies, type StrategicProductSpecies } from './strategicProducts';
 import { formatBRLPrice, type CommerceOffer } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
 import {
   buildReorderCards,
+  buildPetStoreTitle,
   STORE_CATEGORIES,
   buildStoreCategoryQuery,
   QUICK_BUY_PARTNERS,
@@ -57,6 +60,19 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
 
+  // Filtro por espécie: currentPet muda quando o tutor troca o pet
+  // selecionado (prop vinda de cima), então este useMemo — e a seção
+  // inteira — recalcula sozinho, sem lógica extra de "trocar pet". Espécie
+  // fora de dog/cat (pássaro, peixe, etc.) ou pet sem espécie reconhecida
+  // cai no fallback de getStrategicProductsForSpecies (só itens
+  // compartilhados) — nunca mistura recomendação de outra espécie.
+  const strategicSpecies: StrategicProductSpecies | null =
+    currentPet.species === 'dog' || currentPet.species === 'cat' ? currentPet.species : null;
+  const strategicProducts = useMemo(
+    () => getStrategicProductsForSpecies(strategicSpecies),
+    [strategicSpecies],
+  );
+
   // Cobasi sai do grid de ícones estáticos — vira busca (AffiliateCatalogSearch)
   // com produtos reais do catálogo Awin sincronizado, GTIN conhecido.
   const visibleStorePartners = useMemo(
@@ -74,7 +90,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   if (!open) return null;
 
   const petName = currentPet.pet_name;
-  const title = petName ? `Loja ${petDo(currentPet)} ${petName}` : 'Loja do Pet';
+  const title = buildPetStoreTitle(currentPet);
 
   function handleQuickBuy(partnerId: HomeShoppingPartnerId, searchQuery: string, ctaType: string, metadata: Record<string, unknown>) {
     // Not closing the sheet here on purpose: if the tutor's phone keeps this
@@ -235,6 +251,25 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🐾 Buscar produtos</p>
                 <AffiliateCatalogSearch petId={currentPet.pet_id} />
               </div>
+
+              {/* 🎯 Recomendações — mesma fonte editorial de /loja
+                  (strategicProducts.ts), filtrada pela espécie DO PET
+                  ATUALMENTE SELECIONADO (currentPet.species) — nunca
+                  mostra recomendação de cão pra quem tem gato selecionado
+                  ou vice-versa. Prioridade 3: depois de recompra e busca
+                  monetizada, antes das lojas parceiras genéricas. */}
+              {strategicProducts.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">
+                    🎯 Recomendações {petDo(currentPet)} {petName || 'seu pet'}
+                  </p>
+                  <StrategicProductGrid
+                    products={strategicProducts}
+                    source="pet_store"
+                    petId={currentPet.pet_id}
+                  />
+                </div>
+              )}
 
               {/* 🏪 Lojas */}
               <div>

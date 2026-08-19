@@ -465,8 +465,8 @@ export const translations: Record<string, TranslationEntry> = {
     'fr': 'Garderies', 'it': 'Asili'
   },
   'home.shopping.title': {
-    'pt-BR': 'Shopping', 'en': 'Shopping', 'es': 'Shopping',
-    'fr': 'Shopping', 'it': 'Shopping'
+    'pt-BR': 'Loja do Pet', 'en': 'Pet Store', 'es': 'Tienda de Mascotas',
+    'fr': 'Boutique Animaux', 'it': 'Negozio per Animali'
   },
   'home.shopping.products': {
     'pt-BR': 'Produtos para Pets', 'en': 'Pet Products', 'es': 'Productos para Mascotas',
