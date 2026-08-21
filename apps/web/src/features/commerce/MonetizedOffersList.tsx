@@ -7,20 +7,16 @@
  * fonte de verdade (useCommerceOffers/fetchCommerceOffers): nunca mostra
  * loja sem link afiliado ativo (Regra 1 — ver docs/AFFILIATES.md).
  *
- * Hoje só a Cobasi resolve (0 ou 1 oferta); a lista já está pronta para
- * quando Amazon/Shopee/ML/Petz entrarem — nenhuma tela precisa mudar.
+ * Cobasi e Shopee resolvem hoje (ver commerce_offers.py); a lista já
+ * está pronta para quando ML/Petz entrarem — nenhuma tela precisa mudar.
  */
 
-import { formatBRLPrice, type CommerceOffer } from './productPricing';
+import { formatBRLPrice, merchantLabel, type CommerceOffer } from './productPricing';
 import { HOME_SHOPPING_PARTNERS, isPartnerVisibleForSearch, navigateToPartnerUrl } from './homeShoppingPartners';
 import { buildAmazonSearchUrl } from './amazonAffiliate';
 import { useCommerceOffers } from './useCommerceOffers';
 import { trackClick } from '@/lib/analytics/click';
 import { trackPartnerClicked } from '@/lib/v1Metrics';
-
-const MERCHANT_LABELS: Record<string, string> = {
-  cobasi: 'Cobasi',
-};
 
 // Mesma regra de visibilidade usada em "Lojas"/QuickBuyRow
 // (isPartnerVisibleForSearch — active + afiliado configurado) — nunca uma
@@ -116,7 +112,7 @@ export function MonetizedOffersList({
       {offers.map((offer, index) => {
         const isBest = index === 0;
         const hasDiscount = typeof offer.list_price === 'number' && offer.list_price > (offer.price ?? 0);
-        const merchantLabel = MERCHANT_LABELS[offer.merchant] || offer.merchant;
+        const offerMerchantLabel = merchantLabel(offer.merchant);
 
         return (
           <div
@@ -133,7 +129,7 @@ export function MonetizedOffersList({
                 )}
                 <p className="font-bold text-gray-900 text-[15px] leading-tight truncate">{productLabel}</p>
                 <p className="text-[12px] text-gray-500">
-                  {merchantLabel}{offer.is_available === false ? ' · sob consulta' : ''}
+                  {offerMerchantLabel}{offer.is_available === false ? ' · sob consulta' : ''}
                 </p>
               </div>
               <div className="text-right flex-shrink-0">
