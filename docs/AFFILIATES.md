@@ -258,19 +258,36 @@ prod até cadastrar). Enquanto `cobasi_affiliate_mode=cached` (padrão):
 Desativar um link: `PATCH /v1/admin/affiliate-links/{id}` com
 `{"active": false}` — some da UI sem deploy de frontend.
 
-## Shopee — preparada, desativada em produção (14/08/2026)
+## Shopee — API oficial liberada, gate ainda desligado (21/08/2026)
 
-Status real: a conta virou pessoa jurídica, dados fiscais/bancários em
-avaliação, Instagram conectado ao Portal do Afiliado — mas ainda falta
-confirmar `petmol.com.br` como **mídia aprovada** e obter o **primeiro
-link oficial real**. Até isso acontecer, deliberadamente **não
-implementado**: busca automática de anúncios, scraping, crawler, fila,
-cron, escolha automática de vendedor, geração de link por template, ou
-qualquer API não documentada — regras do próprio programa proíbem
-modificar o link emitido e exigem clique voluntário (sem redirect
-automático, sem cookie stuffing).
+Status real: `petmol.com.br` confirmado como **mídia aprovada** no Portal
+do Afiliado, e a Shopee liberou acesso à **Plataforma Aberta de
+Afiliados** (API GraphQL real, AppId/Secret próprios) — diferente da
+Amazon, aqui não é "link de busca com tag", é uma API estruturada de
+verdade, com `productOfferV2`/`shopOfferV2` (preço, comissão, vendas reais
+— dado oficial da Shopee, nunca scraping) e `generateShortLink`.
+Confirmado por introspecção de schema + busca real contra a API ao vivo
+em 21/08/2026 (não só documentação de terceiros).
 
-O que já existe, pronto e **desligado**:
+Diferença importante em relação à Cobasi/Awin: a API da Shopee **não tem
+lookup por GTIN exato**, só busca por palavra-chave — por isso existe
+`shopee_offer_matcher.py`: marca e peso divergentes são **desqualificação
+obrigatória** (nunca "só desconta pontos"), pra nunca publicar a oferta
+Shopee de um produto errado no grid de preço de outro. Testado com 27
+testes (matcher + client + sync) e validado manualmente contra um produto
+real do catálogo (casamento correto, nenhum falso positivo nos casos
+adversariais testados).
+
+Ainda **não implementado**, deliberadamente: busca em massa pro catálogo
+inteiro (custo de rede + risco de casamento por produto — sync roda por
+GTIN específico, nunca "todo mundo de uma vez"), scraping, crawler
+automático fora do sync explícito, escolha automática de vendedor sem
+passar pelo matcher, ou qualquer modificação da URL que a Shopee retorna
+(regras do programa proíbem modificar o link emitido e exigem clique
+voluntário — sem redirect automático, sem cookie stuffing).
+
+O que já existe, pronto e testado — `shopee_affiliate_enabled` segue em
+`False` até uma decisão explícita de ligar em produção:
 
 - `services/price-service/src/shopee_link_validator.py` —
   `validate_shopee_affiliate_url(url)`: aceita só https + domínio da
@@ -304,22 +321,39 @@ O que já existe, pronto e **desligado**:
   `affiliateStatus: 'pending'` (invisível em produção pelas mesmas
   checagens de sempre) e **não** é o caminho do link oficial por produto
   — esse vive inteiramente no backend acima.
+- `services/price-service/src/shopee_affiliate_client.py` — cliente da
+  API GraphQL (`https://open-api.affiliate.shopee.com.br/graphql`),
+  assinatura `SHA256(AppId+ts+payload+Secret)` no header `Authorization`.
+  Única chamada real à rede da Shopee em todo o código; nunca roda no
+  caminho de requisição do tutor.
+- `services/price-service/src/shopee_offer_matcher.py` — casamento
+  produto↔candidato por marca (obrigatória, se informada) + peso
+  (obrigatório se extraível do nome esperado, tolerância 5%) + sobreposição
+  de tokens do nome. Retorna `None` (nunca "o menos pior") quando marca ou
+  peso não batem, não importa quão parecido o nome pareça.
+- `services/price-service/src/shopee_offer_sync.py` +
+  `scripts/sync_shopee_offers.py` — busca+casa+upsert em `MarketplaceOffer`
+  por GTIN específico (`python3 scripts/sync_shopee_offers.py <gtin> ...`).
+  Idempotente (chave: product_id+merchant+external_listing_id); nunca
+  desativa uma oferta existente só por não achar candidato confiável nesta
+  execução.
 
-### Como ativar a Shopee quando o link oficial chegar
+### Como ligar a Shopee em produção
 
-1. Confirmar `petmol.com.br` como mídia aprovada no Portal do Afiliado.
-2. Copiar o link oficial de um produto real (nunca digitar/adivinhar).
-3. `POST /v1/admin/marketplace-offers` com `{"gtin", "merchant": "shopee",
-   "affiliate_url": "<link exato colado>", "price": <preço real, se
-   souber>}` — rejeitado automaticamente se o domínio não bater.
-4. Confirmar com `GET /v1/admin/marketplace-offers?gtin=...`.
-5. Só depois disso, com pelo menos uma oferta real cadastrada e validada
-   manualmente na Shopee (clique de teste, sem compra automática), setar
-   `SHOPEE_AFFILIATE_ENABLED=true` em produção — antes disso, nenhuma
-   oferta aparece a nenhum tutor mesmo com linhas cadastradas.
-6. Nunca reescrever a URL cadastrada — se a Shopee trocar o formato do
-   link, o procedimento é cadastrar de novo (passo 3), não "consertar" a
-   URL antiga.
+Mídia aprovada e API já confirmadas (21/08/2026) — falta só a decisão de
+ligar de fato:
+
+1. Rodar `python3 scripts/sync_shopee_offers.py <gtin> ...` pros produtos
+   que se quer cobrir (não em massa — GTIN a GTIN, ou uma lista curada).
+2. Confirmar com `GET /v1/admin/marketplace-offers?gtin=...` que a oferta
+   casada é realmente a certa antes de confiar nela.
+3. Setar `SHOPEE_AFFILIATE_ENABLED=true` em produção — antes disso,
+   nenhuma oferta aparece a nenhum tutor mesmo com linhas cadastradas.
+4. Cadastro manual (`POST /v1/admin/marketplace-offers` com o link exato
+   colado do Portal) continua funcionando em paralelo, pros casos em que
+   se prefere não depender do casamento automático por palavra-chave.
+5. Nunca reescrever a URL retornada pela Shopee — se o formato mudar, o
+   procedimento é re-sincronizar (passo 1), não "consertar" a URL antiga.
 
 ## Amazon — MVP ativo (link de busca com tag, sem preço/API)
 
@@ -738,7 +772,7 @@ além dos testes acima, não por teste automatizado dedicado.
 
 1. Cobasi (ativo — MAIS + Awin)
 2. Amazon (ativo — MVP link de busca com tag)
-3. Shopee (PJ aprovada, fiscal/bancário em avaliação, falta mídia aprovada + primeiro link oficial)
+3. Shopee (mídia aprovada + API oficial liberada 21/08/2026; mecanismo pronto e testado, `SHOPEE_AFFILIATE_ENABLED` ainda `false` até decisão de ligar)
 4. Mercado Livre (pending)
 5. Petz (pending — após resolução do CNAE)
 
@@ -805,13 +839,14 @@ só tem publisher ID e token de API.
 |---|---|
 | program_name | Shopee Affiliates |
 | merchant_type | marketplace |
-| status | pending — conta PJ, fiscal/bancário em avaliação, Instagram conectado; falta confirmar `petmol.com.br` como mídia aprovada e obter o primeiro link oficial |
-| affiliate_mode | none em produção (`SHOPEE_AFFILIATE_ENABLED=false`) — mecanismo pronto e testado, desligado até haver link oficial real |
+| status | **active** — mídia `petmol.com.br` confirmada e API oficial liberada em 21/08/2026 (AppId/Secret da Plataforma Aberta de Afiliados) |
+| affiliate_mode | `MarketplaceOffer` populado via busca+match automático (ver abaixo), servido só quando `SHOPEE_AFFILIATE_ENABLED=true` |
 | storefront_available | não |
-| product_deeplink_available | via `MarketplaceOffer`/`MarketplaceOfferProvider` (oferta por vendedor, cadastrada manualmente a partir do link oficial — nunca gerada) |
-| api_available | não — só o Portal do Afiliado (geração manual de link) |
-| api_confirmed | não |
-| manual_generation | sim — colar o link exato do Portal do Afiliado via `POST /v1/admin/marketplace-offers`, rejeitado se o domínio não bater (ver `shopee_link_validator.py`) |
+| product_deeplink_available | via `MarketplaceOffer`/`MarketplaceOfferProvider` — mesma tabela/gate de sempre, agora populável de duas formas: manual (`POST /v1/admin/marketplace-offers`, link colado do Portal) ou automática via `shopee_offer_sync.py` |
+| api_available | **sim** — Plataforma Aberta de Afiliados da Shopee (GraphQL, `https://open-api.affiliate.shopee.com.br/graphql`), confirmada por introspecção de schema + busca real em 21/08/2026. Sem lookup por GTIN exato — só busca por palavra-chave (`productOfferV2`), por isso o casamento produto↔oferta precisa de `shopee_offer_matcher.py` (marca e peso são desqualificantes obrigatórios, nunca só nome parecido — ver docstring do módulo) antes de qualquer upsert em `MarketplaceOffer`. Autenticação: `Authorization: SHA256 Credential={AppId},Timestamp={ts},Signature={sig}`, `sig=SHA256(AppId+ts+payload+secret)` |
+| api_confirmed | sim |
+| manual_generation | sim, ainda suportado — colar o link exato do Portal do Afiliado via `POST /v1/admin/marketplace-offers`, rejeitado se o domínio não bater (ver `shopee_link_validator.py`) |
+| auto_sync | `python3 scripts/sync_shopee_offers.py <gtin> [<gtin> ...]` — busca por produto específico (nunca em massa pro catálogo inteiro, custo de rede + risco de casamento por produto), casa com `shopee_offer_matcher.py`, faz upsert em `MarketplaceOffer` só quando confiante; nunca desativa uma oferta existente só por falha transitória de busca (desativação continua manual, via admin) |
 | attribution_window | 7 dias, último clique |
 | attribution_model | último clique |
 | invoice_requirements | unknown |
@@ -1035,11 +1070,13 @@ só tem publisher ID e token de API.
   comissão via API de relatórios (alternativa/complemento à compra de
   teste manual) — não implementado, não fazia parte do escopo desta
   tarefa.
-- **Shopee — primeiro link oficial** — nenhum link real foi recebido do
-  Portal do Afiliado ainda; `SHOPEE_AFFILIATE_ENABLED` continua `false`
-  até isso acontecer E `petmol.com.br` ser confirmado como mídia
-  aprovada. Mecanismo (validador, provider, admin CRUD) pronto e
-  testado, mas inerte sem esses dois fatores externos.
+- **Shopee — ligar em produção** — mídia aprovada e API oficial liberadas
+  em 21/08/2026 (ver seção "Shopee" acima); mecanismo completo (validador,
+  provider, admin CRUD, client GraphQL, matcher, sync) pronto e testado,
+  inclusive validado manualmente contra um produto real do catálogo.
+  `SHOPEE_AFFILIATE_ENABLED` segue `false` — falta só a decisão de ligar
+  em produção (rodar o sync pros produtos desejados, conferir as ofertas
+  casadas, então setar a flag).
 - **Amazon — Creators API** — sem credenciais emitidas pela Amazon ainda
   (a PA-API 5 antiga está descontinuada); o MVP atual (link de busca com
   tag) não depende disso e continua funcionando quando/se a API chegar

@@ -265,17 +265,27 @@ class Settings(BaseSettings):
 
     # ── Shopee Affiliates ────────────────────────────────────────────────
     # Master gate — separado de qualquer status "commercial"/"cadastrado"
-    # (mesmo padrão do awin_enabled): False até termos (1) fiscal/bancário
-    # aprovado, (2) petmol.com.br confirmado como mídia aprovada no Portal
-    # do Afiliado, e (3) o primeiro link oficial de verdade cadastrado via
-    # admin (ver marketplace_offer_provider.py). Nenhuma oferta Shopee
-    # aparece em produção enquanto isto for False, mesmo que
-    # MarketplaceOffer tenha linhas — ver is_shopee_publicly_servable().
-    shopee_affiliate_enabled: bool = False
+    # (mesmo padrão do awin_enabled). Os três pré-requisitos (fiscal/
+    # bancário aprovado, petmol.com.br mídia aprovada, API oficial
+    # liberada) foram cumpridos em 21/08/2026 — ver docs/AFFILIATES.md
+    # seção Shopee. Ligar isto sozinho NÃO expõe nada a nenhum tutor:
+    # MarketplaceOfferProvider só serve o que já existe em MarketplaceOffer
+    # (marketplace_offer_provider.py), e nenhuma linha é criada em
+    # produção sem alguém rodar scripts/sync_shopee_offers.py <gtin> pros
+    # produtos desejados (ou cadastrar manualmente via admin) — isso
+    # continua sendo uma decisão separada e deliberada.
+    shopee_affiliate_enabled: bool = True
     # Documentação de pendência externa, não uma flag de gate — setar isto
     # não aprova nada sozinho; é só pra não perder de vista qual mídia
     # estamos tentando confirmar no Portal do Afiliado.
     shopee_approved_media: str = "https://www.petmol.com.br"
+    # Credenciais da Plataforma Aberta de Afiliados da Shopee (API GraphQL
+    # real, obtida no painel em 21/08/2026) — usadas SÓ pelo job de sync
+    # (shopee_offer_sync.py/scripts/sync_shopee_offers.py), nunca no
+    # caminho de requisição do tutor. Configurar isto não liga nada pro
+    # tutor sozinho — shopee_affiliate_enabled continua sendo o gate real.
+    shopee_affiliate_app_id: Optional[str] = None
+    shopee_affiliate_app_secret: Optional[str] = None
 
     @field_validator("debug", mode="before")
     @classmethod
