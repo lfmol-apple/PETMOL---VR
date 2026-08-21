@@ -712,17 +712,20 @@ export function ProductDetectionSheetGold({
   const [scannerError, setScannerError] = useState<string | null>(null);
   const [manualBarcode, setManualBarcode] = useState('');
   const [kbdBottom, setKbdBottom] = useState(0);
-  // Progressivo (pedido do tutor, ago/2026, threshold revisado pro tutor
-  // ago/2026): só escanear aparece de cara. Foto e digitar manualmente
-  // liberam juntas depois de 2 tentativas de scan sem achar o produto —
-  // antes exigia falhar na foto também pra liberar o manual, mas 2 scans
-  // sem sucesso já é considerado motivo suficiente pra oferecer as duas
-  // alternativas de uma vez. Contadores resetam a cada abertura do sheet
-  // (não persistem).
+  // Progressivo (pedido do tutor, ago/2026; threshold de digitar manualmente
+  // revisado pro tutor em 21/08/2026, de 2 para 3): só escanear aparece de
+  // cara. Foto libera depois de 2 tentativas de scan sem achar o produto;
+  // digitar manualmente (código de barras primeiro, ver renderManual) só
+  // libera depois de 3 — o tutor pediu esse número específico pra dar mais
+  // chance à câmera antes de cair pro manual. Contadores resetam a cada
+  // abertura do sheet (não persistem).
   const [scanFailCount, setScanFailCount] = useState(0);
   const [photoFailCount, setPhotoFailCount] = useState(0);
   const photoUnlocked = photoFailCount > 0 || scanFailCount >= 2;
-  const manualUnlocked = photoFailCount >= 1 || scanFailCount >= 2;
+  const manualUnlocked = photoFailCount >= 1 || scanFailCount >= 3;
+  // Continua contando pra liberação da FOTO (2 tentativas) — a mensagem em
+  // renderNotFound() que usa isto fala especificamente de foto, não do
+  // manual (que libera depois, na 3ª tentativa, ver manualUnlocked acima).
   const remainingScanAttempts = Math.max(0, 2 - scanFailCount);
 
   const emitProductTelemetry = useCallback((eventType: string, payload: Record<string, unknown>) => {
@@ -2255,6 +2258,34 @@ export function ProductDetectionSheetGold({
         </div>
       )}
 
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Digite o código de barras (mais rápido)</p>
+        <div className="mt-2 flex gap-2">
+          <input
+            type="text"
+            inputMode="numeric"
+            value={manualBarcode}
+            onChange={(event) => setManualBarcode(event.target.value.replace(/\D/g, ''))}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                void handleManualBarcodeLookup();
+              }
+            }}
+            className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm transition-colors focus:border-blue-400 focus:outline-none"
+            placeholder="Digite o EAN/GTIN"
+          />
+          <button
+            type="button"
+            onClick={() => void handleManualBarcodeLookup()}
+            className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition-all active:scale-95"
+          >
+            Buscar
+          </button>
+        </div>
+      </div>
+
+      <p className="text-center text-xs text-gray-400">Não tem o código à mão? Digite o nome ou marca abaixo.</p>
+
       <input
         type="text"
         value={query}
@@ -2363,32 +2394,6 @@ export function ProductDetectionSheetGold({
           </div>
         </div>
       )}
-
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Buscar por código de barras</p>
-        <div className="mt-2 flex gap-2">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={manualBarcode}
-            onChange={(event) => setManualBarcode(event.target.value.replace(/\D/g, ''))}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                void handleManualBarcodeLookup();
-              }
-            }}
-            className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm transition-colors focus:border-blue-400 focus:outline-none"
-            placeholder="Digite o EAN/GTIN"
-          />
-          <button
-            type="button"
-            onClick={() => void handleManualBarcodeLookup()}
-            className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition-all active:scale-95"
-          >
-            Buscar
-          </button>
-        </div>
-      </div>
 
       {allowScanning && (
         <button
