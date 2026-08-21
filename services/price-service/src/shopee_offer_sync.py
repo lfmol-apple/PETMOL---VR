@@ -140,6 +140,67 @@ def sync_shopee_offer_for_gtin(
     return ShopeeSyncResult(gtin=gtin_normalized, matched=True, offer_id=offer.id)
 
 
+def _ensure_catalog_entry(db: Session, gtin: str, name: str, brand: Optional[str]) -> Optional[ProductCatalog]:
+    """Get-or-create um products_catalog a partir de um GTIN+nome+marca já
+    conhecidos de uma fonte real (ex: feed Awin/Cobasi — nunca inventado
+    aqui, só passado adiante). Nunca sobrescreve nome/marca de uma linha
+    já existente, não importa a origem dela (scan de tutor, outro feed,
+    etc.) — só cria quando realmente não existe nada pro GTIN."""
+    gtin_normalized = normalize_gtin(gtin)
+    if not gtin_normalized or not name:
+        return None
+    existing = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
+    if existing:
+        return existing
+    product = ProductCatalog(
+        barcode=gtin_normalized,
+        barcode_normalized=gtin_normalized,
+        name=name,
+        brand=brand,
+        source_primary="awin_feed",
+    )
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+    return product
+
+
+def sync_shopee_offer_from_feed_row(
+    db: Session,
+    gtin: str,
+    name: str,
+    brand: Optional[str],
+    *,
+    limit: int = 10,
+    min_confidence: float = 0.5,
+) -> ShopeeSyncResult:
+    """Igual sync_shopee_offer_for_gtin, mas garante antes que existe uma
+    linha em products_catalog pro GTIN — usado pro catálogo Awin/Cobasi
+    (milhares de produtos reais, muitos nunca escaneados por nenhum
+    tutor, então sem entrada prévia em products_catalog)."""
+    product = _ensure_catalog_entry(db, gtin, name, brand)
+    if product is None:
+        return ShopeeSyncResult(gtin=gtin, matched=False, reason="GTIN ou nome inválido pra criar entrada de catálogo")
+    return sync_shopee_offer_for_gtin(db, product.barcode_normalized, limit=limit, min_confidence=min_confidence)
+
+
+def iter_awin_feed_products(db: Session, merchant: str = "cobasi") -> list[tuple[str, str, Optional[str]]]:
+    """(gtin, title, brand) de todo produto ativo e com GTIN do feed Awin
+    pro merchant dado — fonte alternativa de GTINs pro sync em massa
+    (ver admin/shopee_sync_router.py, source="awin_feed"), muito mais
+    ampla e limpa que products_catalog sozinho (que só tem o que algum
+    tutor já escaneou)."""
+    from .affiliate_feed import AffiliateFeedOffer
+
+    rows = db.query(AffiliateFeedOffer.gtin, AffiliateFeedOffer.title, AffiliateFeedOffer.brand).filter(
+        AffiliateFeedOffer.merchant == merchant,
+        AffiliateFeedOffer.active.is_(True),
+        AffiliateFeedOffer.gtin.isnot(None),
+        AffiliateFeedOffer.title.isnot(None),
+    ).all()
+    return [(r[0], r[1], r[2]) for r in rows]
+
+
 def sync_shopee_offers_for_gtins(
     db: Session,
     gtins: list[str],
