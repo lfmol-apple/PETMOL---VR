@@ -5,12 +5,23 @@ busca por palavra-chave da Shopee (productOfferV2) devolve.
 Por que isto existe: a API da Shopee não tem lookup por GTIN exato, só
 busca textual (ver shopee_affiliate_client.py) — diferente da Cobasi/Awin,
 que casam por GTIN exato via feed. Buscar por palavra-chave pode devolver
-produto errado (marca diferente, peso diferente, item não relacionado).
+produto errado (marca diferente, tamanho diferente, item não relacionado).
 Este módulo é a única linha de defesa contra publicar uma oferta Shopee
 errada no grid de preços de um produto — por isso as checagens de marca e
-peso são desqualificantes (hard fail), nunca só "descontam pontos": um
-candidato sem a marca esperada, ou com peso divergente, nunca é
-considerado, não importa quão parecido o nome pareça.
+tamanho (peso/volume) são desqualificantes (hard fail) sempre que o
+próprio catálogo PETMOL tiver essa informação, nunca só "descontam
+pontos": um candidato sem a marca esperada, ou com peso/volume
+divergente, nunca é considerado, não importa quão parecido o nome pareça.
+
+Caso real que motivou o desempate por preço (21/08/2026): "Shampoo Hydra
+Pelos Claros Pet Society" (nome PETMOL sem nenhum tamanho informado)
+casou com sobreposição de tokens IDÊNTICA tanto para a versão de varejo
+(300ml, ~R$66) quanto para uma versão profissional de 5L (R$554) — sem
+tamanho nenhum pra comparar dos dois lados, o antigo critério ("primeiro
+com maior score") ficava refém da ordem de relevância da própria busca da
+Shopee, que pode favorecer o anúncio mais caro. Por isso, em empate de
+score, o candidato de MENOR preço vence — é a suposição mais segura
+quando não dá pra confirmar o tamanho (varejo, não atacado profissional).
 
 Pure functions, sem I/O — testável sem rede e sem banco.
 """
@@ -30,6 +41,8 @@ _STOPWORDS = frozenset({
 
 _WEIGHT_TOKEN_RE = re.compile(r"^\d+(?:[.,]\d+)?(kg|g)$")
 _WEIGHT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(kg|g)\b")
+_VOLUME_TOKEN_RE = re.compile(r"^\d+(?:[.,]\d+)?(ml|l|litro|litros)$")
+_VOLUME_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(ml|l|litro|litros)\b")
 
 
 def _normalize(text: str) -> str:
@@ -39,13 +52,32 @@ def _normalize(text: str) -> str:
 
 
 def extract_weight_kg(text: str) -> Optional[float]:
-    """Primeiro peso encontrado no texto, convertido pra kg. None se
-    nenhum peso reconhecível estiver presente."""
+    """Primeiro peso (kg/g) encontrado no texto, convertido pra kg. None
+    se nenhum peso reconhecível estiver presente."""
     match = _WEIGHT_RE.search(_normalize(text))
     if not match:
         return None
     value = float(match.group(1).replace(",", "."))
     return value if match.group(2) == "kg" else value / 1000
+
+
+def extract_volume_ml(text: str) -> Optional[float]:
+    """Primeiro volume (ml/L/Litro(s)) encontrado no texto, convertido pra
+    ml. None se nenhum volume reconhecível estiver presente."""
+    match = _VOLUME_RE.search(_normalize(text))
+    if not match:
+        return None
+    value = float(match.group(1).replace(",", "."))
+    return value if match.group(2) == "ml" else value * 1000
+
+
+def _parse_price(raw: object) -> Optional[float]:
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
 
 
 def _tokenize(text: str) -> set[str]:
@@ -55,7 +87,7 @@ def _tokenize(text: str) -> set[str]:
     for token in normalized.split():
         if not token or token in _STOPWORDS:
             continue
-        if _WEIGHT_TOKEN_RE.match(token):
+        if _WEIGHT_TOKEN_RE.match(token) or _VOLUME_TOKEN_RE.match(token):
             continue
         tokens.add(token)
     return tokens
@@ -67,7 +99,9 @@ def score_candidate(
     *,
     expected_brand: Optional[str] = None,
     expected_weight_kg: Optional[float] = None,
+    expected_volume_ml: Optional[float] = None,
     weight_tolerance_ratio: float = 0.05,
+    volume_tolerance_ratio: float = 0.05,
 ) -> Optional[float]:
     """Score de confiança em [0, 1] — fração dos tokens significativos de
     expected_name que aparecem em candidate_name. Retorna None (nunca um
@@ -76,8 +110,15 @@ def score_candidate(
     - expected_brand fornecido e nenhum token da marca aparece no
       candidato — marca diferente nunca é "quase igual", é outro produto.
     - expected_weight_kg fornecido e o candidato não tem peso reconhecível,
-      ou tem um peso fora da tolerância — nunca assume que "sem peso no
-      nome" significa "mesmo peso".
+      ou tem peso fora da tolerância.
+    - expected_volume_ml fornecido e o candidato não tem volume
+      reconhecível, ou tem volume fora da tolerância.
+
+    Quando nem peso nem volume são extraíveis do nome PETMOL (ex:
+    "Shampoo Hydra Pelos Claros Pet Society", sem tamanho nenhum
+    informado), nenhuma das duas checagens roda — a defesa contra
+    escolher um tamanho errado nesse caso é o desempate por preço em
+    find_best_match(), não este score.
     """
     candidate_tokens = _tokenize(candidate_name)
 
@@ -94,6 +135,14 @@ def score_candidate(
         if abs(candidate_weight - expected_weight_kg) > tolerance:
             return None
 
+    if expected_volume_ml is not None:
+        candidate_volume = extract_volume_ml(candidate_name)
+        if candidate_volume is None:
+            return None
+        tolerance = max(20.0, expected_volume_ml * volume_tolerance_ratio)
+        if abs(candidate_volume - expected_volume_ml) > tolerance:
+            return None
+
     expected_tokens = _tokenize(expected_name)
     if not expected_tokens:
         return None
@@ -107,15 +156,21 @@ def find_best_match(
     *,
     expected_brand: Optional[str] = None,
     expected_weight_kg: Optional[float] = None,
+    expected_volume_ml: Optional[float] = None,
     min_confidence: float = 0.5,
 ) -> Optional[dict]:
     """Melhor nó de productOfferV2 (dict cru, como veio da API) pro
     produto esperado, ou None se nenhum candidato passar nas checagens
-    obrigatórias E atingir min_confidence. Nunca escolhe "o menos pior"
+    obrigatórias E atingir min_confidence.
+
+    Em empate de score, o candidato de MENOR preço vence — quando não dá
+    pra confirmar o tamanho (peso/volume ausentes dos dois lados), a
+    suposição mais segura é a versão de varejo, nunca a mais cara/atacado
+    só porque a busca da Shopee a listou primeiro (ver docstring do
+    módulo pro caso real que motivou isto). Nunca escolhe "o menos pior"
     abaixo do limiar — ausência de match confiável é sempre None, nunca
     uma aposta."""
-    best_node: Optional[dict] = None
-    best_score = 0.0
+    candidates: list[tuple[float, float, dict]] = []
     for node in nodes:
         candidate_name = node.get("productName") or ""
         score = score_candidate(
@@ -123,10 +178,15 @@ def find_best_match(
             candidate_name,
             expected_brand=expected_brand,
             expected_weight_kg=expected_weight_kg,
+            expected_volume_ml=expected_volume_ml,
         )
-        if score is None:
+        if score is None or score < min_confidence:
             continue
-        if score >= min_confidence and score > best_score:
-            best_node = node
-            best_score = score
-    return best_node
+        price = _parse_price(node.get("price"))
+        candidates.append((score, price if price is not None else float("inf"), node))
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda c: (-c[0], c[1]))
+    return candidates[0][2]

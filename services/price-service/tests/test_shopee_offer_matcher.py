@@ -4,7 +4,7 @@ uma oferta Shopee errada no grid de preços (busca por palavra-chave, sem
 GTIN exato). Marca e peso divergentes têm que desqualificar SEMPRE, não
 importa quão parecido o nome pareça.
 """
-from src.shopee_offer_matcher import extract_weight_kg, find_best_match, score_candidate
+from src.shopee_offer_matcher import extract_volume_ml, extract_weight_kg, find_best_match, score_candidate
 
 # Nós reais, capturados de uma busca de verdade contra a API Shopee em
 # 21/08/2026 (keyword="racao para cachorro") — usados como fixture porque
@@ -50,6 +50,42 @@ class TestExtractWeightKg:
 
     def test_sem_peso_no_texto_retorna_none(self):
         assert extract_weight_kg("Ração Premium Sabor Carne") is None
+
+
+# Nós reais, capturados em 21/08/2026 pra "Pet Society Shampoo Hydra
+# Pelos Claros Pet Society" — o caso real que motivou o desempate por
+# preço: sem volume no nome PETMOL, a versão de 5L profissional e a de
+# 300ml de varejo empatavam em score (sobreposição de tokens idêntica).
+SHAMPOO_SEARCH_NODES = [
+    {
+        "itemId": 23121518406,
+        "productName": "Shampoo Pet Society Hydra Groomers Pelos Claros Cachorro Gato 5L Diluição 1:10",
+        "price": "554.31",
+        "offerLink": "https://s.shopee.com.br/8AVT8yFEv1",
+        "productLink": "https://shopee.com.br/product/688030691/23121518406",
+    },
+    {
+        "itemId": 58201216624,
+        "productName": "Shampoo Pet Society Hydra Pelos Claros para Caes e Gatos - 300ml",
+        "price": "65.99",
+        "offerLink": "https://s.shopee.com.br/8AVT8yFEv2",
+        "productLink": "https://shopee.com.br/product/1/58201216624",
+    },
+]
+
+
+class TestExtractVolumeMl:
+    def test_extrai_ml(self):
+        assert extract_volume_ml("Shampoo Pelos Claros 300ml") == 300.0
+
+    def test_extrai_litros_convertendo_pra_ml(self):
+        assert extract_volume_ml("Shampoo Hydra Groomers Pelos Claros 5L") == 5000.0
+
+    def test_extrai_palavra_litro_por_extenso(self):
+        assert extract_volume_ml("Shampoo Hydra Groomers Pelos Claros 1 Litro") == 1000.0
+
+    def test_sem_volume_no_texto_retorna_none(self):
+        assert extract_volume_ml("Shampoo Hydra Pelos Claros Pet Society") is None
 
 
 class TestScoreCandidate:
@@ -113,6 +149,30 @@ class TestScoreCandidate:
 
 
 class TestFindBestMatch:
+    def test_empate_de_score_sem_tamanho_no_nome_pega_o_de_menor_preco(self):
+        # Caso real (21/08/2026): "Shampoo Hydra Pelos Claros Pet Society"
+        # não tem volume no nome PETMOL — as duas versões (5L profissional
+        # e 300ml varejo) empatam em sobreposição de tokens. Nunca pode
+        # escolher a de R$554 só por ter aparecido primeiro na busca.
+        best = find_best_match(
+            SHAMPOO_SEARCH_NODES,
+            "Shampoo Hydra Pelos Claros Pet Society",
+            expected_brand="Pet Society",
+        )
+        assert best is not None
+        assert best["itemId"] == 58201216624
+        assert best["price"] == "65.99"
+
+    def test_com_volume_no_nome_desqualifica_o_tamanho_errado_mesmo_sem_empate_ajudar(self):
+        best = find_best_match(
+            SHAMPOO_SEARCH_NODES,
+            "Shampoo Hydra Pelos Claros Pet Society 300ml",
+            expected_brand="Pet Society",
+            expected_volume_ml=300.0,
+        )
+        assert best is not None
+        assert best["itemId"] == 58201216624
+
     def test_acha_o_candidato_certo_ignorando_marca_e_peso_errados_no_mesmo_resultado(self):
         best = find_best_match(
             REAL_SEARCH_NODES,

@@ -21,6 +21,7 @@ boa; desativar continua sendo ação manual via admin
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
@@ -32,7 +33,7 @@ from .affiliate_links import MarketplaceOffer
 from .product_catalog_lookup import ProductCatalog, normalize_gtin
 from .shopee_affiliate_client import ShopeeAffiliateError, search_product_offers
 from .shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
-from .shopee_offer_matcher import extract_weight_kg, find_best_match
+from .shopee_offer_matcher import _parse_price, extract_volume_ml, extract_weight_kg, find_best_match
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +49,6 @@ class ShopeeSyncResult:
 def _build_keyword(product: ProductCatalog) -> str:
     parts = [p for p in (product.brand, product.name) if p]
     return " ".join(parts).strip()
-
-
-def _parse_price(raw: object) -> Optional[float]:
-    if raw is None:
-        return None
-    try:
-        return float(raw)
-    except (TypeError, ValueError):
-        return None
 
 
 def sync_shopee_offer_for_gtin(
@@ -87,10 +79,12 @@ def sync_shopee_offer_for_gtin(
         return ShopeeSyncResult(gtin=gtin_normalized, matched=False, reason=f"erro na API Shopee: {exc}")
 
     expected_weight_kg = extract_weight_kg(product.name)
+    expected_volume_ml = extract_volume_ml(product.name)
     best = find_best_match(
         nodes,
         product.name,
         expected_brand=product.brand,
+        expected_volume_ml=expected_volume_ml,
         expected_weight_kg=expected_weight_kg,
         min_confidence=min_confidence,
     )
@@ -152,8 +146,16 @@ def sync_shopee_offers_for_gtins(
     *,
     limit: int = 10,
     min_confidence: float = 0.5,
+    delay_seconds: float = 0.4,
 ) -> list[ShopeeSyncResult]:
-    return [
-        sync_shopee_offer_for_gtin(db, gtin, limit=limit, min_confidence=min_confidence)
-        for gtin in gtins
-    ]
+    """Roda sync_shopee_offer_for_gtin em sequência, com uma pausa entre
+    chamadas (delay_seconds) — nunca validamos o comportamento da API sob
+    alto volume, então isto é uma medida de prudência, não uma exigência
+    documentada da Shopee. Sem pausa na última chamada (não faz sentido
+    esperar depois do último GTIN)."""
+    results = []
+    for index, gtin in enumerate(gtins):
+        results.append(sync_shopee_offer_for_gtin(db, gtin, limit=limit, min_confidence=min_confidence))
+        if delay_seconds > 0 and index < len(gtins) - 1:
+            time.sleep(delay_seconds)
+    return results
