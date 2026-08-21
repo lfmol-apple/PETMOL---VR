@@ -286,6 +286,13 @@ class Settings(BaseSettings):
     # tutor sozinho — shopee_affiliate_enabled continua sendo o gate real.
     shopee_affiliate_app_id: Optional[str] = None
     shopee_affiliate_app_secret: Optional[str] = None
+    # Token dedicado pra disparar/acompanhar o lote de sync via HTTPS
+    # (admin/shopee_sync_router.py) — deliberadamente separado de
+    # ADMIN_OPS_API_KEY (aquele é só leitura, nunca em rota de escrita;
+    # este endpoint grava MarketplaceOffer, então nunca reaproveita a
+    # chave read-only). None por padrão: sem isto configurado, o endpoint
+    # sempre responde 401, mesmo com qualquer header enviado.
+    shopee_sync_trigger_token: Optional[str] = None
 
     @field_validator("debug", mode="before")
     @classmethod
