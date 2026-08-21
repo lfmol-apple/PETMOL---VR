@@ -77,6 +77,9 @@ PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin prohibit-password
 EOF
+if [ -f /etc/ssh/sshd_config.d/50-cloud-init.conf ]; then
+  sed -i -E 's/^[[:space:]]*PasswordAuthentication[[:space:]]+.*/PasswordAuthentication no/' /etc/ssh/sshd_config.d/50-cloud-init.conf
+fi
 
 cat >"${SSHD_DROPIN}" <<'EOF'
 UsePAM yes

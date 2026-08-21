@@ -38,7 +38,18 @@ jobs:
             done
           }
 
-          ssh_retry "bash /opt/petmol/app/deploy/release/repair_ssh_and_create_claudeops.sh"
+          scp_retry() {
+            local max_wait=300 elapsed=0 delay=10
+            until scp $SSH_OPTS "$@"; do
+              elapsed=$((elapsed + delay))
+              [ "$elapsed" -ge "$max_wait" ] && { echo "SCP did not become ready after ${max_wait}s"; return 1; }
+              echo "SCP not ready yet; retrying in ${delay}s (${elapsed}/${max_wait}s)"
+              sleep "$delay"
+            done
+          }
+
+          scp_retry deploy/release/repair_ssh_and_create_claudeops.sh "$VPS_USER@$VPS_IP:/tmp/repair_ssh_and_create_claudeops.sh"
+          ssh_retry "bash /tmp/repair_ssh_and_create_claudeops.sh; rm -f /tmp/repair_ssh_and_create_claudeops.sh"
 
       - name: Verify root and claudeops access from runner
         env:
