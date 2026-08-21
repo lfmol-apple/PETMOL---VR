@@ -310,6 +310,34 @@ log "Restarting petmol-web..."
 sudo systemctl restart petmol-web
 
 # ============================================
+# Step 5b: Keep SSH administration reachable
+# ============================================
+SSH_REPAIR_SCRIPT="$APP_DIR/deploy/release/repair_ssh_and_create_claudeops.sh"
+REPAIR_SSH="${PETMOL_REPAIR_SSH:-}"
+if [ -z "$REPAIR_SSH" ]; then
+    if [ -z "${SSH_CONNECTION:-}" ]; then
+        REPAIR_SSH=1
+    else
+        REPAIR_SSH=0
+    fi
+fi
+
+if [ "$REPAIR_SSH" = "1" ] && [ -f "$SSH_REPAIR_SCRIPT" ]; then
+    log "Ensuring SSH admin access..."
+    if [ "$(id -u)" = "0" ]; then
+        bash "$SSH_REPAIR_SCRIPT" || warn "SSH repair script failed; deploy will continue."
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo bash "$SSH_REPAIR_SCRIPT" || warn "SSH repair script failed; deploy will continue."
+    else
+        warn "Cannot run SSH repair script without root or sudo."
+    fi
+elif [ "$REPAIR_SSH" = "1" ]; then
+    warn "SSH repair script not found at $SSH_REPAIR_SCRIPT"
+else
+    log "SSH repair not requested."
+fi
+
+# ============================================
 # Step 6: Health checks (non-fatal — logs on failure)
 # ============================================
 log "Running health checks..."

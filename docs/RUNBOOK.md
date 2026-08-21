@@ -43,7 +43,22 @@ curl -sS --connect-timeout 10 https://www.petmol.com.br/version.json
 ```
 
 Sem SSH funcional, o canal de correcao e o **Web Console da Hostinger**. Entrar
-como `root` e rodar:
+como `root` e rodar o script idempotente versionado no repo:
+
+```bash
+cd /opt/petmol/current 2>/dev/null || cd /opt/petmol/app
+bash deploy/release/repair_ssh_and_create_claudeops.sh
+```
+
+Esse script:
+- registra um snapshot de `ssh.socket`, `ssh`, journal e portas abertas;
+- limpa bans ativos do fail2ban, se existir;
+- mantem o UFW ligado, mas garante `22/tcp` e `2222/tcp`;
+- desativa `ssh.socket` e deixa `ssh.service` escutar diretamente em `22` e `2222`;
+- cria o usuario dedicado `claudeops` com chave publica e sudo sem senha para automacao.
+
+Se o repo local do VPS estiver inconsistente, o procedimento manual equivalente
+continua sendo:
 
 ```bash
 set -euxo pipefail

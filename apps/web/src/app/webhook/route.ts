@@ -177,7 +177,7 @@ if [ "$ASSET_NAME" = "PETMOL.zip" ]; then
   rm -rf /opt/petmol/PETMOL_apply
   mkdir -p /opt/petmol/PETMOL_apply
   /usr/bin/unzip -q -o /opt/petmol/PETMOL.zip deploy/sync/apply_on_vps.sh -d /opt/petmol/PETMOL_apply
-  PETMOL_DEPLOY_SHA="$DEPLOY_SHA" PETMOL_DEPLOY_BRANCH="main" /bin/bash /opt/petmol/PETMOL_apply/deploy/sync/apply_on_vps.sh >> "$LOG" 2>&1
+  PETMOL_DEPLOY_SHA="$DEPLOY_SHA" PETMOL_DEPLOY_BRANCH="main" PETMOL_REPAIR_SSH=1 /bin/bash /opt/petmol/PETMOL_apply/deploy/sync/apply_on_vps.sh >> "$LOG" 2>&1
   echo "Full deploy OK $(date)" >> "$LOG"
 else
   /usr/bin/curl -fL --max-time 300 "$DL_URL" | /usr/bin/tar -xzC /opt/petmol/app/apps/web --no-same-owner
