@@ -6,11 +6,12 @@ contra a API ao vivo, ver shopee_affiliate_client.py).
 """
 from sqlalchemy import select
 
+from src.affiliate_feed import AffiliateFeedOffer
 from src.affiliate_links import MarketplaceOffer
 from src.db import SessionLocal
 from src.product_catalog_lookup import ProductCatalog
 import src.shopee_offer_sync as sync_module
-from src.shopee_offer_sync import sync_shopee_offer_for_gtin
+from src.shopee_offer_sync import iter_awin_feed_products, sync_shopee_offer_for_gtin, sync_shopee_offer_from_feed_row
 
 GTIN = "7891234500000"
 
@@ -155,3 +156,76 @@ def test_erro_na_api_nao_derruba_o_sync(monkeypatch):
     result = sync_shopee_offer_for_gtin(SessionLocal(), GTIN)
     assert result.matched is False
     assert "erro na API Shopee" in result.reason
+
+
+AWIN_GTIN = "7899999900001"
+
+
+def _register_awin_feed_offer(gtin: str = AWIN_GTIN, title: str = "Ração Soma Nutrição Carne Adulto Cão 15kg", brand: str = "Soma") -> None:
+    db = SessionLocal()
+    db.add(AffiliateFeedOffer(
+        network="awin", merchant="cobasi", advertiser_id="123", external_product_id="ext-1",
+        gtin=gtin, title=title, brand=brand, active=True,
+    ))
+    db.commit()
+    db.close()
+
+
+def test_iter_awin_feed_products_so_traz_ativos_com_gtin_e_titulo():
+    _register_awin_feed_offer()
+    db = SessionLocal()
+    inactive = AffiliateFeedOffer(
+        network="awin", merchant="cobasi", advertiser_id="123", external_product_id="ext-2",
+        gtin="7899999900002", title="Produto Inativo", brand="X", active=False,
+    )
+    no_gtin = AffiliateFeedOffer(
+        network="awin", merchant="cobasi", advertiser_id="123", external_product_id="ext-3",
+        gtin=None, title="Produto Sem Gtin", brand="X", active=True,
+    )
+    db.add_all([inactive, no_gtin])
+    db.commit()
+
+    items = iter_awin_feed_products(db, merchant="cobasi")
+    db.close()
+
+    gtins = {i[0] for i in items}
+    assert AWIN_GTIN in gtins
+    assert "7899999900002" not in gtins
+    assert "7899999900003" not in gtins
+
+
+def test_sync_from_feed_row_cria_products_catalog_quando_nao_existe(monkeypatch):
+    monkeypatch.setattr(sync_module, "search_product_offers", lambda keyword, limit=10: [SOMA_15KG_OFFER])
+
+    db = SessionLocal()
+    assert db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == AWIN_GTIN)) is None
+
+    result = sync_shopee_offer_from_feed_row(
+        db, AWIN_GTIN, "Ração Soma Nutrição Carne Adulto Cão 15kg", "Soma",
+    )
+    assert result.matched is True
+
+    product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == AWIN_GTIN))
+    assert product is not None
+    assert product.brand == "Soma"
+    assert product.source_primary == "awin_feed"
+    db.close()
+
+
+def test_sync_from_feed_row_nunca_sobrescreve_catalogo_ja_existente(monkeypatch):
+    db = SessionLocal()
+    db.add(ProductCatalog(
+        barcode=AWIN_GTIN, barcode_normalized=AWIN_GTIN,
+        name="Nome Já Cadastrado Por Tutor", brand="MarcaOriginal",
+    ))
+    db.commit()
+    db.close()
+
+    monkeypatch.setattr(sync_module, "search_product_offers", lambda keyword, limit=10: [SOMA_15KG_OFFER])
+
+    db = SessionLocal()
+    sync_shopee_offer_from_feed_row(db, AWIN_GTIN, "Nome Diferente Do Feed Awin", "MarcaDiferente")
+    product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == AWIN_GTIN))
+    assert product.name == "Nome Já Cadastrado Por Tutor"
+    assert product.brand == "MarcaOriginal"
+    db.close()

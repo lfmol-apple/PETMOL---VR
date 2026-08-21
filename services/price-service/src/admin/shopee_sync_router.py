@@ -30,7 +30,7 @@ from pydantic import BaseModel
 from ..config import get_settings
 from ..db import SessionLocal
 from ..product_catalog_lookup import ProductCatalog
-from ..shopee_offer_sync import sync_shopee_offer_for_gtin
+from ..shopee_offer_sync import iter_awin_feed_products, sync_shopee_offer_for_gtin, sync_shopee_offer_from_feed_row
 from .shopee_sync_state import STATE
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,13 @@ DEFAULT_CATEGORIES = ["food", "antiparasite", "medication", "hygiene", "dewormer
 
 class RunRequest(BaseModel):
     categories: Optional[list[str]] = None
+    # "categories": products_catalog filtrado por categoria (só o que já
+    #   foi escaneado por algum tutor).
+    # "awin_feed": catálogo real do feed Awin/Cobasi (milhares de produtos,
+    #   independente do que qualquer tutor específico já cadastrou —
+    #   cria a entrada em products_catalog quando ainda não existir).
+    source: str = "categories"
+    feed_merchant: str = "cobasi"
 
 
 def _require_token(x_sync_token: Optional[str]) -> None:
@@ -52,26 +59,32 @@ def _require_token(x_sync_token: Optional[str]) -> None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
 
 
-def _run_sync(categories: list[str]) -> None:
+def _run_sync(categories: list[str], source: str = "categories", feed_merchant: str = "cobasi") -> None:
     db = SessionLocal()
     try:
-        rows = db.query(ProductCatalog.barcode_normalized).filter(
-            ProductCatalog.category.in_(categories),
-            ProductCatalog.name.isnot(None),
-            ProductCatalog.brand.isnot(None),
-        ).all()
-        gtins = [r[0] for r in rows]
+        if source == "awin_feed":
+            items: list[tuple[str, Optional[str], Optional[str]]] = iter_awin_feed_products(db, merchant=feed_merchant)
+        else:
+            rows = db.query(ProductCatalog.barcode_normalized).filter(
+                ProductCatalog.category.in_(categories),
+                ProductCatalog.name.isnot(None),
+                ProductCatalog.brand.isnot(None),
+            ).all()
+            items = [(r[0], None, None) for r in rows]
 
         with STATE.lock:
-            STATE.total = len(gtins)
+            STATE.total = len(items)
             STATE.processed = 0
             STATE.matched = 0
             STATE.error = None
             STATE.finished_at = None
 
-        for gtin in gtins:
+        for gtin, name, brand in items:
             try:
-                result = sync_shopee_offer_for_gtin(db, gtin)
+                if source == "awin_feed":
+                    result = sync_shopee_offer_from_feed_row(db, gtin, name or "", brand)
+                else:
+                    result = sync_shopee_offer_for_gtin(db, gtin)
                 matched = result.matched
             except Exception as exc:  # noqa: BLE001 — um GTIN ruim não pode derrubar o lote inteiro
                 logger.warning("shopee sync (admin trigger): erro inesperado em gtin=%s: %s", gtin, exc)
@@ -102,9 +115,11 @@ def run_sync(payload: RunRequest, x_sync_token: Optional[str] = Header(default=N
         STATE.started_at = datetime.now(timezone.utc).isoformat()
 
     categories = payload.categories or DEFAULT_CATEGORIES
-    thread = threading.Thread(target=_run_sync, args=(categories,), daemon=True)
+    thread = threading.Thread(
+        target=_run_sync, args=(categories, payload.source, payload.feed_merchant), daemon=True
+    )
     thread.start()
-    return {"started": True, "categories": categories}
+    return {"started": True, "categories": categories, "source": payload.source, "feed_merchant": payload.feed_merchant}
 
 
 @router.get("/status")
