@@ -1,0 +1,62 @@
+name: VPS Command
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "Shell command to run on the VPS as the deploy SSH user"
+        required: true
+      timeout_seconds:
+        description: "Remote command timeout in seconds"
+        required: false
+        default: "300"
+
+jobs:
+  run:
+    name: Run command on VPS
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Execute command over SSH
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VPS_COMMAND: ${{ github.event.inputs.command }}
+          REMOTE_TIMEOUT: ${{ github.event.inputs.timeout_seconds }}
+        run: |
+          set -euo pipefail
+          VPS_PORT="${VPS_PORT:-22}"
+          REMOTE_TIMEOUT="${REMOTE_TIMEOUT:-300}"
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          SSH_OPTS="-i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o BatchMode=yes -o ServerAliveInterval=10 -o ServerAliveCountMax=2"
+          SSH="ssh $SSH_OPTS $VPS_USER@$VPS_IP"
+
+          ssh_retry() {
+            local max_wait=300 elapsed=0 delay=10
+            until $SSH "$@"; do
+              elapsed=$((elapsed + delay))
+              [ "$elapsed" -ge "$max_wait" ] && { echo "SSH did not become ready after ${max_wait}s"; return 1; }
+              echo "SSH not ready yet; retrying in ${delay}s (${elapsed}/${max_wait}s)"
+              sleep "$delay"
+            done
+          }
+
+          scp_retry() {
+            local max_wait=300 elapsed=0 delay=10
+            until scp $SSH_OPTS "$@"; do
+              elapsed=$((elapsed + delay))
+              [ "$elapsed" -ge "$max_wait" ] && { echo "SCP did not become ready after ${max_wait}s"; return 1; }
+              echo "SCP not ready yet; retrying in ${delay}s (${elapsed}/${max_wait}s)"
+              sleep "$delay"
+            done
+          }
+
+          printf '%s' "$VPS_COMMAND" > /tmp/vps-command.sh
+          scp_retry /tmp/vps-command.sh "$VPS_USER@$VPS_IP:/tmp/vps-command-${GITHUB_RUN_ID}.sh"
+          ssh_retry "chmod 700 /tmp/vps-command-${GITHUB_RUN_ID}.sh && timeout '$REMOTE_TIMEOUT' bash /tmp/vps-command-${GITHUB_RUN_ID}.sh; status=\$?; rm -f /tmp/vps-command-${GITHUB_RUN_ID}.sh; exit \$status"
