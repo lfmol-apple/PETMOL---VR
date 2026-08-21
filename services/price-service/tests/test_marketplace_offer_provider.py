@@ -27,6 +27,11 @@ def _enable_shopee(monkeypatch) -> None:
     get_settings.cache_clear()
 
 
+def _disable_shopee(monkeypatch) -> None:
+    monkeypatch.setenv("SHOPEE_AFFILIATE_ENABLED", "false")
+    get_settings.cache_clear()
+
+
 def _register_product(gtin: str = GTIN) -> int:
     db = SessionLocal()
     try:
@@ -55,8 +60,8 @@ def _register_offer(product_id: int, **overrides) -> None:
 
 
 @pytest.mark.asyncio
-async def test_disabled_by_default_finds_nothing():
-    assert get_settings().shopee_affiliate_enabled is False
+async def test_disabled_finds_nothing(monkeypatch):
+    _disable_shopee(monkeypatch)
     product_id = _register_product()
     _register_offer(product_id)
 
@@ -201,6 +206,7 @@ def test_monetize_rejects_offer_with_now_invalid_domain(monkeypatch):
 
 
 def test_monetize_disabled_returns_none(monkeypatch):
+    _disable_shopee(monkeypatch)
     product_id = _register_product()
     db = SessionLocal()
     try:
