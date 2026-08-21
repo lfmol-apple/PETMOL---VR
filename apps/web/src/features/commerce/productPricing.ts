@@ -4,6 +4,22 @@ export function formatBRLPrice(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// Nomes de exibição por merchant — usado em toda tela que lista ofertas
+// (busca Awin e cards de "comprar novamente"), pra nunca cravar o nome de
+// uma loja específica (ex: "na Cobasi") num texto que hoje pode vir de
+// qualquer provider registrado no CommerceEngine (Cobasi, Shopee, etc.).
+export const MERCHANT_LABELS: Record<string, string> = {
+  cobasi: 'Cobasi',
+  zeenow: 'Zee Now',
+  zeedog: 'Zee Dog',
+  petz: 'Petz',
+  shopee: 'Shopee',
+};
+
+export function merchantLabel(merchant: string): string {
+  return MERCHANT_LABELS[merchant] ?? merchant;
+}
+
 export interface CommerceOffer {
   merchant: string;
   url: string;

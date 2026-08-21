@@ -2,21 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { trackClick } from '@/lib/analytics/click';
-import { formatBRLPrice, fetchCommerceOffers, searchAwinCatalog, type AwinSearchResult, type CommerceOffer } from './productPricing';
+import { formatBRLPrice, fetchCommerceOffers, merchantLabel, searchAwinCatalog, type AwinSearchResult, type CommerceOffer } from './productPricing';
 
 interface AffiliateCatalogSearchProps {
   petId: string;
-}
-
-const MERCHANT_LABELS: Record<string, string> = {
-  cobasi: 'Cobasi',
-  zeenow: 'Zee Now',
-  zeedog: 'Zee Dog',
-  petz: 'Petz',
-};
-
-function merchantLabel(merchant: string): string {
-  return MERCHANT_LABELS[merchant] ?? merchant;
 }
 
 type ResolvedOffers = CommerceOffer[] | 'loading' | 'error';

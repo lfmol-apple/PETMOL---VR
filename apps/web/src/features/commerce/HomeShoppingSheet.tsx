@@ -18,7 +18,7 @@ import {
 import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
 import { StrategicProductGrid } from './StrategicProductGrid';
 import { getStrategicProductsForSpecies, type StrategicProductSpecies } from './strategicProducts';
-import { formatBRLPrice, type CommerceOffer } from './productPricing';
+import { formatBRLPrice, merchantLabel, type CommerceOffer } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
 import {
   buildReorderCards,
@@ -336,6 +336,11 @@ interface ReorderCardItemProps {
 function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy }: ReorderCardItemProps) {
   const { offers, loading } = useCommerceOffers(card.searchQuery, card.packageSizeKg, card.gtin);
   const offer = offers[0] ?? null;
+  // offers já vem ordenado por preço crescente (CommerceEngine) — offer é
+  // sempre o mais barato. Quando mais de um provider responde pro mesmo
+  // GTIN (ex: Cobasi + Shopee), oferece escolha de loja em vez de comprar
+  // direto no mais barato sem avisar (ver OfferPickerRow abaixo).
+  const hasMultipleOffers = offers.length > 1;
 
   const hasMonetizedOffer = Boolean(offer && typeof offer.price === 'number' && offer.url);
   const hasDiscount = Boolean(
@@ -362,9 +367,14 @@ function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onToggle
           {loading && <p className="text-[10px] mt-1 text-gray-300">Buscando oferta...</p>}
           {!loading && hasMonetizedOffer && offer && (
             <p className="text-[12px] mt-1 font-bold text-emerald-700">
-              {formatBRLPrice(offer.price as number)} na Cobasi
+              {hasMultipleOffers ? 'A partir de ' : ''}{formatBRLPrice(offer.price as number)} na {merchantLabel(offer.merchant)}
               {hasDiscount && (
                 <span className="ml-1.5 text-[10px] font-semibold text-gray-400 line-through">{formatBRLPrice(offer.list_price as number)}</span>
+              )}
+              {hasMultipleOffers && (
+                <span className="block mt-0.5 text-[9px] font-black uppercase tracking-wide text-blue-600">
+                  +{offers.length - 1} loja{offers.length - 1 > 1 ? 's' : ''}
+                </span>
               )}
             </p>
           )}
@@ -376,16 +386,47 @@ function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onToggle
           <button
             type="button"
             disabled={loading}
-            onClick={() => (hasMonetizedOffer && offer ? onDirectBuy(offer) : onTogglePicker())}
+            onClick={() => {
+              if (hasMonetizedOffer && offer) {
+                if (hasMultipleOffers) onTogglePicker();
+                else onDirectBuy(offer);
+              } else {
+                onTogglePicker();
+              }
+            }}
             className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[12px] font-bold px-3 py-1.5 active:scale-95 transition-all disabled:opacity-50"
           >
             🛒 Comprar
           </button>
         )}
       </div>
+      {hasMonetizedOffer && hasMultipleOffers && isPickerOpen && (
+        <OfferPickerRow offers={offers} onPick={onDirectBuy} />
+      )}
       {!hasMonetizedOffer && isPickerOpen && visibleQuickBuyPartners.length > 0 && (
         <QuickBuyRow partners={visibleQuickBuyPartners} onPick={onQuickBuy} />
       )}
+    </div>
+  );
+}
+
+function OfferPickerRow({ offers, onPick }: { offers: CommerceOffer[]; onPick: (offer: CommerceOffer) => void }) {
+  return (
+    <div className="mt-2.5 pt-2.5 border-t border-gray-100 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Escolha a loja</p>
+      {offers.map((offer) => (
+        <button
+          key={offer.merchant}
+          type="button"
+          onClick={() => onPick(offer)}
+          className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-emerald-300 px-3 py-2 transition-all active:scale-[0.98]"
+        >
+          <span className="text-[12px] font-bold text-gray-800">{merchantLabel(offer.merchant)}</span>
+          {typeof offer.price === 'number' && (
+            <span className="text-[12px] font-bold text-emerald-700">{formatBRLPrice(offer.price)}</span>
+          )}
+        </button>
+      ))}
     </div>
   );
 }
