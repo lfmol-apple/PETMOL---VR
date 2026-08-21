@@ -13,6 +13,7 @@ fi
 CLAUDE_USER="${CLAUDE_USER:-claudeops}"
 CLAUDE_AUTHORIZED_KEY="${CLAUDE_AUTHORIZED_KEY:-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP1Ukpp4QrTmFtBW7i2EGiKIqkTYpKAiOOuMH/GIvxlm Mac backup}"
 SSHD_DROPIN="/etc/ssh/sshd_config.d/99-petmol-ssh-access.conf"
+SSHD_AUTH_DROPIN="/etc/ssh/sshd_config.d/40-petmol-auth.conf"
 
 log() {
   printf '\n==> %s\n' "$*"
@@ -67,13 +68,17 @@ visudo -cf "/etc/sudoers.d/90-${CLAUDE_USER}"
 
 log "Configure ssh.service to listen directly on 22 and 2222"
 install -d /etc/ssh/sshd_config.d
-cat >"${SSHD_DROPIN}" <<'EOF'
-Port 22
-Port 2222
+rm -f /etc/ssh/sshd_config.d/99-petmol-ports.conf
+grep -Eq '^[[:space:]]*Port[[:space:]]+22\b' /etc/ssh/sshd_config || printf '\nPort 22\n' >>/etc/ssh/sshd_config
+grep -Eq '^[[:space:]]*Port[[:space:]]+2222\b' /etc/ssh/sshd_config || printf '\nPort 2222\n' >>/etc/ssh/sshd_config
+cat >"${SSHD_AUTH_DROPIN}" <<'EOF'
 PubkeyAuthentication yes
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin prohibit-password
+EOF
+
+cat >"${SSHD_DROPIN}" <<'EOF'
 UsePAM yes
 MaxStartups 100:30:200
 LoginGraceTime 60
