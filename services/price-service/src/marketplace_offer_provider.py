@@ -20,14 +20,16 @@ bug, é a mesma regra "sem monetização real, não aparece" aplicada aqui).
 from __future__ import annotations
 
 from typing import Optional
+import re
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .affiliate_links import MarketplaceOffer, get_active_marketplace_offer
 from .commerce_provider import DiscoveredOffer, ProductContext
-from .product_catalog_lookup import ProductCatalog, normalize_gtin
+from .product_catalog_lookup import ProductCatalog, normalize_gtin, search_catalog_by_text
 from .shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
+from .shopee_offer_matcher import score_candidate
 
 # Merchants marketplace conhecidos e seu validador de link oficial — só
 # Shopee tem um hoje (Mercado Livre, quando aprovado, ganha o próprio
@@ -64,15 +66,45 @@ class MarketplaceOfferProvider:
     def _resolve_product_id(self, context: ProductContext) -> Optional[int]:
         if context.product_id is not None:
             return context.product_id
-        if not context.gtin:
+        if context.gtin:
+            gtin_normalized = normalize_gtin(context.gtin)
+            if gtin_normalized:
+                product = self._db.scalar(
+                    select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized)
+                )
+                if product:
+                    return product.id
+
+        return self._resolve_product_id_from_text(context)
+
+    def _resolve_product_id_from_text(self, context: ProductContext) -> Optional[int]:
+        """Fallback para planos legados sem barcode.
+
+        MarketplaceOffer é cadastrado por produto do catálogo, mas alguns
+        itens de alimentação antigos só guardam nome + tamanho do pacote.
+        Quando já existe oferta Shopee para um produto identificável por
+        texto, essa falta de GTIN no plano não deve esconder a oferta.
+        """
+        query = (context.name or context.query or "").strip()
+        if not query:
             return None
-        gtin_normalized = normalize_gtin(context.gtin)
-        if not gtin_normalized:
-            return None
-        product = self._db.scalar(
-            select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized)
-        )
-        return product.id if product else None
+
+        best: Optional[tuple[float, ProductCatalog]] = None
+        catalog_query = re.sub(r"\bs\s*/?\s*o\b", " ", query, flags=re.IGNORECASE)
+        for product in search_catalog_by_text(self._db, q=catalog_query, category="food", limit=10):
+            if get_active_marketplace_offer(self._db, product.id, self.merchant) is None:
+                continue
+            score = score_candidate(
+                product.name or "",
+                query,
+                expected_brand=product.brand,
+            )
+            if score is None or score < 0.5:
+                continue
+            if best is None or score > best[0]:
+                best = (score, product)
+
+        return best[1].id if best else None
 
     async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
         if not is_marketplace_merchant_publicly_servable(self.merchant):

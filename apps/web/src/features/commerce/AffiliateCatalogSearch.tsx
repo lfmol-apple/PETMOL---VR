@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
 import { trackClick } from '@/lib/analytics/click';
+import { identifyProductByBarcode, type ScannedProduct } from '@/lib/productScanner';
 import { formatBRLPrice, fetchCommerceOffers, merchantLabel, searchAwinCatalog, type AwinSearchResult, type CommerceOffer } from './productPricing';
 
 interface AffiliateCatalogSearchProps {
@@ -9,6 +11,7 @@ interface AffiliateCatalogSearchProps {
 }
 
 type ResolvedOffers = CommerceOffer[] | 'loading' | 'error';
+type BarcodeLookupState = 'idle' | 'loading' | 'done' | 'not_found' | 'error';
 
 // Substitui o card estático "Cobasi" (Lojas) — em vez de só levar pro site
 // de uma loja sem contexto, deixa o tutor achar o produto real dentro do
@@ -33,6 +36,11 @@ type ResolvedOffers = CommerceOffer[] | 'loading' | 'error';
 // AppsFlyer (`af_dp=appcobasi://`), que foi o salto que caía na home.
 export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
   const [query, setQuery] = useState('');
+  const [barcode, setBarcode] = useState('');
+  const [barcodeState, setBarcodeState] = useState<BarcodeLookupState>('idle');
+  const [barcodeProduct, setBarcodeProduct] = useState<ScannedProduct | null>(null);
+  const [barcodeOffers, setBarcodeOffers] = useState<ResolvedOffers | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [results, setResults] = useState<AwinSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [failedImageGtins, setFailedImageGtins] = useState<Set<string>>(new Set());
@@ -92,9 +100,125 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
     setStoreChoicesForGtin(null);
   }
 
+  async function resolveBarcode(raw: string) {
+    const gtin = raw.replace(/\D/g, '');
+    if (!/^\d{8,14}$/.test(gtin)) {
+      setBarcodeState('not_found');
+      setBarcodeProduct(null);
+      setBarcodeOffers(null);
+      return;
+    }
+
+    setBarcode(gtin);
+    setBarcodeState('loading');
+    setBarcodeProduct(null);
+    setBarcodeOffers('loading');
+    try {
+      const product = await identifyProductByBarcode(gtin);
+      const queryForOffers = product.found ? product.name : '';
+      const offers = await fetchCommerceOffers(queryForOffers, undefined, gtin);
+      setBarcodeProduct(product.found ? product : { ...product, barcode: gtin });
+      setBarcodeOffers(offers);
+      setBarcodeState(product.found || offers.length > 0 ? 'done' : 'not_found');
+      if (product.found && product.name) {
+        setQuery(product.name);
+      }
+      void trackClick({
+        source: 'home',
+        cta_type: 'shop_barcode_lookup',
+        link_type: 'direct',
+        pet_id: petId,
+        metadata: { gtin, found: product.found, offers: offers.length },
+      });
+    } catch {
+      setBarcodeState('error');
+      setBarcodeOffers('error');
+    }
+  }
+
+  function renderOffersForBarcode() {
+    if (barcodeState === 'idle') return null;
+    const offers = Array.isArray(barcodeOffers) ? barcodeOffers : [];
+    return (
+      <div className="mt-2.5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-slate-50 text-lg">▦</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[12px] font-black uppercase tracking-wide text-slate-400">Resultado por código</p>
+            <p className="mt-0.5 truncate font-mono text-[11px] text-slate-400">{barcode}</p>
+            {barcodeProduct?.found && (
+              <p className="mt-1 text-[13px] font-bold leading-tight text-gray-900">{barcodeProduct.name}</p>
+            )}
+            {barcodeProduct?.brand && <p className="mt-0.5 text-[11px] text-gray-400">{barcodeProduct.brand}</p>}
+          </div>
+        </div>
+
+        {barcodeState === 'loading' && <p className="mt-3 text-[12px] text-gray-400">Buscando produto e ofertas...</p>}
+        {barcodeState === 'error' && <p className="mt-3 text-[12px] text-amber-700">Não foi possível consultar esse código agora.</p>}
+        {barcodeState === 'not_found' && (
+          <p className="mt-3 text-[12px] text-gray-500">Ainda não encontramos esse código nas bases disponíveis.</p>
+        )}
+
+        {offers.length > 0 && (
+          <div className="mt-3 space-y-1.5">
+            {offers.map((offer) => (
+              offer.url ? (
+                <a
+                  key={`${barcode}:${offer.merchant}`}
+                  href={offer.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => trackBuyClick(barcode, offer)}
+                  className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 transition-all active:scale-[0.98]"
+                >
+                  <span className="text-[12px] font-bold text-gray-800">{merchantLabel(offer.merchant)}</span>
+                  {typeof offer.price === 'number' && (
+                    <span className="text-[12px] font-bold text-emerald-700">{formatBRLPrice(offer.price)}</span>
+                  )}
+                </a>
+              ) : null
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
-      <div className="relative">
+      <div className="grid grid-cols-2 gap-2 mb-2">
+        <button
+          type="button"
+          onClick={() => setScannerOpen(true)}
+          className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-[12px] font-bold text-blue-800 active:scale-[0.98] transition-all"
+        >
+          📷 Escanear código
+        </button>
+        <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+          <input
+            type="text"
+            inputMode="numeric"
+            value={barcode}
+            onChange={(event) => setBarcode(event.target.value.replace(/\D/g, ''))}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') void resolveBarcode(barcode);
+            }}
+            placeholder="EAN/GTIN"
+            className="min-w-0 flex-1 bg-transparent px-2 text-[12px] font-semibold text-slate-800 placeholder-slate-400 outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => void resolveBarcode(barcode)}
+            className="rounded-lg bg-slate-900 px-2.5 text-[11px] font-bold text-white active:scale-95 transition-all"
+          >
+            OK
+          </button>
+        </div>
+      </div>
+
+      {renderOffersForBarcode()}
+
+      <div className="relative mt-3">
         <input
           type="text"
           value={query}
@@ -104,6 +228,22 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
         />
         <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-[15px]">🔎</span>
       </div>
+
+      {scannerOpen && (
+        <ProductDetectionSheetGold
+          petId={petId}
+          defaultMode="scan"
+          onClose={() => setScannerOpen(false)}
+          onProductConfirmed={(product) => {
+            setScannerOpen(false);
+            if (product.barcode) {
+              void resolveBarcode(product.barcode);
+            } else if (product.name) {
+              setQuery(product.name);
+            }
+          }}
+        />
+      )}
 
       {loading && (
         <p className="text-[12px] text-gray-400 mt-2 px-1">Buscando...</p>

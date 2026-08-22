@@ -34,25 +34,42 @@ export function ProductBarcodeScanner({
   onDismiss,
 }: ProductBarcodeScannerProps) {
   const [open, setOpen] = useState(false);
+  const [openMode, setOpenMode] = useState<'scan' | 'manual' | 'photo' | undefined>(defaultMode);
+
+  function openWithMode(mode: 'scan' | 'manual' | 'photo' | undefined) {
+    setOpenMode(mode);
+    setOpen(true);
+  }
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="w-full flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800 shadow-sm active:scale-[0.98] transition-all"
-      >
-        <span className="text-xl">🔍</span>
-        <span className="flex-1 text-left">{label}</span>
-        <span className="text-blue-300 text-lg">›</span>
-      </button>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => openWithMode(defaultMode ?? 'scan')}
+          className="w-full flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800 shadow-sm active:scale-[0.98] transition-all"
+        >
+          <span className="text-xl">🔍</span>
+          <span className="flex-1 text-left">{label}</span>
+          <span className="text-blue-300 text-lg">›</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => openWithMode('manual')}
+          className="w-full flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 shadow-sm active:scale-[0.98] transition-all"
+        >
+          <span className="text-xl">⌨️</span>
+          <span className="flex-1 text-left">Digitar código</span>
+          <span className="text-slate-300 text-lg">›</span>
+        </button>
+      </div>
 
       {open && (
         <ProductDetectionSheetGold
           petId={petId ?? ''}
           petName={petName}
           hint={expectedCategory}
-          defaultMode={defaultMode}
+          defaultMode={openMode}
           allowScanning={allowScanning}
           onProductConfirmed={product => {
             setOpen(false);

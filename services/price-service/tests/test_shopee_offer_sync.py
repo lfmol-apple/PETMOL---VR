@@ -11,7 +11,7 @@ from src.affiliate_links import MarketplaceOffer
 from src.db import SessionLocal
 from src.product_catalog_lookup import ProductCatalog
 import src.shopee_offer_sync as sync_module
-from src.shopee_offer_sync import iter_awin_feed_products, sync_shopee_offer_for_gtin, sync_shopee_offer_from_feed_row
+from src.shopee_offer_sync import _build_keyword, iter_awin_feed_products, sync_shopee_offer_for_gtin, sync_shopee_offer_from_feed_row
 
 GTIN = "7891234500000"
 
@@ -30,6 +30,22 @@ UNRELATED_OFFER = {
     "price": "132.85",
     "offerLink": "https://s.shopee.com.br/904a6Pp6aa",
     "productLink": "https://shopee.com.br/product/954438718/21799066797",
+}
+SOMA_15KG_SECOND_OFFER = {
+    "itemId": 58204606554,
+    "productName": "Ração Soma Nutrição 15kg Carne Adulto Cão Standard Com Yucca",
+    "shopName": "Pet Barato",
+    "price": "72.9",
+    "offerLink": "https://s.shopee.com.br/8AVT6ssHHQ",
+    "productLink": "https://shopee.com.br/product/1681698080/58204606554",
+}
+SOMA_15KG_OUTLIER_OFFER = {
+    "itemId": 58204606555,
+    "productName": "Ração Soma Nutrição 15kg Carne Adulto",
+    "shopName": "Preço Suspeito",
+    "price": "9.9",
+    "offerLink": "https://s.shopee.com.br/8AVT6ssHHR",
+    "productLink": "https://shopee.com.br/product/1681698080/58204606555",
 }
 
 
@@ -64,6 +80,20 @@ def test_produto_sem_nome_nao_casa():
     assert "sem nome" in result.reason
 
 
+def test_build_keyword_encurta_nome_longo_e_preserva_peso():
+    product = ProductCatalog(
+        barcode="7896181298083",
+        barcode_normalized="7896181298083",
+        name="Ração Royal Canin Veterinary Diet Urinary Small Dog para Cães de Porte Pequeno com Cálculos Urinários",
+        brand="Royal Canin",
+    )
+
+    keyword = _build_keyword(product, expected_weight_kg=7.5)
+
+    assert keyword == "Royal Canin Urinary Small Dog Cães Porte Pequeno Cálculos 7,5kg"
+    assert "Ração Royal Canin Veterinary Diet" not in keyword
+
+
 def test_match_confiavel_cria_marketplace_offer(monkeypatch):
     _register_product()
     monkeypatch.setattr(
@@ -85,6 +115,27 @@ def test_match_confiavel_cria_marketplace_offer(monkeypatch):
         assert offer.active is True
         assert offer.is_available is True
         assert offer.verified_at is not None
+    finally:
+        db.close()
+
+
+def test_match_confiavel_grava_multiplas_ofertas_e_remove_outlier(monkeypatch):
+    _register_product()
+    monkeypatch.setattr(
+        sync_module, "search_product_offers",
+        lambda keyword, limit=10: [SOMA_15KG_OFFER, SOMA_15KG_SECOND_OFFER, SOMA_15KG_OUTLIER_OFFER],
+    )
+
+    result = sync_shopee_offer_for_gtin(SessionLocal(), GTIN)
+    assert result.matched is True
+    assert result.offer_ids is not None
+    assert len(result.offer_ids) == 2
+
+    db = SessionLocal()
+    try:
+        rows = db.scalars(select(MarketplaceOffer).where(MarketplaceOffer.merchant == "shopee")).all()
+        assert {row.external_listing_id for row in rows} == {"58204606553", "58204606554"}
+        assert min(row.price for row in rows if row.price is not None) == 72.9
     finally:
         db.close()
 
