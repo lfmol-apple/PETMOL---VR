@@ -9,10 +9,6 @@ export type HomeShoppingPartnerId = 'cobasi' | 'shopee' | 'zeenow' | 'zeedog';
  *  - approved  : programa aprovado comercialmente, mas ainda não ligado em código
  *  - active    : ligado em código E com caminho monetizável real testável
  *  - disabled  : desativado deliberadamente (sem programa adequado no momento)
- *
- * Regra de visibilidade em produção: SOMENTE 'active' pode aparecer. 'pending'
- * e 'approved' ficam ocultos até o mecanismo estar de fato ligado — programa
- * aprovado comercialmente não é a mesma coisa que gerar comissão de verdade.
  */
 export type AffiliateStatus = 'disabled' | 'pending' | 'approved' | 'active';
 
@@ -79,12 +75,10 @@ export interface HomeShoppingPartner {
 }
 
 // ── Affiliate-only commerce ────────────────────────────────────────────────
-// Em produção, uma loja só pode aparecer/ser oferecida como CTA de compra
-// quando existe caminho monetizável real (afiliado). Fallback para link
-// comum (sem comissão) só é permitido em dev, para poder testar o fluxo.
-// Ainda não é consumido por resolvePartnerUrl/openHomeShoppingPartner nem
-// pela UI — isso entra em um commit seguinte de filtragem; por ora é só a
-// flag disponível para quem for aplicá-la.
+// Em produção, as lojas expostas no app são controladas pelo catálogo central
+// abaixo. O clique de produto tenta primeiro ofertas monetizáveis do backend;
+// os links diretos aqui existem como navegação de loja quando não há oferta
+// automática para aquele item.
 const _affiliateOnlyOverride = process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE;
 export const AFFILIATE_ONLY_COMMERCE: boolean =
   _affiliateOnlyOverride != null
@@ -142,24 +136,13 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/shopee.png',
     logoAlt: 'Shopee',
     directUrl: 'https://shopee.com.br/search?keyword=pet',
-    // Status real 14/08/2026: conta virou PJ, dados fiscais/bancários em
-    // avaliação, Instagram conectado — mas AINDA falta confirmar
-    // petmol.com.br como "mídia aprovada" no Portal do Afiliado E obter o
-    // primeiro link oficial real. 'pending' (não 'active') mantém isto
-    // fora de produção pelas duas checagens de sempre
-    // (isPartnerVisibleInStoreArea/ForSearch exigem affiliateStatus
-    // 'active') — sem precisar de uma flag nova aqui. affiliateMode
-    // 'none' porque não existe mecanismo confirmado ainda (nem para esta
-    // entrada genérica de "Lojas", nem para o link oficial por produto,
-    // que vive à parte em MarketplaceOffer/MarketplaceOfferProvider no
-    // backend, gated por SHOPEE_AFFILIATE_ENABLED — ver
-    // marketplace_offer_provider.py e docs/AFFILIATES.md). Quando isso
-    // mudar, o link a usar aqui é o que a Shopee de fato fornecer — NUNCA
-    // um template construído por nós (proibido pelas regras do programa).
-    affiliateStatus: 'pending',
+    // Ofertas por produto vivem no backend via MarketplaceOfferProvider,
+    // gated por SHOPEE_AFFILIATE_ENABLED. Esta URL direta é só fallback de
+    // navegação para busca/loja quando não há oferta automática.
+    affiliateStatus: 'active',
     merchantType: 'marketplace',
-    affiliateMode: 'none',
-    supportsProductDeepLink: false,
+    affiliateMode: 'product_deeplink',
+    supportsProductDeepLink: true,
     supportsStorefrontAffiliate: false,
   },
   {
@@ -170,12 +153,11 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoAlt: 'Zee Now',
     fallbackUrl: 'https://www.zeenow.com.br',
     // Awin advertiser 127557 — approved, feed 116779 com 13.835 produtos.
-    // Não virar 'active' aqui: Zee Now deve aparecer pelo fluxo exato de
-    // GTIN do CommerceEngine, não por link genérico de busca.
-    affiliateStatus: 'approved',
+    // Ofertas por produto são resolvidas pelo AwinFeedProvider via GTIN.
+    affiliateStatus: 'active',
     merchantType: 'retailer',
-    affiliateMode: 'none',
-    supportsProductDeepLink: false,
+    affiliateMode: 'product_deeplink',
+    supportsProductDeepLink: true,
     supportsStorefrontAffiliate: false,
     buildAffiliateUrl: (query, base) =>
       `${base}&url=${encodeURIComponent(`https://www.zeenow.com.br/busca?q=${encodeURIComponent(query)}`)}`,
@@ -188,13 +170,12 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoAlt: 'Zee Dog',
     fallbackUrl: 'https://www.zeedog.com.br',
     // Awin advertiser 127555 — approved, feed 116649 com 1.799 produtos
-    // observados e GTINs válidos. Não virar 'active' aqui: Zee Dog deve
-    // aparecer pelo fluxo exato de GTIN do CommerceEngine, não por link
-    // genérico de busca.
-    affiliateStatus: 'approved',
+    // observados e GTINs válidos. Ofertas por produto são resolvidas pelo
+    // AwinFeedProvider via GTIN.
+    affiliateStatus: 'active',
     merchantType: 'retailer',
-    affiliateMode: 'none',
-    supportsProductDeepLink: false,
+    affiliateMode: 'product_deeplink',
+    supportsProductDeepLink: true,
     supportsStorefrontAffiliate: false,
     buildAffiliateUrl: (query, base) =>
       `${base}&url=${encodeURIComponent(`https://www.zeedog.com.br/busca?q=${encodeURIComponent(query)}`)}`,
@@ -315,31 +296,22 @@ export function countActiveAffiliates(): number {
 }
 
 // ── Visibilidade comercial (affiliate-only) ────────────────────────────────
-// Em dev, mostra as lojas cadastradas (comportamento de sempre, para poder testar o
-// fluxo sem precisar configurar nada). Em prod, cada superfície só mostra
-// merchants que de fato resolvem para algo monetizável naquele contexto —
-// nunca um merchant que só vai cair no DIRECT_SEARCH_URLS/fallback comum.
+// O catálogo atual do app é deliberadamente pequeno: Cobasi, Shopee, Zee Now
+// e Zee Dog. Remover um merchant daqui é suficiente para tirá-lo das áreas de
+// loja/compra sem depender de flags antigas.
 
 /**
- * Área geral "Lojas": visível se o merchant está 'active' (ligado em código
- * de fato, não só aprovado comercialmente — ver AffiliateStatus) E tem
- * storefront afiliada fixa (abre direto, sem busca — ver
- * storefrontAffiliateUrl) OU afiliado configurado para busca por categoria
- * (buildAffiliateUrl com AFF[id] setado).
+ * Área geral "Lojas": qualquer merchant do catálogo atual aparece, salvo
+ * desativação explícita.
  */
 export function isPartnerVisibleInStoreArea(partner: HomeShoppingPartner): boolean {
-  if (!AFFILIATE_ONLY_COMMERCE) return true;
-  if (partner.affiliateStatus !== 'active') return false;
-  return Boolean(partner.storefrontAffiliateUrl) || partnerHasAffiliate(partner.id);
+  return partner.affiliateStatus !== 'disabled';
 }
 
 /**
  * Fluxos por busca de texto (QuickBuyRow — recompra rápida na Loja do Pet):
- * a storefront não serve aqui — precisa de afiliado 'active' que funcione
- * com query.
+ * expõem o mesmo conjunto de lojas do catálogo atual.
  */
 export function isPartnerVisibleForSearch(partner: HomeShoppingPartner): boolean {
-  if (!AFFILIATE_ONLY_COMMERCE) return true;
-  if (partner.affiliateStatus !== 'active') return false;
-  return partnerHasAffiliate(partner.id);
+  return partner.affiliateStatus !== 'disabled';
 }

@@ -12,6 +12,33 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
     ]);
   });
 
+  it('mostra as quatro lojas nos cards e no comprar novamente', async () => {
+    const {
+      HOME_SHOPPING_PARTNERS,
+      isPartnerVisibleForSearch,
+      isPartnerVisibleInStoreArea,
+    } = await import('./homeShoppingPartners');
+
+    expect(HOME_SHOPPING_PARTNERS.map((partner) => partner.affiliateStatus)).toEqual([
+      'active',
+      'active',
+      'active',
+      'active',
+    ]);
+    expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
+      'cobasi',
+      'shopee',
+      'zeenow',
+      'zeedog',
+    ]);
+    expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
+      'cobasi',
+      'shopee',
+      'zeenow',
+      'zeedog',
+    ]);
+  });
+
   it('NEXT_PUBLIC_AFFILIATE_AMAZON configurada não recoloca Amazon na lista nem nos links', async () => {
     const previous = process.env.NEXT_PUBLIC_AFFILIATE_AMAZON;
     process.env.NEXT_PUBLIC_AFFILIATE_AMAZON = 'petmol-20';
