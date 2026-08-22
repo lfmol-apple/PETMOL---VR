@@ -53,6 +53,14 @@ SOMA_15KG_OUTLIER_OFFER = {
     "offerLink": "https://s.shopee.com.br/8AVT6ssHHR",
     "productLink": "https://shopee.com.br/product/1681698080/58204606555",
 }
+NEXGARD_OFFER = {
+    "itemId": 99112233445,
+    "productName": "NexGard Antipulgas e Carrapatos para Cães de 4,1kg a 10kg 1 comprimido",
+    "shopName": "Pet Oficial",
+    "price": "89.9",
+    "offerLink": "https://s.shopee.com.br/8AVT6ssNGD",
+    "productLink": "https://shopee.com.br/product/1681698080/99112233445",
+}
 
 
 def _register_product(name: str = "Ração Soma Nutrição Carne Adulto Cão 15kg", brand: str = "Soma") -> int:
@@ -356,6 +364,27 @@ def test_sync_from_feed_row_cria_products_catalog_quando_nao_existe(monkeypatch)
     assert product is not None
     assert product.brand == "Soma"
     assert product.source_primary == "awin_feed"
+    db.close()
+
+
+def test_sync_from_feed_row_usa_marca_comercial_do_titulo_quando_brand_e_fabricante(monkeypatch):
+    monkeypatch.setattr(sync_module, "search_product_offers", lambda keyword, limit=10: [NEXGARD_OFFER])
+
+    db = SessionLocal()
+    result = sync_shopee_offer_from_feed_row(
+        db,
+        "7898053774343",
+        "Antipulgas e Carrapatos Nexgard para Cães de 4,1kg a 10kg 1 comprimido",
+        "Boehringer Ingelheim",
+    )
+
+    assert result.matched is True
+
+    product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == "7898053774343"))
+    assert product is not None
+    offer = db.scalar(select(MarketplaceOffer).where(MarketplaceOffer.product_id == product.id))
+    assert offer is not None
+    assert offer.external_listing_id == "99112233445"
     db.close()
 
 

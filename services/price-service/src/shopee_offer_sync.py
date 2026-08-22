@@ -43,6 +43,13 @@ _KEYWORD_STOPWORDS = frozenset({
     "racao", "ração", "alimento", "veterinary", "diet",
 })
 
+_COMMERCIAL_BRANDS = (
+    "NexGard", "NexGard Spectra", "Frontline", "Seresto", "Scalibor",
+    "Bravecto", "Simparic", "Drontal", "Advocate", "Revolution",
+    "Royal Canin", "Premier", "Golden", "GranPlus", "Special Dog",
+    "Pedigree", "Whiskas", "Soma", "Vermivet",
+)
+
 
 @dataclass
 class ShopeeSyncResult:
@@ -123,6 +130,28 @@ def _build_keyword_variants(product: ProductCatalog, expected_weight_kg: Optiona
     return variants
 
 
+def _brand_for_matching(title: str, brand: Optional[str]) -> Optional[str]:
+    """Escolhe a marca que deve ser exigida no matcher da Shopee.
+
+    Alguns feeds usam fabricante/distribuidor no campo brand (ex:
+    "Boehringer Ingelheim"), enquanto o anúncio da Shopee usa a marca
+    comercial ("NexGard"). Exigir o fabricante derruba match correto.
+    Quando a marca do campo aparece no título, ela é confiável. Quando não
+    aparece, tenta inferir uma marca comercial conhecida pelo título; se
+    não conseguir, não aplica hard fail de marca e deixa nome+peso/volume
+    protegerem o casamento.
+    """
+    title_key = _normalize_token(title or "")
+    brand_key = _normalize_token(brand or "")
+    if brand and brand_key and brand_key in title_key:
+        return brand
+
+    for commercial_brand in sorted(_COMMERCIAL_BRANDS, key=len, reverse=True):
+        if _normalize_token(commercial_brand) in title_key:
+            return commercial_brand
+    return None
+
+
 def _median(values: list[float]) -> Optional[float]:
     if not values:
         return None
@@ -185,6 +214,8 @@ def sync_shopee_offer_for_gtin(
     limit: int = 10,
     min_confidence: float = 0.5,
     expected_weight_kg: Optional[float] = None,
+    expected_name: Optional[str] = None,
+    expected_brand: Optional[str] = None,
 ) -> ShopeeSyncResult:
     """Busca, casa e faz upsert de UMA oferta Shopee pro produto do GTIN
     dado. Idempotente: reexecutar atualiza a mesma linha (chave:
@@ -199,8 +230,11 @@ def sync_shopee_offer_for_gtin(
     if not product.name:
         return ShopeeSyncResult(gtin=gtin_normalized, matched=False, reason="produto sem nome cadastrado — não dá pra buscar/casar")
 
-    expected_weight_kg = expected_weight_kg if expected_weight_kg is not None else extract_weight_kg(product.name)
-    keywords = _build_keyword_variants(product, expected_weight_kg)
+    match_name = expected_name or product.name
+    match_brand = expected_brand if expected_brand is not None else product.brand
+    keyword_product = ProductCatalog(name=match_name, brand=match_brand)
+    expected_weight_kg = expected_weight_kg if expected_weight_kg is not None else extract_weight_kg(match_name)
+    keywords = _build_keyword_variants(keyword_product, expected_weight_kg)
     nodes_by_id: dict[str, dict] = {}
     try:
         for keyword in keywords:
@@ -211,14 +245,13 @@ def sync_shopee_offer_for_gtin(
         logger.warning("shopee sync: erro na busca para gtin=%s: %s", gtin_normalized, exc)
         return ShopeeSyncResult(gtin=gtin_normalized, matched=False, reason=f"erro na API Shopee: {exc}")
 
-    expected_volume_ml = extract_volume_ml(product.name)
-    expected_name = product.name
-    if expected_weight_kg is not None and extract_weight_kg(expected_name) is None:
-        expected_name = f"{expected_name} {_format_weight_kg(expected_weight_kg)}"
+    expected_volume_ml = extract_volume_ml(match_name)
+    if expected_weight_kg is not None and extract_weight_kg(match_name) is None:
+        match_name = f"{match_name} {_format_weight_kg(expected_weight_kg)}"
     matches = _confident_matches(
         list(nodes_by_id.values()),
-        expected_name,
-        expected_brand=product.brand,
+        match_name,
+        expected_brand=match_brand,
         expected_volume_ml=expected_volume_ml,
         expected_weight_kg=expected_weight_kg,
         min_confidence=min_confidence,
@@ -332,6 +365,8 @@ def sync_shopee_offer_from_feed_row(
         limit=limit,
         min_confidence=min_confidence,
         expected_weight_kg=expected_weight_kg,
+        expected_name=name,
+        expected_brand=_brand_for_matching(name, brand),
     )
 
 
