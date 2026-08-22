@@ -126,14 +126,22 @@ def test_build_keyword_variants_remove_acento_e_inclui_busca_curta():
 
 def test_match_confiavel_cria_marketplace_offer(monkeypatch):
     _register_product()
+    captured_limits = []
+
+    def _fake_search(keyword, limit=10):
+        captured_limits.append(limit)
+        return [UNRELATED_OFFER, SOMA_15KG_OFFER]
+
     monkeypatch.setattr(
         sync_module, "search_product_offers",
-        lambda keyword, limit=10: [UNRELATED_OFFER, SOMA_15KG_OFFER],
+        _fake_search,
     )
 
     result = sync_shopee_offer_for_gtin(SessionLocal(), GTIN)
     assert result.matched is True
     assert result.offer_id is not None
+    assert captured_limits
+    assert set(captured_limits) == {20}
 
     db = SessionLocal()
     try:

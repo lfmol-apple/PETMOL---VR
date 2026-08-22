@@ -230,7 +230,7 @@ def sync_shopee_offer_for_gtin(
     db: Session,
     gtin: str,
     *,
-    limit: int = 10,
+    limit: int = 20,
     min_confidence: float = 0.5,
     expected_weight_kg: Optional[float] = None,
     expected_name: Optional[str] = None,
@@ -367,7 +367,7 @@ def sync_shopee_offer_from_feed_row(
     name: str,
     brand: Optional[str],
     *,
-    limit: int = 10,
+    limit: int = 20,
     min_confidence: float = 0.5,
     expected_weight_kg: Optional[float] = None,
 ) -> ShopeeSyncResult:
