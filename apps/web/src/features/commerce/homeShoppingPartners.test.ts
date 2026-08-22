@@ -23,8 +23,9 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
         resolvePartnerUrl,
       } = await import('./homeShoppingPartners');
 
-      expect(HOME_SHOPPING_PARTNERS.some((partner) => partner.id === 'amazon')).toBe(false);
-      expect(HOME_SHOPPING_PARTNERS.some((partner) => partner.id === 'araujo')).toBe(false);
+      const partnerIds = HOME_SHOPPING_PARTNERS.map((partner) => String(partner.id));
+      expect(partnerIds).not.toContain('amazon');
+      expect(partnerIds).not.toContain('araujo');
 
       for (const partner of HOME_SHOPPING_PARTNERS) {
         expect(resolvePartnerUrl(partner, 'ração pet', '')).not.toContain('amazon.com.br');
