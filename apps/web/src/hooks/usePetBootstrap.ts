@@ -51,6 +51,22 @@ export function usePetBootstrap() {
     }
   };
 
+  /** Pets do próprio dono aparecem antes dos compartilhados com ele (conta
+   *  família) — nunca o contrário, senão o "pet atual" default pode virar
+   *  um pet de outra pessoa só porque a API devolveu ele primeiro. */
+  const sortOwnedPetsFirst = (
+    petsToSort: PetHealthProfile[],
+    currentLoggedUserId: string,
+  ): PetHealthProfile[] => {
+    if (!currentLoggedUserId) return petsToSort;
+    return [...petsToSort].sort((a, b) => {
+      const aOwned = !a.owner_user_id || a.owner_user_id === currentLoggedUserId;
+      const bOwned = !b.owner_user_id || b.owner_user_id === currentLoggedUserId;
+      if (aOwned === bOwned) return 0;
+      return aOwned ? -1 : 1;
+    });
+  };
+
   const resolveSelectedPetId = (
     availablePets: PetHealthProfile[],
     currentSelectedId: string | null,
@@ -79,6 +95,7 @@ export function usePetBootstrap() {
             headers: savedToken ? { Authorization: `Bearer ${savedToken}` } : {},
           });
 
+          let meIdForSort = '';
           try {
             const savedToken2 = getToken();
             const meRes = await fetch(`${API_BASE_URL}/auth/me`, {
@@ -88,7 +105,10 @@ export function usePetBootstrap() {
             if (meRes.ok) {
               const meData = await meRes.json();
               setTutorName(meData.name || '');
-              if (meData.id) setLoggedUserId(meData.id);
+              if (meData.id) {
+                setLoggedUserId(meData.id);
+                meIdForSort = meData.id;
+              }
               if (typeof meData.monthly_checkin_day === 'number') {
                 setTutorCheckinDay(meData.monthly_checkin_day);
               }
@@ -103,7 +123,7 @@ export function usePetBootstrap() {
 
           if (response.ok) {
             const backendPets = await response.json();
-            const convertedPets = normalizeBackendPetProfiles(backendPets);
+            const convertedPets = sortOwnedPetsFirst(normalizeBackendPetProfiles(backendPets), meIdForSort);
             setPets(convertedPets);
             if (convertedPets.length > 0) {
               setSelectedPetId((prev) => resolveSelectedPetId(convertedPets, prev));
@@ -147,9 +167,14 @@ export function usePetBootstrap() {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
+        let meIdForSort = '';
         if (tutorResponse.ok) {
           const tutorData = await tutorResponse.json();
           setTutorName(tutorData.name || '');
+          if (tutorData.id) {
+            setLoggedUserId(tutorData.id);
+            meIdForSort = tutorData.id;
+          }
           if (typeof tutorData.monthly_checkin_day === 'number') {
             setTutorCheckinDay(tutorData.monthly_checkin_day);
           }
@@ -175,15 +200,7 @@ export function usePetBootstrap() {
         }
 
         const backendPets = await response.json();
-        const convertedPets = normalizeBackendPetProfiles(backendPets);
-
-        convertedPets.sort((a, b) => {
-          const aName = (a.pet_name || '').toLowerCase();
-          const bName = (b.pet_name || '').toLowerCase();
-          if (aName === 'baby') return -1;
-          if (bName === 'baby') return 1;
-          return 0;
-        });
+        const convertedPets = sortOwnedPetsFirst(normalizeBackendPetProfiles(backendPets), meIdForSort);
         setPets(convertedPets);
         if (convertedPets.length > 0) {
           setSelectedPetId((prev) => resolveSelectedPetId(convertedPets, prev));
