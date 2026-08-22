@@ -51,9 +51,14 @@ class Settings(BaseSettings):
     rate_limit_requests: int = 100
     rate_limit_window: int = 60  # seconds
     
-    # Mercado Livre API (public search works without auth)
+    # Mercado Livre API — backend-only OAuth Client Credentials.
+    # Client Secret fica apenas no env do backend/VPS; nunca no frontend,
+    # banco, logs ou repositório. Não usamos Authorization Code, PKCE,
+    # Refresh Token nem MERCADOLIVRE_ACCESS_TOKEN fixo.
     mercadolivre_client_id: Optional[str] = None
     mercadolivre_client_secret: Optional[str] = None
+    # Legacy/env antigo ignorado operacionalmente. Mantido só para não
+    # quebrar ambientes que ainda tenham a variável definida.
     mercadolivre_access_token: Optional[str] = None
     
     # Google Maps/Places API - unified key
@@ -63,9 +68,15 @@ class Settings(BaseSettings):
     # Feature flags - countries with price comparison enabled
     prices_enabled_countries: str = "BR,AR,MX,CO,CL"
 
-    # Feature flag — ativa busca real via MercadoLivreProvider em /search
-    # Padrão false: comportamento idêntico ao atual (candidates=[])
+    # Feature flag — ativa busca real via MercadoLivreProvider no backend.
+    # Padrão false: comportamento idêntico ao atual (candidates=[]).
     enable_ml_provider: bool = False
+    # Flag separada de exposição pública em /search. Deve permanecer false
+    # enquanto não houver link/método oficial de afiliado confirmado para ML.
+    mercadolivre_public_offers_enabled: bool = False
+    # Sinalização comercial; não gera link sozinha. Só pode virar true quando
+    # existir método oficial confirmado e implementado em camada própria.
+    mercadolivre_affiliate_enabled: bool = False
 
     # Preço real da Cobasi (API pública de catálogo VTEX) para a Loja do Baby.
     # Cache longo de propósito — reduz volume de chamadas à Cobasi (evitar
@@ -381,6 +392,8 @@ class Settings(BaseSettings):
                 errors.append("R2_SECRET_ACCESS_KEY must be set when STORAGE_BACKEND=r2")
             if not self.r2_endpoint or self.r2_endpoint == "CHANGE_ME":
                 errors.append("R2_ENDPOINT must be set when STORAGE_BACKEND=r2")
+        if self.mercadolivre_public_offers_enabled and self.affiliate_only_commerce_enforced and not self.mercadolivre_affiliate_enabled:
+            errors.append("MERCADOLIVRE_PUBLIC_OFFERS_ENABLED requires official affiliate monetization in prod")
         if errors:
             msg = "STARTUP FAILED — invalid production configuration:\n"
             for e in errors:

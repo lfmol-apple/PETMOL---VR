@@ -56,8 +56,16 @@ async def search_offers_async(query: SearchQuery, force: bool = False) -> Search
     #     print(f"[search] Aggregation error: {e}")
     #     candidates = []
 
-    # MercadoLivre provider — ativado via ENABLE_ML_PROVIDER=true
-    if settings.enable_ml_provider:
+    # Mercado Livre provider — ENABLE_ML_PROVIDER permite shadow/backend.
+    # /search só expõe publicamente quando há uma decisão separada de
+    # produto/comercial. Em produção affiliate-only, não devolvemos URL
+    # direta não monetizada.
+    ml_public_allowed = (
+        settings.enable_ml_provider
+        and settings.mercadolivre_public_offers_enabled
+        and (not settings.affiliate_only_commerce_enforced or settings.mercadolivre_affiliate_enabled)
+    )
+    if ml_public_allowed:
         try:
             from .providers.mercadolivre import mercadolivre_provider
             candidates = await mercadolivre_provider.search(
