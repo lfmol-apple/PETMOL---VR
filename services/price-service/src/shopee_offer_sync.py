@@ -309,6 +309,110 @@ def _ensure_catalog_entry(db: Session, gtin: str, name: str, brand: Optional[str
     return product
 
 
+def _find_alias_shopee_offers(
+    db: Session, gtin_normalized: str, name: str, brand: Optional[str]
+) -> list[MarketplaceOffer]:
+    """Mesma loja às vezes lista o mesmo item comercial sob GTINs
+    diferentes (código reemitido, retrabalho de embalagem, etc.) — nunca
+    tamanho/variação diferente, que sempre muda o preço. Quando um GTIN
+    "irmão" da mesma loja já tem oferta Shopee casada, reaproveita em vez
+    de gastar outra busca de rede pro mesmo produto físico (mais barato e
+    fecha a lacuna de "produto sem preço só porque foi escaneado sob o
+    outro código de barras").
+
+    Critério deliberadamente estrito pra nunca colar itens errados: mesma
+    loja (merchant) + título normalizado idêntico + marca normalizada
+    idêntica + preço idêntico até o centavo. Qualquer diferença de preço
+    já é sinal de tamanho/versão realmente diferente — não reaproveita
+    nesse caso, cai pro fluxo normal de busca+match na Shopee."""
+    from .affiliate_feed import AffiliateFeedOffer
+
+    own_row = db.scalar(
+        select(AffiliateFeedOffer)
+        .where(AffiliateFeedOffer.gtin == gtin_normalized, AffiliateFeedOffer.active.is_(True))
+        .order_by(AffiliateFeedOffer.id)
+        .limit(1)
+    )
+    if not own_row or own_row.price is None:
+        return []
+
+    title_key = _normalize_token(name)
+    if not title_key:
+        return []
+    brand_key = _normalize_token(brand or "")
+
+    siblings = db.scalars(
+        select(AffiliateFeedOffer).where(
+            AffiliateFeedOffer.merchant == own_row.merchant,
+            AffiliateFeedOffer.active.is_(True),
+            AffiliateFeedOffer.in_stock.is_(True),
+            AffiliateFeedOffer.gtin.isnot(None),
+            AffiliateFeedOffer.gtin != gtin_normalized,
+            AffiliateFeedOffer.price == own_row.price,
+        )
+    ).all()
+
+    for sibling in siblings:
+        if _normalize_token(sibling.title or "") != title_key:
+            continue
+        if _normalize_token(sibling.brand or "") != brand_key:
+            continue
+        sibling_gtin = normalize_gtin(sibling.gtin)
+        if not sibling_gtin or sibling_gtin == gtin_normalized:
+            continue
+        sibling_product = db.scalar(
+            select(ProductCatalog).where(ProductCatalog.barcode_normalized == sibling_gtin)
+        )
+        if not sibling_product:
+            continue
+        offers = db.scalars(
+            select(MarketplaceOffer).where(
+                MarketplaceOffer.product_id == sibling_product.id,
+                MarketplaceOffer.merchant == "shopee",
+                MarketplaceOffer.active.is_(True),
+                MarketplaceOffer.is_available.is_(True),
+            )
+        ).all()
+        if offers:
+            return list(offers)
+    return []
+
+
+def _clone_offers_for_product(db: Session, product_id: int, source_offers: list[MarketplaceOffer]) -> list[int]:
+    """Copia ofertas Shopee já verificadas (URL nunca reescrita, só
+    reatribuída a outro product_id) pro GTIN irmão reconhecido por
+    _find_alias_shopee_offers. Upsert por (product_id, merchant,
+    external_listing_id), mesma chave de idempotência de
+    sync_shopee_offer_for_gtin — reexecutar nunca duplica."""
+    now = datetime.now(timezone.utc)
+    cloned_ids: list[int] = []
+    for src in source_offers:
+        existing = db.scalar(
+            select(MarketplaceOffer).where(
+                MarketplaceOffer.product_id == product_id,
+                MarketplaceOffer.merchant == "shopee",
+                MarketplaceOffer.external_listing_id == src.external_listing_id,
+            )
+        )
+        offer = existing or MarketplaceOffer(
+            product_id=product_id, merchant="shopee", external_listing_id=src.external_listing_id
+        )
+        if not existing:
+            db.add(offer)
+        offer.seller_name = src.seller_name
+        offer.affiliate_url = src.affiliate_url
+        offer.direct_url = src.direct_url
+        offer.price = src.price
+        offer.is_available = True
+        offer.active = True
+        offer.verified_at = now
+        offer.last_checked_at = now
+        db.flush()
+        cloned_ids.append(offer.id)
+    db.commit()
+    return cloned_ids
+
+
 def sync_shopee_offer_from_feed_row(
     db: Session,
     gtin: str,
@@ -326,6 +430,16 @@ def sync_shopee_offer_from_feed_row(
     product = _ensure_catalog_entry(db, gtin, name, brand)
     if product is None:
         return ShopeeSyncResult(gtin=gtin, matched=False, reason="GTIN ou nome inválido pra criar entrada de catálogo")
+
+    alias_offers = _find_alias_shopee_offers(db, product.barcode_normalized, name, brand)
+    if alias_offers:
+        cloned_ids = _clone_offers_for_product(db, product.id, alias_offers)
+        return ShopeeSyncResult(
+            gtin=product.barcode_normalized, matched=True,
+            reason="mesmo item, GTIN irmão na mesma loja já tinha oferta Shopee casada",
+            offer_id=cloned_ids[0], offer_ids=cloned_ids,
+        )
+
     return sync_shopee_offer_for_gtin(
         db,
         product.barcode_normalized,
