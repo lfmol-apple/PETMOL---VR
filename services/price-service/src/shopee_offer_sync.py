@@ -106,22 +106,41 @@ def _build_keyword(product: ProductCatalog, expected_weight_kg: Optional[float] 
     return " ".join(part for part in parts if part).strip() or " ".join(p for p in (brand, name) if p).strip()
 
 
+def _prepare_shopee_keyword(value: str) -> str:
+    import unicodedata
+
+    text = unicodedata.normalize("NFKD", value or "")
+    text = text.encode("ascii", "ignore").decode("ascii")
+    return " ".join(text.split())
+
+
 def _build_keyword_variants(product: ProductCatalog, expected_weight_kg: Optional[float] = None) -> list[str]:
     primary = _build_keyword(product, expected_weight_kg)
     brand = (product.brand or "").strip()
     name = (product.name or "").strip()
     weight = _format_weight_kg(expected_weight_kg) if expected_weight_kg is not None else None
+    name_tokens = [
+        raw for raw in re.findall(r"[\wÀ-ÿ]+(?:[.,]\d+)?(?:kg|g|ml|l)?|s/o", name, flags=re.IGNORECASE)
+        if _normalize_token(raw) and _normalize_token(raw) not in _KEYWORD_STOPWORDS
+    ]
+    short_name = " ".join(name_tokens[:4])
 
     raw_variants = [
         primary,
-        " ".join(part for part in (brand, "Urinary Small Dog", weight) if part),
-        " ".join(part for part in (brand, "Veterinary Canine Urinary S/O Small", weight) if part),
+        " ".join(part for part in (brand, short_name, weight) if part),
+        " ".join(part for part in (brand, weight) if part),
+        brand,
         " ".join(part for part in (brand, name) if part),
     ]
+    if "urinary" in _normalize_token(name):
+        raw_variants.extend([
+            " ".join(part for part in (brand, "Urinary Small Dog", weight) if part),
+            " ".join(part for part in (brand, "Veterinary Canine Urinary S/O Small", weight) if part),
+        ])
     variants: list[str] = []
     seen: set[str] = set()
     for variant in raw_variants:
-        normalized = " ".join(variant.split())
+        normalized = _prepare_shopee_keyword(variant)
         key = _normalize_token(normalized)
         if not normalized or key in seen:
             continue

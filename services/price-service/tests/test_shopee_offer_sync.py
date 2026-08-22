@@ -13,6 +13,7 @@ from src.product_catalog_lookup import ProductCatalog
 import src.shopee_offer_sync as sync_module
 from src.shopee_offer_sync import (
     _build_keyword,
+    _build_keyword_variants,
     iter_awin_feed_products,
     iter_unified_awin_feed_products,
     sync_shopee_offer_for_gtin,
@@ -106,6 +107,21 @@ def test_build_keyword_encurta_nome_longo_e_preserva_peso():
 
     assert keyword == "Royal Canin Urinary Small Dog Cães Porte Pequeno Cálculos 7,5kg"
     assert "Ração Royal Canin Veterinary Diet" not in keyword
+
+
+def test_build_keyword_variants_remove_acento_e_inclui_busca_curta():
+    product = ProductCatalog(
+        barcode="7891106910255",
+        barcode_normalized="7891106910255",
+        name="Coleira Antipulgas Seresto Cães e gatos até 8kg - 8 meses de proteção - Único",
+        brand="Seresto",
+    )
+
+    variants = _build_keyword_variants(product, expected_weight_kg=8.0)
+
+    assert variants[0] == "Seresto Coleira Antipulgas Caes gatos ate 8kg 8"
+    assert "Seresto 8kg" in variants
+    assert all("ã" not in variant and "é" not in variant and "ç" not in variant for variant in variants)
 
 
 def test_match_confiavel_cria_marketplace_offer(monkeypatch):
