@@ -712,17 +712,13 @@ export function ProductDetectionSheetGold({
   const [scannerError, setScannerError] = useState<string | null>(null);
   const [manualBarcode, setManualBarcode] = useState('');
   const [kbdBottom, setKbdBottom] = useState(0);
-  // Progressivo (pedido do tutor, ago/2026; threshold de digitar manualmente
-  // revisado pro tutor em 21/08/2026, de 2 para 3): só escanear aparece de
-  // cara. Foto libera depois de 2 tentativas de scan sem achar o produto;
-  // digitar manualmente (código de barras primeiro, ver renderManual) só
-  // libera depois de 3 — o tutor pediu esse número específico pra dar mais
-  // chance à câmera antes de cair pro manual. Contadores resetam a cada
-  // abertura do sheet (não persistem).
+  // Progressivo só para foto. Digitar código de barras fica disponível de
+  // cara em todos os fluxos que usam este sheet, para cobrir embalagem sem
+  // câmera funcional ou tutor que prefere inserir o EAN/GTIN.
   const [scanFailCount, setScanFailCount] = useState(0);
   const [photoFailCount, setPhotoFailCount] = useState(0);
   const photoUnlocked = photoFailCount > 0 || scanFailCount >= 2;
-  const manualUnlocked = photoFailCount >= 1 || scanFailCount >= 3;
+  const manualUnlocked = true;
   // Continua contando pra liberação da FOTO (2 tentativas) — a mensagem em
   // renderNotFound() que usa isto fala especificamente de foto, não do
   // manual (que libera depois, na 3ª tentativa, ver manualUnlocked acima).
@@ -1873,10 +1869,23 @@ export function ProductDetectionSheetGold({
           </button>
         )}
 
-        {/* Foto e digitar só aparecem depois que o scan (e, no caso de
-            digitar, também a foto) já foram tentados sem sucesso — ver
-            scanFailCount/photoFailCount. Evita que o tutor pule direto pro
-            caminho menos preciso só porque estava visível. */}
+        {manualUnlocked && (
+          <button
+            type="button"
+            onClick={() => setStep('manual')}
+            className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition-all active:scale-[0.98]"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-2xl">⌨️</div>
+              <div className="flex-1">
+                <p className="text-[15px] font-bold text-slate-900">Digitar código de barras</p>
+                <p className="mt-0.5 text-xs text-slate-600">Informe o EAN/GTIN ou busque por nome</p>
+              </div>
+              <span className="flex-shrink-0 text-xl text-slate-300">›</span>
+            </div>
+          </button>
+        )}
+
         {photoUnlocked && (
           <button
             type="button"
@@ -1894,22 +1903,6 @@ export function ProductDetectionSheetGold({
           </button>
         )}
 
-        {manualUnlocked && (
-          <button
-            type="button"
-            onClick={() => setStep('manual')}
-            className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-4 text-left transition-all active:scale-[0.98]"
-          >
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 text-2xl">✏️</div>
-              <div className="flex-1">
-                <p className="text-[15px] font-bold text-gray-800">Digitar o nome do produto</p>
-                <p className="mt-0.5 text-xs text-gray-500">Busque por nome ou marca com sugestões</p>
-              </div>
-              <span className="flex-shrink-0 text-xl text-gray-300">›</span>
-            </div>
-          </button>
-        )}
       </div>
 
       {history.length > 0 && (
@@ -2005,11 +1998,8 @@ export function ProductDetectionSheetGold({
             </div>
           )}
 
-          {/* Foto/digitar só aparecem aqui depois de algumas tentativas de
-              scan sem sucesso (ver scanFailCount/photoFailCount) — evita
-              oferecer o atalho menos preciso enquanto o scan ainda pode dar certo. */}
           {(photoUnlocked || manualUnlocked) && (
-          <div className={`grid gap-2 ${photoUnlocked && manualUnlocked ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <div className={`grid gap-2 ${photoUnlocked && manualUnlocked ? 'grid-cols-3' : photoUnlocked ? 'grid-cols-2' : 'grid-cols-1'}`}>
             {photoUnlocked && (
             <button
               type="button"
@@ -2043,7 +2033,7 @@ export function ProductDetectionSheetGold({
               }}
               className="rounded-2xl border border-white/15 bg-white/10 px-2 py-3 text-xs font-semibold text-white"
             >
-              ✏️ Digitar produto
+              ⌨️ Digitar código
             </button>
             )}
           </div>
@@ -2450,9 +2440,6 @@ export function ProductDetectionSheetGold({
           </button>
         )}
 
-        {/* Foto e "digitar/escolher da lista" só aparecem depois que o scan
-            (e, pra digitar, também a foto) já foram tentados sem sucesso —
-            ver scanFailCount/photoFailCount/pedido do tutor ago/2026. */}
         {photoUnlocked && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button
@@ -2494,8 +2481,8 @@ export function ProductDetectionSheetGold({
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-blue-100 text-2xl">✏️</div>
             <div className="flex-1">
-              <p className="text-[15px] font-bold text-blue-900">Digitar o produto</p>
-              <p className="mt-0.5 text-xs text-blue-600">Digite o nome ou marca com sugestões</p>
+              <p className="text-[15px] font-bold text-blue-900">Digitar código de barras</p>
+              <p className="mt-0.5 text-xs text-blue-600">Informe o EAN/GTIN ou busque por nome</p>
             </div>
             <span className="flex-shrink-0 text-xl text-blue-300">›</span>
           </div>

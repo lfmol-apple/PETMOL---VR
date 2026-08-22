@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { GUIDES, type GuideCategory } from '@/features/content/guides';
 import { STRATEGIC_PRODUCT_CATEGORIES } from '@/features/commerce/strategicProducts';
+import { PUBLIC_GUIDES_PAGE_ENABLED } from '../publicCommercePages';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
@@ -12,6 +14,8 @@ export const metadata: Metadata = {
 };
 
 export default function GuiasIndexPage() {
+  if (!PUBLIC_GUIDES_PAGE_ENABLED) notFound();
+
   const byCategory = new Map<GuideCategory, typeof GUIDES>();
   for (const guide of GUIDES) {
     const list = byCategory.get(guide.category) ?? [];

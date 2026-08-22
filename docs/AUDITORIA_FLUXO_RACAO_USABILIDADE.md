@@ -29,7 +29,7 @@ Home
     │   └── Fazer depois → fecha sheet
     │
     └── COM RAÇÃO (main)
-        ├── Comprar novamente → buy mode → [Petz / Cobasi / Amazon / Petlove] → abre em nova aba
+        ├── Comprar novamente → buy mode → [Cobasi / Shopee / Zee Now / Zee Dog] → abre em nova aba
         │   └── Voltar → main
         │
         ├── ✅ Comprei → restockConfirm

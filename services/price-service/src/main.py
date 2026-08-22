@@ -1435,7 +1435,7 @@ async def commerce_offers(
     """
     Lista de ofertas monetizáveis para um produto, menor preço primeiro —
     ver commerce_offers.py/commerce_provider.py. Hoje só a Cobasi está
-    ativa (0 ou 1 item); a forma já é multi-provider — Amazon/Shopee/ML/
+    ativa (0 ou 1 item); a forma já é multi-provider — Shopee/ML/
     Petz entram sem mudar este contrato quando aprovados.
 
     Nunca inclui oferta sem link monetizável: lista vazia = "estamos
@@ -1544,9 +1544,8 @@ async def commerce_awin_search(
     — esse endpoint (não este) decide o link final por loja, respeitando
     link cadastrado manualmente (ver commerce_provider.py::_dedupe_by_merchant).
 
-    Amazon/Mercado Livre/Shopee NÃO entram aqui — não têm feed/catálogo
-    estruturado, continuam no mecanismo de link por template
-    (homeShoppingPartners.ts).
+    Mercado Livre/Shopee NÃO entram aqui — não têm feed/catálogo
+    estruturado. Amazon está desativada desde 22/08/2026.
 
     Master gate: só busca merchants em awin_merchants_publicly_servable()
     (awin_enabled=True, awin_shadow_mode=False, merchant individualmente

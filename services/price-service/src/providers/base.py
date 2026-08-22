@@ -2,7 +2,7 @@
 Base Provider Interface for Catalog/Offers
 
 This module defines the abstract interface that all catalog providers must implement.
-Providers: MercadoLivre (official API), Amazon PA-API.
+Providers: MercadoLivre (official API) and future official catalog APIs.
 
 Architecture follows "Trivago-style" aggregation:
 - Multiple providers search in parallel
@@ -42,7 +42,7 @@ class CatalogCandidate:
     A product candidate from a provider.
     This is the raw result from external APIs before normalization.
     """
-    source: str  # "ml", "amazon"
+    source: str  # "ml", etc.
     source_item_id: str
     title: str
     brand: Optional[str] = None
@@ -108,7 +108,7 @@ class CatalogProvider(ABC):
     """
     Abstract base class for catalog providers.
     
-    Each provider (MercadoLivre, Amazon, etc.) must implement these methods.
+    Each provider must implement these methods.
     Providers should:
     - Handle their own rate limiting and retries
     - Cache results appropriately

@@ -13,6 +13,7 @@ nunca liga nada pro tutor sozinho — quem decide se a oferta aparece é
 is_marketplace_merchant_publicly_servable() em
 marketplace_offer_provider.py, checado à parte a cada chamada real).
 """
+import argparse
 import sys
 from pathlib import Path
 
@@ -23,21 +24,22 @@ from src.shopee_offer_sync import sync_shopee_offers_for_gtins  # noqa: E402
 
 
 def main() -> int:
-    gtins = sys.argv[1:]
-    if not gtins:
-        print("Uso: python3 scripts/sync_shopee_offers.py <gtin> [<gtin> ...]", file=sys.stderr)
-        return 1
+    parser = argparse.ArgumentParser()
+    parser.add_argument("gtins", nargs="+")
+    parser.add_argument("--weight-kg", type=float, default=None, help="Peso esperado quando o catálogo não traz o peso no nome")
+    args = parser.parse_args()
 
     db = SessionLocal()
     try:
-        results = sync_shopee_offers_for_gtins(db, gtins)
+        results = sync_shopee_offers_for_gtins(db, args.gtins, expected_weight_kg=args.weight_kg)
     finally:
         db.close()
 
     exit_code = 0
     for result in results:
         if result.matched:
-            print(f"[{result.gtin}] casado — MarketplaceOffer id={result.offer_id}")
+            count = len(result.offer_ids or ([result.offer_id] if result.offer_id is not None else []))
+            print(f"[{result.gtin}] casado — {count} MarketplaceOffer(s), primeiro id={result.offer_id}")
         else:
             print(f"[{result.gtin}] sem match — {result.reason}", file=sys.stderr)
             exit_code = 1

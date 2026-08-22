@@ -22,7 +22,7 @@ from src.config import get_settings
 from src.db import SessionLocal
 from src.product_catalog_lookup import ProductCatalog
 
-GTIN = "7891234567890"
+GTIN = "7891234567895"
 
 
 @pytest.fixture(autouse=True)

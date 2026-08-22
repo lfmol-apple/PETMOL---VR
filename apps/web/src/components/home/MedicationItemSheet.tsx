@@ -819,9 +819,9 @@ export function MedicationItemSheet({
               <div className="space-y-3">
                 {[
                   { name: 'Cobasi', url: 'https://www.cobasi.com.br/capsulas-e-saude/medicamentos', emoji: '🐾' },
-                  { name: 'Petz', url: 'https://www.petz.com.br/cachorro/farmacia', emoji: '🐕' },
-                  { name: 'Petlove', url: 'https://www.petlove.com.br/cachorro/medicina-e-saude', emoji: '❤️' },
-                  { name: 'Amazon Pet', url: 'https://www.amazon.com.br/s?k=medicamento+pet', emoji: '📦' },
+                  { name: 'Shopee', url: 'https://shopee.com.br/search?keyword=medicamento%20pet', emoji: '🛍️' },
+                  { name: 'Zee Now', url: 'https://www.zeenow.com.br/busca?q=medicamento%20pet', emoji: '⚡' },
+                  { name: 'Zee Dog', url: 'https://www.zeedog.com.br/busca?q=medicamento%20pet', emoji: '🐾' },
                 ].map(store => (
                   <button
                     key={store.name}

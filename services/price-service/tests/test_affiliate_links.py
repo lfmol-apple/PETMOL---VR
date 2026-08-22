@@ -17,7 +17,7 @@ from src.main import app
 from src.product_catalog_lookup import ProductCatalog
 
 
-GTIN = "7891234567890"
+GTIN = "7891234567895"
 COBASI_STOREFRONT_URL = "https://minhaloja.cobasi.com.br?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol"
 
 

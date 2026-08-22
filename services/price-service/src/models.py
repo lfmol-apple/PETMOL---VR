@@ -149,7 +149,7 @@ class CatalogPackSize(BaseModel):
 
 class CatalogCandidate(BaseModel):
     """A catalog candidate from a source (trivago-style)."""
-    source: str  # "ml", "amazon", "catalog"
+    source: str  # "ml", "catalog", etc.
     source_item_id: str
     title: str
     brand: Optional[str] = None

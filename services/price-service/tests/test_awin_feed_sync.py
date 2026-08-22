@@ -15,24 +15,31 @@ HEADER = (
     "aw_image_url,aw_thumb_url,category_id,category_name,brand_id,"
     "brand_name,merchant_product_id,merchant_category,mpn,product_name,"
     "description,merchant_deep_link,merchant_image_url,search_price,"
-    "condition,product_type,custom_1,custom_2,stock_status,product_GTIN"
+    "condition,product_type,custom_1,custom_2,stock_status,in_stock,product_GTIN"
 )
 
 
 def _row(
     aw_product_id="1001",
-    gtin="7891234567890",
+    gtin="7891234567895",
     price="59.90",
     stock="1",
+    in_stock="",
     deep_link="https://www.awin1.com/cread.php?awinmid=17870&p=abc",
     name="Racao Teste 10kg",
+    merchant_id="17870",
+    data_feed_id="48117",
+    merchant_name="Cobasi",
+    category_name="Racao",
+    merchant_category="Cachorro",
+    product_type="product",
 ):
     return (
-        f"48117,17870,Cobasi,{aw_product_id},{deep_link},"
-        f"https://img/awin.jpg,https://img/thumb.jpg,10,Racao,5,MarcaX,"
-        f"SKU-{aw_product_id},Cachorro,MPN1,{name},"
+        f"{data_feed_id},{merchant_id},{merchant_name},{aw_product_id},{deep_link},"
+        f"https://img/awin.jpg,https://img/thumb.jpg,10,{category_name},5,MarcaX,"
+        f"SKU-{aw_product_id},{merchant_category},MPN1,{name},"
         f"Descricao do produto,https://cobasi.com.br/p/{aw_product_id},"
-        f"https://img/merchant.jpg,{price},new,product,,,{stock},{gtin}"
+        f"https://img/merchant.jpg,{price},new,{product_type},,,{stock},{in_stock},{gtin}"
     )
 
 
@@ -54,7 +61,7 @@ def _cleanup():
 def test_sync_upserts_rows_from_feed(monkeypatch):
     monkeypatch.setattr(
         "src.awin_feed_sync.fetch_feed_csv",
-        lambda url: _csv(_row(aw_product_id="1001", gtin="7891234567890")),
+        lambda url: _csv(_row(aw_product_id="1001", gtin="7891234567895")),
     )
 
     db = SessionLocal()
@@ -71,7 +78,7 @@ def test_sync_upserts_rows_from_feed(monkeypatch):
             )
         )
         assert row is not None
-        assert row.gtin == "7891234567890"
+        assert row.gtin == "7891234567895"
         assert row.price == 59.90
         assert row.in_stock is True
         assert row.active is True
@@ -150,6 +157,167 @@ def test_real_cobasi_feed_stock_value_is_recognized(monkeypatch):
         sync_awin_feed(db, "cobasi", datafeed_key="fake-key")
         row = db.scalar(select(AffiliateFeedOffer).where(AffiliateFeedOffer.external_product_id == "3001"))
         assert row.in_stock is True
+    finally:
+        db.close()
+
+
+def test_stock_status_takes_precedence_over_in_stock(monkeypatch):
+    monkeypatch.setattr(
+        "src.awin_feed_sync.fetch_feed_csv",
+        lambda url: _csv(_row(aw_product_id="3003", stock="disponível", in_stock="0")),
+    )
+    db = SessionLocal()
+    try:
+        sync_awin_feed(db, "cobasi", datafeed_key="fake-key")
+        row = db.scalar(select(AffiliateFeedOffer).where(AffiliateFeedOffer.external_product_id == "3003"))
+        assert row.in_stock is True
+    finally:
+        db.close()
+
+
+def test_zeedog_row_uses_in_stock_and_product_type_fallback(monkeypatch):
+    deep_link = "https://www.awin1.com/cread.php?awinmid=127555&awinaffid=3032803&a=3032803&m=127555&p=abc"
+    monkeypatch.setattr(
+        "src.awin_feed_sync.fetch_feed_csv",
+        lambda url: _csv(
+            _row(
+                aw_product_id="zd-1001",
+                gtin="7891111111111",
+                stock="",
+                in_stock="1",
+                deep_link=deep_link,
+                name="Zee Dog Coleira Prisma",
+                merchant_id="127555",
+                data_feed_id="116649",
+                merchant_name="Zee Dog",
+                category_name="",
+                merchant_category="",
+                product_type="coleiras",
+            )
+        ),
+    )
+    db = SessionLocal()
+    try:
+        result = sync_awin_feed(db, "zeedog", datafeed_key="fake-key")
+        assert result.rows_seen == 1
+        assert result.rows_upserted == 1
+
+        row = db.scalar(select(AffiliateFeedOffer).where(AffiliateFeedOffer.external_product_id == "zd-1001"))
+        assert row is not None
+        assert row.merchant == "zeedog"
+        assert row.advertiser_id == "127555"
+        assert row.gtin == "7891111111111"
+        assert row.in_stock is True
+        assert row.category == "coleiras"
+        assert row.affiliate_url == deep_link
+    finally:
+        db.close()
+
+
+def test_zeenow_row_uses_in_stock_and_product_type_fallback(monkeypatch):
+    deep_link = "https://www.awin1.com/cread.php?awinmid=127557&awinaffid=3032803&a=3032803&m=127557&p=abc"
+    monkeypatch.setattr(
+        "src.awin_feed_sync.fetch_feed_csv",
+        lambda url: _csv(
+            _row(
+                aw_product_id="zn-1001",
+                gtin="7891234567895",
+                stock="",
+                in_stock="1",
+                deep_link=deep_link,
+                name="Zee Now Produto Teste",
+                merchant_id="127557",
+                data_feed_id="116779",
+                merchant_name="Zee Now",
+                category_name="",
+                merchant_category="",
+                product_type="higiene",
+            )
+        ),
+    )
+    db = SessionLocal()
+    try:
+        result = sync_awin_feed(db, "zeenow", datafeed_key="fake-key")
+        assert result.rows_seen == 1
+        assert result.rows_upserted == 1
+        assert result.rows_gtin_valid == 1
+
+        row = db.scalar(select(AffiliateFeedOffer).where(AffiliateFeedOffer.external_product_id == "zn-1001"))
+        assert row is not None
+        assert row.merchant == "zeenow"
+        assert row.advertiser_id == "127557"
+        assert row.gtin == "7891234567895"
+        assert row.in_stock is True
+        assert row.category == "higiene"
+        assert row.affiliate_url == deep_link
+    finally:
+        db.close()
+
+
+def test_gs1_gtin_validation_corrects_upc11_and_drops_invalid(monkeypatch):
+    monkeypatch.setattr(
+        "src.awin_feed_sync.fetch_feed_csv",
+        lambda url: _csv(
+            _row(aw_product_id="valid", gtin="7891234567895"),
+            _row(aw_product_id="upc11", gtin="12345678905"),
+            _row(aw_product_id="invalid", gtin="7891234567890"),
+        ),
+    )
+    db = SessionLocal()
+    try:
+        result = sync_awin_feed(db, "cobasi", datafeed_key="fake-key")
+        assert result.rows_gtin_valid == 2
+        assert result.rows_gtin_corrected == 1
+        assert result.rows_gtin_invalid == 1
+
+        valid = db.scalar(select(AffiliateFeedOffer).where(AffiliateFeedOffer.external_product_id == "valid"))
+        upc11 = db.scalar(select(AffiliateFeedOffer).where(AffiliateFeedOffer.external_product_id == "upc11"))
+        invalid = db.scalar(select(AffiliateFeedOffer).where(AffiliateFeedOffer.external_product_id == "invalid"))
+        assert valid.gtin == "7891234567895"
+        assert upc11.gtin == "012345678905"
+        assert invalid.gtin is None
+    finally:
+        db.close()
+
+
+def test_duplicate_and_ambiguous_gtin_groups_are_counted(monkeypatch):
+    monkeypatch.setattr(
+        "src.awin_feed_sync.fetch_feed_csv",
+        lambda url: _csv(
+            _row(aw_product_id="cefex", gtin="7891234567895", name="Cefex 500", category_name="", product_type="medicamento"),
+            _row(aw_product_id="tapete", gtin="7891234567895", name="Tapete Higiênico", category_name="", product_type="higiene"),
+            _row(aw_product_id="golden-1", gtin="7891111111111", name="Racao Golden Adulto 10kg", product_type="racao"),
+            _row(aw_product_id="golden-2", gtin="7891111111111", name="Racao Golden Adulto 10kg Promocao", product_type="racao"),
+        ),
+    )
+    db = SessionLocal()
+    try:
+        result = sync_awin_feed(db, "cobasi", datafeed_key="fake-key")
+        assert result.duplicate_gtin_groups == 2
+        assert result.ambiguous_gtin_groups == 1
+    finally:
+        db.close()
+
+
+def test_zeedog_in_stock_zero_stores_false(monkeypatch):
+    monkeypatch.setattr(
+        "src.awin_feed_sync.fetch_feed_csv",
+        lambda url: _csv(
+            _row(
+                aw_product_id="zd-1002",
+                stock="",
+                in_stock="0",
+                merchant_id="127555",
+                data_feed_id="116649",
+                merchant_name="Zee Dog",
+            )
+        ),
+    )
+    db = SessionLocal()
+    try:
+        sync_awin_feed(db, "zeedog", datafeed_key="fake-key")
+        row = db.scalar(select(AffiliateFeedOffer).where(AffiliateFeedOffer.external_product_id == "zd-1002"))
+        assert row.in_stock is False
     finally:
         db.close()
 
@@ -297,7 +465,7 @@ def test_sync_run_is_recorded_on_success(monkeypatch):
 
     monkeypatch.setattr(
         "src.awin_feed_sync.fetch_feed_csv",
-        lambda url: _csv(_row(aw_product_id="1001", gtin="7891234567890")),
+        lambda url: _csv(_row(aw_product_id="1001", gtin="7891234567895")),
     )
     db = SessionLocal()
     try:
@@ -310,6 +478,10 @@ def test_sync_run_is_recorded_on_success(monkeypatch):
         assert run.rows_seen == 1
         assert run.rows_upserted == 1
         assert run.rows_with_gtin == 1
+        assert run.rows_gtin_corrected == 0
+        assert run.rows_gtin_invalid == 0
+        assert run.duplicate_gtin_groups == 0
+        assert run.ambiguous_gtin_groups == 0
         assert run.rows_with_affiliate_url == 1
     finally:
         db.query(AffiliateFeedSyncRun).filter(AffiliateFeedSyncRun.merchant == "cobasi").delete()

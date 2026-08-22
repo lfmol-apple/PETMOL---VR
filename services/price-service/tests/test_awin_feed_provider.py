@@ -16,13 +16,16 @@ from src.commerce_provider import DiscoveredOffer, ProductContext
 from src.config import get_settings
 from src.db import SessionLocal
 
-GTIN = "7891234567890"
+GTIN = "7891234567895"
 OTHER_GTIN = "7899999999999"
 
 
 @pytest.fixture(autouse=True)
-def _enable_cobasi_for_test(monkeypatch):
-    monkeypatch.setattr("src.awin_feed_provider.is_awin_merchant_publicly_servable", lambda merchant: merchant == "cobasi")
+def _enable_awin_merchants_for_test(monkeypatch):
+    monkeypatch.setattr(
+        "src.awin_feed_provider.is_awin_merchant_publicly_servable",
+        lambda merchant: merchant in {"cobasi", "zeedog"},
+    )
     yield
 
 
@@ -158,6 +161,108 @@ def test_monetize_returns_none_when_affiliate_url_empty():
         assert result is None
 
 
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_zeedog_provider_resolves_only_by_exact_gtin():
+    db = SessionLocal()
+    try:
+        db.add(
+            _row(
+                merchant="zeedog",
+                advertiser_id="127555",
+                external_product_id="zd-1",
+                title="Zee Dog Coleira Prisma",
+                affiliate_url="https://www.awin1.com/cread.php?awinmid=127555&awinaffid=3032803&a=3032803&m=127555&p=abc",
+                merchant_url="https://www.zeedog.com.br/produto/zd-1",
+            )
+        )
+        db.commit()
+
+        provider = AwinFeedProvider(db, "zeedog")
+        by_gtin = await provider.find_offer(ProductContext(gtin=GTIN))
+        by_text = await provider.find_offer(ProductContext(query="Zee Dog Coleira Prisma"))
+
+        assert by_gtin is not None
+        assert by_gtin.merchant == "zeedog"
+        assert by_gtin.ean == GTIN
+        assert by_text is None
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_same_gtin_with_clearly_different_products_returns_none():
+    db = SessionLocal()
+    try:
+        db.add(_row(external_product_id="cefex", title="Cefex 500", category="medicamento", price=20.0))
+        db.add(_row(external_product_id="tapete", title="Tapete Higiênico", category="higiene", price=10.0))
+        db.commit()
+
+        provider = AwinFeedProvider(db, "cobasi")
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is None
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_same_gtin_equivalent_products_still_resolve_lowest_price():
+    db = SessionLocal()
+    try:
+        db.add(_row(external_product_id="golden-1", title="Racao Golden Adulto 10kg", category="racao", price=120.0))
+        db.add(_row(external_product_id="golden-2", title="Racao Golden Adulto 10kg Promocao", category="racao", price=110.0))
+        db.commit()
+
+        provider = AwinFeedProvider(db, "cobasi")
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is not None
+        assert offer.price == 110.0
+        assert offer.external_id == "golden-2"
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_invalid_context_gtin_never_finds_offer():
+    db = SessionLocal()
+    try:
+        db.add(_row())
+        db.commit()
+
+        provider = AwinFeedProvider(db, "cobasi")
+        offer = await provider.find_offer(ProductContext(gtin="7891234567890"))
+        assert offer is None
+    finally:
+        db.close()
+
+
+def test_zeedog_without_aw_deep_link_is_not_monetized():
+    db = SessionLocal()
+    try:
+        row = _row(
+            merchant="zeedog",
+            advertiser_id="127555",
+            external_product_id="zd-sem-link",
+            affiliate_url=None,
+            merchant_url="https://www.zeedog.com.br/produto/sem-link",
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+
+        provider = AwinFeedProvider(db, "zeedog")
+        offer = DiscoveredOffer(
+            merchant="zeedog",
+            price=100.0,
+            direct_url=row.merchant_url,
+            ean=GTIN,
+            external_id=row.external_product_id,
+        )
+        result = provider.monetize(offer, ProductContext(gtin=GTIN))
+        assert result is None
     finally:
         db.close()
 

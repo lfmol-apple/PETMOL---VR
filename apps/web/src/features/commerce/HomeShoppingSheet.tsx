@@ -16,8 +16,6 @@ import {
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
 import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
-import { StrategicProductGrid } from './StrategicProductGrid';
-import { getStrategicProductsForSpecies, type StrategicProductSpecies } from './strategicProducts';
 import { formatBRLPrice, merchantLabel, type CommerceOffer } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
 import {
@@ -46,7 +44,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   // Nenhuma loja fixa por padrão: uma busca de verdade mostrou que uma loja
   // específica pode simplesmente não ter o produto (zero resultado). Em vez
   // de comprometer com uma só, tocar em "Comprar" expande esta escolha
-  // rápida entre 3 pet shops — identificada pela mesma chave usada no card.
+  // rápida entre as lojas mantidas — identificada pela mesma chave usada no card.
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,19 +57,6 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   }, [open, currentPet.pet_id]);
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
-
-  // Filtro por espécie: currentPet muda quando o tutor troca o pet
-  // selecionado (prop vinda de cima), então este useMemo — e a seção
-  // inteira — recalcula sozinho, sem lógica extra de "trocar pet". Espécie
-  // fora de dog/cat (pássaro, peixe, etc.) ou pet sem espécie reconhecida
-  // cai no fallback de getStrategicProductsForSpecies (só itens
-  // compartilhados) — nunca mistura recomendação de outra espécie.
-  const strategicSpecies: StrategicProductSpecies | null =
-    currentPet.species === 'dog' || currentPet.species === 'cat' ? currentPet.species : null;
-  const strategicProducts = useMemo(
-    () => getStrategicProductsForSpecies(strategicSpecies),
-    [strategicSpecies],
-  );
 
   // Cobasi sai do grid de ícones estáticos — vira busca (AffiliateCatalogSearch)
   // com produtos reais do catálogo Awin sincronizado, GTIN conhecido.
@@ -246,30 +231,11 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
               {/* 🐾 Buscar produtos — catálogo Awin sincronizado, no lugar
                   do ícone estático que só levava pro site sem contexto.
                   Multi-loja por natureza (ver AffiliateCatalogSearch.tsx) —
-                  copy neutra mesmo com só Cobasi registrada hoje. */}
+                  copy neutra para Cobasi, Zee Dog e próximas lojas. */}
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🐾 Buscar produtos</p>
                 <AffiliateCatalogSearch petId={currentPet.pet_id} />
               </div>
-
-              {/* 🎯 Recomendações — mesma fonte editorial de /loja
-                  (strategicProducts.ts), filtrada pela espécie DO PET
-                  ATUALMENTE SELECIONADO (currentPet.species) — nunca
-                  mostra recomendação de cão pra quem tem gato selecionado
-                  ou vice-versa. Prioridade 3: depois de recompra e busca
-                  monetizada, antes das lojas parceiras genéricas. */}
-              {strategicProducts.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">
-                    🎯 Recomendações {petDo(currentPet)} {petName || 'seu pet'}
-                  </p>
-                  <StrategicProductGrid
-                    products={strategicProducts}
-                    source="pet_store"
-                    petId={currentPet.pet_id}
-                  />
-                </div>
-              )}
 
               {/* 🏪 Lojas */}
               <div>

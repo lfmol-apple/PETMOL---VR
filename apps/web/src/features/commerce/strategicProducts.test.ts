@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { buildAmazonSearchUrl } from './amazonAffiliate';
 import { GUIDES } from '@/features/content/guides';
 import {
   STRATEGIC_PRODUCTS,
@@ -59,19 +58,11 @@ describe('strategicProducts — filtro por espécie', () => {
   });
 });
 
-describe('strategicProducts — links Amazon', () => {
-  it('toda busca gerada a partir de searchQuery inclui tag=petmol-20, domínio e protocolo válidos', () => {
-    for (const product of STRATEGIC_PRODUCTS) {
-      const url = buildAmazonSearchUrl(product.searchQuery);
-      expect(url).toContain('tag=petmol-20');
-      expect(url.startsWith('https://www.amazon.com.br/s?k=')).toBe(true);
-    }
-  });
-
+describe('strategicProducts — curadoria editorial', () => {
   it('nenhum searchQuery inventa marca específica (fica em nível de categoria)', () => {
     // Checagem de sanidade editorial: strategicProducts.ts é uma curadoria
-    // de CATEGORIA, não de produto/ASIN específico — searchQuery nunca é
-    // uma string vazia nem contém caracteres de URL crua.
+    // de CATEGORIA, não de produto específico — searchQuery nunca é uma
+    // string vazia nem contém caracteres de URL crua.
     for (const product of STRATEGIC_PRODUCTS) {
       expect(product.searchQuery.trim().length).toBeGreaterThan(0);
       expect(product.searchQuery).not.toMatch(/https?:\/\//);

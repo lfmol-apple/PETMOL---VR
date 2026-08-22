@@ -130,6 +130,10 @@ class AffiliateFeedSyncRun(Base):
     rows_with_gtin: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     rows_with_affiliate_url: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     rows_in_stock: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rows_gtin_corrected: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rows_gtin_invalid: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    duplicate_gtin_groups: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ambiguous_gtin_groups: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Curto e sanitizado de propósito — nunca stack trace inteiro, nunca URL
     # (que contém a datafeed key). Ver _sanitize_error em awin_feed_sync.py.

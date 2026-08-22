@@ -107,6 +107,37 @@ async def test_finds_offer_by_product_id_directly(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_finds_offer_by_text_when_context_has_no_gtin(monkeypatch):
+    _enable_shopee(monkeypatch)
+    product_id = _register_product(
+        gtin="7896181298083",
+    )
+    db = SessionLocal()
+    try:
+        product = db.get(ProductCatalog, product_id)
+        product.name = "Ração Royal Canin Veterinary Diet Urinary Small Dog para Cães de Porte Pequeno com Cálculos Urinários"
+        product.brand = "Royal Canin"
+        product.category = "food"
+        db.commit()
+    finally:
+        db.close()
+    _register_offer(product_id, price=399.9)
+
+    db = SessionLocal()
+    try:
+        provider = MarketplaceOfferProvider(db, "shopee")
+        offer = await provider.find_offer(ProductContext(
+            query="ROYAL CANIN URINARY S/O Veterinary Diet Small Dog Cão 7,5 kg",
+            weight_kg=7.5,
+        ))
+        assert offer is not None
+        assert offer.price == 399.9
+        assert offer.merchant == "shopee"
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
 async def test_offer_without_price_never_invents_one(monkeypatch):
     """find_offer() retorna a oferta com price=None tal como está — quem
     descarta oferta sem preço é o CommerceEngine (commerce_provider.py).

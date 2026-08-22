@@ -6,7 +6,7 @@
  *
  * CTA 1: "Encontrei este pet"   → analytics + mensagem      (obrigatório)
  * CTA 2: "Criar RG do meu pet"  → /rg                       (conversão orgânica)
- * CTA 3: "Proteção e benefícios"→ modal discreto (opcional) (monetização)
+ * CTA 3: "Lojas parceiras"     → modal discreto (opcional) (monetização)
  */
 import { useState } from 'react';
 
@@ -54,23 +54,20 @@ export default function FunnelCTAs({ petPublicId, petName }: FunnelCTAsProps) {
     });
   };
 
-  // ── CTA 3: Proteção e benefícios ─────────────────────────────────────
-  const handleBenefitsClick = async (type: 'doglife' | 'shop', partner?: string) => {
-    setBenefitsLoading(type);
+  // ── CTA 3: Lojas parceiras ───────────────────────────────────────────
+  const handleBenefitsClick = async () => {
+    setBenefitsLoading('shop');
     const lead = await trackClick({
       source: 'rg_public',
-      cta_type: type === 'doglife' ? 'doglife_redirect' : 'shop_redirect',
-      target: type === 'doglife' ? 'petlove' : (partner ?? 'petz'),
+      cta_type: 'shop_redirect',
+      target: 'cobasi',
       rg_public_id: petPublicId,
     });
     const params = new URLSearchParams();
     if (lead) params.set('lead_id', lead);
-    if (partner) params.set('partner', partner);
+    params.set('partner', 'cobasi');
 
-    const url =
-      type === 'doglife'
-        ? `/api/handoff/doglife?${params.toString()}`
-        : `/api/handoff/shop?${params.toString()}`;
+    const url = `/api/handoff/shop?${params.toString()}`;
 
     window.open(url, '_blank', 'noopener,noreferrer');
     setBenefitsLoading(null);
@@ -106,7 +103,7 @@ export default function FunnelCTAs({ petPublicId, petName }: FunnelCTAsProps) {
           🐾 Cadastrar meu pet no PETMOL
         </a>
 
-        {/* CTA 3 — Proteção e benefícios (discreto) */}
+        {/* CTA 3 — Lojas parceiras (discreto) */}
         <button
           onClick={() => {
             trackClick({ source: 'rg_public', cta_type: 'benefits_view', rg_public_id: petPublicId });
@@ -114,11 +111,11 @@ export default function FunnelCTAs({ petPublicId, petName }: FunnelCTAsProps) {
           }}
           className="w-full text-center text-gray-400 text-xs py-2 hover:text-gray-600 transition-colors underline-offset-2 hover:underline"
         >
-          Ver proteção e benefícios (opcional)
+          Ver lojas parceiras (opcional)
         </button>
       </div>
 
-      {/* ─── Modal de Benefícios ────────────────────────────────────────── */}
+      {/* ─── Modal de lojas parceiras ───────────────────────────────────── */}
       {showBenefitsModal && (
         <div
           className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50 p-4"
@@ -129,23 +126,15 @@ export default function FunnelCTAs({ petPublicId, petName }: FunnelCTAsProps) {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-bold text-gray-800 mb-1">
-              Proteção para {petName}
+              Lojas para {petName}
             </h3>
             <p className="text-sm text-gray-500 mb-5">
-              Links de parceiros — totalmente opcional. Sem compromisso.
+              Links de lojas parceiras — totalmente opcional. Sem compromisso.
             </p>
 
             <div className="space-y-3">
               <button
-                onClick={() => handleBenefitsClick('doglife')}
-                disabled={benefitsLoading !== null}
-                className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-3 rounded-xl font-semibold text-sm hover:shadow-md transition-all disabled:opacity-50"
-              >
-                {benefitsLoading === 'doglife' ? 'Abrindo...' : '🛡️ Ver plano (opcional)'}
-              </button>
-
-              <button
-                onClick={() => handleBenefitsClick('shop', 'petz')}
+                onClick={handleBenefitsClick}
                 disabled={benefitsLoading !== null}
                 className="w-full bg-gradient-to-r from-orange-400 to-amber-500 text-white py-3 rounded-xl font-semibold text-sm hover:shadow-md transition-all disabled:opacity-50"
               >

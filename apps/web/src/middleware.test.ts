@@ -1,16 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { isPublic } from './middleware';
 
-describe('middleware — /loja e /guias são públicas (acesso sem login)', () => {
-  it('/loja e subrotas passam sem exigir sessão', () => {
+describe('middleware — /loja e /guias chegam à página para retornar 404', () => {
+  it('/loja e /guias seguem sem exigir sessão, mas a página decide notFound()', () => {
     expect(isPublic('/loja')).toBe(true);
     expect(isPublic('/loja/qualquer-coisa')).toBe(true);
-  });
-
-  it('/guias, o índice e artigos individuais passam sem exigir sessão', () => {
     expect(isPublic('/guias')).toBe(true);
     expect(isPublic('/guias/conforto-pets-idosos')).toBe(true);
-    expect(isPublic('/guias/qualquer-slug-novo')).toBe(true);
   });
 
   it('rotas autenticadas de verdade continuam exigindo sessão (não viraram públicas por engano)', () => {

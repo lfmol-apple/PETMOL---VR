@@ -4,13 +4,14 @@ espalhado pelo código (ver docs/AFFILIATES.md para a tabela de
 compliance completa). Awin é REDE (network); cada entrada aqui é um
 MERCHANT dentro dela (Cobasi, Petz, Zee Now, Zee Dog).
 
-Situação real em 13/08/2026: publisher PETMOL cadastrado (ID 3032803).
+Situação real em 22/08/2026: publisher PETMOL cadastrado (ID 3032803).
 Cobasi (17870) foi APROVADA — confirmado no painel Awin (Anunciantes →
 Meus Programas → "Seus Anunciantes"), com feed ativo (fid 48117, 8.398
-produtos) já sincronizado em AffiliateFeedOffer. Petz/Zee Now/Zee Dog
-continuam "pending". Não mudar `enabled=True` para nenhum sem
-confirmação real de aprovação (ver §33 do documento de arquitetura
-interno).
+produtos) já sincronizado em AffiliateFeedOffer. Zee Dog (127555) e Zee
+Now (127557) também foram aprovadas, com feeds ativos (fid 116649 e
+116779). Petz continua "pending". Não mudar `enabled=True` para nenhum
+outro sem confirmação real de aprovação (ver §33 do documento de
+arquitetura interno).
 
 `enabled=True` na Cobasi habilita o `AwinFeedProvider` a encontrar/
 monetizar ofertas SE ele estiver registrado em build_default_engine() —
@@ -85,22 +86,41 @@ AWIN_ADVERTISERS: dict[str, AwinAdvertiser] = {
     "zeenow": AwinAdvertiser(
         merchant="zeenow",
         advertiser_id="127557",
-        commercial_status="pending",
+        commercial_status="approved",
         feed_available=True,
-        enabled=False,
+        enabled=True,
         cookie_days=1,
         cpa_percent=3.0,
-        notes="13.746 produtos observados no ShopWindow Awin. Rastreamento de app: sim.",
+        feed_id="116779",
+        notes=(
+            "Aprovada 22/08/2026. Feed 116779 observado com 13.835 "
+            "produtos; todos com preço, imagem, marca, product_type, "
+            "in_stock e aw_deep_link monetizado com publisher 3032803 e "
+            "advertiser 127557. stock_status vazio e in_stock=1 em 100% "
+            "das linhas; category_name vazio, usar product_type como "
+            "categoria. GTIN: 13.605 válidos diretos, 152 UPC-11 "
+            "corrigíveis com zero à esquerda, 78 inválidos e 9 grupos "
+            "duplicados observados."
+        ),
     ),
     "zeedog": AwinAdvertiser(
         merchant="zeedog",
         advertiser_id="127555",
-        commercial_status="pending",
+        commercial_status="approved",
         feed_available=True,
-        enabled=False,
+        enabled=True,
         cookie_days=14,
         cpa_percent=3.0,
-        notes="1.742 produtos observados no ShopWindow Awin. Rastreamento de app: não.",
+        feed_id="116649",
+        notes=(
+            "Aprovada 22/08/2026. Feed 116649 observado com 1.799 "
+            "produtos e 100% de GTINs válidos/únicos. aw_deep_link já "
+            "vem monetizado com publisher 3032803 e advertiser 127555; "
+            "feed real usa in_stock=1 com stock_status vazio. "
+            "Rastreamento de app: não. Cookie/CPA preservados conforme "
+            "configuração anterior; confirmar em relatório antes de "
+            "otimizar preferência comercial."
+        ),
     ),
     "araujo": AwinAdvertiser(
         merchant="araujo",
