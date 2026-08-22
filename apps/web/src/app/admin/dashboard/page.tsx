@@ -84,7 +84,7 @@ export default function AdminDashboardPage() {
       if (!token) return;
       setShopeeProgressLoading((prev) => prev && !shopeeProgress);
 
-      const response = await fetch('/admin/shopee-sync-progress', {
+      const response = await fetch('/handoff/shopee-sync-progress', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
