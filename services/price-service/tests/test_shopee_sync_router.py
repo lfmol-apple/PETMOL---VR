@@ -16,6 +16,7 @@ import pytest
 _REAL_SLEEP = time.sleep
 
 import src.admin.shopee_sync_router as sync_router
+from src.affiliate_feed import AffiliateFeedOffer
 from src.config import get_settings
 from src.db import SessionLocal
 from src.main import app
@@ -117,6 +118,52 @@ def test_run_dispara_processa_e_atualiza_status(monkeypatch, client):
     assert final["matched"] == 1
     assert final["error"] is None
     assert final["finished_at"] is not None
+
+
+def test_run_awin_feed_all_usa_linha_do_feed_para_criar_catalogo(monkeypatch, client):
+    _enable_token(monkeypatch)
+    gtin = "7891234500094"
+    db = SessionLocal()
+    try:
+        db.add(AffiliateFeedOffer(
+            network="awin",
+            merchant="zeenow",
+            advertiser_id="127557",
+            external_product_id="zn-router-1",
+            gtin=gtin,
+            title="Vermifugo Teste Zee Now 10kg",
+            brand="Marca Teste",
+            active=True,
+            in_stock=True,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    calls = []
+
+    def _fake_sync_from_feed(db, g, name, brand, limit=10, min_confidence=0.5, expected_weight_kg=None):
+        from src.shopee_offer_sync import ShopeeSyncResult
+        calls.append((g, name, brand))
+        return ShopeeSyncResult(gtin=g, matched=True, offer_id=1)
+
+    monkeypatch.setattr(sync_router, "sync_shopee_offer_from_feed_row", _fake_sync_from_feed)
+    monkeypatch.setattr(sync_router.time, "sleep", lambda _seconds: None)
+
+    headers = {"X-Sync-Token": TOKEN}
+    r = client.post(
+        "/v1/admin/shopee-sync/run",
+        json={"source": "awin_feed_all", "feed_merchants": ["cobasi", "zeenow", "zeedog"]},
+        headers=headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["started"] is True
+
+    final = _wait_until_finished(client, headers)
+    assert final["total"] == 1
+    assert final["processed"] == 1
+    assert final["matched"] == 1
+    assert calls == [(gtin, "Vermifugo Teste Zee Now 10kg", "Marca Teste")]
 
 
 def test_run_enquanto_ja_esta_rodando_nao_dispara_outro(monkeypatch, client):
