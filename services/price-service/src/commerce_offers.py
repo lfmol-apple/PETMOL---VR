@@ -80,9 +80,10 @@ def build_default_engine(db: Session) -> CommerceEngine:
     find_offer()/monetize() revalida por conta própria se é o GTIN de
     teste ou se o merchant está publicamente liberado de verdade (defesa
     em profundidade — ver awin_feed_provider.py). Sem nenhum dos dois
-    (caso comum), NENHUM AwinFeedProvider é registrado. Quando Petz/Zee
-    Now/Zee Dog forem aprovados e sincronizados, entram sem editar este
-    arquivo (só awin_advertisers.py muda).
+    (caso comum), NENHUM AwinFeedProvider é registrado. Zee Dog já entra
+    por esse caminho genérico; quando Petz/Zee Now forem aprovados e
+    sincronizados, entram sem editar este arquivo (só awin_advertisers.py
+    muda).
 
     merchant_routes.MERCHANT_ROUTE_POLICIES["cobasi"] decide qual rota
     vence quando mais de um provider resolver a mesma oferta — trocar

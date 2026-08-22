@@ -1,7 +1,7 @@
 """
 AwinFeedProvider — implementação de CommerceProvider para merchants
-sincronizados via feed da Awin (Cobasi hoje; Zee Now/Zee Dog quando
-aprovados; ver awin_advertisers.py).
+sincronizados via feed da Awin (Cobasi e Zee Dog aprovadas; Zee Now
+quando aprovada; ver awin_advertisers.py).
 
 IMPORTANTE: este provider NUNCA chama a API/feed da Awin diretamente.
 Ele só LÊ o que awin_feed_sync.py já tiver sincronizado em

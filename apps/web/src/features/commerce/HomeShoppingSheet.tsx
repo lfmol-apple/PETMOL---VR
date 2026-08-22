@@ -246,7 +246,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
               {/* 🐾 Buscar produtos — catálogo Awin sincronizado, no lugar
                   do ícone estático que só levava pro site sem contexto.
                   Multi-loja por natureza (ver AffiliateCatalogSearch.tsx) —
-                  copy neutra mesmo com só Cobasi registrada hoje. */}
+                  copy neutra para Cobasi, Zee Dog e próximas lojas. */}
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🐾 Buscar produtos</p>
                 <AffiliateCatalogSearch petId={currentPet.pet_id} />

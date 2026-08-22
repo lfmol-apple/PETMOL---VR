@@ -198,7 +198,7 @@ async def test_awin_never_leaks_when_master_gate_off_even_as_sole_resolver(monke
     elas) — o link Awin vazava mesmo com AWIN_ENABLED=false, porque
     build_default_engine() registrava o provider sem checar o master gate.
     Este teste reproduz exatamente esse cenário (contexto só com gtin,
-    sem query) e prova que agora nenhuma oferta cobasi aparece."""
+    sem query) e prova que agora nenhuma oferta Awin aparece."""
     _register_awin_offer()
     # awin_enabled NÃO foi ligado — este é o padrão real de produção hoje.
     assert get_settings().awin_enabled is False

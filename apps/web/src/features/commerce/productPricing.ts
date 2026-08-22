@@ -71,9 +71,10 @@ export interface AwinSearchResult {
 /**
  * Busca textual no catálogo Awin já sincronizado (AffiliateFeedOffer, ver
  * awin_feed_sync.py) — GET /commerce/awin-search. Sem `merchant`, busca em
- * TODOS os merchants Awin habilitados de uma vez, agrupando por GTIN — hoje
- * só cobasi tem dado real, mas Petz/Zee Now/Zee Dog entram automaticamente
- * quando aprovados+sincronizados, sem precisar mudar esta chamada. Cada
+ * TODOS os merchants Awin habilitados de uma vez, agrupando por GTIN —
+ * Cobasi já tem dado real e Zee Dog entra pelo mesmo caminho quando
+ * sincronizada; Petz/Zee Now entram automaticamente quando aprovadas e
+ * sincronizadas, sem precisar mudar esta chamada. Cada
  * resultado já vem com GTIN; passar esse GTIN pra fetchCommerceOffers() é
  * o único jeito hoje de o app exercitar AwinFeedProvider (busca textual
  * normal nunca envia GTIN).
