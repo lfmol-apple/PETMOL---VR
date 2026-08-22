@@ -10,7 +10,7 @@ import { ModalPortal } from '@/components/ModalPortal';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { scheduleUniqueReminder, buildRemindAt } from '@/features/notifications/pushService';
-import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
+import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import type { ProductCategory, ScannedProduct } from '@/lib/productScanner';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 
@@ -158,7 +158,6 @@ export function ParasiteItemSheet({
   // dispensar o scanner, ou escolher preencher na mão — scan é o caminho
   // feliz, não só uma opção ao lado de um form já visível.
   const [showManualForm, setShowManualForm] = useState(false);
-  const [showScanFlow, setShowScanFlow] = useState(false);
 
   useEffect(() => {
     void onRefresh();
@@ -714,25 +713,25 @@ export function ParasiteItemSheet({
               </button>
               <h3 className="text-[16px] font-bold text-gray-900">{cfg.ctaLabel}</h3>
 
-              {/* Escanear é a única opção oferecida aqui — foto e cadastro
-                  manual são liberados progressivamente DENTRO do sheet de
-                  detecção depois de tentativas sem sucesso (ver
-                  ProductDetectionSheet scanFailCount/photoFailCount), em
-                  vez de mostrar os 3 caminhos juntos já de cara. */}
               {!showManualForm && (
                 <div className={`rounded-2xl border p-5 space-y-4 ${cfg.colorBorder} ${cfg.colorLight}`}>
                   <div>
-                    <h3 className="text-[18px] font-black text-gray-900 leading-tight">Escaneie o produto</h3>
-                    <p className="text-[13px] text-gray-600 mt-1">Aponte pro código de barras da embalagem — se não der, a gente libera foto e cadastro manual na hora.</p>
+                    <h3 className="text-[18px] font-black text-gray-900 leading-tight">Identifique o produto</h3>
+                    <p className="text-[13px] text-gray-600 mt-1">Escaneie ou digite o código de barras. Se não der, liberamos foto da embalagem e busca por nome.</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowScanFlow(true)}
-                    className="w-full flex items-center justify-center gap-2.5 py-3.5 min-h-[44px] rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-[15px] font-black shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all"
-                  >
-                    <span className="text-xl">📷</span>
-                    Escanear código de barras
-                  </button>
+                  <ProductBarcodeScanner
+                    label="Escanear código de barras"
+                    expectedCategory={expectedCategoryForType()}
+                    defaultMode="scan"
+                    petId={petId}
+                    petName={petName}
+                    allowScanning
+                    onProductConfirmed={(product) => {
+                      applyScannedProduct(product);
+                      setShowManualForm(true);
+                    }}
+                    onDismiss={() => setShowManualForm(true)}
+                  />
                 </div>
               )}
 
@@ -982,24 +981,6 @@ export function ParasiteItemSheet({
         )}
       </div>
     </div>
-    {showScanFlow && (
-      <ProductDetectionSheetGold
-        petId={petId}
-        petName={petName}
-        hint={expectedCategoryForType()}
-        defaultMode="scan"
-        allowScanning
-        onProductConfirmed={(product) => {
-          applyScannedProduct(product);
-          setShowManualForm(true);
-          setShowScanFlow(false);
-        }}
-        onClose={() => {
-          setShowScanFlow(false);
-          setShowManualForm(true);
-        }}
-      />
-    )}
     </ModalPortal>
   );
 }

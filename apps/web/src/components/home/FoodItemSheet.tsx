@@ -11,7 +11,7 @@ import { localTodayISO } from '@/lib/localDate';
 import { scheduleFoodReminder, cancelFoodRemindersForPet, buildRemindAt } from '@/features/notifications/pushService';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { petDo } from '@/lib/petGender';
-import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
+import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import { guessFoodKind, type ScannedProduct } from '@/lib/productScanner';
 import { resolveFoodCommerceSnapshot } from '@/features/commerce/homeContextualCommerce';
 import { MonetizedOffersList } from '@/features/commerce/MonetizedOffersList';
@@ -286,7 +286,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   const [showFreshChoice, setShowFreshChoice] = useState(false);
   const [nextReminderDate, setNextReminderDate]   = useState<string | null>(null);
   const [reminderTime, setReminderTime]           = useState<string | null>(null);
-  const [showFoodPhotoFlow, setShowFoodPhotoFlow] = useState(false);
   // Produto recém-escaneado aguardando a escolha "ração principal" vs
   // "petisco/outro alimento" — só usado quando já existe uma ração
   // configurada (ver handleFoodProductConfirmed).
@@ -391,10 +390,10 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     setFeedback(null);
   };
 
-  // Código de barras é a via principal (leitura exata, sem ambiguidade) —
-  // foto e cadastro manual são liberados progressivamente DENTRO do sheet
-  // de detecção depois de tentativas sem sucesso (ver ProductDetectionSheet
-  // scanFailCount/photoFailCount), não oferecidos aqui de cara.
+  // Código de barras é a via principal (leitura exata, sem ambiguidade).
+  // Em todos os pontos de alimentação o tutor pode escanear ou digitar o
+  // EAN/GTIN; foto da embalagem e busca por nome ficam dentro do detector
+  // compartilhado como fallback quando a leitura/código não resolvem.
   //
   // `intent` decide o que acontece depois de confirmar o produto:
   //  - 'ask'       (padrão) — pergunta "ração principal ou petisco?"
@@ -402,11 +401,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   //  - 'secondary' — pula a pergunta, vai direto pra petisco/outro
   //                 alimento (usado pelo botão "+ Adicionar outro
   //                 alimento", onde a intenção já é explícita).
-  const openFoodScanFlow = (intent: 'ask' | 'secondary' = 'ask') => {
-    setFoodScanIntent(intent);
-    setShowFoodPhotoFlow(true);
-  };
-
   // Grava o produto escaneado como item primário (ração do dia a dia) ou
   // secundário (petisco/outro alimento) do plano — ambos cabem no mesmo
   // items_json (ver FoodControlTab.tsx), só o secundário não exige peso/
@@ -480,8 +474,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     setMode('edit');
   };
 
-  const handleFoodProductConfirmed = (product: ScannedProduct) => {
-    setShowFoodPhotoFlow(false);
+  const handleFoodProductConfirmed = (product: ScannedProduct, intent: 'ask' | 'secondary' = foodScanIntent) => {
     if (!hasFood) {
       // Primeiro cadastro NÃO é garantia de ração principal — o tutor pode
       // muito bem escanear um petisco primeiro (bug real reportado: um
@@ -496,7 +489,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
       persistScannedFoodProduct(product, true);
       return;
     }
-    if (foodScanIntent === 'secondary') {
+    if (intent === 'secondary') {
       persistScannedFoodProduct(product, false);
       return;
     }
@@ -1208,21 +1201,18 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                         <p className="text-[13px] text-amber-900/80 mt-1">Escaneie o código de barras da embalagem — se não der, a gente libera foto e cadastro manual na hora.</p>
                       </div>
                       <div className="space-y-2">
-                        {/* Escanear é a única opção oferecida aqui — foto e
-                            cadastro manual são liberados progressivamente
-                            DENTRO do próprio sheet de detecção depois de
-                            tentativas sem sucesso (ver ProductDetectionSheet
-                            scanFailCount/photoFailCount, pedido do tutor
-                            ago/2026), em vez de mostrar os 3 caminhos juntos
-                            já de cara. */}
-                        <button
-                          type="button"
-                          onClick={() => openFoodScanFlow()}
-                          className="w-full flex items-center justify-center gap-2.5 py-3.5 min-h-[44px] rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-[15px] font-black shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all"
-                        >
-                          <span className="text-xl">📷</span>
-                          Escanear código de barras
-                        </button>
+                        <ProductBarcodeScanner
+                          label="Escanear código de barras"
+                          expectedCategory="food"
+                          defaultMode="scan"
+                          petId={pet.pet_id}
+                          petName={pet.pet_name}
+                          allowScanning
+                          onProductConfirmed={(product) => {
+                            setFoodScanIntent('ask');
+                            handleFoodProductConfirmed(product, 'ask');
+                          }}
+                        />
 
                         {/* Não usa ração de saco */}
                         <button
@@ -1375,14 +1365,20 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                           {showEditPlanChoice && (
                             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-2">
                               <p className="text-[13px] font-semibold text-gray-700">Atualizar o plano</p>
-                              <button
-                                type="button"
-                                onClick={() => { setShowEditPlanChoice(false); openFoodScanFlow(); }}
-                                className="w-full flex items-center justify-center gap-2.5 py-3 min-h-[44px] rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-[14px] font-black shadow-md shadow-blue-500/20 active:scale-[0.98] transition-all"
-                              >
-                                <span className="text-lg">📷</span>
-                                Escanear novo código de barras
-                              </button>
+                              <ProductBarcodeScanner
+                                label="Escanear novo código de barras"
+                                expectedCategory="food"
+                                defaultMode="scan"
+                                petId={pet.pet_id}
+                                petName={pet.pet_name}
+                                allowScanning
+                                onProductConfirmed={(product) => {
+                                  setShowEditPlanChoice(false);
+                                  setFoodScanIntent('ask');
+                                  handleFoodProductConfirmed(product, 'ask');
+                                }}
+                                onDismiss={() => setShowEditPlanChoice(false)}
+                              />
                               <button
                                 type="button"
                                 onClick={() => { setShowEditPlanChoice(false); setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
@@ -1478,23 +1474,37 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                                   </button>
                                 </div>
                               ))}
-                              <button
-                                type="button"
-                                onClick={() => openFoodScanFlow('secondary')}
-                                className="w-full text-center text-[13px] font-semibold text-amber-700 py-1.5"
-                              >
-                                + Adicionar outro alimento
-                              </button>
+                              <div className="pt-1">
+                                <ProductBarcodeScanner
+                                  label="Adicionar outro alimento"
+                                  expectedCategory="food"
+                                  defaultMode="scan"
+                                  petId={pet.pet_id}
+                                  petName={pet.pet_name}
+                                  allowScanning
+                                  onProductConfirmed={(product) => {
+                                    setFoodScanIntent('secondary');
+                                    handleFoodProductConfirmed(product, 'secondary');
+                                  }}
+                                />
+                              </div>
                             </div>
                           )}
                           {foodState.secondaryItems.length === 0 && (
-                            <button
-                              type="button"
-                              onClick={() => openFoodScanFlow('secondary')}
-                              className="w-full rounded-2xl border border-dashed border-amber-300 bg-amber-50/40 px-4 py-2.5 text-[13px] font-semibold text-amber-700 flex items-center justify-center gap-2"
-                            >
-                              <span className="text-lg">🦴</span> Adicionar petisco ou outro alimento
-                            </button>
+                            <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/40 p-3">
+                              <ProductBarcodeScanner
+                                label="Adicionar petisco ou outro alimento"
+                                expectedCategory="food"
+                                defaultMode="scan"
+                                petId={pet.pet_id}
+                                petName={pet.pet_name}
+                                allowScanning
+                                onProductConfirmed={(product) => {
+                                  setFoodScanIntent('secondary');
+                                  handleFoodProductConfirmed(product, 'secondary');
+                                }}
+                              />
+                            </div>
                           )}
                         </>
                         )}
@@ -1610,20 +1620,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
           )}
         </div>
       </div>
-      {showFoodPhotoFlow && (
-        <ProductDetectionSheetGold
-          petId={pet.pet_id}
-          petName={pet.pet_name}
-          hint="food"
-          defaultMode="scan"
-          allowScanning
-          onProductConfirmed={handleFoodProductConfirmed}
-          onClose={() => {
-            clearPendingScannedProduct();
-            setShowFoodPhotoFlow(false);
-          }}
-        />
-      )}
       {/* Passo de classificação ração x petisco — tela cheia dedicada em vez
           de modal pequeno em cima da tela principal (já lotada). Pedido do
           tutor: precisa ser óbvio até pra quem tem dificuldade com apps,

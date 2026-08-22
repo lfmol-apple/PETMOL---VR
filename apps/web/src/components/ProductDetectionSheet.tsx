@@ -1709,6 +1709,42 @@ export function ProductDetectionSheetGold({
     });
   };
 
+  const selectCatalogResult = (result: AwinSearchResult) => {
+    const product: ScannedProduct = {
+      barcode: result.gtin,
+      name: result.title || query.trim() || `Produto ${result.gtin}`,
+      brand: result.brand || undefined,
+      category: hint ?? 'other',
+      manufacturer: result.brand || undefined,
+      found: true,
+    };
+    setFromHistory(false);
+    setConfirmed(product);
+    setStep('confirm');
+    decisionSourceRef.current = 'gtin';
+    const gtinConfidence = scoreGtinResolution();
+    aiConfidenceRef.current = gtinConfidence.score;
+    decisionScoreRef.current = gtinConfidence.score;
+    decisionResultTypeRef.current = 'complete';
+    assistedConfirmationRef.current = false;
+    probableNameRef.current = undefined;
+    productNameRef.current = product.name;
+    detectedBrandRef.current = product.brand;
+    detectedWeightRef.current = undefined;
+    strongTermsRef.current = [];
+    mediumTermsRef.current = [];
+    weakTermsRef.current = [];
+    termConflictsRef.current = [];
+    emitProductTelemetry('resolved', {
+      origin: 'gtin',
+      result: 'complete',
+      score: gtinConfidence.score,
+      category: product.category,
+      brand: product.brand ?? null,
+      source: 'catalog_name_search',
+    });
+  };
+
   const handleConfirm = (productOverride?: ScannedProduct) => {
     const product = productOverride ?? confirmed;
     if (!product) return;
@@ -2286,6 +2322,13 @@ export function ProductDetectionSheetGold({
         className="w-full rounded-xl border-2 border-gray-200 px-4 py-3.5 text-base transition-colors focus:border-blue-400 focus:outline-none"
         placeholder="Digitar nome ou marca..."
       />
+
+      {query.trim() && (
+        <AwinCatalogConfirmSearch
+          seedQuery={query.trim()}
+          onPick={selectCatalogResult}
+        />
+      )}
 
       {query.trim() && (
         <button
