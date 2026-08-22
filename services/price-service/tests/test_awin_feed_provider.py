@@ -58,6 +58,28 @@ async def test_finds_offer_by_exact_gtin():
 
 
 @pytest.mark.asyncio
+async def test_finds_offer_by_explicit_equivalent_gtin():
+    db = SessionLocal()
+    try:
+        db.add(_row(
+            gtin="7896185957009",
+            external_product_id="scalibor-cobasi",
+            title="Coleira Antiparasitária Scalibor Cães Pequenos e Médios - 48 cm",
+            brand="Scalibor",
+            price=80.9,
+        ))
+        db.commit()
+
+        provider = AwinFeedProvider(db, "cobasi")
+        offer = await provider.find_offer(ProductContext(gtin="7896185907004"))
+        assert offer is not None
+        assert offer.price == 80.9
+        assert offer.ean == "7896185957009"
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
 async def test_out_of_stock_offer_is_ignored():
     db = SessionLocal()
     try:

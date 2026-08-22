@@ -40,6 +40,7 @@ from .awin_advertisers import is_awin_merchant_publicly_servable
 from .awin_click_redirect import build_awin_click_redirect_url
 from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
+from .gtin_equivalences import equivalent_gtins_for
 from .gtin_utils import normalize_gtin_gs1
 from .product_catalog_lookup import normalize_gtin
 
@@ -108,6 +109,8 @@ class AwinFeedProvider:
         if not gtin.valid or not gtin.value:
             return None
 
+        candidate_gtins = equivalent_gtins_for(gtin.value)
+
         # 2/3. Considera peso/apresentação implicitamente via weight_kg
         # (quando várias ofertas do mesmo GTIN existirem) — só
         # active + in_stock.
@@ -116,7 +119,7 @@ class AwinFeedProvider:
             .where(
                 AffiliateFeedOffer.network == self.network,
                 AffiliateFeedOffer.merchant == self.merchant,
-                AffiliateFeedOffer.gtin == gtin.value,
+                AffiliateFeedOffer.gtin.in_(candidate_gtins),
                 AffiliateFeedOffer.active.is_(True),
                 AffiliateFeedOffer.in_stock.is_(True),
             )

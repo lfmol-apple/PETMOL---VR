@@ -12,11 +12,7 @@
 
 import { formatBRLPrice, merchantLabel, type CommerceOffer } from './productPricing';
 import {
-  HOME_SHOPPING_PARTNERS,
-  isPartnerVisibleForSearch,
   navigateToPartnerUrl,
-  openHomeShoppingPartner,
-  type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
 import { useCommerceOffers } from './useCommerceOffers';
 import { trackClick } from '@/lib/analytics/click';
@@ -46,11 +42,6 @@ export function MonetizedOffersList({
   query, packageSizeKg, gtin, petId, productLabel, icon = '🛒', source, ctaType, controlType,
 }: MonetizedOffersListProps) {
   const { offers, loading } = useCommerceOffers(query, packageSizeKg, gtin);
-  const merchantsWithExactOffer = new Set(offers.map((offer) => offer.merchant));
-  const fallbackPartners = HOME_SHOPPING_PARTNERS
-    .filter(isPartnerVisibleForSearch)
-    .filter((partner) => !merchantsWithExactOffer.has(partner.id));
-  const fallbackQuery = (query || productLabel || 'produto pet').trim();
 
   if (loading) {
     return (
@@ -72,41 +63,15 @@ export function MonetizedOffersList({
     trackPartnerClicked({ source, partner: offer.merchant, pet_id: petId, control_type: controlType ?? null, product_name: productLabel });
   }
 
-  function handleFallbackPartner(partnerId: HomeShoppingPartnerId) {
-    openHomeShoppingPartner(partnerId, fallbackQuery);
-    void trackClick({
-      source,
-      cta_type: `${ctaType}_store_search`,
-      target: partnerId,
-      link_type: 'direct',
-      pet_id: petId,
-      metadata: { product_name: productLabel, has_exact_offer: false },
-    });
-  }
-
   if (offers.length === 0) {
     return (
       <div className="space-y-3">
-        <p className="text-center text-[13px] text-gray-500 py-4">
-          Estamos buscando opções de compra para este produto.
-        </p>
-        {fallbackPartners.length > 0 && (
-          <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
-            <p className="px-0.5 text-[10px] font-black uppercase tracking-wide text-gray-400">Buscar em lojas</p>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {fallbackPartners.map((partner) => (
-                <button
-                  key={partner.id}
-                  type="button"
-                  onClick={() => handleFallbackPartner(partner.id)}
-                  className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-left text-[12px] font-bold text-gray-700 transition-all hover:border-emerald-300 hover:bg-white active:scale-[0.98]"
-                >
-                  {partner.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center shadow-sm">
+          <p className="text-[13px] font-bold text-gray-700">Produto indisponível no momento</p>
+          <p className="mt-1 text-[12px] text-gray-500">
+            Ainda não encontramos uma oferta ativa para este produto.
+          </p>
+        </div>
       </div>
     );
   }
@@ -160,23 +125,6 @@ export function MonetizedOffersList({
           </button>
         );
       })}
-      {fallbackPartners.length > 0 && (
-        <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
-          <p className="px-0.5 text-[10px] font-black uppercase tracking-wide text-gray-400">Ver também em outras lojas</p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {fallbackPartners.map((partner) => (
-              <button
-                key={partner.id}
-                type="button"
-                onClick={() => handleFallbackPartner(partner.id)}
-                className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-left text-[12px] font-bold text-gray-700 transition-all hover:border-emerald-300 hover:bg-white active:scale-[0.98]"
-              >
-                {partner.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       <p className="text-center text-[10px] text-gray-400 pt-1">
         Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
       </p>
