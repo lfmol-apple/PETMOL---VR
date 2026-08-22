@@ -10,8 +10,10 @@ import {
   openHomeShoppingPartner,
   navigateToPartnerUrl,
   isPartnerVisibleInStoreArea,
+  isPartnerVisibleForSearch,
   partnerHasAffiliate,
   type HomeShoppingPartner,
+  type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
 import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
 import { formatBRLPrice, merchantLabel, type CommerceOffer } from './productPricing';
@@ -21,6 +23,7 @@ import {
   buildPetStoreTitle,
   STORE_CATEGORIES,
   buildStoreCategoryQuery,
+  QUICK_BUY_PARTNERS,
   type ReorderCard,
   type StoreCategoryOption,
 } from './petStoreContent';
@@ -58,11 +61,30 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
 
   const visibleStorePartners = useMemo(() => HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea), []);
+  const visibleQuickBuyPartners = useMemo(
+    () =>
+      QUICK_BUY_PARTNERS
+        .map((id) => HOME_SHOPPING_PARTNERS.find((p) => p.id === id))
+        .filter((p): p is HomeShoppingPartner => Boolean(p) && isPartnerVisibleForSearch(p as HomeShoppingPartner)),
+    [],
+  );
 
   if (!open) return null;
 
   const petName = currentPet.pet_name;
   const title = buildPetStoreTitle(currentPet);
+
+  function handleQuickBuy(partnerId: HomeShoppingPartnerId, searchQuery: string, ctaType: string, metadata: Record<string, unknown>) {
+    openHomeShoppingPartner(partnerId, searchQuery);
+    void trackClick({
+      source: 'home',
+      cta_type: ctaType,
+      target: partnerId,
+      link_type: partnerHasAffiliate(partnerId) ? 'affiliate_search' : 'direct',
+      pet_id: currentPet.pet_id,
+      metadata,
+    });
+  }
 
   // O card da loja abre categorias primeiro. Isso evita mandar o tutor para
   // uma home genérica quando ele está tentando chegar em ração, coleira,
@@ -190,7 +212,9 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                           key={card.id}
                           card={card}
                           isPickerOpen={quickBuyFor === pickerKey}
+                          visibleQuickBuyPartners={visibleQuickBuyPartners}
                           onTogglePicker={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
+                          onQuickBuy={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, label: card.label })}
                           onDirectBuy={(offer) => {
                             if (offer.url) navigateToPartnerUrl(offer.url);
                             void trackClick({
@@ -277,16 +301,17 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 interface ReorderCardItemProps {
   card: ReorderCard;
   isPickerOpen: boolean;
+  visibleQuickBuyPartners: HomeShoppingPartner[];
   onTogglePicker: () => void;
+  onQuickBuy: (partnerId: HomeShoppingPartnerId) => void;
   onDirectBuy: (offer: CommerceOffer) => void;
 }
 
 // Busca a lista de ofertas monetizáveis (mesma fonte usada em toda tela de
 // "Comprar novamente" — ver useCommerceOffers/commerce_offers.py) ao
-// montar. Lista vazia = nenhum caminho monetizável confirmado; nesse caso
-// não abre seletor genérico de lojas, para todos os pets se comportarem do
-// mesmo jeito e não parecer que há compra segura sem oferta resolvida.
-function ReorderCardItem({ card, isPickerOpen, onTogglePicker, onDirectBuy }: ReorderCardItemProps) {
+// montar. Se ainda não houver oferta exata, mantém a escolha rápida entre
+// as lojas habilitadas, igual ao comportamento já validado em produção.
+function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy }: ReorderCardItemProps) {
   const { offers, loading } = useCommerceOffers(card.searchQuery, card.packageSizeKg, card.gtin);
   const offer = offers[0] ?? null;
   // offers já vem ordenado por preço crescente (CommerceEngine) — offer é
@@ -299,8 +324,8 @@ function ReorderCardItem({ card, isPickerOpen, onTogglePicker, onDirectBuy }: Re
   const hasDiscount = Boolean(
     hasMonetizedOffer && offer && typeof offer.list_price === 'number' && offer.list_price > (offer.price ?? 0),
   );
-  const noBuyOptionAtAll = !loading && !hasMonetizedOffer;
-  const canAct = !loading && hasMonetizedOffer;
+  const noBuyOptionAtAll = !hasMonetizedOffer && visibleQuickBuyPartners.length === 0;
+  const canAct = !loading && !noBuyOptionAtAll;
 
   function handlePrimaryAction() {
     if (!canAct) return;
@@ -309,6 +334,7 @@ function ReorderCardItem({ card, isPickerOpen, onTogglePicker, onDirectBuy }: Re
       else onDirectBuy(offer);
       return;
     }
+    onTogglePicker();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -357,7 +383,7 @@ function ReorderCardItem({ card, isPickerOpen, onTogglePicker, onDirectBuy }: Re
             <p className="text-[11px] mt-1 text-gray-400">Estamos buscando opções de compra para este produto.</p>
           )}
         </div>
-        {hasMonetizedOffer && (
+        {!noBuyOptionAtAll && (
           <button
             type="button"
             disabled={loading}
@@ -366,6 +392,8 @@ function ReorderCardItem({ card, isPickerOpen, onTogglePicker, onDirectBuy }: Re
               if (hasMonetizedOffer && offer) {
                 if (hasMultipleOffers) onTogglePicker();
                 else onDirectBuy(offer);
+              } else {
+                onTogglePicker();
               }
             }}
             className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[12px] font-bold px-3 py-1.5 active:scale-95 transition-all disabled:opacity-50"
@@ -376,6 +404,9 @@ function ReorderCardItem({ card, isPickerOpen, onTogglePicker, onDirectBuy }: Re
       </div>
       {hasMonetizedOffer && hasMultipleOffers && isPickerOpen && (
         <OfferPickerRow offers={offers} onPick={onDirectBuy} />
+      )}
+      {!hasMonetizedOffer && isPickerOpen && visibleQuickBuyPartners.length > 0 && (
+        <QuickBuyRow partners={visibleQuickBuyPartners} onPick={onQuickBuy} />
       )}
     </div>
   );
@@ -396,6 +427,23 @@ function OfferPickerRow({ offers, onPick }: { offers: CommerceOffer[]; onPick: (
           {typeof offer.price === 'number' && (
             <span className="text-[12px] font-bold text-emerald-700">{formatBRLPrice(offer.price)}</span>
           )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function QuickBuyRow({ partners, onPick }: { partners: HomeShoppingPartner[]; onPick: (partnerId: HomeShoppingPartnerId) => void }) {
+  return (
+    <div className="mt-2.5 flex gap-2" onClick={(e) => e.stopPropagation()}>
+      {partners.map((partner) => (
+        <button
+          key={partner.id}
+          type="button"
+          onClick={() => onPick(partner.id)}
+          className="flex-1 rounded-xl border border-gray-200 bg-gray-50 py-2 text-[12px] font-bold text-gray-700 hover:bg-white hover:border-emerald-300 active:scale-95 transition-all"
+        >
+          {partner.name}
         </button>
       ))}
     </div>
