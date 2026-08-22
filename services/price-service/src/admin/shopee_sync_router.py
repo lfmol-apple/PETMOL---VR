@@ -105,9 +105,10 @@ def _run_sync(
             STATE.error = None
             STATE.finished_at = None
 
+        sync_from_feed_source = source in {"awin_feed", "awin_feed_all"}
         for gtin, name, brand in items:
             try:
-                if source == "awin_feed":
+                if sync_from_feed_source:
                     result = sync_shopee_offer_from_feed_row(db, gtin, name or "", brand)
                 else:
                     result = sync_shopee_offer_for_gtin(db, gtin)
