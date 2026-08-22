@@ -60,15 +60,13 @@ FEED_COLUMNS = (
     "aw_image_url,aw_thumb_url,category_id,category_name,brand_id,"
     "brand_name,merchant_product_id,merchant_category,mpn,product_name,"
     "description,merchant_deep_link,merchant_image_url,search_price,"
-    "condition,product_type,custom_1,custom_2,stock_status,product_GTIN"
+    "condition,product_type,custom_1,custom_2,stock_status,in_stock,product_GTIN"
 )
 # Valores observados em feeds Awin reais até hoje: "disponível" é o valor
 # confirmado no feed da Cobasi (13/08/2026, português); os demais ficam
-# como fallback pra outros merchants/formatos, nunca confirmados contra um
-# feed real ainda (ver docs/AFFILIATES.md). Zee Now/Zee Dog podem usar
-# valores diferentes — NÃO presumir, observar e cobrir com teste quando o
-# feed real desses merchants for sincronizado pela primeira vez (ver §14
-# do gate de ativação).
+# como fallback pra outros merchants/formatos. Zee Dog (22/08/2026) usa
+# stock_status vazio e in_stock=1, por isso o parser tenta stock_status
+# primeiro e cai para in_stock quando necessário.
 _IN_STOCK_VALUES = {"1", "true", "yes", "in stock", "instock", "in_stock", "disponível", "disponivel"}
 _OUT_OF_STOCK_VALUES = {"0", "false", "no", "out of stock", "indisponível", "indisponivel"}
 TIMEOUT_SECONDS = 300  # feeds grandes (milhares de produtos) demoram
@@ -139,7 +137,7 @@ def _parse_float(value: str) -> Optional[float]:
         return None
 
 
-def _parse_in_stock(value: str) -> Optional[bool]:
+def _parse_in_stock(value: str, *, field_name: str = "stock_status") -> Optional[bool]:
     if value is None or value == "":
         return None
     normalized = value.strip().lower()
@@ -151,7 +149,22 @@ def _parse_in_stock(value: str) -> Optional[bool]:
     # in_stock=True) nem falta de estoque — melhor não ofertar do que
     # ofertar errado, mas também não some silenciosamente um valor real
     # que só não reconhecemos ainda.
-    logger.warning("[awin_feed_sync] stock_status desconhecido: %r", value)
+    logger.warning("[awin_feed_sync] %s desconhecido: %r", field_name, value)
+    return None
+
+
+def _availability_from_row(row: dict) -> Optional[bool]:
+    stock_status = (row.get("stock_status") or "").strip()
+    if stock_status:
+        return _parse_in_stock(stock_status, field_name="stock_status")
+    return _parse_in_stock((row.get("in_stock") or "").strip(), field_name="in_stock")
+
+
+def _first_nonempty(*values: Optional[str]) -> Optional[str]:
+    for value in values:
+        cleaned = (value or "").strip()
+        if cleaned:
+            return cleaned
     return None
 
 
@@ -169,10 +182,10 @@ def _row_to_offer_fields(row: dict, merchant: str, advertiser_id: str, synced_at
         gtin=gtin,
         title=(row.get("product_name") or "").strip() or None,
         brand=(row.get("brand_name") or "").strip() or None,
-        category=(row.get("category_name") or "").strip() or None,
+        category=_first_nonempty(row.get("category_name"), row.get("product_type"), row.get("merchant_category")),
         price=_parse_float(row.get("search_price", "")),
         currency="BRL",
-        in_stock=_parse_in_stock(row.get("stock_status", "")),
+        in_stock=_availability_from_row(row),
         merchant_url=(row.get("merchant_deep_link") or "").strip() or None,
         affiliate_url=(row.get("aw_deep_link") or "").strip() or None,
         image_url=(row.get("aw_image_url") or row.get("merchant_image_url") or "").strip() or None,

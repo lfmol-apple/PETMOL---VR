@@ -121,7 +121,7 @@ const AFF: Record<HomeShoppingPartnerId, string | undefined> = {
   doglife:      process.env.NEXT_PUBLIC_AFFILIATE_DOGLIFE,
   araujo:       process.env.NEXT_PUBLIC_AFFILIATE_ARAUJO,
   zeenow:       undefined, // Awin (advertiser 127557, pending) — sem link genérico Lomadee-style
-  zeedog:       undefined, // Awin (advertiser 127555, pending) — sem link genérico Lomadee-style
+  zeedog:       undefined, // Awin (advertiser 127555, approved) — sem link genérico Lomadee-style
 };
 
 export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
@@ -332,10 +332,11 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/zeedog.png',
     logoAlt: 'Zee Dog',
     fallbackUrl: 'https://www.zeedog.com.br',
-    // Awin advertiser 127555 — feed_available=True (~1.742 produtos
-    // observados no ShopWindow Awin), commercial_status 'pending' — mesmo
-    // caminho de ativação da Zee Now acima.
-    affiliateStatus: 'pending',
+    // Awin advertiser 127555 — approved, feed 116649 com 1.799 produtos
+    // observados e GTINs válidos. Não virar 'active' aqui: Zee Dog deve
+    // aparecer pelo fluxo exato de GTIN do CommerceEngine, não por link
+    // genérico de busca.
+    affiliateStatus: 'approved',
     merchantType: 'retailer',
     affiliateMode: 'none',
     supportsProductDeepLink: false,

@@ -4,13 +4,14 @@ espalhado pelo código (ver docs/AFFILIATES.md para a tabela de
 compliance completa). Awin é REDE (network); cada entrada aqui é um
 MERCHANT dentro dela (Cobasi, Petz, Zee Now, Zee Dog).
 
-Situação real em 13/08/2026: publisher PETMOL cadastrado (ID 3032803).
+Situação real em 22/08/2026: publisher PETMOL cadastrado (ID 3032803).
 Cobasi (17870) foi APROVADA — confirmado no painel Awin (Anunciantes →
 Meus Programas → "Seus Anunciantes"), com feed ativo (fid 48117, 8.398
-produtos) já sincronizado em AffiliateFeedOffer. Petz/Zee Now/Zee Dog
-continuam "pending". Não mudar `enabled=True` para nenhum sem
-confirmação real de aprovação (ver §33 do documento de arquitetura
-interno).
+produtos) já sincronizado em AffiliateFeedOffer. Zee Dog (127555) também
+foi aprovada, com feed ativo (fid 116649, 1.799 produtos observados e
+100% de GTINs válidos/únicos). Petz/Zee Now continuam "pending". Não
+mudar `enabled=True` para nenhum outro sem confirmação real de aprovação
+(ver §33 do documento de arquitetura interno).
 
 `enabled=True` na Cobasi habilita o `AwinFeedProvider` a encontrar/
 monetizar ofertas SE ele estiver registrado em build_default_engine() —
@@ -95,12 +96,21 @@ AWIN_ADVERTISERS: dict[str, AwinAdvertiser] = {
     "zeedog": AwinAdvertiser(
         merchant="zeedog",
         advertiser_id="127555",
-        commercial_status="pending",
+        commercial_status="approved",
         feed_available=True,
-        enabled=False,
+        enabled=True,
         cookie_days=14,
         cpa_percent=3.0,
-        notes="1.742 produtos observados no ShopWindow Awin. Rastreamento de app: não.",
+        feed_id="116649",
+        notes=(
+            "Aprovada 22/08/2026. Feed 116649 observado com 1.799 "
+            "produtos e 100% de GTINs válidos/únicos. aw_deep_link já "
+            "vem monetizado com publisher 3032803 e advertiser 127555; "
+            "feed real usa in_stock=1 com stock_status vazio. "
+            "Rastreamento de app: não. Cookie/CPA preservados conforme "
+            "configuração anterior; confirmar em relatório antes de "
+            "otimizar preferência comercial."
+        ),
     ),
     "araujo": AwinAdvertiser(
         merchant="araujo",

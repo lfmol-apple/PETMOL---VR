@@ -5,6 +5,7 @@ AffiliateFeedOffer. Ver src/awin_feed_sync.py.
 
 Uso:
     python3 scripts/sync_awin_feed.py cobasi
+    python3 scripts/sync_awin_feed.py zeedog
 
 Requer AWIN_DATAFEED_KEY configurada (env var ou .env) — nunca commitar um
 valor real. enabled=False em awin_advertisers.py não impede o sync rodar
