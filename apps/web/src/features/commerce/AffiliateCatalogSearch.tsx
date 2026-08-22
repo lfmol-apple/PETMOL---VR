@@ -5,10 +5,18 @@ import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
 import { trackClick } from '@/lib/analytics/click';
 import { identifyProductByBarcode, type ScannedProduct } from '@/lib/productScanner';
 import { formatBRLPrice, fetchCommerceOffers, merchantLabel, searchAwinCatalog, type AwinSearchResult, type CommerceOffer } from './productPricing';
-import { navigateToPartnerUrl } from './homeShoppingPartners';
+import {
+  HOME_SHOPPING_PARTNERS,
+  navigateToPartnerUrl,
+  openHomeShoppingPartner,
+  type HomeShoppingPartner,
+  type HomeShoppingPartnerId,
+} from './homeShoppingPartners';
 
 interface AffiliateCatalogSearchProps {
   petId: string;
+  initialQuery?: string;
+  merchantFilter?: HomeShoppingPartnerId;
 }
 
 type ResolvedOffers = CommerceOffer[] | 'loading' | 'error';
@@ -34,8 +42,11 @@ type BarcodeLookupState = 'idle' | 'loading' | 'done' | 'not_found' | 'error';
 // real ele resolve a Awin com user-agent desktop e redireciona direto para
 // a URL web afiliada da Cobasi, sem expor o Safari iPhone ao OneLink
 // AppsFlyer (`af_dp=appcobasi://`), que foi o salto que caía na home.
-export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
-  const [query, setQuery] = useState('');
+const TEXT_SEARCH_PARTNER_IDS: HomeShoppingPartnerId[] = ['cobasi', 'shopee', 'zeenow', 'zeedog'];
+
+export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilter }: AffiliateCatalogSearchProps) {
+  const [query, setQuery] = useState(initialQuery);
+  const [selectedTextMerchant, setSelectedTextMerchant] = useState<HomeShoppingPartnerId | null>(null);
   const [barcode, setBarcode] = useState('');
   const [barcodeState, setBarcodeState] = useState<BarcodeLookupState>('idle');
   const [barcodeProduct, setBarcodeProduct] = useState<ScannedProduct | null>(null);
@@ -47,6 +58,16 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
   const [offersByGtin, setOffersByGtin] = useState<Record<string, ResolvedOffers>>({});
   const [storeChoicesForGtin, setStoreChoicesForGtin] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const trimmedQuery = query.trim();
+  const activeMerchantFilter = merchantFilter ?? selectedTextMerchant ?? undefined;
+  const textSearchPartners = TEXT_SEARCH_PARTNER_IDS
+    .map((id) => HOME_SHOPPING_PARTNERS.find((partner) => partner.id === id))
+    .filter((partner): partner is HomeShoppingPartner => Boolean(partner));
+
+  useEffect(() => {
+    setQuery(initialQuery);
+    setSelectedTextMerchant(null);
+  }, [initialQuery, merchantFilter]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -58,14 +79,14 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
     }
     setLoading(true);
     debounceRef.current = setTimeout(async () => {
-      const found = await searchAwinCatalog(trimmed);
+      const found = await searchAwinCatalog(trimmed, activeMerchantFilter);
       setResults(found);
       setLoading(false);
     }, 400);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query]);
+  }, [query, activeMerchantFilter]);
 
   useEffect(() => {
     for (const item of results) {
@@ -98,6 +119,24 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
       metadata: { gtin },
     });
     setStoreChoicesForGtin(null);
+  }
+
+  function handleTextStoreSearch(partnerId: HomeShoppingPartnerId) {
+    if (trimmedQuery.length < 2) return;
+    if (partnerId === 'zeenow' || partnerId === 'zeedog') {
+      setSelectedTextMerchant(selectedTextMerchant === partnerId ? null : partnerId);
+      setStoreChoicesForGtin(null);
+      return;
+    }
+    openHomeShoppingPartner(partnerId, trimmedQuery);
+    void trackClick({
+      source: 'home',
+      cta_type: 'shop_text_store_search',
+      target: partnerId,
+      link_type: 'direct',
+      pet_id: petId,
+      metadata: { query: trimmedQuery },
+    });
   }
 
   async function resolveBarcode(raw: string) {
@@ -222,12 +261,33 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
         <input
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setSelectedTextMerchant(null);
+          }}
           placeholder="Buscar produto..."
           className="w-full border-2 border-gray-200 rounded-2xl pl-10 pr-4 py-3 text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-400 transition-colors"
         />
         <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-[15px]">🔎</span>
       </div>
+
+      {trimmedQuery.length >= 2 && !merchantFilter && (
+        <div className="mt-2 rounded-2xl border border-gray-200 bg-white p-2.5 shadow-sm">
+          <p className="px-0.5 text-[10px] font-black uppercase tracking-wide text-gray-400">Escolha a loja</p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {textSearchPartners.map((partner) => (
+              <button
+                key={partner.id}
+                type="button"
+                onClick={() => handleTextStoreSearch(partner.id)}
+                className={`rounded-xl border px-3 py-2 text-left text-[12px] font-bold transition-all active:scale-[0.98] ${selectedTextMerchant === partner.id ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-emerald-300 hover:bg-white'}`}
+              >
+                {partner.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {scannerOpen && (
         <ProductDetectionSheetGold
