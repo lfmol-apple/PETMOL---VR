@@ -107,6 +107,7 @@ export function computeCareBreakdown(
     } catch {}
 
     const totalDoses = extra.treatment_days ? parseInt(String(extra.treatment_days), 10) : 0;
+    const isCustomInterval = Boolean(extra.custom_interval_days);
     const appliedDates: string[] = (Array.isArray(extra.applied_dates) ? extra.applied_dates : []).map(
       (d) => String(d).replace('T', ' ').split(' ')[0],
     );
@@ -115,7 +116,12 @@ export function computeCareBreakdown(
     );
 
     let compliant = true;
-    if (totalDoses > 0) {
+    if (isCustomInterval) {
+      const dueRaw = ev.next_due_date ? String(ev.next_due_date).split('T')[0] : '';
+      const dueDate = dueRaw ? createLocalDate(dueRaw) : null;
+      const dueNow = !dueDate || (!Number.isNaN(dueDate.getTime()) && dueDate.getTime() <= todayRef.getTime());
+      compliant = !dueNow || appliedDates.includes(todayStr) || skippedDates.includes(todayStr);
+    } else if (totalDoses > 0) {
       const startRaw = String(ev.scheduled_at || '').replace('T', ' ').split(' ')[0];
       const startDate = createLocalDate(startRaw);
       if (!Number.isNaN(startDate.getTime())) {

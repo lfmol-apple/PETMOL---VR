@@ -42,6 +42,22 @@ export function HealthMedicationPanel({
   openEditEvent,
   handleDeleteEvent,
 }: HealthMedicationPanelProps) {
+  const applyCustomInterval = (value: string) => {
+    const days = parseInt(value, 10);
+    setEventFormData(prev => {
+      const next = { ...prev, custom_interval_days: value };
+      if (Number.isFinite(days) && days > 0 && prev.scheduled_at) {
+        const base = new Date(prev.scheduled_at);
+        if (!Number.isNaN(base.getTime())) {
+          base.setDate(base.getDate() + days);
+          next.reminder_date = base.toISOString().slice(0, 10);
+          next.next_due_date = base.toISOString().slice(0, 10);
+        }
+      }
+      return next;
+    });
+  };
+
   return (
     <PremiumPanelShell title="Medicação" icon="💊" subtitle={petName}>
       <div className="space-y-4">
@@ -161,10 +177,47 @@ export function HealthMedicationPanel({
               <option value="8h">A cada 8 horas</option>
               <option value="12h">A cada 12 horas</option>
               <option value="48h">A cada 48 horas</option>
+              <option value="personalizado">Intervalo personalizado</option>
               <option value="semanal">Semanal</option>
               <option value="conforme_necessidade">Conforme necessidade (SOS)</option>
             </select>
           </div>
+
+          {eventFormData.frequency === 'personalizado' && (
+            <div className="grid grid-cols-2 gap-2 p-3 bg-pink-50 rounded-xl border border-pink-200">
+              <div>
+                <label className="text-xs text-gray-500 font-medium block mb-1">
+                  Próxima dose em
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    placeholder="15"
+                    value={eventFormData.custom_interval_days}
+                    onChange={e => applyCustomInterval(e.target.value)}
+                    className="w-full border border-pink-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300 bg-white"
+                  />
+                  <span className="text-xs text-gray-500 whitespace-nowrap">dias</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 font-medium block mb-1">
+                  Total de doses
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="30"
+                  placeholder="2"
+                  value={eventFormData.total_doses}
+                  onChange={e => setEventFormData(prev => ({ ...prev, total_doses: e.target.value }))}
+                  className="w-full border border-pink-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300 bg-white"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Lembrete de medicação */}
           <div className="flex items-center justify-between gap-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
@@ -275,6 +328,7 @@ export function HealthMedicationPanel({
                 </p>
               </div>
 
+              {eventFormData.frequency !== 'personalizado' && (
               <div>
                 <label className="text-xs text-gray-500 font-medium block mb-1">
                   📆 Duração do tratamento
@@ -294,6 +348,7 @@ export function HealthMedicationPanel({
                   <span className="text-xs text-gray-500 whitespace-nowrap">dias</span>
                 </div>
               </div>
+              )}
 
               <p className="text-xs text-amber-700 bg-amber-100 rounded-lg px-2 py-1.5">
                 {(() => {
@@ -305,6 +360,9 @@ export function HealthMedicationPanel({
                     '8h': 'a cada 8h',
                     '12h': 'a cada 12h',
                     '48h': 'a cada 48h',
+                    personalizado: eventFormData.custom_interval_days
+                      ? `a cada ${eventFormData.custom_interval_days} dias`
+                      : 'em intervalo personalizado',
                     semanal: 'semanalmente',
                     conforme_necessidade: 'conforme necessidade',
                   };
@@ -313,7 +371,11 @@ export function HealthMedicationPanel({
                     eventFormData.reminder_times.length > 0
                       ? eventFormData.reminder_times.join(', ')
                       : eventFormData.reminder_time || '08:00';
-                  const end = eventFormData.treatment_days
+                  const end = eventFormData.frequency === 'personalizado'
+                    ? eventFormData.total_doses
+                      ? ` · ${eventFormData.total_doses} dose(s) no total`
+                      : ''
+                    : eventFormData.treatment_days
                     ? ` por ${eventFormData.treatment_days} dias`
                     : '';
                   return `Lembretes ${freq} às ${times}${end}`;
@@ -433,9 +495,10 @@ export function HealthMedicationPanel({
 
                 try {
                   const ex = parsePetEventExtraData(ev.extra_data);
-                  if (ex.treatment_days) {
+                  const totalConfigured = ex.total_doses || ex.treatment_days;
+                  if (totalConfigured) {
                     const applied = (ex.applied_dates || []).length;
-                    const total = parseInt(String(ex.treatment_days), 10);
+                    const total = parseInt(String(totalConfigured), 10);
                     if (applied >= total) {
                       badgeCls = 'bg-green-100 text-green-700';
                       badgeTxt = 'Concluído';

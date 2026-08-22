@@ -37,6 +37,8 @@ const buildMedicationDefaults = (reminderEnabled: boolean): EventFormState => ({
   reminder_time: '08:00',
   reminder_times: ['08:00'],
   treatment_days: '',
+  custom_interval_days: '',
+  total_doses: '',
   result: '',
   severity: 'moderada',
 });
@@ -105,7 +107,16 @@ export function useHomeMedicationActions({
         const extraData: Record<string, unknown> = { ...preservedExtra };
         const normalizedTimes = (eventFormData.reminder_times || []).filter(Boolean);
         if (eventFormData.frequency) extraData.frequency = eventFormData.frequency;
-        if (eventFormData.treatment_days) extraData.treatment_days = parseInt(eventFormData.treatment_days, 10);
+        if (eventFormData.frequency === 'personalizado') {
+          if (eventFormData.custom_interval_days) {
+            extraData.custom_interval_days = parseInt(eventFormData.custom_interval_days, 10);
+          }
+          if (eventFormData.total_doses) {
+            extraData.total_doses = parseInt(eventFormData.total_doses, 10);
+          }
+        } else if (eventFormData.treatment_days) {
+          extraData.treatment_days = parseInt(eventFormData.treatment_days, 10);
+        }
         if (normalizedTimes.length > 0) {
           extraData.reminder_times = normalizedTimes;
           extraData.reminder_time = normalizedTimes[0];
@@ -121,10 +132,23 @@ export function useHomeMedicationActions({
       }
 
       // Reminder date takes priority over next_due_date
-      const nextDate =
-        eventFormData.reminder_enabled && eventFormData.reminder_date
+      const nextDate = (() => {
+        if (
+          eventFormData.reminder_enabled &&
+          eventFormData.frequency === 'personalizado' &&
+          eventFormData.custom_interval_days
+        ) {
+          const base = new Date(eventFormData.scheduled_at);
+          const days = parseInt(eventFormData.custom_interval_days, 10);
+          if (!Number.isNaN(base.getTime()) && Number.isFinite(days) && days > 0) {
+            base.setDate(base.getDate() + days);
+            return base.toISOString().slice(0, 10);
+          }
+        }
+        return eventFormData.reminder_enabled && eventFormData.reminder_date
           ? eventFormData.reminder_date
           : eventFormData.next_due_date;
+      })();
       if (nextDate) payload.next_due_date = new Date(nextDate).toISOString();
 
       const res = await fetch(

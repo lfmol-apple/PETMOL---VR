@@ -65,6 +65,8 @@ interface MedForm {
   reminder_date: string;
   reminder_times: string[];
   treatment_days: string;
+  custom_interval_days: string;
+  total_doses: string;
   cost: string;
   notes: string;
   manufacturer: string;
@@ -84,6 +86,8 @@ const EMPTY_FORM: MedForm = {
   reminder_date: '',
   reminder_times: ['08:00'],
   treatment_days: '',
+  custom_interval_days: '',
+  total_doses: '',
   cost: '',
   notes: '',
   manufacturer: '',
@@ -150,9 +154,10 @@ export function MedicationItemSheet({
   const active = medications.filter(ev => {
     try {
       const ex = parsePetEventExtraData(ev.extra_data);
-      if (ex.treatment_days) {
+      const totalConfigured = ex.total_doses || ex.treatment_days;
+      if (totalConfigured) {
         const applied = (ex.applied_dates as string[] || []).length;
-        return applied < parseInt(String(ex.treatment_days), 10);
+        return applied < parseInt(String(totalConfigured), 10);
       }
     } catch {}
     return false;
@@ -201,6 +206,8 @@ export function MedicationItemSheet({
   function openEdit(ev: PetEventRecord) {
     const { dose, route, frequency, cleanNotes } = parseMedNotes(ev.notes || '');
     let treatmentDays = '';
+    let customIntervalDays = '';
+    let totalDoses = '';
     let reminderTimes = ['08:00'];
     let reminderTime = '08:00';
     let reminderDate = '';
@@ -209,6 +216,8 @@ export function MedicationItemSheet({
       const ex = parsePetEventExtraData(ev.extra_data);
       if (typeof ex.reminder_time === 'string' && ex.reminder_time) reminderTime = ex.reminder_time;
       if (ex.treatment_days) treatmentDays = String(ex.treatment_days);
+      if (ex.custom_interval_days) customIntervalDays = String(ex.custom_interval_days);
+      if (ex.total_doses) totalDoses = String(ex.total_doses);
       if (Array.isArray(ex.reminder_times) && (ex.reminder_times as string[]).length > 0)
         reminderTimes = ex.reminder_times as string[];
       else reminderTimes = [reminderTime];
@@ -226,6 +235,8 @@ export function MedicationItemSheet({
       reminder_date: reminderDate,
       reminder_times: reminderTimes,
       treatment_days: treatmentDays,
+      custom_interval_days: customIntervalDays,
+      total_doses: totalDoses,
       cost: ev.cost != null ? String(ev.cost) : '',
       notes: cleanNotes,
       manufacturer: '',
@@ -259,7 +270,8 @@ export function MedicationItemSheet({
       ].filter(Boolean).join(' | ');
       const finalNotes = medMeta + (form.notes.trim() ? '\n' + form.notes.trim() : '');
 
-      const shouldKeepTreatmentActive = form.reminder_enabled || Boolean(form.treatment_days);
+      const shouldKeepTreatmentActive =
+        form.reminder_enabled || Boolean(form.treatment_days) || Boolean(form.custom_interval_days);
 
       const payload: Record<string, unknown> = {
         pet_id: petId,
@@ -284,6 +296,15 @@ export function MedicationItemSheet({
         }
         const normalizedTimes = form.reminder_times.filter(Boolean);
         extra.frequency = form.frequency;
+        if (form.frequency === 'personalizado') {
+          delete extra.treatment_days;
+          if (form.custom_interval_days) extra.custom_interval_days = parseInt(form.custom_interval_days, 10);
+          if (form.total_doses) extra.total_doses = parseInt(form.total_doses, 10);
+        } else {
+          delete extra.custom_interval_days;
+          delete extra.total_doses;
+          if (form.treatment_days) extra.treatment_days = parseInt(form.treatment_days);
+        }
         if (normalizedTimes.length > 0) {
           extra.reminder_times = normalizedTimes;
           extra.reminder_time = normalizedTimes[0];
@@ -291,9 +312,15 @@ export function MedicationItemSheet({
           extra.reminder_times = ['08:00'];
           extra.reminder_time = '08:00';
         }
-        if (form.treatment_days) extra.treatment_days = parseInt(form.treatment_days);
         payload.extra_data = JSON.stringify(extra);
-        if (form.reminder_date) payload.next_due_date = new Date(form.reminder_date + 'T00:00:00').toISOString();
+        if (form.frequency === 'personalizado' && form.custom_interval_days) {
+          const days = parseInt(form.custom_interval_days, 10);
+          if (Number.isFinite(days) && days > 0) {
+            payload.next_due_date = new Date(addDays(form.scheduled_date, days) + 'T00:00:00').toISOString();
+          }
+        } else if (form.reminder_date) {
+          payload.next_due_date = new Date(form.reminder_date + 'T00:00:00').toISOString();
+        }
       } else if (editingId) {
         // Ao desativar lembretes, limpar rastros de agendamento para não reativar silenciosamente no reload.
         let extra: Record<string, unknown> = {};
@@ -305,6 +332,8 @@ export function MedicationItemSheet({
         delete extra.reminder_times;
         delete extra.frequency;
         delete extra.treatment_days;
+        delete extra.custom_interval_days;
+        delete extra.total_doses;
         payload.next_due_date = null;
         payload.extra_data = Object.keys(extra).length > 0 ? JSON.stringify(extra) : null;
       }
@@ -341,11 +370,20 @@ export function MedicationItemSheet({
 
             // Coletar payloads: um por dia × por horário
             const payloads: Parameters<typeof createReminder>[0][] = [];
-            for (let day = 0; day < totalDays; day++) {
-              const dateStr = addDays(form.reminder_date, day);
-              if (dateStr < todayStr) continue;
-              for (const time of times) {
-                payloads.push({ pet_id: petId, type: 'medication', title, body: `Hora de dar ${form.title.trim()} para ${petName}. Toque para registrar a dose.`, remind_at: buildRemindAt(dateStr, time) });
+            if (form.frequency === 'personalizado' && form.custom_interval_days) {
+              const nextDate = addDays(form.scheduled_date, parseInt(form.custom_interval_days, 10));
+              if (nextDate >= todayStr) {
+                for (const time of times) {
+                  payloads.push({ pet_id: petId, type: 'medication', title, body: `Hora de dar ${form.title.trim()} para ${petName}. Toque para registrar a dose.`, remind_at: buildRemindAt(nextDate, time) });
+                }
+              }
+            } else {
+              for (let day = 0; day < totalDays; day++) {
+                const dateStr = addDays(form.reminder_date, day);
+                if (dateStr < todayStr) continue;
+                for (const time of times) {
+                  payloads.push({ pet_id: petId, type: 'medication', title, body: `Hora de dar ${form.title.trim()} para ${petName}. Toque para registrar a dose.`, remind_at: buildRemindAt(dateStr, time) });
+                }
               }
             }
 
@@ -991,10 +1029,51 @@ export function MedicationItemSheet({
                   <option value="8h">A cada 8 horas</option>
                   <option value="12h">A cada 12 horas</option>
                   <option value="48h">A cada 48 horas</option>
+                  <option value="personalizado">Intervalo personalizado</option>
                   <option value="semanal">Semanal</option>
                   <option value="conforme_necessidade">Conforme necessidade (SOS)</option>
                 </select>
               </div>
+
+              {form.frequency === 'personalizado' && (
+                <div className="grid grid-cols-2 gap-3 px-4 py-3 bg-purple-50 rounded-2xl border border-purple-200">
+                  <div>
+                    <label className={labelCls}>Próxima dose em</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="365"
+                        placeholder="15"
+                        className="w-full border border-purple-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+                        value={form.custom_interval_days}
+                        onChange={e => {
+                          const value = e.target.value;
+                          const days = parseInt(value, 10);
+                          setForm(f => ({
+                            ...f,
+                            custom_interval_days: value,
+                            reminder_date: Number.isFinite(days) && days > 0 ? addDays(f.scheduled_date, days) : f.reminder_date,
+                          }));
+                        }}
+                      />
+                      <span className="text-xs text-gray-500 whitespace-nowrap">dias</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Total de doses</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      placeholder="2"
+                      className="w-full border border-purple-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+                      value={form.total_doses}
+                      onChange={e => setForm(f => ({ ...f, total_doses: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Lembretes toggle */}
               <div className="flex items-center justify-between gap-3 p-3 bg-amber-50 rounded-2xl border border-amber-200">
@@ -1063,6 +1142,7 @@ export function MedicationItemSheet({
                     </div>
                   </div>
 
+                  {form.frequency !== 'personalizado' && (
                   <div>
                     <label className={labelCls}>📆 Duração do tratamento (dias)</label>
                     <input
@@ -1075,6 +1155,7 @@ export function MedicationItemSheet({
                       onChange={e => setForm(f => ({ ...f, treatment_days: e.target.value }))}
                     />
                   </div>
+                  )}
                 </div>
               )}
 
