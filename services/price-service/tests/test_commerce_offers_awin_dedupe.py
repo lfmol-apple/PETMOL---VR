@@ -27,6 +27,8 @@ GTIN = "7891234567895"
 @pytest.fixture(autouse=True)
 def _force_env(monkeypatch):
     monkeypatch.setenv("ENV", "dev")
+    monkeypatch.setenv("AWIN_ENABLED", "false")
+    monkeypatch.setenv("AWIN_SHADOW_MODE", "false")
     monkeypatch.delenv("AFFILIATE_ONLY_COMMERCE", raising=False)
     monkeypatch.delenv("COBASI_AFFILIATE_MODE", raising=False)
     get_settings.cache_clear()

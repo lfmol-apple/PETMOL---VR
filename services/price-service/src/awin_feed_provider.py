@@ -21,7 +21,11 @@ filtrar no registro):
      exatamente com ele (após normalize_gtin), a resolução é permitida
      mesmo com awin_enabled=False, pra validar uma compra real controlada
      sem abrir o catálogo inteiro. Nenhum outro GTIN se beneficia disso.
-  2. Staleness: mesmo com o merchant publicamente liberado, uma oferta só
+  2. Fallback por identidade: quando o GTIN do merchant diverge do GTIN
+     salvo pelo PETMOL, o provider só tenta casar por nome/apresentação se
+     outra loja Awin já tiver uma oferta ativa para o GTIN original. Se o
+     resultado for ambíguo, não retorna oferta.
+  3. Staleness: mesmo com o merchant publicamente liberado, uma oferta só
      é considerada se o último sync bem-sucedido não estiver mais velho
      que config.awin_stale_after_hours — catálogo desatualizado nunca
      abre link silenciosamente (ver §12 do doc de arquitetura interno).
@@ -40,9 +44,9 @@ from .awin_advertisers import is_awin_merchant_publicly_servable
 from .awin_click_redirect import build_awin_click_redirect_url
 from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
-from .gtin_equivalences import equivalent_gtins_for
 from .gtin_utils import normalize_gtin_gs1
 from .product_catalog_lookup import normalize_gtin
+from .shopee_offer_matcher import extract_volume_ml, extract_weight_kg, score_candidate
 
 
 class AwinFeedProvider:
@@ -102,40 +106,27 @@ class AwinFeedProvider:
 
         # 1. GTIN exato primeiro — feeds de afiliados são estruturados
         # (diferente da busca textual da Cobasi/VTEX), então GTIN é o
-        # caminho principal e mais confiável.
+        # caminho principal e mais confiável. Quando um merchant usa outro
+        # GTIN para a mesma apresentação, só caímos no fallback por
+        # referência de outra loja Awin.
         if not context.gtin:
             return None
         gtin = normalize_gtin_gs1(context.gtin)
         if not gtin.valid or not gtin.value:
             return None
 
-        candidate_gtins = equivalent_gtins_for(gtin.value)
-
         # 2/3. Considera peso/apresentação implicitamente via weight_kg
         # (quando várias ofertas do mesmo GTIN existirem) — só
         # active + in_stock.
-        query = (
-            select(AffiliateFeedOffer)
-            .where(
-                AffiliateFeedOffer.network == self.network,
-                AffiliateFeedOffer.merchant == self.merchant,
-                AffiliateFeedOffer.gtin.in_(candidate_gtins),
-                AffiliateFeedOffer.active.is_(True),
-                AffiliateFeedOffer.in_stock.is_(True),
-            )
-            .order_by(AffiliateFeedOffer.price.asc())
-        )
-        rows = list(self._db.scalars(query))
+        rows = self._find_rows_by_gtin(gtin.value)
+        if not rows:
+            rows = self._find_rows_by_reference_identity(gtin.value, context)
         if not rows:
             return None
         if has_ambiguous_offer_identity(rows):
             return None
 
         row = _select_row_by_weight(rows, context.weight_kg)
-
-        # 4. Fallback textual: NÃO implementado — sem dados reais de feed
-        # pra validar que seria seguro (ver §16 do documento de
-        # arquitetura interno). GTIN exato é o único caminho hoje.
 
         return DiscoveredOffer(
             merchant=self.merchant,
@@ -173,6 +164,63 @@ class AwinFeedProvider:
 
         return build_awin_click_redirect_url(row.affiliate_url), "affiliate_product", "awin"
 
+    def _find_rows_by_gtin(self, gtin: str) -> list[AffiliateFeedOffer]:
+        query = (
+            select(AffiliateFeedOffer)
+            .where(
+                AffiliateFeedOffer.network == self.network,
+                AffiliateFeedOffer.merchant == self.merchant,
+                AffiliateFeedOffer.gtin == gtin,
+                AffiliateFeedOffer.active.is_(True),
+                AffiliateFeedOffer.in_stock.is_(True),
+            )
+            .order_by(AffiliateFeedOffer.price.asc())
+        )
+        return list(self._db.scalars(query))
+
+    def _find_rows_by_reference_identity(self, gtin: str, context: ProductContext) -> list[AffiliateFeedOffer]:
+        """Fallback controlado para GTIN divergente entre merchants.
+
+        Só roda quando outra loja Awin já resolveu o GTIN original. Essa
+        linha de referência reduz o risco de uma busca textual genérica
+        escolher o produto errado; se a comparação deixar mais de uma
+        possibilidade, nenhuma oferta é retornada.
+        """
+        references = list(self._db.scalars(
+            select(AffiliateFeedOffer).where(
+                AffiliateFeedOffer.network == self.network,
+                AffiliateFeedOffer.gtin == gtin,
+                AffiliateFeedOffer.active.is_(True),
+                AffiliateFeedOffer.in_stock.is_(True),
+            )
+        ))
+        if not references:
+            return []
+
+        candidates = list(self._db.scalars(
+            select(AffiliateFeedOffer)
+            .where(
+                AffiliateFeedOffer.network == self.network,
+                AffiliateFeedOffer.merchant == self.merchant,
+                AffiliateFeedOffer.gtin != gtin,
+                AffiliateFeedOffer.active.is_(True),
+                AffiliateFeedOffer.in_stock.is_(True),
+            )
+            .order_by(AffiliateFeedOffer.price.asc())
+        ))
+        matches = [
+            row for row in candidates
+            if _looks_like_same_product(row, references, context)
+        ]
+        if not matches:
+            return []
+        if has_ambiguous_offer_identity(matches):
+            return []
+        best_identity = _identity_key(matches[0])
+        if any(_identity_key(row) != best_identity for row in matches[1:]):
+            return []
+        return matches
+
 
 def _select_row_by_weight(rows: list[AffiliateFeedOffer], target_weight_kg: Optional[float]) -> AffiliateFeedOffer:
     if target_weight_kg is None:
@@ -181,3 +229,85 @@ def _select_row_by_weight(rows: list[AffiliateFeedOffer], target_weight_kg: Opti
         if row.weight_kg is not None and round(row.weight_kg, 2) == round(target_weight_kg, 2):
             return row
     return rows[0]
+
+
+def _looks_like_same_product(
+    candidate: AffiliateFeedOffer,
+    references: list[AffiliateFeedOffer],
+    context: ProductContext,
+) -> bool:
+    candidate_title = candidate.title or ""
+    if not candidate_title:
+        return False
+    for reference in references:
+        reference_title = reference.title or context.name or context.query or ""
+        if not reference_title:
+            continue
+        score = score_candidate(
+            reference_title,
+            candidate_title,
+            expected_weight_kg=context.weight_kg or reference.weight_kg or extract_weight_kg(reference_title),
+            expected_volume_ml=extract_volume_ml(reference_title),
+        )
+        if score is None or score < 0.75:
+            continue
+        if not _package_markers_compatible(candidate_title, reference_title):
+            continue
+        if not _size_markers_compatible(candidate_title, reference_title):
+            continue
+        return True
+    return False
+
+
+def _package_markers_compatible(candidate_title: str, reference_title: str) -> bool:
+    candidate_weight = extract_weight_kg(candidate_title)
+    reference_weight = extract_weight_kg(reference_title)
+    if candidate_weight is not None and reference_weight is not None:
+        if abs(candidate_weight - reference_weight) > max(0.05, reference_weight * 0.03):
+            return False
+    candidate_volume = extract_volume_ml(candidate_title)
+    reference_volume = extract_volume_ml(reference_title)
+    if candidate_volume is not None and reference_volume is not None:
+        if abs(candidate_volume - reference_volume) > max(20.0, reference_volume * 0.03):
+            return False
+    return True
+
+
+def _size_markers_compatible(candidate_title: str, reference_title: str) -> bool:
+    candidate_sizes = _size_markers(candidate_title)
+    reference_sizes = _size_markers(reference_title)
+    if not candidate_sizes or not reference_sizes:
+        return True
+    return bool(candidate_sizes & reference_sizes)
+
+
+def _size_markers(title: str) -> set[str]:
+    normalized = _normalize_for_identity(title)
+    tokens = set(normalized.split())
+    sizes: set[str] = set()
+    if tokens & {"pp", "xs"}:
+        sizes.add("pp")
+    if tokens & {"p", "s", "pequeno", "pequenos", "small"}:
+        sizes.add("p")
+    if tokens & {"m", "medio", "medios", "media", "medium"}:
+        sizes.add("m")
+    if tokens & {"g", "grande", "grandes", "large", "l"}:
+        sizes.add("g")
+    if tokens & {"gg", "xg", "xl"}:
+        sizes.add("gg")
+    return sizes
+
+
+def _identity_key(row: AffiliateFeedOffer) -> tuple[str, str, str]:
+    title = _normalize_for_identity(row.title or "")
+    sizes = ",".join(sorted(_size_markers(row.title or "")))
+    return title, sizes, _normalize_for_identity(row.brand or "")
+
+
+def _normalize_for_identity(value: str) -> str:
+    import re
+    import unicodedata
+
+    text = unicodedata.normalize("NFKD", value or "")
+    ascii_text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return re.sub(r"[^a-z0-9]+", " ", ascii_text.lower()).strip()

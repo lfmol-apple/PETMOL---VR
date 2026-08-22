@@ -58,9 +58,18 @@ async def test_finds_offer_by_exact_gtin():
 
 
 @pytest.mark.asyncio
-async def test_finds_offer_by_explicit_equivalent_gtin():
+async def test_finds_offer_by_reference_identity_when_merchant_uses_different_gtin():
     db = SessionLocal()
     try:
+        db.add(_row(
+            merchant="zeenow",
+            advertiser_id="127557",
+            gtin="7896185907004",
+            external_product_id="scalibor-zeenow",
+            title="Coleira Antiparasitária Scalibor M",
+            brand="MSD",
+            price=84.79,
+        ))
         db.add(_row(
             gtin="7896185957009",
             external_product_id="scalibor-cobasi",
@@ -75,6 +84,42 @@ async def test_finds_offer_by_explicit_equivalent_gtin():
         assert offer is not None
         assert offer.price == 80.9
         assert offer.ean == "7896185957009"
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_reference_identity_fallback_returns_none_when_ambiguous():
+    db = SessionLocal()
+    try:
+        db.add(_row(
+            merchant="zeenow",
+            advertiser_id="127557",
+            gtin="7896185907004",
+            external_product_id="scalibor-zeenow",
+            title="Coleira Antiparasitária Scalibor",
+            brand="MSD",
+            price=84.79,
+        ))
+        db.add(_row(
+            gtin="7896185957009",
+            external_product_id="scalibor-cobasi-m",
+            title="Coleira Antiparasitária Scalibor Cães Pequenos e Médios - 48 cm",
+            brand="Scalibor",
+            price=80.9,
+        ))
+        db.add(_row(
+            gtin="7896185907011",
+            external_product_id="scalibor-cobasi-g",
+            title="Coleira Antiparasitária Scalibor Cães Grandes - 65 cm",
+            brand="Scalibor",
+            price=88.9,
+        ))
+        db.commit()
+
+        provider = AwinFeedProvider(db, "cobasi")
+        offer = await provider.find_offer(ProductContext(gtin="7896185907004"))
+        assert offer is None
     finally:
         db.close()
 
