@@ -31,7 +31,7 @@ libera exposição, ver seção Awin abaixo).
 | Merchant | Rede/programa | Discovery | Monetização real hoje | Feed Awin | Estado |
 |---|---|---|---|---|---|
 | Cobasi | MAIS/UTM (7%, confirmado) + Awin (advertiser 17870, approved, 8,5% nominal) | API pública VTEX (dinâmico) + Awin feed (GTIN exato) | `route=awin` preferida desde 14/08/2026 (decisão de produto, comissão Awin ainda não validada por venda real); `route=mais` é o fallback e **sempre** vence quando há link cadastrado manualmente (`is_manually_cached`), independente de preferência | sim, 8.398 produtos sincronizados | monetização real ligada; exposição ainda depende de `AWIN_ENABLED=true` em produção |
-| Zee Now | Awin (advertiser 127557, pending) | nenhum (provider só existe se `awin_enabled=true` ou GTIN de teste) | nenhuma | sim (~13.746 produtos observados, **nunca sincronizado**) | preparado, aguardando aprovação comercial |
+| Zee Now | Awin (advertiser 127557, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116779, 13.835 produtos observados; 13.605 GTINs válidos diretos, 152 UPC-11 corrigíveis, 78 inválidos e 9 grupos duplicados em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeenow`, exposição depende dos gates Awin |
 | Zee Dog | Awin (advertiser 127555, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116649, 1.799 produtos observados, 100% GTIN válido/único em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeedog`, exposição depende dos gates Awin |
 | Petz | Awin (advertiser 127553, pending) + programa próprio (CNAE em tratamento) | nenhum | nenhuma | não | pending nos dois caminhos, nenhum ligado |
 | Araújo | Awin (advertiser 17919, pending/not_joined) | nenhum | nenhuma | **não** (0 produtos no ShopWindow) | nunca pode virar `AwinFeedProvider` — exigiria outra fonte de discovery |
@@ -474,15 +474,15 @@ merchants (advertisers) dentro dela**, cada um com seu próprio status
 comercial, cookie window e comissão; nunca tratados como "a mesma coisa"
 por estarem na mesma rede.
 
-Situação real das contas em 22/08/2026 — **Cobasi e Zee Dog aprovadas**
+Situação real das contas em 22/08/2026 — **Cobasi, Zee Dog e Zee Now aprovadas**
 (confirmado no painel Awin: Anunciantes → Meus Programas → "Seus
-Anunciantes"); Petz/Zee Now/Araújo seguem `commercial_status=pending`:
+Anunciantes"); Petz/Araújo seguem `commercial_status=pending`:
 
 | Merchant | advertiser_id | feed disponível | fid | comissão | cookie | status comercial |
 |---|---|---|---|---|---|---|
 | Cobasi | 17870 | sim (8.398 produtos, sincronizado) | 48117 | 8,5% | 1 dia | **approved** |
 | Petz | 127553 | não | — | 3% | 14 dias | pending |
-| Zee Now | 127557 | sim (~13.746 observados, nunca sincronizado) | — | 3% | 1 dia | pending |
+| Zee Now | 127557 | sim (13.835 observados, pronto para sync; `in_stock=1`, `stock_status` vazio, `product_type` como categoria) | 116779 | 3% | 1 dia | **approved** |
 | Zee Dog | 127555 | sim (1.799 observados, 100% GTIN válido/único, pronto para sync) | 116649 | 3% | 14 dias | **approved** |
 | Araújo | 17919 | **não** (0 produtos no ShopWindow) | — | 3,1% | 1 dia | pending/not_joined |
 
@@ -630,21 +630,12 @@ sem deploy de código.
   `AWIN_ENABLED=true` em produção (`/opt/petmol/shared/env/api.env`) é o
   que de fato expõe qualquer link Awin a um tutor; até lá, a troca de
   rota acima não tem efeito visível nenhum.
-- **Roteiro de ativação da Zee Now (próxima loja via Product Feed)**:
-  mesmo roteiro da Cobasi a partir da etapa 1 — feed já disponível
-  (~13.746 produtos observados), falta (a) aprovação comercial confirmada
-  no painel Awin, (b) `fid` real do Product Feed (hoje desconhecido,
-  **não inventar**), (c) primeira sync real rodada e validada, (d)
-  `enabled=True` em `AWIN_ADVERTISERS["zeenow"]` só depois de (a)-(c).
-  Não tem rota concorrente (nenhum outro provider monetiza Zee Now hoje),
-  então não há dedupe/preferência a decidir — a Zee Now aparece assim que
-  `publicly_servable` for verdadeiro.
-- Zee Dog está aprovada e configurada com `enabled=True`/fid 116649, mas
-  só deve aparecer depois de sync válido e gates Awin autorizados; a
-  resolução continua exclusivamente por GTIN exato e `aw_deep_link`
-  monetizado. Araújo permanece `enabled=False`, sem sync, sem aprovação e
-  nunca pode virar `AwinFeedProvider`: sem Product Feed, exigiria uma
-  fonte de discovery separada, não implementada.
+- Zee Dog e Zee Now estão aprovadas e configuradas com `enabled=True`
+  (fids 116649 e 116779), mas só devem aparecer depois de sync válido e
+  gates Awin autorizados; a resolução continua exclusivamente por GTIN
+  exato e `aw_deep_link` monetizado. Araújo permanece `enabled=False`, sem
+  sync, sem aprovação e nunca pode virar `AwinFeedProvider`: sem Product
+  Feed, exigiria uma fonte de discovery separada, não implementada.
 - Nenhum scraping, sem Redis/Elasticsearch, sem armazenar imagens (só a
   URL do feed), sem segundo banco/SQLite pra isso.
 
@@ -809,7 +800,7 @@ só tem publisher ID e token de API.
 |---|---|---|---|---|---|---|
 | Cobasi | 17870 | **approved** | sim | 48117 | 8,5% | 1 dia |
 | Petz | 127553 | pending | não | — | 3% | 14 dias |
-| Zee Now | 127557 | pending | sim | — | 3% | 1 dia |
+| Zee Now | 127557 | **approved** | sim | 116779 | 3% | 1 dia |
 | Zee Dog | 127555 | **approved** | sim | 116649 | 3% | 14 dias |
 | Araújo | 17919 | pending/not_joined | **não** | — | 3,1% | 1 dia |
 
@@ -1061,14 +1052,14 @@ só tem publisher ID e token de API.
   segue não confirmada como geradora de comissão real; só uma compra de
   teste completa (painel MAIS "Relatório de Vendas") confirma isso. Não
   bloqueia nada hoje porque a Cobasi já monetiza pelo link cadastrado.
-- **Zee Now — `fid` do Product Feed** — o número de produtos observados
-  (~13.746) vem do ShopWindow da Awin, não de um download de feed real; o
-  `fid` (identificador necessário pra baixar o feed via
-  `awin_feed_sync.py`) ainda não foi obtido pra Zee Now. Zee Dog já tem
-  fid 116649 confirmado em 22/08/2026, com 1.799 produtos observados e
-  100% de GTINs válidos/únicos. Não inventar — só preencher `feed_id` em
-  `AWIN_ADVERTISERS` quando
-  confirmado no painel Awin.
+- **Validação GTIN Awin** — `awin_feed_sync.py` valida GS1 por dígito
+  verificador antes de gravar `gtin`: aceita 8/12/13/14 dígitos válidos,
+  corrige UPC-11 somente com um zero à esquerda quando o GTIN-12 fica
+  válido, e grava `gtin=None` para códigos inválidos. O sync registra
+  contadores agregados de válidos/corrigidos/inválidos/duplicados/
+  ambíguos, sem guardar feed bruto, URL com chave ou códigos inválidos em
+  log. `AwinFeedProvider.find_offer()` também valida o GTIN de entrada e
+  bloqueia grupos ambíguos do mesmo merchant+GTIN.
 - **`awin_oauth_token`/Publisher API** — credencial reservada em
   `config.py`, nunca consumida em código. Só serviria pra validar
   comissão via API de relatórios (alternativa/complemento à compra de

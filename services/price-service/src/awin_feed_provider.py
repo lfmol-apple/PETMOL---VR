@@ -1,7 +1,7 @@
 """
 AwinFeedProvider — implementação de CommerceProvider para merchants
-sincronizados via feed da Awin (Cobasi e Zee Dog aprovadas; Zee Now
-quando aprovada; ver awin_advertisers.py).
+sincronizados via feed da Awin (Cobasi, Zee Dog e Zee Now aprovadas; ver
+awin_advertisers.py).
 
 IMPORTANTE: este provider NUNCA chama a API/feed da Awin diretamente.
 Ele só LÊ o que awin_feed_sync.py já tiver sincronizado em
@@ -35,10 +35,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .affiliate_feed import AffiliateFeedOffer, AffiliateFeedSyncRun
+from .affiliate_offer_identity import has_ambiguous_offer_identity
 from .awin_advertisers import is_awin_merchant_publicly_servable
 from .awin_click_redirect import build_awin_click_redirect_url
 from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
+from .gtin_utils import normalize_gtin_gs1
 from .product_catalog_lookup import normalize_gtin
 
 
@@ -102,8 +104,8 @@ class AwinFeedProvider:
         # caminho principal e mais confiável.
         if not context.gtin:
             return None
-        gtin_normalized = normalize_gtin(context.gtin)
-        if not gtin_normalized:
+        gtin = normalize_gtin_gs1(context.gtin)
+        if not gtin.valid or not gtin.value:
             return None
 
         # 2/3. Considera peso/apresentação implicitamente via weight_kg
@@ -114,7 +116,7 @@ class AwinFeedProvider:
             .where(
                 AffiliateFeedOffer.network == self.network,
                 AffiliateFeedOffer.merchant == self.merchant,
-                AffiliateFeedOffer.gtin == gtin_normalized,
+                AffiliateFeedOffer.gtin == gtin.value,
                 AffiliateFeedOffer.active.is_(True),
                 AffiliateFeedOffer.in_stock.is_(True),
             )
@@ -122,6 +124,8 @@ class AwinFeedProvider:
         )
         rows = list(self._db.scalars(query))
         if not rows:
+            return None
+        if has_ambiguous_offer_identity(rows):
             return None
 
         row = _select_row_by_weight(rows, context.weight_kg)

@@ -14,11 +14,11 @@ from src.config import get_settings
 
 
 def test_no_unapproved_awin_merchant_is_enabled():
-    """§33: não ativar nenhum antes da aprovação real. Cobasi e Zee Dog
-    são exceções aprovadas; enabled=True nelas ainda depende do master gate
-    global para expor algo ao tutor."""
+    """§33: não ativar nenhum antes da aprovação real. Cobasi, Zee Dog e
+    Zee Now são exceções aprovadas; enabled=True nelas ainda depende do
+    master gate global para expor algo ao tutor."""
     for merchant in AWIN_ADVERTISERS:
-        if merchant in {"cobasi", "zeedog"}:
+        if merchant in {"cobasi", "zeedog", "zeenow"}:
             continue
         assert is_awin_merchant_enabled(merchant) is False, f"{merchant} não deveria estar enabled"
 
@@ -85,6 +85,15 @@ def test_zeedog_approved_with_feed_id():
     assert zeedog.enabled is True
     assert "1.799 produtos" in zeedog.notes
     assert "100% de GTINs" in zeedog.notes
+
+
+def test_zeenow_approved_with_feed_id():
+    zeenow = get_awin_advertiser("zeenow")
+    assert zeenow.commercial_status == "approved"
+    assert zeenow.feed_id == "116779"
+    assert zeenow.enabled is True
+    assert "13.835 produtos" in zeenow.notes
+    assert "152 UPC-11" in zeenow.notes
 
 
 def test_merchants_without_feed_have_no_feed_id():

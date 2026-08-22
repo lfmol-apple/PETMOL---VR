@@ -120,7 +120,7 @@ const AFF: Record<HomeShoppingPartnerId, string | undefined> = {
   mercadolivre: process.env.NEXT_PUBLIC_AFFILIATE_ML,
   doglife:      process.env.NEXT_PUBLIC_AFFILIATE_DOGLIFE,
   araujo:       process.env.NEXT_PUBLIC_AFFILIATE_ARAUJO,
-  zeenow:       undefined, // Awin (advertiser 127557, pending) — sem link genérico Lomadee-style
+  zeenow:       undefined, // Awin (advertiser 127557, approved) — sem link genérico Lomadee-style
   zeedog:       undefined, // Awin (advertiser 127555, approved) — sem link genérico Lomadee-style
 };
 
@@ -311,13 +311,10 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/zeenow.png',
     logoAlt: 'Zee Now',
     fallbackUrl: 'https://www.zeenow.com.br',
-    // Awin advertiser 127557 — feed_available=True (~13.746 produtos
-    // observados no ShopWindow Awin), commercial_status 'pending' — assim
-    // que aprovada e sincronizada (mesmo caminho da Cobasi hoje, ver
-    // awin_feed_sync.py), passa a aparecer automaticamente na busca de
-    // GET /commerce/awin-search sem precisar mudar nada aqui. Até lá, só
-    // link de busca genérico (sem comissão).
-    affiliateStatus: 'pending',
+    // Awin advertiser 127557 — approved, feed 116779 com 13.835 produtos.
+    // Não virar 'active' aqui: Zee Now deve aparecer pelo fluxo exato de
+    // GTIN do CommerceEngine, não por link genérico de busca.
+    affiliateStatus: 'approved',
     merchantType: 'retailer',
     affiliateMode: 'none',
     supportsProductDeepLink: false,

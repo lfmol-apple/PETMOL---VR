@@ -33,6 +33,7 @@ import csv
 import gzip
 import io
 import logging
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -44,9 +45,10 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from .affiliate_feed import AffiliateFeedOffer, AffiliateFeedSyncRun
+from .affiliate_offer_identity import has_ambiguous_offer_identity
 from .awin_advertisers import AwinAdvertiser, get_awin_advertiser
 from .config import get_settings
-from .product_catalog_lookup import normalize_gtin
+from .gtin_utils import normalize_gtin_gs1
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +89,11 @@ class AwinFeedSyncResult:
     rows_seen: int
     rows_upserted: int
     rows_deactivated: int
+    rows_gtin_valid: int = 0
+    rows_gtin_corrected: int = 0
+    rows_gtin_invalid: int = 0
+    duplicate_gtin_groups: int = 0
+    ambiguous_gtin_groups: int = 0
     run_id: Optional[int] = None
 
 
@@ -168,18 +175,18 @@ def _first_nonempty(*values: Optional[str]) -> Optional[str]:
     return None
 
 
-def _row_to_offer_fields(row: dict, merchant: str, advertiser_id: str, synced_at: datetime) -> Optional[dict]:
+def _row_to_offer_fields(row: dict, merchant: str, advertiser_id: str, synced_at: datetime) -> Optional[tuple[dict, str]]:
     external_id = (row.get("aw_product_id") or "").strip()
     if not external_id:
         return None
-    gtin = normalize_gtin(row.get("product_GTIN") or "") or None
-    return dict(
+    gtin = normalize_gtin_gs1(row.get("product_GTIN") or "")
+    fields = dict(
         network="awin",
         merchant=merchant,
         advertiser_id=advertiser_id,
         external_product_id=external_id,
         sku=(row.get("merchant_product_id") or "").strip() or None,
-        gtin=gtin,
+        gtin=gtin.value,
         title=(row.get("product_name") or "").strip() or None,
         brand=(row.get("brand_name") or "").strip() or None,
         category=_first_nonempty(row.get("category_name"), row.get("product_type"), row.get("merchant_category")),
@@ -192,6 +199,8 @@ def _row_to_offer_fields(row: dict, merchant: str, advertiser_id: str, synced_at
         last_synced_at=synced_at,
         active=True,
     )
+    gtin_status = "corrected" if gtin.corrected else "valid" if gtin.valid else "invalid"
+    return fields, gtin_status
 
 
 def _upsert_batch(db: Session, batch: list[dict]) -> None:
@@ -288,19 +297,28 @@ def sync_awin_feed(db: Session, merchant: str, *, datafeed_key: Optional[str] = 
     rows_with_gtin = 0
     rows_with_affiliate_url = 0
     rows_in_stock = 0
+    rows_gtin_corrected = 0
+    rows_gtin_invalid = 0
+    gtin_groups: dict[str, list[dict]] = defaultdict(list)
     batch: list[dict] = []
 
     try:
         reader = csv.DictReader(io.StringIO(csv_text))
         for row in reader:
             rows_seen += 1
-            fields = _row_to_offer_fields(row, merchant, advertiser.advertiser_id, synced_at)
-            if fields is None:
+            parsed = _row_to_offer_fields(row, merchant, advertiser.advertiser_id, synced_at)
+            if parsed is None:
                 continue
+            fields, gtin_status = parsed
             batch.append(fields)
             rows_upserted += 1
             if fields.get("gtin"):
                 rows_with_gtin += 1
+                gtin_groups[fields["gtin"]].append(fields)
+            if gtin_status == "corrected":
+                rows_gtin_corrected += 1
+            elif gtin_status == "invalid":
+                rows_gtin_invalid += 1
             if fields.get("affiliate_url"):
                 rows_with_affiliate_url += 1
             if fields.get("in_stock"):
@@ -336,6 +354,12 @@ def sync_awin_feed(db: Session, merchant: str, *, datafeed_key: Optional[str] = 
             f"catálogo anterior preservado (run_id={run.id})"
         )
 
+    duplicate_gtin_groups = sum(1 for rows in gtin_groups.values() if len(rows) > 1)
+    ambiguous_gtin_groups = sum(
+        1 for rows in gtin_groups.values()
+        if len(rows) > 1 and has_ambiguous_offer_identity([_DictOfferIdentity(row) for row in rows])
+    )
+
     # Produtos que saíram do feed entre uma sincronização e outra: marca
     # inativo em vez de apagar (histórico preservado; find_offer já filtra
     # active=True). Qualquer linha não tocada nesta rodada (last_synced_at
@@ -362,6 +386,10 @@ def sync_awin_feed(db: Session, merchant: str, *, datafeed_key: Optional[str] = 
     run.rows_with_gtin = rows_with_gtin
     run.rows_with_affiliate_url = rows_with_affiliate_url
     run.rows_in_stock = rows_in_stock
+    run.rows_gtin_corrected = rows_gtin_corrected
+    run.rows_gtin_invalid = rows_gtin_invalid
+    run.duplicate_gtin_groups = duplicate_gtin_groups
+    run.ambiguous_gtin_groups = ambiguous_gtin_groups
     db.commit()
 
     logger.info(
@@ -373,5 +401,27 @@ def sync_awin_feed(db: Session, merchant: str, *, datafeed_key: Optional[str] = 
         rows_seen=rows_seen,
         rows_upserted=rows_upserted,
         rows_deactivated=rows_deactivated,
+        rows_gtin_valid=rows_with_gtin,
+        rows_gtin_corrected=rows_gtin_corrected,
+        rows_gtin_invalid=rows_gtin_invalid,
+        duplicate_gtin_groups=duplicate_gtin_groups,
+        ambiguous_gtin_groups=ambiguous_gtin_groups,
         run_id=run.id,
     )
+
+
+@dataclass(frozen=True)
+class _DictOfferIdentity:
+    row: dict
+
+    @property
+    def title(self) -> Optional[str]:
+        return self.row.get("title")
+
+    @property
+    def brand(self) -> Optional[str]:
+        return self.row.get("brand")
+
+    @property
+    def category(self) -> Optional[str]:
+        return self.row.get("category")

@@ -6,6 +6,7 @@ AffiliateFeedOffer. Ver src/awin_feed_sync.py.
 Uso:
     python3 scripts/sync_awin_feed.py cobasi
     python3 scripts/sync_awin_feed.py zeedog
+    python3 scripts/sync_awin_feed.py zeenow
 
 Requer AWIN_DATAFEED_KEY configurada (env var ou .env) — nunca commitar um
 valor real. enabled=False em awin_advertisers.py não impede o sync rodar
@@ -34,7 +35,10 @@ def main() -> int:
 
     print(
         f"[{result.merchant}] {result.rows_seen} linhas no feed, "
-        f"{result.rows_upserted} upserted, {result.rows_deactivated} desativados"
+        f"{result.rows_upserted} upserted, {result.rows_deactivated} desativados, "
+        f"{result.rows_gtin_valid} GTINs válidos, {result.rows_gtin_corrected} corrigidos, "
+        f"{result.rows_gtin_invalid} inválidos, {result.duplicate_gtin_groups} grupos duplicados, "
+        f"{result.ambiguous_gtin_groups} grupos ambíguos"
     )
     return 0
 

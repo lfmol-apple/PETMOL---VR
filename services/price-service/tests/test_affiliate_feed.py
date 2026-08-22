@@ -16,7 +16,7 @@ def _offer(**overrides) -> AffiliateFeedOffer:
         merchant="cobasi",
         advertiser_id="17870",
         external_product_id="12345",
-        gtin="7891234567890",
+        gtin="7891234567895",
         title="Produto Teste",
         price=100.0,
         active=True,
@@ -34,7 +34,7 @@ def test_same_gtin_allowed_across_different_merchants():
         db.add(_offer(merchant="zeenow", advertiser_id="127557", external_product_id="2"))
         db.commit()
 
-        rows = db.query(AffiliateFeedOffer).filter_by(gtin="7891234567890").all()
+        rows = db.query(AffiliateFeedOffer).filter_by(gtin="7891234567895").all()
         assert len(rows) == 2
         assert {r.merchant for r in rows} == {"cobasi", "zeenow"}
     finally:

@@ -18,7 +18,7 @@ type BarcodeLookupState = 'idle' | 'loading' | 'done' | 'not_found' | 'error';
 // catálogo já sincronizado da Awin e comprar direto. GTIN é o que falta pro
 // app conseguir exercitar AwinFeedProvider (busca textual normal nunca
 // envia GTIN — ver docs/AFFILIATES.md). Multi-loja por natureza — não é
-// específico da Cobasi: quando Petz/Zee Now/Zee Dog forem aprovadas e
+// específico da Cobasi: quando Petz for aprovada e as lojas Awin forem
 // sincronizadas, aparecem aqui sem mudar este componente (offer_count > 1
 // já monta o grid de preços).
 //

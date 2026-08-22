@@ -147,9 +147,9 @@ def test_search_explicit_merchant_filter(client, monkeypatch):
     try:
         r = client.get("/commerce/awin-search", params={"q": "golden", "merchant": "cobasi"})
         assert len(r.json()["results"]) == 1
-        # zeenow é pending (enabled=False) no estado real — merchant=zeenow
-        # não pode contornar isso, mesmo com awin_enabled=True.
-        r2 = client.get("/commerce/awin-search", params={"q": "golden", "merchant": "zeenow"})
+        # petz não tem feed/approval — merchant explícito não pode
+        # contornar isso, mesmo com awin_enabled=True.
+        r2 = client.get("/commerce/awin-search", params={"q": "golden", "merchant": "petz"})
         assert r2.json()["results"] == []
     finally:
         _cleanup()
@@ -177,12 +177,11 @@ def test_search_groups_same_gtin_across_merchants_keeping_cheapest(client, monke
 
 
 def test_search_disabled_merchant_never_included_by_default(client, monkeypatch):
-    """Sem merchant explícito, só busca em merchants habilitados — Zee Now
-    aprovada mas ainda não enabled=True não deve aparecer, mesmo com o
-    master gate ligado."""
+    """Sem merchant explícito, só busca em merchants habilitados e com feed
+    disponível — Petz não deve aparecer, mesmo com o master gate ligado."""
     _enable_awin(monkeypatch)
     _cleanup()
-    _add_offer(external_product_id="1", merchant="zeenow", advertiser_id="127557", gtin="7891234500001", title="Racao Golden Adulto 15kg")
+    _add_offer(external_product_id="1", merchant="petz", advertiser_id="127553", gtin="7891234500001", title="Racao Golden Adulto 15kg")
     try:
         r = client.get("/commerce/awin-search", params={"q": "golden"})
         assert r.json()["results"] == []

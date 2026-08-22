@@ -40,7 +40,7 @@ def test_metrics_endpoint_lists_all_configured_merchants_even_empty(client, _adm
 def _add_offer(**overrides) -> None:
     defaults = dict(
         network="awin", merchant="cobasi", advertiser_id="17870",
-        external_product_id="1", gtin="7891234567890", title="Produto Teste",
+        external_product_id="1", gtin="7891234567895", title="Produto Teste",
         price=100.0, in_stock=True, active=True,
         affiliate_url="https://www.awin1.com/pclick.php?p=1",
         merchant_url="https://www.cobasi.com.br/produto-teste/p",
@@ -58,7 +58,7 @@ def test_coverage_rates_computed_correctly():
     """3 ofertas ativas da Cobasi: 2 com gtin, 2 com affiliate_url, 1 em
     estoque — as taxas precisam refletir exatamente isso, não um
     arredondamento errado nem contar linhas inativas."""
-    _add_offer(external_product_id="1", gtin="7891234567890", affiliate_url="https://www.awin1.com/x", in_stock=True)
+    _add_offer(external_product_id="1", gtin="7891234567895", affiliate_url="https://www.awin1.com/x", in_stock=True)
     _add_offer(external_product_id="2", gtin="7899999999999", affiliate_url="https://www.awin1.com/y", in_stock=False)
     _add_offer(external_product_id="3", gtin=None, affiliate_url=None, in_stock=False)
     _add_offer(external_product_id="4", gtin="7891111111111", active=False)  # inativa, não deve contar
