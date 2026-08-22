@@ -11,7 +11,13 @@ from src.affiliate_links import MarketplaceOffer
 from src.db import SessionLocal
 from src.product_catalog_lookup import ProductCatalog
 import src.shopee_offer_sync as sync_module
-from src.shopee_offer_sync import _build_keyword, iter_awin_feed_products, sync_shopee_offer_for_gtin, sync_shopee_offer_from_feed_row
+from src.shopee_offer_sync import (
+    _build_keyword,
+    iter_awin_feed_products,
+    iter_unified_awin_feed_products,
+    sync_shopee_offer_for_gtin,
+    sync_shopee_offer_from_feed_row,
+)
 
 GTIN = "7891234500000"
 
@@ -216,7 +222,7 @@ def _register_awin_feed_offer(gtin: str = AWIN_GTIN, title: str = "Ração Soma 
     db = SessionLocal()
     db.add(AffiliateFeedOffer(
         network="awin", merchant="cobasi", advertiser_id="123", external_product_id="ext-1",
-        gtin=gtin, title=title, brand=brand, active=True,
+        gtin=gtin, title=title, brand=brand, active=True, in_stock=True,
     ))
     db.commit()
     db.close()
@@ -227,11 +233,11 @@ def test_iter_awin_feed_products_so_traz_ativos_com_gtin_e_titulo():
     db = SessionLocal()
     inactive = AffiliateFeedOffer(
         network="awin", merchant="cobasi", advertiser_id="123", external_product_id="ext-2",
-        gtin="7899999900002", title="Produto Inativo", brand="X", active=False,
+        gtin="7899999900002", title="Produto Inativo", brand="X", active=False, in_stock=True,
     )
     no_gtin = AffiliateFeedOffer(
         network="awin", merchant="cobasi", advertiser_id="123", external_product_id="ext-3",
-        gtin=None, title="Produto Sem Gtin", brand="X", active=True,
+        gtin=None, title="Produto Sem Gtin", brand="X", active=True, in_stock=True,
     )
     db.add_all([inactive, no_gtin])
     db.commit()
@@ -243,6 +249,63 @@ def test_iter_awin_feed_products_so_traz_ativos_com_gtin_e_titulo():
     assert AWIN_GTIN in gtins
     assert "7899999900002" not in gtins
     assert "7899999900003" not in gtins
+
+
+def test_iter_unified_awin_feed_products_deduplica_merchants_e_escolhe_melhor_referencia():
+    db = SessionLocal()
+    db.add_all([
+        AffiliateFeedOffer(
+            network="awin", merchant="zeenow", advertiser_id="127557", external_product_id="zn-1",
+            gtin=AWIN_GTIN, title="Soma Nutrição Adulto", brand="Soma", active=True, in_stock=True,
+        ),
+        AffiliateFeedOffer(
+            network="awin", merchant="cobasi", advertiser_id="17870", external_product_id="cb-1",
+            gtin=AWIN_GTIN, title="Ração Soma Nutrição Carne Adulto Cão 15kg", brand="Soma", active=True, in_stock=True,
+        ),
+        AffiliateFeedOffer(
+            network="awin", merchant="zeedog", advertiser_id="127555", external_product_id="zd-1",
+            gtin="7899999900004", title="Coleira Zee Dog Prisma M", brand="Zee Dog", active=True, in_stock=True,
+        ),
+    ])
+    db.commit()
+
+    items = iter_unified_awin_feed_products(db)
+    db.close()
+
+    by_gtin = {gtin: (title, brand) for gtin, title, brand in items}
+    assert by_gtin[AWIN_GTIN] == ("Ração Soma Nutrição Carne Adulto Cão 15kg", "Soma")
+    assert by_gtin["7899999900004"] == ("Coleira Zee Dog Prisma M", "Zee Dog")
+    assert list(gtin for gtin, _title, _brand in items).count(AWIN_GTIN) == 1
+
+
+def test_iter_unified_awin_feed_products_pula_gtin_com_shopee_ativa():
+    db = SessionLocal()
+    product = ProductCatalog(
+        barcode=AWIN_GTIN,
+        barcode_normalized=AWIN_GTIN,
+        name="Ração Soma Nutrição Carne Adulto Cão 15kg",
+        brand="Soma",
+    )
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+    db.add_all([
+        AffiliateFeedOffer(
+            network="awin", merchant="cobasi", advertiser_id="17870", external_product_id="cb-1",
+            gtin=AWIN_GTIN, title="Ração Soma Nutrição Carne Adulto Cão 15kg", brand="Soma", active=True, in_stock=True,
+        ),
+        MarketplaceOffer(
+            product_id=product.id, merchant="shopee", external_listing_id="shopee-1",
+            affiliate_url="https://s.shopee.com.br/8AVT6ssHHP", price=75.9,
+            active=True, is_available=True,
+        ),
+    ])
+    db.commit()
+
+    items = iter_unified_awin_feed_products(db)
+    db.close()
+
+    assert AWIN_GTIN not in {gtin for gtin, _title, _brand in items}
 
 
 def test_sync_from_feed_row_cria_products_catalog_quando_nao_existe(monkeypatch):

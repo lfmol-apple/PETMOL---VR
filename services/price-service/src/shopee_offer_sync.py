@@ -335,7 +335,49 @@ def sync_shopee_offer_from_feed_row(
     )
 
 
-def iter_awin_feed_products(db: Session, merchant: str = "cobasi") -> list[tuple[str, str, Optional[str]]]:
+_DEFAULT_AWIN_SHOPEE_SOURCE_MERCHANTS = ("cobasi", "zeenow", "zeedog")
+
+
+def _has_active_shopee_offer_for_gtin(db: Session, gtin: str) -> bool:
+    gtin_normalized = normalize_gtin(gtin)
+    if not gtin_normalized:
+        return False
+    product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
+    if not product:
+        return False
+    offer = db.scalar(
+        select(MarketplaceOffer.id)
+        .where(
+            MarketplaceOffer.product_id == product.id,
+            MarketplaceOffer.merchant == "shopee",
+            MarketplaceOffer.active.is_(True),
+            MarketplaceOffer.is_available.is_(True),
+            MarketplaceOffer.affiliate_url.isnot(None),
+        )
+        .limit(1)
+    )
+    return offer is not None
+
+
+def _feed_row_quality(title: str, brand: Optional[str], merchant: str) -> tuple[int, int, int, int]:
+    merchant_priority = {"cobasi": 3, "zeenow": 2, "zeedog": 1}.get(merchant, 0)
+    has_measure = 1 if extract_weight_kg(title) is not None or extract_volume_ml(title) is not None else 0
+    has_brand = 1 if brand and _normalize_token(brand) in _normalize_token(title) else 0
+    length_score = min(len(title.strip()), 160)
+    return has_measure, has_brand, merchant_priority, length_score
+
+
+def _best_feed_row(rows) -> tuple[str, str, Optional[str]]:
+    best = max(rows, key=lambda row: _feed_row_quality(row.title or "", row.brand, row.merchant))
+    return best.gtin, best.title, best.brand
+
+
+def iter_awin_feed_products(
+    db: Session,
+    merchant: str = "cobasi",
+    *,
+    skip_existing_shopee: bool = False,
+) -> list[tuple[str, str, Optional[str]]]:
     """(gtin, title, brand) de todo produto ativo e com GTIN do feed Awin
     pro merchant dado — fonte alternativa de GTINs pro sync em massa
     (ver admin/shopee_sync_router.py, source="awin_feed"), muito mais
@@ -346,10 +388,51 @@ def iter_awin_feed_products(db: Session, merchant: str = "cobasi") -> list[tuple
     rows = db.query(AffiliateFeedOffer.gtin, AffiliateFeedOffer.title, AffiliateFeedOffer.brand).filter(
         AffiliateFeedOffer.merchant == merchant,
         AffiliateFeedOffer.active.is_(True),
+        AffiliateFeedOffer.in_stock.is_(True),
         AffiliateFeedOffer.gtin.isnot(None),
         AffiliateFeedOffer.title.isnot(None),
     ).all()
-    return [(r[0], r[1], r[2]) for r in rows]
+    items = [(r[0], r[1], r[2]) for r in rows]
+    if skip_existing_shopee:
+        items = [item for item in items if not _has_active_shopee_offer_for_gtin(db, item[0])]
+    return items
+
+
+def iter_unified_awin_feed_products(
+    db: Session,
+    merchants: tuple[str, ...] = _DEFAULT_AWIN_SHOPEE_SOURCE_MERCHANTS,
+    *,
+    skip_existing_shopee: bool = True,
+) -> list[tuple[str, str, Optional[str]]]:
+    """Catálogo Awin unificado para ampliar o sync da Shopee.
+
+    Agrupa Cobasi/Zee Now/Zee Dog por GTIN, escolhe uma referência textual
+    mais forte para a busca e, por padrão, pula GTINs que já possuem oferta
+    Shopee ativa. Isso torna o job incremental e aproveita o trabalho já
+    feito em MarketplaceOffer.
+    """
+    from .affiliate_feed import AffiliateFeedOffer
+
+    rows = db.scalars(
+        select(AffiliateFeedOffer).where(
+            AffiliateFeedOffer.merchant.in_(merchants),
+            AffiliateFeedOffer.active.is_(True),
+            AffiliateFeedOffer.in_stock.is_(True),
+            AffiliateFeedOffer.gtin.isnot(None),
+            AffiliateFeedOffer.title.isnot(None),
+        )
+    ).all()
+
+    grouped: dict[str, list[AffiliateFeedOffer]] = {}
+    for row in rows:
+        gtin = normalize_gtin(row.gtin)
+        if not gtin:
+            continue
+        if skip_existing_shopee and _has_active_shopee_offer_for_gtin(db, gtin):
+            continue
+        grouped.setdefault(gtin, []).append(row)
+
+    return [_best_feed_row(group) for _gtin, group in sorted(grouped.items())]
 
 
 def sync_shopee_offers_for_gtins(

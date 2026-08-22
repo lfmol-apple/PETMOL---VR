@@ -30,7 +30,12 @@ from pydantic import BaseModel
 from ..config import get_settings
 from ..db import SessionLocal
 from ..product_catalog_lookup import ProductCatalog
-from ..shopee_offer_sync import iter_awin_feed_products, sync_shopee_offer_for_gtin, sync_shopee_offer_from_feed_row
+from ..shopee_offer_sync import (
+    iter_awin_feed_products,
+    iter_unified_awin_feed_products,
+    sync_shopee_offer_for_gtin,
+    sync_shopee_offer_from_feed_row,
+)
 from .shopee_sync_state import STATE
 
 logger = logging.getLogger(__name__)
@@ -38,6 +43,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/admin/shopee-sync", tags=["Admin Shopee Sync"])
 
 DEFAULT_CATEGORIES = ["food", "antiparasite", "medication", "hygiene", "dewormer", "collar"]
+ALLOWED_SOURCES = {"categories", "awin_feed", "awin_feed_all"}
 
 
 class RunRequest(BaseModel):
@@ -47,8 +53,12 @@ class RunRequest(BaseModel):
     # "awin_feed": catálogo real do feed Awin/Cobasi (milhares de produtos,
     #   independente do que qualquer tutor específico já cadastrou —
     #   cria a entrada em products_catalog quando ainda não existir).
+    # "awin_feed_all": catálogo unificado Cobasi + Zee Now + Zee Dog,
+    #   deduplicado por GTIN e incremental por padrão.
     source: str = "categories"
     feed_merchant: str = "cobasi"
+    feed_merchants: Optional[list[str]] = None
+    skip_existing_shopee: bool = True
 
 
 def _require_token(x_sync_token: Optional[str]) -> None:
@@ -59,11 +69,27 @@ def _require_token(x_sync_token: Optional[str]) -> None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
 
 
-def _run_sync(categories: list[str], source: str = "categories", feed_merchant: str = "cobasi") -> None:
+def _run_sync(
+    categories: list[str],
+    source: str = "categories",
+    feed_merchant: str = "cobasi",
+    feed_merchants: Optional[list[str]] = None,
+    skip_existing_shopee: bool = True,
+) -> None:
     db = SessionLocal()
     try:
-        if source == "awin_feed":
-            items: list[tuple[str, Optional[str], Optional[str]]] = iter_awin_feed_products(db, merchant=feed_merchant)
+        if source == "awin_feed_all":
+            items: list[tuple[str, Optional[str], Optional[str]]] = iter_unified_awin_feed_products(
+                db,
+                merchants=tuple(feed_merchants or ["cobasi", "zeenow", "zeedog"]),
+                skip_existing_shopee=skip_existing_shopee,
+            )
+        elif source == "awin_feed":
+            items = iter_awin_feed_products(
+                db,
+                merchant=feed_merchant,
+                skip_existing_shopee=skip_existing_shopee,
+            )
         else:
             rows = db.query(ProductCatalog.barcode_normalized).filter(
                 ProductCatalog.category.in_(categories),
@@ -108,6 +134,8 @@ def _run_sync(categories: list[str], source: str = "categories", feed_merchant: 
 @router.post("/run")
 def run_sync(payload: RunRequest, x_sync_token: Optional[str] = Header(default=None, alias="X-Sync-Token")):
     _require_token(x_sync_token)
+    if payload.source not in ALLOWED_SOURCES:
+        raise HTTPException(status_code=400, detail=f"source inválido: {payload.source}")
     with STATE.lock:
         if STATE.running:
             return {"started": False, "reason": "already_running"}
@@ -116,10 +144,19 @@ def run_sync(payload: RunRequest, x_sync_token: Optional[str] = Header(default=N
 
     categories = payload.categories or DEFAULT_CATEGORIES
     thread = threading.Thread(
-        target=_run_sync, args=(categories, payload.source, payload.feed_merchant), daemon=True
+        target=_run_sync,
+        args=(categories, payload.source, payload.feed_merchant, payload.feed_merchants, payload.skip_existing_shopee),
+        daemon=True,
     )
     thread.start()
-    return {"started": True, "categories": categories, "source": payload.source, "feed_merchant": payload.feed_merchant}
+    return {
+        "started": True,
+        "categories": categories,
+        "source": payload.source,
+        "feed_merchant": payload.feed_merchant,
+        "feed_merchants": payload.feed_merchants,
+        "skip_existing_shopee": payload.skip_existing_shopee,
+    }
 
 
 @router.get("/status")
