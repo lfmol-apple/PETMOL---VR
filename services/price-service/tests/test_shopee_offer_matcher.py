@@ -4,7 +4,13 @@ uma oferta Shopee errada no grid de preços (busca por palavra-chave, sem
 GTIN exato). Marca e peso divergentes têm que desqualificar SEMPRE, não
 importa quão parecido o nome pareça.
 """
-from src.shopee_offer_matcher import extract_volume_ml, extract_weight_kg, find_best_match, score_candidate
+from src.shopee_offer_matcher import (
+    extract_pack_count,
+    extract_volume_ml,
+    extract_weight_kg,
+    find_best_match,
+    score_candidate,
+)
 
 # Nós reais, capturados de uma busca de verdade contra a API Shopee em
 # 21/08/2026 (keyword="racao para cachorro") — usados como fixture porque
@@ -88,6 +94,19 @@ class TestExtractVolumeMl:
         assert extract_volume_ml("Shampoo Hydra Pelos Claros Pet Society") is None
 
 
+class TestExtractPackCount:
+    def test_extrai_comprimidos_e_tabletes(self):
+        assert extract_pack_count("Nexgard para cães 3 comprimidos") == 3
+        assert extract_pack_count("Nexgard 1 Tablete") == 1
+
+    def test_extrai_pipetas(self):
+        assert extract_pack_count("Advantage Max3 1 pipeta") == 1
+        assert extract_pack_count("Advantage Max3 3 Pipetas") == 3
+
+    def test_sem_quantidade_explicita_retorna_none(self):
+        assert extract_pack_count("Frontline Spray para Cães e Gatos 250ml") is None
+
+
 class TestScoreCandidate:
     def test_marca_diferente_desqualifica_mesmo_com_nome_parecido(self):
         score = score_candidate(
@@ -144,6 +163,32 @@ class TestScoreCandidate:
             "Ração Soma Nutrição 14.9kg Carne Adulto Cão",
             expected_brand="Soma",
             expected_weight_kg=15.0,
+        )
+        assert score is not None
+
+    def test_quantidade_de_comprimidos_diferente_desqualifica(self):
+        score = score_candidate(
+            "Antipulgas e Carrapatos Nexgard para Cães de 2kg a 4kg 3 comprimidos",
+            "Nexgard de 2kg a 50kg 1 Tablete Antipulgas e Carrapatos Para Cachorro",
+            expected_brand="NexGard",
+            expected_weight_kg=2.0,
+        )
+        assert score is None
+
+    def test_quantidade_de_pipetas_diferente_desqualifica(self):
+        score = score_candidate(
+            "Antipulgas e Carrapatos Advantage Max3 0,4ml para Cães até 4kg 1 pipeta",
+            "Antipulgas Combo Advantage Max3 para Cães entre 3 até 4Kg 0,4mL - 3 Pipetas",
+            expected_volume_ml=0.4,
+        )
+        assert score is None
+
+    def test_quantidade_equivalente_comprimido_tablete_pode_casar(self):
+        score = score_candidate(
+            "Nexgard para Cães de 10,1kg a 25kg 1 comprimido",
+            "Nexgard 10,1kg a 25kg com 1 Tablete Antipulgas e Carrapatos",
+            expected_brand="NexGard",
+            expected_weight_kg=10.1,
         )
         assert score is not None
 
