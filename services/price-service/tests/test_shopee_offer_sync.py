@@ -278,6 +278,39 @@ def test_iter_unified_awin_feed_products_deduplica_merchants_e_escolhe_melhor_re
     assert list(gtin for gtin, _title, _brand in items).count(AWIN_GTIN) == 1
 
 
+def test_iter_unified_awin_feed_products_prioriza_itens_comerciais_petmol():
+    db = SessionLocal()
+    db.add_all([
+        AffiliateFeedOffer(
+            network="awin", merchant="zeenow", advertiser_id="127557", external_product_id="zn-aquario",
+            gtin="000116007405", title="Condicionador para Aquário Acid Regulator Seachem - 50 g",
+            brand="Seachem", active=True, in_stock=True,
+        ),
+        AffiliateFeedOffer(
+            network="awin", merchant="zeedog", advertiser_id="127555", external_product_id="zd-brinquedo",
+            gtin="0035585034003", title="Brinquedo Dispenser para Ração ou Petisco Kong Wobbler Vermelho",
+            brand="Kong", active=True, in_stock=True,
+        ),
+        AffiliateFeedOffer(
+            network="awin", merchant="cobasi", advertiser_id="17870", external_product_id="cb-racao",
+            gtin="7891234500094", title="Ração Soma Nutrição Carne Adulto Cão 15kg",
+            brand="Soma", active=True, in_stock=True,
+        ),
+        AffiliateFeedOffer(
+            network="awin", merchant="zeenow", advertiser_id="127557", external_product_id="zn-scalibor",
+            gtin="7891234500100", title="SCALIBOR Coleira Antiparasitária para Cães",
+            brand="Scalibor", active=True, in_stock=True,
+        ),
+    ])
+    db.commit()
+
+    items = iter_unified_awin_feed_products(db)
+    db.close()
+
+    gtins = [gtin for gtin, _title, _brand in items[:2]]
+    assert gtins == ["7891234500100", "7891234500094"]
+
+
 def test_iter_unified_awin_feed_products_pula_gtin_com_shopee_ativa():
     db = SessionLocal()
     product = ProductCatalog(

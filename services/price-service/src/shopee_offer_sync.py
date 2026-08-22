@@ -372,6 +372,31 @@ def _best_feed_row(rows) -> tuple[str, str, Optional[str]]:
     return best.gtin, best.title, best.brand
 
 
+_SHOPEE_SYNC_PRIORITY_TERMS = (
+    "racao", "ração", "alimento", "coleira", "scalibor", "seresto",
+    "vermifugo", "vermífugo", "antipulgas", "carrapato", "nexgard",
+    "bravecto", "simparic", "frontline", "drontal", "tapete higienico",
+    "tapete higiênico", "areia", "petisco", "shampoo", "medicamento",
+)
+
+
+def _feed_item_sync_priority(item: tuple[str, str, Optional[str]]) -> tuple[int, int, int, str]:
+    """Ordena a fila para buscar primeiro itens com maior chance comercial.
+
+    A fila unificada é deduplicada por GTIN e pode começar por UPCs
+    importados (aquarismo/brinquedos), que têm baixa chance na Shopee BR e
+    já geraram `System Error` da API. A ordem não muda a segurança do
+    casamento; só evita gastar as primeiras horas do job em itens pouco
+    prováveis enquanto ração/saúde/higiene ficam no fim.
+    """
+    gtin, title, brand = item
+    text = f"{title or ''} {brand or ''}".lower()
+    commercial_score = sum(1 for term in _SHOPEE_SYNC_PRIORITY_TERMS if term in text)
+    brazilian_gtin = 1 if (gtin or "").startswith("789") else 0
+    has_measure = 1 if extract_weight_kg(title or "") is not None or extract_volume_ml(title or "") is not None else 0
+    return -brazilian_gtin, -commercial_score, -has_measure, gtin or ""
+
+
 def iter_awin_feed_products(
     db: Session,
     merchant: str = "cobasi",
@@ -432,7 +457,23 @@ def iter_unified_awin_feed_products(
             continue
         grouped.setdefault(gtin, []).append(row)
 
-    return [_best_feed_row(group) for _gtin, group in sorted(grouped.items())]
+    items = [_best_feed_row(group) for _gtin, group in grouped.items()]
+    return sorted(items, key=_feed_item_sync_priority)
+
+
+def iter_unified_awin_feed_products_by_gtin(
+    db: Session,
+    merchants: tuple[str, ...] = _DEFAULT_AWIN_SHOPEE_SOURCE_MERCHANTS,
+    *,
+    skip_existing_shopee: bool = True,
+) -> list[tuple[str, str, Optional[str]]]:
+    """Ordem antiga por GTIN, mantida só para auditoria/testes comparativos."""
+    items = iter_unified_awin_feed_products(
+        db,
+        merchants=merchants,
+        skip_existing_shopee=skip_existing_shopee,
+    )
+    return sorted(items, key=lambda item: item[0] or "")
 
 
 def sync_shopee_offers_for_gtins(
