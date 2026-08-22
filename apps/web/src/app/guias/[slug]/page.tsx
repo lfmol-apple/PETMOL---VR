@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { GUIDES, getGuideBySlug } from '@/features/content/guides';
-import { STRATEGIC_PRODUCTS, STRATEGIC_PRODUCT_CATEGORIES } from '@/features/commerce/strategicProducts';
-import { StrategicProductGrid } from '@/features/commerce/StrategicProductGrid';
+import { STRATEGIC_PRODUCT_CATEGORIES } from '@/features/commerce/strategicProducts';
+import { PUBLIC_GUIDE_DETAIL_PAGE_ENABLED } from '../../publicCommercePages';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
@@ -41,11 +41,12 @@ function formatDate(iso: string): string {
 }
 
 export default async function GuidePage({ params }: GuidePageProps) {
+  if (!PUBLIC_GUIDE_DETAIL_PAGE_ENABLED) notFound();
+
   const { slug } = await params;
   const guide = getGuideBySlug(slug);
   if (!guide) notFound();
 
-  const relatedProducts = STRATEGIC_PRODUCTS.filter((p) => guide.relatedProductIds.includes(p.id));
   const categoryMeta = STRATEGIC_PRODUCT_CATEGORIES[guide.category];
 
   return (
@@ -83,20 +84,6 @@ export default async function GuidePage({ params }: GuidePageProps) {
             Este conteúdo é informativo e não substitui avaliação de um médico-veterinário. Qualquer
             mudança de comportamento, saúde ou sintoma persistente merece consulta profissional.
           </p>
-        )}
-
-        {relatedProducts.length > 0 && (
-          <section>
-            <h2 className="text-[13px] font-black uppercase tracking-wide text-slate-400 mb-3">
-              Produtos relacionados a este guia
-            </h2>
-            <StrategicProductGrid products={relatedProducts} source="public_store" />
-            <p className="text-[11px] text-slate-400 mt-3 leading-relaxed">
-              Como participante do Programa de Associados da Amazon, sou remunerado pelas compras
-              qualificadas efetuadas. Os cards acima são intenções de busca — preço e disponibilidade
-              devem ser confirmados na Amazon.
-            </p>
-          </section>
         )}
 
         <div className="rounded-2xl bg-blue-600 text-white p-5 text-center space-y-2">

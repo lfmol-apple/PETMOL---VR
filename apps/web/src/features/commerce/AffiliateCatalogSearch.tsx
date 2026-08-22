@@ -17,9 +17,8 @@ type BarcodeLookupState = 'idle' | 'loading' | 'done' | 'not_found' | 'error';
 // de uma loja sem contexto, deixa o tutor achar o produto real dentro do
 // catálogo já sincronizado da Awin e comprar direto. GTIN é o que falta pro
 // app conseguir exercitar AwinFeedProvider (busca textual normal nunca
-// envia GTIN — ver docs/AFFILIATES.md). Multi-loja por natureza — não é
-// específico da Cobasi: quando Petz for aprovada e as lojas Awin forem
-// sincronizadas, aparecem aqui sem mudar este componente (offer_count > 1
+// envia GTIN — ver docs/AFFILIATES.md). Multi-loja por natureza: novas lojas
+// Awin habilitadas aparecem aqui sem mudar este componente (offer_count > 1
 // já monta o grid de preços).
 //
 // Oferta é resolvida assim que o resultado da busca chega (useEffect

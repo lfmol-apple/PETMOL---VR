@@ -12,7 +12,6 @@ export const MERCHANT_LABELS: Record<string, string> = {
   cobasi: 'Cobasi',
   zeenow: 'Zee Now',
   zeedog: 'Zee Dog',
-  petz: 'Petz',
   shopee: 'Shopee',
 };
 
@@ -41,10 +40,8 @@ function normalizeOfferUrl(url: string): string {
 
 /**
  * Lista de ofertas monetizáveis para um produto, menor preço primeiro —
- * ver commerce_offers.py/commerce_provider.py no backend. Hoje só a
- * Cobasi está ativa (0 ou 1 item), mas o contrato já é multi-provider:
- * Amazon/Shopee/ML/Petz/Awin entram na mesma lista quando aprovados, sem
- * mudar esta função nem quem a chama.
+ * ver commerce_offers.py/commerce_provider.py no backend. As superfícies
+ * do app ficam restritas a Cobasi, Shopee, Zee Now e Zee Dog.
  *
  * `gtin`: opcional — quando o produto já foi escaneado e temos o GTIN,
  * enviar aqui é o caminho preferido para providers estruturados (ex:
@@ -73,8 +70,7 @@ export interface AwinSearchResult {
  * awin_feed_sync.py) — GET /commerce/awin-search. Sem `merchant`, busca em
  * TODOS os merchants Awin habilitados de uma vez, agrupando por GTIN —
  * Cobasi já tem dado real; Zee Dog e Zee Now entram pelo mesmo caminho
- * quando sincronizadas. Petz entra automaticamente quando aprovada e
- * sincronizada, sem precisar mudar esta chamada. Cada
+ * quando sincronizadas. Cada
  * resultado já vem com GTIN; passar esse GTIN pra fetchCommerceOffers() é
  * o único jeito hoje de o app exercitar AwinFeedProvider (busca textual
  * normal nunca envia GTIN).

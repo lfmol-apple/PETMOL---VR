@@ -23,12 +23,9 @@ export function buildPetStoreTitle(pet: { sex?: 'male' | 'female' | null; pet_na
 // inventado. Só os domínios que correspondem a algo que se compra de novo.
 const BUYABLE_DOMAINS: CareReminderDomain[] = ['food', 'parasite', 'medication'];
 
-// Lojas oferecidas no toque em "Comprar" — em vez de travar sempre na mesma
-// loja (o que a busca real mostrou não ser confiável: uma loja específica
-// pode simplesmente não ter o produto), o tutor escolhe entre 3 pet shops
-// especializados. resolvePartnerUrl já cai para busca direta no site quando
-// não há afiliado configurado, então a lista funciona mesmo sem afiliado.
-export const QUICK_BUY_PARTNERS: HomeShoppingPartnerId[] = ['petz', 'cobasi', 'petlove'];
+// Lojas permitidas no app por enquanto. A recompra prioriza ofertas
+// monetizadas do CommerceEngine; este fallback só mostra lojas desta lista.
+export const QUICK_BUY_PARTNERS: HomeShoppingPartnerId[] = ['cobasi', 'shopee', 'zeenow', 'zeedog'];
 
 export interface ReorderCard {
   id: string;

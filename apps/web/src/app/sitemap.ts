@@ -1,5 +1,4 @@
 import { MetadataRoute } from 'next';
-import { GUIDES } from '@/features/content/guides';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
@@ -82,24 +81,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly',
       priority: 0.4,
     },
-    {
-      url: `${SITE_URL}/loja`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.8,
-    },
-    {
-      url: `${SITE_URL}/guias`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.7,
-    },
-    ...GUIDES.map((guide) => ({
-      url: `${SITE_URL}/guias/${guide.slug}`,
-      lastModified: new Date(guide.updatedAt),
-      changeFrequency: 'monthly' as const,
-      priority: 0.6,
-    })),
   ];
 
   return [...staticPages, ...(await getPublicMissingPetUrls())];

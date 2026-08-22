@@ -1,19 +1,22 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { STRATEGIC_PRODUCTS } from '@/features/commerce/strategicProducts';
-import { StrategicProductGrid } from '@/features/commerce/StrategicProductGrid';
+import { notFound } from 'next/navigation';
 import { GUIDES } from '@/features/content/guides';
+import { HOME_SHOPPING_PARTNERS } from '@/features/commerce/homeShoppingPartners';
+import { PUBLIC_STORE_PAGE_ENABLED } from '../publicCommercePages';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+const STORE_IDS = new Set(['cobasi', 'shopee', 'zeenow', 'zeedog']);
+const STORES = HOME_SHOPPING_PARTNERS.filter((partner) => STORE_IDS.has(partner.id));
 
 export const metadata: Metadata = {
-  title: 'Recomendações PETMOL',
+  title: 'Lojas PETMOL',
   description:
-    'Curadoria PETMOL de produtos que ajudam na rotina de cães e gatos — alimentação, prevenção, transporte, medicação, hidratação e conforto. Consulte preço e disponibilidade direto na Amazon.',
+    'Lojas parceiras do PETMOL para comparar produtos pet por código de barras, nome do produto ou catálogo sincronizado.',
   alternates: { canonical: `${SITE_URL}/loja` },
   openGraph: {
-    title: 'Recomendações PETMOL',
-    description: 'Curadoria PETMOL de produtos que ajudam na rotina do seu pet, com links diretos pra Amazon.',
+    title: 'Lojas PETMOL',
+    description: 'Cobasi, Shopee, Zee Now e Zee Dog no fluxo de compras do PETMOL.',
     url: `${SITE_URL}/loja`,
   },
 };
@@ -23,50 +26,46 @@ export const metadata: Metadata = {
 // ("Recomendações PETMOL"), nunca "Loja do Baby" ou de qualquer pet
 // específico. Essa distinção existe porque o app tem vários usuários,
 // cada um com vários pets — "Baby" é só o nome de UM pet de UM tutor,
-// nunca um nome estrutural da loja (ver StrategicProductGrid.tsx e
-// apps/web/src/app/(home)/... pra a versão "Loja do [pet]" autenticada).
+// nunca um nome estrutural da loja.
 export default function LojaPublicaPage() {
+  if (!PUBLIC_STORE_PAGE_ENABLED) notFound();
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <div className="max-w-3xl mx-auto px-5 py-10 space-y-10">
-        {/* Hero institucional */}
         <div className="text-center space-y-3">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 text-blue-700 text-[12px] font-bold px-3 py-1">
-            🐾 Curadoria PETMOL
+            🐾 Lojas PETMOL
           </span>
           <h1 className="text-[28px] sm:text-[34px] font-black text-slate-900 leading-tight">
-            Recomendações PETMOL
+            Compre com as lojas conectadas ao PETMOL
           </h1>
           <p className="text-[15px] text-slate-500 max-w-xl mx-auto leading-relaxed">
-            O PETMOL não vende nem entrega nenhum produto — organizamos uma curadoria de categorias
-            que ajudam na rotina real de cães e gatos (alimentação, prevenção, transporte, medicação,
-            hidratação e conforto) e direcionamos você para lojas parceiras, como a Amazon.
+            O PETMOL não vende nem entrega produtos. A experiência de compra fica concentrada em
+            Cobasi, Shopee, Zee Now e Zee Dog, priorizando ofertas por produto conhecido, GTIN ou
+            catálogo sincronizado.
           </p>
         </div>
 
-        {/* Declaração de afiliado — obrigatória, sempre visível */}
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-center space-y-1.5">
-          <p className="text-[13px] font-bold text-amber-900">
-            Como participante do Programa de Associados da Amazon, sou remunerado pelas compras
-            qualificadas efetuadas.
-          </p>
-          <p className="text-[12px] text-amber-800/80">
-            O PETMOL pode receber comissão por compras realizadas por meio de alguns links, sem custo
-            adicional para você.
-          </p>
-        </div>
-
-        {/* Curadoria completa — toda a lista, agrupada por categoria */}
         <section>
           <h2 className="text-[13px] font-black uppercase tracking-wide text-slate-400 mb-4">
-            Categorias da curadoria
+            Lojas mantidas no app
           </h2>
-          <StrategicProductGrid
-            products={STRATEGIC_PRODUCTS}
-            source="public_store"
-            groupByCategory
-            showGuideLinks
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {STORES.map((store) => (
+              <div key={store.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-2xl border border-slate-100 bg-slate-50 p-2 flex items-center justify-center">
+                    <img src={store.logoSrc} alt={store.logoAlt} className="max-w-full max-h-full object-contain" />
+                  </div>
+                  <div>
+                    <h2 className="text-[16px] font-black text-slate-900">{store.name}</h2>
+                    <p className="text-[12px] text-slate-500 leading-snug">{store.description}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
 
         {/* Guias originais */}
@@ -106,9 +105,8 @@ export default function LojaPublicaPage() {
         </section>
 
         <p className="text-center text-[11px] text-slate-400 leading-relaxed">
-          Como Associados da Amazon, ganhamos com compras qualificadas. Os cards acima representam
-          intenções de busca da nossa curadoria editorial, não ofertas confirmadas — preço,
-          disponibilidade e estoque devem sempre ser conferidos direto na Amazon antes da compra.
+          Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
+          Preço, pagamento, disponibilidade e entrega são responsabilidade da loja escolhida.
         </p>
       </div>
     </div>

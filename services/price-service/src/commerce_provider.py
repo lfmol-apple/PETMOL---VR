@@ -1,6 +1,6 @@
 """
 Commerce Engine — abstração de providers de comércio (Cobasi hoje;
-Amazon/Shopee/Mercado Livre/Petz no futuro), separando DESCOBERTA de
+Shopee/Mercado Livre/Petz no futuro), separando DESCOBERTA de
 produto/preço (dinâmica, sempre tenta) de MONETIZAÇÃO da oferta
 (estratégia por provider, pode falhar/estar desligada).
 
@@ -45,7 +45,7 @@ class ProductContext:
     product_id: Optional[int] = None  # products_catalog.id, quando já resolvido
     # Texto de busca já montado pelo chamador (ex: "Royal Canin ração"),
     # quando o provider usa busca textual (Cobasi hoje). Providers com API
-    # estruturada (ex: Amazon PA-API por GTIN) podem ignorar isto e usar
+    # estruturada por GTIN podem ignorar isto e usar
     # gtin/name/brand diretamente.
     query: Optional[str] = None
 

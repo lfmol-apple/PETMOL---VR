@@ -13,7 +13,7 @@ GET /commerce/product-offer não muda. GET /commerce/offers (novo, multi-
 provider, lista ordenada por preço) é o caminho recomendado para código
 novo; usa a mesma build_default_engine().
 
-Adicionar um provider novo (Amazon/Shopee/ML/Petz, quando aprovados) é
+Adicionar um provider novo (Shopee/ML/Petz, quando aprovados) é
 só acrescentar em build_default_engine() — nenhuma tela precisa saber
 quantos providers existem.
 """
@@ -65,7 +65,7 @@ _NOT_FOUND = ProductOfferResult(found=False)
 def build_default_engine(db: Session) -> CommerceEngine:
     """Lista central de providers ativos — usada por TODO endpoint
     público (/commerce/offers, /commerce/awin-search). Novo provider
-    MANUAL (Amazon/Shopee/ML/Petz direto, quando aprovados — sem feed
+    MANUAL (Shopee/ML/Petz direto, quando aprovados — sem feed
     estruturado) = uma linha aqui.
 
     Providers Awin (feed estruturado) são genéricos — um AwinFeedProvider
@@ -95,11 +95,8 @@ def build_default_engine(db: Session) -> CommerceEngine:
     aparecem em produção sem a flag ligada, mesmo que MarketplaceOffer
     tenha linhas cadastradas (ver marketplace_offer_provider.py).
 
-    Amazon MVP (link de busca com tag, sem preço/API estruturada) NÃO
-    entra aqui — CommerceEngine descarta qualquer oferta sem preço, então
-    não há o que "descobrir"; o mecanismo real vive inteiramente no
-    frontend (amazonAffiliate.ts + homeShoppingPartners.ts), não neste
-    engine de comparação de preço."""
+    Amazon está desativada desde 22/08/2026 e não entra aqui. Qualquer
+    reativação futura exige novo provider oficial e nova tag aprovada."""
     # Awin primeiro, CobasiProvider (MAIS) depois: CobasiProvider.should_run()
     # decide se vale a pena rodar com base em ofertas Awin já resolvidas
     # nesta mesma chamada (ver cobasi_provider.py) — só funciona se Awin já

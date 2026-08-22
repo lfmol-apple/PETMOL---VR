@@ -1,19 +1,8 @@
 /**
- * Fonte editorial única de "produtos estratégicos" — a curadoria por trás
- * de /loja (público) e da seção de recomendações da Loja do Pet
- * (autenticado). Nenhuma das duas telas mantém catálogo próprio: as duas
- * leem esta lista e só diferem em COMO filtram/renderizam (ver
- * StrategicProductGrid.tsx).
+ * Fonte editorial de categorias estratégicas usadas nos guias PETMOL.
  *
- * Cada item é uma INTENÇÃO DE BUSCA editorial, não uma oferta confirmada —
- * sem PA-API/Creators API (credenciais Amazon ainda não emitidas, ver
- * docs/AFFILIATES.md), então nunca há preço, imagem, ASIN ou nota real
- * aqui. `searchQuery` vira uma URL de busca Amazon com tag=petmol-20 via
- * buildAmazonSearchUrl — nunca um link de produto específico inventado.
- *
- * Curadoria alinhada às funções reais do app (alimentação, prevenção,
- * transporte, medicação, porções, hidratação, conforto sênior) — de
- * propósito NÃO é um catálogo genérico de brinquedo/fantasia/enfeite.
+ * Cada item é uma intenção de busca editorial, não uma oferta confirmada:
+ * nunca há preço, imagem, SKU, GTIN ou link de produto específico aqui.
  */
 
 export type StrategicProductSpecies = 'dog' | 'cat';
@@ -34,10 +23,10 @@ export interface StrategicProduct {
   category: StrategicProductCategory;
   /** Espécies pra quem esse item é relevante — ['dog','cat'] = compartilhado, aparece pros dois. */
   species: StrategicProductSpecies[];
-  /** Vira a query da busca Amazon (buildAmazonSearchUrl) — nome de categoria, nunca marca específica inventada. */
+  /** Nome de categoria para busca editorial, nunca marca específica inventada. */
   searchQuery: string;
   icon: string;
-  /** Uma frase curta explicando por que esse item importa — não é descrição de produto da Amazon. */
+  /** Uma frase curta explicando por que esse item importa. */
   blurb: string;
   /** Slug do guia relacionado em /guias, quando existir. */
   guideSlug?: string;

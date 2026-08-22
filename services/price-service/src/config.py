@@ -245,23 +245,16 @@ class Settings(BaseSettings):
     awin_test_gtin: Optional[str] = None
 
     # ── Amazon Associados ────────────────────────────────────────────────
-    # MVP real (14/08/2026): conta PJ aprovada, categoria Pet Shop, 11%
-    # informado, cadastro fiscal/bancário concluído. Tag não é segredo —
-    # aparece em toda URL gerada (igual awin_publisher_id) — mas fica
-    # centralizada aqui em vez de espalhada, já com o valor real conhecido
-    # como default. O MVP em si (link de busca com tag, ver
-    # apps/web/src/features/commerce/amazonAffiliate.ts) roda inteiro no
-    # frontend, sem round-trip a este backend — este campo existe pra uma
-    # futura integração server-side (Creators API) reusar o mesmo valor,
-    # não porque algo aqui o consome hoje.
-    amazon_associate_tag: str = "petmol-20"
-    # Credenciais da Creators API — a Amazon ainda não emitiu (a PA-API 5
-    # antiga está descontinuada). Reservado, NUNCA usado no MVP, nenhum
-    # endpoint depende disso hoje — só pra não precisar inventar nomes de
-    # variável quando a integração real for implementada.
+    # Conta/tag anterior encerrada em 22/08/2026. Não há default seguro:
+    # reativação futura exige nova aprovação e nova tag válida explicitamente
+    # configurada; a tag antiga não pode voltar como fallback.
+    amazon_associate_tag: Optional[str] = None
+    # Credenciais reservadas para uma integração futura oficial, caso exista
+    # nova aprovação. Nenhum endpoint deve gerar tráfego Amazon enquanto a
+    # integração estiver desativada.
     amazon_creators_client_id: Optional[str] = None
     amazon_creators_client_secret: Optional[str] = None
-    amazon_marketplace: str = "amazon.com.br"
+    amazon_marketplace: Optional[str] = None
 
     # ── Shopee Affiliates ────────────────────────────────────────────────
     # Master gate — separado de qualquer status "commercial"/"cadastrado"

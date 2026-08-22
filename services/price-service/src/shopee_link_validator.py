@@ -10,8 +10,7 @@ Allowlist documentada e centralizada — domínios conhecidos usados por
 links reais do Portal do Afiliado da Shopee Brasil. Se um link legítimo
 vier de um domínio que não está aqui, ADICIONE o domínio à lista (com uma
 nota de onde veio); nunca afrouxe a checagem pra aceitar por
-substring/prefixo (ver is_allowed_shopee_host — mesma lógica de
-subdomínio real usada em amazonAffiliate.ts no frontend).
+substring/prefixo (ver is_allowed_shopee_host).
 """
 from __future__ import annotations
 
@@ -36,8 +35,7 @@ class InvalidShopeeAffiliateUrlError(ValueError):
 def is_allowed_shopee_host(hostname: str) -> bool:
     """True só para um domínio da allowlist exato ou um subdomínio real
     dele — nunca por prefixo/substring (rejeita
-    "shopee.com.br.golpe.com" e "golpeshopee.com.br" pelo mesmo motivo
-    que o validador da Amazon)."""
+    "shopee.com.br.golpe.com" e "golpeshopee.com.br")."""
     host = (hostname or "").lower()
     return host in SHOPEE_ALLOWED_DOMAINS or any(
         host.endswith(f".{domain}") for domain in SHOPEE_ALLOWED_DOMAINS

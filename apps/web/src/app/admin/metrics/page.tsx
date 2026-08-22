@@ -16,10 +16,10 @@ interface FoodMetricsResponse {
 
 function prettyStore(value: string): string {
   const map: Record<string, string> = {
-    petz: 'Petz',
     cobasi: 'Cobasi',
-    amazon: 'Amazon',
-    petlove: 'Petlove',
+    shopee: 'Shopee',
+    zeenow: 'Zee Now',
+    zeedog: 'Zee Dog',
     loja_fisica: 'Loja física',
     outro: 'Outro',
   };
