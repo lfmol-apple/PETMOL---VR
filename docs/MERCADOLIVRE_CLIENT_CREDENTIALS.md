@@ -19,6 +19,22 @@ MERCADOLIVRE_AFFILIATE_ENABLED=false
 
 Em produção com `AFFILIATE_ONLY_COMMERCE=true` ou `ENV=prod`, o ML não deve aparecer para tutores enquanto não houver afiliado oficial confirmado.
 
+## Visualização Local Na Loja Do Pet
+
+Para ver Mercado Livre localmente em `/commerce/offers` e na Loja do Pet:
+
+```env
+ENV=dev
+ENABLE_ML_PROVIDER=true
+MERCADOLIVRE_PUBLIC_OFFERS_ENABLED=true
+MERCADOLIVRE_AFFILIATE_ENABLED=false
+AFFILIATE_ONLY_COMMERCE=false
+MERCADOLIVRE_CLIENT_ID=5264011878653004
+MERCADOLIVRE_CLIENT_SECRET=<definir apenas no env local/backend>
+```
+
+Nesse modo local, a oferta pode retornar `link_type=direct`. Isso é bloqueado em produção/affiliate-only.
+
 ## Contrato OAuth Confirmado
 
 Endpoint oficial usado:

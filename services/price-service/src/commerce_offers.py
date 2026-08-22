@@ -27,6 +27,7 @@ from .awin_feed_provider import AwinFeedProvider
 from .cobasi_provider import CobasiProvider
 from .commerce_provider import CommerceEngine, CommerceProvider, MonetizedOffer, ProductContext
 from .marketplace_offer_provider import MarketplaceOfferProvider
+from .mercadolivre_commerce_provider import MercadoLivreCommerceProvider, is_mercadolivre_commerce_publicly_servable
 
 # Merchants marketplace conhecidos (Shopee hoje) — sempre registrados,
 # nunca condicionado a settings aqui: is_marketplace_merchant_publicly_servable()
@@ -106,6 +107,8 @@ def build_default_engine(db: Session) -> CommerceEngine:
         if is_awin_merchant_registrable(merchant):
             providers.append(AwinFeedProvider(db, merchant))
     providers.append(CobasiProvider(db))
+    if is_mercadolivre_commerce_publicly_servable():
+        providers.append(MercadoLivreCommerceProvider())
     for merchant in _MARKETPLACE_MERCHANTS:
         providers.append(MarketplaceOfferProvider(db, merchant))
     return CommerceEngine(providers)
