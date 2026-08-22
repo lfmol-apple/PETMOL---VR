@@ -310,7 +310,7 @@ function buildNotes(items: PersistedFoodItem[]): string {
     .map((item, index) => {
       const parts = [
         item.food_brand ? `Produto ${index + 1}: ${item.food_brand}` : `Produto ${index + 1}`,
-        item.barcode ? `EAN/GTIN: ${item.barcode}` : '',
+        item.barcode ? `Código de barras: ${item.barcode}` : '',
         item.category ? `Categoria: ${item.category}` : '',
       ].filter(Boolean);
       return parts.join('\n');

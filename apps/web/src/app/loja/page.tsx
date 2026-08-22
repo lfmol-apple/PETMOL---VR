@@ -42,8 +42,8 @@ export default function LojaPublicaPage() {
           </h1>
           <p className="text-[15px] text-slate-500 max-w-xl mx-auto leading-relaxed">
             O PETMOL não vende nem entrega produtos. A experiência de compra fica concentrada em
-            Cobasi, Shopee, Zee Now e Zee Dog, priorizando ofertas por produto conhecido, GTIN ou
-            catálogo sincronizado.
+            Cobasi, Shopee, Zee Now e Zee Dog, priorizando ofertas por produto conhecido, código
+            de barras ou catálogo sincronizado.
           </p>
         </div>
 

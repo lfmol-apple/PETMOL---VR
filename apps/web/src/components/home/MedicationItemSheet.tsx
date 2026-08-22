@@ -255,7 +255,7 @@ export function MedicationItemSheet({
         form.manufacturer ? `Fabricante: ${form.manufacturer}` : '',
         form.presentation ? `Apresentação: ${form.presentation}` : '',
         form.concentration ? `Concentração: ${form.concentration}` : '',
-        form.barcode ? `EAN/GTIN: ${form.barcode}` : '',
+        form.barcode ? `Código de barras: ${form.barcode}` : '',
       ].filter(Boolean).join(' | ');
       const finalNotes = medMeta + (form.notes.trim() ? '\n' + form.notes.trim() : '');
 

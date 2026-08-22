@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { petDo } from '@/lib/petGender';
 import { trackClick } from '@/lib/analytics/click';
 import type { PetHealthProfile } from '@/lib/petHealth';
@@ -58,10 +58,8 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
 
-  // Cobasi sai do grid de ícones estáticos — vira busca (AffiliateCatalogSearch)
-  // com produtos reais do catálogo Awin sincronizado, GTIN conhecido.
   const visibleStorePartners = useMemo(
-    () => HOME_SHOPPING_PARTNERS.filter((p) => p.id !== 'cobasi' && isPartnerVisibleInStoreArea(p)),
+    () => HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea),
     [],
   );
   const visibleQuickBuyPartners = useMemo(
@@ -94,22 +92,10 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
     });
   }
 
-  // Merchants com storefront afiliada fixa (ex: Cobasi Minha Loja/MAIS) não
-  // têm parâmetro de busca na vitrine — abrir a categoria lá cairia sempre
-  // no fallback sem afiliado. Para esses, tocar no card já abre a storefront
-  // direto; os demais continuam no drill-down de categoria de sempre.
+  // O card da loja abre categorias primeiro. Isso evita mandar o tutor para
+  // uma home genérica quando ele está tentando chegar em ração, coleira,
+  // antipulgas ou outro grupo de produto relacionado ao pet.
   function handlePartnerTap(partner: HomeShoppingPartner) {
-    if (partner.storefrontAffiliateUrl) {
-      navigateToPartnerUrl(partner.storefrontAffiliateUrl);
-      void trackClick({
-        source: 'home',
-        cta_type: 'shop_storefront_click',
-        target: partner.id,
-        link_type: 'affiliate_store',
-        pet_id: currentPet.pet_id,
-      });
-      return;
-    }
     setBrowsingPartner(partner);
   }
 
@@ -266,6 +252,9 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                       </div>
                       <div className="w-full min-w-0">
                         <p className="text-[13px] font-bold text-gray-900 leading-tight line-clamp-1">{partner.name}</p>
+                        <p className="mt-0.5 text-[10px] font-semibold leading-tight text-gray-400 line-clamp-2">
+                          Rações, cuidados e acessórios
+                        </p>
                       </div>
                     </button>
                   ))}
@@ -313,9 +302,32 @@ function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onToggle
     hasMonetizedOffer && offer && typeof offer.list_price === 'number' && offer.list_price > (offer.price ?? 0),
   );
   const noBuyOptionAtAll = !hasMonetizedOffer && visibleQuickBuyPartners.length === 0;
+  const canAct = !loading && !noBuyOptionAtAll;
+
+  function handlePrimaryAction() {
+    if (!canAct) return;
+    if (hasMonetizedOffer && offer) {
+      if (hasMultipleOffers) onTogglePicker();
+      else onDirectBuy(offer);
+      return;
+    }
+    onTogglePicker();
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    handlePrimaryAction();
+  }
 
   return (
-    <div className={`p-3.5 bg-white border rounded-2xl shadow-sm ${hasDiscount ? 'border-orange-300' : 'border-gray-200'}`}>
+    <div
+      role={canAct ? 'button' : undefined}
+      tabIndex={canAct ? 0 : undefined}
+      onClick={handlePrimaryAction}
+      onKeyDown={handleKeyDown}
+      className={`p-3.5 bg-white border rounded-2xl shadow-sm transition-all ${canAct ? 'cursor-pointer active:scale-[0.99] hover:border-emerald-200' : ''} ${hasDiscount ? 'border-orange-300' : 'border-gray-200'}`}
+    >
       <div className="flex items-center gap-3">
         <span className="text-2xl flex-shrink-0">{card.icon}</span>
         <div className="flex-1 min-w-0">
@@ -352,7 +364,8 @@ function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onToggle
           <button
             type="button"
             disabled={loading}
-            onClick={() => {
+            onClick={(event) => {
+              event.stopPropagation();
               if (hasMonetizedOffer && offer) {
                 if (hasMultipleOffers) onTogglePicker();
                 else onDirectBuy(offer);

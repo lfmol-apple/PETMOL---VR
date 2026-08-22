@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
 import { trackClick } from '@/lib/analytics/click';
 import { identifyProductByBarcode, type ScannedProduct } from '@/lib/productScanner';
 import { formatBRLPrice, fetchCommerceOffers, merchantLabel, searchAwinCatalog, type AwinSearchResult, type CommerceOffer } from './productPricing';
+import { navigateToPartnerUrl } from './homeShoppingPartners';
 
 interface AffiliateCatalogSearchProps {
   petId: string;
@@ -202,7 +203,7 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
             onKeyDown={(event) => {
               if (event.key === 'Enter') void resolveBarcode(barcode);
             }}
-            placeholder="EAN/GTIN"
+            placeholder="Código de barras"
             className="min-w-0 flex-1 bg-transparent px-2 text-[12px] font-semibold text-slate-800 placeholder-slate-400 outline-none"
           />
           <button
@@ -260,11 +261,29 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
             const singleOffer = Array.isArray(resolved) && resolved.length === 1 ? resolved[0] : null;
             const multipleOffers = Array.isArray(resolved) && resolved.length > 1 ? resolved : null;
             const unavailable = Array.isArray(resolved) && resolved.length === 0;
+            const canOpen = Boolean((singleOffer && singleOffer.url) || multipleOffers);
+            const handleResultTap = () => {
+              if (singleOffer?.url) {
+                trackBuyClick(item.gtin, singleOffer);
+                navigateToPartnerUrl(singleOffer.url);
+                return;
+              }
+              if (multipleOffers) setStoreChoicesForGtin(choosingStore ? null : item.gtin);
+            };
+            const handleResultKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              handleResultTap();
+            };
 
             return (
               <div
                 key={item.gtin}
-                className="p-2.5 bg-white border border-gray-200 rounded-2xl shadow-sm"
+                role={canOpen ? 'button' : undefined}
+                tabIndex={canOpen ? 0 : undefined}
+                onClick={canOpen ? handleResultTap : undefined}
+                onKeyDown={canOpen ? handleResultKeyDown : undefined}
+                className={`p-2.5 bg-white border border-gray-200 rounded-2xl shadow-sm transition-all ${canOpen ? 'cursor-pointer hover:border-emerald-200 active:scale-[0.99]' : ''}`}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-11 h-11 rounded-xl overflow-hidden bg-gray-50 border border-gray-100 flex-shrink-0 flex items-center justify-center">
@@ -302,7 +321,10 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
                       href={singleOffer.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      onClick={() => trackBuyClick(item.gtin, singleOffer)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        trackBuyClick(item.gtin, singleOffer);
+                      }}
                       className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[11px] font-bold px-3 py-1.5 active:scale-95 transition-all"
                     >
                       🛒 Comprar
@@ -310,7 +332,10 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
                   ) : multipleOffers ? (
                     <button
                       type="button"
-                      onClick={() => setStoreChoicesForGtin(choosingStore ? null : item.gtin)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setStoreChoicesForGtin(choosingStore ? null : item.gtin);
+                      }}
                       className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[11px] font-bold px-3 py-1.5 active:scale-95 transition-all"
                     >
                       🛒 Comprar
@@ -336,7 +361,10 @@ export function AffiliateCatalogSearch({ petId }: AffiliateCatalogSearchProps) {
                           href={offer.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          onClick={() => trackBuyClick(item.gtin, offer)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            trackBuyClick(item.gtin, offer);
+                          }}
                           className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-emerald-300 px-3 py-2 transition-all active:scale-[0.98]"
                         >
                           <span className="text-[12px] font-bold text-gray-800">{merchantLabel(offer.merchant)}</span>

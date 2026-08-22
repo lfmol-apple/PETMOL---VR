@@ -233,7 +233,7 @@ export function ParasiteItemSheet({
       product_name: [product.brand, product.name].filter(Boolean).join(' ').trim() || f.product_name,
       notes: [
         f.notes,
-        product.barcode ? `EAN/GTIN: ${product.barcode}` : '',
+        product.barcode ? `Código de barras: ${product.barcode}` : '',
         product.category ? `Categoria: ${product.category}` : '',
       ].filter(Boolean).join('\n'),
       // Campo estruturado — permite resolver oferta comercial por GTIN

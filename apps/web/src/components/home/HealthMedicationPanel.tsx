@@ -71,7 +71,7 @@ export function HealthMedicationPanel({
               setEventFormData(prev => ({
                 ...prev,
                 title: [product.brand, product.name].filter(Boolean).join(' ').trim() || prev.title,
-                notes: [prev.notes, product.barcode ? `EAN/GTIN: ${product.barcode}` : ''].filter(Boolean).join('\n'),
+                notes: [prev.notes, product.barcode ? `Código de barras: ${product.barcode}` : ''].filter(Boolean).join('\n'),
               }));
             }}
           />

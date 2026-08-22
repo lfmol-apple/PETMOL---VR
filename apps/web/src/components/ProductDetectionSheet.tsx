@@ -481,7 +481,7 @@ function describeScannerError(errorCode: string | null): string | null {
     case 'camera_security_blocked':
       return 'O navegador bloqueou o acesso à câmera por segurança.';
     case 'manual_invalid_barcode':
-      return 'Digite um EAN/GTIN válido com 8 a 14 números.';
+      return 'Digite um código de barras válido com 8 a 14 números.';
     case 'lookup_timeout':
       return 'A busca demorou demais. Você pode continuar pelo código, foto ou nome do produto.';
     case 'product_not_found':
@@ -1915,7 +1915,7 @@ export function ProductDetectionSheetGold({
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-2xl">⌨️</div>
               <div className="flex-1">
                 <p className="text-[15px] font-bold text-slate-900">Digitar código de barras</p>
-                <p className="mt-0.5 text-xs text-slate-600">Informe o EAN/GTIN ou busque por nome</p>
+                <p className="mt-0.5 text-xs text-slate-600">Digite o código de barras ou busque por nome</p>
               </div>
               <span className="flex-shrink-0 text-xl text-slate-300">›</span>
             </div>
@@ -2298,7 +2298,7 @@ export function ProductDetectionSheetGold({
               }
             }}
             className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm transition-colors focus:border-blue-400 focus:outline-none"
-            placeholder="Digite o EAN/GTIN"
+            placeholder="Digite o código de barras"
           />
           <button
             type="button"
@@ -2462,7 +2462,7 @@ export function ProductDetectionSheetGold({
               ? 'A leitura automática não fechou um produto confiável. Você ainda pode tentar de novo, usar uma foto ou escolher o item sem perder o fluxo.'
               : `Tente escanear de novo — aponte com calma pro código de barras. Faltam ${remainingScanAttempts} tentativa${remainingScanAttempts === 1 ? '' : 's'} pra liberarmos foto como alternativa.`}
         </p>
-        {confirmed?.barcode && <p className="mt-2 font-mono text-xs text-gray-300">EAN: {confirmed.barcode}</p>}
+        {confirmed?.barcode && <p className="mt-2 font-mono text-xs text-gray-300">Código de barras: {confirmed.barcode}</p>}
       </div>
 
       <div className="space-y-3">
@@ -2525,7 +2525,7 @@ export function ProductDetectionSheetGold({
             <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-blue-100 text-2xl">✏️</div>
             <div className="flex-1">
               <p className="text-[15px] font-bold text-blue-900">Digitar código de barras</p>
-              <p className="mt-0.5 text-xs text-blue-600">Informe o EAN/GTIN ou busque por nome</p>
+              <p className="mt-0.5 text-xs text-blue-600">Digite o código de barras ou busque por nome</p>
             </div>
             <span className="flex-shrink-0 text-xl text-blue-300">›</span>
           </div>
