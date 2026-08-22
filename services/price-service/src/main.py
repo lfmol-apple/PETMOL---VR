@@ -1455,11 +1455,11 @@ async def commerce_offers(
 async def commerce_awin_click(
     u: str = Query(..., min_length=8, description="URL Awin codificada pelo backend"),
 ):
-    """Resolve clique Awin/Cobasi sem passar o Safari iPhone pelo OneLink.
+    """Resolve clique Awin sem passar o Safari iPhone pelo OneLink.
 
     O parâmetro `u` só aceita URLs `https://www.awin1.com/pclick.php...`
     geradas por AwinFeedProvider. O destino final também é validado para
-    `https://www.cobasi.com.br/.../p...` antes do 302.
+    o domínio oficial do advertiser aprovado antes do 302.
     """
     from fastapi.responses import RedirectResponse
     from .awin_click_redirect import decode_awin_click_url, resolve_awin_click_target

@@ -1,5 +1,5 @@
 """
-Redirect seguro para cliques Awin/Cobasi em mobile.
+Redirect seguro para cliques Awin em mobile.
 
 Em iPhone, a Awin redireciona `www.awin1.com/pclick.php` para um OneLink
 AppsFlyer da Cobasi (`cobasi.onelink.me`) com `af_dp=appcobasi://`. Esse
@@ -10,7 +10,7 @@ a Awin server-side com user-agent desktop para obter a URL web afiliada com
 from __future__ import annotations
 
 import base64
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
@@ -20,6 +20,19 @@ AWIN_DESKTOP_USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) "
     "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
 )
+AWIN_ALLOWED_TARGETS_BY_ADVERTISER = {
+    # Cobasi
+    "17870": {"www.cobasi.com.br"},
+    # Zee Dog
+    "127555": {"www.zeedog.com.br", "zeedog.com.br"},
+    # Zee Now
+    "127557": {"www.zeenow.com.br", "zeenow.com.br"},
+}
+
+
+def _advertiser_id_from_awin_url(url: str) -> str | None:
+    values = parse_qs(urlsplit(url).query).get("m") or []
+    return values[0] if values else None
 
 
 def is_supported_awin_click_url(url: str) -> bool:
@@ -60,9 +73,14 @@ async def resolve_awin_click_target(awin_url: str) -> str:
     """Resolve um clique Awin sem seguir o OneLink mobile.
 
     A resposta esperada da Awin com user-agent desktop é um 302 direto para
-    `https://www.cobasi.com.br/.../p?...awc=...`. Validamos o destino para
-    impedir que este endpoint vire redirect aberto.
+    o site oficial do advertiser indicado pelo `m=` da própria URL Awin.
+    Validamos esse par advertiser/dominio para impedir redirect aberto.
     """
+    advertiser_id = _advertiser_id_from_awin_url(awin_url)
+    allowed_hosts = AWIN_ALLOWED_TARGETS_BY_ADVERTISER.get(advertiser_id or "")
+    if not allowed_hosts:
+        raise ValueError("Advertiser Awin não permitido")
+
     async with httpx.AsyncClient(timeout=8.0, follow_redirects=False) as client:
         response = await client.get(
             awin_url,
@@ -78,8 +96,8 @@ async def resolve_awin_click_target(awin_url: str) -> str:
 
     target = str(httpx.URL(awin_url).join(location))
     parts = urlsplit(target)
-    if parts.scheme != "https" or parts.netloc.lower() != "www.cobasi.com.br":
+    if parts.scheme != "https" or parts.netloc.lower() not in allowed_hosts:
         raise ValueError("Destino Awin inesperado")
-    if "/p" not in parts.path:
+    if advertiser_id == "17870" and "/p" not in parts.path:
         raise ValueError("Destino Awin não parece página de produto Cobasi")
     return target

@@ -5,10 +5,13 @@ import pytest
 from src.awin_click_redirect import (
     build_awin_click_redirect_url,
     decode_awin_click_url,
+    resolve_awin_click_target,
 )
 
 
 AWIN_URL = "https://www.awin1.com/pclick.php?p=31117188249&a=3032803&m=17870"
+ZEENOW_AWIN_URL = "https://www.awin1.com/pclick.php?p=45390676945&a=3032803&m=127557"
+ZEEDOG_AWIN_URL = "https://www.awin1.com/pclick.php?p=45390600000&a=3032803&m=127555"
 
 
 def test_supported_awin_pclick_becomes_petmol_redirect():
@@ -45,3 +48,88 @@ def test_commerce_awin_click_redirects_to_resolved_cobasi_url(client, monkeypatc
 
     assert response.status_code == 302
     assert response.headers["location"] == target
+
+
+@pytest.mark.asyncio
+async def test_resolve_accepts_zeenow_destination(monkeypatch):
+    target = "https://www.zeenow.com.br/produto/biscoito-pedigree?awc=abc"
+
+    class FakeResponse:
+        status_code = 302
+        headers = {"location": target}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, *args, **kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", FakeClient)
+
+    assert await resolve_awin_click_target(ZEENOW_AWIN_URL) == target
+
+
+@pytest.mark.asyncio
+async def test_resolve_accepts_zeedog_destination(monkeypatch):
+    target = "https://www.zeedog.com.br/produto/coleira?awc=abc"
+
+    class FakeResponse:
+        status_code = 302
+        headers = {"location": target}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, *args, **kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", FakeClient)
+
+    assert await resolve_awin_click_target(ZEEDOG_AWIN_URL) == target
+
+
+@pytest.mark.asyncio
+async def test_resolve_rejects_destination_that_does_not_match_advertiser(monkeypatch):
+    target = "https://www.cobasi.com.br/produto-errado/p?awc=abc"
+
+    class FakeResponse:
+        status_code = 302
+        headers = {"location": target}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, *args, **kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", FakeClient)
+
+    with pytest.raises(ValueError, match="Destino Awin inesperado"):
+        await resolve_awin_click_target(ZEENOW_AWIN_URL)
+
+
+@pytest.mark.asyncio
+async def test_resolve_rejects_unknown_awin_advertiser():
+    with pytest.raises(ValueError, match="Advertiser Awin não permitido"):
+        await resolve_awin_click_target("https://www.awin1.com/pclick.php?p=1&a=3032803&m=999999")
