@@ -43,6 +43,10 @@ _WEIGHT_TOKEN_RE = re.compile(r"^\d+(?:[.,]\d+)?(kg|g)$")
 _WEIGHT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(kg|g)\b")
 _VOLUME_TOKEN_RE = re.compile(r"^\d+(?:[.,]\d+)?(ml|l|litro|litros)$")
 _VOLUME_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(ml|l|litro|litros)\b")
+_PACK_COUNT_RE = re.compile(
+    r"\b(\d+)\s*"
+    r"(comprimidos?|tabletes?|tabs?|pipetas?|doses?|unidades?|unds?)\b"
+)
 
 
 def _normalize(text: str) -> str:
@@ -69,6 +73,20 @@ def extract_volume_ml(text: str) -> Optional[float]:
         return None
     value = float(match.group(1).replace(",", "."))
     return value if match.group(2) == "ml" else value * 1000
+
+
+def extract_pack_count(text: str) -> Optional[int]:
+    """Quantidade explícita de unidades terapêuticas/embalagem.
+
+    Usada como hard fail no matcher: "3 comprimidos" não pode casar com
+    "1 tablete", e "1 pipeta" não pode casar com "3 pipetas". Só retorna
+    algo quando há unidade clara; números de faixa de peso continuam sendo
+    tratados por extract_weight_kg.
+    """
+    match = _PACK_COUNT_RE.search(_normalize(text))
+    if not match:
+        return None
+    return int(match.group(1))
 
 
 def _parse_price(raw: object) -> Optional[float]:
@@ -141,6 +159,12 @@ def score_candidate(
             return None
         tolerance = max(20.0, expected_volume_ml * volume_tolerance_ratio)
         if abs(candidate_volume - expected_volume_ml) > tolerance:
+            return None
+
+    expected_pack_count = extract_pack_count(expected_name)
+    if expected_pack_count is not None:
+        candidate_pack_count = extract_pack_count(candidate_name)
+        if candidate_pack_count is None or candidate_pack_count != expected_pack_count:
             return None
 
     expected_tokens = _tokenize(expected_name)
