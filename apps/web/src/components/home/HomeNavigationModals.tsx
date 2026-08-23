@@ -92,17 +92,31 @@ function FleaCollarIllustration({ className }: { className?: string }) {
   );
 }
 
+// Bichinho de verdade tomando banho (cabeça de cachorro com espuma),
+// sem caixa/fundo — só o animal e as bolhas, igual à referência de foto.
 function BathIllustration({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" className={className}>
-      <path d="M5 18h22a1 1 0 0 1 1 1v2a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5v-2a1 1 0 0 1 1-1Z" fill="#4A90D9" stroke="#2F6CB0" strokeWidth="1" />
-      <path d="M5 18v-2a2 2 0 0 1 4 0" fill="none" stroke="#2F6CB0" strokeWidth="1.2" strokeLinecap="round" />
-      <rect x="2.5" y="17" width="27" height="2" rx="1" fill="#2F6CB0" />
-      <circle cx="10" cy="9" r="2.2" fill="#BFE3F5" stroke="#7BC1E0" strokeWidth="0.6" />
-      <circle cx="15" cy="6.5" r="3" fill="#BFE3F5" stroke="#7BC1E0" strokeWidth="0.6" />
-      <circle cx="20" cy="9.5" r="1.7" fill="#BFE3F5" stroke="#7BC1E0" strokeWidth="0.6" />
-      <circle cx="7" cy="24" r="0.8" fill="#FFFFFF" opacity="0.8" />
-      <circle cx="12" cy="25.5" r="0.6" fill="#FFFFFF" opacity="0.8" />
+      {/* Orelhas */}
+      <ellipse cx="9" cy="15.5" rx="3" ry="4.6" fill="#9C6530" transform="rotate(-22 9 15.5)" />
+      <ellipse cx="23" cy="15.5" rx="3" ry="4.6" fill="#9C6530" transform="rotate(22 23 15.5)" />
+      {/* Cabeça */}
+      <circle cx="16" cy="19.5" r="8" fill="#C98A4B" stroke="#9C6530" strokeWidth="0.7" />
+      {/* Focinho */}
+      <ellipse cx="16" cy="22.3" rx="3.6" ry="2.7" fill="#F0D9B5" />
+      <ellipse cx="16" cy="20.8" rx="1.3" ry="1" fill="#3C2A1E" />
+      {/* Olhos */}
+      <circle cx="12.6" cy="19.6" r="0.9" fill="#2F2A26" />
+      <circle cx="19.4" cy="19.6" r="0.9" fill="#2F2A26" />
+      {/* Espuma na cabeça */}
+      <circle cx="12.2" cy="12.5" r="3" fill="#FFFFFF" stroke="#D8E6F0" strokeWidth="0.4" />
+      <circle cx="19.8" cy="12.5" r="3" fill="#FFFFFF" stroke="#D8E6F0" strokeWidth="0.4" />
+      <circle cx="16" cy="10.3" r="3.6" fill="#FFFFFF" stroke="#D8E6F0" strokeWidth="0.4" />
+      <circle cx="16" cy="13.2" r="3.2" fill="#FFFFFF" stroke="#D8E6F0" strokeWidth="0.4" />
+      {/* Bolhas flutuando */}
+      <circle cx="27" cy="9" r="1.6" fill="#E8F4FB" stroke="#BFE3F5" strokeWidth="0.5" />
+      <circle cx="5" cy="10.5" r="1.2" fill="#E8F4FB" stroke="#BFE3F5" strokeWidth="0.5" />
+      <circle cx="26" cy="21" r="1" fill="#E8F4FB" stroke="#BFE3F5" strokeWidth="0.5" />
     </svg>
   );
 }
