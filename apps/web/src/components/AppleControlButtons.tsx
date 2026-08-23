@@ -206,7 +206,7 @@ export function AppleControlButtons({
                 className="h-10 w-10 object-contain min-[390px]:h-12 min-[390px]:w-12"
               />
             </span>
-            <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
+            <div className="flex h-full flex-col justify-center pr-[48px] pt-2 text-left min-[390px]:pr-[58px] min-[390px]:pt-3">
               <h3 className="line-clamp-2 text-[13px] font-bold leading-tight text-blue-950 min-[390px]:text-[14px] sm:text-base">{shoppingTitle}</h3>
               <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-blue-900/75 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">Tudo que {petName || 'seu pet'} usa</p>
             </div>
