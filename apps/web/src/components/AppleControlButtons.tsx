@@ -183,7 +183,13 @@ export function AppleControlButtons({
             onClick={onShoppingClick}
             className="group relative min-h-[68px] overflow-hidden rounded-xl border-2 border-blue-500 bg-gradient-to-br from-blue-100 via-blue-200 to-cyan-200 p-2.5 shadow-md shadow-blue-900/15 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
-            <span className="absolute right-2 top-2 text-[18px] opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">🛒</span>
+            <span className="absolute right-1 top-1 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-1.5 min-[390px]:top-1.5">
+              <img
+                src="/loja-cart-ossos.webp"
+                alt=""
+                className="h-10 w-10 object-contain min-[390px]:h-12 min-[390px]:w-12"
+              />
+            </span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
               <h3 className="line-clamp-2 text-[13px] font-bold leading-tight text-blue-950 min-[390px]:text-[14px] sm:text-base">{shoppingTitle}</h3>
               <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-blue-900/75 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">Tudo que {petName || 'seu pet'} usa</p>
