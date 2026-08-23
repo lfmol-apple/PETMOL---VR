@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
@@ -428,6 +428,30 @@ export function MedicationItemSheet({
     }
   }
 
+  // Toque-e-segure num círculo pendente da grade de dias marca como pulado
+  // em vez de aplicado — permite as duas ações sem precisar de um segundo
+  // botão fora do círculo (ver grade abaixo em "Cronograma"). longPressFiredRef
+  // evita que o "click" que o navegador dispara ao soltar o dedo, depois de
+  // já ter disparado a ação de segurar, aplique a dose por cima do que
+  // acabou de ser marcado como pulado.
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
+
+  function startLongPress(action: () => void) {
+    longPressFiredRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      longPressFiredRef.current = true;
+      action();
+    }, 480);
+  }
+
+  function cancelLongPress() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
   async function handleApplyDose(evId: string, action: 'apply' | 'skip' | 'unskip' | 'remove', date: string) {
     const token = getToken();
     if (!token) {
@@ -726,80 +750,73 @@ export function MedicationItemSheet({
                           </div>
                         </div>
 
-                        {/* Cronograma completo — cada dia com ação própria
-                            (marcar/pular), sem precisar selecionar um dia
-                            antes. Formato pedido de volta pelo usuário —
-                            substitui o grid de círculos + área de ação
-                            única de baixo, que exigia dois toques. */}
-                        <div className="border-t border-purple-50 divide-y divide-gray-50">
-                          {allDayDates.map((dateStr, idx) => {
-                            const isApplied = appliedDates.includes(dateStr);
-                            const isSkipped = skippedDates.includes(dateStr);
-                            const isToday = dateStr === todayStr;
-                            const isFuture = dateStr > todayStr;
-                            const dayLabel = dateStr.slice(8) + '/' + dateStr.slice(5, 7);
-                            const rowBusy = isBusy;
+                        {/* Grade de quadradinhos (visual clássico do app —
+                            cinza pendente, roxo sólido no dia de hoje, verde
+                            aplicado, âmbar pulado) distribuída em várias
+                            linhas, sem precisar selecionar um dia antes de
+                            agir: toque marca a dose na hora; toque e segure
+                            pula o dia. Toque de novo num dia já
+                            aplicado/pulado desfaz. */}
+                        <div className="px-3 pb-3 border-t border-purple-50 pt-2.5">
+                          <div className="flex flex-wrap gap-1.5">
+                            {allDayDates.map((dateStr) => {
+                              const isApplied = appliedDates.includes(dateStr);
+                              const isSkipped = skippedDates.includes(dateStr);
+                              const isToday = dateStr === todayStr;
+                              const isFuture = dateStr > todayStr;
+                              const dayNum = parseInt(dateStr.slice(8, 10), 10);
 
-                            let rowCls = 'bg-white';
-                            if (isApplied) rowCls = 'bg-green-50/60';
-                            else if (isSkipped) rowCls = 'bg-amber-50/60';
-                            else if (isToday) rowCls = 'bg-purple-50/60';
+                              let cls = '';
+                              if (isFuture) cls = 'bg-gray-50 text-gray-300 border border-gray-100';
+                              else if (isToday) {
+                                cls = isApplied
+                                  ? 'bg-green-500 text-white'
+                                  : isSkipped
+                                    ? 'bg-amber-500 text-white'
+                                    : 'bg-purple-500 text-white';
+                              } else {
+                                cls = isApplied
+                                  ? 'bg-green-100 text-green-700 border border-green-200'
+                                  : isSkipped
+                                    ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                                    : 'bg-gray-100 text-gray-500 border border-gray-200';
+                              }
 
-                            return (
-                              <div key={dateStr} className={`flex items-center gap-2 px-3 py-2 ${rowCls}`}>
-                                <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-[11px] font-bold ${
-                                  isApplied ? 'bg-green-500 text-white'
-                                    : isSkipped ? 'bg-amber-300 text-amber-900'
-                                    : isToday ? 'bg-white text-purple-700 border-2 border-purple-500'
-                                    : isFuture ? 'bg-gray-50 text-gray-300 border border-gray-100'
-                                    : 'bg-gray-100 text-gray-400 border border-gray-200'
-                                }`}>
-                                  {isApplied ? '✓' : isSkipped ? '↷' : idx + 1}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className={`text-[13px] font-semibold leading-tight ${isFuture ? 'text-gray-300' : 'text-gray-700'}`}>
-                                    Dia {idx + 1} · {dayLabel}{isToday ? ' · Hoje' : ''}
-                                  </p>
-                                  {isApplied && <p className="text-[11px] text-green-600">Dose registrada</p>}
-                                  {isSkipped && <p className="text-[11px] text-amber-600">Pulada</p>}
-                                </div>
-                                {isFuture ? (
-                                  <span className="text-[10px] text-gray-300 flex-shrink-0">—</span>
-                                ) : isApplied ? (
-                                  <button
-                                    type="button"
-                                    disabled={rowBusy}
-                                    onClick={() => handleApplyDose(ev.id, 'remove', dateStr)}
-                                    className="flex-shrink-0 text-[11px] font-semibold text-red-500 px-2.5 py-1.5 rounded-lg bg-white border border-red-100 active:scale-95 transition-all disabled:opacity-40"
-                                  >{rowBusy ? '...' : 'Desfazer'}</button>
-                                ) : isSkipped ? (
-                                  <button
-                                    type="button"
-                                    disabled={rowBusy}
-                                    onClick={() => handleApplyDose(ev.id, 'unskip', dateStr)}
-                                    className="flex-shrink-0 text-[11px] font-semibold text-amber-700 px-2.5 py-1.5 rounded-lg bg-white border border-amber-200 active:scale-95 transition-all disabled:opacity-40"
-                                  >{rowBusy ? '...' : 'Desfazer'}</button>
-                                ) : (
-                                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                                    <button
-                                      type="button"
-                                      disabled={rowBusy}
-                                      onClick={() => handleApplyDose(ev.id, 'apply', dateStr)}
-                                      title="Marcar como aplicada"
-                                      className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center text-sm font-bold active:scale-90 transition-all disabled:opacity-40"
-                                    >✓</button>
-                                    <button
-                                      type="button"
-                                      disabled={rowBusy}
-                                      onClick={() => handleApplyDose(ev.id, 'skip', dateStr)}
-                                      title="Pular esta dose"
-                                      className="w-8 h-8 rounded-full bg-white border border-amber-200 text-amber-700 flex items-center justify-center text-sm active:scale-90 transition-all disabled:opacity-40"
-                                    >↷</button>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
+                              const label = isApplied
+                                ? `Dia ${dayNum}, dose aplicada — toque pra desfazer`
+                                : isSkipped
+                                  ? `Dia ${dayNum}, dose pulada — toque pra desfazer`
+                                  : `Dia ${dayNum} — toque pra marcar aplicada, toque e segure pra pular`;
+
+                              return (
+                                <button
+                                  key={dateStr}
+                                  type="button"
+                                  disabled={isFuture || isBusy}
+                                  title={label}
+                                  aria-label={label}
+                                  onClick={() => {
+                                    if (longPressFiredRef.current) { longPressFiredRef.current = false; return; }
+                                    if (isApplied) handleApplyDose(ev.id, 'remove', dateStr);
+                                    else if (isSkipped) handleApplyDose(ev.id, 'unskip', dateStr);
+                                    else handleApplyDose(ev.id, 'apply', dateStr);
+                                  }}
+                                  onPointerDown={() => {
+                                    if (isApplied || isSkipped || isFuture) return;
+                                    startLongPress(() => handleApplyDose(ev.id, 'skip', dateStr));
+                                  }}
+                                  onPointerUp={cancelLongPress}
+                                  onPointerLeave={cancelLongPress}
+                                  onPointerCancel={cancelLongPress}
+                                  className={`w-8 h-8 rounded-lg text-xs font-bold transition-all active:scale-90 flex flex-col items-center justify-center flex-shrink-0 ${cls} ${isFuture ? 'cursor-default opacity-50' : 'cursor-pointer'} disabled:opacity-40`}
+                                >
+                                  <span>{dayNum}</span>
+                                  {(isApplied || isSkipped) && <span className="text-[8px] leading-none">{isApplied ? '✓' : '↷'}</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-2">Toque marca a dose · toque e segure pula o dia</p>
                         </div>
                       </div>
                     );
