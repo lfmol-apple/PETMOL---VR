@@ -23,6 +23,8 @@ export interface EventFormState {
   reminder_time: string;
   reminder_times: string[];
   treatment_days: string;
+  custom_interval_days: string;
+  total_doses: string;
   result: string;
   severity: string;
   /** Campos de extra_data não editáveis no formulário — preservados entre edições (ex: applied_dates, skipped_dates, dose_notes) */
@@ -76,6 +78,8 @@ const createDefaultEventFormData = (type = 'consulta', reminderEnabled = true): 
   reminder_time: '08:00',
   reminder_times: ['08:00'],
   treatment_days: '',
+  custom_interval_days: '',
+  total_doses: '',
   result: '',
   severity: 'moderada',
 });
@@ -153,6 +157,8 @@ export function usePetEventManagement({
     let reminderDate = '';
     let reminderTime = '08:00';
     let treatmentDays = '';
+    let customIntervalDays = '';
+    let totalDoses = '';
     let reminderTimes: string[] = ['08:00'];
     const nextDueDate = event.next_due_date ? event.next_due_date.split('T')[0] : '';
 
@@ -161,6 +167,8 @@ export function usePetEventManagement({
       const extraData = parsePetEventExtraData(event.extra_data);
       if (extraData.reminder_time) reminderTime = extraData.reminder_time;
       if (extraData.treatment_days) treatmentDays = String(extraData.treatment_days);
+      if (extraData.custom_interval_days) customIntervalDays = String(extraData.custom_interval_days);
+      if (extraData.total_doses) totalDoses = String(extraData.total_doses);
       if (Array.isArray(extraData.reminder_times) && extraData.reminder_times.length > 0) {
         reminderTimes = extraData.reminder_times;
       } else if (extraData.reminder_time) {
@@ -172,6 +180,8 @@ export function usePetEventManagement({
       delete preserved.reminder_times;
       delete preserved.frequency;
       delete preserved.treatment_days;
+      delete preserved.custom_interval_days;
+      delete preserved.total_doses;
       if (Object.keys(preserved).length > 0) preservedExtra = preserved;
     } catch {}
 
@@ -231,6 +241,8 @@ export function usePetEventManagement({
       reminder_time: reminderTime,
       reminder_times: reminderTimes,
       treatment_days: treatmentDays,
+      custom_interval_days: customIntervalDays,
+      total_doses: totalDoses,
       result: '',
       severity,
       _preserved_extra: preservedExtra,

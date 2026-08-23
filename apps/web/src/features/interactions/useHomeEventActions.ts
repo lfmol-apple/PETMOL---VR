@@ -40,6 +40,8 @@ const buildEventDefaults = (type: string): EventFormState => ({
   reminder_time: '08:00',
   reminder_times: ['08:00'],
   treatment_days: '',
+  custom_interval_days: '',
+  total_doses: '',
   result: '',
   severity: 'moderada',
 });

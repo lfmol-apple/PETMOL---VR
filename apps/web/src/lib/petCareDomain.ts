@@ -513,6 +513,31 @@ function processEvents(p: PetCareDomainParams): PetCareReminder[] {
 
     const extra = parsePetEventExtraData(ev.extra_data);
 
+    // Medicações de intervalo personalizado (ex: vermífugo com segunda dose
+    // 15 dias depois) usam next_due_date. Não são tratamento diário.
+    if (ev.type === 'medicacao' && extra.custom_interval_days) {
+      const nextDate = parseLocalDate(ev.next_due_date);
+      if (!nextDate) continue;
+      const diff = diffFromToday(nextDate);
+      const dueStr = dateToLocalISO(nextDate);
+      result.push({
+        key: makeKey(p.pet_id, 'medication', 'medicacao', ev.id, dueStr),
+        pet_id: p.pet_id,
+        pet_name: p.pet_name,
+        domain: 'medication',
+        label: ev.title,
+        sublabel: `a cada ${extra.custom_interval_days} dias`,
+        icon: '💊',
+        due_date: dueStr,
+        diff,
+        status: toStatus(diff),
+        action_target: 'health/medication',
+        source_record_id: ev.id,
+        is_derived: false,
+      });
+      continue;
+    }
+
     // Medicações com treatment_days: incluir nos lembretes se o tratamento está ativo e a dose de hoje ainda está pendente
     if (ev.type === 'medicacao' && extra.treatment_days) {
       const totalDoses = parseInt(String(extra.treatment_days), 10);

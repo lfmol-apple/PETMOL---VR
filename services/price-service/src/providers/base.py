@@ -50,6 +50,7 @@ class CatalogCandidate:
     species: Optional[str] = None  # "dog", "cat", "unknown"
     pack_sizes: List[PackSize] = field(default_factory=list)
     image_url: Optional[str] = None
+    gtin: Optional[str] = None
     price: Optional[float] = None
     original_price: Optional[float] = None
     currency: Optional[str] = None
@@ -72,6 +73,7 @@ class CatalogCandidate:
             "species": self.species,
             "pack_sizes": [{"value": ps.value, "unit": ps.unit} for ps in self.pack_sizes],
             "image_url": self.image_url,
+            "gtin": self.gtin,
             "price": self.price,
             "original_price": self.original_price,
             "currency": self.currency,

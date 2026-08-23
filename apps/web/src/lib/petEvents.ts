@@ -1,5 +1,7 @@
 export interface PetEventExtraData {
   treatment_days?: string | number;
+  custom_interval_days?: string | number;
+  total_doses?: string | number;
   applied_dates?: string[];
   skipped_dates?: string[];
   dose_notes?: Record<string, string>;

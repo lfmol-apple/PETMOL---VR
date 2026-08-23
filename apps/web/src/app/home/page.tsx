@@ -1310,7 +1310,11 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         const times = Array.isArray(ex.reminder_times) && (ex.reminder_times as string[]).length > 0
           ? ex.reminder_times as string[]
           : null;
-        if (times) {
+        if (ex.custom_interval_days) {
+          totalSlots += 1;
+          const appliedDates: string[] = Array.isArray(ex.applied_dates) ? ex.applied_dates as string[] : [];
+          doneSlots += appliedDates.includes(todayStr) ? 1 : 0;
+        } else if (times) {
           const appliedDatetimes: string[] = Array.isArray(ex.applied_datetimes) ? ex.applied_datetimes as string[] : [];
           totalSlots += times.length;
           doneSlots += times.filter((t: string) => appliedDatetimes.includes(`${todayStr}_${t}`)).length;

@@ -24,7 +24,7 @@ import time
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
 
 from ..config import get_settings
@@ -36,6 +36,7 @@ from ..shopee_offer_sync import (
     sync_shopee_offer_for_gtin,
     sync_shopee_offer_from_feed_row,
 )
+from .deps import get_current_admin_or_readonly_key
 from .shopee_sync_state import STATE
 
 logger = logging.getLogger(__name__)
@@ -163,12 +164,29 @@ def run_sync(payload: RunRequest, x_sync_token: Optional[str] = Header(default=N
 @router.get("/status")
 def get_status(x_sync_token: Optional[str] = Header(default=None, alias="X-Sync-Token")):
     _require_token(x_sync_token)
+    return _status_payload()
+
+
+@router.get("/progress")
+def get_progress(_current=Depends(get_current_admin_or_readonly_key)):
+    return _status_payload()
+
+
+def _status_payload():
     with STATE.lock:
+        total = STATE.total
+        processed = STATE.processed
+        matched = STATE.matched
+        percent = round((processed / total) * 100, 2) if total else 0.0
+        match_rate = round((matched / processed) * 100, 2) if processed else 0.0
         return {
             "running": STATE.running,
-            "total": STATE.total,
-            "processed": STATE.processed,
-            "matched": STATE.matched,
+            "total": total,
+            "processed": processed,
+            "matched": matched,
+            "percent": percent,
+            "remaining": max(total - processed, 0),
+            "match_rate": match_rate,
             "started_at": STATE.started_at,
             "finished_at": STATE.finished_at,
             "error": STATE.error,

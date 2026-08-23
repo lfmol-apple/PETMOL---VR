@@ -95,6 +95,32 @@ def test_status_antes_de_qualquer_run_mostra_zerado(monkeypatch, client):
     assert body["matched"] == 0
 
 
+def test_progress_admin_mostra_percentual_sem_token_sync(client):
+    app.dependency_overrides[sync_router.get_current_admin_or_readonly_key] = lambda: None
+    try:
+        with sync_router.STATE.lock:
+            sync_router.STATE.running = True
+            sync_router.STATE.total = 200
+            sync_router.STATE.processed = 50
+            sync_router.STATE.matched = 8
+            sync_router.STATE.started_at = "2026-08-22T20:00:00+00:00"
+            sync_router.STATE.finished_at = None
+            sync_router.STATE.error = None
+
+        r = client.get("/v1/admin/shopee-sync/progress")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["running"] is True
+        assert body["total"] == 200
+        assert body["processed"] == 50
+        assert body["matched"] == 8
+        assert body["percent"] == 25.0
+        assert body["remaining"] == 150
+        assert body["match_rate"] == 16.0
+    finally:
+        app.dependency_overrides.pop(sync_router.get_current_admin_or_readonly_key, None)
+
+
 def test_run_dispara_processa_e_atualiza_status(monkeypatch, client):
     _enable_token(monkeypatch)
     gtin = "7891234500001"
