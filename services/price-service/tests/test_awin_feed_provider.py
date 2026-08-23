@@ -163,6 +163,72 @@ async def test_reference_identity_never_matches_different_brand_with_same_size_m
 
 
 @pytest.mark.asyncio
+async def test_reference_identity_picks_the_right_brand_among_several_generic_collar_titles():
+    """Regressão de um bug real: contra um catálogo com várias marcas de
+    coleira concorrentes (título dominado por palavras genéricas — 'coleira
+    antiparasitária cães' — não pela marca), o piso reduzido por tamanho
+    sozinho batia em 3-4 marcas diferentes ao mesmo tempo, e o próprio
+    caso real virava ambíguo (nada era retornado) por causa disso, não
+    apesar disso. A trava de marca (via _brand_for_matching, título >
+    campo brand inconsistente) tem que eliminar as concorrentes e deixar
+    só a Scalibor passar, pra find_offer não virar None por ambiguidade."""
+    db = SessionLocal()
+    try:
+        db.add(_row(
+            merchant="zeedog",
+            advertiser_id="127555",
+            gtin="7896185907004",
+            external_product_id="scalibor-zeedog",
+            title="Coleira Antiparasitária Scalibor M",
+            brand="MSD",
+            price=84.79,
+        ))
+        db.add(_row(
+            merchant="zeedog",
+            advertiser_id="127555",
+            gtin="7898568979639",
+            external_product_id="dugs-zeedog",
+            title="Coleira Antiparasitária Dug's para Cães 17g",
+            brand="World",
+            price=26.49,
+        ))
+        db.add(_row(
+            merchant="zeedog",
+            advertiser_id="127555",
+            gtin="7898568979875",
+            external_product_id="confront-zeedog",
+            title="Coleira Antiparasitária Confront Deltametrina para Cães de Porte Pequeno e Médio 1 unidade",
+            brand="World",
+            price=35.99,
+        ))
+        db.add(_row(
+            merchant="zeedog",
+            advertiser_id="127555",
+            gtin="7891106907200",
+            external_product_id="kiltix-zeedog",
+            title="Coleira Antiparasitária Kiltix Média para Cães de 8kg a 19kg U",
+            brand="Elanco",
+            price=96.99,
+        ))
+        db.add(_row(
+            gtin="7896185957009",
+            external_product_id="scalibor-cobasi",
+            title="Coleira Antiparasitária Scalibor Cães Pequenos e Médios - 48 cm",
+            brand="Scalibor",
+            price=80.9,
+        ))
+        db.commit()
+
+        provider = AwinFeedProvider(db, "zeedog")
+        offer = await provider.find_offer(ProductContext(gtin="7896185957009"))
+        assert offer is not None
+        assert offer.price == 84.79
+        assert offer.ean == "7896185907004"
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
 async def test_reference_identity_fallback_returns_none_when_ambiguous():
     db = SessionLocal()
     try:
