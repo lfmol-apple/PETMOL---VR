@@ -78,6 +78,27 @@ def test_search_finds_by_title(client, monkeypatch):
         _cleanup()
 
 
+def test_search_matches_words_out_of_order_and_non_contiguous(client, monkeypatch):
+    _enable_awin(monkeypatch)
+    _cleanup()
+    _add_offer(external_product_id="1", title="Racao Golden Special Adulto Sabor Frango 15kg", gtin="7891234500001")
+    _add_offer(external_product_id="2", title="Areia Sanitaria Pipicat 4kg", brand="Pipicat", gtin="7891234500002")
+    try:
+        # "frango golden" não aparece contíguo no título (a ordem é golden...frango)
+        # — cada palavra precisa bater em qualquer posição, não a frase inteira.
+        r = client.get("/commerce/awin-search", params={"q": "frango golden"})
+        assert r.status_code == 200
+        results = r.json()["results"]
+        assert len(results) == 1
+        assert results[0]["gtin"] == "7891234500001"
+
+        r2 = client.get("/commerce/awin-search", params={"q": "golden pipicat"})
+        assert r2.status_code == 200
+        assert r2.json()["results"] == []
+    finally:
+        _cleanup()
+
+
 def test_search_finds_by_brand(client, monkeypatch):
     _enable_awin(monkeypatch)
     _cleanup()

@@ -34,7 +34,7 @@ from .search import clear_cache, search_offers
 from .utils.weights import parse_weight_to_kg, calculate_price_per_kg
 from .auth import ml_oauth_router
 from .auth.ml_oauth import debug_router as ml_debug_router
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 from .db import Base, engine, SessionLocal, get_db
 from .user_auth import user_auth_router
@@ -1573,19 +1573,24 @@ async def commerce_awin_search(
     if not merchants:
         return {"results": []}
 
-    like = f"%{q.strip()}%"
-    # Teclado de celular raramente acentua ("racao" pra achar "Ração") — sem
-    # isso a busca falha silenciosamente pra boa parte das buscas reais em
-    # português. unaccent() é extensão nativa do Postgres (habilitada em
-    # produção via `CREATE EXTENSION unaccent`); SQLite (testes/dev local)
-    # não tem, cai pro ILIKE simples (sensível a acento só nesse ambiente).
+    # Uma condição por palavra digitada, todas em AND — "racao golden frango"
+    # acha "Ração Golden Special Adulto Sabor Frango" mesmo a frase completa
+    # não aparecendo contígua no título (cada palavra pode estar em qualquer
+    # posição da descrição, não só um match do texto inteiro digitado).
+    words = [w for w in q.strip().split() if w]
+    if not words:
+        return {"results": []}
     is_postgres = db.bind.dialect.name == "postgresql"
-    if is_postgres:
-        title_match = func.unaccent(AffiliateFeedOffer.title).ilike(func.unaccent(like))
-        brand_match = func.unaccent(AffiliateFeedOffer.brand).ilike(func.unaccent(like))
-    else:
-        title_match = AffiliateFeedOffer.title.ilike(like)
-        brand_match = AffiliateFeedOffer.brand.ilike(like)
+    word_matches = []
+    for word in words:
+        like = f"%{word}%"
+        if is_postgres:
+            title_match = func.unaccent(AffiliateFeedOffer.title).ilike(func.unaccent(like))
+            brand_match = func.unaccent(AffiliateFeedOffer.brand).ilike(func.unaccent(like))
+        else:
+            title_match = AffiliateFeedOffer.title.ilike(like)
+            brand_match = AffiliateFeedOffer.brand.ilike(like)
+        word_matches.append(title_match | brand_match)
 
     # Uma linha por (gtin, merchant) que bate no filtro; rn=1 é a mais
     # barata daquele gtin entre TODOS os merchants liberados, offer_count
@@ -1612,7 +1617,7 @@ async def commerce_awin_search(
             AffiliateFeedOffer.active.is_(True),
             AffiliateFeedOffer.in_stock.is_(True),
             AffiliateFeedOffer.gtin.isnot(None),
-            (title_match | brand_match),
+            and_(*word_matches),
         )
         .subquery()
     )
