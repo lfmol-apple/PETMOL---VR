@@ -42,15 +42,21 @@ function parseMedNotes(notes: string) {
   const doseMatch = firstLine.match(/Dose:\s*([^|]+)/);
   const routeMatch = firstLine.match(/Via:\s*([^|]+)/);
   const freqMatch = firstLine.match(/Frequência:\s*([^|]+)/);
-  if (doseMatch || routeMatch || freqMatch) {
+  // Sem isto, reabrir pra editar sempre zerava form.barcode (ver openEdit),
+  // e salvar de novo apagava de vez o código de barras já escaneado das
+  // notes — o card de "Comprar novamente" perdia o gtin numa edição
+  // qualquer, mesmo tendo sido escaneado direito no cadastro original.
+  const barcodeMatch = firstLine.match(/Código de barras:\s*([^|]+)/);
+  if (doseMatch || routeMatch || freqMatch || barcodeMatch) {
     return {
       dose: doseMatch?.[1].trim() ?? '',
       route: routeMatch?.[1].trim().toLowerCase() ?? 'oral',
       frequency: freqMatch?.[1].trim().replace(' ', '_') ?? '2x_dia',
+      barcode: barcodeMatch?.[1].trim() ?? '',
       cleanNotes: rest,
     };
   }
-  return { dose: '', route: 'oral', frequency: '2x_dia', cleanNotes: notes };
+  return { dose: '', route: 'oral', frequency: '2x_dia', barcode: '', cleanNotes: notes };
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -203,7 +209,7 @@ export function MedicationItemSheet({
   }
 
   function openEdit(ev: PetEventRecord) {
-    const { dose, route, frequency, cleanNotes } = parseMedNotes(ev.notes || '');
+    const { dose, route, frequency, barcode, cleanNotes } = parseMedNotes(ev.notes || '');
     let treatmentDays = '';
     let customIntervalDays = '';
     let totalDoses = '';
@@ -241,7 +247,7 @@ export function MedicationItemSheet({
       manufacturer: '',
       presentation: '',
       concentration: '',
-      barcode: '',
+      barcode,
     });
     setEditingId(ev.id);
     setShowManualForm(true);

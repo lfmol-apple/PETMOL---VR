@@ -478,6 +478,19 @@ function processFood(p: PetCareDomainParams): PetCareReminder[] {
   }, ...secondaryReminders];
 }
 
+// MedicationItemSheet.tsx grava o código de barras escaneado embutido em
+// ev.notes ("... | Código de barras: 7891234567890") — não existe coluna
+// própria pra isso em events (diferente de parasite_control_records.barcode
+// / feeding_plan_items.barcode). Sem extrair de volta aqui, todo lembrete
+// de medicação nascia sem `gtin`, e o card de "Comprar novamente" nunca
+// conseguia achar preço na Awin pra medicação nenhuma, escaneada ou não —
+// bug real reportado pelo usuário (vermífugo da Nine, escaneado, sem preço).
+function extractMedicationBarcode(notes?: string | null): string | undefined {
+  if (!notes) return undefined;
+  const match = notes.match(/Código de barras:\s*([^|\n]+)/);
+  return match?.[1]?.trim() || undefined;
+}
+
 function processEvents(p: PetCareDomainParams): PetCareReminder[] {
   const eventIcons: Record<string, string> = {
     medicacao: '💊',
@@ -534,6 +547,7 @@ function processEvents(p: PetCareDomainParams): PetCareReminder[] {
         action_target: 'health/medication',
         source_record_id: ev.id,
         is_derived: false,
+        gtin: extractMedicationBarcode(ev.notes),
       });
       continue;
     }
@@ -579,6 +593,7 @@ function processEvents(p: PetCareDomainParams): PetCareReminder[] {
         action_target: 'health/medication',
         source_record_id: ev.id,
         is_derived: false,
+        gtin: extractMedicationBarcode(ev.notes),
       });
       continue;
     }
@@ -616,6 +631,7 @@ function processEvents(p: PetCareDomainParams): PetCareReminder[] {
       action_target: ev.type === 'medicacao' ? 'health/medication' : 'health/events',
       source_record_id: ev.id,
       is_derived: false,
+      gtin: ev.type === 'medicacao' ? extractMedicationBarcode(ev.notes) : undefined,
     });
   }
   return result;
