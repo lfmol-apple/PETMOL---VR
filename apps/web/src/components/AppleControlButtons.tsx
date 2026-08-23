@@ -139,7 +139,7 @@ export function AppleControlButtons({
             <span className="absolute right-2 top-2 text-[18px] opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">🏥</span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
               <h3 className="truncate text-[13px] font-semibold leading-tight text-indigo-950 min-[390px]:text-[14px] sm:text-base">Cuidados</h3>
-              <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-indigo-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">{healthHeadline || 'Remédio, antiparasitário e banho'}</p>
+              <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-indigo-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">{healthHeadline || `Mantenha os cuidados ${petDo({ sex: petSex })} ${petName || 'seu pet'} em dia`}</p>
               {healthSubline && (
                 <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.1] text-indigo-900 min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
                   {healthSubline}
@@ -163,7 +163,7 @@ export function AppleControlButtons({
               <h3 className="truncate text-[13px] font-semibold leading-tight text-emerald-950 min-[390px]:text-[14px] sm:text-base">
                 Vacina
               </h3>
-              <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-emerald-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">{vaccineHeadline || 'Datas, doses e lembretes'}</p>
+              <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-emerald-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">{vaccineHeadline || `Mantenha ${petName || 'seu pet'} em dia com a vacinação`}</p>
               {vaccineSubline && (
                 <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.1] text-emerald-900 min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
                   {vaccineSubline}

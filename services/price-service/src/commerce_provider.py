@@ -63,6 +63,7 @@ class DiscoveredOffer:
     direct_url: Optional[str] = None
     ean: Optional[str] = None
     external_id: Optional[str] = None  # SKU/listing id, quando houver
+    image_url: Optional[str] = None
 
 
 @dataclass
@@ -90,6 +91,7 @@ class MonetizedOffer:
     price: Optional[float] = None
     list_price: Optional[float] = None
     is_available: Optional[bool] = None
+    image_url: Optional[str] = None
 
 
 class CommerceProvider(Protocol):
@@ -159,6 +161,7 @@ class CommerceEngine:
                 price=discovered.price,
                 list_price=discovered.list_price,
                 is_available=discovered.is_available,
+                image_url=discovered.image_url,
             ))
 
         offers = _dedupe_by_merchant(offers)

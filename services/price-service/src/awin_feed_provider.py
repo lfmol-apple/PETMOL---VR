@@ -46,7 +46,7 @@ from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
 from .gtin_utils import normalize_gtin_gs1
 from .product_catalog_lookup import normalize_gtin
-from .shopee_offer_matcher import extract_volume_ml, extract_weight_kg, score_candidate
+from .shopee_offer_matcher import extract_volume_ml, extract_weight_kg, extract_weight_range_kg, score_candidate
 # Reused as-is (not duplicated): resolves a title like "Coleira ... Scalibor
 # M" or "... MSD ..." to the commercial brand name regardless of which one
 # a given feed's own `brand` column happens to carry — the same
@@ -144,6 +144,7 @@ class AwinFeedProvider:
             direct_url=row.merchant_url,
             ean=row.gtin,
             external_id=row.external_product_id,
+            image_url=row.image_url,
         )
 
     def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str, str]]:
@@ -301,6 +302,21 @@ def _looks_like_same_product(
 
 
 def _package_markers_compatible(candidate_title: str, reference_title: str) -> bool:
+    candidate_range = extract_weight_range_kg(candidate_title)
+    reference_range = extract_weight_range_kg(reference_title)
+    # Faixa de peso do animal ("de 4,1 a 10kg", comum em antipulgas/
+    # vermífugo por porte) é um identificador forte de variante — produtos
+    # com faixas diferentes nunca são o mesmo item, mesmo com marca/nome
+    # quase idênticos. Quando só um lado tem faixa detectável, não dá pra
+    # confirmar compatibilidade: falha fechado (rejeita) em vez de deixar
+    # o número isolado de extract_weight_kg (que só pega o limite superior
+    # da faixa) mascarar a diferença — caso real: NexGard "4,1 a 10kg"
+    # casando com uma faixa de porte diferente só porque os títulos
+    # convergem no resto do texto.
+    if candidate_range is not None or reference_range is not None:
+        if candidate_range != reference_range:
+            return False
+
     candidate_weight = extract_weight_kg(candidate_title)
     reference_weight = extract_weight_kg(reference_title)
     if candidate_weight is not None and reference_weight is not None:

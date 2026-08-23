@@ -37,6 +37,25 @@ function createLocalDate(str: string) {
   return new Date(y, m - 1, d);
 }
 
+const MONTH_FULL_NAMES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+const WEEKDAY_LETTERS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+
+/** Todos os dias do mês (year/monthIndex0based), com blanks (null) de
+ * preenchimento antes do dia 1 pra alinhar com a coluna do dia da semana
+ * certa — o calendário sempre começa no domingo da semana do dia 1. */
+function buildMonthCalendarCells(year: number, monthIndex: number): (string | null)[] {
+  const firstOfMonth = new Date(year, monthIndex, 1);
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const cells: (string | null)[] = new Array(firstOfMonth.getDay()).fill(null);
+  for (let day = 1; day <= daysInMonth; day++) {
+    cells.push(dateToLocalISO(new Date(year, monthIndex, day)));
+  }
+  return cells;
+}
+
 function parseMedNotes(notes: string) {
   const lines = notes.split('\n');
   const firstLine = lines[0] || '';
@@ -716,18 +735,35 @@ export function MedicationItemSheet({
                       allDayDates.push(dateToLocalISO(d));
                     }
 
-                    const DAY_GRID_COLLAPSE_THRESHOLD = 21;
-                    const DAY_GRID_COLLAPSED_WINDOW = 14;
+                    const allDayDatesSet = new Set(allDayDates);
                     const isDayGridExpanded = expandedDayGridIds.has(ev.id);
-                    const needsDayGridCollapse = allDayDates.length > DAY_GRID_COLLAPSE_THRESHOLD;
-                    let visibleDayDates = allDayDates;
-                    if (needsDayGridCollapse && !isDayGridExpanded) {
-                      const anchorIndex = allDayDates.includes(todayStr)
-                        ? allDayDates.indexOf(todayStr)
-                        : allDayDates.length - 1;
-                      const start = Math.max(0, anchorIndex - DAY_GRID_COLLAPSED_WINDOW + 1);
-                      visibleDayDates = allDayDates.slice(start, anchorIndex + 1);
+
+                    // Um calendário de verdade por mês (Março completo,
+                    // Abril completo...) em vez de uma parede de quadrados
+                    // soltos — dias fora do tratamento (antes do início, ou
+                    // "furos" de intervalo personalizado) ficam como
+                    // preenchimento apagado, só pra manter o calendário
+                    // alinhado; só dias do tratamento são clicáveis.
+                    const monthGroups: { key: string; year: number; monthIndex: number }[] = [];
+                    {
+                      const seenMonths = new Set<string>();
+                      for (const d of allDayDates) {
+                        const key = d.slice(0, 7);
+                        if (!seenMonths.has(key)) {
+                          seenMonths.add(key);
+                          const [y, m] = key.split('-').map(Number);
+                          monthGroups.push({ key, year: y, monthIndex: m - 1 });
+                        }
+                      }
                     }
+                    const needsMonthCollapse = monthGroups.length > 1;
+                    const todayMonthKey = todayStr.slice(0, 7);
+                    const collapsedMonthKey = monthGroups.some(g => g.key === todayMonthKey)
+                      ? todayMonthKey
+                      : monthGroups[monthGroups.length - 1]?.key;
+                    const visibleMonthGroups = needsMonthCollapse && !isDayGridExpanded
+                      ? monthGroups.filter(g => g.key === collapsedMonthKey)
+                      : monthGroups;
 
                     const pct = Math.min(100, Math.round(appliedDates.length / totalDoses * 100));
                     const daysLeft = totalDoses - appliedDates.length;
@@ -767,78 +803,91 @@ export function MedicationItemSheet({
                           </div>
                         </div>
 
-                        {/* Grade de quadradinhos (visual clássico do app —
-                            cinza pendente, roxo sólido no dia de hoje, verde
-                            aplicado, âmbar pulado) distribuída em várias
-                            linhas, sem precisar selecionar um dia antes de
-                            agir: toque marca a dose na hora; toque e segure
-                            pula o dia. Toque de novo num dia já
-                            aplicado/pulado desfaz. Cada quadrado mostra a
-                            data (dia/mês) em vez de só o dia — tratamentos
-                            que passam de um mês repetem o número do dia, o
-                            que confundia qual "7" era qual. */}
-                        <div className="px-3 pb-3 border-t border-purple-50 pt-2.5">
-                          <div className="flex flex-wrap gap-1.5">
-                            {visibleDayDates.map((dateStr) => {
-                              const isApplied = appliedDates.includes(dateStr);
-                              const isSkipped = skippedDates.includes(dateStr);
-                              const isToday = dateStr === todayStr;
-                              const isFuture = dateStr > todayStr;
-                              const dateLabel = `${dateStr.slice(8, 10)}/${dateStr.slice(5, 7)}`;
+                        {/* Calendário mensal de verdade (Março completo,
+                            Abril completo...) em vez de uma parede de
+                            quadrados soltos — cada mês com cabeçalho de dia
+                            da semana, dias fora do tratamento como
+                            preenchimento apagado só pra alinhar a grade.
+                            Dias aplicados/pulados ficam sólidos (verde/
+                            âmbar) pra saltar aos olhos mesmo fora do dia de
+                            hoje. Toque marca a dose na hora; toque e segure
+                            pula o dia; toque de novo num dia já
+                            aplicado/pulado desfaz. */}
+                        <div className="px-3 pb-3 border-t border-purple-50 pt-2.5 space-y-4">
+                          {visibleMonthGroups.map((group) => (
+                            <div key={group.key}>
+                              <p className="text-[11px] font-black text-gray-500 mb-1.5">
+                                {MONTH_FULL_NAMES[group.monthIndex]} {group.year}
+                              </p>
+                              <div className="grid grid-cols-7 gap-1">
+                                {WEEKDAY_LETTERS.map((letter, i) => (
+                                  <div key={i} className="text-center text-[9px] font-bold text-gray-300">{letter}</div>
+                                ))}
+                                {buildMonthCalendarCells(group.year, group.monthIndex).map((dateStr, i) => {
+                                  if (!dateStr) return <div key={`blank-${i}`} />;
+                                  const inTreatment = allDayDatesSet.has(dateStr);
+                                  const dayNum = parseInt(dateStr.slice(8, 10), 10);
 
-                              let cls = '';
-                              if (isFuture) cls = 'bg-gray-50 text-gray-300 border border-gray-100';
-                              else if (isToday) {
-                                cls = isApplied
-                                  ? 'bg-green-500 text-white'
-                                  : isSkipped
-                                    ? 'bg-amber-500 text-white'
-                                    : 'bg-purple-500 text-white';
-                              } else {
-                                cls = isApplied
-                                  ? 'bg-green-100 text-green-700 border border-green-200'
-                                  : isSkipped
-                                    ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                                    : 'bg-gray-100 text-gray-500 border border-gray-200';
-                              }
+                                  if (!inTreatment) {
+                                    return (
+                                      <div key={dateStr} className="aspect-square flex items-center justify-center text-[10px] text-gray-300">
+                                        {dayNum}
+                                      </div>
+                                    );
+                                  }
 
-                              const label = isApplied
-                                ? `${dateLabel}, dose aplicada — toque pra desfazer`
-                                : isSkipped
-                                  ? `${dateLabel}, dose pulada — toque pra desfazer`
-                                  : `${dateLabel} — toque pra marcar aplicada, toque e segure pra pular`;
+                                  const isApplied = appliedDates.includes(dateStr);
+                                  const isSkipped = skippedDates.includes(dateStr);
+                                  const isToday = dateStr === todayStr;
+                                  const isFuture = dateStr > todayStr;
 
-                              return (
-                                <button
-                                  key={dateStr}
-                                  type="button"
-                                  disabled={isFuture || isBusy}
-                                  title={label}
-                                  aria-label={label}
-                                  onClick={() => {
-                                    if (longPressFiredRef.current) { longPressFiredRef.current = false; return; }
-                                    if (isApplied) handleApplyDose(ev.id, 'remove', dateStr);
-                                    else if (isSkipped) handleApplyDose(ev.id, 'unskip', dateStr);
-                                    else handleApplyDose(ev.id, 'apply', dateStr);
-                                  }}
-                                  onPointerDown={() => {
-                                    if (isApplied || isSkipped || isFuture) return;
-                                    startLongPress(() => handleApplyDose(ev.id, 'skip', dateStr));
-                                  }}
-                                  onPointerUp={cancelLongPress}
-                                  onPointerLeave={cancelLongPress}
-                                  onPointerCancel={cancelLongPress}
-                                  className={`w-11 h-10 rounded-lg text-[10px] font-bold transition-all active:scale-90 flex flex-col items-center justify-center flex-shrink-0 ${cls} ${isFuture ? 'cursor-default opacity-50' : 'cursor-pointer'} disabled:opacity-40`}
-                                >
-                                  <span>{dateLabel}</span>
-                                  {(isApplied || isSkipped) && <span className="text-[8px] leading-none mt-0.5">{isApplied ? '✓' : '↷'}</span>}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          <div className="flex items-center justify-between gap-2 mt-2">
+                                  let cls = '';
+                                  if (isApplied) cls = 'bg-green-500 text-white shadow-sm shadow-green-500/40';
+                                  else if (isSkipped) cls = 'bg-amber-500 text-white';
+                                  else if (isFuture) cls = 'bg-gray-50 text-gray-300 border border-gray-100';
+                                  else if (isToday) cls = 'bg-purple-500 text-white';
+                                  else cls = 'bg-gray-100 text-gray-500 border border-gray-200';
+
+                                  const dateLabel = `${dateStr.slice(8, 10)}/${dateStr.slice(5, 7)}`;
+                                  const label = isApplied
+                                    ? `${dateLabel}, dose aplicada — toque pra desfazer`
+                                    : isSkipped
+                                      ? `${dateLabel}, dose pulada — toque pra desfazer`
+                                      : `${dateLabel} — toque pra marcar aplicada, toque e segure pra pular`;
+
+                                  return (
+                                    <button
+                                      key={dateStr}
+                                      type="button"
+                                      disabled={isFuture || isBusy}
+                                      title={label}
+                                      aria-label={label}
+                                      onClick={() => {
+                                        if (longPressFiredRef.current) { longPressFiredRef.current = false; return; }
+                                        if (isApplied) handleApplyDose(ev.id, 'remove', dateStr);
+                                        else if (isSkipped) handleApplyDose(ev.id, 'unskip', dateStr);
+                                        else handleApplyDose(ev.id, 'apply', dateStr);
+                                      }}
+                                      onPointerDown={() => {
+                                        if (isApplied || isSkipped || isFuture) return;
+                                        startLongPress(() => handleApplyDose(ev.id, 'skip', dateStr));
+                                      }}
+                                      onPointerUp={cancelLongPress}
+                                      onPointerLeave={cancelLongPress}
+                                      onPointerCancel={cancelLongPress}
+                                      className={`aspect-square rounded-lg text-[10px] font-bold transition-all active:scale-90 flex flex-col items-center justify-center ${cls} ${isFuture ? 'cursor-default opacity-50' : 'cursor-pointer'} disabled:opacity-40`}
+                                    >
+                                      <span>{dayNum}</span>
+                                      {(isApplied || isSkipped) && <span className="text-[7px] leading-none mt-0.5">{isApplied ? '✓' : '↷'}</span>}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-between gap-2">
                             <p className="text-[10px] text-gray-400">Toque marca a dose · toque e segure pula o dia</p>
-                            {needsDayGridCollapse && (
+                            {needsMonthCollapse && (
                               <button
                                 type="button"
                                 onClick={() => setExpandedDayGridIds(prev => {
@@ -849,7 +898,7 @@ export function MedicationItemSheet({
                                 })}
                                 className="text-[10px] font-bold text-purple-600 hover:text-purple-700 flex-shrink-0"
                               >
-                                {isDayGridExpanded ? 'Mostrar menos' : `Ver todos os ${allDayDates.length} dias`}
+                                {isDayGridExpanded ? 'Mostrar menos' : `Ver histórico completo (${monthGroups.length} meses)`}
                               </button>
                             )}
                           </div>

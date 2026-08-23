@@ -58,6 +58,7 @@ class CommerceOfferOut(BaseModel):
     price: Optional[float] = None
     list_price: Optional[float] = None
     is_available: Optional[bool] = None
+    image_url: Optional[str] = None
 
 
 _NOT_FOUND = ProductOfferResult(found=False)

@@ -41,6 +41,12 @@ _STOPWORDS = frozenset({
 
 _WEIGHT_TOKEN_RE = re.compile(r"^\d+(?:[.,]\d+)?(kg|g)$")
 _WEIGHT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(kg|g)\b")
+# Faixa de peso do animal (não do pacote) — comum em antipulgas/vermífugo
+# ("de 4,1 a 10kg para Cães"). extract_weight_kg sozinho só pega o número
+# colado no "kg" (o limite superior), perdendo o inferior; duas faixas com
+# limite superior igual mas inferior diferente (ex: "4,1 a 10kg" vs "0,1 a
+# 10kg") passavam batidas por _package_markers_compatible.
+_WEIGHT_RANGE_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*a\s*(\d+(?:[.,]\d+)?)\s*(kg|g)\b")
 _VOLUME_TOKEN_RE = re.compile(r"^\d+(?:[.,]\d+)?(ml|l|litro|litros)$")
 _VOLUME_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(ml|l|litro|litros)\b")
 _PACK_COUNT_RE = re.compile(
@@ -63,6 +69,20 @@ def extract_weight_kg(text: str) -> Optional[float]:
         return None
     value = float(match.group(1).replace(",", "."))
     return value if match.group(2) == "kg" else value / 1000
+
+
+def extract_weight_range_kg(text: str) -> Optional[tuple[float, float]]:
+    """Faixa de peso do animal ("de 4,1 a 10kg"), como (min, max) em kg.
+    None se o texto não tiver uma faixa explícita (só um peso único, ou
+    nenhum peso)."""
+    match = _WEIGHT_RANGE_RE.search(_normalize(text))
+    if not match:
+        return None
+    lo = float(match.group(1).replace(",", "."))
+    hi = float(match.group(2).replace(",", "."))
+    if match.group(3) == "g":
+        lo, hi = lo / 1000, hi / 1000
+    return (lo, hi)
 
 
 def extract_volume_ml(text: str) -> Optional[float]:
