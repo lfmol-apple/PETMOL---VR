@@ -285,7 +285,7 @@ export function MedicationItemSheet({
       if (form.cost) payload.cost = parseFloat(form.cost);
       if (finalNotes) payload.notes = finalNotes;
 
-      if (form.reminder_enabled) {
+      {
         // Ao editar, preservar applied_dates/skipped_dates/dose_notes da medicação existente
         let extra: Record<string, unknown> = {};
         if (editingId) {
@@ -294,47 +294,59 @@ export function MedicationItemSheet({
             try { extra = { ...parsePetEventExtraData(existing.extra_data) }; } catch { /* silent */ }
           }
         }
-        const normalizedTimes = form.reminder_times.filter(Boolean);
-        extra.frequency = form.frequency;
+
+        // A duração do tratamento (treatment_days pra frequência regular,
+        // custom_interval_days/total_doses pra "personalizado") nunca
+        // depende do toggle de lembrete — é isso que liga o calendário/
+        // contagem de doses (ver a lista "active" mais acima). Bug real
+        // corrigido aqui: antes isso só era gravado dentro do bloco de
+        // lembretes, então registrar uma medicação sem lembrete nunca
+        // salvava a duração, e o calendário nunca aparecia. Os campos do
+        // formulário (Duração do tratamento / Total de doses) já eram
+        // sempre visíveis — só a gravação estava presa ao toggle.
         if (form.frequency === 'personalizado') {
           delete extra.treatment_days;
           if (form.custom_interval_days) extra.custom_interval_days = parseInt(form.custom_interval_days, 10);
+          else delete extra.custom_interval_days;
           if (form.total_doses) extra.total_doses = parseInt(form.total_doses, 10);
+          else delete extra.total_doses;
         } else {
           delete extra.custom_interval_days;
           delete extra.total_doses;
           if (form.treatment_days) extra.treatment_days = parseInt(form.treatment_days);
+          else delete extra.treatment_days;
         }
-        if (normalizedTimes.length > 0) {
-          extra.reminder_times = normalizedTimes;
-          extra.reminder_time = normalizedTimes[0];
-        } else {
-          extra.reminder_times = ['08:00'];
-          extra.reminder_time = '08:00';
-        }
-        payload.extra_data = JSON.stringify(extra);
-        if (form.frequency === 'personalizado' && form.custom_interval_days) {
-          const days = parseInt(form.custom_interval_days, 10);
-          if (Number.isFinite(days) && days > 0) {
-            payload.next_due_date = new Date(addDays(form.scheduled_date, days) + 'T00:00:00').toISOString();
+
+        if (form.reminder_enabled) {
+          const normalizedTimes = form.reminder_times.filter(Boolean);
+          extra.frequency = form.frequency;
+          if (normalizedTimes.length > 0) {
+            extra.reminder_times = normalizedTimes;
+            extra.reminder_time = normalizedTimes[0];
+          } else {
+            extra.reminder_times = ['08:00'];
+            extra.reminder_time = '08:00';
           }
-        } else if (form.reminder_date) {
-          payload.next_due_date = new Date(form.reminder_date + 'T00:00:00').toISOString();
+          if (form.frequency === 'personalizado' && form.custom_interval_days) {
+            const days = parseInt(form.custom_interval_days, 10);
+            payload.next_due_date = Number.isFinite(days) && days > 0
+              ? new Date(addDays(form.scheduled_date, days) + 'T00:00:00').toISOString()
+              : null;
+          } else {
+            payload.next_due_date = form.reminder_date
+              ? new Date(form.reminder_date + 'T00:00:00').toISOString()
+              : null;
+          }
+        } else {
+          // Ao desativar lembretes, limpar só o rastro de agendamento —
+          // treatment_days/custom_interval_days/total_doses/applied_dates/
+          // skipped_dates ficam intactos.
+          delete extra.reminder_time;
+          delete extra.reminder_times;
+          delete extra.frequency;
+          payload.next_due_date = null;
         }
-      } else if (editingId) {
-        // Ao desativar lembretes, limpar rastros de agendamento para não reativar silenciosamente no reload.
-        let extra: Record<string, unknown> = {};
-        const existing = medications.find(ev => ev.id === editingId);
-        if (existing?.extra_data) {
-          try { extra = { ...parsePetEventExtraData(existing.extra_data) }; } catch { /* silent */ }
-        }
-        delete extra.reminder_time;
-        delete extra.reminder_times;
-        delete extra.frequency;
-        delete extra.treatment_days;
-        delete extra.custom_interval_days;
-        delete extra.total_doses;
-        payload.next_due_date = null;
+
         payload.extra_data = Object.keys(extra).length > 0 ? JSON.stringify(extra) : null;
       }
 
@@ -1141,21 +1153,33 @@ export function MedicationItemSheet({
                       )}
                     </div>
                   </div>
+                </div>
+              )}
 
-                  {form.frequency !== 'personalizado' && (
-                  <div>
-                    <label className={labelCls}>📆 Duração do tratamento (dias)</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="365"
-                      placeholder="Ex: 7"
-                      className="w-full border border-amber-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                      value={form.treatment_days}
-                      onChange={e => setForm(f => ({ ...f, treatment_days: e.target.value }))}
-                    />
-                  </div>
-                  )}
+              {/* Duração do tratamento — sempre visível, independente do
+                  toggle de lembretes: é isto que preenche extra_data.
+                  treatment_days e liga o calendário de doses do tratamento
+                  (ver a lista "active" e a grade de dias mais acima). Antes
+                  ficava dentro do bloco de lembretes, então um tutor que só
+                  queria registrar a medicação sem lembrete nunca via este
+                  campo, nunca preenchia treatment_days, e o calendário nunca
+                  aparecia pra esse tratamento. Frequência "personalizado" já
+                  tem seu próprio par de campos (Total de doses/Próxima dose
+                  em) mais acima, que já era incondicional — só este aqui
+                  estava preso ao toggle. */}
+              {form.frequency !== 'personalizado' && (
+                <div>
+                  <label className={labelCls}>📆 Duração do tratamento (dias)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    placeholder="Ex: 7"
+                    className={inputCls}
+                    value={form.treatment_days}
+                    onChange={e => setForm(f => ({ ...f, treatment_days: e.target.value }))}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Preencha pra acompanhar as doses num calendário do tratamento.</p>
                 </div>
               )}
 
