@@ -50,33 +50,6 @@ export default function LandingPage() {
         <p className="mt-3 text-xs text-slate-400">Sem cartão de crédito. Cancele quando quiser.</p>
       </section>
 
-      {/* Diferencial — WhatsApp share */}
-      <section className="px-5 py-10">
-        <div className="rounded-3xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500 flex items-center justify-center text-2xl flex-shrink-0">
-              📎
-            </div>
-            <div>
-              <p className="text-[11px] font-black text-emerald-600 uppercase tracking-wider">Exclusivo PETMOL</p>
-              <h2 className="text-[17px] font-black text-slate-900 leading-tight">
-                Do WhatsApp direto no app
-              </h2>
-            </div>
-          </div>
-          <p className="text-sm text-slate-600 leading-relaxed">
-            O veterinário mandou o exame ou a receita pelo WhatsApp? Compartilhe com o PETMOL — o arquivo é salvo automaticamente no histórico do seu pet. Sem precisar baixar, renomear ou organizar.
-          </p>
-          <div className="mt-4 flex items-center gap-2 text-xs text-emerald-700 font-bold">
-            <span>WhatsApp</span>
-            <span className="text-slate-400">→</span>
-            <span>Compartilhar</span>
-            <span className="text-slate-400">→</span>
-            <span>PETMOL salva</span>
-          </div>
-        </div>
-      </section>
-
       {/* Features */}
       <section className="px-5 pb-10 space-y-4">
         <FeatureCard
