@@ -260,15 +260,7 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
           {loading && <p className="text-[10px] mt-1 text-gray-300">Buscando oferta...</p>}
           {!loading && hasMonetizedOffer && offer && (
             <p className="text-[12px] mt-1 font-bold text-emerald-700 flex items-center flex-wrap gap-x-1">
-              <span>{hasMultipleOffers ? 'A partir de ' : ''}{formatBRLPrice(offer.price as number)} na</span>
-              {(() => {
-                const logoSrc = HOME_SHOPPING_PARTNERS.find((p) => p.id === offer.merchant)?.logoSrc;
-                return logoSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={logoSrc} alt="" className="w-3.5 h-3.5 rounded object-contain bg-white border border-emerald-100 inline-block" />
-                ) : null;
-              })()}
-              <span>{merchantLabel(offer.merchant)}</span>
+              <span>{hasMultipleOffers ? 'A partir de ' : ''}{formatBRLPrice(offer.price as number)} na {merchantLabel(offer.merchant)}</span>
               {hasDiscount && (
                 <span className="ml-1.5 text-[10px] font-semibold text-gray-400 line-through">{formatBRLPrice(offer.list_price as number)}</span>
               )}
@@ -316,19 +308,28 @@ function OfferPickerRow({ offers, onPick }: { offers: CommerceOffer[]; onPick: (
   return (
     <div className="mt-2.5 pt-2.5 border-t border-gray-100 space-y-1.5" onClick={(e) => e.stopPropagation()}>
       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Escolha a loja</p>
-      {offers.map((offer) => (
-        <button
-          key={offer.merchant}
-          type="button"
-          onClick={() => onPick(offer)}
-          className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-emerald-300 px-3 py-2 transition-all active:scale-[0.98]"
-        >
-          <span className="text-[12px] font-bold text-gray-800">{merchantLabel(offer.merchant)}</span>
-          {typeof offer.price === 'number' && (
-            <span className="text-[12px] font-bold text-emerald-700">{formatBRLPrice(offer.price)}</span>
-          )}
-        </button>
-      ))}
+      {offers.map((offer) => {
+        const logoSrc = HOME_SHOPPING_PARTNERS.find((p) => p.id === offer.merchant)?.logoSrc;
+        return (
+          <button
+            key={offer.merchant}
+            type="button"
+            onClick={() => onPick(offer)}
+            className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-emerald-300 px-3 py-2 transition-all active:scale-[0.98]"
+          >
+            <span className="flex items-center gap-1.5 min-w-0">
+              {logoSrc && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoSrc} alt="" className="w-4 h-4 rounded object-contain bg-white border border-gray-200 flex-shrink-0" />
+              )}
+              <span className="text-[12px] font-bold text-gray-800 truncate">{merchantLabel(offer.merchant)}</span>
+            </span>
+            {typeof offer.price === 'number' && (
+              <span className="text-[12px] font-bold text-emerald-700 flex-shrink-0">{formatBRLPrice(offer.price)}</span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -341,9 +342,11 @@ function QuickBuyRow({ partners, onPick }: { partners: HomeShoppingPartner[]; on
           key={partner.id}
           type="button"
           onClick={() => onPick(partner.id)}
-          className="flex-1 rounded-xl border border-gray-200 bg-gray-50 py-2 text-[12px] font-bold text-gray-700 hover:bg-white hover:border-emerald-300 active:scale-95 transition-all"
+          className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 py-2 text-[12px] font-bold text-gray-700 hover:bg-white hover:border-emerald-300 active:scale-95 transition-all"
         >
-          {partner.name}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={partner.logoSrc} alt="" className="w-4 h-4 rounded object-contain bg-white border border-gray-200 flex-shrink-0" />
+          <span className="truncate">{partner.name}</span>
         </button>
       ))}
     </div>
