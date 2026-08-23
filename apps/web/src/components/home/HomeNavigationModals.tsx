@@ -70,57 +70,6 @@ function ControlAlertBadge({ tone = 'critical' }: { tone?: ControlTone }) {
   );
 }
 
-// Ícones de linha do grid "Cuidando de {pet}" — substituem os emojis por
-// uma cara mais profissional (mesmo pedido do grid principal da home).
-type CareIconProps = { className?: string };
-
-function DewormerIcon({ className }: CareIconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <rect x="4" y="9" width="16" height="7" rx="3.5" />
-      <path d="M8 9v7" />
-      <path d="M16 9v7" />
-    </svg>
-  );
-}
-
-function FleaShieldIcon({ className }: CareIconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 3.5 5 6v5.5c0 4.5 3 7.2 7 9 4-1.8 7-4.5 7-9V6l-7-2.5Z" />
-      <path d="m9 12 2 2 4-4.5" />
-    </svg>
-  );
-}
-
-function CollarIcon({ className }: CareIconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <circle cx="12" cy="10" r="7.5" />
-      <path d="M12 17.5v2.3" />
-      <circle cx="12" cy="20.3" r="1.2" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-function BathDropletIcon({ className }: CareIconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 3.5c3 3.6 5.5 7 5.5 10a5.5 5.5 0 0 1-11 0c0-3 2.5-6.4 5.5-10Z" />
-    </svg>
-  );
-}
-
-function PillBottleIcon({ className }: CareIconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <rect x="7" y="7.5" width="10" height="13" rx="2.5" />
-      <path d="M9 3.5h6v4H9z" />
-      <path d="M7 13h10" />
-    </svg>
-  );
-}
-
 export function HomeNavigationModals({
   currentPet,
   showServiceTypeModal,
@@ -228,15 +177,15 @@ export function HomeNavigationModals({
             <div className="p-4 sm:p-6 bg-slate-50">
               <div className="grid grid-cols-2 gap-3 mb-2">
                 {[
-                  { icon: DewormerIcon, label: 'Vermífugo', gradient: 'from-orange-100 to-amber-200 border-amber-300', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
-                  { icon: FleaShieldIcon, label: 'Antipulgas', gradient: 'from-emerald-100 to-green-200 border-green-300', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
+                  { icon: '🪱', label: 'Vermífugo', gradient: 'from-orange-100 to-amber-200 border-amber-300', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
+                  { icon: '🛡️', label: 'Antipulgas', gradient: 'from-emerald-100 to-green-200 border-green-300', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
                   // Coleira antiparasitária é uso específico de cães — outras espécies não usam
                   ...(currentPet?.species === 'dog'
-                    ? [{ icon: CollarIcon, label: 'Coleira', gradient: 'from-teal-100 to-cyan-200 border-teal-300', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
+                    ? [{ icon: '📿', label: 'Coleira', gradient: 'from-teal-100 to-cyan-200 border-teal-300', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
                     : []),
-                  { icon: BathDropletIcon, label: 'Banho e Tosa', gradient: 'from-sky-100 to-blue-200 border-sky-300', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
-                  { icon: PillBottleIcon, label: 'Medicação', gradient: 'from-purple-100 to-violet-200 border-purple-300', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
-                ].map(({ icon: Icon, label, gradient, tab, alert, tone }) => {
+                  { icon: '🛁', label: 'Banho e Tosa', gradient: 'from-sky-100 to-blue-200 border-sky-300', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
+                  { icon: '💊', label: 'Medicação', gradient: 'from-purple-100 to-violet-200 border-purple-300', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
+                ].map(({ icon, label, gradient, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 
                   return (
@@ -280,9 +229,7 @@ export function HomeNavigationModals({
                     className={`group relative overflow-hidden bg-gradient-to-br ${gradient} border rounded-2xl p-4 h-[94px] transition-all duration-200 hover:shadow-lg hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-sm ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
-                    <span className={`absolute top-2 right-2 text-slate-700/80 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 ${isEmergency ? 'opacity-100 drop-shadow-[0_0_10px_rgba(239,68,68,0.28)]' : 'opacity-90'}`}>
-                      <Icon className="w-6 h-6" />
-                    </span>
+                    <span className={`absolute top-2 right-2 text-2xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 ${isEmergency ? 'opacity-100 drop-shadow-[0_0_10px_rgba(239,68,68,0.28)]' : 'opacity-90'}`}>{icon}</span>
                     {isEmergency && (
                       <span className="pointer-events-none absolute right-2 top-2 h-6 w-6 rounded-full bg-red-300/35 blur-md animate-pulse" />
                     )}
