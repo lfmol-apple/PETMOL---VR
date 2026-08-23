@@ -29,6 +29,10 @@ export interface CommerceOffer {
   price?: number | null;
   list_price?: number | null;
   is_available?: boolean | null;
+  /** Só populado quando a oferta veio do feed Awin (AwinFeedProvider) —
+   * Cobasi/Zee Now/Zee Dog têm; Shopee (busca por palavra-chave) e VTEX
+   * direto ainda não. Sem imagem, o card cai no placeholder neutro. */
+  image_url?: string | null;
 }
 
 function normalizeOfferUrl(url: string): string {

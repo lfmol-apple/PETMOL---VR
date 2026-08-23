@@ -317,6 +317,12 @@ interface ReorderCardItemProps {
 export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy }: ReorderCardItemProps) {
   const { offers, loading } = useCommerceOffers(card.searchQuery, card.packageSizeKg, card.gtin);
   const offer = offers[0] ?? null;
+  const [imageFailed, setImageFailed] = useState(false);
+  // Toda oferta na lista é o mesmo produto (mesmo GTIN) — só preço/loja
+  // mudam. Nem toda loja tem imagem (Shopee/busca por palavra-chave ainda
+  // não tem, só o feed Awin tem), então usa a primeira com imagem em vez
+  // de travar na foto só da oferta mais barata.
+  const imageUrl = offers.find((o) => o.image_url)?.image_url ?? null;
   // offers já vem ordenado por preço crescente (CommerceEngine) — offer é
   // sempre o mais barato. Quando mais de um provider responde pro mesmo
   // GTIN (ex: Cobasi + Shopee), oferece escolha de loja em vez de comprar
@@ -355,7 +361,20 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
       className={`p-3.5 bg-white border rounded-2xl shadow-sm transition-all ${canAct ? 'cursor-pointer active:scale-[0.99] hover:border-emerald-200' : ''} ${hasDiscount ? 'border-orange-300' : 'border-gray-200'}`}
     >
       <div className="flex items-center gap-3">
-        <span className="text-2xl flex-shrink-0">{card.icon}</span>
+        <div className="w-11 h-11 rounded-xl bg-gray-50 border border-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center">
+          {imageUrl && !imageFailed ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={imageUrl}
+              alt=""
+              className="w-full h-full object-contain"
+              loading="lazy"
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            <div className="w-5 h-5 rounded-md bg-gray-200" />
+          )}
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <p className="text-[13px] font-bold text-gray-900 leading-tight truncate">{card.label}</p>

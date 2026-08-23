@@ -8,6 +8,7 @@ from src.shopee_offer_matcher import (
     extract_pack_count,
     extract_volume_ml,
     extract_weight_kg,
+    extract_weight_range_kg,
     find_best_match,
     score_candidate,
 )
@@ -56,6 +57,20 @@ class TestExtractWeightKg:
 
     def test_sem_peso_no_texto_retorna_none(self):
         assert extract_weight_kg("Ração Premium Sabor Carne") is None
+
+
+class TestExtractWeightRangeKg:
+    def test_extrai_faixa_de_peso_do_animal(self):
+        assert extract_weight_range_kg("NexGard Antipulgas de 4,1 a 10kg para Cães") == (4.1, 10.0)
+
+    def test_faixa_diferente_nao_confunde_so_pelo_limite_superior(self):
+        # extract_weight_kg sozinho pegaria só "10kg" nos dois — a faixa
+        # completa é o que distingue as duas variantes de fato.
+        assert extract_weight_range_kg("NexGard de 10,1 a 25kg para Cães") == (10.1, 25.0)
+        assert extract_weight_range_kg("NexGard de 4,1 a 10kg para Cães") == (4.1, 10.0)
+
+    def test_sem_faixa_no_texto_retorna_none(self):
+        assert extract_weight_range_kg("Ração Soma Nutrição 15kg Carne Adulto") is None
 
 
 # Nós reais, capturados em 21/08/2026 pra "Pet Society Shampoo Hydra

@@ -163,6 +163,42 @@ async def test_reference_identity_never_matches_different_brand_with_same_size_m
 
 
 @pytest.mark.asyncio
+async def test_reference_identity_never_matches_different_pet_weight_range():
+    """Caso real (NexGard, 23/08/2026): antipulgas/vermífugo vendido por
+    faixa de peso do animal ("de 4,1 a 10kg") — extract_weight_kg sozinho
+    só pega o limite superior do título ("10kg"), então duas faixas
+    diferentes que terminam no mesmo número (ou cujo título não deixa a
+    faixa clara) passavam pelo checador de peso e mostravam um produto
+    diferente do que o tutor realmente cadastrou (peso/imagem errados) no
+    mesmo card de preço."""
+    db = SessionLocal()
+    try:
+        db.add(_row(
+            merchant="zeedog",
+            advertiser_id="127555",
+            gtin="7896185907004",
+            external_product_id="nexgard-25kg-zeedog",
+            title="NexGard Antipulgas e Carrapatos de 10,1 a 25kg para Cães",
+            brand="NexGard",
+            price=99.9,
+        ))
+        db.add(_row(
+            gtin="7896185957009",
+            external_product_id="nexgard-10kg-cobasi",
+            title="NexGard Antipulgas e Carrapatos de 4,1 a 10kg para Cães",
+            brand="NexGard",
+            price=69.0,
+        ))
+        db.commit()
+
+        provider = AwinFeedProvider(db, "zeedog")
+        offer = await provider.find_offer(ProductContext(gtin="7896185957009"))
+        assert offer is None
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
 async def test_reference_identity_picks_the_right_brand_among_several_generic_collar_titles():
     """Regressão de um bug real: contra um catálogo com várias marcas de
     coleira concorrentes (título dominado por palavras genéricas — 'coleira
