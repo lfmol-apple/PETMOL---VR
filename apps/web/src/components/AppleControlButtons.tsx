@@ -71,6 +71,44 @@ function AlertDot({ tone = 'critical' }: { tone?: ControlTone }) {
   );
 }
 
+// Ilustração colorida (não emoji, não ícone de linha) pro card Alimentação —
+// saco de ração + latinha + pacote de petisco agrupados, cara de app de
+// verdade em vez de glifo do sistema. Trocado card a card, a pedido — este
+// é o primeiro (Alimentação); os outros seguem o mesmo raciocínio depois.
+function FoodGroupIllustration({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className}>
+      {/* Lata, atrás à esquerda */}
+      <rect x="2" y="14" width="9" height="11" rx="1.5" fill="#B0B8C1" stroke="#78828C" strokeWidth="0.75" />
+      <ellipse cx="6.5" cy="14" rx="4.5" ry="1.6" fill="#D6DBE0" stroke="#78828C" strokeWidth="0.75" />
+      <rect x="2" y="18" width="9" height="4" fill="#4E8F5C" />
+      <rect x="2" y="18" width="9" height="1" fill="#3C7248" />
+
+      {/* Saco de ração, ao centro, mais alto */}
+      <path
+        d="M10.5 12.5c0-1.3.4-2.2 1.2-2.9-0.4-.9-.2-1.9.6-2.5.9-.7 2-.6 2.7.1.7-.7 1.8-.8 2.7-.1.8.6 1 1.6.6 2.5.8.7 1.2 1.6 1.2 2.9v13a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-13Z"
+        fill="#C98A4B"
+        stroke="#9C6530"
+        strokeWidth="0.75"
+        strokeLinejoin="round"
+      />
+      <path d="M11.3 12.3h9v3.2h-9z" fill="#E8B27A" />
+      {/* Pata (marca do saco), não cruz — 1 almofada + 4 dedinhos */}
+      <ellipse cx="15.8" cy="20.6" rx="1.5" ry="1.2" fill="#FBEFE0" opacity="0.9" />
+      <circle cx="14.3" cy="18.5" r="0.65" fill="#FBEFE0" opacity="0.9" />
+      <circle cx="15.5" cy="17.9" r="0.65" fill="#FBEFE0" opacity="0.9" />
+      <circle cx="16.7" cy="18.1" r="0.65" fill="#FBEFE0" opacity="0.9" />
+      <circle cx="17.6" cy="19.1" r="0.6" fill="#FBEFE0" opacity="0.9" />
+
+      {/* Pacote de petisco, na frente à direita, menor */}
+      <rect x="19.5" y="16.5" width="9.5" height="9" rx="2" fill="#E3673C" stroke="#B24A26" strokeWidth="0.75" />
+      <path d="M19.5 19.5h9.5" stroke="#B24A26" strokeWidth="0.75" />
+      <circle cx="24.25" cy="23.2" r="1.9" fill="#FBD9C6" />
+      <path d="M23.2 23.2a1.05 1.05 0 1 1 2.1 0 1.05 1.05 0 0 1-2.1 0Z" fill="#B24A26" />
+    </svg>
+  );
+}
+
 export function AppleControlButtons({
   onHealthClick,
   onVaccinesClick,
@@ -113,8 +151,8 @@ export function AppleControlButtons({
             {(!hasFoodData || shouldShowAlert(colorFood, alertFood)) && (
               <AlertDot tone={!hasFoodData ? 'critical' : colorFood} />
             )}
-            <span className="absolute right-2 top-2 opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5">
-              <span className="text-[18px] min-[390px]:text-[22px]">🥣</span>
+            <span className="absolute right-1.5 top-1.5 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2 min-[390px]:top-2">
+              <FoodGroupIllustration className="w-[30px] h-[30px] min-[390px]:w-9 min-[390px]:h-9" />
             </span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
               <h3 className="line-clamp-2 text-[12px] font-bold leading-tight text-amber-950 min-[390px]:text-[13px] sm:text-base">{foodTitle || t('home.food.title')}</h3>
