@@ -243,17 +243,38 @@ def _looks_like_same_product(
         reference_title = reference.title or context.name or context.query or ""
         if not reference_title:
             continue
+        if not _package_markers_compatible(candidate_title, reference_title):
+            continue
+        if not _size_markers_compatible(candidate_title, reference_title):
+            continue
+        # Marcador de tamanho explícito e coincidente nos dois lados (ex:
+        # os dois falam "M") já é evidência forte de identidade por si só.
+        # Itens sem peso/volume no título (coleira, brinquedo) costumam
+        # ter uma variante curta em alguma loja ("Coleira Scalibor M") que
+        # nunca bateria 0.75 de sobreposição textual contra um título mais
+        # descritivo de outra loja ("Coleira Scalibor Cães Pequenos e
+        # Médios - 48cm"), mesmo sendo o mesmo produto — caso real: Zee
+        # Now nunca aparecia pro GTIN da Cobasi da coleira Scalibor por
+        # causa disso. Só baixa o piso quando essa evidência independente
+        # existe; sem marcador de tamanho batendo dos dois lados, mantém
+        # 0.75 (mesmo comportamento de antes).
+        candidate_sizes = _size_markers(candidate_title)
+        reference_sizes = _size_markers(reference_title)
+        has_explicit_size_match = bool(candidate_sizes and reference_sizes and (candidate_sizes & reference_sizes))
+        # 0.35 é calibrado contra dados reais: "Coleira Antiparasitária
+        # Scalibor M" vs a referência "...Scalibor Cães Pequenos e Médios
+        # - 48 cm" pontua 0.375 (mesmo produto); uma marca genuinamente
+        # diferente mas também "M" ("Coleira Antiparasitária Seresto M")
+        # pontua 0.25 — a combinação com o marcador de tamanho batendo
+        # (acima) ainda separa as duas com folga.
+        min_score = 0.35 if has_explicit_size_match else 0.75
         score = score_candidate(
             reference_title,
             candidate_title,
             expected_weight_kg=context.weight_kg or reference.weight_kg or extract_weight_kg(reference_title),
             expected_volume_ml=extract_volume_ml(reference_title),
         )
-        if score is None or score < 0.75:
-            continue
-        if not _package_markers_compatible(candidate_title, reference_title):
-            continue
-        if not _size_markers_compatible(candidate_title, reference_title):
+        if score is None or score < min_score:
             continue
         return True
     return False
