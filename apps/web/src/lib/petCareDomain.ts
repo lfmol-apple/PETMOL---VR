@@ -485,7 +485,7 @@ function processFood(p: PetCareDomainParams): PetCareReminder[] {
 // de medicação nascia sem `gtin`, e o card de "Comprar novamente" nunca
 // conseguia achar preço na Awin pra medicação nenhuma, escaneada ou não —
 // bug real reportado pelo usuário (vermífugo da Nine, escaneado, sem preço).
-function extractMedicationBarcode(notes?: string | null): string | undefined {
+export function extractMedicationBarcode(notes?: string | null): string | undefined {
   if (!notes) return undefined;
   const match = notes.match(/Código de barras:\s*([^|\n]+)/);
   return match?.[1]?.trim() || undefined;

@@ -311,7 +311,10 @@ interface ReorderCardItemProps {
 // "Comprar novamente" — ver useCommerceOffers/commerce_offers.py) ao
 // montar. Se ainda não houver oferta exata, mantém a escolha rápida entre
 // as lojas habilitadas, igual ao comportamento já validado em produção.
-function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy }: ReorderCardItemProps) {
+// Exportado pra ser reaproveitado fora desta sheet (ver
+// MedicationItemSheet.tsx "onde comprar") — mesma lógica de preço/picker já
+// validada aqui, sem duplicar useCommerceOffers numa segunda cópia.
+export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy }: ReorderCardItemProps) {
   const { offers, loading } = useCommerceOffers(card.searchQuery, card.packageSizeKg, card.gtin);
   const offer = offers[0] ?? null;
   // offers já vem ordenado por preço crescente (CommerceEngine) — offer é
