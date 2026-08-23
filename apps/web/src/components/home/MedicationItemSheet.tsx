@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
+import { extractMedicationBarcode } from '@/lib/petCareDomain';
 import { ModalPortal } from '@/components/ModalPortal';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { buildRemindAt, listReminders, deleteReminder, createReminder, refreshSubscription } from '@/features/notifications/pushService';
@@ -13,6 +14,14 @@ import { IosSwitch } from '@/components/ui/IosSwitch';
 import type { ScannedProduct } from '@/lib/productScanner';
 import { requestUserDecision } from '@/features/interactions/userPromptChannel';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
+import { ReorderCardItem } from '@/features/commerce/HomeShoppingSheet';
+import { QUICK_BUY_PARTNERS, HOME_SHOPPING_PARTNERS, type ReorderCard } from '@/features/commerce/petStoreContent';
+import {
+  openHomeShoppingPartner,
+  navigateToPartnerUrl,
+  isPartnerVisibleForSearch,
+  type HomeShoppingPartner,
+} from '@/features/commerce/homeShoppingPartners';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,15 +51,21 @@ function parseMedNotes(notes: string) {
   const doseMatch = firstLine.match(/Dose:\s*([^|]+)/);
   const routeMatch = firstLine.match(/Via:\s*([^|]+)/);
   const freqMatch = firstLine.match(/Frequência:\s*([^|]+)/);
-  if (doseMatch || routeMatch || freqMatch) {
+  // Sem isto, reabrir pra editar sempre zerava form.barcode (ver openEdit),
+  // e salvar de novo apagava de vez o código de barras já escaneado das
+  // notes — o card de "Comprar novamente" perdia o gtin numa edição
+  // qualquer, mesmo tendo sido escaneado direito no cadastro original.
+  const barcodeMatch = firstLine.match(/Código de barras:\s*([^|]+)/);
+  if (doseMatch || routeMatch || freqMatch || barcodeMatch) {
     return {
       dose: doseMatch?.[1].trim() ?? '',
       route: routeMatch?.[1].trim().toLowerCase() ?? 'oral',
       frequency: freqMatch?.[1].trim().replace(' ', '_') ?? '2x_dia',
+      barcode: barcodeMatch?.[1].trim() ?? '',
       cleanNotes: rest,
     };
   }
-  return { dose: '', route: 'oral', frequency: '2x_dia', cleanNotes: notes };
+  return { dose: '', route: 'oral', frequency: '2x_dia', barcode: '', cleanNotes: notes };
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -135,6 +150,9 @@ export function MedicationItemSheet({
   const [justSaved, setJustSaved] = useState(false);
   const [medHistoryExpanded, setMedHistoryExpanded] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
+  // Picker de loja pra "Onde comprar" (mode='buy') — mesmo padrão do
+  // HomeShoppingSheet, só que escopado às medicações deste pet.
+  const [medQuickBuyFor, setMedQuickBuyFor] = useState<string | null>(null);
   // Formulário manual fica escondido até o tutor escanear com sucesso,
   // dispensar o scanner, ou escolher preencher na mão — scan é o caminho
   // feliz, não só uma opção ao lado de um form já visível.
@@ -161,6 +179,31 @@ export function MedicationItemSheet({
     } catch {}
     return false;
   });
+
+  // "Onde comprar" (mode='buy') mostrava só uma lista fixa de 4 lojas com
+  // busca genérica, nunca preço nenhum — mesmo bug de fundo do card da home
+  // (gtin nunca saía das notes), só que essa tela nem tentava buscar preço.
+  // Reaproveita ReorderCardItem (mesmo componente/lógica de preço já
+  // validado no "Comprar novamente" da home) pra cada medicação deste pet.
+  const medicationReorderCards: ReorderCard[] = useMemo(() => medications.map(ev => ({
+    id: ev.id,
+    icon: '💊',
+    label: ev.title,
+    sublabel: undefined,
+    urgencyText: '',
+    urgencyTone: 'upcoming' as const,
+    searchQuery: ev.title?.trim() || 'medicamento pet',
+    domain: 'medication' as const,
+    gtin: extractMedicationBarcode(ev.notes),
+  })), [medications]);
+
+  const visibleQuickBuyPartners: HomeShoppingPartner[] = useMemo(
+    () =>
+      QUICK_BUY_PARTNERS
+        .map(id => HOME_SHOPPING_PARTNERS.find(p => p.id === id))
+        .filter((p): p is HomeShoppingPartner => Boolean(p) && isPartnerVisibleForSearch(p as HomeShoppingPartner)),
+    [],
+  );
 
   function showToast(msg: string) {
     setToast(msg);
@@ -203,7 +246,7 @@ export function MedicationItemSheet({
   }
 
   function openEdit(ev: PetEventRecord) {
-    const { dose, route, frequency, cleanNotes } = parseMedNotes(ev.notes || '');
+    const { dose, route, frequency, barcode, cleanNotes } = parseMedNotes(ev.notes || '');
     let treatmentDays = '';
     let customIntervalDays = '';
     let totalDoses = '';
@@ -241,7 +284,7 @@ export function MedicationItemSheet({
       manufacturer: '',
       presentation: '',
       concentration: '',
-      barcode: '',
+      barcode,
     });
     setEditingId(ev.id);
     setShowManualForm(true);
@@ -847,7 +890,48 @@ export function MedicationItemSheet({
           {mode === 'buy' && (
             <div className="p-5 pb-8 space-y-4">
               <h3 className="text-[16px] font-bold text-gray-900">Onde comprar</h3>
-              <p className="text-sm text-gray-500">Escolha onde encontrar medicamentos e itens de saúde:</p>
+
+              {medicationReorderCards.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">
+                    ❤️ Preço das medicações {petName ? `de ${petName}` : 'do pet'}
+                  </p>
+                  <div className="space-y-2">
+                    {medicationReorderCards.map(card => {
+                      const pickerKey = `med-buy:${card.id}`;
+                      return (
+                        <ReorderCardItem
+                          key={card.id}
+                          card={card}
+                          isPickerOpen={medQuickBuyFor === pickerKey}
+                          visibleQuickBuyPartners={visibleQuickBuyPartners}
+                          onTogglePicker={() => setMedQuickBuyFor(medQuickBuyFor === pickerKey ? null : pickerKey)}
+                          onQuickBuy={(partnerId) => {
+                            openHomeShoppingPartner(partnerId, card.searchQuery);
+                            trackPartnerClicked({
+                              source: 'medication_sheet',
+                              partner: partnerId,
+                              pet_id: petId,
+                              control_type: 'medication',
+                            });
+                          }}
+                          onDirectBuy={(offer) => {
+                            if (offer.url) navigateToPartnerUrl(offer.url);
+                            trackPartnerClicked({
+                              source: 'medication_sheet',
+                              partner: offer.merchant,
+                              pet_id: petId,
+                              control_type: 'medication',
+                            });
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">🏪 Ou busque direto numa loja</p>
 
               <div className="space-y-3">
                 {[
