@@ -135,7 +135,6 @@ export function MedicationItemSheet({
   const [justSaved, setJustSaved] = useState(false);
   const [medHistoryExpanded, setMedHistoryExpanded] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
-  const [selectedDatesMap, setSelectedDatesMap] = useState<Record<string, string>>({});
   // Formulário manual fica escondido até o tutor escanear com sucesso,
   // dispensar o scanner, ou escolher preencher na mão — scan é o caminho
   // feliz, não só uma opção ao lado de um form já visível.
@@ -683,11 +682,7 @@ export function MedicationItemSheet({
 
                     const pct = Math.min(100, Math.round(appliedDates.length / totalDoses * 100));
                     const daysLeft = totalDoses - appliedDates.length;
-                    const selectedDate = selectedDatesMap[ev.id] ?? todayStr;
-                    const alreadyDone = appliedDates.includes(selectedDate);
-                    const alreadySkipped = skippedDates.includes(selectedDate);
                     const isBusy = saving && applyingId === ev.id;
-                    const selectedDayLabel = selectedDate.slice(8) + '/' + selectedDate.slice(5, 7);
 
                     return (
                       <div key={ev.id} className="rounded-2xl border border-purple-200 bg-white shadow-sm">
@@ -723,107 +718,80 @@ export function MedicationItemSheet({
                           </div>
                         </div>
 
-                        {/* Full date grid — flex-wrap para não cortar */}
-                        <div className="px-3 pb-3 border-t border-purple-50 pt-2.5">
-                          <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-wide mb-2">
-                            Toque um dia para registrar
-                          </p>
-                          <div className="flex flex-wrap gap-1">
-                            {allDayDates.map((dateStr, idx) => {
-                              const isApplied = appliedDates.includes(dateStr);
-                              const isSkipped = skippedDates.includes(dateStr);
-                              const isToday = dateStr === todayStr;
-                              const isFuture = dateStr > todayStr;
-                              const isPast = dateStr < todayStr;
-                              const isMissed = isPast && !isApplied && !isSkipped;
-                              const isSelected = dateStr === selectedDate;
+                        {/* Cronograma completo — cada dia com ação própria
+                            (marcar/pular), sem precisar selecionar um dia
+                            antes. Formato pedido de volta pelo usuário —
+                            substitui o grid de círculos + área de ação
+                            única de baixo, que exigia dois toques. */}
+                        <div className="border-t border-purple-50 divide-y divide-gray-50">
+                          {allDayDates.map((dateStr, idx) => {
+                            const isApplied = appliedDates.includes(dateStr);
+                            const isSkipped = skippedDates.includes(dateStr);
+                            const isToday = dateStr === todayStr;
+                            const isFuture = dateStr > todayStr;
+                            const dayLabel = dateStr.slice(8) + '/' + dateStr.slice(5, 7);
+                            const rowBusy = isBusy;
 
-                              let cls = '';
-                              if (isApplied) {
-                                cls = isSelected
-                                  ? 'bg-green-500 text-white border-2 border-green-700'
-                                  : 'bg-green-500 text-white';
-                              } else if (isSkipped) {
-                                cls = isSelected
-                                  ? 'bg-amber-400 text-white border-2 border-amber-600'
-                                  : 'bg-amber-200 text-amber-700';
-                              } else if (isToday) {
-                                cls = isSelected
-                                  ? 'bg-purple-600 text-white border-2 border-purple-800 shadow-sm'
-                                  : 'bg-white text-purple-700 border-2 border-purple-500';
-                              } else if (isMissed) {
-                                cls = isSelected
-                                  ? 'bg-gray-200 text-gray-600 border-2 border-gray-400'
-                                  : 'bg-gray-100 text-gray-400 border border-gray-200';
-                              } else {
-                                cls = 'bg-gray-50 text-gray-200 border border-gray-100';
-                              }
+                            let rowCls = 'bg-white';
+                            if (isApplied) rowCls = 'bg-green-50/60';
+                            else if (isSkipped) rowCls = 'bg-amber-50/60';
+                            else if (isToday) rowCls = 'bg-purple-50/60';
 
-                              return (
-                                <button
-                                  key={dateStr}
-                                  type="button"
-                                  disabled={isFuture}
-                                  onClick={() => setSelectedDatesMap(prev => ({ ...prev, [ev.id]: dateStr }))}
-                                  className={`w-8 h-8 rounded-full text-[11px] font-bold transition-all active:scale-90 flex flex-col items-center justify-center flex-shrink-0 ${cls} ${isFuture ? 'cursor-default opacity-40' : 'cursor-pointer'}`}
-                                >
-                                  <span className="leading-none">{idx + 1}</span>
-                                  {isApplied && <span className="text-[7px] leading-none mt-px">✓</span>}
-                                  {isSkipped && <span className="text-[7px] leading-none mt-px">↷</span>}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Action area for selected date */}
-                        <div className="mx-3 mb-3 rounded-xl overflow-hidden border border-gray-100">
-                          {alreadyDone ? (
-                            <>
-                              <div className="flex items-center gap-1.5 px-3 py-2.5 bg-green-50">
-                                <span className="text-green-500 text-sm">✓</span>
-                                <p className="text-sm text-green-700 font-semibold flex-1">Dose de {selectedDayLabel} registrada</p>
+                            return (
+                              <div key={dateStr} className={`flex items-center gap-2 px-3 py-2 ${rowCls}`}>
+                                <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-[11px] font-bold ${
+                                  isApplied ? 'bg-green-500 text-white'
+                                    : isSkipped ? 'bg-amber-300 text-amber-900'
+                                    : isToday ? 'bg-white text-purple-700 border-2 border-purple-500'
+                                    : isFuture ? 'bg-gray-50 text-gray-300 border border-gray-100'
+                                    : 'bg-gray-100 text-gray-400 border border-gray-200'
+                                }`}>
+                                  {isApplied ? '✓' : isSkipped ? '↷' : idx + 1}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-[13px] font-semibold leading-tight ${isFuture ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    Dia {idx + 1} · {dayLabel}{isToday ? ' · Hoje' : ''}
+                                  </p>
+                                  {isApplied && <p className="text-[11px] text-green-600">Dose registrada</p>}
+                                  {isSkipped && <p className="text-[11px] text-amber-600">Pulada</p>}
+                                </div>
+                                {isFuture ? (
+                                  <span className="text-[10px] text-gray-300 flex-shrink-0">—</span>
+                                ) : isApplied ? (
+                                  <button
+                                    type="button"
+                                    disabled={rowBusy}
+                                    onClick={() => handleApplyDose(ev.id, 'remove', dateStr)}
+                                    className="flex-shrink-0 text-[11px] font-semibold text-red-500 px-2.5 py-1.5 rounded-lg bg-white border border-red-100 active:scale-95 transition-all disabled:opacity-40"
+                                  >{rowBusy ? '...' : 'Desfazer'}</button>
+                                ) : isSkipped ? (
+                                  <button
+                                    type="button"
+                                    disabled={rowBusy}
+                                    onClick={() => handleApplyDose(ev.id, 'unskip', dateStr)}
+                                    className="flex-shrink-0 text-[11px] font-semibold text-amber-700 px-2.5 py-1.5 rounded-lg bg-white border border-amber-200 active:scale-95 transition-all disabled:opacity-40"
+                                  >{rowBusy ? '...' : 'Desfazer'}</button>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    <button
+                                      type="button"
+                                      disabled={rowBusy}
+                                      onClick={() => handleApplyDose(ev.id, 'apply', dateStr)}
+                                      title="Marcar como aplicada"
+                                      className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center text-sm font-bold active:scale-90 transition-all disabled:opacity-40"
+                                    >✓</button>
+                                    <button
+                                      type="button"
+                                      disabled={rowBusy}
+                                      onClick={() => handleApplyDose(ev.id, 'skip', dateStr)}
+                                      title="Pular esta dose"
+                                      className="w-8 h-8 rounded-full bg-white border border-amber-200 text-amber-700 flex items-center justify-center text-sm active:scale-90 transition-all disabled:opacity-40"
+                                    >↷</button>
+                                  </div>
+                                )}
                               </div>
-                              <button
-                                type="button"
-                                disabled={isBusy}
-                                onClick={() => handleApplyDose(ev.id, 'remove', selectedDate)}
-                                className="w-full text-sm font-semibold text-red-500 py-2 border-t border-green-100 bg-white active:bg-red-50 transition-all disabled:opacity-40"
-                              >{isBusy ? '...' : '🗑 Desfazer'}</button>
-                            </>
-                          ) : alreadySkipped ? (
-                            <>
-                              <div className="flex items-center gap-1.5 px-3 py-2.5 bg-amber-50">
-                                <span className="text-amber-500 text-sm">↷</span>
-                                <p className="text-sm text-amber-700 font-semibold flex-1">Dia {selectedDayLabel} marcado como pulado</p>
-                              </div>
-                              <button
-                                type="button"
-                                disabled={isBusy}
-                                onClick={() => handleApplyDose(ev.id, 'unskip', selectedDate)}
-                                className="w-full text-sm font-semibold text-amber-700 py-2 border-t border-amber-100 bg-white active:bg-amber-50 transition-all disabled:opacity-40"
-                              >{isBusy ? '...' : 'Desfazer pulado'}</button>
-                            </>
-                          ) : (
-                            <div>
-                              <button
-                                type="button"
-                                disabled={isBusy || selectedDate > todayStr}
-                                onClick={() => handleApplyDose(ev.id, 'apply', selectedDate)}
-                                className="w-full text-[14px] font-bold py-3 bg-purple-600 text-white active:scale-[0.98] transition-all disabled:opacity-40"
-                              >
-                                {isBusy ? 'Registrando...' : selectedDate === todayStr ? '✓ Registrar dose de hoje' : `✓ Registrar – dia ${selectedDayLabel}`}
-                              </button>
-                              <div className="flex gap-2 p-2">
-                                <button
-                                  type="button"
-                                  disabled={isBusy || selectedDate > todayStr}
-                                  onClick={() => handleApplyDose(ev.id, 'skip', selectedDate)}
-                                  className="flex-1 text-xs font-semibold py-2 rounded-xl bg-white border border-amber-200 text-amber-700 active:scale-95 transition-all disabled:opacity-40"
-                                >{isBusy ? '...' : '↷ Pular'}</button>
-                              </div>
-                            </div>
-                          )}
+                            );
+                          })}
                         </div>
                       </div>
                     );
@@ -1258,13 +1226,17 @@ function MedRow({
 
   try {
     const ex = parsePetEventExtraData(ev.extra_data);
-    if (ex.treatment_days) {
+    // Mesma contagem usada pra decidir "ativo" no grid acima e no backend
+    // (apply-dose/remove-dose): total_doses pra frequência personalizada,
+    // treatment_days pra regular. Ignorar total_doses aqui fazia um
+    // tratamento personalizado ativo cair no "Pendente" genérico.
+    const totalConfigured = parseInt(String(ex.total_doses || ex.treatment_days), 10);
+    if (totalConfigured) {
       const applied = (ex.applied_dates as string[] || []).length;
-      const total = parseInt(String(ex.treatment_days), 10);
-      if (applied >= total) {
+      if (applied >= totalConfigured) {
         badgeCls = 'bg-green-100 text-green-700'; badgeTxt = 'Concluído';
       } else {
-        badgeCls = 'bg-purple-100 text-purple-700'; badgeTxt = `Em tratamento (${applied}/${total})`;
+        badgeCls = 'bg-purple-100 text-purple-700'; badgeTxt = `Em tratamento (${applied}/${totalConfigured})`;
       }
     } else if (ev.status === 'completed') {
       badgeCls = 'bg-green-100 text-green-700'; badgeTxt = 'Concluído';
