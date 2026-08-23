@@ -291,9 +291,14 @@ def apply_dose(
         extra['skip_notes'] = skip_notes
     event.extra_data = json.dumps(extra)
 
-    # Se todas as doses foram aplicadas, marca como conclu\u00eddo
-    treatment_days = extra.get('treatment_days')
-    if treatment_days and len(applied_dates) >= int(treatment_days):
+    # Se todas as doses foram aplicadas, marca como conclu\u00eddo \u2014 mesma
+    # contagem que o frontend usa pra decidir se um tratamento est\u00e1
+    # "ativo" (ver MedicationItemSheet.tsx): treatment_days pra frequ\u00eancia
+    # regular, total_doses pra "intervalo personalizado". Sem o segundo
+    # caso aqui, um tratamento personalizado nunca era marcado conclu\u00eddo
+    # no backend mesmo depois de todas as doses registradas.
+    total_configured = extra.get('total_doses') or extra.get('treatment_days')
+    if total_configured and len(applied_dates) >= int(total_configured):
         event.status = 'completed'
         event.completed_at = datetime.utcnow()
     else:
@@ -351,9 +356,9 @@ def remove_dose(
     extra['skip_notes'] = skip_notes
     event.extra_data = json.dumps(extra)
 
-    # Reativa o evento se estava completed
-    treatment_days = extra.get('treatment_days')
-    if treatment_days and len(applied_dates) < int(treatment_days):
+    # Reativa o evento se estava completed (mesma contagem de apply_dose acima)
+    total_configured = extra.get('total_doses') or extra.get('treatment_days')
+    if total_configured and len(applied_dates) < int(total_configured):
         event.status = 'active'
         event.completed_at = None
 
