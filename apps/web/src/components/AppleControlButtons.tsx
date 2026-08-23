@@ -113,8 +113,12 @@ export function AppleControlButtons({
             {(!hasFoodData || shouldShowAlert(colorFood, alertFood)) && (
               <AlertDot tone={!hasFoodData ? 'critical' : colorFood} />
             )}
-            <span className="absolute right-2 top-2 opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5">
-              <span className="text-[18px] min-[390px]:text-[22px]">🥣</span>
+            <span className="absolute right-1 top-1 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-1.5 min-[390px]:top-1.5">
+              <img
+                src="/alimentacao-tigela.webp"
+                alt=""
+                className="h-10 w-10 object-contain min-[390px]:h-12 min-[390px]:w-12"
+              />
             </span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
               <h3 className="line-clamp-2 text-[12px] font-bold leading-tight text-amber-950 min-[390px]:text-[13px] sm:text-base">{foodTitle || t('home.food.title')}</h3>
