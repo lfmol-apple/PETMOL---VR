@@ -71,6 +71,63 @@ function AlertDot({ tone = 'critical' }: { tone?: ControlTone }) {
   );
 }
 
+// Ícones de linha (substituem os emojis dos cards principais — cara mais
+// profissional, sem depender da fonte de emoji do sistema operacional).
+type CardIconProps = { className?: string };
+
+function FoodBowlIcon({ className }: CardIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M3 12h18a7 7 0 0 1-7 7h-4a7 7 0 0 1-7-7Z" />
+      <path d="M8 12V8a4 4 0 0 1 8 0v4" />
+      <path d="M2 12h20" />
+    </svg>
+  );
+}
+
+function HealthCrossIcon({ className }: CardIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M12 3 3.5 6.5v6.09c0 4.66 3.63 6.99 8.5 8.41 4.87-1.42 8.5-3.75 8.5-8.41V6.5L12 3Z" />
+      <path d="M12 8.5v7" />
+      <path d="M8.5 12h7" />
+    </svg>
+  );
+}
+
+function VaccineIcon({ className }: CardIconProps) {
+  return (
+    <svg viewBox="-3 -3 30 30" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M15.5 3.5 20 8" />
+      <rect x="9.5" y="7.5" width="4" height="12" rx="1.2" transform="rotate(-45 11.5 13.5)" />
+      <path d="m8.2 16.8-3.7 3.7" />
+      <path d="m10.8 10.2-1.8-1.8" />
+      <path d="m13.8 13.2-1.8-1.8" />
+    </svg>
+  );
+}
+
+function ShoppingCartIcon({ className }: CardIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <circle cx="9" cy="20" r="1.4" />
+      <circle cx="18" cy="20" r="1.4" />
+      <path d="M2.5 3h2.2l2.6 12.4a2 2 0 0 0 2 1.6h8.4a2 2 0 0 0 2-1.6L21.5 8H6.1" />
+    </svg>
+  );
+}
+
+function AlertSirenIcon({ className }: CardIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M12 2v2.2" />
+      <path d="M12 8a5 5 0 0 1 5 5v3H7v-3a5 5 0 0 1 5-5Z" />
+      <path d="M5 16h14" />
+      <path d="M4 19h16" />
+    </svg>
+  );
+}
+
 export function AppleControlButtons({
   onHealthClick,
   onVaccinesClick,
@@ -113,8 +170,8 @@ export function AppleControlButtons({
             {(!hasFoodData || shouldShowAlert(colorFood, alertFood)) && (
               <AlertDot tone={!hasFoodData ? 'critical' : colorFood} />
             )}
-            <span className="absolute right-2 top-2 opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5">
-              <span className="text-[18px] min-[390px]:text-[22px]">🥣</span>
+            <span className="absolute right-2 top-2 text-amber-700/80 opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5">
+              <FoodBowlIcon className="w-[18px] h-[18px] min-[390px]:w-[22px] min-[390px]:h-[22px]" />
             </span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
               <h3 className="line-clamp-2 text-[12px] font-bold leading-tight text-amber-950 min-[390px]:text-[13px] sm:text-base">{foodTitle || t('home.food.title')}</h3>
@@ -136,7 +193,9 @@ export function AppleControlButtons({
             className="group relative min-h-[68px] overflow-hidden rounded-xl border border-indigo-400 bg-gradient-to-br from-indigo-100 via-violet-100 to-violet-200 p-2.5 shadow-sm shadow-indigo-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
-            <span className="absolute right-2 top-2 text-[18px] opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">🏥</span>
+            <span className="absolute right-2 top-2 text-indigo-700/80 opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5">
+              <HealthCrossIcon className="w-[18px] h-[18px] min-[390px]:w-[22px] min-[390px]:h-[22px]" />
+            </span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
               <h3 className="truncate text-[13px] font-semibold leading-tight text-indigo-950 min-[390px]:text-[14px] sm:text-base">Cuidados</h3>
               <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-indigo-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">{healthHeadline || `Mantenha os cuidados ${petDo({ sex: petSex })} ${petName || 'seu pet'} em dia`}</p>
@@ -158,7 +217,9 @@ export function AppleControlButtons({
             className="group relative min-h-[68px] overflow-hidden rounded-xl border border-emerald-400 bg-gradient-to-br from-emerald-100 via-emerald-100 to-teal-200 p-2.5 shadow-sm shadow-emerald-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorVaccines, alertVaccines) && <AlertDot tone={colorVaccines} />}
-            <span className="absolute right-2 top-2 text-[18px] opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">💉</span>
+            <span className="absolute right-2 top-2 text-emerald-700/80 opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5">
+              <VaccineIcon className="w-[18px] h-[18px] min-[390px]:w-[22px] min-[390px]:h-[22px]" />
+            </span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
               <h3 className="truncate text-[13px] font-semibold leading-tight text-emerald-950 min-[390px]:text-[14px] sm:text-base">
                 Vacina
@@ -183,7 +244,9 @@ export function AppleControlButtons({
             onClick={onShoppingClick}
             className="group relative min-h-[68px] overflow-hidden rounded-xl border-2 border-blue-500 bg-gradient-to-br from-blue-100 via-blue-200 to-cyan-200 p-2.5 shadow-md shadow-blue-900/15 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
-            <span className="absolute right-2 top-2 text-[18px] opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">🛒</span>
+            <span className="absolute right-2 top-2 text-blue-700/80 opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5">
+              <ShoppingCartIcon className="w-[18px] h-[18px] min-[390px]:w-[22px] min-[390px]:h-[22px]" />
+            </span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
               <h3 className="line-clamp-2 text-[13px] font-bold leading-tight text-blue-950 min-[390px]:text-[14px] sm:text-base">{shoppingTitle}</h3>
               <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-blue-900/75 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">Tudo que {petName || 'seu pet'} usa</p>
@@ -199,8 +262,8 @@ export function AppleControlButtons({
             onClick={onPetSumidoClick}
             className="group relative flex min-h-[44px] w-full items-center gap-2 overflow-hidden rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 p-2.5 shadow-sm shadow-red-900/5 transition-all duration-300 hover:shadow-md active:scale-[0.98] min-[390px]:min-h-[52px] min-[390px]:gap-2.5 min-[390px]:rounded-2xl min-[390px]:p-3"
           >
-            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-red-100 transition-transform group-hover:scale-105 min-[390px]:h-8 min-[390px]:w-8">
-              <span className="pointer-events-none text-base min-[390px]:text-lg">🚨</span>
+            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600 transition-transform group-hover:scale-105 min-[390px]:h-8 min-[390px]:w-8">
+              <AlertSirenIcon className="w-4 h-4 min-[390px]:w-[18px] min-[390px]:h-[18px] pointer-events-none" />
             </div>
             <div className="min-w-0 flex-1 text-left">
               <h3 className="truncate text-[13px] font-black leading-tight text-red-800 min-[390px]:text-[14px] sm:text-base">Pet Sumido</h3>
@@ -214,8 +277,8 @@ export function AppleControlButtons({
             onClick={() => setShowEmergencyChoice(true)}
             className="group relative flex min-h-[44px] w-full items-center gap-2 overflow-hidden rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 p-2.5 shadow-sm shadow-red-900/5 transition-all duration-300 hover:shadow-md active:scale-[0.98] min-[390px]:min-h-[52px] min-[390px]:gap-2.5 min-[390px]:rounded-2xl min-[390px]:p-3"
           >
-            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-red-100 transition-transform group-hover:scale-105 min-[390px]:h-8 min-[390px]:w-8">
-              <span className="pointer-events-none text-base min-[390px]:text-lg">🚨</span>
+            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600 transition-transform group-hover:scale-105 min-[390px]:h-8 min-[390px]:w-8">
+              <AlertSirenIcon className="w-4 h-4 min-[390px]:w-[18px] min-[390px]:h-[18px] pointer-events-none" />
             </div>
             <div className="min-w-0 flex-1 text-left">
               <h3 className="truncate text-[13px] font-bold leading-tight text-red-800 min-[390px]:text-[14px] sm:text-base">Emergência veterinária</h3>
