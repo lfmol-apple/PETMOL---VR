@@ -58,6 +58,15 @@ function healthSeverityRank(actionTarget: CareActionTarget): number {
   return 4;
 }
 
+// Um lembrete técnico (ex: "vence em 282 dias") sempre existe uma vez que
+// há histórico — a lista de próximos nunca fica vazia. Sem um corte, o
+// card ficava preso nessa contagem regressiva distante pra sempre, e o
+// texto caloroso/personalizado (ver AppleControlButtons) nunca aparecia
+// pro caso comum de um pet com cuidado em dia. Além desse horizonte, cai
+// no texto caloroso; dentro dele, a contagem regressiva é genuinamente
+// acionável e continua aparecendo.
+const NEAR_TERM_REMINDER_DAYS = 30;
+
 function formatReminderHeadline(reminder: PetCareReminder): string {
   const days = reminder.diff;
   const when = days < 0
@@ -233,12 +242,14 @@ export function HomePetDashboard({
     () => allUpcomingReminders.find((r) => r.domain === 'vaccine') ?? null,
     [allUpcomingReminders],
   );
-  const hasVaccineData = vaccines.length > 0;
-  const vaccineHeadline = vaccineReminder
+  // Sem lembrete vencendo — sempre cai no texto caloroso/personalizado
+  // padrão do card (AppleControlButtons), com ou sem histórico de vacina
+  // já cadastrado. "Vacinas em dia" desapareceu de propósito: pro tutor de
+  // um pet saudável (o caso comum), o card ficava preso numa frase de
+  // status técnico quando já tinha calor humano disponível.
+  const vaccineHeadline = vaccineReminder && vaccineReminder.diff <= NEAR_TERM_REMINDER_DAYS
     ? formatReminderHeadline(vaccineReminder)
-    : hasVaccineData
-      ? 'Vacinas em dia'
-      : undefined; // sem dado nenhum — cai no texto estático de convite do card
+    : undefined;
 
   // Card de Saúde: entre remédio/antiparasitário/vermífugo/banho (vacina já
   // tem card próprio, ração também), pega o de maior gravidade real
@@ -252,15 +263,15 @@ export function HomePetDashboard({
       (a, b) => healthSeverityRank(a.action_target) - healthSeverityRank(b.action_target) || a.diff - b.diff,
     )[0];
   }, [allUpcomingReminders]);
-  const hasHealthData = parasiteControls.length > 0 || groomingRecords.length > 0;
-
-  const healthHeadline = healthReminder
+  // Mesmo raciocínio do card de Vacina acima: sem nada vencendo (e sem o
+  // alerta de leishmaniose), cai no texto caloroso/personalizado padrão do
+  // card em vez de "Tudo em dia" — que preso atrás de hasHealthData nunca
+  // aparecia pro caso comum (pet com histórico real e nada vencendo agora).
+  const healthHeadline = healthReminder && healthReminder.diff <= NEAR_TERM_REMINDER_DAYS
     ? formatReminderHeadline(healthReminder)
     : needsLeishmaniaseAwareness
       ? '🦟 Leishmaniose: proteja com coleira'
-      : hasHealthData
-        ? 'Tudo em dia' // conquista — não é só ausência de alerta
-        : undefined; // sem dado — cai no texto estático de convite do card
+      : undefined;
 
   const foodPlan = feedingPlan[currentPet.pet_id] ?? null;
   // Tutor declarou explicitamente que não usa ração de saco (natural,

@@ -41,7 +41,7 @@ export default function LandingPage() {
           Nunca esqueça nada<br />do que importa<br />pro seu pet.
         </h1>
         <p className="mt-4 text-base text-slate-500 leading-relaxed font-medium max-w-xs mx-auto">
-          Vacinas, documentos, remédios e ração — tudo organizado, tudo com aviso na hora certa.
+          Vacinas, remédios e ração organizados, com aviso na hora certa — e o melhor preço comparado pra você.
         </p>
         <Link href="/register"
           className="mt-8 inline-block w-full max-w-xs rounded-2xl bg-[#0056D2] px-6 py-4 text-base font-black text-white shadow-lg shadow-blue-500/25 active:scale-[0.98]">
@@ -96,12 +96,12 @@ export default function LandingPage() {
           body="Informe quanto tem. O PETMOL calcula o consumo diário e avisa antes de acabar. Chega de chegar em casa sem ração."
         />
         <FeatureCard
-          icon="📋"
+          icon="🛒"
           color="bg-blue-50 border-blue-100"
           iconBg="bg-blue-500"
-          tag="Documentos & Eventos"
-          title="Guarda de Documentos/Eventos"
-          body="Documentos, exames, receitas e eventos do pet — organizados em pastas, acessíveis em qualquer momento, mesmo sem internet."
+          tag="Comprar"
+          title="O menor preço, sem esforço"
+          body="Remédio, ração ou antiparasitário: comparamos Cobasi, Shopee, Zee Now e Zee Dog automaticamente e mostramos onde sai mais barato."
         />
       </section>
 
