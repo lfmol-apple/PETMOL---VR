@@ -646,27 +646,43 @@ export function MedicationItemSheet({
                     const startDateStr = (ev.scheduled_at || todayStr).split('T')[0];
                     const startDate = createLocalDate(startDateStr);
 
-                    let totalDays = 0;
+                    // totalDoses/intervalDays cobre os dois modos de tratamento
+                    // com o mesmo grid: frequência regular (treatment_days —
+                    // uma dose por dia, intervalo 1) e "intervalo
+                    // personalizado" (total_doses doses espaçadas por
+                    // custom_interval_days). Mesmo comportamento pros dois —
+                    // nunca dependia do modo, só faltava generalizar aqui.
+                    let totalDoses = 0;
+                    let intervalDays = 1;
                     let appliedDates: string[] = [];
                     let skippedDates: string[] = [];
                     try {
                       const ex = parsePetEventExtraData(ev.extra_data);
-                      totalDays = parseInt(String(ex.treatment_days), 10) || 0;
+                      const treatmentDays = parseInt(String(ex.treatment_days), 10) || 0;
+                      const customDoses = parseInt(String(ex.total_doses), 10) || 0;
+                      const customInterval = parseInt(String(ex.custom_interval_days), 10) || 0;
+                      if (treatmentDays > 0) {
+                        totalDoses = treatmentDays;
+                        intervalDays = 1;
+                      } else if (customDoses > 0) {
+                        totalDoses = customDoses;
+                        intervalDays = customInterval > 0 ? customInterval : 1;
+                      }
                       appliedDates = Array.isArray(ex.applied_dates) ? ex.applied_dates as string[] : [];
                       skippedDates = Array.isArray(ex.skipped_dates) ? ex.skipped_dates as string[] : [];
                     } catch {}
 
-                    if (!totalDays) return null;
+                    if (!totalDoses) return null;
 
                     const allDayDates: string[] = [];
-                    for (let i = 0; i < totalDays; i++) {
+                    for (let i = 0; i < totalDoses; i++) {
                       const d = new Date(startDate);
-                      d.setDate(d.getDate() + i);
+                      d.setDate(d.getDate() + i * intervalDays);
                       allDayDates.push(dateToLocalISO(d));
                     }
 
-                    const pct = Math.min(100, Math.round(appliedDates.length / totalDays * 100));
-                    const daysLeft = totalDays - appliedDates.length;
+                    const pct = Math.min(100, Math.round(appliedDates.length / totalDoses * 100));
+                    const daysLeft = totalDoses - appliedDates.length;
                     const selectedDate = selectedDatesMap[ev.id] ?? todayStr;
                     const alreadyDone = appliedDates.includes(selectedDate);
                     const alreadySkipped = skippedDates.includes(selectedDate);
@@ -681,7 +697,7 @@ export function MedicationItemSheet({
                             <div className="flex-1 min-w-0">
                               <p className="text-[13px] font-bold text-gray-900 leading-tight">{ev.title}</p>
                               <p className="text-[10px] text-gray-400 mt-0.5">
-                                {appliedDates.length}/{totalDays} doses · {fmtDate(startDateStr)}
+                                {appliedDates.length}/{totalDoses} doses · {fmtDate(startDateStr)}
                                 {ev.professional_name ? ` · ${ev.professional_name}` : ''}
                               </p>
                             </div>
@@ -689,7 +705,7 @@ export function MedicationItemSheet({
                               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                                 appliedDates.includes(todayStr) ? 'bg-green-100 text-green-700' : daysLeft <= 3 ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'
                               }`}>
-                                {appliedDates.includes(todayStr) ? '✓ Hoje' : daysLeft === 0 ? 'Último' : `${daysLeft}d`}
+                                {appliedDates.includes(todayStr) ? '✓ Hoje' : daysLeft === 0 ? 'Último' : intervalDays > 1 ? `${daysLeft} rest.` : `${daysLeft}d`}
                               </span>
                               <button
                                 type="button"
@@ -703,7 +719,7 @@ export function MedicationItemSheet({
                             <div className="h-1 bg-purple-100 rounded-full overflow-hidden">
                               <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                             </div>
-                            <p className="text-[10px] text-gray-400 mt-0.5">{pct}% · {appliedDates.length} de {totalDays} doses</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">{pct}% · {appliedDates.length} de {totalDoses} doses</p>
                           </div>
                         </div>
 
