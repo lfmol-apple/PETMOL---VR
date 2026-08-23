@@ -144,10 +144,10 @@ export function AppleControlButtons({
               <img
                 src="/cuidados-pets-banho.webp"
                 alt=""
-                className="h-8 w-14 object-contain min-[390px]:h-9 min-[390px]:w-16"
+                className="h-7 w-11 object-contain min-[390px]:h-10 min-[390px]:w-16"
               />
             </span>
-            <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
+            <div className="flex h-full flex-col justify-center pr-[52px] pt-2 text-left min-[390px]:pr-[66px] min-[390px]:pt-3">
               <h3 className="truncate text-[13px] font-semibold leading-tight text-indigo-950 min-[390px]:text-[14px] sm:text-base">Cuidados</h3>
               <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-indigo-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">{healthHeadline || `Mantenha os cuidados ${petDo({ sex: petSex })} ${petName || 'seu pet'} em dia`}</p>
               {healthSubline && (
