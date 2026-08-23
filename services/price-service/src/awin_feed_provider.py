@@ -47,6 +47,12 @@ from .config import get_settings
 from .gtin_utils import normalize_gtin_gs1
 from .product_catalog_lookup import normalize_gtin
 from .shopee_offer_matcher import extract_volume_ml, extract_weight_kg, score_candidate
+# Reused as-is (not duplicated): resolves a title like "Coleira ... Scalibor
+# M" or "... MSD ..." to the commercial brand name regardless of which one
+# a given feed's own `brand` column happens to carry — the same
+# manufacturer-vs-retail-brand inconsistency this module hits in
+# _looks_like_same_product below.
+from .shopee_offer_sync import _brand_for_matching
 
 
 class AwinFeedProvider:
@@ -263,14 +269,28 @@ def _looks_like_same_product(
         has_explicit_size_match = bool(candidate_sizes and reference_sizes and (candidate_sizes & reference_sizes))
         # 0.35 é calibrado contra dados reais: "Coleira Antiparasitária
         # Scalibor M" vs a referência "...Scalibor Cães Pequenos e Médios
-        # - 48 cm" pontua 0.375 (mesmo produto); uma marca genuinamente
-        # diferente mas também "M" ("Coleira Antiparasitária Seresto M")
-        # pontua 0.25 — a combinação com o marcador de tamanho batendo
-        # (acima) ainda separa as duas com folga.
-        min_score = 0.35 if has_explicit_size_match else 0.75
+        # - 48 cm" pontua 0.375 (mesmo produto). Mas contra o catálogo
+        # real inteiro (não só um candidato isolado), esse piso sozinho
+        # também bate em OUTRAS marcas de coleira genéricas — "Coleira
+        # Antiparasitária Dug's ... Cães ..." pontua parecido, porque boa
+        # parte da pontuação vem de palavras genéricas do tipo de produto
+        # ("coleira", "antiparasitária", "cães"), não da marca. Confirmado
+        # em produção: sem a trava de marca abaixo, isso derrubava o
+        # próprio caso real por ambiguidade (3+ marcas diferentes batendo
+        # o piso, nenhuma vencendo). Por isso exige a marca comercial da
+        # referência (extraída do título — ver _brand_for_matching, o
+        # campo `brand` do feed é inconsistente fabricante-vs-comercial)
+        # aparecendo no título do candidato, só nesse caminho de piso
+        # reduzido.
+        min_score = 0.75
+        expected_brand = None
+        if has_explicit_size_match:
+            min_score = 0.35
+            expected_brand = _brand_for_matching(reference_title, reference.brand)
         score = score_candidate(
             reference_title,
             candidate_title,
+            expected_brand=expected_brand,
             expected_weight_kg=context.weight_kg or reference.weight_kg or extract_weight_kg(reference_title),
             expected_volume_ml=extract_volume_ml(reference_title),
         )
