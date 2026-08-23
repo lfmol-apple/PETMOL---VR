@@ -177,7 +177,7 @@ export function HomeNavigationModals({
             <div className="p-4 sm:p-6 bg-slate-50">
               <div className="grid grid-cols-2 gap-3 mb-2">
                 {[
-                  { icon: '🪱', label: 'Vermífugo', gradient: 'from-orange-100 to-amber-200 border-amber-300', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
+                  { icon: '🪱', image: '/vermifugo-produto.webp', label: 'Vermífugo', gradient: 'from-orange-100 to-amber-200 border-amber-300', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
                   { icon: '🛡️', label: 'Antipulgas', gradient: 'from-emerald-100 to-green-200 border-green-300', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
                   // Coleira antiparasitária é uso específico de cães — outras espécies não usam
                   ...(currentPet?.species === 'dog'
@@ -185,7 +185,7 @@ export function HomeNavigationModals({
                     : []),
                   { icon: '🛁', label: 'Banho e Tosa', gradient: 'from-sky-100 to-blue-200 border-sky-300', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
                   { icon: '💊', label: 'Medicação', gradient: 'from-purple-100 to-violet-200 border-purple-300', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
-                ].map(({ icon, label, gradient, tab, alert, tone }) => {
+                ].map(({ icon, image, label, gradient, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 
                   return (
@@ -229,7 +229,13 @@ export function HomeNavigationModals({
                     className={`group relative overflow-hidden bg-gradient-to-br ${gradient} border rounded-2xl p-4 h-[94px] transition-all duration-200 hover:shadow-lg hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-sm ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
-                    <span className={`absolute top-2 right-2 text-2xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 ${isEmergency ? 'opacity-100 drop-shadow-[0_0_10px_rgba(239,68,68,0.28)]' : 'opacity-90'}`}>{icon}</span>
+                    {image ? (
+                      <span className="absolute top-2 right-2 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 opacity-90">
+                        <img src={image} alt="" className="w-9 h-9 object-contain" />
+                      </span>
+                    ) : (
+                      <span className={`absolute top-2 right-2 text-2xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 ${isEmergency ? 'opacity-100 drop-shadow-[0_0_10px_rgba(239,68,68,0.28)]' : 'opacity-90'}`}>{icon}</span>
+                    )}
                     {isEmergency && (
                       <span className="pointer-events-none absolute right-2 top-2 h-6 w-6 rounded-full bg-red-300/35 blur-md animate-pulse" />
                     )}
