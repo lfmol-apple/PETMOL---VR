@@ -89,6 +89,80 @@ async def test_finds_offer_by_reference_identity_when_merchant_uses_different_gt
 
 
 @pytest.mark.asyncio
+async def test_finds_offer_by_reference_identity_against_a_shorter_candidate_title():
+    """Mesmo caso real acima, na direção oposta: o GTIN de entrada é o da
+    loja com título LONGO ("Pequenos e Médios - 48 cm"), buscando na loja
+    cujo título é curto ("Scalibor M"). score_candidate é assimétrico
+    (fração dos tokens da referência que aparecem no candidato) — uma
+    referência longa contra um candidato curto tende a pontuar baixo
+    mesmo sendo o mesmo produto, então esta direção só funciona com o
+    piso reduzido por marcador de tamanho batendo (ver
+    _looks_like_same_product). Bug real: pet com o GTIN longo cadastrado
+    nunca via a oferta da Zee Now no comparador de preço (merchant é
+    zeedog aqui em vez de zeenow só porque o fixture do arquivo autoriza
+    {cobasi, zeedog} — a assimetria testada é a mesma)."""
+    db = SessionLocal()
+    try:
+        db.add(_row(
+            merchant="zeedog",
+            advertiser_id="127555",
+            gtin="7896185907004",
+            external_product_id="scalibor-zeedog",
+            title="Coleira Antiparasitária Scalibor M",
+            brand="MSD",
+            price=84.79,
+        ))
+        db.add(_row(
+            gtin="7896185957009",
+            external_product_id="scalibor-cobasi",
+            title="Coleira Antiparasitária Scalibor Cães Pequenos e Médios - 48 cm",
+            brand="Scalibor",
+            price=80.9,
+        ))
+        db.commit()
+
+        provider = AwinFeedProvider(db, "zeedog")
+        offer = await provider.find_offer(ProductContext(gtin="7896185957009"))
+        assert offer is not None
+        assert offer.price == 84.79
+        assert offer.ean == "7896185907004"
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_reference_identity_never_matches_different_brand_with_same_size_marker():
+    """O piso reduzido por marcador de tamanho batendo (ver teste acima)
+    não pode virar brecha pra colar marcas diferentes só porque as duas
+    têm 'M' no título — Seresto M nunca é Scalibor M."""
+    db = SessionLocal()
+    try:
+        db.add(_row(
+            merchant="zeedog",
+            advertiser_id="127555",
+            gtin="7896185907004",
+            external_product_id="seresto-zeedog",
+            title="Coleira Antiparasitária Seresto M",
+            brand="Bayer",
+            price=99.9,
+        ))
+        db.add(_row(
+            gtin="7896185957009",
+            external_product_id="scalibor-cobasi",
+            title="Coleira Antiparasitária Scalibor Cães Pequenos e Médios - 48 cm",
+            brand="Scalibor",
+            price=80.9,
+        ))
+        db.commit()
+
+        provider = AwinFeedProvider(db, "zeedog")
+        offer = await provider.find_offer(ProductContext(gtin="7896185957009"))
+        assert offer is None
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
 async def test_reference_identity_fallback_returns_none_when_ambiguous():
     db = SessionLocal()
     try:
