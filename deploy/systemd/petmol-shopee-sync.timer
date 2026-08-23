@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily PETMOL Shopee sync (Cobasi/Zee Now/Zee Dog feed)
+
+[Timer]
+# 05:00 UTC ~= 02:00 America/Sao_Paulo — off-peak. Daily matches this repo's
+# existing convention for the Awin feed sync (awin_sync_interval_minutes=1440).
+OnCalendar=*-*-* 05:00:00 UTC
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target
