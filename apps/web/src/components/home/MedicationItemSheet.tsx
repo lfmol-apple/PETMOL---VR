@@ -8,13 +8,13 @@ import { extractMedicationBarcode } from '@/lib/petCareDomain';
 import { ModalPortal } from '@/components/ModalPortal';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { buildRemindAt, listReminders, deleteReminder, createReminder, refreshSubscription } from '@/features/notifications/pushService';
-import { trackPartnerClicked } from '@/lib/v1Metrics';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import { IosSwitch } from '@/components/ui/IosSwitch';
 import type { ScannedProduct } from '@/lib/productScanner';
 import { requestUserDecision } from '@/features/interactions/userPromptChannel';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { MonetizedOffersList } from '@/features/commerce/MonetizedOffersList';
+import { AffiliateCatalogSearch } from '@/features/commerce/AffiliateCatalogSearch';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -143,6 +143,10 @@ export function MedicationItemSheet({
   const [justSaved, setJustSaved] = useState(false);
   const [medHistoryExpanded, setMedHistoryExpanded] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
+  // Grade de dias: tratamentos longos (ex: 90 doses) viram uma parede de
+  // quadradinhos — colapsa por padrão pra mostrar só a janela recente,
+  // com opção de expandir pro histórico completo.
+  const [expandedDayGridIds, setExpandedDayGridIds] = useState<Set<string>>(new Set());
   // Formulário manual fica escondido até o tutor escanear com sucesso,
   // dispensar o scanner, ou escolher preencher na mão — scan é o caminho
   // feliz, não só uma opção ao lado de um form já visível.
@@ -712,6 +716,19 @@ export function MedicationItemSheet({
                       allDayDates.push(dateToLocalISO(d));
                     }
 
+                    const DAY_GRID_COLLAPSE_THRESHOLD = 21;
+                    const DAY_GRID_COLLAPSED_WINDOW = 14;
+                    const isDayGridExpanded = expandedDayGridIds.has(ev.id);
+                    const needsDayGridCollapse = allDayDates.length > DAY_GRID_COLLAPSE_THRESHOLD;
+                    let visibleDayDates = allDayDates;
+                    if (needsDayGridCollapse && !isDayGridExpanded) {
+                      const anchorIndex = allDayDates.includes(todayStr)
+                        ? allDayDates.indexOf(todayStr)
+                        : allDayDates.length - 1;
+                      const start = Math.max(0, anchorIndex - DAY_GRID_COLLAPSED_WINDOW + 1);
+                      visibleDayDates = allDayDates.slice(start, anchorIndex + 1);
+                    }
+
                     const pct = Math.min(100, Math.round(appliedDates.length / totalDoses * 100));
                     const daysLeft = totalDoses - appliedDates.length;
                     const isBusy = saving && applyingId === ev.id;
@@ -756,15 +773,18 @@ export function MedicationItemSheet({
                             linhas, sem precisar selecionar um dia antes de
                             agir: toque marca a dose na hora; toque e segure
                             pula o dia. Toque de novo num dia já
-                            aplicado/pulado desfaz. */}
+                            aplicado/pulado desfaz. Cada quadrado mostra a
+                            data (dia/mês) em vez de só o dia — tratamentos
+                            que passam de um mês repetem o número do dia, o
+                            que confundia qual "7" era qual. */}
                         <div className="px-3 pb-3 border-t border-purple-50 pt-2.5">
                           <div className="flex flex-wrap gap-1.5">
-                            {allDayDates.map((dateStr) => {
+                            {visibleDayDates.map((dateStr) => {
                               const isApplied = appliedDates.includes(dateStr);
                               const isSkipped = skippedDates.includes(dateStr);
                               const isToday = dateStr === todayStr;
                               const isFuture = dateStr > todayStr;
-                              const dayNum = parseInt(dateStr.slice(8, 10), 10);
+                              const dateLabel = `${dateStr.slice(8, 10)}/${dateStr.slice(5, 7)}`;
 
                               let cls = '';
                               if (isFuture) cls = 'bg-gray-50 text-gray-300 border border-gray-100';
@@ -783,10 +803,10 @@ export function MedicationItemSheet({
                               }
 
                               const label = isApplied
-                                ? `Dia ${dayNum}, dose aplicada — toque pra desfazer`
+                                ? `${dateLabel}, dose aplicada — toque pra desfazer`
                                 : isSkipped
-                                  ? `Dia ${dayNum}, dose pulada — toque pra desfazer`
-                                  : `Dia ${dayNum} — toque pra marcar aplicada, toque e segure pra pular`;
+                                  ? `${dateLabel}, dose pulada — toque pra desfazer`
+                                  : `${dateLabel} — toque pra marcar aplicada, toque e segure pra pular`;
 
                               return (
                                 <button
@@ -808,15 +828,31 @@ export function MedicationItemSheet({
                                   onPointerUp={cancelLongPress}
                                   onPointerLeave={cancelLongPress}
                                   onPointerCancel={cancelLongPress}
-                                  className={`w-8 h-8 rounded-lg text-xs font-bold transition-all active:scale-90 flex flex-col items-center justify-center flex-shrink-0 ${cls} ${isFuture ? 'cursor-default opacity-50' : 'cursor-pointer'} disabled:opacity-40`}
+                                  className={`w-11 h-10 rounded-lg text-[10px] font-bold transition-all active:scale-90 flex flex-col items-center justify-center flex-shrink-0 ${cls} ${isFuture ? 'cursor-default opacity-50' : 'cursor-pointer'} disabled:opacity-40`}
                                 >
-                                  <span>{dayNum}</span>
-                                  {(isApplied || isSkipped) && <span className="text-[8px] leading-none">{isApplied ? '✓' : '↷'}</span>}
+                                  <span>{dateLabel}</span>
+                                  {(isApplied || isSkipped) && <span className="text-[8px] leading-none mt-0.5">{isApplied ? '✓' : '↷'}</span>}
                                 </button>
                               );
                             })}
                           </div>
-                          <p className="text-[10px] text-gray-400 mt-2">Toque marca a dose · toque e segure pula o dia</p>
+                          <div className="flex items-center justify-between gap-2 mt-2">
+                            <p className="text-[10px] text-gray-400">Toque marca a dose · toque e segure pula o dia</p>
+                            {needsDayGridCollapse && (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedDayGridIds(prev => {
+                                  const next = new Set(prev);
+                                  if (isDayGridExpanded) next.delete(ev.id);
+                                  else next.add(ev.id);
+                                  return next;
+                                })}
+                                className="text-[10px] font-bold text-purple-600 hover:text-purple-700 flex-shrink-0"
+                              >
+                                {isDayGridExpanded ? 'Mostrar menos' : `Ver todos os ${allDayDates.length} dias`}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -860,7 +896,7 @@ export function MedicationItemSheet({
                 </button>
                 <button
                   onClick={() => setMode('buy')}
-                  className="w-full py-3 rounded-2xl border border-emerald-200 bg-white text-sm font-semibold text-emerald-700 hover:bg-emerald-50 active:scale-95 transition-all"
+                  className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-black shadow-md shadow-emerald-500/25 active:scale-95 transition-all"
                 >
                   Comprar medicamento
                 </button>
@@ -900,46 +936,19 @@ export function MedicationItemSheet({
                 </div>
               )}
 
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">🏪 Ou busque direto numa loja</p>
+              {medications.length === 0 && (
+                <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center shadow-sm">
+                  <p className="text-[13px] font-bold text-gray-700">Nenhuma medicação cadastrada</p>
+                  <p className="mt-1 text-[12px] text-gray-500">
+                    Cadastre uma medicação em &quot;Nova medicação&quot; pra ver os preços aqui.
+                  </p>
+                </div>
+              )}
 
-              <div className="space-y-3">
-                {[
-                  { name: 'Cobasi', url: 'https://www.cobasi.com.br/capsulas-e-saude/medicamentos', emoji: '🐾' },
-                  { name: 'Shopee', url: 'https://shopee.com.br/search?keyword=medicamento%20pet', emoji: '🛍️' },
-                  { name: 'Zee Now', url: 'https://www.zeenow.com.br/busca?q=medicamento%20pet', emoji: '⚡' },
-                  { name: 'Zee Dog', url: 'https://www.zeedog.com.br/busca?q=medicamento%20pet', emoji: '🐾' },
-                ].map(store => (
-                  <button
-                    key={store.name}
-                    onClick={() => {
-                      trackPartnerClicked({
-                        source: 'medication_sheet',
-                        partner: store.name.toLowerCase(),
-                        pet_id: petId,
-                        control_type: 'medication',
-                      });
-                      window.open(store.url, '_blank', 'noopener,noreferrer');
-                    }}
-                    className="w-full flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left"
-                  >
-                    <span className="text-2xl">{store.emoji}</span>
-                    <div className="flex-1">
-                      <p className="font-bold text-gray-900 text-sm">{store.name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Comprar medicamentos</p>
-                    </div>
-                    <span className="text-gray-400 text-lg">›</span>
-                  </button>
-                ))}
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🐾 Buscar produtos</p>
+                <AffiliateCatalogSearch petId={petId} />
               </div>
-
-              <button
-                type="button"
-                onClick={() => setMode('view')}
-                onTouchEnd={() => setMode('view')}
-                className="w-full py-3 rounded-xl text-sm font-semibold bg-gray-50 text-gray-600 border border-gray-200"
-              >
-                Voltar para tratamentos
-              </button>
             </div>
           )}
 
