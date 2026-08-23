@@ -785,8 +785,9 @@ export function MedicationItemSheet({
                           </div>
                         </div>
 
-                        {/* Grade de círculos (visual clássico do app — roxo
-                            pendente, verde aplicado) distribuída em várias
+                        {/* Grade de quadradinhos (visual clássico do app —
+                            cinza pendente, roxo sólido no dia de hoje, verde
+                            aplicado, âmbar pulado) distribuída em várias
                             linhas, sem precisar selecionar um dia antes de
                             agir: toque marca a dose na hora; toque e segure
                             pula o dia. Toque de novo num dia já
@@ -801,11 +802,20 @@ export function MedicationItemSheet({
                               const dayNum = parseInt(dateStr.slice(8, 10), 10);
 
                               let cls = '';
-                              if (isApplied) cls = 'bg-green-500 text-white';
-                              else if (isSkipped) cls = 'bg-amber-400 text-white';
-                              else if (isToday) cls = 'bg-white text-purple-700 border-2 border-purple-500';
-                              else if (isFuture) cls = 'bg-gray-50 text-gray-300 border border-gray-100';
-                              else cls = 'bg-purple-50 text-purple-400 border border-purple-200';
+                              if (isFuture) cls = 'bg-gray-50 text-gray-300 border border-gray-100';
+                              else if (isToday) {
+                                cls = isApplied
+                                  ? 'bg-green-500 text-white'
+                                  : isSkipped
+                                    ? 'bg-amber-500 text-white'
+                                    : 'bg-purple-500 text-white';
+                              } else {
+                                cls = isApplied
+                                  ? 'bg-green-100 text-green-700 border border-green-200'
+                                  : isSkipped
+                                    ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                                    : 'bg-gray-100 text-gray-500 border border-gray-200';
+                              }
 
                               const label = isApplied
                                 ? `Dia ${dayNum}, dose aplicada — toque pra desfazer`
@@ -833,9 +843,10 @@ export function MedicationItemSheet({
                                   onPointerUp={cancelLongPress}
                                   onPointerLeave={cancelLongPress}
                                   onPointerCancel={cancelLongPress}
-                                  className={`w-9 h-9 rounded-full text-[12px] font-bold transition-all active:scale-90 flex flex-col items-center justify-center flex-shrink-0 ${cls} ${isFuture ? 'cursor-default opacity-50' : 'cursor-pointer'} disabled:opacity-40`}
+                                  className={`w-8 h-8 rounded-lg text-xs font-bold transition-all active:scale-90 flex flex-col items-center justify-center flex-shrink-0 ${cls} ${isFuture ? 'cursor-default opacity-50' : 'cursor-pointer'} disabled:opacity-40`}
                                 >
-                                  {isApplied ? '✓' : isSkipped ? '↷' : dayNum}
+                                  <span>{dayNum}</span>
+                                  {(isApplied || isSkipped) && <span className="text-[8px] leading-none">{isApplied ? '✓' : '↷'}</span>}
                                 </button>
                               );
                             })}
