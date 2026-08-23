@@ -289,7 +289,7 @@ export function HomePetDashboard({
     : (resolvedFoodEndDate ? diffDaysFromIso(resolvedFoodEndDate) : null);
   const foodTitle = 'Alimentação';
   const foodHeadline = isNonKibbleDeclared
-    ? 'Sem controle de estoque'
+    ? 'Alimentação caseira'
     : !hasFoodData
       ? 'Cadastre a ração para o PETMOL avisar antes de acabar.'
       : foodDaysLeft != null
