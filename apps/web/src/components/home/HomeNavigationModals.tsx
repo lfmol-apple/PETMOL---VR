@@ -45,6 +45,98 @@ interface HomeNavigationModalsProps {
   onOpenEmergency?: () => void;
 }
 
+// Ilustrações coloridas pros sub-cards de Cuidados — mesmo raciocínio dos
+// cards da home (imagens reais dos produtos, não emoji), uma por tipo.
+function DewormerBlisterIllustration({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className}>
+      <rect x="3" y="7" width="26" height="19" rx="3" fill="#F0D9B5" stroke="#C98A4B" strokeWidth="1" />
+      <rect x="6" y="11.4" width="6" height="3.2" rx="1.6" fill="#E3673C" />
+      <rect x="6" y="11.4" width="3" height="3.2" fill="#FBEFE0" />
+      <rect x="13" y="11.4" width="6" height="3.2" rx="1.6" fill="#E3673C" />
+      <rect x="13" y="11.4" width="3" height="3.2" fill="#FBEFE0" />
+      <rect x="20" y="11.4" width="6" height="3.2" rx="1.6" fill="#E3673C" />
+      <rect x="20" y="11.4" width="3" height="3.2" fill="#FBEFE0" />
+      <rect x="6" y="18.9" width="6" height="3.2" rx="1.6" fill="#4E8F5C" />
+      <rect x="6" y="18.9" width="3" height="3.2" fill="#D7ECDC" />
+      <rect x="13" y="18.9" width="6" height="3.2" rx="1.6" fill="#4E8F5C" />
+      <rect x="13" y="18.9" width="3" height="3.2" fill="#D7ECDC" />
+      <rect x="20" y="18.9" width="6" height="3.2" rx="1.6" fill="#4E8F5C" />
+      <rect x="20" y="18.9" width="3" height="3.2" fill="#D7ECDC" />
+    </svg>
+  );
+}
+
+function FleaPipetteIllustration({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className}>
+      <rect x="10" y="12" width="12" height="16" rx="2.5" fill="#4E8F5C" stroke="#3C7248" strokeWidth="1" />
+      <rect x="11" y="18" width="10" height="8.5" rx="1.6" fill="#7BB88A" opacity="0.85" />
+      <path d="M12.5 15h9" stroke="#D7ECDC" strokeWidth="0.8" opacity="0.7" />
+      <rect x="11.5" y="7" width="9" height="5.5" rx="1.4" fill="#8894A0" stroke="#6B7480" strokeWidth="0.8" />
+      <rect x="14.5" y="3" width="3" height="4.5" fill="#6B7480" />
+      <ellipse cx="16" cy="3" rx="1.5" ry="0.8" fill="#4C555E" />
+    </svg>
+  );
+}
+
+function FleaCollarIllustration({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className}>
+      <circle cx="16" cy="16" r="11" fill="none" stroke="#2AA6A0" strokeWidth="4.5" />
+      <circle cx="16" cy="16" r="11" fill="none" stroke="#1F7D78" strokeWidth="0.8" strokeDasharray="1.5 2.5" />
+      <rect x="20.5" y="12.5" width="6.5" height="7" rx="1.6" fill="#B0B8C1" stroke="#78828C" strokeWidth="0.8" transform="rotate(20 23.75 16)" />
+      <circle cx="23.6" cy="14.6" r="0.9" fill="#6B7480" transform="rotate(20 23.75 16)" />
+      <circle cx="10" cy="6.5" r="1.3" fill="#FFD34D" stroke="#C99A1E" strokeWidth="0.4" />
+    </svg>
+  );
+}
+
+function BathIllustration({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className}>
+      <path d="M5 18h22a1 1 0 0 1 1 1v2a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5v-2a1 1 0 0 1 1-1Z" fill="#4A90D9" stroke="#2F6CB0" strokeWidth="1" />
+      <path d="M5 18v-2a2 2 0 0 1 4 0" fill="none" stroke="#2F6CB0" strokeWidth="1.2" strokeLinecap="round" />
+      <rect x="2.5" y="17" width="27" height="2" rx="1" fill="#2F6CB0" />
+      <circle cx="10" cy="9" r="2.2" fill="#BFE3F5" stroke="#7BC1E0" strokeWidth="0.6" />
+      <circle cx="15" cy="6.5" r="3" fill="#BFE3F5" stroke="#7BC1E0" strokeWidth="0.6" />
+      <circle cx="20" cy="9.5" r="1.7" fill="#BFE3F5" stroke="#7BC1E0" strokeWidth="0.6" />
+      <circle cx="7" cy="24" r="0.8" fill="#FFFFFF" opacity="0.8" />
+      <circle cx="12" cy="25.5" r="0.6" fill="#FFFFFF" opacity="0.8" />
+    </svg>
+  );
+}
+
+function PillBottleIllustration({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className}>
+      <rect x="8" y="10" width="16" height="17" rx="2.5" fill="#8E6FC9" stroke="#6B4FA0" strokeWidth="1" />
+      <rect x="8" y="10" width="16" height="5" fill="#A98BDD" />
+      <rect x="9.5" y="6" width="13" height="4.5" rx="1.2" fill="#B0B8C1" stroke="#78828C" strokeWidth="0.7" />
+      <circle cx="13" cy="20" r="1.7" fill="#FFFFFF" />
+      <circle cx="18" cy="21.5" r="1.7" fill="#FFD9E8" />
+      <circle cx="15.5" cy="24.5" r="1.7" fill="#FFF3B0" />
+    </svg>
+  );
+}
+
+function SubCareIllustration({ id, className }: { id: string; className?: string }) {
+  switch (id) {
+    case 'dewormer':
+      return <DewormerBlisterIllustration className={className} />;
+    case 'flea_tick':
+      return <FleaPipetteIllustration className={className} />;
+    case 'collar':
+      return <FleaCollarIllustration className={className} />;
+    case 'grooming':
+      return <BathIllustration className={className} />;
+    case 'medication':
+      return <PillBottleIllustration className={className} />;
+    default:
+      return null;
+  }
+}
+
 function shouldShowAlert(tone?: ControlTone, fallbackAlert?: boolean) {
   if (tone) return tone === 'warning' || tone === 'critical';
   return fallbackAlert === true;
@@ -177,15 +269,15 @@ export function HomeNavigationModals({
             <div className="p-4 sm:p-6 bg-slate-50">
               <div className="grid grid-cols-2 gap-3 mb-2">
                 {[
-                  { icon: '🪱', label: 'Vermífugo', gradient: 'from-orange-100 to-amber-200 border-amber-300', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
-                  { icon: '🛡️', label: 'Antipulgas', gradient: 'from-emerald-100 to-green-200 border-green-300', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
+                  { label: 'Vermífugo', gradient: 'from-orange-100 to-amber-200 border-amber-300', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
+                  { label: 'Antipulgas', gradient: 'from-emerald-100 to-green-200 border-green-300', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
                   // Coleira antiparasitária é uso específico de cães — outras espécies não usam
                   ...(currentPet?.species === 'dog'
-                    ? [{ icon: '📿', label: 'Coleira', gradient: 'from-teal-100 to-cyan-200 border-teal-300', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
+                    ? [{ label: 'Coleira', gradient: 'from-teal-100 to-cyan-200 border-teal-300', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
                     : []),
-                  { icon: '🛁', label: 'Banho e Tosa', gradient: 'from-sky-100 to-blue-200 border-sky-300', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
-                  { icon: '💊', label: 'Medicação', gradient: 'from-purple-100 to-violet-200 border-purple-300', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
-                ].map(({ icon, label, gradient, tab, alert, tone }) => {
+                  { label: 'Banho e Tosa', gradient: 'from-sky-100 to-blue-200 border-sky-300', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
+                  { label: 'Medicação', gradient: 'from-purple-100 to-violet-200 border-purple-300', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
+                ].map(({ label, gradient, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 
                   return (
@@ -229,7 +321,9 @@ export function HomeNavigationModals({
                     className={`group relative overflow-hidden bg-gradient-to-br ${gradient} border rounded-2xl p-4 h-[94px] transition-all duration-200 hover:shadow-lg hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-sm ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
-                    <span className={`absolute top-2 right-2 text-2xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 ${isEmergency ? 'opacity-100 drop-shadow-[0_0_10px_rgba(239,68,68,0.28)]' : 'opacity-90'}`}>{icon}</span>
+                    <span className={`absolute top-2 right-2 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 ${isEmergency ? 'opacity-100 drop-shadow-[0_0_10px_rgba(239,68,68,0.28)]' : 'opacity-90'}`}>
+                      <SubCareIllustration id={tab} className="w-7 h-7" />
+                    </span>
                     {isEmergency && (
                       <span className="pointer-events-none absolute right-2 top-2 h-6 w-6 rounded-full bg-red-300/35 blur-md animate-pulse" />
                     )}

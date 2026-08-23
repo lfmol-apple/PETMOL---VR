@@ -174,6 +174,34 @@ function VaccineVialsIllustration({ className }: { className?: string }) {
   );
 }
 
+// Ilustração colorida pro card Cuidados — caixinha de remédio (cruz
+// vermelha), aplicador antipulgas (spot-on) e cartela de vermífugo,
+// agrupados, mesmo raciocínio dos cards Alimentação/Loja/Vacina acima.
+function HealthCareGroupIllustration({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className}>
+      {/* Caixinha de remédio, atrás à esquerda */}
+      <rect x="2" y="15" width="9" height="10" rx="1.4" fill="#FFFFFF" stroke="#B0B8C1" strokeWidth="0.75" />
+      <rect x="2" y="15" width="9" height="3.2" fill="#4A90D9" />
+      <rect x="5.9" y="18.4" width="1.6" height="5.2" rx="0.4" fill="#E3673C" />
+      <rect x="4" y="20.2" width="5.4" height="1.6" rx="0.4" fill="#E3673C" />
+
+      {/* Antipulgas (aplicador spot-on), ao centro, mais alto */}
+      <rect x="14" y="10.5" width="5" height="11.5" rx="1.2" fill="#4E8F5C" stroke="#3C7248" strokeWidth="0.6" />
+      <rect x="14.5" y="14.5" width="4" height="6.5" rx="0.6" fill="#7BB88A" opacity="0.85" />
+      <rect x="14.7" y="7.6" width="3.6" height="3.2" rx="0.6" fill="#8894A0" stroke="#6B7480" strokeWidth="0.4" />
+      <rect x="15.9" y="5.6" width="1.2" height="2.4" fill="#6B7480" />
+
+      {/* Vermífugo (cartela de comprimidos), na frente à direita */}
+      <rect x="19.5" y="16.5" width="9.5" height="9" rx="1.6" fill="#F0D9B5" stroke="#C98A4B" strokeWidth="0.75" />
+      <circle cx="22.1" cy="19.1" r="1.3" fill="#FFFFFF" stroke="#9C6530" strokeWidth="0.4" />
+      <circle cx="26.4" cy="19.1" r="1.3" fill="#FFFFFF" stroke="#9C6530" strokeWidth="0.4" />
+      <circle cx="22.1" cy="22.9" r="1.3" fill="#FFFFFF" stroke="#9C6530" strokeWidth="0.4" />
+      <circle cx="26.4" cy="22.9" r="1.3" fill="#FFFFFF" stroke="#9C6530" strokeWidth="0.4" />
+    </svg>
+  );
+}
+
 export function AppleControlButtons({
   onHealthClick,
   onVaccinesClick,
@@ -239,7 +267,9 @@ export function AppleControlButtons({
             className="group relative min-h-[68px] overflow-hidden rounded-xl border border-indigo-400 bg-gradient-to-br from-indigo-100 via-violet-100 to-violet-200 p-2.5 shadow-sm shadow-indigo-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
-            <span className="absolute right-2 top-2 text-[18px] opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">🏥</span>
+            <span className="absolute right-1.5 top-1.5 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2 min-[390px]:top-2">
+              <HealthCareGroupIllustration className="w-[30px] h-[30px] min-[390px]:w-9 min-[390px]:h-9" />
+            </span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
               <h3 className="truncate text-[13px] font-semibold leading-tight text-indigo-950 min-[390px]:text-[14px] sm:text-base">Cuidados</h3>
               <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-indigo-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">{healthHeadline || `Mantenha os cuidados ${petDo({ sex: petSex })} ${petName || 'seu pet'} em dia`}</p>
