@@ -36,10 +36,17 @@ export interface MonetizedOffersListProps {
   /** Analytics: tipo de CTA do clique de compra (ex: 'food_buy_direct'). */
   ctaType: string;
   controlType?: string | null;
+  /** Texto do estado vazio (nenhuma oferta encontrada) — default cobre o
+   * caso genérico; telas com várias listas lado a lado (ex: medicações)
+   * preferem algo mais curto como "Preço indisponível". */
+  emptyStateTitle?: string;
+  emptyStateSubtitle?: string;
 }
 
 export function MonetizedOffersList({
   query, packageSizeKg, gtin, petId, productLabel, icon = '🛒', source, ctaType, controlType,
+  emptyStateTitle = 'Produto indisponível no momento',
+  emptyStateSubtitle = 'Ainda não encontramos uma oferta ativa para este produto.',
 }: MonetizedOffersListProps) {
   const { offers, loading } = useCommerceOffers(query, packageSizeKg, gtin);
 
@@ -67,10 +74,8 @@ export function MonetizedOffersList({
     return (
       <div className="space-y-3">
         <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center shadow-sm">
-          <p className="text-[13px] font-bold text-gray-700">Produto indisponível no momento</p>
-          <p className="mt-1 text-[12px] text-gray-500">
-            Ainda não encontramos uma oferta ativa para este produto.
-          </p>
+          <p className="text-[13px] font-bold text-gray-700">{emptyStateTitle}</p>
+          <p className="mt-1 text-[12px] text-gray-500">{emptyStateSubtitle}</p>
         </div>
       </div>
     );
