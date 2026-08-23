@@ -13,6 +13,21 @@ import {
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
 
+function merchantLogoSrc(merchant: string): string | null {
+  return HOME_SHOPPING_PARTNERS.find((p) => p.id === merchant)?.logoSrc ?? null;
+}
+
+function MerchantLogo({ merchant }: { merchant: string }) {
+  const src = merchantLogoSrc(merchant);
+  if (!src) return null;
+  return (
+    <span className="w-5 h-5 rounded-md overflow-hidden bg-white border border-gray-100 flex-shrink-0 flex items-center justify-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt="" className="w-full h-full object-contain" />
+    </span>
+  );
+}
+
 interface AffiliateCatalogSearchProps {
   petId: string;
   initialQuery?: string;
@@ -210,9 +225,12 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                   onClick={() => trackBuyClick(barcode, offer)}
                   className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 transition-all active:scale-[0.98]"
                 >
-                  <span className="text-[12px] font-bold text-gray-800">{merchantLabel(offer.merchant)}</span>
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <MerchantLogo merchant={offer.merchant} />
+                    <span className="text-[12px] font-bold text-gray-800 truncate">{merchantLabel(offer.merchant)}</span>
+                  </span>
                   {typeof offer.price === 'number' && (
-                    <span className="text-[12px] font-bold text-emerald-700">{formatBRLPrice(offer.price)}</span>
+                    <span className="text-[12px] font-bold text-emerald-700 flex-shrink-0">{formatBRLPrice(offer.price)}</span>
                   )}
                 </a>
               ) : null
@@ -427,9 +445,12 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                           }}
                           className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-emerald-300 px-3 py-2 transition-all active:scale-[0.98]"
                         >
-                          <span className="text-[12px] font-bold text-gray-800">{merchantLabel(offer.merchant)}</span>
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <MerchantLogo merchant={offer.merchant} />
+                            <span className="text-[12px] font-bold text-gray-800 truncate">{merchantLabel(offer.merchant)}</span>
+                          </span>
                           {typeof offer.price === 'number' && (
-                            <span className="text-[12px] font-bold text-emerald-700">{formatBRLPrice(offer.price)}</span>
+                            <span className="text-[12px] font-bold text-emerald-700 flex-shrink-0">{formatBRLPrice(offer.price)}</span>
                           )}
                         </a>
                       ) : null

@@ -9,7 +9,6 @@ import {
   HOME_SHOPPING_PARTNERS,
   openHomeShoppingPartner,
   navigateToPartnerUrl,
-  isPartnerVisibleInStoreArea,
   isPartnerVisibleForSearch,
   partnerHasAffiliate,
   type HomeShoppingPartner,
@@ -25,7 +24,6 @@ import {
   buildStoreCategoryQuery,
   QUICK_BUY_PARTNERS,
   type ReorderCard,
-  type StoreCategoryOption,
 } from './petStoreContent';
 
 interface HomeShoppingSheetProps {
@@ -35,8 +33,69 @@ interface HomeShoppingSheetProps {
   buyableReminders: PetCareReminder[];
 }
 
-function isInternalCatalogPartner(partner: HomeShoppingPartner): boolean {
-  return partner.affiliateMode === 'product_deeplink' && !partner.directUrl && !partner.storefrontAffiliateUrl;
+// Ilustrações coloridas por categoria — mesmo estilo do card Alimentação
+// (AppleControlButtons.tsx), pra "Explorar categorias" não parecer um menu
+// de emojis. Cada categoria = STORE_CATEGORIES.id (petStoreContent.ts).
+function CategoryIllustration({ categoryId, className }: { categoryId: string; className?: string }) {
+  switch (categoryId) {
+    case 'racao':
+      return (
+        <svg viewBox="0 0 24 24" className={className}>
+          <path d="M8 9.5c0-1 .3-1.7.9-2.2-.3-.7-.1-1.5.5-2 .7-.5 1.5-.4 2 .1.5-.5 1.3-.6 2-.1.6.5.8 1.3.5 2 .6.5.9 1.2.9 2.2v9.5a.8.8 0 0 1-.8.8H8.8a.8.8 0 0 1-.8-.8V9.5Z" fill="#C98A4B" stroke="#9C6530" strokeWidth="0.6" strokeLinejoin="round" />
+          <path d="M8.6 9.3h6.8v2.4H8.6z" fill="#E8B27A" />
+          <ellipse cx="12" cy="16" rx="1.2" ry="0.95" fill="#FBEFE0" opacity="0.9" />
+          <circle cx="10.9" cy="14.3" r="0.5" fill="#FBEFE0" opacity="0.9" />
+          <circle cx="11.9" cy="13.9" r="0.5" fill="#FBEFE0" opacity="0.9" />
+          <circle cx="12.9" cy="14.1" r="0.5" fill="#FBEFE0" opacity="0.9" />
+        </svg>
+      );
+    case 'petiscos':
+      return (
+        <svg viewBox="0 0 24 24" className={className}>
+          <rect x="6" y="8" width="12" height="11" rx="2.5" fill="#E3673C" stroke="#B24A26" strokeWidth="0.6" />
+          <path d="M6 11h12" stroke="#B24A26" strokeWidth="0.6" />
+          <circle cx="12" cy="15" r="2.4" fill="#FBD9C6" />
+          <circle cx="12" cy="15" r="1.3" fill="#B24A26" />
+        </svg>
+      );
+    case 'antipulgas':
+      return (
+        <svg viewBox="0 0 24 24" className={className}>
+          <path d="M12 4 6 6.5v5.2c0 4.3 2.6 6.8 6 8.3 3.4-1.5 6-4 6-8.3V6.5L12 4Z" fill="#4E8F5C" stroke="#3C7248" strokeWidth="0.6" strokeLinejoin="round" />
+          <path d="m9.3 12 2 2 3.4-3.8" stroke="#EAF6EC" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </svg>
+      );
+    case 'coleiras':
+      return (
+        <svg viewBox="0 0 24 24" className={className}>
+          <circle cx="12" cy="10.5" r="7" fill="none" stroke="#C98A4B" strokeWidth="2.2" />
+          <path d="M12 17v2.3" stroke="#9C6530" strokeWidth="1.6" strokeLinecap="round" />
+          <circle cx="12" cy="20.3" r="1.4" fill="#E3673C" stroke="#B24A26" strokeWidth="0.5" />
+        </svg>
+      );
+    case 'brinquedos':
+      return (
+        <svg viewBox="0 0 24 24" className={className}>
+          <circle cx="12" cy="12" r="7.5" fill="#4A90D9" stroke="#2F6CB0" strokeWidth="0.6" />
+          <ellipse cx="9" cy="9.5" rx="1.1" ry="0.9" fill="#FBEFE0" opacity="0.9" />
+          <circle cx="7.6" cy="7.7" r="0.5" fill="#FBEFE0" opacity="0.9" />
+          <circle cx="9" cy="7" r="0.5" fill="#FBEFE0" opacity="0.9" />
+          <circle cx="10.4" cy="7.7" r="0.5" fill="#FBEFE0" opacity="0.9" />
+          <path d="M13 13.5c1.2 1.6 2.8 2.4 4.4 2.1" stroke="#EAF3FB" strokeWidth="0.8" strokeLinecap="round" fill="none" />
+        </svg>
+      );
+    case 'shampoos':
+      return (
+        <svg viewBox="0 0 24 24" className={className}>
+          <path d="M9.5 5h3v2.2h-3z" fill="#7CB6D9" />
+          <rect x="8" y="7.2" width="6" height="1.6" fill="#4A90D9" />
+          <rect x="7.5" y="8.8" width="7" height="10.7" rx="2" fill="#5FA6D6" stroke="#2F6CB0" strokeWidth="0.6" />
+          <rect x="8" y="12" width="6" height="3" fill="#EAF3FB" opacity="0.85" />
+        </svg>
+      );
+    default:
+      return null;
+  }
 }
 
 // Tela enxuta de propósito: "Comprar novamente" (com preço real quando
@@ -44,15 +103,19 @@ function isInternalCatalogPartner(partner: HomeShoppingPartner): boolean {
 // categorias genéricas e promoções não-personalizadas só cansava o tutor
 // antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
 export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
-  const [browsingPartner, setBrowsingPartner] = useState<HomeShoppingPartner | null>(null);
-  const [partnerCatalogQuery, setPartnerCatalogQuery] = useState<string | null>(null);
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
+  // Categoria tocada na grade "Explorar categorias" — mesma busca da Awin
+  // (AffiliateCatalogSearch), só que já chega com a query pronta em vez do
+  // tutor precisar digitar. Sufixo numérico força o useEffect de
+  // initialQuery a disparar de novo mesmo tocando a mesma categoria duas
+  // vezes seguidas (string igual não muda estado sozinha).
+  const [categoryQuery, setCategoryQuery] = useState<string | null>(null);
+  const [categoryQuerySeq, setCategoryQuerySeq] = useState(0);
 
   useEffect(() => {
     if (!open) {
-      setBrowsingPartner(null);
-      setPartnerCatalogQuery(null);
       setQuickBuyFor(null);
+      setCategoryQuery(null);
       return;
     }
     void trackClick({ source: 'home', cta_type: 'shop_sheet_view', pet_id: currentPet.pet_id });
@@ -60,7 +123,6 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
 
-  const visibleStorePartners = useMemo(() => HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea), []);
   const visibleQuickBuyPartners = useMemo(
     () =>
       QUICK_BUY_PARTNERS
@@ -86,48 +148,6 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
     });
   }
 
-  // O card da loja abre categorias primeiro. Isso evita mandar o tutor para
-  // uma home genérica quando ele está tentando chegar em ração, coleira,
-  // antipulgas ou outro grupo de produto relacionado ao pet.
-  function handlePartnerTap(partner: HomeShoppingPartner) {
-    setPartnerCatalogQuery(null);
-    setBrowsingPartner(partner);
-  }
-
-  function handleStoreCategory(category: StoreCategoryOption) {
-    if (!browsingPartner) return;
-    const query = buildStoreCategoryQuery(category, currentPet.species);
-    if (isInternalCatalogPartner(browsingPartner)) {
-      setPartnerCatalogQuery(query);
-      void trackClick({
-        source: 'home',
-        cta_type: 'shop_partner_catalog_category',
-        target: browsingPartner.id,
-        link_type: 'affiliate_product',
-        pet_id: currentPet.pet_id,
-        metadata: { category: category.id },
-      });
-      return;
-    }
-    openHomeShoppingPartner(browsingPartner.id, query);
-    void trackClick({
-      source: 'home',
-      cta_type: 'shop_partner_category_click',
-      target: browsingPartner.id,
-      link_type: partnerHasAffiliate(browsingPartner.id) ? 'affiliate_search' : 'direct',
-      pet_id: currentPet.pet_id,
-      metadata: { category: category.id },
-    });
-  }
-
-  function handleBackFromPartner() {
-    if (partnerCatalogQuery) {
-      setPartnerCatalogQuery(null);
-      return;
-    }
-    setBrowsingPartner(null);
-  }
-
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -144,23 +164,10 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
         {/* Header */}
         <div className="flex items-center gap-3 px-5 pt-3 pb-4 flex-shrink-0">
-          {browsingPartner ? (
-            <button
-              type="button"
-              onClick={handleBackFromPartner}
-              className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 active:scale-90 transition-all flex-shrink-0"
-              aria-label="Voltar"
-            >
-              <span className="text-lg">‹</span>
-            </button>
-          ) : (
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-xl flex-shrink-0">🛒</div>
-          )}
+          <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-xl flex-shrink-0">🛒</div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-[17px] font-black text-gray-900 truncate">{browsingPartner ? browsingPartner.name : title}</h2>
-            <p className="text-[12px] text-gray-400">
-              {partnerCatalogQuery ? 'Produtos relacionados' : browsingPartner ? 'Escolha a categoria' : `Tudo que ${petName || 'seu pet'} usa`}
-            </p>
+            <h2 className="text-[17px] font-black text-gray-900 truncate">{title}</h2>
+            <p className="text-[12px] text-gray-400">Tudo que {petName || 'seu pet'} usa</p>
           </div>
           <button
             type="button"
@@ -176,30 +183,6 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
         {/* Scrollable content */}
         <div className="overflow-y-auto overscroll-contain flex-1 px-5 pb-8 space-y-5">
-          {browsingPartner ? (
-            partnerCatalogQuery ? (
-              <AffiliateCatalogSearch
-                petId={currentPet.pet_id}
-                initialQuery={partnerCatalogQuery}
-                merchantFilter={browsingPartner.id}
-              />
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {STORE_CATEGORIES.map((category) => (
-                  <button
-                    key={category.id}
-                    type="button"
-                    onClick={() => handleStoreCategory(category)}
-                    className="flex items-center gap-2.5 p-4 bg-white border border-gray-200 rounded-2xl hover:border-blue-200 hover:bg-blue-50/30 active:scale-[0.97] transition-all text-left shadow-sm"
-                  >
-                    <span className="text-xl flex-shrink-0">{category.icon}</span>
-                    <span className="text-[13px] font-bold text-gray-900 leading-tight">{category.label}</span>
-                  </button>
-                ))}
-              </div>
-            )
-          ) : (
-            <>
               {/* ❤️ Comprar novamente — sempre primeiro */}
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">❤️ Comprar novamente</p>
@@ -239,59 +222,63 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                 )}
               </div>
 
-              {/* 🐾 Buscar produtos — catálogo Awin sincronizado, no lugar
-                  do ícone estático que só levava pro site sem contexto.
-                  Multi-loja por natureza (ver AffiliateCatalogSearch.tsx) —
-                  copy neutra para Cobasi, Zee Dog e próximas lojas. */}
+              {/* Explorar categorias — carrossel de círculos ilustrados, no
+                  lugar da grade estática "🏪 Lojas" (que só levava pra home
+                  de cada loja sem contexto nenhum). Tocar uma categoria
+                  preenche a busca abaixo, igual ao padrão "escolha uma loja
+                  → escolha uma categoria" que já existia por trás de cada
+                  card de loja (STORE_CATEGORIES/buildStoreCategoryQuery) —
+                  só que como ponto de entrada direto, sem precisar passar
+                  por uma loja específica primeiro. */}
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🐾 Buscar produtos</p>
-                <AffiliateCatalogSearch petId={currentPet.pet_id} />
-              </div>
-
-              {/* 🏪 Lojas */}
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🏪 Lojas</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {visibleStorePartners.map((partner) => (
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Explorar categorias</p>
+                <div className="flex gap-3 overflow-x-auto pb-1 -mx-5 px-5">
+                  {STORE_CATEGORIES.map((category) => (
                     <button
-                      key={partner.id}
+                      key={category.id}
                       type="button"
-                      onClick={() => handlePartnerTap(partner)}
-                      className="flex flex-col items-center gap-2.5 p-4 bg-white border border-gray-200 rounded-2xl hover:border-blue-200 hover:bg-blue-50/30 active:scale-[0.97] transition-all text-center shadow-sm"
+                      onClick={() => {
+                        setCategoryQuery(buildStoreCategoryQuery(category, currentPet.species));
+                        setCategoryQuerySeq((n) => n + 1);
+                        void trackClick({
+                          source: 'home',
+                          cta_type: 'shop_category_tap',
+                          target: category.id,
+                          link_type: 'affiliate_product',
+                          pet_id: currentPet.pet_id,
+                        });
+                      }}
+                      className="flex flex-col items-center gap-1.5 flex-shrink-0 w-16 active:scale-95 transition-all"
                     >
-                      <div className="w-14 h-14 rounded-2xl overflow-hidden flex items-center justify-center bg-gray-50 border border-gray-100 flex-shrink-0 p-1.5">
-                        <img
-                          src={partner.logoSrc}
-                          alt={partner.logoAlt}
-                          className="w-full h-full object-contain"
-                          loading="lazy"
-                          decoding="async"
-                          onError={(e) => {
-                            const el = e.currentTarget as HTMLImageElement;
-                            el.style.display = 'none';
-                            const fallback = el.nextElementSibling as HTMLElement | null;
-                            if (fallback) fallback.style.display = 'flex';
-                          }}
-                        />
-                        <span className="hidden w-full h-full items-center justify-center text-2xl">🏪</span>
-                      </div>
-                      <div className="w-full min-w-0">
-                        <p className="text-[13px] font-bold text-gray-900 leading-tight line-clamp-1">{partner.name}</p>
-                        <p className="mt-0.5 text-[10px] font-semibold leading-tight text-gray-400 line-clamp-2">
-                          Rações, cuidados e acessórios
-                        </p>
-                      </div>
+                      <span className="w-14 h-14 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center shadow-sm">
+                        <CategoryIllustration categoryId={category.id} className="w-8 h-8" />
+                      </span>
+                      <span className="text-[10px] font-bold text-gray-700 text-center leading-tight">{category.label}</span>
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* 🐾 Buscar produtos — catálogo Awin sincronizado, no lugar
+                  do ícone estático que só levava pro site sem contexto.
+                  Multi-loja por natureza (ver AffiliateCatalogSearch.tsx) —
+                  copy neutra para Cobasi, Zee Dog e próximas lojas. Key
+                  muda a cada toque numa categoria acima pra remontar o
+                  componente com a nova initialQuery, mesmo repetindo a
+                  mesma categoria duas vezes seguidas. */}
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🐾 Buscar produtos</p>
+                <AffiliateCatalogSearch
+                  key={`${categoryQuery ?? 'default'}-${categoryQuerySeq}`}
+                  petId={currentPet.pet_id}
+                  initialQuery={categoryQuery ?? ''}
+                />
               </div>
 
               <p className="text-center text-[10px] text-gray-400 pt-1">
                 Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
                 A disponibilidade, preço, pagamento e entrega são de responsabilidade da loja escolhida.
               </p>
-            </>
-          )}
         </div>
       </div>
     </div>
@@ -389,8 +376,16 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
           </p>
           {loading && <p className="text-[10px] mt-1 text-gray-300">Buscando oferta...</p>}
           {!loading && hasMonetizedOffer && offer && (
-            <p className="text-[12px] mt-1 font-bold text-emerald-700">
-              {hasMultipleOffers ? 'A partir de ' : ''}{formatBRLPrice(offer.price as number)} na {merchantLabel(offer.merchant)}
+            <p className="text-[12px] mt-1 font-bold text-emerald-700 flex items-center flex-wrap gap-x-1">
+              <span>{hasMultipleOffers ? 'A partir de ' : ''}{formatBRLPrice(offer.price as number)} na</span>
+              {(() => {
+                const logoSrc = HOME_SHOPPING_PARTNERS.find((p) => p.id === offer.merchant)?.logoSrc;
+                return logoSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoSrc} alt="" className="w-3.5 h-3.5 rounded object-contain bg-white border border-emerald-100 inline-block" />
+                ) : null;
+              })()}
+              <span>{merchantLabel(offer.merchant)}</span>
               {hasDiscount && (
                 <span className="ml-1.5 text-[10px] font-semibold text-gray-400 line-through">{formatBRLPrice(offer.list_price as number)}</span>
               )}
