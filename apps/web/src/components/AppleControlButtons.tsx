@@ -71,172 +71,6 @@ function AlertDot({ tone = 'critical' }: { tone?: ControlTone }) {
   );
 }
 
-// Ilustração colorida (não emoji, não ícone de linha) pro card Alimentação —
-// saco de ração + latinha + pacote de petisco agrupados, cara de app de
-// verdade em vez de glifo do sistema. Trocado card a card, a pedido — este
-// é o primeiro (Alimentação); os outros seguem o mesmo raciocínio depois.
-function FoodGroupIllustration({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className={className}>
-      {/* Lata, atrás à esquerda */}
-      <rect x="2" y="14" width="9" height="11" rx="1.5" fill="#B0B8C1" stroke="#78828C" strokeWidth="0.75" />
-      <ellipse cx="6.5" cy="14" rx="4.5" ry="1.6" fill="#D6DBE0" stroke="#78828C" strokeWidth="0.75" />
-      <rect x="2" y="18" width="9" height="4" fill="#4E8F5C" />
-      <rect x="2" y="18" width="9" height="1" fill="#3C7248" />
-
-      {/* Saco de ração, ao centro, mais alto */}
-      <path
-        d="M10.5 12.5c0-1.3.4-2.2 1.2-2.9-0.4-.9-.2-1.9.6-2.5.9-.7 2-.6 2.7.1.7-.7 1.8-.8 2.7-.1.8.6 1 1.6.6 2.5.8.7 1.2 1.6 1.2 2.9v13a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-13Z"
-        fill="#C98A4B"
-        stroke="#9C6530"
-        strokeWidth="0.75"
-        strokeLinejoin="round"
-      />
-      <path d="M11.3 12.3h9v3.2h-9z" fill="#E8B27A" />
-      {/* Pata (marca do saco), não cruz — 1 almofada + 4 dedinhos */}
-      <ellipse cx="15.8" cy="20.6" rx="1.5" ry="1.2" fill="#FBEFE0" opacity="0.9" />
-      <circle cx="14.3" cy="18.5" r="0.65" fill="#FBEFE0" opacity="0.9" />
-      <circle cx="15.5" cy="17.9" r="0.65" fill="#FBEFE0" opacity="0.9" />
-      <circle cx="16.7" cy="18.1" r="0.65" fill="#FBEFE0" opacity="0.9" />
-      <circle cx="17.6" cy="19.1" r="0.6" fill="#FBEFE0" opacity="0.9" />
-
-      {/* Pacote de petisco, na frente à direita, menor */}
-      <rect x="19.5" y="16.5" width="9.5" height="9" rx="2" fill="#E3673C" stroke="#B24A26" strokeWidth="0.75" />
-      <path d="M19.5 19.5h9.5" stroke="#B24A26" strokeWidth="0.75" />
-      <circle cx="24.25" cy="23.2" r="1.9" fill="#FBD9C6" />
-      <path d="M23.2 23.2a1.05 1.05 0 1 1 2.1 0 1.05 1.05 0 0 1-2.1 0Z" fill="#B24A26" />
-    </svg>
-  );
-}
-
-// Ilustração colorida pro card Loja — carrinho de compras de verdade,
-// transbordando de biscoitinhos em formato de osso coloridos, igual à
-// referência de foto (carrinho cheio até a borda, ossinhos visíveis por
-// cima e dentro da cesta, não só um item solto).
-function ShoppingCartWithProductsIllustration({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className={className}>
-      {/* Ossinhos transbordando por cima da cesta, cores variadas */}
-      <g transform="translate(9.5 6) rotate(-18)">
-        <rect x="-2.6" y="-0.75" width="5.2" height="1.5" rx="0.75" fill="#6FCB6A" stroke="#4E9E4B" strokeWidth="0.35" />
-        <circle cx="-2.6" cy="-1" r="1.15" fill="#6FCB6A" stroke="#4E9E4B" strokeWidth="0.35" />
-        <circle cx="-2.6" cy="1" r="1.15" fill="#6FCB6A" stroke="#4E9E4B" strokeWidth="0.35" />
-        <circle cx="2.6" cy="-1" r="1.15" fill="#6FCB6A" stroke="#4E9E4B" strokeWidth="0.35" />
-        <circle cx="2.6" cy="1" r="1.15" fill="#6FCB6A" stroke="#4E9E4B" strokeWidth="0.35" />
-      </g>
-      <g transform="translate(15 3.8) rotate(12)">
-        <rect x="-2.6" y="-0.75" width="5.2" height="1.5" rx="0.75" fill="#E8637C" stroke="#C24560" strokeWidth="0.35" />
-        <circle cx="-2.6" cy="-1" r="1.15" fill="#E8637C" stroke="#C24560" strokeWidth="0.35" />
-        <circle cx="-2.6" cy="1" r="1.15" fill="#E8637C" stroke="#C24560" strokeWidth="0.35" />
-        <circle cx="2.6" cy="-1" r="1.15" fill="#E8637C" stroke="#C24560" strokeWidth="0.35" />
-        <circle cx="2.6" cy="1" r="1.15" fill="#E8637C" stroke="#C24560" strokeWidth="0.35" />
-      </g>
-      <g transform="translate(20 6.3) rotate(-14)">
-        <rect x="-2.6" y="-0.75" width="5.2" height="1.5" rx="0.75" fill="#F2D24B" stroke="#C9A22A" strokeWidth="0.35" />
-        <circle cx="-2.6" cy="-1" r="1.15" fill="#F2D24B" stroke="#C9A22A" strokeWidth="0.35" />
-        <circle cx="-2.6" cy="1" r="1.15" fill="#F2D24B" stroke="#C9A22A" strokeWidth="0.35" />
-        <circle cx="2.6" cy="-1" r="1.15" fill="#F2D24B" stroke="#C9A22A" strokeWidth="0.35" />
-        <circle cx="2.6" cy="1" r="1.15" fill="#F2D24B" stroke="#C9A22A" strokeWidth="0.35" />
-      </g>
-      <g transform="translate(14.5 8.5) rotate(28)">
-        <rect x="-2.6" y="-0.75" width="5.2" height="1.5" rx="0.75" fill="#E8B26B" stroke="#B8863F" strokeWidth="0.35" />
-        <circle cx="-2.6" cy="-1" r="1.15" fill="#E8B26B" stroke="#B8863F" strokeWidth="0.35" />
-        <circle cx="-2.6" cy="1" r="1.15" fill="#E8B26B" stroke="#B8863F" strokeWidth="0.35" />
-        <circle cx="2.6" cy="-1" r="1.15" fill="#E8B26B" stroke="#B8863F" strokeWidth="0.35" />
-        <circle cx="2.6" cy="1" r="1.15" fill="#E8B26B" stroke="#B8863F" strokeWidth="0.35" />
-      </g>
-
-      {/* Cesta do carrinho */}
-      <path d="M6 14h20l-2.2 9.5a1.6 1.6 0 0 1-1.55 1.25H9.75A1.6 1.6 0 0 1 8.2 23.5L6 14Z" fill="#4A90D9" stroke="#2F6CB0" strokeWidth="0.75" strokeLinejoin="round" />
-      <path d="M8 17.5h16M8.6 20.5h14.8" stroke="#2F6CB0" strokeWidth="0.6" opacity="0.55" />
-      <path d="M4 11h2.6l1 3h16.8" fill="none" stroke="#2F6CB0" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-
-      {/* Mais ossinhos, visíveis dentro da cesta */}
-      <g transform="translate(11.5 18.5) rotate(-10)">
-        <rect x="-2.3" y="-0.65" width="4.6" height="1.3" rx="0.65" fill="#6FCB6A" stroke="#4E9E4B" strokeWidth="0.3" />
-        <circle cx="-2.3" cy="-0.9" r="1" fill="#6FCB6A" stroke="#4E9E4B" strokeWidth="0.3" />
-        <circle cx="-2.3" cy="0.9" r="1" fill="#6FCB6A" stroke="#4E9E4B" strokeWidth="0.3" />
-        <circle cx="2.3" cy="-0.9" r="1" fill="#6FCB6A" stroke="#4E9E4B" strokeWidth="0.3" />
-        <circle cx="2.3" cy="0.9" r="1" fill="#6FCB6A" stroke="#4E9E4B" strokeWidth="0.3" />
-      </g>
-      <g transform="translate(19 19.5) rotate(16)">
-        <rect x="-2.3" y="-0.65" width="4.6" height="1.3" rx="0.65" fill="#E8B26B" stroke="#B8863F" strokeWidth="0.3" />
-        <circle cx="-2.3" cy="-0.9" r="1" fill="#E8B26B" stroke="#B8863F" strokeWidth="0.3" />
-        <circle cx="-2.3" cy="0.9" r="1" fill="#E8B26B" stroke="#B8863F" strokeWidth="0.3" />
-        <circle cx="2.3" cy="-0.9" r="1" fill="#E8B26B" stroke="#B8863F" strokeWidth="0.3" />
-        <circle cx="2.3" cy="0.9" r="1" fill="#E8B26B" stroke="#B8863F" strokeWidth="0.3" />
-      </g>
-
-      {/* Rodas */}
-      <circle cx="11" cy="27.3" r="1.7" fill="#2F3B47" />
-      <circle cx="22" cy="27.3" r="1.7" fill="#2F3B47" />
-      <circle cx="11" cy="27.3" r="0.6" fill="#8894A0" />
-      <circle cx="22" cy="27.3" r="0.6" fill="#8894A0" />
-    </svg>
-  );
-}
-
-// Ilustração colorida pro card Vacina — uma ampola de verdade (tampa +
-// líquido + rótulo com pata) e uma seringa com agulha e gota, lado a lado,
-// contorno mais grosso pra ficar mais parecida com a referência (estilo
-// vetor limpo, bem legível em tamanho pequeno).
-function VaccineVialsIllustration({ className }: { className?: string }) {
-  return (
-    <svg viewBox="-2 -3 36 36" className={className}>
-      {/* Ampola */}
-      <rect x="5" y="6" width="5" height="4.5" rx="1" fill="#B0B8C1" stroke="#1A2433" strokeWidth="1" />
-      <rect x="3" y="10" width="9" height="16" rx="2" fill="#FFFFFF" stroke="#1A2433" strokeWidth="1.1" />
-      <rect x="3.3" y="11.2" width="8.4" height="5" fill="#3FB6AE" />
-      <rect x="3.3" y="22.4" width="8.4" height="3.2" rx="1.4" fill="#3FB6AE" />
-      <rect x="3" y="16.5" width="9" height="6" fill="#FFFFFF" stroke="#1A2433" strokeWidth="0.8" />
-      <ellipse cx="7.5" cy="20.3" rx="1.5" ry="1.1" fill="#1A2433" />
-      <circle cx="6.1" cy="18.6" r="0.55" fill="#1A2433" />
-      <circle cx="7.3" cy="18.1" r="0.55" fill="#1A2433" />
-      <circle cx="8.5" cy="18.3" r="0.55" fill="#1A2433" />
-      <circle cx="9.3" cy="19.1" r="0.5" fill="#1A2433" />
-
-      {/* Seringa */}
-      <circle cx="23" cy="1" r="1" fill="#4E8F5C" />
-      <path d="M23 2v6" stroke="#1A2433" strokeWidth="0.9" strokeLinecap="round" />
-      <rect x="21.5" y="7" width="3" height="2.4" rx="0.4" fill="#4A90D9" stroke="#1A2433" strokeWidth="0.7" />
-      <rect x="17.5" y="8.6" width="11" height="1.6" rx="0.5" fill="#1A2433" />
-      <rect x="19.5" y="9.2" width="7" height="13" rx="1" fill="#FFFFFF" stroke="#1A2433" strokeWidth="1.1" />
-      <rect x="19.9" y="15.5" width="6.2" height="6.3" fill="#4E8F5C" opacity="0.9" />
-      <path d="M19.5 12.5h7M19.5 15.2h7M19.5 18h7" stroke="#1A2433" strokeWidth="0.4" opacity="0.55" />
-      <rect x="22.2" y="21.8" width="1.6" height="6" fill="#1A2433" />
-      <rect x="20" y="27.4" width="6" height="2" rx="0.6" fill="#1A2433" />
-    </svg>
-  );
-}
-
-// Ilustração colorida pro card Cuidados — caixinha de remédio (cruz
-// vermelha), aplicador antipulgas (spot-on) e cartela de vermífugo,
-// agrupados, mesmo raciocínio dos cards Alimentação/Loja/Vacina acima.
-function HealthCareGroupIllustration({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className={className}>
-      {/* Caixinha de remédio, atrás à esquerda */}
-      <rect x="2" y="15" width="9" height="10" rx="1.4" fill="#FFFFFF" stroke="#B0B8C1" strokeWidth="0.75" />
-      <rect x="2" y="15" width="9" height="3.2" fill="#4A90D9" />
-      <rect x="5.9" y="18.4" width="1.6" height="5.2" rx="0.4" fill="#E3673C" />
-      <rect x="4" y="20.2" width="5.4" height="1.6" rx="0.4" fill="#E3673C" />
-
-      {/* Antipulgas (aplicador spot-on), ao centro, mais alto */}
-      <rect x="14" y="10.5" width="5" height="11.5" rx="1.2" fill="#4E8F5C" stroke="#3C7248" strokeWidth="0.6" />
-      <rect x="14.5" y="14.5" width="4" height="6.5" rx="0.6" fill="#7BB88A" opacity="0.85" />
-      <rect x="14.7" y="7.6" width="3.6" height="3.2" rx="0.6" fill="#8894A0" stroke="#6B7480" strokeWidth="0.4" />
-      <rect x="15.9" y="5.6" width="1.2" height="2.4" fill="#6B7480" />
-
-      {/* Vermífugo (cartela de comprimidos), na frente à direita */}
-      <rect x="19.5" y="16.5" width="9.5" height="9" rx="1.6" fill="#F0D9B5" stroke="#C98A4B" strokeWidth="0.75" />
-      <circle cx="22.1" cy="19.1" r="1.3" fill="#FFFFFF" stroke="#9C6530" strokeWidth="0.4" />
-      <circle cx="26.4" cy="19.1" r="1.3" fill="#FFFFFF" stroke="#9C6530" strokeWidth="0.4" />
-      <circle cx="22.1" cy="22.9" r="1.3" fill="#FFFFFF" stroke="#9C6530" strokeWidth="0.4" />
-      <circle cx="26.4" cy="22.9" r="1.3" fill="#FFFFFF" stroke="#9C6530" strokeWidth="0.4" />
-    </svg>
-  );
-}
-
 export function AppleControlButtons({
   onHealthClick,
   onVaccinesClick,
@@ -279,8 +113,8 @@ export function AppleControlButtons({
             {(!hasFoodData || shouldShowAlert(colorFood, alertFood)) && (
               <AlertDot tone={!hasFoodData ? 'critical' : colorFood} />
             )}
-            <span className="absolute right-1.5 top-1.5 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2 min-[390px]:top-2">
-              <FoodGroupIllustration className="w-[30px] h-[30px] min-[390px]:w-9 min-[390px]:h-9" />
+            <span className="absolute right-2 top-2 opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5">
+              <span className="text-[18px] min-[390px]:text-[22px]">🥣</span>
             </span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
               <h3 className="line-clamp-2 text-[12px] font-bold leading-tight text-amber-950 min-[390px]:text-[13px] sm:text-base">{foodTitle || t('home.food.title')}</h3>
@@ -302,9 +136,7 @@ export function AppleControlButtons({
             className="group relative min-h-[68px] overflow-hidden rounded-xl border border-indigo-400 bg-gradient-to-br from-indigo-100 via-violet-100 to-violet-200 p-2.5 shadow-sm shadow-indigo-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
-            <span className="absolute right-1.5 top-1.5 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2 min-[390px]:top-2">
-              <HealthCareGroupIllustration className="w-[30px] h-[30px] min-[390px]:w-9 min-[390px]:h-9" />
-            </span>
+            <span className="absolute right-2 top-2 text-[18px] opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">🏥</span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
               <h3 className="truncate text-[13px] font-semibold leading-tight text-indigo-950 min-[390px]:text-[14px] sm:text-base">Cuidados</h3>
               <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-indigo-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">{healthHeadline || `Mantenha os cuidados ${petDo({ sex: petSex })} ${petName || 'seu pet'} em dia`}</p>
@@ -326,9 +158,7 @@ export function AppleControlButtons({
             className="group relative min-h-[68px] overflow-hidden rounded-xl border border-emerald-400 bg-gradient-to-br from-emerald-100 via-emerald-100 to-teal-200 p-2.5 shadow-sm shadow-emerald-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorVaccines, alertVaccines) && <AlertDot tone={colorVaccines} />}
-            <span className="absolute right-1.5 top-1.5 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2 min-[390px]:top-2">
-              <VaccineVialsIllustration className="w-[30px] h-[30px] min-[390px]:w-9 min-[390px]:h-9" />
-            </span>
+            <span className="absolute right-2 top-2 text-[18px] opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">💉</span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
               <h3 className="truncate text-[13px] font-semibold leading-tight text-emerald-950 min-[390px]:text-[14px] sm:text-base">
                 Vacina
@@ -353,9 +183,7 @@ export function AppleControlButtons({
             onClick={onShoppingClick}
             className="group relative min-h-[68px] overflow-hidden rounded-xl border-2 border-blue-500 bg-gradient-to-br from-blue-100 via-blue-200 to-cyan-200 p-2.5 shadow-md shadow-blue-900/15 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
-            <span className="absolute right-1.5 top-1.5 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2 min-[390px]:top-2">
-              <ShoppingCartWithProductsIllustration className="w-[30px] h-[30px] min-[390px]:w-9 min-[390px]:h-9" />
-            </span>
+            <span className="absolute right-2 top-2 text-[18px] opacity-90 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-2.5 min-[390px]:top-2.5 min-[390px]:text-[22px]">🛒</span>
             <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
               <h3 className="line-clamp-2 text-[13px] font-bold leading-tight text-blue-950 min-[390px]:text-[14px] sm:text-base">{shoppingTitle}</h3>
               <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-blue-900/75 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">Tudo que {petName || 'seu pet'} usa</p>

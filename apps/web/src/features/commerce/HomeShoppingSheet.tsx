@@ -20,8 +20,6 @@ import { useCommerceOffers } from './useCommerceOffers';
 import {
   buildReorderCards,
   buildPetStoreTitle,
-  STORE_CATEGORIES,
-  buildStoreCategoryQuery,
   QUICK_BUY_PARTNERS,
   type ReorderCard,
 } from './petStoreContent';
@@ -33,89 +31,16 @@ interface HomeShoppingSheetProps {
   buyableReminders: PetCareReminder[];
 }
 
-// Ilustrações coloridas por categoria — mesmo estilo do card Alimentação
-// (AppleControlButtons.tsx), pra "Explorar categorias" não parecer um menu
-// de emojis. Cada categoria = STORE_CATEGORIES.id (petStoreContent.ts).
-function CategoryIllustration({ categoryId, className }: { categoryId: string; className?: string }) {
-  switch (categoryId) {
-    case 'racao':
-      return (
-        <svg viewBox="0 0 24 24" className={className}>
-          <path d="M8 9.5c0-1 .3-1.7.9-2.2-.3-.7-.1-1.5.5-2 .7-.5 1.5-.4 2 .1.5-.5 1.3-.6 2-.1.6.5.8 1.3.5 2 .6.5.9 1.2.9 2.2v9.5a.8.8 0 0 1-.8.8H8.8a.8.8 0 0 1-.8-.8V9.5Z" fill="#C98A4B" stroke="#9C6530" strokeWidth="0.6" strokeLinejoin="round" />
-          <path d="M8.6 9.3h6.8v2.4H8.6z" fill="#E8B27A" />
-          <ellipse cx="12" cy="16" rx="1.2" ry="0.95" fill="#FBEFE0" opacity="0.9" />
-          <circle cx="10.9" cy="14.3" r="0.5" fill="#FBEFE0" opacity="0.9" />
-          <circle cx="11.9" cy="13.9" r="0.5" fill="#FBEFE0" opacity="0.9" />
-          <circle cx="12.9" cy="14.1" r="0.5" fill="#FBEFE0" opacity="0.9" />
-        </svg>
-      );
-    case 'petiscos':
-      return (
-        <svg viewBox="0 0 24 24" className={className}>
-          <rect x="6" y="8" width="12" height="11" rx="2.5" fill="#E3673C" stroke="#B24A26" strokeWidth="0.6" />
-          <path d="M6 11h12" stroke="#B24A26" strokeWidth="0.6" />
-          <circle cx="12" cy="15" r="2.4" fill="#FBD9C6" />
-          <circle cx="12" cy="15" r="1.3" fill="#B24A26" />
-        </svg>
-      );
-    case 'antipulgas':
-      return (
-        <svg viewBox="0 0 24 24" className={className}>
-          <path d="M12 4 6 6.5v5.2c0 4.3 2.6 6.8 6 8.3 3.4-1.5 6-4 6-8.3V6.5L12 4Z" fill="#4E8F5C" stroke="#3C7248" strokeWidth="0.6" strokeLinejoin="round" />
-          <path d="m9.3 12 2 2 3.4-3.8" stroke="#EAF6EC" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        </svg>
-      );
-    case 'coleiras':
-      return (
-        <svg viewBox="0 0 24 24" className={className}>
-          <circle cx="12" cy="10.5" r="7" fill="none" stroke="#C98A4B" strokeWidth="2.2" />
-          <path d="M12 17v2.3" stroke="#9C6530" strokeWidth="1.6" strokeLinecap="round" />
-          <circle cx="12" cy="20.3" r="1.4" fill="#E3673C" stroke="#B24A26" strokeWidth="0.5" />
-        </svg>
-      );
-    case 'brinquedos':
-      return (
-        <svg viewBox="0 0 24 24" className={className}>
-          <circle cx="12" cy="12" r="7.5" fill="#4A90D9" stroke="#2F6CB0" strokeWidth="0.6" />
-          <ellipse cx="9" cy="9.5" rx="1.1" ry="0.9" fill="#FBEFE0" opacity="0.9" />
-          <circle cx="7.6" cy="7.7" r="0.5" fill="#FBEFE0" opacity="0.9" />
-          <circle cx="9" cy="7" r="0.5" fill="#FBEFE0" opacity="0.9" />
-          <circle cx="10.4" cy="7.7" r="0.5" fill="#FBEFE0" opacity="0.9" />
-          <path d="M13 13.5c1.2 1.6 2.8 2.4 4.4 2.1" stroke="#EAF3FB" strokeWidth="0.8" strokeLinecap="round" fill="none" />
-        </svg>
-      );
-    case 'shampoos':
-      return (
-        <svg viewBox="0 0 24 24" className={className}>
-          <path d="M9.5 5h3v2.2h-3z" fill="#7CB6D9" />
-          <rect x="8" y="7.2" width="6" height="1.6" fill="#4A90D9" />
-          <rect x="7.5" y="8.8" width="7" height="10.7" rx="2" fill="#5FA6D6" stroke="#2F6CB0" strokeWidth="0.6" />
-          <rect x="8" y="12" width="6" height="3" fill="#EAF3FB" opacity="0.85" />
-        </svg>
-      );
-    default:
-      return null;
-  }
-}
-
 // Tela enxuta de propósito: "Comprar novamente" (com preço real quando
 // disponível) é a seção que importa de verdade — uma tela mais longa com
 // categorias genéricas e promoções não-personalizadas só cansava o tutor
 // antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
 export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
-  // Categoria tocada na grade "Explorar categorias" — mesma busca da Awin
-  // (AffiliateCatalogSearch), só que já chega com a query pronta em vez do
-  // tutor precisar digitar. Sufixo numérico força o useEffect de
-  // initialQuery a disparar de novo mesmo tocando a mesma categoria duas
-  // vezes seguidas (string igual não muda estado sozinha).
-  const [categoryQuery, setCategoryQuery] = useState<string | null>(null);
-  const [categoryQuerySeq, setCategoryQuerySeq] = useState(0);
 
   useEffect(() => {
     if (!open) {
       setQuickBuyFor(null);
-      setCategoryQuery(null);
       return;
     }
     void trackClick({ source: 'home', cta_type: 'shop_sheet_view', pet_id: currentPet.pet_id });
@@ -222,57 +147,15 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                 )}
               </div>
 
-              {/* Explorar categorias — carrossel de círculos ilustrados, no
-                  lugar da grade estática "🏪 Lojas" (que só levava pra home
-                  de cada loja sem contexto nenhum). Tocar uma categoria
-                  preenche a busca abaixo, igual ao padrão "escolha uma loja
-                  → escolha uma categoria" que já existia por trás de cada
-                  card de loja (STORE_CATEGORIES/buildStoreCategoryQuery) —
-                  só que como ponto de entrada direto, sem precisar passar
-                  por uma loja específica primeiro. */}
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Explorar categorias</p>
-                <div className="flex gap-3 overflow-x-auto pb-1 -mx-5 px-5">
-                  {STORE_CATEGORIES.map((category) => (
-                    <button
-                      key={category.id}
-                      type="button"
-                      onClick={() => {
-                        setCategoryQuery(buildStoreCategoryQuery(category, currentPet.species));
-                        setCategoryQuerySeq((n) => n + 1);
-                        void trackClick({
-                          source: 'home',
-                          cta_type: 'shop_category_tap',
-                          target: category.id,
-                          link_type: 'affiliate_product',
-                          pet_id: currentPet.pet_id,
-                        });
-                      }}
-                      className="flex flex-col items-center gap-1.5 flex-shrink-0 w-16 active:scale-95 transition-all"
-                    >
-                      <span className="w-14 h-14 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center shadow-sm">
-                        <CategoryIllustration categoryId={category.id} className="w-8 h-8" />
-                      </span>
-                      <span className="text-[10px] font-bold text-gray-700 text-center leading-tight">{category.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* 🐾 Buscar produtos — catálogo Awin sincronizado, no lugar
                   do ícone estático que só levava pro site sem contexto.
                   Multi-loja por natureza (ver AffiliateCatalogSearch.tsx) —
-                  copy neutra para Cobasi, Zee Dog e próximas lojas. Key
-                  muda a cada toque numa categoria acima pra remontar o
-                  componente com a nova initialQuery, mesmo repetindo a
-                  mesma categoria duas vezes seguidas. */}
+                  copy neutra para Cobasi, Zee Dog e próximas lojas. Só a
+                  busca (texto + escanear/digitar código de barras) — a
+                  grade "Explorar categorias" foi removida a pedido. */}
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🐾 Buscar produtos</p>
-                <AffiliateCatalogSearch
-                  key={`${categoryQuery ?? 'default'}-${categoryQuerySeq}`}
-                  petId={currentPet.pet_id}
-                  initialQuery={categoryQuery ?? ''}
-                />
+                <AffiliateCatalogSearch petId={currentPet.pet_id} />
               </div>
 
               <p className="text-center text-[10px] text-gray-400 pt-1">
