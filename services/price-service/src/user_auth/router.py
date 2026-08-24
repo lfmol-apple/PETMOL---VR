@@ -537,6 +537,7 @@ def delete_account(
     # push subscriptions (device + endpoint), pending reminders, and any Pet
     # Sumido reports/follows this user created or was helping with.
     db.execute(text("DELETE FROM push_subscriptions WHERE user_id = :uid"), {"uid": uid})
+    db.execute(text("DELETE FROM native_push_tokens WHERE user_id = :uid"), {"uid": uid})
     db.execute(text("DELETE FROM reminders WHERE user_id = :uid"), {"uid": uid})
     db.execute(text("DELETE FROM missing_pets WHERE user_id = :uid"), {"uid": uid})
     db.execute(text("DELETE FROM missing_pet_followers WHERE finder_user_id = :uid"), {"uid": uid})

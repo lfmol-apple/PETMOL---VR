@@ -112,8 +112,35 @@ class PushSubscription(Base):
     disabled_at  = Column(DateTime(timezone=True), nullable=True, index=True)
 
 
+class NativePushToken(Base):
+    """Token de push nativo (FCM/APNs) — dispositivo Android/iOS via o shell
+    Capacitor, DISTINTO de PushSubscription (Web Push, endpoint/p256dh/auth).
+
+    Web Push não funciona de forma confiável dentro do WebView nativo do
+    Capacitor — daí esta tabela separada em vez de forçar o token nativo nos
+    campos de Web Push (que são NOT NULL e não fazem sentido pra esse caso).
+
+    IMPORTANTE: esta tabela só REGISTRA o token — o envio de fato (via
+    Firebase Cloud Messaging / Apple Push Notification service) ainda
+    depende de credenciais externas que não existem neste ambiente ainda
+    (projeto Firebase + google-services.json pro Android; certificado/chave
+    APNs + capability no Xcode pro iOS). Ver docs/MOBILE_RELEASE_CHECKLIST.md
+    para o que falta exatamente e quem precisa fazer o quê.
+    """
+    __tablename__ = "native_push_tokens"
+    __table_args__ = (UniqueConstraint("user_id", "token", name="uq_native_push_tokens_user_token"),)
+
+    id           = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id      = Column(String(36), nullable=False, index=True)
+    platform     = Column(String(10), nullable=False)  # "ios" | "android"
+    token        = Column(Text, nullable=False)
+    created_at   = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    last_seen_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    disabled_at  = Column(DateTime(timezone=True), nullable=True, index=True)
+
+
 # Cria as tabelas se não existirem
-Base.metadata.create_all(bind=engine, tables=[Reminder.__table__, PushSubscription.__table__])
+Base.metadata.create_all(bind=engine, tables=[Reminder.__table__, PushSubscription.__table__, NativePushToken.__table__])
 
 
 # ── Compat shims (missing_pets/__init__.py e family/utils.py importam estas
@@ -392,6 +419,15 @@ class UnsubscribeRequest(BaseModel):
     endpoint: Optional[str] = None
 
 
+class RegisterNativeDeviceRequest(BaseModel):
+    platform: str  # "ios" | "android"
+    token: str
+
+
+class UnregisterNativeDeviceRequest(BaseModel):
+    token: Optional[str] = None
+
+
 class ReminderIn(BaseModel):
     pet_id:    Optional[str] = None
     type:      str
@@ -471,6 +507,56 @@ def unsubscribe(body: Optional[UnsubscribeRequest] = None, current_user=Depends(
         q.update({"disabled_at": now}, synchronize_session=False)
         db.commit()
         return {"status": "unsubscribed"}
+    finally:
+        db.close()
+
+
+@router.post("/native-device")
+def register_native_device(body: RegisterNativeDeviceRequest, current_user=Depends(get_current_user)):
+    """Registra/atualiza o token de push nativo (FCM/APNs) do dispositivo
+    atual. Não envia notificação nenhuma sozinho — só guarda o token para
+    quando o envio nativo estiver disponível (ver NativePushToken). Nunca
+    loga o valor do token, só metadados (plataforma, contagem)."""
+    if body.platform not in ("ios", "android"):
+        raise HTTPException(status_code=400, detail="platform deve ser 'ios' ou 'android'")
+    if not body.token or not body.token.strip():
+        raise HTTPException(status_code=400, detail="token vazio")
+
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        user_id = str(current_user.id)
+        existing = (
+            db.query(NativePushToken)
+            .filter(NativePushToken.user_id == user_id, NativePushToken.token == body.token)
+            .first()
+        )
+        if existing:
+            existing.platform = body.platform
+            existing.last_seen_at = now
+            existing.disabled_at = None
+        else:
+            db.add(NativePushToken(
+                user_id=user_id, platform=body.platform, token=body.token,
+                created_at=now, last_seen_at=now,
+            ))
+        db.commit()
+        return {"status": "registered"}
+    finally:
+        db.close()
+
+
+@router.delete("/native-device")
+def unregister_native_device(body: Optional[UnregisterNativeDeviceRequest] = None, current_user=Depends(get_current_user)):
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        q = db.query(NativePushToken).filter(NativePushToken.user_id == str(current_user.id))
+        if body and body.token:
+            q = q.filter(NativePushToken.token == body.token)
+        q.update({"disabled_at": now}, synchronize_session=False)
+        db.commit()
+        return {"status": "unregistered"}
     finally:
         db.close()
 
