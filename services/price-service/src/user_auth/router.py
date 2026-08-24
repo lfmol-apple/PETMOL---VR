@@ -531,6 +531,17 @@ def delete_account(
     ]
     for t in pet_child_tables:
         db.execute(text(f"DELETE FROM {t} WHERE pet_id IN (SELECT id FROM pets WHERE user_id = :uid)"), {"uid": uid})
+
+    # These tables key on user_id directly (not pet_id) and have no FK/cascade
+    # to the users table — without this they're left orphaned after deletion:
+    # push subscriptions (device + endpoint), pending reminders, and any Pet
+    # Sumido reports/follows this user created or was helping with.
+    db.execute(text("DELETE FROM push_subscriptions WHERE user_id = :uid"), {"uid": uid})
+    db.execute(text("DELETE FROM reminders WHERE user_id = :uid"), {"uid": uid})
+    db.execute(text("DELETE FROM missing_pets WHERE user_id = :uid"), {"uid": uid})
+    db.execute(text("DELETE FROM missing_pet_followers WHERE finder_user_id = :uid"), {"uid": uid})
+    db.execute(text("DELETE FROM found_reports WHERE finder_user_id = :uid"), {"uid": uid})
+
     db.execute(text("DELETE FROM pets WHERE user_id = :uid"), {"uid": uid})
     db.delete(user)
     db.commit()
