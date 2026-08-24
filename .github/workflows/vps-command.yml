@@ -10,6 +10,10 @@ on:
         description: "Remote command timeout in seconds"
         required: false
         default: "300"
+      stage_ml_secret:
+        description: "If 'true', also stage MERCADOLIVRE_CLIENT_SECRET as a 600-perm file on the VPS before running `command`; its path is exported as $ML_SECRET_FILE for the command to read. The secret is never embedded in `command` text (which is echoed unmasked in this workflow's own logs) — this is the only supported way for `command` to use it. Defaults to 'false' and changes nothing for any other use of this workflow."
+        required: false
+        default: "false"
 
 jobs:
   run:
@@ -25,6 +29,8 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           VPS_COMMAND: ${{ github.event.inputs.command }}
           REMOTE_TIMEOUT: ${{ github.event.inputs.timeout_seconds }}
+          STAGE_ML_SECRET: ${{ github.event.inputs.stage_ml_secret }}
+          MERCADOLIVRE_CLIENT_SECRET: ${{ secrets.MERCADOLIVRE_CLIENT_SECRET }}
         run: |
           set -euo pipefail
           VPS_PORT="${VPS_PORT:-22}"
@@ -57,6 +63,30 @@ jobs:
             done
           }
 
+          REMOTE_SECRET_FILE=""
+          if [ "$STAGE_ML_SECRET" = "true" ]; then
+            if [ -z "${MERCADOLIVRE_CLIENT_SECRET:-}" ]; then
+              echo "stage_ml_secret=true but MERCADOLIVRE_CLIENT_SECRET repo secret is not set — aborting without touching the VPS."
+              exit 1
+            fi
+            REMOTE_SECRET_FILE="/tmp/vps-command-${GITHUB_RUN_ID}-ml-secret"
+            printf '%s' "$MERCADOLIVRE_CLIENT_SECRET" > /tmp/ml-secret
+            chmod 600 /tmp/ml-secret
+            scp_retry /tmp/ml-secret "$VPS_USER@$VPS_IP:${REMOTE_SECRET_FILE}"
+            rm -f /tmp/ml-secret
+            ssh_retry "chmod 600 '${REMOTE_SECRET_FILE}'"
+          fi
+
           printf '%s' "$VPS_COMMAND" > /tmp/vps-command.sh
           scp_retry /tmp/vps-command.sh "$VPS_USER@$VPS_IP:/tmp/vps-command-${GITHUB_RUN_ID}.sh"
-          ssh_retry "chmod 700 /tmp/vps-command-${GITHUB_RUN_ID}.sh && timeout '$REMOTE_TIMEOUT' bash /tmp/vps-command-${GITHUB_RUN_ID}.sh; status=\$?; rm -f /tmp/vps-command-${GITHUB_RUN_ID}.sh; exit \$status"
+
+          set +e
+          ssh_retry "chmod 700 /tmp/vps-command-${GITHUB_RUN_ID}.sh && timeout '$REMOTE_TIMEOUT' env ML_SECRET_FILE='${REMOTE_SECRET_FILE}' bash /tmp/vps-command-${GITHUB_RUN_ID}.sh; status=\$?; rm -f /tmp/vps-command-${GITHUB_RUN_ID}.sh; exit \$status"
+          STATUS=$?
+          set -e
+
+          if [ -n "$REMOTE_SECRET_FILE" ]; then
+            ssh_retry "shred -u '${REMOTE_SECRET_FILE}' 2>/dev/null || rm -f '${REMOTE_SECRET_FILE}'" || true
+          fi
+
+          exit $STATUS
