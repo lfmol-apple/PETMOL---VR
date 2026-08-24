@@ -51,7 +51,8 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 - [x] Package ID definido: `br.com.petmol.app` (confirmado sem conflito em todo o repo antes de fixar)
 - [x] Android SDK instalado via CLI tools (`brew install --cask android-commandlinetools` + `sdkmanager`, sem Android Studio) — `platform-tools`, `platforms;android-34`, `build-tools;34.0.0`; JDK 21 (exigido pelo Gradle do template Capacitor 8) instalado via tarball portátil da Adoptium, sem sudo
 - [x] `@capacitor/browser` (`Browser.open()`) adicionado em `navigateToPartnerUrl` para links de afiliado escaparem do WebView em plataforma nativa
-- [ ] `@capacitor/push-notifications` como substituto do Web Push cru para o shell nativo
+- [x] `POST_NOTIFICATIONS` declarada no `AndroidManifest.xml` (obrigatória a partir do Android 13/API 33 pra qualquer prompt de notificação, incluindo push, aparecer)
+- [x] `@capacitor/push-notifications` instalado e sincronizado (`npx cap sync android`, plugin linkado e compilando — `./gradlew assembleDebug` com tasks `:capacitor-push-notifications:*` reais); registro de token, backend (`NativePushToken`, endpoints `/notifications/native-device`) e frontend (`nativePushService.ts`, wired em `useNotificationPermissionController.ts`) prontos — commit `09b9641` (CI verde)
 - [x] Build de release compilável + AAB gerado — `./gradlew bundleRelease` rodou com sucesso, `app-release.aab` gerado e assinado com um keystore de TESTE (`~/.petmol-mobile-keys/TEST-ONLY-do-not-use-for-real-release.jks`, fora do repo, senha só em env var). **Esse keystore de teste não deve ser usado para a submissão real** — gerar um keystore de produção novo, guardar senha e arquivo com backup seguro (perda = não consegue mais atualizar o app depois do primeiro upload)
 - [x] Ícone adaptativo e splash trocados pela marca PETMOL (gerados via `@capacitor/assets` a partir de `apps/web/public/icons/icon-source.svg`, o mesmo mark já usado no PWA) — build de release re-verificado com os novos assets
 - [ ] Validar permissões declaradas no `AndroidManifest.xml` (câmera, notificações) contra o que o app realmente usa
@@ -61,12 +62,30 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 
 - [x] Projeto Xcode gerado (`npx cap add ios` não exige Xcode, só build/archive exigem) — mesmo shell Capacitor do Android (`server.url` remoto), bundle id `br.com.petmol.app` herdado automaticamente do `capacitor.config.ts`
 - [x] Usage descriptions de câmera/fotos adicionadas no `Info.plist` (`NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`, `NSPhotoLibraryAddUsageDescription`) — faltavam no template padrão
-- [ ] Entitlement de notificação push (`aps-environment`) — adicionar quando `@capacitor/push-notifications` entrar
+- [x] Entitlement de notificação push (`App.entitlements`, `aps-environment=development`) + `UIBackgroundModes: remote-notification` no `Info.plist` — commit `09b9641`. **Não wired ao `project.pbxproj`** (`CODE_SIGN_ENTITLEMENTS`) porque não há Xcode instalado neste Mac pra verificar que o projeto ainda abre depois de editar esse arquivo à mão; é um toggle de um clique ("+ Capability → Push Notifications") a fazer no Xcode junto com o passo abaixo
 - [ ] **Bloqueado hoje**: Xcode completo não está instalado neste Mac (só Command Line Tools) — `xcodebuild` recusa rodar; requer instalação interativa via App Store com o Apple ID do usuário, não pode ser feito de forma não-interativa. CocoaPods também não está instalado (necessário pra `pod install` antes de abrir o projeto no Xcode)
 - [x] Ícones e launch screen trocados pela marca PETMOL (mesmo processo do Android — `@capacitor/assets`, AppIcon + Splash light/dark)
 - [ ] Documentar para App Review que o app usa recursos nativos reais do PETMOL (cadastro de pet, scanner, alimentação, saúde, lembretes, medicação, comparação de produtos) — não é apenas um WebView passivo
 - [ ] Build de release compilável + archive — depende do Xcode estar instalado
 - [ ] TestFlight interno
+
+## Push nativo (Android/iOS) — pendências externas
+
+O registro do token (permissão, captura, envio ao backend, tabela `native_push_tokens`, cascade de exclusão de conta) está pronto de ponta a ponta nas duas plataformas — commit `09b9641`, CI verde. O que falta é **enviar** de fato uma notificação nativa, e isso depende de credenciais externas que este ambiente não tem e não pode gerar sozinho:
+
+**Bloqueio 1 — Android (Firebase Cloud Messaging)**
+- AÇÃO HUMANA: criar um projeto no Firebase Console, registrar o app com `applicationId br.com.petmol.app`, baixar `google-services.json` e gerar uma Server Key/Service Account
+- LOCAL: https://console.firebase.google.com — precisa da conta Google que vai ser dona do projeto (decisão do usuário, não existe uma "conta certa" óbvia hoje)
+- VALOR NECESSÁRIO: nenhum custo — o tier gratuito do FCM cobre o volume esperado no lançamento
+- RESULTADO ESPERADO: `google-services.json` colocado em `apps/web/android/app/` (fora do Git, mesmo padrão do keystore) + credencial de servidor (Service Account JSON ou Server Key legada) configurada como secret no backend, pra o serviço poder chamar a API do FCM e efetivamente enviar os pushes cujos tokens já estão sendo coletados
+
+**Bloqueio 2 — iOS (Apple Push Notification service)**
+- AÇÃO HUMANA: no Apple Developer Program (exige conta paga, USD 99/ano — provavelmente já existe pra fins de submissão à App Store, ver seção "Metadados de loja"), gerar uma APNs Auth Key (.p8, recomendado sobre certificado porque não expira) vinculada ao App ID `br.com.petmol.app`; depois, no Xcode, ativar a capability "Push Notifications" no projeto (isso é o passo que também conecta o `App.entitlements` já preparado ao `project.pbxproj`)
+- LOCAL: https://developer.apple.com/account (Certificates, Identifiers & Profiles → Keys) + Xcode, que precisa estar instalado (ver bloqueio do build iOS, já documentado abaixo)
+- VALOR NECESSÁRIO: já coberto pela assinatura anual do Apple Developer Program, se o usuário já tiver — nenhum custo adicional específico do push
+- RESULTADO ESPERADO: arquivo `.p8` + Key ID + Team ID guardados como secret no backend (nunca no repo), permitindo o serviço assinar requisições JWT pra APNs e enviar os pushes cujos tokens já estão sendo coletados no iOS
+
+Registrar o token agora, mesmo sem poder enviar ainda, não tem custo nem risco — quando as duas credenciais acima existirem, os dispositivos que já instalaram o app vão precisar apenas reabrir uma vez pra o token já estar no banco.
 
 ## Metadados de loja
 
@@ -76,6 +95,10 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 - [x] Review notes para App Store e Google Play — rascunho pronto em `docs/APP_STORE_METADATA.md`
 - [x] Copy de loja sem "grátis"/"menor preço garantido"/"diagnóstico"/"garantia de saúde" — landing page já corrigida (PR #55); lembretes documentados pra aplicar na ficha das lojas também
 
+## Suporte / feedback
+
+- [x] "Fale com o PETMOL" — sugestão / problema / ajuda, `POST /support/feedback` + tabela `support_feedback`, minimizado (sem PII desnecessária), anonimizado (não apagado) na exclusão de conta — commit deste ciclo, CI verde
+
 ## Estado geral (24/08/2026)
 
-Todo o código local/reversível identificado como P0 nesta rodada está commitado na PR #55 (`fix/release-day-p0-legal-copy`), CI verde, aguardando merge. Android já tem shell Capacitor funcional com build de release + AAB assinado (com keystore de teste) gerado localmente, com ícone/splash da marca real. Metadados de loja (Apple/Google) e benchmark de capacidade prontos e documentados. O que resta é: (1) build iOS bloqueado por falta de Xcode neste Mac — ação manual do usuário, (2) gerar o keystore de produção real do Android (fora do repo, com backup seguro) antes da submissão de verdade — decisão sua, não gerado hoje por ser um artefato permanente e de alto risco se perdido, (3) decidir e-mail/senha da conta de revisor pra eu criar em produção, (4) configurar destino real de backup off-site.
+Todo o código local/reversível identificado como P0 nesta rodada está commitado na PR #55 (`fix/release-day-p0-legal-copy`), CI verde, aguardando merge. Android já tem shell Capacitor funcional com build de release + AAB assinado (com keystore de teste) gerado localmente, com ícone/splash da marca real, permissão de notificação e plugin de push nativo linkado e compilando. iOS tem entitlement/background mode de push já preparados no código. Registro de token de push nativo (Android/iOS) pronto de ponta a ponta — falta só o envio de fato, bloqueado em credenciais externas (Firebase/APNs, ver seção "Push nativo" acima). "Fale com o PETMOL" implementado. Metadados de loja (Apple/Google) e benchmark de capacidade prontos e documentados. O que resta é: (1) build iOS bloqueado por falta de Xcode neste Mac — ação manual do usuário, (2) gerar o keystore de produção real do Android (fora do repo, com backup seguro) antes da submissão de verdade — decisão sua, não gerado hoje por ser um artefato permanente e de alto risco se perdido, (3) decidir e-mail/senha da conta de revisor pra eu criar em produção, (4) configurar destino real de backup off-site, (5) projeto Firebase (Android) e APNs Auth Key (iOS) pra push nativo realmente enviar notificações — ver detalhes na seção acima.
