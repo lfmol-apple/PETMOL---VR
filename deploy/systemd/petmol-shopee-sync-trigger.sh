@@ -11,4 +11,4 @@ TOKEN="$(grep '^SHOPEE_SYNC_TRIGGER_TOKEN=' "$API_ENV" | cut -d= -f2-)"
 curl -sf --max-time 60 -X POST http://127.0.0.1:8000/v1/admin/shopee-sync/run \
     -H "X-Sync-Token: ${TOKEN}" \
     -H 'Content-Type: application/json' \
-    -d '{"source":"awin_feed_all","feed_merchants":["cobasi","zeenow","zeedog"],"skip_existing_shopee":true,"audit_existing_shopee":true,"deactivate_invalid_shopee":true}'
+    -d '{"source":"awin_feed_all","feed_merchants":["cobasi","zeenow","zeedog"],"skip_existing_shopee":true,"audit_existing_shopee":true,"deactivate_invalid_shopee":true,"audit_max_rows":500}'

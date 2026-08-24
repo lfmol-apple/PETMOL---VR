@@ -46,6 +46,7 @@ router = APIRouter(prefix="/v1/admin/shopee-sync", tags=["Admin Shopee Sync"])
 
 DEFAULT_CATEGORIES = ["food", "antiparasite", "medication", "hygiene", "dewormer", "collar"]
 ALLOWED_SOURCES = {"categories", "awin_feed", "awin_feed_all"}
+DEFAULT_AUDIT_MAX_ROWS = 500
 
 
 class RunRequest(BaseModel):
@@ -63,6 +64,7 @@ class RunRequest(BaseModel):
     skip_existing_shopee: bool = True
     audit_existing_shopee: bool = True
     deactivate_invalid_shopee: bool = True
+    audit_max_rows: Optional[int] = DEFAULT_AUDIT_MAX_ROWS
 
 
 def _require_token(x_sync_token: Optional[str]) -> None:
@@ -81,6 +83,7 @@ def _run_sync(
     skip_existing_shopee: bool = True,
     audit_existing_shopee: bool = True,
     deactivate_invalid_shopee: bool = True,
+    audit_max_rows: Optional[int] = DEFAULT_AUDIT_MAX_ROWS,
 ) -> None:
     db = SessionLocal()
     try:
@@ -106,6 +109,7 @@ def _run_sync(
                 db,
                 source_merchants=source_merchants,
                 deactivate_invalid=deactivate_invalid_shopee,
+                max_rows=audit_max_rows,
                 progress_callback=_audit_progress,
             )
             with STATE.lock:
@@ -200,6 +204,7 @@ def run_sync(payload: RunRequest, x_sync_token: Optional[str] = Header(default=N
             payload.skip_existing_shopee,
             payload.audit_existing_shopee,
             payload.deactivate_invalid_shopee,
+            payload.audit_max_rows,
         ),
         daemon=True,
     )
@@ -213,6 +218,7 @@ def run_sync(payload: RunRequest, x_sync_token: Optional[str] = Header(default=N
         "skip_existing_shopee": payload.skip_existing_shopee,
         "audit_existing_shopee": payload.audit_existing_shopee,
         "deactivate_invalid_shopee": payload.deactivate_invalid_shopee,
+        "audit_max_rows": payload.audit_max_rows,
     }
 
 

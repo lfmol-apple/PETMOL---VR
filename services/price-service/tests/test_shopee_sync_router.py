@@ -197,9 +197,10 @@ def test_run_awin_feed_all_usa_linha_do_feed_para_criar_catalogo(monkeypatch, cl
         db,
         source_merchants=("cobasi", "zeenow", "zeedog"),
         deactivate_invalid=True,
+        max_rows=None,
         progress_callback=None,
     ):
-        audits.append((source_merchants, deactivate_invalid))
+        audits.append((source_merchants, deactivate_invalid, max_rows))
         result = ShopeeOfferAuditResult(total=3, valid=1, invalid=2, deactivated=2)
         if progress_callback:
             progress_callback(0, ShopeeOfferAuditResult(total=3))
@@ -227,7 +228,7 @@ def test_run_awin_feed_all_usa_linha_do_feed_para_criar_catalogo(monkeypatch, cl
     assert final["audit_processed"] == 3
     assert final["audit_invalid"] == 2
     assert final["audit_deactivated"] == 2
-    assert audits == [((("cobasi", "zeenow", "zeedog")), True)]
+    assert audits == [((("cobasi", "zeenow", "zeedog")), True, sync_router.DEFAULT_AUDIT_MAX_ROWS)]
     assert calls == [(gtin, "Vermifugo Teste Zee Now 10kg", "Marca Teste")]
 
 
