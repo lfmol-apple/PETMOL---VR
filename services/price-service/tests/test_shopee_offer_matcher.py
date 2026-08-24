@@ -207,6 +207,43 @@ class TestScoreCandidate:
         )
         assert score is not None
 
+    def test_racao_mesma_marca_e_peso_mas_porte_diferente_desqualifica(self):
+        score = score_candidate(
+            "Ração Royal Canin Mini Adult Cães Adultos Raças Pequenas 15kg",
+            "Ração Royal Canin Maxi Adult Cães Adultos Raças Grandes 15kg",
+            expected_brand="Royal Canin",
+            expected_weight_kg=15.0,
+        )
+        assert score is None
+
+    def test_racao_esperada_com_porte_nao_casa_com_anuncio_generico(self):
+        score = score_candidate(
+            "Ração Royal Canin Mini Adult Cães Adultos Raças Pequenas 15kg",
+            "Ração Royal Canin Adult Cães Adultos 15kg",
+            expected_brand="Royal Canin",
+            expected_weight_kg=15.0,
+        )
+        assert score is None
+
+    def test_racao_veterinaria_nao_casa_com_racao_comum_mesmo_peso(self):
+        score = score_candidate(
+            "Ração Royal Canin Veterinary Diet Urinary S/O Small Dog 7,5kg",
+            "Ração Royal Canin Mini Adult Cães Adultos Raças Pequenas 7,5kg",
+            expected_brand="Royal Canin",
+            expected_weight_kg=7.5,
+        )
+        assert score is None
+
+    def test_racao_equivalente_com_termos_distintivos_casa(self):
+        score = score_candidate(
+            "Ração Royal Canin Mini Adult Cães Adultos Raças Pequenas 15kg",
+            "Ração Royal Canin Mini Adult para Cães Adultos de Raças Pequenas 15kg",
+            expected_brand="Royal Canin",
+            expected_weight_kg=15.0,
+        )
+        assert score is not None
+        assert score >= 0.7
+
 
 class TestFindBestMatch:
     def test_empate_de_score_sem_tamanho_no_nome_pega_o_de_menor_preco(self):

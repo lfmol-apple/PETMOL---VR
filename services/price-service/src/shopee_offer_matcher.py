@@ -54,6 +54,28 @@ _PACK_COUNT_RE = re.compile(
     r"(comprimidos?|tabletes?|tabs?|pipetas?|doses?|unidades?|unds?)\b"
 )
 
+# Termos que mudam a identidade comercial de ração. Com busca textual da
+# Shopee, "Royal Canin 15kg" pode devolver outra linha/porte/idade na
+# mesma marca e peso. Esses termos não podem ser tratados como detalhe de
+# score: se o produto esperado tem um deles, o anúncio precisa ter também;
+# se o anúncio tem um termo conflitante, é outro produto.
+_DISTINCTIVE_GROUPS = (
+    frozenset({"mini", "pequeno", "pequena", "pequenas", "small"}),
+    frozenset({"medium", "medio", "media", "medias"}),
+    frozenset({"maxi", "grande", "grandes", "large"}),
+    frozenset({"giant", "gigante"}),
+    frozenset({"filhote", "filhotes", "puppy", "junior"}),
+    frozenset({"adulto", "adult", "adults"}),
+    frozenset({"senior", "idoso", "idosos", "mature"}),
+    frozenset({"castrado", "castrados", "castrada", "castradas", "sterilised", "sterilized"}),
+    frozenset({"urinary", "urinario", "urinaria"}),
+    frozenset({"renal", "kidney"}),
+    frozenset({"hypoallergenic", "hipoalergenico", "hipoalergenica"}),
+    frozenset({"gastrointestinal", "digestive"}),
+    frozenset({"dermatologic", "dermatologica", "dermatologico", "skin"}),
+    frozenset({"light", "obesity", "satiety"}),
+)
+
 
 def _normalize(text: str) -> str:
     text = unicodedata.normalize("NFKD", text or "")
@@ -131,6 +153,34 @@ def _tokenize(text: str) -> set[str]:
     return tokens
 
 
+def _distinctive_groups(tokens: set[str]) -> set[frozenset[str]]:
+    groups: set[frozenset[str]] = set()
+    for group in _DISTINCTIVE_GROUPS:
+        if tokens & group:
+            groups.add(group)
+    return groups
+
+
+def _distinctive_terms_compatible(expected_tokens: set[str], candidate_tokens: set[str]) -> bool:
+    expected_groups = _distinctive_groups(expected_tokens)
+    if expected_groups:
+        # Tudo que define a apresentação esperada precisa aparecer no
+        # candidato. Ex: esperado "Mini Adult" não pode casar com anúncio
+        # só "Adult 15kg", nem com "Maxi Adult 15kg".
+        for group in expected_groups:
+            if not (candidate_tokens & group):
+                return False
+
+    candidate_groups = _distinctive_groups(candidate_tokens)
+    # Grupos conflitantes presentes só no candidato indicam outra variação
+    # dentro da mesma marca/peso. Só aceitamos grupo extra quando o esperado
+    # não especificou nenhum grupo daquele eixo, para não bloquear nomes
+    # genéricos sem porte/idade.
+    if expected_groups and not candidate_groups.issubset(expected_groups):
+        return False
+    return True
+
+
 def score_candidate(
     expected_name: str,
     candidate_name: str,
@@ -159,6 +209,10 @@ def score_candidate(
     find_best_match(), não este score.
     """
     candidate_tokens = _tokenize(candidate_name)
+    expected_tokens = _tokenize(expected_name)
+
+    if not _distinctive_terms_compatible(expected_tokens, candidate_tokens):
+        return None
 
     if expected_brand:
         brand_tokens = _tokenize(expected_brand)
@@ -187,7 +241,6 @@ def score_candidate(
         if candidate_pack_count is None or candidate_pack_count != expected_pack_count:
             return None
 
-    expected_tokens = _tokenize(expected_name)
     if not expected_tokens:
         return None
 
