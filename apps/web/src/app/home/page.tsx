@@ -798,7 +798,7 @@ function HomePageInner() {
       if (navigator.share) {
         await navigator.share({
           title: `Cuide de ${currentPet.pet_name} comigo 🐾`,
-          text: `Te convidei para cuidar de ${currentPet.pet_name} no PETMOL. Abra o link, crie sua conta grátis ou entre, e ative os alertas para ajudar se precisar.`,
+          text: `Te convidei para cuidar de ${currentPet.pet_name} no PETMOL. Abra o link, crie sua conta ou entre, e ative os alertas para ajudar se precisar.`,
           url: invite_url,
         });
       } else {

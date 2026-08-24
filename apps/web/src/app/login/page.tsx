@@ -154,7 +154,7 @@ export default function LoginPage() {
               Ainda não tem conta?{' '}
             </p>
             <Link href={registerHref} className="inline-block mt-2 text-[#0056D2] font-black uppercase tracking-widest text-sm hover:underline active:scale-95 transition-transform">
-              Criar conta grátis
+              Criar conta
             </Link>
           </div>
         </div>
