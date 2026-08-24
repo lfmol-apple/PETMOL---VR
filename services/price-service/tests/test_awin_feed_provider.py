@@ -12,6 +12,7 @@ import pytest
 
 from src.affiliate_feed import AffiliateFeedOffer, AffiliateFeedSyncRun
 from src.awin_feed_provider import AwinFeedProvider
+from src.commerce_pricing import ProductPriceResult
 from src.commerce_provider import DiscoveredOffer, ProductContext
 from src.config import get_settings
 from src.db import SessionLocal
@@ -26,6 +27,9 @@ def _enable_awin_merchants_for_test(monkeypatch):
         "src.awin_feed_provider.is_awin_merchant_publicly_servable",
         lambda merchant: merchant in {"cobasi", "zeedog"},
     )
+    async def _no_live_price(query, target_weight_kg=None):
+        return ProductPriceResult(found=False)
+    monkeypatch.setattr("src.awin_feed_provider.fetch_cobasi_price", _no_live_price)
     yield
 
 
@@ -84,6 +88,79 @@ async def test_finds_offer_by_reference_identity_when_merchant_uses_different_gt
         assert offer is not None
         assert offer.price == 80.9
         assert offer.ean == "7896185957009"
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_cobasi_awin_price_is_refreshed_from_live_vtex_when_same_ean(monkeypatch):
+    async def _live_price(query, target_weight_kg=None):
+        assert "Scalibor" in query
+        return ProductPriceResult(
+            found=True,
+            store="cobasi",
+            product_name="Coleira Antiparasitária Scalibor Cães Pequenos e Médios 48 cm",
+            brand="Scalibor",
+            price=84.79,
+            list_price=105.99,
+            is_available=True,
+            url="https://www.cobasi.com.br/coleira-antiparasitaria-scalibor-caes-pequenos-e-medios-48-cm/p",
+            ean="7896185957009",
+        )
+
+    monkeypatch.setattr("src.awin_feed_provider.fetch_cobasi_price", _live_price)
+    db = SessionLocal()
+    try:
+        db.add(_row(
+            gtin="7896185957009",
+            external_product_id="scalibor-cobasi",
+            title="Coleira Antiparasitária Scalibor Cães Pequenos e Médios - 48 cm",
+            brand="Scalibor",
+            price=80.9,
+            list_price=105.99,
+        ))
+        db.commit()
+
+        provider = AwinFeedProvider(db, "cobasi")
+        offer = await provider.find_offer(ProductContext(gtin="7896185957009"))
+        assert offer is not None
+        assert offer.price == 84.79
+        assert offer.list_price == 105.99
+        assert offer.direct_url == "https://www.cobasi.com.br/coleira-antiparasitaria-scalibor-caes-pequenos-e-medios-48-cm/p"
+        assert offer.price_checked_at is not None
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_cobasi_awin_keeps_feed_price_when_live_vtex_returns_different_ean(monkeypatch):
+    async def _wrong_live_price(query, target_weight_kg=None):
+        return ProductPriceResult(
+            found=True,
+            price=84.79,
+            list_price=105.99,
+            is_available=True,
+            url="https://www.cobasi.com.br/outro-produto/p",
+            ean="7890000000000",
+        )
+
+    monkeypatch.setattr("src.awin_feed_provider.fetch_cobasi_price", _wrong_live_price)
+    db = SessionLocal()
+    try:
+        db.add(_row(
+            gtin="7896185957009",
+            external_product_id="scalibor-cobasi",
+            title="Coleira Antiparasitária Scalibor Cães Pequenos e Médios - 48 cm",
+            brand="Scalibor",
+            price=80.9,
+        ))
+        db.commit()
+
+        provider = AwinFeedProvider(db, "cobasi")
+        offer = await provider.find_offer(ProductContext(gtin="7896185957009"))
+        assert offer is not None
+        assert offer.price == 80.9
+        assert offer.direct_url == "https://www.cobasi.com.br/produto-teste/p"
     finally:
         db.close()
 

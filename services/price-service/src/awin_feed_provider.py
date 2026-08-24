@@ -42,6 +42,7 @@ from .affiliate_feed import AffiliateFeedOffer, AffiliateFeedSyncRun
 from .affiliate_offer_identity import has_ambiguous_offer_identity
 from .awin_advertisers import is_awin_merchant_publicly_servable
 from .awin_click_redirect import build_awin_click_redirect_url
+from .commerce_pricing import fetch_cobasi_price
 from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
 from .gtin_utils import normalize_gtin_gs1
@@ -133,20 +134,51 @@ class AwinFeedProvider:
             return None
 
         row = _select_row_by_weight(rows, context.weight_kg)
+        live_price = await self._live_price_for_row(row, context)
+        price = row.price
+        list_price = row.list_price
+        is_available = row.in_stock
+        direct_url = row.merchant_url
+        price_checked_at = row.last_synced_at
+        price_is_stale = False
+        if live_price is not None:
+            price = live_price.price
+            list_price = live_price.list_price
+            is_available = live_price.is_available
+            direct_url = live_price.url or row.merchant_url
+            price_checked_at = datetime.now(timezone.utc)
 
         return DiscoveredOffer(
             merchant=self.merchant,
             product_name=row.title,
             brand=row.brand,
-            price=row.price,
-            list_price=row.list_price,
-            is_available=row.in_stock,
-            direct_url=row.merchant_url,
+            price=price,
+            list_price=list_price,
+            is_available=is_available,
+            direct_url=direct_url,
             ean=row.gtin,
             external_id=row.external_product_id,
             image_url=row.image_url,
-            price_checked_at=row.last_synced_at,
+            price_checked_at=price_checked_at,
+            price_is_stale=price_is_stale,
         )
+
+    async def _live_price_for_row(self, row: AffiliateFeedOffer, context: ProductContext):
+        """Cobasi: o feed Awin pode ficar alguns reais atrás do preço
+        visível no storefront. Antes de mostrar preço para o tutor, tenta
+        conferir na API pública VTEX da própria Cobasi e só aceita se o
+        EAN retornado for o mesmo GTIN da linha Awin. Assim não trocamos
+        produto para "corrigir" preço."""
+        if self.merchant != "cobasi":
+            return None
+        if not row.title or not row.gtin:
+            return None
+        result = await fetch_cobasi_price(row.title, target_weight_kg=context.weight_kg or row.weight_kg)
+        if not result.found or result.price is None or not result.ean:
+            return None
+        if normalize_gtin(result.ean) != normalize_gtin(row.gtin):
+            return None
+        return result
 
     def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str, str]]:
         """affiliate_url já vem pronta do feed — nunca gerada aqui, nunca
