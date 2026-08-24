@@ -208,6 +208,7 @@ export function ParasiteItemSheet({
     product_name: '',
     cost: '',
     notes: '',
+    barcode: '',
     next_due_date: '',
     collar_expiry_date: '',
     frequency_days: String(cfg.defaultFrequency),
@@ -367,6 +368,7 @@ export function ParasiteItemSheet({
       product_name: rec.product_name,
       cost: rec.cost != null ? String(rec.cost) : '',
       notes: rec.notes || '',
+      barcode: rec.barcode || '',
       next_due_date: rec.next_due_date || '',
       collar_expiry_date: rec.collar_expiry_date || '',
       frequency_days: String(rec.frequency_days ?? cfg.defaultFrequency),
@@ -402,6 +404,7 @@ export function ParasiteItemSheet({
           reminder_enabled: true,
           alert_days_before: parseInt(editForm.reminder_days) || 3,
           reminder_time: editForm.reminder_time || '09:00',
+          barcode: editForm.barcode || editRecord.barcode || null,
         }),
       });
       if (res.ok) {

@@ -71,4 +71,4 @@ jobs:
               fi
             done
           }
-          ssh_retry "cd /opt/petmol/current/services/price-service && set -a && . /opt/petmol/shared/env/api.env && set +a && PYTHONPATH=src .venv/bin/python scripts/delete_pets_by_name.py $CLEANUP_ARGS"
+          ssh_retry "cd /opt/petmol/current/services/price-service && PYTHONPATH=src .venv/bin/python scripts/delete_pets_by_name.py $CLEANUP_ARGS"

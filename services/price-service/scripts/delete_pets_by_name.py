@@ -18,6 +18,14 @@ from sqlalchemy import MetaData, delete, func, select
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(ROOT / ".secrets" / ".env")
+    load_dotenv(ROOT / ".env")
+except Exception:
+    pass
+
 from src.db import engine  # noqa: E402
 
 

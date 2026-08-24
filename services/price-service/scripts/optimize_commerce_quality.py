@@ -16,6 +16,14 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(ROOT / ".secrets" / ".env")
+    load_dotenv(ROOT / ".env")
+except Exception:
+    pass
+
 from src.commerce_quality_optimizer import optimize_commerce_quality  # noqa: E402
 from src.db import SessionLocal  # noqa: E402
 

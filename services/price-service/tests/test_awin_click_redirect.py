@@ -77,6 +77,33 @@ async def test_resolve_accepts_zeenow_destination(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_resolve_accepts_followed_zeenow_destination_without_location(monkeypatch):
+    target = "https://www.zeenow.com.br/produto/biscoito-pedigree?awc=abc"
+
+    class FakeResponse:
+        status_code = 200
+        headers = {}
+        url = target
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            assert kwargs.get("follow_redirects") is True
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, *args, **kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", FakeClient)
+
+    assert await resolve_awin_click_target(ZEENOW_AWIN_URL) == target
+
+
+@pytest.mark.asyncio
 async def test_resolve_accepts_zeedog_destination(monkeypatch):
     target = "https://www.zeedog.com.br/produto/coleira?awc=abc"
 
