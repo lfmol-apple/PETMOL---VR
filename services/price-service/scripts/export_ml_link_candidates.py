@@ -16,6 +16,15 @@ Uso:
     python3 scripts/export_ml_link_candidates.py --limit 150 --min-scans 1 --out top_demanda.csv
     python3 scripts/export_ml_link_candidates.py --pet-categories-only --out so_categorizados.csv
 
+    # Lote diário — o Gerador de Links do Mercado Livre aceita no máximo 30
+    # URLs por vez (confirmado 24/08/2026); --exclude-existing-offers pula
+    # automaticamente quem já tem MarketplaceOffer(merchant="mercadolivre")
+    # ativo, então rodar isso de novo todo dia sempre devolve o "próximo 30"
+    # de verdade — sem repetir trabalho, sem precisar guardar estado à
+    # parte (a fonte da verdade é o próprio banco: o que já foi importado
+    # já não aparece de novo):
+    python3 scripts/export_ml_link_candidates.py --exclude-existing-offers --limit 30 --out lote_hoje.csv
+
 Por padrão exporta TODO o catálogo (products_catalog inteiro — 76% dos
 produtos reais de produção não têm categoria preenchida, então filtrar
 por categoria descartaria a maioria de itens legítimos, não só lixo).
@@ -63,9 +72,18 @@ def main() -> int:
     parser.add_argument("--out", type=str, default="ml_link_candidates.csv")
     parser.add_argument("--min-scans", type=int, default=0, help="Só inclui produtos com pelo menos N scans reais (padrão 0 — inclui todo o catálogo, scan vira só ordenação)")
     parser.add_argument("--pet-categories-only", action="store_true", help="Restringe a food/antiparasite/medication/hygiene/dewormer/collar — descarta os 76%% sem categoria preenchida")
+    parser.add_argument("--exclude-existing-offers", action="store_true", help="Pula produtos que já têm MarketplaceOffer(merchant=mercadolivre) ativo — use pra montar o próximo lote sem repetir quem já foi feito")
     args = parser.parse_args()
 
-    where_clause = "WHERE pc.category = ANY(:categories)" if args.pet_categories_only else ""
+    where_clauses = []
+    if args.pet_categories_only:
+        where_clauses.append("pc.category = ANY(:categories)")
+    if args.exclude_existing_offers:
+        where_clauses.append(
+            "NOT EXISTS (SELECT 1 FROM marketplace_offers mo WHERE mo.product_id = pc.id "
+            "AND mo.merchant = 'mercadolivre' AND mo.active)"
+        )
+    where_clause = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
     db = SessionLocal()
     try:
