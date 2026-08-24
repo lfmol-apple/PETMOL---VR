@@ -14,6 +14,10 @@ on:
         description: "If 'true', also stage MERCADOLIVRE_CLIENT_SECRET as a 600-perm file on the VPS before running `command`; its path is exported as $ML_SECRET_FILE for the command to read. The secret is never embedded in `command` text (which is echoed unmasked in this workflow's own logs) — this is the only supported way for `command` to use it. Defaults to 'false' and changes nothing for any other use of this workflow."
         required: false
         default: "false"
+      download_path:
+        description: "Optional: an absolute path on the VPS that `command` produced. If set, it's scp'd back and uploaded as a build artifact (download with `gh run download`) instead of ever going through this workflow's text log — GitHub's own secret-masking scans and replaces any log-text substring that happens to coincidentally match a registered secret, which silently corrupts binary/bulk data (confirmed today on a large CSV export unrelated to any real secret). Artifacts aren't scanned this way, so this is the only safe path for pulling back non-trivial output."
+        required: false
+        default: ""
 
 jobs:
   run:
@@ -31,6 +35,7 @@ jobs:
           REMOTE_TIMEOUT: ${{ github.event.inputs.timeout_seconds }}
           STAGE_ML_SECRET: ${{ github.event.inputs.stage_ml_secret }}
           MERCADOLIVRE_CLIENT_SECRET: ${{ secrets.MERCADOLIVRE_CLIENT_SECRET }}
+          DOWNLOAD_PATH: ${{ github.event.inputs.download_path }}
         run: |
           set -euo pipefail
           VPS_PORT="${VPS_PORT:-22}"
@@ -105,4 +110,17 @@ jobs:
             ssh_retry "shred -u '${REMOTE_SECRET_FILE}' 2>/dev/null || rm -f '${REMOTE_SECRET_FILE}'" || true
           fi
 
+          if [ "$STATUS" -eq 0 ] && [ -n "$DOWNLOAD_PATH" ]; then
+            scp_retry "$VPS_USER@$VPS_IP:${DOWNLOAD_PATH}" ./downloaded_file
+            echo "Downloaded ${DOWNLOAD_PATH} -> ./downloaded_file ($(wc -c < ./downloaded_file) bytes)"
+          fi
+
           exit $STATUS
+      - name: Upload downloaded file as artifact
+        if: ${{ github.event.inputs.download_path != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: vps-command-download
+          path: downloaded_file
+          if-no-files-found: warn
+          retention-days: 7
