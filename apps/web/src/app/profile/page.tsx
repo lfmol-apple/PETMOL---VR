@@ -71,6 +71,42 @@ export default function ProfilePage() {
   const [notifsOpen, setNotifsOpen] = useState(false);
   const [familyOpen, setFamilyOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
+
+  // Fale com o PETMOL
+  const [supportCategory, setSupportCategory] = useState<'suggestion' | 'bug' | 'help' | null>(null);
+  const [supportMessage, setSupportMessage] = useState('');
+  const [supportSubmitting, setSupportSubmitting] = useState(false);
+  const [supportSubmitted, setSupportSubmitted] = useState(false);
+
+  async function handleSubmitSupportFeedback() {
+    if (!supportCategory || !supportMessage.trim()) return;
+    setSupportSubmitting(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${apiBase}/support/feedback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          category: supportCategory,
+          message: supportMessage.trim(),
+          platform: 'web',
+          app_version: process.env.NEXT_PUBLIC_APP_VERSION || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error('Falha ao enviar');
+      setSupportSubmitted(true);
+      setSupportMessage('');
+      setSupportCategory(null);
+    } catch {
+      showBlockingNotice('Não foi possível enviar agora. Tente novamente em instantes.');
+    } finally {
+      setSupportSubmitting(false);
+    }
+  }
 
   // Família & Cuidadores
   type Caretaker = { user_id: string; name: string; joined_at: string };
@@ -897,6 +933,80 @@ export default function ProfilePage() {
                         )}
                       </div>
                     ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Fale com o PETMOL */}
+            <div className={G}>
+              <button
+                type="button"
+                onClick={() => setSupportOpen((v) => !v)}
+                className={`${ROW} flex w-full items-center justify-between group`}
+              >
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-widest transition-colors group-hover:text-blue-600">Fale com o PETMOL</span>
+                <span className={`text-slate-400 text-xs transition-transform ${supportOpen ? 'rotate-180 text-blue-600' : ''}`}>▾</span>
+              </button>
+
+              {supportOpen && (
+                <div className="bg-slate-50/50 p-4 space-y-4">
+                  {supportSubmitted ? (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center space-y-2">
+                      <p className="text-sm font-bold text-emerald-700">Recebemos sua mensagem!</p>
+                      <p className="text-xs text-emerald-600">Obrigado por ajudar a melhorar o PETMOL.</p>
+                      <button
+                        type="button"
+                        onClick={() => setSupportSubmitted(false)}
+                        className="text-[11px] font-bold text-emerald-700 underline"
+                      >
+                        Enviar outra mensagem
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 gap-2">
+                        {([
+                          { key: 'suggestion', label: 'Tenho uma sugestão' },
+                          { key: 'bug', label: 'Encontrei um problema' },
+                          { key: 'help', label: 'Preciso de ajuda' },
+                        ] as const).map((opt) => (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setSupportCategory(opt.key)}
+                            className={`w-full text-left px-4 py-3 rounded-2xl border text-sm font-semibold transition-all ${
+                              supportCategory === opt.key
+                                ? 'border-blue-400 bg-blue-50 text-blue-700'
+                                : 'border-slate-200 bg-white text-slate-600'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {supportCategory && (
+                        <div className="space-y-3 animate-scaleIn">
+                          <textarea
+                            value={supportMessage}
+                            onChange={(e) => setSupportMessage(e.target.value)}
+                            placeholder="Conte com detalhes..."
+                            rows={4}
+                            maxLength={4000}
+                            className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700 placeholder:text-slate-400 focus:border-blue-400 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void handleSubmitSupportFeedback()}
+                            disabled={supportSubmitting || !supportMessage.trim()}
+                            className={CTA}
+                          >
+                            {supportSubmitting ? 'Enviando...' : 'Enviar'}
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}

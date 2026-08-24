@@ -541,6 +541,11 @@ def delete_account(
     db.execute(text("DELETE FROM missing_pets WHERE user_id = :uid"), {"uid": uid})
     db.execute(text("DELETE FROM missing_pet_followers WHERE finder_user_id = :uid"), {"uid": uid})
     db.execute(text("DELETE FROM found_reports WHERE finder_user_id = :uid"), {"uid": uid})
+    # support_feedback: anonimizar em vez de apagar — a mensagem em si já é
+    # minimizada por design (sem foto/dado de saúde/documento), e continua
+    # sendo sinal de produto válido depois que o autor sai; só o vínculo
+    # com a identidade precisa sumir.
+    db.execute(text("UPDATE support_feedback SET user_id = NULL WHERE user_id = :uid"), {"uid": uid})
 
     db.execute(text("DELETE FROM pets WHERE user_id = :uid"), {"uid": uid})
     db.delete(user)
