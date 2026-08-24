@@ -15,7 +15,7 @@ import {
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
 import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
-import { formatBRLPrice, merchantLabel, type CommerceOffer } from './productPricing';
+import { formatBRLPrice, hasReliablePrice, merchantLabel, offerPriceLabel, type CommerceOffer } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
 import {
   buildReorderCards,
@@ -199,9 +199,10 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
   // direto no mais barato sem avisar (ver OfferPickerRow abaixo).
   const hasMultipleOffers = offers.length > 1;
 
-  const hasMonetizedOffer = Boolean(offer && typeof offer.price === 'number' && offer.url);
+  const hasMonetizedOffer = Boolean(offer && offer.url);
+  const priceReliable = Boolean(offer && hasReliablePrice(offer));
   const hasDiscount = Boolean(
-    hasMonetizedOffer && offer && typeof offer.list_price === 'number' && offer.list_price > (offer.price ?? 0),
+    hasMonetizedOffer && offer && priceReliable && typeof offer.list_price === 'number' && offer.list_price > (offer.price ?? 0),
   );
   const noBuyOptionAtAll = !hasMonetizedOffer && visibleQuickBuyPartners.length === 0;
   const canAct = !loading && !noBuyOptionAtAll;
@@ -260,7 +261,11 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
           {loading && <p className="text-[10px] mt-1 text-gray-300">Buscando oferta...</p>}
           {!loading && hasMonetizedOffer && offer && (
             <p className="text-[12px] mt-1 font-bold text-emerald-700 flex items-center flex-wrap gap-x-1">
-              <span>{hasMultipleOffers ? 'A partir de ' : ''}{formatBRLPrice(offer.price as number)} na {merchantLabel(offer.merchant)}</span>
+              <span>
+                {priceReliable
+                  ? `${hasMultipleOffers ? 'A partir de ' : ''}${formatBRLPrice(offer.price as number)} na ${merchantLabel(offer.merchant)}`
+                  : offerPriceLabel(offer)}
+              </span>
               {hasDiscount && (
                 <span className="ml-1.5 text-[10px] font-semibold text-gray-400 line-through">{formatBRLPrice(offer.list_price as number)}</span>
               )}
@@ -324,9 +329,7 @@ function OfferPickerRow({ offers, onPick }: { offers: CommerceOffer[]; onPick: (
               )}
               <span className="text-[12px] font-bold text-gray-800 truncate">{merchantLabel(offer.merchant)}</span>
             </span>
-            {typeof offer.price === 'number' && (
-              <span className="text-[12px] font-bold text-emerald-700 flex-shrink-0">{formatBRLPrice(offer.price)}</span>
-            )}
+            <span className="text-[12px] font-bold text-emerald-700 flex-shrink-0">{offerPriceLabel(offer)}</span>
           </button>
         );
       })}

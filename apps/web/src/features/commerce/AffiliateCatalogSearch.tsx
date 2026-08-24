@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
 import { trackClick } from '@/lib/analytics/click';
 import { identifyProductByBarcode, type ScannedProduct } from '@/lib/productScanner';
-import { formatBRLPrice, fetchCommerceOffers, merchantLabel, searchAwinCatalog, type AwinSearchResult, type CommerceOffer } from './productPricing';
+import { formatBRLPrice, fetchCommerceOffers, merchantLabel, offerPriceLabel, searchAwinCatalog, type AwinSearchResult, type CommerceOffer } from './productPricing';
 import {
   HOME_SHOPPING_PARTNERS,
   navigateToPartnerUrl,
@@ -230,9 +230,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                     <MerchantLogo merchant={offer.merchant} />
                     <span className="text-[12px] font-bold text-gray-800 truncate">{merchantLabel(offer.merchant)}</span>
                   </span>
-                  {typeof offer.price === 'number' && (
-                    <span className="text-[12px] font-bold text-emerald-700 flex-shrink-0">{formatBRLPrice(offer.price)}</span>
-                  )}
+                  <span className="text-[12px] font-bold text-emerald-700 flex-shrink-0">{offerPriceLabel(offer)}</span>
                 </a>
               ) : null
             ))}
@@ -450,9 +448,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                             <MerchantLogo merchant={offer.merchant} />
                             <span className="text-[12px] font-bold text-gray-800 truncate">{merchantLabel(offer.merchant)}</span>
                           </span>
-                          {typeof offer.price === 'number' && (
-                            <span className="text-[12px] font-bold text-emerald-700 flex-shrink-0">{formatBRLPrice(offer.price)}</span>
-                          )}
+                          <span className="text-[12px] font-bold text-emerald-700 flex-shrink-0">{offerPriceLabel(offer)}</span>
                         </a>
                       ) : null
                     ))}

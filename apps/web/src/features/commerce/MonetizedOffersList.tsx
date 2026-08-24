@@ -10,7 +10,7 @@
  * Cobasi, Shopee, Zee Now e Zee Dog são as lojas mantidas por enquanto.
  */
 
-import { formatBRLPrice, merchantLabel, type CommerceOffer } from './productPricing';
+import { formatBRLPrice, hasReliablePrice, merchantLabel, offerPriceLabel, type CommerceOffer } from './productPricing';
 import {
   navigateToPartnerUrl,
 } from './homeShoppingPartners';
@@ -90,7 +90,8 @@ export function MonetizedOffersList({
       )}
       {offers.map((offer, index) => {
         const isBest = index === 0;
-        const hasDiscount = typeof offer.list_price === 'number' && offer.list_price > (offer.price ?? 0);
+        const priceReliable = hasReliablePrice(offer);
+        const hasDiscount = priceReliable && typeof offer.list_price === 'number' && offer.list_price > offer.price;
         const offerMerchantLabel = merchantLabel(offer.merchant);
 
         return (
@@ -114,11 +115,9 @@ export function MonetizedOffersList({
                 </p>
               </div>
               <div className="text-right flex-shrink-0">
-                {typeof offer.price === 'number' && (
-                  <p className={`text-[16px] font-black leading-tight ${isBest ? 'text-emerald-700' : 'text-gray-900'}`}>
-                    {formatBRLPrice(offer.price)}
-                  </p>
-                )}
+                <p className={`text-[16px] font-black leading-tight ${isBest ? 'text-emerald-700' : 'text-gray-900'}`}>
+                  {offerPriceLabel(offer)}
+                </p>
                 {hasDiscount && (
                   <p className="text-[11px] text-gray-400 line-through">{formatBRLPrice(offer.list_price as number)}</p>
                 )}

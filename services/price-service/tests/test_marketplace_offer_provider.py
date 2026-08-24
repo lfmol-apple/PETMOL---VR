@@ -97,6 +97,7 @@ async def test_finds_offer_by_gtin_when_enabled(monkeypatch):
 async def test_stale_offer_is_served_with_stale_marker(monkeypatch):
     _enable_shopee(monkeypatch)
     monkeypatch.setenv("MARKETPLACE_OFFER_STALE_AFTER_HOURS", "36")
+    monkeypatch.setenv("MARKETPLACE_OFFER_REFRESH_AFTER_MINUTES", "0")
     get_settings.cache_clear()
     product_id = _register_product()
     old = datetime.now(timezone.utc) - timedelta(hours=37)
@@ -109,6 +110,41 @@ async def test_stale_offer_is_served_with_stale_marker(monkeypatch):
         assert offer is not None
         assert offer.price == 59.9
         assert offer.price_is_stale is True
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_old_shopee_offer_is_refreshed_before_display(monkeypatch):
+    _enable_shopee(monkeypatch)
+    monkeypatch.setenv("MARKETPLACE_OFFER_REFRESH_AFTER_MINUTES", "30")
+    get_settings.cache_clear()
+    product_id = _register_product()
+    old = datetime.now(timezone.utc) - timedelta(hours=2)
+    _register_offer(product_id, price=382.32, last_checked_at=old, verified_at=old)
+
+    def fake_refresh(merchant: str, gtin: str) -> None:
+        assert merchant == "shopee"
+        assert gtin == GTIN
+        refresh_db = SessionLocal()
+        try:
+            row = refresh_db.query(MarketplaceOffer).filter(MarketplaceOffer.product_id == product_id).one()
+            row.price = 345.04
+            row.last_checked_at = datetime.now(timezone.utc)
+            row.verified_at = row.last_checked_at
+            refresh_db.commit()
+        finally:
+            refresh_db.close()
+
+    monkeypatch.setattr("src.marketplace_offer_provider._refresh_marketplace_offer", fake_refresh)
+
+    db = SessionLocal()
+    try:
+        provider = MarketplaceOfferProvider(db, "shopee")
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is not None
+        assert offer.price == 345.04
+        assert offer.price_is_stale is False
     finally:
         db.close()
 

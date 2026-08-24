@@ -4,6 +4,14 @@ export function formatBRLPrice(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+export function hasReliablePrice(offer: Pick<CommerceOffer, 'price' | 'price_is_stale'>): offer is CommerceOffer & { price: number } {
+  return typeof offer.price === 'number' && !offer.price_is_stale;
+}
+
+export function offerPriceLabel(offer: CommerceOffer): string {
+  return hasReliablePrice(offer) ? formatBRLPrice(offer.price) : `Conferir preço na ${merchantLabel(offer.merchant)}`;
+}
+
 // Nomes de exibição por merchant — usado em toda tela que lista ofertas
 // (busca Awin e cards de "comprar novamente"), pra nunca cravar o nome de
 // uma loja específica (ex: "na Cobasi") num texto que hoje pode vir de

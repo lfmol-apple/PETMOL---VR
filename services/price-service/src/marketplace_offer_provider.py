@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 from .affiliate_links import MarketplaceOffer, get_active_marketplace_offer
 from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
+from .db import SessionLocal
 from .product_catalog_lookup import ProductCatalog, normalize_gtin, search_catalog_by_text
 from .shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
 from .shopee_offer_matcher import score_candidate
@@ -118,6 +119,15 @@ class MarketplaceOfferProvider:
         if offer is None:
             return None
         checked_at = _effective_checked_at(offer)
+        if _should_live_refresh(self.merchant, checked_at):
+            product = self._db.get(ProductCatalog, product_id)
+            if product and product.barcode_normalized:
+                _refresh_marketplace_offer(self.merchant, product.barcode_normalized)
+                self._db.expire_all()
+                offer = get_active_marketplace_offer(self._db, product_id, self.merchant)
+                if offer is None:
+                    return None
+                checked_at = _effective_checked_at(offer)
 
         return DiscoveredOffer(
             merchant=self.merchant,
@@ -175,3 +185,36 @@ def _is_offer_fresh(checked_at: Optional[datetime]) -> bool:
     settings = get_settings()
     cutoff = datetime.now(timezone.utc) - timedelta(hours=settings.marketplace_offer_stale_after_hours)
     return checked_at >= cutoff
+
+
+def _should_live_refresh(merchant: str, checked_at: Optional[datetime]) -> bool:
+    if merchant != "shopee":
+        return False
+    settings = get_settings()
+    if settings.marketplace_offer_refresh_after_minutes <= 0:
+        return False
+    if checked_at is None:
+        return True
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=settings.marketplace_offer_refresh_after_minutes)
+    return checked_at < cutoff
+
+
+def _refresh_marketplace_offer(merchant: str, gtin: str) -> None:
+    """Best-effort refresh de uma oferta específica antes de exibir preço.
+
+    Não bloqueia a monetização se a API externa falhar: a chamada pública
+    ainda pode retornar a oferta cacheada, marcada como velha quando for o
+    caso. O objetivo é corrigir o caso real em que o tutor vê R$ X no
+    PETMOL e, ao clicar, a Shopee já mostra outro preço.
+    """
+    if merchant != "shopee":
+        return
+    from .shopee_offer_sync import sync_shopee_offer_for_gtin
+
+    db = SessionLocal()
+    try:
+        sync_shopee_offer_for_gtin(db, gtin)
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()

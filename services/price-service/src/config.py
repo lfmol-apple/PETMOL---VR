@@ -77,6 +77,10 @@ class Settings(BaseSettings):
     # Sinalização comercial; não gera link sozinha. Só pode virar true quando
     # existir método oficial confirmado e implementado em camada própria.
     mercadolivre_affiliate_enabled: bool = False
+    # Marketplace offers (Shopee hoje) mudam preço rápido. Quando uma
+    # oferta estiver mais velha que esta janela, a consulta de compra tenta
+    # atualizar aquele GTIN pela API oficial antes de responder ao tutor.
+    marketplace_offer_refresh_after_minutes: int = 30
 
     # Preço real da Cobasi (API pública de catálogo VTEX) para a Loja do Baby.
     # Cache longo de propósito — reduz volume de chamadas à Cobasi (evitar
