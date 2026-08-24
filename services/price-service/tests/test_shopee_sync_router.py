@@ -21,6 +21,7 @@ from src.config import get_settings
 from src.db import SessionLocal
 from src.main import app
 from src.product_catalog_lookup import ProductCatalog
+from src.shopee_offer_audit import ShopeeOfferAuditResult
 
 TOKEN = "test-trigger-token-123"
 
@@ -34,6 +35,10 @@ def _reset_state_and_settings(monkeypatch):
         sync_router.STATE.total = 0
         sync_router.STATE.processed = 0
         sync_router.STATE.matched = 0
+        sync_router.STATE.phase = "idle"
+        sync_router.STATE.audit_total = 0
+        sync_router.STATE.audit_invalid = 0
+        sync_router.STATE.audit_deactivated = 0
         sync_router.STATE.started_at = None
         sync_router.STATE.finished_at = None
         sync_router.STATE.error = None
@@ -91,8 +96,10 @@ def test_status_antes_de_qualquer_run_mostra_zerado(monkeypatch, client):
     assert r.status_code == 200
     body = r.json()
     assert body["running"] is False
+    assert body["phase"] == "idle"
     assert body["total"] == 0
     assert body["matched"] == 0
+    assert body["audit_total"] == 0
 
 
 def test_progress_admin_mostra_percentual_sem_token_sync(client):
@@ -103,6 +110,10 @@ def test_progress_admin_mostra_percentual_sem_token_sync(client):
             sync_router.STATE.total = 200
             sync_router.STATE.processed = 50
             sync_router.STATE.matched = 8
+            sync_router.STATE.phase = "syncing"
+            sync_router.STATE.audit_total = 10
+            sync_router.STATE.audit_invalid = 2
+            sync_router.STATE.audit_deactivated = 2
             sync_router.STATE.started_at = "2026-08-22T20:00:00+00:00"
             sync_router.STATE.finished_at = None
             sync_router.STATE.error = None
@@ -114,6 +125,10 @@ def test_progress_admin_mostra_percentual_sem_token_sync(client):
         assert body["total"] == 200
         assert body["processed"] == 50
         assert body["matched"] == 8
+        assert body["phase"] == "syncing"
+        assert body["audit_total"] == 10
+        assert body["audit_invalid"] == 2
+        assert body["audit_deactivated"] == 2
         assert body["percent"] == 25.0
         assert body["remaining"] == 150
         assert body["match_rate"] == 16.0
@@ -167,13 +182,19 @@ def test_run_awin_feed_all_usa_linha_do_feed_para_criar_catalogo(monkeypatch, cl
         db.close()
 
     calls = []
+    audits = []
 
     def _fake_sync_from_feed(db, g, name, brand, limit=10, min_confidence=0.5, expected_weight_kg=None):
         from src.shopee_offer_sync import ShopeeSyncResult
         calls.append((g, name, brand))
         return ShopeeSyncResult(gtin=g, matched=True, offer_id=1)
 
+    def _fake_audit(db, source_merchants=("cobasi", "zeenow", "zeedog"), deactivate_invalid=True):
+        audits.append((source_merchants, deactivate_invalid))
+        return ShopeeOfferAuditResult(total=3, valid=1, invalid=2, deactivated=2)
+
     monkeypatch.setattr(sync_router, "sync_shopee_offer_from_feed_row", _fake_sync_from_feed)
+    monkeypatch.setattr(sync_router, "audit_active_shopee_offers", _fake_audit)
     monkeypatch.setattr(sync_router.time, "sleep", lambda _seconds: None)
 
     headers = {"X-Sync-Token": TOKEN}
@@ -189,6 +210,10 @@ def test_run_awin_feed_all_usa_linha_do_feed_para_criar_catalogo(monkeypatch, cl
     assert final["total"] == 1
     assert final["processed"] == 1
     assert final["matched"] == 1
+    assert final["audit_total"] == 3
+    assert final["audit_invalid"] == 2
+    assert final["audit_deactivated"] == 2
+    assert audits == [((("cobasi", "zeenow", "zeedog")), True)]
     assert calls == [(gtin, "Vermifugo Teste Zee Now 10kg", "Marca Teste")]
 
 
