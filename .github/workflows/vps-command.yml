@@ -43,22 +43,38 @@ jobs:
           SSH_OPTS="-i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o BatchMode=yes -o ServerAliveInterval=10 -o ServerAliveCountMax=2"
           SSH="ssh $SSH_OPTS $VPS_USER@$VPS_IP"
 
+          # Only retry on 255 — OpenSSH's own "the connection itself failed"
+          # exit code (refused/timeout/DNS/etc). Any other exit code means
+          # SSH connected fine and the REMOTE command ran and returned that
+          # status on its own — retrying in that case just re-runs a command
+          # that already executed (and whose staged script file is now
+          # gone), silently masking the real failure for up to 5 minutes.
+          # (Confirmed hitting exactly this today: a remote script under
+          # `set -e` legitimately exited non-zero mid-script, and the old
+          # blind retry loop mistook that for "SSH not ready" instead of
+          # surfacing it.)
           ssh_retry() {
-            local max_wait=300 elapsed=0 delay=10
-            until $SSH "$@"; do
+            local max_wait=300 elapsed=0 delay=10 status
+            while true; do
+              $SSH "$@"
+              status=$?
+              [ "$status" -ne 255 ] && return "$status"
               elapsed=$((elapsed + delay))
-              [ "$elapsed" -ge "$max_wait" ] && { echo "SSH did not become ready after ${max_wait}s"; return 1; }
-              echo "SSH not ready yet; retrying in ${delay}s (${elapsed}/${max_wait}s)"
+              [ "$elapsed" -ge "$max_wait" ] && { echo "SSH did not become ready after ${max_wait}s"; return 255; }
+              echo "SSH connection itself failed (255); retrying in ${delay}s (${elapsed}/${max_wait}s)"
               sleep "$delay"
             done
           }
 
           scp_retry() {
-            local max_wait=300 elapsed=0 delay=10
-            until scp $SSH_OPTS "$@"; do
+            local max_wait=300 elapsed=0 delay=10 status
+            while true; do
+              scp $SSH_OPTS "$@"
+              status=$?
+              [ "$status" -ne 255 ] && return "$status"
               elapsed=$((elapsed + delay))
-              [ "$elapsed" -ge "$max_wait" ] && { echo "SCP did not become ready after ${max_wait}s"; return 1; }
-              echo "SCP not ready yet; retrying in ${delay}s (${elapsed}/${max_wait}s)"
+              [ "$elapsed" -ge "$max_wait" ] && { echo "SCP did not become ready after ${max_wait}s"; return 255; }
+              echo "SCP connection itself failed (255); retrying in ${delay}s (${elapsed}/${max_wait}s)"
               sleep "$delay"
             done
           }
