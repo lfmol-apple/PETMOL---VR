@@ -145,6 +145,7 @@ class AwinFeedProvider:
             ean=row.gtin,
             external_id=row.external_product_id,
             image_url=row.image_url,
+            price_checked_at=row.last_synced_at,
         )
 
     def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str, str]]:

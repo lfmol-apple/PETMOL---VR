@@ -29,6 +29,7 @@ resto.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional, Protocol
 
 from .merchant_routes import preferred_route_for
@@ -64,6 +65,8 @@ class DiscoveredOffer:
     ean: Optional[str] = None
     external_id: Optional[str] = None  # SKU/listing id, quando houver
     image_url: Optional[str] = None
+    price_checked_at: Optional[datetime] = None
+    price_is_stale: bool = False
 
 
 @dataclass
@@ -92,6 +95,8 @@ class MonetizedOffer:
     list_price: Optional[float] = None
     is_available: Optional[bool] = None
     image_url: Optional[str] = None
+    price_checked_at: Optional[datetime] = None
+    price_is_stale: bool = False
 
 
 class CommerceProvider(Protocol):
@@ -162,6 +167,8 @@ class CommerceEngine:
                 list_price=discovered.list_price,
                 is_available=discovered.is_available,
                 image_url=discovered.image_url,
+                price_checked_at=discovered.price_checked_at,
+                price_is_stale=discovered.price_is_stale,
             ))
 
         offers = _dedupe_by_merchant(offers)

@@ -10,7 +10,7 @@ import {
   openHomeShoppingPartner,
   navigateToPartnerUrl,
   isPartnerVisibleForSearch,
-  partnerHasAffiliate,
+  partnerGenericLinkType,
   type HomeShoppingPartner,
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
@@ -62,14 +62,14 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   const title = buildPetStoreTitle(currentPet);
 
   function handleQuickBuy(partnerId: HomeShoppingPartnerId, searchQuery: string, ctaType: string, metadata: Record<string, unknown>) {
-    openHomeShoppingPartner(partnerId, searchQuery);
+    const opened = openHomeShoppingPartner(partnerId, searchQuery);
     void trackClick({
       source: 'home',
       cta_type: ctaType,
       target: partnerId,
-      link_type: partnerHasAffiliate(partnerId) ? 'affiliate_search' : 'direct',
+      link_type: partnerGenericLinkType(partnerId),
       pet_id: currentPet.pet_id,
-      metadata,
+      metadata: { ...metadata, opened },
     });
   }
 
@@ -129,7 +129,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                               source: 'home',
                               cta_type: 'shop_reorder_buy_direct',
                               target: offer.merchant,
-                              link_type: offer.link_type === 'affiliate_product' ? 'affiliate_product' : 'direct',
+                              link_type: offer.link_type,
                               pet_id: currentPet.pet_id,
                               metadata: { domain: card.domain, label: card.label, price: offer.price },
                             });

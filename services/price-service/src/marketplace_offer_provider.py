@@ -19,6 +19,7 @@ bug, é a mesma regra "sem monetização real, não aparece" aplicada aqui).
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import re
 
@@ -27,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from .affiliate_links import MarketplaceOffer, get_active_marketplace_offer
 from .commerce_provider import DiscoveredOffer, ProductContext
+from .config import get_settings
 from .product_catalog_lookup import ProductCatalog, normalize_gtin, search_catalog_by_text
 from .shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
 from .shopee_offer_matcher import score_candidate
@@ -47,8 +49,6 @@ def is_marketplace_merchant_publicly_servable(merchant: str) -> bool:
     tanto no registro do provider (commerce_offers.py) quanto dentro de
     cada find_offer()/monetize() — defesa em profundidade, mesmo padrão
     do módulo Awin."""
-    from .config import get_settings
-
     if merchant == "shopee":
         return get_settings().shopee_affiliate_enabled
     return False
@@ -117,6 +117,7 @@ class MarketplaceOfferProvider:
         offer = get_active_marketplace_offer(self._db, product_id, self.merchant)
         if offer is None:
             return None
+        checked_at = _effective_checked_at(offer)
 
         return DiscoveredOffer(
             merchant=self.merchant,
@@ -124,6 +125,8 @@ class MarketplaceOfferProvider:
             is_available=offer.is_available,
             direct_url=offer.direct_url,
             external_id=str(offer.id),
+            price_checked_at=checked_at,
+            price_is_stale=not _is_offer_fresh(checked_at),
         )
 
     def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str, str, bool]]:
@@ -151,3 +154,24 @@ class MarketplaceOfferProvider:
         # a partir do Portal do Afiliado, nunca gerado por template — mesma
         # proteção que o link comprovado da Cobasi usa (cobasi_provider.py).
         return row.affiliate_url, "affiliate_marketplace_offer", self.merchant, True
+
+
+def _effective_checked_at(offer: MarketplaceOffer) -> Optional[datetime]:
+    """Timestamp que melhor representa quando o preço foi confirmado.
+
+    Sync novo grava last_checked_at. Linhas antigas/manuais podem ter só
+    verified_at/updated_at/created_at; elas passam a expirar naturalmente
+    em vez de ficarem visíveis para sempre.
+    """
+    checked_at = offer.last_checked_at or offer.verified_at or offer.updated_at or offer.created_at
+    if checked_at is not None and checked_at.tzinfo is None:
+        checked_at = checked_at.replace(tzinfo=timezone.utc)
+    return checked_at
+
+
+def _is_offer_fresh(checked_at: Optional[datetime]) -> bool:
+    if checked_at is None:
+        return False
+    settings = get_settings()
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=settings.marketplace_offer_stale_after_hours)
+    return checked_at >= cutoff

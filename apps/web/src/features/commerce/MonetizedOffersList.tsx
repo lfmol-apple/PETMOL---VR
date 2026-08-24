@@ -64,7 +64,7 @@ export function MonetizedOffersList({
       source,
       cta_type: ctaType,
       target: offer.merchant,
-      link_type: offer.link_type === 'affiliate_product' ? 'affiliate_product' : 'direct',
+      link_type: offer.link_type,
       pet_id: petId,
     });
     trackPartnerClicked({ source, partner: offer.merchant, pet_id: petId, control_type: controlType ?? null, product_name: productLabel });

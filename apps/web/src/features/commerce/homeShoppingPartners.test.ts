@@ -55,14 +55,81 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(partnerIds).not.toContain('araujo');
 
       for (const partner of HOME_SHOPPING_PARTNERS) {
-        expect(resolvePartnerUrl(partner, 'ração pet', '')).not.toContain('amazon.com.br');
-        expect(resolvePartnerUrl(partner, 'ração pet', '')).not.toContain('petmol-20');
+        const url = resolvePartnerUrl(partner, 'ração pet', '');
+        expect(url ?? '').not.toContain('amazon.com.br');
+        expect(url ?? '').not.toContain('petmol-20');
       }
     } finally {
       if (previous === undefined) {
         delete process.env.NEXT_PUBLIC_AFFILIATE_AMAZON;
       } else {
         process.env.NEXT_PUBLIC_AFFILIATE_AMAZON = previous;
+      }
+      vi.resetModules();
+    }
+  });
+
+  it('em affiliate-only não abre busca direta genérica sem afiliado confirmado', async () => {
+    const previous = process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE;
+    process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE = 'true';
+    vi.resetModules();
+
+    try {
+      const {
+        HOME_SHOPPING_PARTNERS,
+        resolvePartnerUrl,
+        isPartnerVisibleForSearch,
+      } = await import('./homeShoppingPartners');
+
+      const cobasi = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'cobasi');
+      const shopee = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'shopee');
+      const zeenow = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'zeenow');
+      const zeedog = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'zeedog');
+
+      expect(cobasi && resolvePartnerUrl(cobasi, 'ração pet', '')).toContain('minhaloja.cobasi.com.br');
+      expect(shopee && resolvePartnerUrl(shopee, 'ração pet', '')).toBeNull();
+      expect(zeenow && resolvePartnerUrl(zeenow, 'ração pet', '')).toBeNull();
+      expect(zeedog && resolvePartnerUrl(zeedog, 'ração pet', '')).toBeNull();
+      expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual(['cobasi']);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE;
+      } else {
+        process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE = previous;
+      }
+      vi.resetModules();
+    }
+  });
+
+  it('em affiliate-only mantém Shopee genérica quando há URL afiliada oficial configurada', async () => {
+    const previousOnly = process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE;
+    const previousShopee = process.env.NEXT_PUBLIC_AFFILIATE_SHOPEE;
+    process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE = 'true';
+    process.env.NEXT_PUBLIC_AFFILIATE_SHOPEE = 'https://s.shopee.com.br/PETMOL?keyword={query}';
+    vi.resetModules();
+
+    try {
+      const {
+        HOME_SHOPPING_PARTNERS,
+        resolvePartnerUrl,
+        isPartnerVisibleForSearch,
+        partnerGenericLinkType,
+      } = await import('./homeShoppingPartners');
+
+      const shopee = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'shopee');
+      expect(shopee && resolvePartnerUrl(shopee, 'ração baby', '')).toBe('https://s.shopee.com.br/PETMOL?keyword=ra%C3%A7%C3%A3o%20baby');
+      expect(partnerGenericLinkType('shopee')).toBe('affiliate_search');
+      expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual(['cobasi', 'shopee']);
+    } finally {
+      if (previousOnly === undefined) {
+        delete process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE;
+      } else {
+        process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE = previousOnly;
+      }
+      if (previousShopee === undefined) {
+        delete process.env.NEXT_PUBLIC_AFFILIATE_SHOPEE;
+      } else {
+        process.env.NEXT_PUBLIC_AFFILIATE_SHOPEE = previousShopee;
       }
       vi.resetModules();
     }

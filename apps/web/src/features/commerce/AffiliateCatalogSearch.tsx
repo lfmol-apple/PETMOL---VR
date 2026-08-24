@@ -9,6 +9,7 @@ import {
   HOME_SHOPPING_PARTNERS,
   navigateToPartnerUrl,
   openHomeShoppingPartner,
+  partnerGenericLinkType,
   type HomeShoppingPartner,
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
@@ -129,7 +130,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
       source: 'home',
       cta_type: 'shop_awin_search_buy',
       target: offer.merchant,
-      link_type: offer.link_type === 'affiliate_product' ? 'affiliate_product' : 'direct',
+      link_type: offer.link_type,
       pet_id: petId,
       metadata: { gtin },
     });
@@ -138,19 +139,19 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
 
   function handleTextStoreSearch(partnerId: HomeShoppingPartnerId) {
     if (trimmedQuery.length < 2) return;
-    if (partnerId === 'zeenow' || partnerId === 'zeedog') {
+    if (partnerId === 'cobasi' || partnerId === 'zeenow' || partnerId === 'zeedog') {
       setSelectedTextMerchant(selectedTextMerchant === partnerId ? null : partnerId);
       setStoreChoicesForGtin(null);
       return;
     }
-    openHomeShoppingPartner(partnerId, trimmedQuery);
+    const opened = openHomeShoppingPartner(partnerId, trimmedQuery);
     void trackClick({
       source: 'home',
       cta_type: 'shop_text_store_search',
       target: partnerId,
-      link_type: 'direct',
+      link_type: opened ? partnerGenericLinkType(partnerId) : 'direct',
       pet_id: petId,
-      metadata: { query: trimmedQuery },
+      metadata: { query: trimmedQuery, opened },
     });
   }
 

@@ -144,6 +144,12 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     affiliateMode: 'product_deeplink',
     supportsProductDeepLink: true,
     supportsStorefrontAffiliate: false,
+    // NEXT_PUBLIC_AFFILIATE_SHOPEE deve ser uma URL oficial gerada no
+    // painel da Shopee. Se ela contiver "{query}", substituímos pelo
+    // termo buscado; se for um shortlink/storefront opaco, abrimos a URL
+    // exatamente como veio, sem tentar inventar parâmetro.
+    buildAffiliateUrl: (query, base) =>
+      base.includes('{query}') ? base.replaceAll('{query}', encodeURIComponent(query)) : base,
   },
   {
     id: 'zeenow',
@@ -182,8 +188,9 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   },
 ];
 
-// URLs de busca diretas por parceiro — usadas quando não há afiliado configurado.
-// Sem proxy de handoff: abre direto no site da loja.
+// URLs diretas só podem ser usadas em desenvolvimento. Em produção
+// affiliate-only, ausência de link afiliado confirmado vira "sem URL" em
+// vez de abrir uma busca que não remunera o PETMOL.
 const DIRECT_SEARCH_URLS: Record<HomeShoppingPartnerId, (q: string) => string> = {
   cobasi:       (q) => `https://www.cobasi.com.br/busca?q=${encodeURIComponent(q)}`,
   shopee:       (q) => `https://shopee.com.br/search?keyword=${encodeURIComponent(q)}`,
@@ -206,23 +213,33 @@ const DIRECT_SEARCH_URLS: Record<HomeShoppingPartnerId, (q: string) => string> =
 // per-product search.
 
 /**
- * Resolve a URL final de um parceiro para um produto específico.
- * Prioridade: link afiliado > URL de busca direta > directUrl > fallbackUrl.
- * Sem proxy de handoff para não bloquear abertura no mobile.
+ * Resolve URL genérica de parceiro. Para produto específico, o caminho
+ * correto é sempre /commerce/offers, que devolve link monetizado por
+ * produto/GTIN. Esta função é só para loja/busca genérica.
  */
 export function resolvePartnerUrl(
   partner: HomeShoppingPartner,
   query: string,
   _leadId: string,
-): string {
+): string | null {
+  void _leadId;
   const affId = AFF[partner.id];
 
-  // Afiliado configurado → usa link rastreado diretamente
+  // Afiliado de busca configurado → usa link rastreado diretamente.
   if (affId && partner.buildAffiliateUrl) {
     return partner.buildAffiliateUrl(query, affId);
   }
 
-  // Sem afiliado → abre diretamente no site da loja (sem proxy)
+  // Storefront afiliada fixa confirmada.
+  if (partner.storefrontAffiliateUrl) {
+    return partner.storefrontAffiliateUrl;
+  }
+
+  if (AFFILIATE_ONLY_COMMERCE) {
+    return null;
+  }
+
+  // Dev/local: permite URL direta para testar navegação sem credenciais.
   const buildDirect = DIRECT_SEARCH_URLS[partner.id];
   if (buildDirect) return buildDirect(query);
 
@@ -269,11 +286,21 @@ export function navigateToPartnerUrl(url: string): void {
 export function openHomeShoppingPartner(
   partnerId: HomeShoppingPartnerId,
   query = 'pet shop',
-): void {
+): boolean {
   const partner = HOME_SHOPPING_PARTNERS.find((entry) => entry.id === partnerId);
-  if (!partner) return;
+  if (!partner) return false;
 
   const url = resolvePartnerUrl(partner, query, '');
+  if (!url) {
+    void trackClick({
+      source: 'home',
+      cta_type: 'shop_redirect_unavailable',
+      target: partner.id,
+      link_type: 'direct',
+      metadata: { reason: 'missing_affiliate_url' },
+    });
+    return false;
+  }
   navigateToPartnerUrl(url);
 
   // Analítica em background — não bloqueia a navegação
@@ -281,18 +308,26 @@ export function openHomeShoppingPartner(
     source: 'home',
     cta_type: 'shop_redirect',
     target: partner.id,
-    link_type: AFF[partner.id] ? 'affiliate_search' : 'direct',
+    link_type: partnerGenericLinkType(partner.id),
   });
+  return true;
 }
 
-/** Retorna true se o parceiro tem ID de afiliado configurado. */
+export function partnerGenericLinkType(partnerId: HomeShoppingPartnerId): 'affiliate_search' | 'affiliate_store' | 'direct' {
+  const partner = HOME_SHOPPING_PARTNERS.find((entry) => entry.id === partnerId);
+  if (AFF[partnerId] && partner?.buildAffiliateUrl) return 'affiliate_search';
+  if (partner?.storefrontAffiliateUrl) return 'affiliate_store';
+  return 'direct';
+}
+
+/** Retorna true se o parceiro tem caminho genérico afiliado confirmado. */
 export function partnerHasAffiliate(partnerId: HomeShoppingPartnerId): boolean {
-  return Boolean(AFF[partnerId]);
+  return partnerGenericLinkType(partnerId) !== 'direct';
 }
 
 /** Quantos parceiros têm link afiliado ativo (útil para debug/admin). */
 export function countActiveAffiliates(): number {
-  return Object.values(AFF).filter(Boolean).length;
+  return HOME_SHOPPING_PARTNERS.filter((partner) => partnerHasAffiliate(partner.id)).length;
 }
 
 // ── Visibilidade comercial (affiliate-only) ────────────────────────────────
@@ -305,7 +340,9 @@ export function countActiveAffiliates(): number {
  * desativação explícita.
  */
 export function isPartnerVisibleInStoreArea(partner: HomeShoppingPartner): boolean {
-  return partner.affiliateStatus !== 'disabled';
+  if (partner.affiliateStatus === 'disabled') return false;
+  if (!AFFILIATE_ONLY_COMMERCE) return true;
+  return partnerHasAffiliate(partner.id);
 }
 
 /**
@@ -313,5 +350,7 @@ export function isPartnerVisibleInStoreArea(partner: HomeShoppingPartner): boole
  * expõem o mesmo conjunto de lojas do catálogo atual.
  */
 export function isPartnerVisibleForSearch(partner: HomeShoppingPartner): boolean {
-  return partner.affiliateStatus !== 'disabled';
+  if (partner.affiliateStatus === 'disabled') return false;
+  if (!AFFILIATE_ONLY_COMMERCE) return true;
+  return partnerHasAffiliate(partner.id);
 }

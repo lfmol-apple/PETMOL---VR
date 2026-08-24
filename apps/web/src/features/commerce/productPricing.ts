@@ -22,13 +22,17 @@ export function merchantLabel(merchant: string): string {
 export interface CommerceOffer {
   merchant: string;
   url: string;
-  /** 'affiliate_product' em produção; 'direct' só aparece em dev (fallback de teste). */
+  /** Tipo real da URL aberta: Awin, marketplace, storefront ou fallback direto. */
   link_type: 'affiliate_product' | 'affiliate_marketplace_offer' | 'affiliate_store' | 'direct';
   product_name?: string | null;
   brand?: string | null;
   price?: number | null;
   list_price?: number | null;
   is_available?: boolean | null;
+  /** Momento em que esse preço foi sincronizado/confirmado no backend. */
+  price_checked_at?: string | null;
+  /** True quando o backend sabe que o preço é antigo, mas manteve o link de compra. */
+  price_is_stale?: boolean;
   /** Só populado quando a oferta veio do feed Awin (AwinFeedProvider) —
    * Cobasi/Zee Now/Zee Dog têm; Shopee (busca por palavra-chave) e VTEX
    * direto ainda não. Sem imagem, o card cai no placeholder neutro. */
@@ -86,6 +90,7 @@ export async function searchAwinCatalog(query: string, merchant?: string): Promi
     const params = new URLSearchParams({ q: trimmed });
     if (merchant) params.set('merchant', merchant);
     const res = await fetch(`${API_BASE_URL}/commerce/awin-search?${params.toString()}`, {
+      cache: 'no-store',
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return [];
@@ -107,6 +112,7 @@ export async function fetchCommerceOffers(query: string, packageSizeKg?: number,
     }
     if (gtin) params.set('gtin', gtin);
     const res = await fetch(`${API_BASE_URL}/commerce/offers?${params.toString()}`, {
+      cache: 'no-store',
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return [];
