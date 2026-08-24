@@ -62,7 +62,7 @@ const CAT_BREEDS = [
 
 // ── Primitives ────────────────────────────────────────────────────────────────
 
-const PHOTOS_BASE_URL = process.env.NEXT_PUBLIC_PHOTOS_BASE_URL || API_BASE_URL;
+const PHOTOS_BASE_URL = process.env.NEXT_PUBLIC_PHOTOS_BASE_URL || '';
 const OWN_PHOTO_HOSTS = ['petmol.app', 'petmol.com.br', 'www.petmol.com.br', 'localhost'];
 
 const lbl = 'block text-[11px] font-bold text-slate-500 uppercase tracking-wide';
