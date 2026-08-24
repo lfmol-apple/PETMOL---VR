@@ -32,6 +32,7 @@ filtrar no registro):
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -140,13 +141,14 @@ class AwinFeedProvider:
         is_available = row.in_stock
         direct_url = row.merchant_url
         price_checked_at = row.last_synced_at
-        price_is_stale = False
+        price_is_stale = self.merchant == "cobasi"
         if live_price is not None:
             price = live_price.price
             list_price = live_price.list_price
             is_available = live_price.is_available
             direct_url = live_price.url or row.merchant_url
             price_checked_at = datetime.now(timezone.utc)
+            price_is_stale = False
 
         return DiscoveredOffer(
             merchant=self.merchant,
@@ -173,7 +175,13 @@ class AwinFeedProvider:
             return None
         if not row.title or not row.gtin:
             return None
-        result = await fetch_cobasi_price(row.title, target_weight_kg=context.weight_kg or row.weight_kg)
+        try:
+            result = await asyncio.wait_for(
+                fetch_cobasi_price(row.title, target_weight_kg=context.weight_kg or row.weight_kg),
+                timeout=2.0,
+            )
+        except Exception:
+            return None
         if not result.found or result.price is None or not result.ean:
             return None
         if normalize_gtin(result.ean) != normalize_gtin(row.gtin):

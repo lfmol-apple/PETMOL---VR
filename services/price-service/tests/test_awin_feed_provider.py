@@ -7,6 +7,7 @@ master gate em si (awin_enabled/awin_shadow_mode reais) fica em
 test_awin_flags.py. Nenhuma chamada de rede em nenhum caso.
 """
 from datetime import datetime, timedelta, timezone
+import asyncio
 
 import pytest
 
@@ -160,7 +161,35 @@ async def test_cobasi_awin_keeps_feed_price_when_live_vtex_returns_different_ean
         offer = await provider.find_offer(ProductContext(gtin="7896185957009"))
         assert offer is not None
         assert offer.price == 80.9
+        assert offer.price_is_stale is True
         assert offer.direct_url == "https://www.cobasi.com.br/produto-teste/p"
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_cobasi_awin_never_hides_offer_when_live_vtex_times_out(monkeypatch):
+    async def _slow_live_price(query, target_weight_kg=None):
+        await asyncio.sleep(3)
+        return ProductPriceResult(found=False)
+
+    monkeypatch.setattr("src.awin_feed_provider.fetch_cobasi_price", _slow_live_price)
+    db = SessionLocal()
+    try:
+        db.add(_row(
+            gtin="7896185957009",
+            external_product_id="scalibor-cobasi",
+            title="Coleira Antiparasitária Scalibor Cães Pequenos e Médios - 48 cm",
+            brand="Scalibor",
+            price=80.9,
+        ))
+        db.commit()
+
+        provider = AwinFeedProvider(db, "cobasi")
+        offer = await provider.find_offer(ProductContext(gtin="7896185957009"))
+        assert offer is not None
+        assert offer.price == 80.9
+        assert offer.price_is_stale is True
     finally:
         db.close()
 
