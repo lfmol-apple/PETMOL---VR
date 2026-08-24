@@ -20,6 +20,7 @@ class ShopeeSyncState:
     matched: int = 0
     phase: str = "idle"
     audit_total: int = 0
+    audit_processed: int = 0
     audit_invalid: int = 0
     audit_deactivated: int = 0
     started_at: Optional[str] = None

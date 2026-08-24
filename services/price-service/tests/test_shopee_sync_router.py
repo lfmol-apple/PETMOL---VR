@@ -37,6 +37,7 @@ def _reset_state_and_settings(monkeypatch):
         sync_router.STATE.matched = 0
         sync_router.STATE.phase = "idle"
         sync_router.STATE.audit_total = 0
+        sync_router.STATE.audit_processed = 0
         sync_router.STATE.audit_invalid = 0
         sync_router.STATE.audit_deactivated = 0
         sync_router.STATE.started_at = None
@@ -100,6 +101,7 @@ def test_status_antes_de_qualquer_run_mostra_zerado(monkeypatch, client):
     assert body["total"] == 0
     assert body["matched"] == 0
     assert body["audit_total"] == 0
+    assert body["audit_processed"] == 0
 
 
 def test_progress_admin_mostra_percentual_sem_token_sync(client):
@@ -112,6 +114,7 @@ def test_progress_admin_mostra_percentual_sem_token_sync(client):
             sync_router.STATE.matched = 8
             sync_router.STATE.phase = "syncing"
             sync_router.STATE.audit_total = 10
+            sync_router.STATE.audit_processed = 4
             sync_router.STATE.audit_invalid = 2
             sync_router.STATE.audit_deactivated = 2
             sync_router.STATE.started_at = "2026-08-22T20:00:00+00:00"
@@ -127,6 +130,7 @@ def test_progress_admin_mostra_percentual_sem_token_sync(client):
         assert body["matched"] == 8
         assert body["phase"] == "syncing"
         assert body["audit_total"] == 10
+        assert body["audit_processed"] == 4
         assert body["audit_invalid"] == 2
         assert body["audit_deactivated"] == 2
         assert body["percent"] == 25.0
@@ -189,9 +193,18 @@ def test_run_awin_feed_all_usa_linha_do_feed_para_criar_catalogo(monkeypatch, cl
         calls.append((g, name, brand))
         return ShopeeSyncResult(gtin=g, matched=True, offer_id=1)
 
-    def _fake_audit(db, source_merchants=("cobasi", "zeenow", "zeedog"), deactivate_invalid=True):
+    def _fake_audit(
+        db,
+        source_merchants=("cobasi", "zeenow", "zeedog"),
+        deactivate_invalid=True,
+        progress_callback=None,
+    ):
         audits.append((source_merchants, deactivate_invalid))
-        return ShopeeOfferAuditResult(total=3, valid=1, invalid=2, deactivated=2)
+        result = ShopeeOfferAuditResult(total=3, valid=1, invalid=2, deactivated=2)
+        if progress_callback:
+            progress_callback(0, ShopeeOfferAuditResult(total=3))
+            progress_callback(3, result)
+        return result
 
     monkeypatch.setattr(sync_router, "sync_shopee_offer_from_feed_row", _fake_sync_from_feed)
     monkeypatch.setattr(sync_router, "audit_active_shopee_offers", _fake_audit)
@@ -211,6 +224,7 @@ def test_run_awin_feed_all_usa_linha_do_feed_para_criar_catalogo(monkeypatch, cl
     assert final["processed"] == 1
     assert final["matched"] == 1
     assert final["audit_total"] == 3
+    assert final["audit_processed"] == 3
     assert final["audit_invalid"] == 2
     assert final["audit_deactivated"] == 2
     assert audits == [((("cobasi", "zeenow", "zeedog")), True)]

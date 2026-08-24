@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import logging
-from typing import Optional
+from typing import Callable, Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -69,6 +69,7 @@ def audit_active_shopee_offers(
     limit: int = 20,
     min_confidence: float = 0.5,
     max_rows: Optional[int] = None,
+    progress_callback: Optional[Callable[[int, ShopeeOfferAuditResult], None]] = None,
 ) -> ShopeeOfferAuditResult:
     rows = list(db.execute(
         select(MarketplaceOffer, ProductCatalog)
@@ -84,8 +85,10 @@ def audit_active_shopee_offers(
 
     result = ShopeeOfferAuditResult(total=len(rows))
     now = datetime.now(timezone.utc)
+    if progress_callback:
+        progress_callback(0, result)
 
-    for offer, product in rows:
+    for index, (offer, product) in enumerate(rows, start=1):
         item = _audit_one_offer(
             db,
             offer,
@@ -105,6 +108,8 @@ def audit_active_shopee_offers(
                 result.deactivated += 1
         else:
             result.errors += 1
+        if progress_callback:
+            progress_callback(index, result)
 
     db.commit()
     logger.info(

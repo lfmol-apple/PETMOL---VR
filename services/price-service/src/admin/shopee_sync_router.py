@@ -88,13 +88,29 @@ def _run_sync(
         if source == "awin_feed_all" and audit_existing_shopee:
             with STATE.lock:
                 STATE.phase = "auditing_existing_shopee"
+                STATE.total = 0
+                STATE.processed = 0
+
+            def _audit_progress(processed: int, audit_result) -> None:
+                with STATE.lock:
+                    STATE.audit_total = audit_result.total
+                    STATE.audit_processed = processed
+                    STATE.audit_invalid = audit_result.invalid
+                    STATE.audit_deactivated = audit_result.deactivated
+                    # Enquanto estamos auditando, reaproveita os campos
+                    # principais para a barra de progresso existente.
+                    STATE.total = audit_result.total
+                    STATE.processed = processed
+
             audit = audit_active_shopee_offers(
                 db,
                 source_merchants=source_merchants,
                 deactivate_invalid=deactivate_invalid_shopee,
+                progress_callback=_audit_progress,
             )
             with STATE.lock:
                 STATE.audit_total = audit.total
+                STATE.audit_processed = audit.total
                 STATE.audit_invalid = audit.invalid
                 STATE.audit_deactivated = audit.deactivated
 
@@ -169,6 +185,7 @@ def run_sync(payload: RunRequest, x_sync_token: Optional[str] = Header(default=N
         STATE.started_at = datetime.now(timezone.utc).isoformat()
         STATE.phase = "starting"
         STATE.audit_total = 0
+        STATE.audit_processed = 0
         STATE.audit_invalid = 0
         STATE.audit_deactivated = 0
 
@@ -224,6 +241,7 @@ def _status_payload():
             "processed": processed,
             "matched": matched,
             "audit_total": STATE.audit_total,
+            "audit_processed": STATE.audit_processed,
             "audit_invalid": STATE.audit_invalid,
             "audit_deactivated": STATE.audit_deactivated,
             "percent": percent,

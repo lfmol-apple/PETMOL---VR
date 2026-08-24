@@ -174,3 +174,19 @@ def test_auditoria_nao_desativa_em_dry_run(monkeypatch):
         assert offer.active is True
     finally:
         db.close()
+
+
+def test_auditoria_reporta_progresso(monkeypatch):
+    _seed_product_with_offer(listing_id=str(VALID_SHOPEE_NODE["itemId"]))
+    _seed_feed_row()
+    monkeypatch.setattr(audit_module, "search_product_offers", lambda keyword, limit=20: [VALID_SHOPEE_NODE])
+    progress = []
+
+    db = SessionLocal()
+    try:
+        result = audit_active_shopee_offers(db, progress_callback=lambda processed, audit: progress.append((processed, audit.total, audit.valid)))
+    finally:
+        db.close()
+
+    assert result.valid == 1
+    assert progress == [(0, 1, 0), (1, 1, 1)]
