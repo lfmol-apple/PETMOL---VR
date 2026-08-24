@@ -1343,66 +1343,83 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               "Excluir" fica direto ao lado — ação decisiva,
                               sem precisar entrar no painel pra achar. */}
                           {!showEditPlanChoice && (
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-2">
                               <button type="button"
                                 onClick={() => setShowEditPlanChoice(true)}
-                                className="py-3 min-h-[48px] rounded-2xl bg-white border border-gray-200 text-gray-600 text-[14px] font-semibold hover:bg-gray-50 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                                className="w-full flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-800 shadow-sm active:scale-[0.98] transition-all"
                               >
-                                <span>✏️</span>
-                                Editar
+                                <span className="text-xl">✏️</span>
+                                <span className="flex-1 text-left">
+                                  <span className="block">Atualizar ou editar plano</span>
+                                  <span className="block text-[12px] font-semibold text-blue-700/70">Código de barras, peso, duração ou datas</span>
+                                </span>
+                                <span className="text-blue-300 text-lg">›</span>
                               </button>
                               <button type="button"
                                 onClick={() => { void handleDeletePlan(); }}
                                 disabled={deletingPlan}
-                                className="py-3 min-h-[48px] rounded-2xl bg-white border border-red-200 text-red-600 text-[14px] font-semibold hover:bg-red-50 active:scale-[0.97] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                className="w-full py-2 min-h-[40px] rounded-xl bg-white border border-red-100 text-red-500 text-[12px] font-semibold hover:bg-red-50 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                               >
                                 <span>🗑️</span>
-                                {deletingPlan ? 'Excluindo...' : 'Excluir'}
+                                {deletingPlan ? 'Excluindo...' : 'Excluir este plano'}
                               </button>
                             </div>
                           )}
 
                           {showEditPlanChoice && (
-                            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-2">
-                              <p className="text-[13px] font-semibold text-gray-700">Atualizar o plano</p>
-                              <ProductBarcodeScanner
-                                label="Escanear novo código de barras"
-                                expectedCategory="food"
-                                defaultMode="scan"
-                                petId={pet.pet_id}
-                                petName={pet.pet_name}
-                                allowScanning
-                                onProductConfirmed={(product) => {
-                                  setShowEditPlanChoice(false);
-                                  setFoodScanIntent('ask');
-                                  handleFoodProductConfirmed(product, 'ask');
-                                }}
-                                onDismiss={() => setShowEditPlanChoice(false)}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => { setShowEditPlanChoice(false); setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
-                                className="w-full flex items-center justify-center gap-2 py-2.5 min-h-[40px] rounded-xl border border-gray-200 bg-white text-[13px] font-semibold text-gray-600 hover:bg-gray-50 active:scale-[0.98] transition-all"
-                              >
-                                <span>✏️</span>
-                                Editar manualmente (peso, duração, excluir)
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => { setShowEditPlanChoice(false); void handleDeclareNonKibble(); }}
-                                disabled={declaringNonKibble}
-                                className="w-full flex items-center justify-center gap-2 py-2.5 min-h-[40px] rounded-xl border border-gray-200 bg-white text-[13px] font-semibold text-gray-600 hover:bg-gray-50 active:scale-[0.98] disabled:opacity-50 transition-all"
-                              >
-                                <span>🍲</span>
-                                {declaringNonKibble ? 'Salvando...' : 'Não uso mais ração de saco'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setShowEditPlanChoice(false)}
-                                className="w-full py-1.5 text-[12px] font-medium text-gray-400 hover:text-gray-600 transition-colors"
-                              >
-                                Cancelar
-                              </button>
+                            <div className="rounded-2xl border border-gray-200 bg-white p-4 space-y-4">
+                              <div className="space-y-2">
+                                <div>
+                                  <p className="text-[12px] font-black uppercase tracking-wide text-gray-400">Atualizar produto</p>
+                                  <p className="text-[12px] text-gray-500">Use quando trocou a embalagem, sabor, peso ou marca.</p>
+                                </div>
+                                <ProductBarcodeScanner
+                                  label="Escanear código de barras"
+                                  expectedCategory="food"
+                                  defaultMode="scan"
+                                  petId={pet.pet_id}
+                                  petName={pet.pet_name}
+                                  allowScanning
+                                  onProductConfirmed={(product) => {
+                                    setShowEditPlanChoice(false);
+                                    setFoodScanIntent('ask');
+                                    handleFoodProductConfirmed(product, 'ask');
+                                  }}
+                                  onDismiss={() => setShowEditPlanChoice(false)}
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <div>
+                                  <p className="text-[12px] font-black uppercase tracking-wide text-gray-400">Plano de consumo</p>
+                                  <p className="text-[12px] text-gray-500">Ajuste peso, duração, datas ou remova este produto.</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => { setShowEditPlanChoice(false); setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
+                                  className="w-full flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-800 shadow-sm active:scale-[0.98] transition-all"
+                                >
+                                  <span className="text-xl">✏️</span>
+                                  <span className="flex-1 text-left">
+                                    <span className="block">Editar plano</span>
+                                    <span className="block text-[12px] font-semibold text-blue-700/70">Peso, duração, datas ou excluir</span>
+                                  </span>
+                                  <span className="text-blue-300 text-lg">›</span>
+                                </button>
+                              </div>
+
+                              <div className="space-y-2">
+                                <p className="text-[12px] font-black uppercase tracking-wide text-gray-400">Outras opções</p>
+                                <button
+                                  type="button"
+                                  onClick={() => { setShowEditPlanChoice(false); void handleDeclareNonKibble(); }}
+                                  disabled={declaringNonKibble}
+                                  className="w-full flex items-center justify-center gap-2 py-2.5 min-h-[40px] rounded-xl border border-gray-200 bg-white text-[13px] font-semibold text-gray-600 hover:bg-gray-50 active:scale-[0.98] disabled:opacity-50 transition-all"
+                                >
+                                  <span>🍲</span>
+                                  {declaringNonKibble ? 'Salvando...' : 'Não uso mais este produto'}
+                                </button>
+                              </div>
                             </div>
                           )}
 
@@ -1438,15 +1455,17 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                           {foodState.secondaryItems.length > 0 && (
                             <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-3 space-y-2.5">
                               {foodState.secondaryItems.map((item) => (
-                                <div key={item.id} className="flex items-center gap-3 rounded-xl bg-white border border-amber-100 px-3 py-2.5">
-                                  <span className="text-xl flex-shrink-0">🦴</span>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-[14px] font-semibold text-gray-900 line-clamp-2 break-words leading-tight">{item.brand}</p>
-                                    {item.packageSizeKg != null && (
-                                      <p className="text-[11px] text-gray-400">
-                                        {item.packageSizeKg % 1 === 0 ? item.packageSizeKg : item.packageSizeKg.toFixed(1)} kg
-                                      </p>
-                                    )}
+                                <div key={item.id} className="rounded-xl bg-white border border-amber-100 px-3 py-3 space-y-3">
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xl flex-shrink-0">🦴</span>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-[14px] font-bold text-gray-900 line-clamp-2 break-words leading-tight">{item.brand}</p>
+                                      {item.packageSizeKg != null && (
+                                        <p className="text-[11px] text-gray-400">
+                                          {item.packageSizeKg % 1 === 0 ? item.packageSizeKg : item.packageSizeKg.toFixed(1)} kg
+                                        </p>
+                                      )}
+                                    </div>
                                   </div>
                                   <button
                                     type="button"
@@ -1459,18 +1478,18 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                                       });
                                       setMode('buy');
                                     }}
-                                    className="flex-shrink-0 rounded-lg bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 text-[12px] font-bold text-white active:scale-95 transition-all"
+                                    className="w-full rounded-2xl bg-emerald-500 hover:bg-emerald-600 px-4 py-3 min-h-[48px] text-[14px] font-black text-white active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                                   >
-                                    🛒 Comprar
+                                    <span>🛒</span>
+                                    Comprar novamente
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => { void handleDeleteSecondaryItem(item.id, item.brand); }}
                                     disabled={deletingSecondaryId === item.id}
-                                    aria-label={`Excluir ${item.brand}`}
-                                    className="flex-shrink-0 w-9 h-9 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center"
+                                    className="w-full py-1 text-[11px] font-semibold text-gray-400 hover:text-red-500 active:scale-[0.98] transition-all disabled:opacity-50"
                                   >
-                                    🗑️
+                                    {deletingSecondaryId === item.id ? 'Removendo...' : 'Remover petisco'}
                                   </button>
                                 </div>
                               ))}
