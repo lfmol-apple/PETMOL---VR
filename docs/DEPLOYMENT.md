@@ -165,10 +165,11 @@ o código do release novo):
    symlink que `activate.sh` cria), mas o nginx nunca foi atualizado pra servir dali —
    então toda foto enviada depois do cutover dava 404 silencioso no navegador. Corrigido
    trocando o `alias` pra `/opt/petmol/shared/uploads/pets/` (que já contém tanto as fotos
-   antigas quanto as novas — `bootstrap_vps.sh` fez o rsync completo). **Pendência:** essa
-   config do nginx não está versionada no repo; considerar trazê-la pra
-   `deploy/nginx/petmol.conf` num commit futuro, tanto por rastreabilidade quanto pra evitar
-   esse tipo de gap se o VPS precisar ser reconstruído.
+   antigas quanto as novas — `bootstrap_vps.sh` fez o rsync completo). **Resolvido em
+   2026-08-24:** um snapshot dessa config foi versionado em `deploy/nginx/petmol.conf`
+   (capturado via `vps-command.yml`, sem segredos). Não é consumido por nenhum passo de
+   deploy — existe só pra rastreabilidade/disaster-recovery — então pode divergir do real
+   com o tempo; reconferir contra o VPS antes de usar como base pra uma reconstrução.
 
 A primeira tentativa de instalar os units novos bateu nos bugs 1 e 2 ao mesmo tempo: os
 dois serviços entraram em crash-loop e o site ficou fora do ar (502) por menos de um

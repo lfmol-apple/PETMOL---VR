@@ -33,7 +33,7 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 - [x] Bug de `source` quebrando o backup em `.env` não-bash-safe corrigido (PR #55, `2205471`)
 - [x] Teste de restore real executado (backup → checksum → `pg_restore` em banco isolado → contagem de linhas em 14 tabelas críticas, todas batendo) — ver `docs/BACKUP_ROTINA.md`
 - [ ] Cópia off-site real configurada — `BACKUP_OFFSITE_CMD` existe como mecanismo mas nenhum destino real está setado hoje
-- [ ] nginx de produção versionado em `deploy/nginx/petmol.conf` (hoje só existe na VPS — risco documentado em `docs/DEPLOYMENT.md`)
+- [x] nginx de produção versionado em `deploy/nginx/petmol.conf` — snapshot capturado via `vps-command.yml`, sem segredos, não consumido por deploy (só rastreabilidade/disaster-recovery)
 
 ## Segurança
 
