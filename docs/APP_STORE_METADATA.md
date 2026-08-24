@@ -17,6 +17,8 @@ Confirmado via schema do banco (`petmol_prod_mirror`) e leitura do código nesta
 - **Crash reporting**: **confirmado: nenhum SDK de terceiros** (sem Sentry/Crashlytics/Bugsnag) — o que a própria loja (Apple/Google) coleta automaticamente no nível do SO não é declarável pelo desenvolvedor.
 - **E-mail transacional**: SMTP genérico (compatível com Gmail/Outlook/qualquer provedor — configurado via env, não é um vendor fixo com API própria de tracking)
 - **Afiliados**: cliques em links de parceiros (Cobasi, Shopee via Awin) — rastreados só nas tabelas próprias acima, sem pixel de terceiro no cliente
+- **Suporte/feedback**: mensagens de "Fale com o PETMOL" (categoria + texto livre), opcionalmente vinculadas à conta — sem foto, sem dado de saúde, sem documento
+- **Notificações push nativas** (Android/iOS via Capacitor): token de dispositivo (FCM/APNs) — hoje só registrado no banco, envio de fato ainda não ativo (ver `docs/MOBILE_RELEASE_CHECKLIST.md`)
 
 ## Apple App Privacy (App Store Connect → App Privacy)
 
@@ -29,6 +31,8 @@ Confirmado via schema do banco (`petmol_prod_mirror`) e leitura do código nesta
 | Location (Precise) | Sim, mas só no fluxo opcional "Pet Sumido" | Sim (contato do denunciante) | Não | App Functionality |
 | Identifiers (ID de conta) | Sim | Sim | Não | App Functionality |
 | Usage Data (cliques em ofertas/CTAs, eventos de app) | Sim | Sim (via `lead_id`, não anônimo) | Não | Analytics (primeira parte), App Functionality |
+| User Content (mensagens de "Fale com o PETMOL") | Sim | Opcional (vinculado à conta se logado) | Não | App Functionality, Customer Support |
+| Identifiers (token de push nativo do dispositivo) | Sim | Sim | Não | App Functionality (notificações) |
 | Diagnostics (crash/performance) | Não coletado por SDK próprio — não declarar coleta do desenvolvedor | — | — | — |
 | Contacts | Não | — | — | — |
 | Financial Info | Não (nenhum dado de pagamento processado pelo PETMOL — compra acontece no site do parceiro) | — | — | — |
@@ -44,7 +48,8 @@ Confirmado via schema do banco (`petmol_prod_mirror`) e leitura do código nesta
 | Fotos (pet, documentos, carteirinha de vacina) | Sim | Sim, só com Google/Gemini quando o usuário usa leitura por IA | Funcionalidade do app | Não | Sim | Sim |
 | Localização precisa | Sim, só no fluxo "Pet Sumido" | Não | Funcionalidade do app (localizar pet perdido) | Não (fluxo opcional) | Sim | Sim (dado apagado com o registro) |
 | Histórico de uso/cliques em ofertas | Sim | Não (analytics é first-party) | Analytics, funcionalidade do app | Não | Sim | Sim (vinculado à conta, removido na exclusão) |
-| ID do dispositivo/push | Sim (endpoint Web Push) | Não (endpoint fica só entre o navegador e o servidor push do próprio SO/navegador) | Funcionalidade do app (notificações) | Não | Sim | Sim |
+| ID do dispositivo/push | Sim (endpoint Web Push e/ou token nativo FCM/APNs) | Não (fica só entre o dispositivo e o próprio serviço de push do SO — FCM/APNs — e o servidor PETMOL) | Funcionalidade do app (notificações) | Não | Sim | Sim |
+| Mensagens de suporte ("Fale com o PETMOL") | Sim | Não | Funcionalidade do app, suporte ao cliente | Não | Sim | Sim (vinculado à conta, anonimizado na exclusão) |
 
 Nenhuma categoria de "Financial info", "Health info padronizado (do usuário humano)", "Contacts" ou "SMS/Call Log" se aplica.
 
@@ -68,9 +73,13 @@ Rascunho, ajustar tom conforme o formulário pedir:
 >
 > Para testar: faça login com a conta de revisor fornecida. Na Home, toque em "+" para cadastrar um pet (foto é opcional). As seções de Alimentação, Vacinas, Medicação e Antiparasitários ficam nos cards da tela do pet — cada uma tem um fluxo de cadastro manual completo, sem exigir foto ou IA (para vacinas, especificamente, há três caminhos: leitura por IA de uma foto do cartão, correção manual de uma leitura de IA imperfeita, ou cadastro 100% manual sem foto nenhuma).
 >
-> A "Loja do Pet" mostra ofertas de produtos comparadas entre lojas parceiras (Cobasi, Shopee); os links de "Comprar" são links de afiliado — ao tocar, o app informa que a compra acontece no site/app da loja parceira, não dentro do PETMOL, e o PETMOL pode receber uma comissão sem custo adicional pro usuário.
+> A "Loja do Pet" mostra ofertas de produtos comparadas entre lojas parceiras (Cobasi, Shopee); os links de "Comprar" são links de afiliado — ao tocar, o app informa que a compra acontece no site/app da loja parceira, não dentro do PETMOL, e o PETMOL pode receber uma comissão sem custo adicional pro usuário. Preço e disponibilidade em estoque são definidos pela loja parceira, não pelo PETMOL.
 >
 > Notificações push são usadas para lembretes de alimentação/vacina/medicação — o app funciona normalmente sem aceitar notificações.
+>
+> Para enviar uma sugestão, relatar um problema ou pedir ajuda, use "Fale com o PETMOL" na tela de Perfil.
+>
+> Para excluir a conta de teste: Perfil → Mais opções → Excluir conta. A exclusão remove permanentemente pets, fotos, documentos e histórico de saúde associados; alguns registros não-identificáveis (como cliques em ofertas agregados) são desvinculados da conta em vez de apagados, para fins estatísticos, sem reter nenhum dado pessoal.
 
 ## Copy de loja — lembretes já em vigor (ver seção "Landing page" do release)
 
