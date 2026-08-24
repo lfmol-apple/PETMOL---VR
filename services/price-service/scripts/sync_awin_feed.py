@@ -16,7 +16,16 @@ rodar este script é seguro mesmo antes de o merchant estar "ligado".
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(ROOT / ".secrets" / ".env")
+    load_dotenv(ROOT / ".env")
+except Exception:
+    pass
 
 from src.awin_feed_sync import AwinFeedSyncError, sync_awin_feed  # noqa: E402
 from src.db import SessionLocal  # noqa: E402
