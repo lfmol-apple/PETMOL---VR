@@ -581,7 +581,7 @@ def optimize_commerce_quality(
                     db.rollback()
                     errors.append(f"resolve_gtin_failed:{exc}")
 
-            if enrich_from_feed and ("catalog_product" in before.missing or "image" in before.missing):
+            if enrich_from_feed:
                 try:
                     if enrich_catalog_from_affiliate_feed(db, item, dry_run=dry_run):
                         actions.append("enriched_catalog_from_awin_feed")

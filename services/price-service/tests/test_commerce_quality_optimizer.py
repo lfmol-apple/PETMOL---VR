@@ -112,6 +112,53 @@ def test_optimizer_enriches_catalog_image_from_awin_feed_without_external_api():
         assert product.thumbnail_url == "https://img.example/scalibor.jpg"
 
 
+def test_optimizer_enriches_catalog_thumbnail_even_when_feed_image_counts_as_available():
+    gtin = "7896181298090"
+    with SessionLocal() as db:
+        _pet(db)
+        db.add(FeedingPlan(
+            id="food-plan",
+            pet_id="pet-1",
+            species="dog",
+            country_code="BR",
+            enabled=True,
+            items_json=json.dumps([
+                {"id": "food-1", "label": "Royal Canin Urinary Small Dog 7,5kg", "barcode": gtin, "is_primary": True},
+            ]),
+        ))
+        db.add(ProductCatalog(
+            barcode=gtin,
+            barcode_normalized=gtin,
+            name="Ração Royal Canin Urinary Small Dog 7,5kg",
+            brand="Royal Canin",
+        ))
+        db.add(AffiliateFeedOffer(
+            network="awin",
+            merchant="cobasi",
+            advertiser_id="17870",
+            external_product_id="royal-urinary",
+            gtin=gtin,
+            title="Ração Royal Canin Veterinary Diet Urinary Small Dog 7,5kg",
+            brand="Royal Canin",
+            price=457.81,
+            in_stock=True,
+            affiliate_url="https://www.awin1.com/pclick.php?p=1&a=3032803&m=17870",
+            image_url="https://img.example/royal-urinary.jpg",
+            active=True,
+        ))
+        db.commit()
+
+        item = collect_pet_commerce_items(db)[0]
+        before = compute_status(db, item)
+        result = optimize_commerce_quality(db, dry_run=False, limit=10, sync_shopee=False, resolve_gtin=False)
+        product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin))
+
+        assert before.has_image is True
+        assert "image" not in before.missing
+        assert result.enriched_from_feed == 1
+        assert product.thumbnail_url == "https://img.example/royal-urinary.jpg"
+
+
 def test_optimizer_refreshes_existing_shopee_offer_when_requested(monkeypatch):
     gtin = "7896181298090"
     with SessionLocal() as db:
