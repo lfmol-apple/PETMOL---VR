@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
+import { registerNativePush } from '@/features/notifications/nativePushService';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -241,6 +242,15 @@ export function useNotificationPermissionController() {
         }
       })
       .catch(() => { /* silently ignore */ });
+  }, []);
+
+  // Push nativo (FCM/APNs via Capacitor) é um caminho totalmente separado
+  // do Web Push acima — no-op automático fora do shell nativo (ver
+  // nativePushService.ts), então é seguro sempre tentar aqui.
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    void registerNativePush(token);
   }, []);
 
   const unsubscribe = useCallback(async (): Promise<void> => {

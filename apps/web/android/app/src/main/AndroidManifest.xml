@@ -32,4 +32,9 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+ (API 33) requires this as a runtime-requested permission
+         for any app that shows notifications, including push — without it,
+         @capacitor/push-notifications registration silently never surfaces
+         a system prompt on those devices. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>
