@@ -18,7 +18,7 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 
 - [x] Araujo (advertiser Awin 17919) excluído em todas as camadas — confirmado ao vivo em produção: nenhum path público (`/api/catalog/search/v2`, `/api/commerce/offers`, `/api/catalog/search`) retorna `araujo`
 - [x] Petz confirmado desativado em produção — `/api/handoff/shop?partner=petz` → 503 `partner_url_not_configured`
-- [ ] Links de afiliado no mobile abrem fora do WebView (app da loja ou navegador externo) — depende do shell nativo existir (ver seção Android/iOS abaixo)
+- [x] Links de afiliado no mobile abrem fora do WebView em plataforma nativa — `navigateToPartnerUrl` detecta `Capacitor.isNativePlatform()` e usa `@capacitor/browser`; comportamento em PWA/tab normal inalterado
 
 ## Responsividade / UX mobile
 
@@ -47,13 +47,14 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 
 ## Android
 
-- [ ] Scaffolding do Capacitor (`npx cap init`) — nada instalado no repo hoje (zero `@capacitor/*`, sem pasta `android/`)
-- [ ] Definir package ID (`br.com.petmol.app` proposto — confirmar que não conflita com nada antes de fixar)
-- [ ] Instalar Android SDK via CLI tools (viável neste Mac — Java 17 já presente, `ANDROID_HOME` ausente)
-- [ ] Adicionar `@capacitor/browser` (`Browser.open()`) em `navigateToPartnerUrl` para links de afiliado escaparem do WebView
+- [x] Scaffolding do Capacitor (`npx cap init` + `@capacitor/core`/`@capacitor/browser`/`@capacitor/android`) — `capacitor.config.ts` com `server.url` apontando pro site real (app roda `output: 'standalone'`, sem export estático, então o shell nativo carrega o site ao vivo em vez de manter um segundo frontend)
+- [x] Package ID definido: `br.com.petmol.app` (confirmado sem conflito em todo o repo antes de fixar)
+- [x] Android SDK instalado via CLI tools (`brew install --cask android-commandlinetools` + `sdkmanager`, sem Android Studio) — `platform-tools`, `platforms;android-34`, `build-tools;34.0.0`; JDK 21 (exigido pelo Gradle do template Capacitor 8) instalado via tarball portátil da Adoptium, sem sudo
+- [x] `@capacitor/browser` (`Browser.open()`) adicionado em `navigateToPartnerUrl` para links de afiliado escaparem do WebView em plataforma nativa
 - [ ] `@capacitor/push-notifications` como substituto do Web Push cru para o shell nativo
-- [ ] Build de release compilável + AAB gerado
-- [ ] Validar ícone adaptativo, splash, permissões, assinatura
+- [x] Build de release compilável + AAB gerado — `./gradlew bundleRelease` rodou com sucesso, `app-release.aab` gerado e assinado com um keystore de TESTE (`~/.petmol-mobile-keys/TEST-ONLY-do-not-use-for-real-release.jks`, fora do repo, senha só em env var). **Esse keystore de teste não deve ser usado para a submissão real** — gerar um keystore de produção novo, guardar senha e arquivo com backup seguro (perda = não consegue mais atualizar o app depois do primeiro upload)
+- [ ] Ícone adaptativo e splash ainda são os placeholders genéricos do Capacitor — trocar pela marca PETMOL antes de submeter
+- [ ] Validar permissões declaradas no `AndroidManifest.xml` (câmera, notificações) contra o que o app realmente usa
 - [ ] Play Console: Internal Testing track
 
 ## iOS
@@ -75,4 +76,4 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 
 ## Estado geral (24/08/2026)
 
-Todo o código local/reversível identificado como P0 nesta rodada está commitado na PR #55 (`fix/release-day-p0-legal-copy`), CI verde, aguardando merge. O que resta é: (1) trabalho de shell nativo (Capacitor/Android/iOS) ainda não iniciado, (2) build iOS bloqueado por falta de Xcode neste Mac — ação manual do usuário, (3) preparação de metadados de loja, (4) benchmark de capacidade, (5) configurar destino real de backup off-site.
+Todo o código local/reversível identificado como P0 nesta rodada está commitado na PR #55 (`fix/release-day-p0-legal-copy`), CI verde, aguardando merge. Android já tem shell Capacitor funcional com build de release + AAB assinado (com keystore de teste) gerado localmente. O que resta é: (1) build iOS bloqueado por falta de Xcode neste Mac — ação manual do usuário, (2) gerar o keystore de produção real do Android (fora do repo, com backup seguro) antes da submissão de verdade, (3) ícone/splash com a marca PETMOL em vez dos placeholders do Capacitor, (4) preparação de metadados de loja, (5) benchmark de capacidade, (6) configurar destino real de backup off-site.
