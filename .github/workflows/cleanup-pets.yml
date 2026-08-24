@@ -1,0 +1,59 @@
+name: Cleanup pets on VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      pet_names:
+        description: "Exact pet names, comma-separated"
+        required: true
+        default: "Marley,Baby 2,Mingau"
+      apply:
+        description: "Persist deletion"
+        required: true
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build safe argument list
+        id: args
+        env:
+          PET_NAMES: ${{ inputs.pet_names }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import os
+          import shlex
+
+          names = [name.strip() for name in os.environ["PET_NAMES"].split(",") if name.strip()]
+          if not names:
+              raise SystemExit("No pet names provided")
+          args = []
+          for name in names:
+              args.extend(["--name", name])
+          if os.environ.get("APPLY") == "true":
+              args.insert(0, "--apply")
+          print("args=" + " ".join(shlex.quote(arg) for arg in args))
+          PY
+
+      - name: Run cleanup on VPS
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          CLEANUP_ARGS: ${{ steps.args.outputs.args }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          VPS_PORT="${VPS_PORT:-22}"
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+          SSH="ssh -i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o BatchMode=yes $VPS_USER@$VPS_IP"
+          $SSH "cd /opt/petmol/current/services/price-service && set -a && . /opt/petmol/shared/env/api.env && set +a && PYTHONPATH=src .venv/bin/python scripts/delete_pets_by_name.py $CLEANUP_ARGS"
