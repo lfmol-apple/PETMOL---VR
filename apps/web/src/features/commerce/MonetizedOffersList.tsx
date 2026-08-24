@@ -131,6 +131,7 @@ export function MonetizedOffersList({
       })}
       <p className="text-center text-[10px] text-gray-400 pt-1">
         Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
+        {offers.some((offer) => offer.price_is_stale) ? ' *Preço confirmado ao abrir a loja.' : ''}
       </p>
     </div>
   );

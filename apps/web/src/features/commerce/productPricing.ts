@@ -9,7 +9,10 @@ export function hasReliablePrice(offer: Pick<CommerceOffer, 'price' | 'price_is_
 }
 
 export function offerPriceLabel(offer: CommerceOffer): string {
-  return hasReliablePrice(offer) ? formatBRLPrice(offer.price) : `Conferir preço na ${merchantLabel(offer.merchant)}`;
+  if (typeof offer.price === 'number') {
+    return offer.price_is_stale ? `${formatBRLPrice(offer.price)}*` : formatBRLPrice(offer.price);
+  }
+  return `Conferir preço na ${merchantLabel(offer.merchant)}`;
 }
 
 // Nomes de exibição por merchant — usado em toda tela que lista ofertas

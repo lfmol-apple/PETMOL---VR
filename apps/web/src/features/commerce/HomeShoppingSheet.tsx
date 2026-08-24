@@ -302,6 +302,9 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
       {hasMonetizedOffer && hasMultipleOffers && isPickerOpen && (
         <OfferPickerRow offers={offers} onPick={onDirectBuy} />
       )}
+      {offers.some((item) => item.price_is_stale) && (
+        <p className="mt-1.5 text-[9px] font-medium text-gray-400">*Preço confirmado ao abrir a loja.</p>
+      )}
       {!hasMonetizedOffer && isPickerOpen && visibleQuickBuyPartners.length > 0 && (
         <QuickBuyRow partners={visibleQuickBuyPartners} onPick={onQuickBuy} />
       )}
