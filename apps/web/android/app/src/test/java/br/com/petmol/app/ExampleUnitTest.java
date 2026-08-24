@@ -1,4 +1,4 @@
-package com.getcapacitor.myapp;
+package br.com.petmol.app;
 
 import static org.junit.Assert.*;
 
