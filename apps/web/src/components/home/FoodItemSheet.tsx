@@ -450,9 +450,110 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     }
   };
 
-  const persistScannedFoodProduct = (product: ScannedProduct, asPrimary: boolean) => {
-    if (!asPrimary && !hasFood) {
+  const serializeFeedingItemForSave = (item: FeedingPlanApiItem) => ({
+    id: item.id ?? undefined,
+    label: item.label ?? undefined,
+    food_brand: item.food_brand ?? undefined,
+    package_size_kg: item.package_size_kg ?? undefined,
+    daily_amount_g: item.daily_amount_g ?? undefined,
+    duration_days: item.duration_days ?? undefined,
+    last_refill_date: item.last_refill_date ?? undefined,
+    mode: item.mode || 'kibble',
+    barcode: item.barcode ?? undefined,
+    category: item.category ?? undefined,
+    notes: item.notes ?? undefined,
+    is_primary: Boolean(item.is_primary),
+  });
+
+  const buildFeedingPlanSaveBody = (plan: NonNullable<FeedingPlanApiResponse['plan']>, items: FeedingPlanApiItem[]) => ({
+    species: plan.species || pet.species || 'dog',
+    country_code: plan.country_code || 'BR',
+    safety_buffer_days: plan.safety_buffer_days ?? 3,
+    manual_reminder_days_before: plan.manual_reminder_days_before ?? null,
+    reminder_time: plan.reminder_time ?? null,
+    mode: plan.mode || 'kibble',
+    enabled: plan.enabled ?? true,
+    no_consumption_control: plan.no_consumption_control ?? false,
+    next_purchase_date: plan.next_purchase_date ?? null,
+    notes: plan.notes ?? null,
+    items: items.map(serializeFeedingItemForSave),
+  });
+
+  const persistSecondaryFoodDirect = async (product: ScannedProduct) => {
+    const brand = normalizeFoodName(product.name || product.brand || '') || 'Petisco';
+    const barcode = (product.barcode || '').trim() || null;
+    if (!hasFood) {
       void persistFirstPetiscoDirect(product);
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const res = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan`, {
+        headers: authH(),
+        credentials: 'include',
+      });
+      if (res.status === 404) {
+        await persistFirstPetiscoDirect(product);
+        return;
+      }
+      if (!res.ok) throw new Error('fetch failed');
+      const payload: FeedingPlanApiResponse = await res.json();
+      const plan = payload.plan;
+      if (!plan) {
+        await persistFirstPetiscoDirect(product);
+        return;
+      }
+
+      const existingItems = Array.isArray(plan.items) ? plan.items : [];
+      const normalizedBrand = brand.trim().toLowerCase();
+      const alreadyExists = existingItems.some((item) => {
+        if (item?.is_primary) return false;
+        const itemBarcode = (item.barcode || '').trim();
+        const itemBrand = (item.food_brand || '').trim().toLowerCase();
+        return Boolean((barcode && itemBarcode === barcode) || (normalizedBrand && itemBrand === normalizedBrand));
+      });
+
+      if (!alreadyExists) {
+        const saveRes = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authH() },
+          credentials: 'include',
+          body: JSON.stringify(buildFeedingPlanSaveBody(plan, [
+            ...existingItems,
+            {
+              food_brand: brand,
+              barcode,
+              category: 'food',
+              mode: 'kibble',
+              is_primary: false,
+            },
+          ])),
+        });
+        if (!saveRes.ok) throw new Error('save failed');
+      }
+
+      dispatchFoodPlanUpdated();
+      onSaved?.();
+      await refreshFoodPlan();
+      setViewSection('petiscos');
+      clearSuccessMessageTimer();
+      setFeedback(null);
+      setSuccessMessage(alreadyExists ? `✅ ${brand} já estava nos petiscos` : `✅ ${brand} adicionado aos petiscos`);
+      successMessageTimerRef.current = setTimeout(() => {
+        setSuccessMessage(null);
+        successMessageTimerRef.current = null;
+      }, 3000);
+    } catch {
+      setFeedback({ msg: 'Não deu pra salvar agora. Tente de novo.', tone: 'red' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const persistScannedFoodProduct = (product: ScannedProduct, asPrimary: boolean) => {
+    if (!asPrimary) {
+      void persistSecondaryFoodDirect(product);
       return;
     }
     try {
@@ -706,32 +807,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authH() },
         credentials: 'include',
-        body: JSON.stringify({
-          species: plan.species || pet.species || 'dog',
-          country_code: plan.country_code || 'BR',
-          safety_buffer_days: plan.safety_buffer_days ?? 3,
-          manual_reminder_days_before: plan.manual_reminder_days_before ?? null,
-          reminder_time: plan.reminder_time ?? null,
-          mode: plan.mode || 'kibble',
-          enabled: plan.enabled ?? true,
-          no_consumption_control: plan.no_consumption_control ?? false,
-          next_purchase_date: plan.next_purchase_date ?? null,
-          notes: plan.notes ?? null,
-          items: remaining.map((item) => ({
-            id: item.id ?? undefined,
-            label: item.label ?? undefined,
-            food_brand: item.food_brand ?? undefined,
-            package_size_kg: item.package_size_kg ?? undefined,
-            daily_amount_g: item.daily_amount_g ?? undefined,
-            duration_days: item.duration_days ?? undefined,
-            last_refill_date: item.last_refill_date ?? undefined,
-            mode: item.mode || 'kibble',
-            barcode: item.barcode ?? undefined,
-            category: item.category ?? undefined,
-            notes: item.notes ?? undefined,
-            is_primary: Boolean(item.is_primary),
-          })),
-        }),
+        body: JSON.stringify(buildFeedingPlanSaveBody(plan, remaining)),
       });
       if (!saveRes.ok) throw new Error('save failed');
       dispatchFoodPlanUpdated();

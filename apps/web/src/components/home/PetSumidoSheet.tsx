@@ -8,7 +8,7 @@ interface PetSumidoSheetProps {
   pet: PetHealthProfile;
   petPhotoUrl?: string | null;
   onClose: () => void;
-  onGoHome: () => void;
+  onGoHome?: () => void;
   // Modo edição: alerta já existe, preenche os campos e chama PATCH
   editAlertId?: string;
   initialContact?: string;
@@ -90,7 +90,7 @@ function nowTime() {
 }
 
 export function PetSumidoSheet({
-  pet, petPhotoUrl, onClose, onGoHome,
+  pet, petPhotoUrl, onClose,
   editAlertId, initialContact = '', initialLocation = '',
   initialCharacteristics = '', initialMissingDate, initialMissingTime,
 }: PetSumidoSheetProps) {
@@ -486,15 +486,9 @@ export function PetSumidoSheet({
           <div className="flex-1 min-w-0">
             <h2 className="text-[17px] font-bold text-gray-900 leading-tight">Pet Sumido</h2>
             <p className="text-[12px] text-slate-400 truncate">
-              {step === 'form' ? 'Alerta de emergência · gerar e compartilhar' : 'Card gerado · compartilhe agora'}
+              {step === 'form' ? 'Fluxo independente de emergência' : 'Card gerado · compartilhe agora'}
             </p>
           </div>
-          <button
-            onClick={onGoHome}
-            className="h-8 px-3 rounded-full bg-gray-100 text-gray-500 text-[13px] font-semibold flex-shrink-0"
-          >
-            Início
-          </button>
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 flex-shrink-0"

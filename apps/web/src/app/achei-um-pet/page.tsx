@@ -411,7 +411,7 @@ function AcheiUmPetInner() {
     // PetCard na lista (que nunca oferece gravar vídeo), envia sem essa
     // etapa.
     if (hasPossession === true && (!reportVideo || !proofChallenge)) {
-      setReportMediaError('Grave a prova em vídeo com o desafio PETMOL antes de avisar o tutor.');
+      setReportMediaError('Grave um vídeo curto mostrando o pet antes de avisar o tutor.');
       return;
     }
     setSubmitting(true);
@@ -747,7 +747,7 @@ function AcheiUmPetInner() {
                     Prova obrigatória PETMOL Protege
                   </label>
                   <p className="mt-1 text-[12px] leading-snug text-amber-900/80">
-                    Grave até 10 segundos. Sem este vídeo, o tutor não recebe o possível match.
+                    Grave até 10 segundos mostrando o pet. Não precisa falar nada durante a gravação.
                     {proofChallengeLoading
                       ? ' Gerando desafio seguro...'
                       : proofChallenge
@@ -781,7 +781,7 @@ function AcheiUmPetInner() {
                       className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-3 text-[14px] font-black text-white active:scale-[0.98] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <span>🎥</span>
-                      {proofChallenge ? 'Gravar prova PETMOL Protege' : 'Aguardando desafio...'}
+                      {proofChallenge ? 'Gravar vídeo do pet' : 'Aguardando desafio...'}
                     </button>
                   )}
                   {reportMediaError && <p className="mt-2 text-[11px] font-bold text-red-600">{reportMediaError}</p>}

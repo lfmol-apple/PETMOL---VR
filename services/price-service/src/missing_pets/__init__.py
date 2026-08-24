@@ -1584,7 +1584,7 @@ def create_found_pet_proof_challenge(mp_id: str, db: Session = Depends(get_db)):
         "id": challenge.id,
         "phrase": challenge.phrase,
         "expires_at": challenge.expires_at.isoformat(),
-        "instructions": f"Grave um vídeo curto cumprindo este desafio: {challenge.phrase}.",
+        "instructions": f"Grave um vídeo curto: {challenge.phrase}. Não precisa falar nada durante a gravação.",
     }
 
 
@@ -2033,7 +2033,7 @@ def _new_proof_phrase() -> str:
         "mostre o pet e vire a câmera rapidamente para o ambiente",
         "mostre o pet de lado e depois de frente",
     ]
-    return f"PETMOL {secrets.randbelow(9000) + 1000} - {secrets.choice(visual_actions)}"
+    return secrets.choice(visual_actions)
 
 
 def _validate_proof_challenge(
@@ -2348,7 +2348,7 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
     if not body.finder_video or not body.proof_challenge_id or not body.proof_challenge:
         raise HTTPException(
             status_code=422,
-            detail="Para proteger o tutor contra golpes, envie um vídeo curto com o desafio PETMOL antes de notificar.",
+            detail="Para proteger o tutor contra golpes, envie um vídeo curto mostrando o pet antes de notificar.",
         )
 
     existing = (
