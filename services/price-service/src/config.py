@@ -77,10 +77,14 @@ class Settings(BaseSettings):
     # Sinalização comercial; não gera link sozinha. Só pode virar true quando
     # existir método oficial confirmado e implementado em camada própria.
     mercadolivre_affiliate_enabled: bool = False
-    # Marketplace offers (Shopee hoje) mudam preço rápido. Quando uma
-    # oferta estiver mais velha que esta janela, a consulta de compra tenta
-    # atualizar aquele GTIN pela API oficial antes de responder ao tutor.
+    # Marketplace offers (Shopee hoje) mudam preço rápido. A janela abaixo
+    # define quando um preço passa a ser marcado como candidato a refresh.
+    # Por padrão a rota pública NÃO espera API externa: retorna cache
+    # monetizado imediatamente e marca stale quando necessário. Refresh
+    # inline só deve ser ligado em ambiente controlado; em produção ele
+    # pode fazer /commerce/offers estourar o timeout do app.
     marketplace_offer_refresh_after_minutes: int = 30
+    marketplace_offer_inline_refresh_enabled: bool = False
 
     # Preço real da Cobasi (API pública de catálogo VTEX) para a Loja do Baby.
     # Cache longo de propósito — reduz volume de chamadas à Cobasi (evitar

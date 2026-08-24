@@ -191,6 +191,8 @@ def _should_live_refresh(merchant: str, checked_at: Optional[datetime]) -> bool:
     if merchant != "shopee":
         return False
     settings = get_settings()
+    if not settings.marketplace_offer_inline_refresh_enabled:
+        return False
     if settings.marketplace_offer_refresh_after_minutes <= 0:
         return False
     if checked_at is None:

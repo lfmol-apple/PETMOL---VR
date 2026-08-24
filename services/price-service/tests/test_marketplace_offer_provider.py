@@ -115,8 +115,34 @@ async def test_stale_offer_is_served_with_stale_marker(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_old_shopee_offer_is_refreshed_before_display(monkeypatch):
+async def test_old_shopee_offer_is_served_without_inline_refresh_by_default(monkeypatch):
     _enable_shopee(monkeypatch)
+    monkeypatch.setenv("MARKETPLACE_OFFER_REFRESH_AFTER_MINUTES", "30")
+    get_settings.cache_clear()
+    product_id = _register_product()
+    old = datetime.now(timezone.utc) - timedelta(hours=2)
+    _register_offer(product_id, price=382.32, last_checked_at=old, verified_at=old)
+
+    def fake_refresh(merchant: str, gtin: str) -> None:
+        raise AssertionError("public offer lookup must not block on inline marketplace refresh by default")
+
+    monkeypatch.setattr("src.marketplace_offer_provider._refresh_marketplace_offer", fake_refresh)
+
+    db = SessionLocal()
+    try:
+        provider = MarketplaceOfferProvider(db, "shopee")
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is not None
+        assert offer.price == 382.32
+        assert offer.price_is_stale is False
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_old_shopee_offer_can_be_refreshed_before_display_when_enabled(monkeypatch):
+    _enable_shopee(monkeypatch)
+    monkeypatch.setenv("MARKETPLACE_OFFER_INLINE_REFRESH_ENABLED", "true")
     monkeypatch.setenv("MARKETPLACE_OFFER_REFRESH_AFTER_MINUTES", "30")
     get_settings.cache_clear()
     product_id = _register_product()
