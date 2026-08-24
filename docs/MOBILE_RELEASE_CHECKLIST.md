@@ -59,11 +59,13 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 
 ## iOS
 
-- [ ] **Bloqueado hoje**: Xcode não está instalado neste Mac (só Command Line Tools) — requer instalação interativa via App Store com o Apple ID do usuário; não pode ser feito de forma não-interativa
-- [ ] Mesmo shell Capacitor do Android, uma vez existente
-- [ ] Bundle identifier, ícones, launch screen, usage descriptions de câmera/fotos, entitlement de notificação
+- [x] Projeto Xcode gerado (`npx cap add ios` não exige Xcode, só build/archive exigem) — mesmo shell Capacitor do Android (`server.url` remoto), bundle id `br.com.petmol.app` herdado automaticamente do `capacitor.config.ts`
+- [x] Usage descriptions de câmera/fotos adicionadas no `Info.plist` (`NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`, `NSPhotoLibraryAddUsageDescription`) — faltavam no template padrão
+- [ ] Entitlement de notificação push (`aps-environment`) — adicionar quando `@capacitor/push-notifications` entrar
+- [ ] **Bloqueado hoje**: Xcode completo não está instalado neste Mac (só Command Line Tools) — `xcodebuild` recusa rodar; requer instalação interativa via App Store com o Apple ID do usuário, não pode ser feito de forma não-interativa. CocoaPods também não está instalado (necessário pra `pod install` antes de abrir o projeto no Xcode)
+- [ ] Ícones e launch screen ainda são os placeholders genéricos do Capacitor — trocar pela marca PETMOL antes de submeter
 - [ ] Documentar para App Review que o app usa recursos nativos reais do PETMOL (cadastro de pet, scanner, alimentação, saúde, lembretes, medicação, comparação de produtos) — não é apenas um WebView passivo
-- [ ] Build de release compilável + archive
+- [ ] Build de release compilável + archive — depende do Xcode estar instalado
 - [ ] TestFlight interno
 
 ## Metadados de loja
