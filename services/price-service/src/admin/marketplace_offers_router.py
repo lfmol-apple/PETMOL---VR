@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..affiliate_links import MarketplaceOffer
 from ..db import get_db
+from ..mercadolivre_link_validator import InvalidMercadoLivreAffiliateUrlError, validate_mercadolivre_affiliate_url
 from ..product_catalog_lookup import ProductCatalog, normalize_gtin
 from ..shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
 from .deps import get_current_admin, get_current_admin_or_readonly_key
@@ -32,6 +33,7 @@ router = APIRouter(prefix="/v1/admin/marketplace-offers", tags=["Admin Marketpla
 # "qualquer https://" só porque não temos allowlist pronta ainda).
 _LINK_VALIDATORS: dict[str, Callable[[str], str]] = {
     "shopee": validate_shopee_affiliate_url,
+    "mercadolivre": validate_mercadolivre_affiliate_url,
 }
 
 
@@ -41,7 +43,7 @@ def _validate_url_for_merchant(merchant: str, url: str) -> None:
         raise HTTPException(status_code=400, detail=f"Sem validador de link oficial para merchant={merchant!r}")
     try:
         validator(url)
-    except InvalidShopeeAffiliateUrlError as exc:
+    except (InvalidShopeeAffiliateUrlError, InvalidMercadoLivreAffiliateUrlError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
 

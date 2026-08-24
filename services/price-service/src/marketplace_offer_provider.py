@@ -31,27 +31,39 @@ from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
 from .db import SessionLocal
 from .product_catalog_lookup import ProductCatalog, normalize_gtin, search_catalog_by_text
+from .mercadolivre_link_validator import InvalidMercadoLivreAffiliateUrlError, validate_mercadolivre_affiliate_url
 from .shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
 from .shopee_offer_matcher import score_candidate
 
-# Merchants marketplace conhecidos e seu validador de link oficial — só
-# Shopee tem um hoje (Mercado Livre, quando aprovado, ganha o próprio
-# validador aqui, nunca reaproveitando o da Shopee por semelhança).
+# Merchants marketplace conhecidos e seu validador de link oficial — cada
+# um com o próprio, nunca reaproveitando o de outro merchant por
+# semelhança (regras de allowlist de domínio são específicas por rede).
 _LINK_VALIDATORS = {
     "shopee": validate_shopee_affiliate_url,
+    "mercadolivre": validate_mercadolivre_affiliate_url,
 }
 
 
 def is_marketplace_merchant_publicly_servable(merchant: str) -> bool:
     """Único ponto de decisão pra 'este marketplace pode gerar uma oferta
     visível/clicável pro tutor agora' — mesmo papel de
-    is_awin_merchant_publicly_servable, só que por enquanto cobre só
-    Shopee (master gate config.shopee_affiliate_enabled). Consultado
+    is_awin_merchant_publicly_servable. Master gate por merchant:
+    shopee_affiliate_enabled / mercadolivre_affiliate_enabled. Consultado
     tanto no registro do provider (commerce_offers.py) quanto dentro de
     cada find_offer()/monetize() — defesa em profundidade, mesmo padrão
-    do módulo Awin."""
+    do módulo Awin.
+
+    mercadolivre_affiliate_enabled reaproveita a mesma flag já criada
+    para o provider de catálogo via Client Credentials
+    (mercadolivre_commerce_provider.py) — o significado é idêntico: "só
+    True quando existir mecanismo oficial de comissão confirmado", e o
+    Mercado Livre não tem API de geração de link (confirmado
+    24/08/2026), então esta flag continua False por padrão até alguém
+    cadastrar links manualmente e decidir ligá-la."""
     if merchant == "shopee":
         return get_settings().shopee_affiliate_enabled
+    if merchant == "mercadolivre":
+        return get_settings().mercadolivre_affiliate_enabled
     return False
 
 
@@ -159,7 +171,7 @@ class MarketplaceOfferProvider:
         if validator:
             try:
                 validator(row.affiliate_url)
-            except InvalidShopeeAffiliateUrlError:
+            except (InvalidShopeeAffiliateUrlError, InvalidMercadoLivreAffiliateUrlError):
                 return None
 
         # is_manually_cached=True: é sempre um link cadastrado manualmente
