@@ -17,6 +17,7 @@ Adicionar um provider novo (Shopee/ML/Petz, quando aprovados) é
 só acrescentar em build_default_engine() — nenhuma tela precisa saber
 quantos providers existem.
 """
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -59,6 +60,8 @@ class CommerceOfferOut(BaseModel):
     list_price: Optional[float] = None
     is_available: Optional[bool] = None
     image_url: Optional[str] = None
+    price_checked_at: Optional[datetime] = None
+    price_is_stale: bool = False
 
 
 _NOT_FOUND = ProductOfferResult(found=False)

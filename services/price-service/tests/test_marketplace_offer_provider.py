@@ -2,6 +2,8 @@
 MarketplaceOfferProvider — lê só MarketplaceOffer (nunca chama a rede do
 marketplace, nunca scraping). Ver docstring do módulo.
 """
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from src.affiliate_links import MarketplaceOffer
@@ -87,6 +89,44 @@ async def test_finds_offer_by_gtin_when_enabled(monkeypatch):
         assert offer is not None
         assert offer.price == 59.9
         assert offer.merchant == "shopee"
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_stale_offer_is_served_with_stale_marker(monkeypatch):
+    _enable_shopee(monkeypatch)
+    monkeypatch.setenv("MARKETPLACE_OFFER_STALE_AFTER_HOURS", "36")
+    get_settings.cache_clear()
+    product_id = _register_product()
+    old = datetime.now(timezone.utc) - timedelta(hours=37)
+    _register_offer(product_id, last_checked_at=old, verified_at=old)
+
+    db = SessionLocal()
+    try:
+        provider = MarketplaceOfferProvider(db, "shopee")
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is not None
+        assert offer.price == 59.9
+        assert offer.price_is_stale is True
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_fresh_offer_exposes_price_checked_at(monkeypatch):
+    _enable_shopee(monkeypatch)
+    checked_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+    product_id = _register_product()
+    _register_offer(product_id, last_checked_at=checked_at)
+
+    db = SessionLocal()
+    try:
+        provider = MarketplaceOfferProvider(db, "shopee")
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is not None
+        assert offer.price_checked_at == checked_at
+        assert offer.price_is_stale is False
     finally:
         db.close()
 

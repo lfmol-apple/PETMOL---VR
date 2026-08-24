@@ -290,6 +290,10 @@ class Settings(BaseSettings):
     # tutor sozinho — shopee_affiliate_enabled continua sendo o gate real.
     shopee_affiliate_app_id: Optional[str] = None
     shopee_affiliate_app_secret: Optional[str] = None
+    # MarketplaceOffer é cache operacional do último preço confirmado pelo
+    # job/API do marketplace. Se ficar mais velho que isso, não deve ser
+    # exibido como opção de compra atual.
+    marketplace_offer_stale_after_hours: int = 36
     # Token dedicado pra disparar/acompanhar o lote de sync via HTTPS
     # (admin/shopee_sync_router.py) — deliberadamente separado de
     # ADMIN_OPS_API_KEY (aquele é só leitura, nunca em rota de escrita;
