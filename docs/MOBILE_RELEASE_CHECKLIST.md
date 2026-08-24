@@ -53,7 +53,7 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 - [x] `@capacitor/browser` (`Browser.open()`) adicionado em `navigateToPartnerUrl` para links de afiliado escaparem do WebView em plataforma nativa
 - [ ] `@capacitor/push-notifications` como substituto do Web Push cru para o shell nativo
 - [x] Build de release compilável + AAB gerado — `./gradlew bundleRelease` rodou com sucesso, `app-release.aab` gerado e assinado com um keystore de TESTE (`~/.petmol-mobile-keys/TEST-ONLY-do-not-use-for-real-release.jks`, fora do repo, senha só em env var). **Esse keystore de teste não deve ser usado para a submissão real** — gerar um keystore de produção novo, guardar senha e arquivo com backup seguro (perda = não consegue mais atualizar o app depois do primeiro upload)
-- [ ] Ícone adaptativo e splash ainda são os placeholders genéricos do Capacitor — trocar pela marca PETMOL antes de submeter
+- [x] Ícone adaptativo e splash trocados pela marca PETMOL (gerados via `@capacitor/assets` a partir de `apps/web/public/icons/icon-source.svg`, o mesmo mark já usado no PWA) — build de release re-verificado com os novos assets
 - [ ] Validar permissões declaradas no `AndroidManifest.xml` (câmera, notificações) contra o que o app realmente usa
 - [ ] Play Console: Internal Testing track
 
@@ -63,7 +63,7 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 - [x] Usage descriptions de câmera/fotos adicionadas no `Info.plist` (`NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`, `NSPhotoLibraryAddUsageDescription`) — faltavam no template padrão
 - [ ] Entitlement de notificação push (`aps-environment`) — adicionar quando `@capacitor/push-notifications` entrar
 - [ ] **Bloqueado hoje**: Xcode completo não está instalado neste Mac (só Command Line Tools) — `xcodebuild` recusa rodar; requer instalação interativa via App Store com o Apple ID do usuário, não pode ser feito de forma não-interativa. CocoaPods também não está instalado (necessário pra `pod install` antes de abrir o projeto no Xcode)
-- [ ] Ícones e launch screen ainda são os placeholders genéricos do Capacitor — trocar pela marca PETMOL antes de submeter
+- [x] Ícones e launch screen trocados pela marca PETMOL (mesmo processo do Android — `@capacitor/assets`, AppIcon + Splash light/dark)
 - [ ] Documentar para App Review que o app usa recursos nativos reais do PETMOL (cadastro de pet, scanner, alimentação, saúde, lembretes, medicação, comparação de produtos) — não é apenas um WebView passivo
 - [ ] Build de release compilável + archive — depende do Xcode estar instalado
 - [ ] TestFlight interno
@@ -78,4 +78,4 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 
 ## Estado geral (24/08/2026)
 
-Todo o código local/reversível identificado como P0 nesta rodada está commitado na PR #55 (`fix/release-day-p0-legal-copy`), CI verde, aguardando merge. Android já tem shell Capacitor funcional com build de release + AAB assinado (com keystore de teste) gerado localmente. O que resta é: (1) build iOS bloqueado por falta de Xcode neste Mac — ação manual do usuário, (2) gerar o keystore de produção real do Android (fora do repo, com backup seguro) antes da submissão de verdade, (3) ícone/splash com a marca PETMOL em vez dos placeholders do Capacitor, (4) preparação de metadados de loja, (5) benchmark de capacidade, (6) configurar destino real de backup off-site.
+Todo o código local/reversível identificado como P0 nesta rodada está commitado na PR #55 (`fix/release-day-p0-legal-copy`), CI verde, aguardando merge. Android já tem shell Capacitor funcional com build de release + AAB assinado (com keystore de teste) gerado localmente, com ícone/splash da marca real. Metadados de loja (Apple/Google) e benchmark de capacidade prontos e documentados. O que resta é: (1) build iOS bloqueado por falta de Xcode neste Mac — ação manual do usuário, (2) gerar o keystore de produção real do Android (fora do repo, com backup seguro) antes da submissão de verdade — decisão sua, não gerado hoje por ser um artefato permanente e de alto risco se perdido, (3) decidir e-mail/senha da conta de revisor pra eu criar em produção, (4) configurar destino real de backup off-site.
