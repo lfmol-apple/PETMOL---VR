@@ -70,11 +70,11 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 
 ## Metadados de loja
 
-- [ ] Apple App Privacy — mapear com base no código real: nome, email, ID de conta, informações do pet, fotos, dados de saúde do pet, analytics de uso, dados de crash, dados de clique de afiliado
-- [ ] Google Data Safety — matriz equivalente (coletado? compartilhado? propósito? obrigatório? criptografado em trânsito? deletável?)
-- [ ] Conta de revisor dedicada (nunca uma conta real) com pet, ração, vacina, medicação e antiparasitário cadastrados — credenciais documentadas fora do Git
-- [ ] Review notes para App Store e Google Play (como logar, cadastrar pet, scanner, vacinas, notificações, Loja, links externos, explicação de afiliados)
-- [ ] Copy de loja sem "grátis"/"menor preço garantido"/"diagnóstico"/"garantia de saúde"
+- [x] Apple App Privacy mapeado a partir do código real (schemas de banco + confirmação de que não há SDK de analytics/ads/crash de terceiros) — ver `docs/APP_STORE_METADATA.md`
+- [x] Google Data Safety — matriz equivalente pronta em `docs/APP_STORE_METADATA.md`
+- [ ] Conta de revisor dedicada — procedimento documentado em `docs/APP_STORE_METADATA.md`, mas **as credenciais (e-mail/senha) dependem de decisão sua** antes de eu criar a conta em produção
+- [x] Review notes para App Store e Google Play — rascunho pronto em `docs/APP_STORE_METADATA.md`
+- [x] Copy de loja sem "grátis"/"menor preço garantido"/"diagnóstico"/"garantia de saúde" — landing page já corrigida (PR #55); lembretes documentados pra aplicar na ficha das lojas também
 
 ## Estado geral (24/08/2026)
 
