@@ -8,6 +8,7 @@ import { showBlockingNotice } from '@/features/interactions/userPromptChannel';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { IosSwitch } from '@/components/ui/IosSwitch';
 import { useAdmin } from '@/hooks/useAdmin';
+import { trackV1Metric } from '@/lib/v1Metrics';
 
 // ── Design tokens ─────────────────────────────────────────────
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
@@ -98,6 +99,7 @@ export default function ProfilePage() {
         }),
       });
       if (!res.ok) throw new Error('Falha ao enviar');
+      trackV1Metric('feedback_submitted', { category: supportCategory });
       setSupportSubmitted(true);
       setSupportMessage('');
       setSupportCategory(null);
@@ -429,6 +431,7 @@ export default function ProfilePage() {
         body: JSON.stringify({ password: deletePassword }),
       });
       if (!res.ok) { const err = await res.json().catch(() => ({})); showBlockingNotice(err.detail || 'Erro ao excluir conta.'); return; }
+      trackV1Metric('account_deleted', {});
       clearToken();
       localStorage.clear();
       sessionStorage.clear();

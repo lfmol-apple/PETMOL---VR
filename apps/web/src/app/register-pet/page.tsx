@@ -179,6 +179,12 @@ export default function RegisterPetPage() {
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (onboardStep === 'done') {
+      trackV1Metric('onboarding_completed', { pet_id: savedPetId ?? undefined });
+    }
+  }, [onboardStep, savedPetId]);
+
+  useEffect(() => {
     // PushManager doesn't exist in a non-installed iOS Safari tab — the
     // "Sim, quero avisos" button below would silently no-op there, so this
     // is the one case where we show install instructions instead of asking.
