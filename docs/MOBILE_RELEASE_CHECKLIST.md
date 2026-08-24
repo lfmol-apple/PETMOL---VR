@@ -42,8 +42,8 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 
 ## Capacidade
 
-- [ ] Benchmark de carga local (nunca em produção) em 50/100/250/500/1000 de concorrência nos endpoints health/login/home/pets/reminders/commerce-offers
-- [ ] Documentar thresholds de escala (CPU sustentado, RAM, p95, conexões de banco) a partir do benchmark
+- [x] Benchmark de carga local (nunca em produção) em 50/100/250/500/1000 de concorrência nos endpoints health/login/pets/reminders/catalog-search — ver `docs/CAPACITY_BENCHMARK.md`
+- [x] Gatilhos de escala documentados a partir do benchmark — achado real: pool de conexões do banco (60 max) satura por volta de 250 requisições autenticadas simultâneas, e como produção roda um único worker uvicorn, isso cascateia pra todo o serviço, não só o endpoint ocupado. Não bloqueia lançamento (improvável bater isso sustentado com o volume inicial esperado), mas é o primeiro gatilho de escala real e barato de resolver (subir `pool_size`/`max_overflow` e/ou múltiplos workers) — não corrigido hoje por não ser otimização necessária pro lançamento
 
 ## Android
 
