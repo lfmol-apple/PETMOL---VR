@@ -46,6 +46,16 @@ def _register_product(gtin: str = GTIN) -> int:
         db.close()
 
 
+def _set_product_thumbnail(product_id: int, thumbnail_url: str) -> None:
+    db = SessionLocal()
+    try:
+        product = db.get(ProductCatalog, product_id)
+        product.thumbnail_url = thumbnail_url
+        db.commit()
+    finally:
+        db.close()
+
+
 def _register_offer(product_id: int, **overrides) -> None:
     defaults = dict(
         product_id=product_id, merchant="shopee",
@@ -89,6 +99,23 @@ async def test_finds_offer_by_gtin_when_enabled(monkeypatch):
         assert offer is not None
         assert offer.price == 59.9
         assert offer.merchant == "shopee"
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_shopee_offer_uses_catalog_thumbnail_when_marketplace_has_no_image(monkeypatch):
+    _enable_shopee(monkeypatch)
+    product_id = _register_product()
+    _set_product_thumbnail(product_id, "https://img.example/racao-nine.jpg")
+    _register_offer(product_id)
+
+    db = SessionLocal()
+    try:
+        provider = MarketplaceOfferProvider(db, "shopee")
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is not None
+        assert offer.image_url == "https://img.example/racao-nine.jpg"
     finally:
         db.close()
 

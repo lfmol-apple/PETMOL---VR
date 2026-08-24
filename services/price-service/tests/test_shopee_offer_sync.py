@@ -178,6 +178,55 @@ def test_match_confiavel_grava_multiplas_ofertas_e_remove_outlier(monkeypatch):
         db.close()
 
 
+def test_sync_usa_feed_awin_como_identidade_forte_quando_catalogo_e_generico(monkeypatch):
+    _register_product(name="Ração Royal Canin 7,5kg", brand="Royal Canin")
+    db = SessionLocal()
+    try:
+        db.add(AffiliateFeedOffer(
+            network="awin",
+            merchant="cobasi",
+            advertiser_id="17870",
+            external_product_id="royal-mini",
+            gtin=GTIN,
+            title="Ração Royal Canin Mini Adult Cães Adultos Porte Pequeno 7,5kg",
+            brand="Royal Canin",
+            active=True,
+            in_stock=True,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    wrong_medium = {
+        "itemId": 202,
+        "productName": "Royal Canin Medium Adult Cães Adultos 7,5kg",
+        "shopName": "Pet Errado",
+        "price": "382.32",
+        "offerLink": "https://s.shopee.com.br/royalMediumAdult",
+        "productLink": "https://shopee.com.br/product/1/202",
+    }
+    valid_mini = {
+        "itemId": 101,
+        "productName": "Royal Canin Mini Adult Cães Adultos Porte Pequeno 7,5kg",
+        "shopName": "Pet Oficial",
+        "price": "345.04",
+        "offerLink": "https://s.shopee.com.br/royalMiniAdult",
+        "productLink": "https://shopee.com.br/product/1/101",
+    }
+    monkeypatch.setattr(sync_module, "search_product_offers", lambda keyword, limit=10: [wrong_medium, valid_mini])
+
+    result = sync_shopee_offer_for_gtin(SessionLocal(), GTIN)
+    assert result.matched is True
+
+    db = SessionLocal()
+    try:
+        rows = db.scalars(select(MarketplaceOffer).where(MarketplaceOffer.merchant == "shopee")).all()
+        assert {row.external_listing_id for row in rows} == {"101"}
+        assert rows[0].price == 345.04
+    finally:
+        db.close()
+
+
 def test_sem_candidato_confiavel_nao_cria_oferta(monkeypatch):
     _register_product()
     # Só o item "errado" (marca/peso diferentes) na resposta da busca.
@@ -213,6 +262,41 @@ def test_reexecutar_atualiza_a_mesma_linha_em_vez_de_duplicar(monkeypatch):
         rows = db.scalars(select(MarketplaceOffer).where(MarketplaceOffer.merchant == "shopee")).all()
         assert len(rows) == 1
         assert rows[0].price == 79.9
+    finally:
+        db.close()
+
+
+def test_sync_confiavel_desativa_oferta_antiga_que_nao_reapareceu(monkeypatch):
+    product_id = _register_product()
+    db = SessionLocal()
+    try:
+        db.add(MarketplaceOffer(
+            product_id=product_id,
+            merchant="shopee",
+            external_listing_id="old-cheap-wrong",
+            seller_name="Oferta antiga",
+            affiliate_url="https://s.shopee.com.br/8AVT6ssOLD",
+            direct_url="https://shopee.com.br/product/1/old-cheap-wrong",
+            price=29.9,
+            is_available=True,
+            active=True,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    monkeypatch.setattr(sync_module, "search_product_offers", lambda keyword, limit=10: [SOMA_15KG_OFFER])
+
+    result = sync_shopee_offer_for_gtin(SessionLocal(), GTIN)
+    assert result.matched is True
+
+    db = SessionLocal()
+    try:
+        rows = db.scalars(select(MarketplaceOffer).where(MarketplaceOffer.merchant == "shopee")).all()
+        by_listing = {row.external_listing_id: row for row in rows}
+        assert by_listing["58204606553"].active is True
+        assert by_listing["old-cheap-wrong"].active is False
+        assert by_listing["old-cheap-wrong"].is_available is False
     finally:
         db.close()
 

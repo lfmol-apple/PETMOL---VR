@@ -5,6 +5,7 @@ Examples:
   PYTHONPATH=src python3 scripts/optimize_commerce_quality.py --dry-run
   PYTHONPATH=src python3 scripts/optimize_commerce_quality.py --apply --limit 300
   PYTHONPATH=src python3 scripts/optimize_commerce_quality.py --apply --sync-shopee --limit 50
+  PYTHONPATH=src python3 scripts/optimize_commerce_quality.py --apply --sync-shopee --refresh-existing-shopee --limit 100
 """
 from __future__ import annotations
 
@@ -34,6 +35,7 @@ def main() -> int:
     parser.add_argument("--apply", action="store_true", help="Persist safe local-feed enrichments.")
     parser.add_argument("--dry-run", action="store_true", help="Do not persist anything. Default when --apply is absent.")
     parser.add_argument("--sync-shopee", action="store_true", help="Also call Shopee API for prioritized GTINs with no Shopee offer.")
+    parser.add_argument("--refresh-existing-shopee", action="store_true", help="When --sync-shopee is enabled, revalidate existing Shopee offers too.")
     parser.add_argument("--resolve-gtin", action="store_true", help="Call configured GTIN providers when catalog/image is missing.")
     parser.add_argument("--autofill-safe-gtin", action="store_true", help="Write GTIN into pet-linked records only for unambiguous high-confidence suggestions.")
     parser.add_argument("--no-feed-enrich", action="store_true", help="Disable enrichment from already-synced Awin feeds.")
@@ -48,6 +50,7 @@ def main() -> int:
             dry_run=dry_run,
             enrich_from_feed=not args.no_feed_enrich,
             sync_shopee=args.sync_shopee,
+            refresh_existing_shopee=args.refresh_existing_shopee,
             resolve_gtin=args.resolve_gtin,
             autofill_safe_gtin=args.autofill_safe_gtin,
         )

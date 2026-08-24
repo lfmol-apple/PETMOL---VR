@@ -10,13 +10,13 @@ Roda em lote (scripts/sync_shopee_offers.py), nunca no caminho de
 requisição do tutor — MarketplaceOfferProvider (marketplace_offer_provider.py)
 só lê o resultado já sincronizado.
 
-Só grava (upsert) quando shopee_offer_matcher acha um candidato confiável
+Só grava (upsert) quando shopee_offer_matcher acha candidatos confiáveis
 pro peso/marca esperados — nunca publica "o menos pior" resultado de
 busca (ver shopee_offer_matcher.py pro porquê disso ser obrigatório).
-Nunca desativa uma oferta existente só por não achar candidato confiável
-nesta execução — uma falha transitória de busca não deve apagar uma oferta
-boa; desativar continua sendo ação manual via admin
-(admin/marketplace_offers_router.py).
+Quando a execução encontra uma lista confiável, desativa ofertas Shopee
+ativas do mesmo produto que não reapareceram nessa lista. Se a busca não
+acha nenhum candidato confiável, não apaga nada: uma falha transitória de
+busca não deve derrubar uma oferta boa.
 """
 from __future__ import annotations
 
@@ -226,6 +226,31 @@ def _confident_matches(
     return [node for _score, _price, node in scored]
 
 
+def _best_awin_identity_for_gtin(db: Session, gtin: str) -> tuple[Optional[str], Optional[str]]:
+    """Usa o feed Awin por GTIN como identidade forte para buscar Shopee.
+
+    products_catalog pode ter sido criado por scanner, IA ou edição manual
+    com nome curto/genérico ("Compra de ração"). Quando Cobasi/Zee Now/Zee
+    Dog têm o mesmo GTIN no feed, esse título é uma referência melhor para
+    proteger contra anúncio Shopee de outra variação da mesma marca.
+    """
+    from .affiliate_feed import AffiliateFeedOffer
+
+    rows = db.scalars(
+        select(AffiliateFeedOffer).where(
+            AffiliateFeedOffer.merchant.in_(_DEFAULT_AWIN_SHOPEE_SOURCE_MERCHANTS),
+            AffiliateFeedOffer.active.is_(True),
+            AffiliateFeedOffer.in_stock.is_(True),
+            AffiliateFeedOffer.gtin == gtin,
+            AffiliateFeedOffer.title.isnot(None),
+        )
+    ).all()
+    if not rows:
+        return None, None
+    _gtin, title, brand = _best_feed_row(rows)
+    return title, brand
+
+
 def sync_shopee_offer_for_gtin(
     db: Session,
     gtin: str,
@@ -249,8 +274,11 @@ def sync_shopee_offer_for_gtin(
     if not product.name:
         return ShopeeSyncResult(gtin=gtin_normalized, matched=False, reason="produto sem nome cadastrado — não dá pra buscar/casar")
 
-    match_name = expected_name or product.name
-    match_brand = expected_brand if expected_brand is not None else product.brand
+    feed_name, feed_brand = (None, None)
+    if expected_name is None and expected_brand is None:
+        feed_name, feed_brand = _best_awin_identity_for_gtin(db, gtin_normalized)
+    match_name = expected_name or feed_name or product.name
+    match_brand = expected_brand if expected_brand is not None else (feed_brand or product.brand)
     keyword_product = ProductCatalog(name=match_name, brand=match_brand)
     expected_weight_kg = expected_weight_kg if expected_weight_kg is not None else extract_weight_kg(match_name)
     keywords = _build_keyword_variants(keyword_product, expected_weight_kg)
@@ -280,6 +308,7 @@ def sync_shopee_offer_for_gtin(
 
     now = datetime.now(timezone.utc)
     offer_ids: list[int] = []
+    valid_listing_ids: set[str] = set()
     invalid_links = 0
 
     for match in matches:
@@ -293,6 +322,8 @@ def sync_shopee_offer_for_gtin(
 
         price = _parse_price(match.get("price"))
         external_listing_id = str(match.get("itemId")) if match.get("itemId") is not None else None
+        if external_listing_id:
+            valid_listing_ids.add(external_listing_id)
 
         existing = db.scalar(
             select(MarketplaceOffer).where(
@@ -329,10 +360,25 @@ def sync_shopee_offer_for_gtin(
         db.flush()
         offer_ids.append(offer.id)
 
-    db.commit()
     if not offer_ids:
+        db.rollback()
         reason = "offerLink inválido" if invalid_links else "nenhum candidato confiável na busca"
         return ShopeeSyncResult(gtin=gtin_normalized, matched=False, reason=reason)
+
+    for stale in db.scalars(
+        select(MarketplaceOffer).where(
+            MarketplaceOffer.product_id == product.id,
+            MarketplaceOffer.merchant == "shopee",
+            MarketplaceOffer.active.is_(True),
+        )
+    ):
+        if stale.external_listing_id not in valid_listing_ids:
+            stale.active = False
+            stale.is_available = False
+            stale.verified_at = now
+            stale.last_checked_at = now
+
+    db.commit()
     return ShopeeSyncResult(gtin=gtin_normalized, matched=True, offer_id=offer_ids[0], offer_ids=offer_ids)
 
 

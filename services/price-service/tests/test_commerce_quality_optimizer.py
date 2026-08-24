@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 
 from src.affiliate_feed import AffiliateFeedOffer
+from src.affiliate_links import MarketplaceOffer
+import src.commerce_quality_optimizer as optimizer_module
 from src.commerce_quality_optimizer import (
     collect_pet_commerce_items,
     compute_status,
@@ -16,6 +18,7 @@ from src.product_catalog_lookup import ProductCatalog, ProductLearningEvent, Pro
 from src.pets.models import Pet
 from src.pets.parasite_models import ParasiteControlRecord
 from src.events.models import Event
+from src.shopee_offer_sync import ShopeeSyncResult
 
 
 def _pet(db, pet_id="pet-1"):
@@ -107,6 +110,61 @@ def test_optimizer_enriches_catalog_image_from_awin_feed_without_external_api():
         assert product is not None
         assert product.name.startswith("SCALIBOR COLEIRA")
         assert product.thumbnail_url == "https://img.example/scalibor.jpg"
+
+
+def test_optimizer_refreshes_existing_shopee_offer_when_requested(monkeypatch):
+    gtin = "7896181298090"
+    with SessionLocal() as db:
+        _pet(db)
+        db.add(FeedingPlan(
+            id="food-plan",
+            pet_id="pet-1",
+            species="dog",
+            country_code="BR",
+            enabled=True,
+            items_json=json.dumps([
+                {"id": "food-1", "label": "Royal Canin Urinary Small Dog 7,5kg", "barcode": gtin, "is_primary": True},
+            ]),
+        ))
+        product = ProductCatalog(
+            barcode=gtin,
+            barcode_normalized=gtin,
+            name="Ração Royal Canin Veterinary Diet Urinary Small Dog 7,5kg",
+            brand="Royal Canin",
+        )
+        db.add(product)
+        db.flush()
+        db.add(MarketplaceOffer(
+            product_id=product.id,
+            merchant="shopee",
+            external_listing_id="old-listing",
+            affiliate_url="https://s.shopee.com.br/oldListing",
+            price=382.32,
+            active=True,
+            is_available=True,
+        ))
+        db.commit()
+
+        calls = []
+
+        def _fake_sync(_db, sync_gtin):
+            calls.append(sync_gtin)
+            return ShopeeSyncResult(gtin=sync_gtin, matched=True, offer_ids=[123], offer_id=123)
+
+        monkeypatch.setattr(optimizer_module, "sync_shopee_offer_for_gtin", _fake_sync)
+
+        result = optimize_commerce_quality(
+            db,
+            dry_run=False,
+            limit=10,
+            sync_shopee=True,
+            refresh_existing_shopee=True,
+        )
+
+        assert calls == [gtin]
+        assert result.shopee_synced == 0
+        assert result.shopee_refreshed == 1
+        assert "refreshed_shopee" in result.items[0].actions
 
 
 def test_missing_barcode_gets_learning_suggestion_but_is_not_autofilled():

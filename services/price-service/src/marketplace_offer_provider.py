@@ -115,15 +115,16 @@ class MarketplaceOfferProvider:
         if product_id is None:
             return None
 
+        product = self._db.get(ProductCatalog, product_id)
         offer = get_active_marketplace_offer(self._db, product_id, self.merchant)
         if offer is None:
             return None
         checked_at = _effective_checked_at(offer)
         if _should_live_refresh(self.merchant, checked_at):
-            product = self._db.get(ProductCatalog, product_id)
             if product and product.barcode_normalized:
                 _refresh_marketplace_offer(self.merchant, product.barcode_normalized)
                 self._db.expire_all()
+                product = self._db.get(ProductCatalog, product_id)
                 offer = get_active_marketplace_offer(self._db, product_id, self.merchant)
                 if offer is None:
                     return None
@@ -135,6 +136,7 @@ class MarketplaceOfferProvider:
             is_available=offer.is_available,
             direct_url=offer.direct_url,
             external_id=str(offer.id),
+            image_url=product.thumbnail_url if product else None,
             price_checked_at=checked_at,
             price_is_stale=not _is_offer_fresh(checked_at),
         )

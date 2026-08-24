@@ -111,6 +111,7 @@ class CommerceQualityRunResult:
     gtin_autofill_candidates: int
     gtin_autofilled: int
     shopee_synced: int
+    shopee_refreshed: int
     suggestions: int
     items: list[CommerceQualityItemResult]
 
@@ -553,6 +554,7 @@ def optimize_commerce_quality(
     dry_run: bool = True,
     enrich_from_feed: bool = True,
     sync_shopee: bool = False,
+    refresh_existing_shopee: bool = False,
     resolve_gtin: bool = False,
     autofill_safe_gtin: bool = False,
 ) -> CommerceQualityRunResult:
@@ -562,6 +564,7 @@ def optimize_commerce_quality(
     autofill_candidate_count = 0
     autofilled_count = 0
     shopee_synced_count = 0
+    shopee_refreshed_count = 0
 
     for item in collect_pet_commerce_items(db)[:limit]:
         before = compute_status(db, item)
@@ -587,15 +590,22 @@ def optimize_commerce_quality(
                     db.rollback()
                     errors.append(f"feed_enrich_failed:{exc}")
 
-            if sync_shopee and before.shopee_offer_count == 0 and before.gtin:
+            should_sync_shopee = sync_shopee and before.gtin and (
+                before.shopee_offer_count == 0 or refresh_existing_shopee
+            )
+            if should_sync_shopee:
                 try:
                     if dry_run:
-                        actions.append("would_sync_shopee")
+                        actions.append("would_refresh_shopee" if before.shopee_offer_count else "would_sync_shopee")
                     else:
                         result = sync_shopee_offer_for_gtin(db, before.gtin)
                         if result.matched:
-                            shopee_synced_count += 1
-                            actions.append("synced_shopee")
+                            if before.shopee_offer_count:
+                                shopee_refreshed_count += 1
+                                actions.append("refreshed_shopee")
+                            else:
+                                shopee_synced_count += 1
+                                actions.append("synced_shopee")
                         else:
                             actions.append(f"shopee_no_match:{result.reason or 'unknown'}")
                 except Exception as exc:  # noqa: BLE001
@@ -638,6 +648,7 @@ def optimize_commerce_quality(
         gtin_autofill_candidates=autofill_candidate_count,
         gtin_autofilled=autofilled_count,
         shopee_synced=shopee_synced_count,
+        shopee_refreshed=shopee_refreshed_count,
         suggestions=sum(len(result.suggestions) for result in results),
         items=results,
     )
