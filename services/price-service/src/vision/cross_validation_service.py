@@ -120,10 +120,14 @@ class CrossValidationService:
             import io
             image = PIL.Image.open(io.BytesIO(image_bytes))
             
-            # Enviar para Gemini
+            # Enviar para Gemini — sem bound aqui, um hang do provedor
+            # prendia a tela "Analisando com IA..." indefinidamente (achado
+            # em auditoria pré-lançamento; identify-product-photo já usava
+            # esse mesmo padrão de timeout, carteirinha de vacina não).
             response = await asyncio.to_thread(
                 self.gemini_model.generate_content,
-                [prompt, image]
+                [prompt, image],
+                request_options={"timeout": 30},
             )
             
             # Parsear resposta JSON

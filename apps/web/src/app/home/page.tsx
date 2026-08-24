@@ -572,6 +572,7 @@ function HomePageInner() {
     addReviewRegistro,
     handleFilesSelectedAppend,
     handleProcessCards,
+    cancelProcessCards,
   } = useVaccineCardWorkflow({
     petName: pets.find((pet) => pet.pet_id === selectedPetId)?.pet_name || pets[0]?.pet_name,
     ocrErrorMessage: t('feedback.ocr_error'),
@@ -2751,6 +2752,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           setAiImageLimit={setAiImageLimit}
           handleFilesSelectedAppend={handleFilesSelectedAppend}
           handleProcessCards={handleProcessCards}
+          cancelProcessCards={cancelProcessCards}
           forceJustSaved={vaccineFormJustSaved}
           onForceJustSavedConsumed={() => setVaccineFormJustSaved(false)}
         />
