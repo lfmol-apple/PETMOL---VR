@@ -1,0 +1,13 @@
+[Unit]
+Description=Daily PETMOL commerce quality optimizer
+
+[Timer]
+# Runs after the Shopee trigger window. This job is local-feed/catalog work
+# by default, so it does not spend Claude/Codex tokens and does not call the
+# Shopee API unless someone explicitly runs the script with --sync-shopee.
+OnCalendar=*-*-* 06:30:00 UTC
+RandomizedDelaySec=900
+Persistent=true
+
+[Install]
+WantedBy=timers.target

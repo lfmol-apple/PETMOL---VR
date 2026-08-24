@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildPetStoreTitle } from './petStoreContent';
+import { buildPetStoreTitle, buildReorderCards } from './petStoreContent';
+import type { PetCareReminder } from '@/lib/petCareDomain';
 
 describe('buildPetStoreTitle — "Loja do [nome]" calculado pelo pet selecionado', () => {
   it('pet macho vira "Loja do [nome]"', () => {
@@ -33,5 +34,36 @@ describe('buildPetStoreTitle — "Loja do [nome]" calculado pelo pet selecionado
     const result = buildPetStoreTitle({ sex: 'male', pet_name: 'Thor' });
     expect(result).not.toMatch(/Baby/);
     expect(result).toBe('Loja do Thor');
+  });
+});
+
+describe('buildReorderCards — medicação só vira compra com código de barras', () => {
+  function reminder(overrides: Partial<PetCareReminder>): PetCareReminder {
+    return {
+      key: 'r1',
+      pet_id: 'pet-1',
+      pet_name: 'Baby',
+      domain: 'medication',
+      label: 'Meloxicam 2mg',
+      icon: '💊',
+      due_date: '2026-08-24',
+      diff: 0,
+      status: 'today',
+      action_target: 'health/medication',
+      source_record_id: 'event-1',
+      is_derived: false,
+      ...overrides,
+    };
+  }
+
+  it('remove medicação sem código para não exibir produto/preço inseguro na loja', () => {
+    expect(buildReorderCards([reminder({ gtin: undefined })])).toEqual([]);
+  });
+
+  it('mantém medicação com código escaneado', () => {
+    const cards = buildReorderCards([reminder({ gtin: '7896112410010' })]);
+    expect(cards).toHaveLength(1);
+    expect(cards[0].gtin).toBe('7896112410010');
+    expect(cards[0].label).toBe('Meloxicam 2mg');
   });
 });

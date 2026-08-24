@@ -97,6 +97,20 @@ fi
 log "Activating release $SHA (previous: ${PREVIOUS_SHA:-none})..."
 ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 
+log "Installing systemd units..."
+if compgen -G "$RELEASE_DIR/deploy/systemd/*.service" >/dev/null; then
+    cp "$RELEASE_DIR"/deploy/systemd/*.service /etc/systemd/system/
+fi
+if compgen -G "$RELEASE_DIR/deploy/systemd/*.timer" >/dev/null; then
+    cp "$RELEASE_DIR"/deploy/systemd/*.timer /etc/systemd/system/
+fi
+systemctl daemon-reload
+if compgen -G "$RELEASE_DIR/deploy/systemd/*.timer" >/dev/null; then
+    for timer_path in "$RELEASE_DIR"/deploy/systemd/*.timer; do
+        systemctl enable --now "$(basename "$timer_path")"
+    done
+fi
+
 log "Restarting services..."
 systemctl restart petmol-api
 systemctl restart petmol-web

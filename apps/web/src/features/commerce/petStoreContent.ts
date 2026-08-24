@@ -72,6 +72,11 @@ function buildReminderSearchQuery(r: PetCareReminder): string {
 export function buildReorderCards(reminders: PetCareReminder[]): ReorderCard[] {
   return reminders
     .filter((r) => BUYABLE_DOMAINS.includes(r.domain))
+    // Medicação sem código de barras não tem identidade comercial segura:
+    // pode ser manipulado, receita, dose fracionada ou produto humano com
+    // múltiplas apresentações. Mantém no cuidado do pet, mas não transforma
+    // em card de compra/preço sem GTIN.
+    .filter((r) => r.domain !== 'medication' || Boolean((r.gtin || '').trim()))
     .map((r) => ({
       id: r.key,
       icon: r.icon,

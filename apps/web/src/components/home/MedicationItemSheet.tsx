@@ -59,7 +59,11 @@ function buildMonthCalendarCells(year: number, monthIndex: number): (string | nu
 function parseMedNotes(notes: string) {
   const lines = notes.split('\n');
   const firstLine = lines[0] || '';
-  const rest = lines.slice(1).join('\n').trim();
+  const rest = lines
+    .slice(1)
+    .filter(line => !/Código de barras:\s*[^|\n]+/i.test(line))
+    .join('\n')
+    .trim();
   const doseMatch = firstLine.match(/Dose:\s*([^|]+)/);
   const routeMatch = firstLine.match(/Via:\s*([^|]+)/);
   const freqMatch = firstLine.match(/Frequência:\s*([^|]+)/);
@@ -67,7 +71,7 @@ function parseMedNotes(notes: string) {
   // e salvar de novo apagava de vez o código de barras já escaneado das
   // notes — o card de "Comprar novamente" perdia o gtin numa edição
   // qualquer, mesmo tendo sido escaneado direito no cadastro original.
-  const barcodeMatch = firstLine.match(/Código de barras:\s*([^|]+)/);
+  const barcodeMatch = notes.match(/Código de barras:\s*([^|\n]+)/);
   if (doseMatch || routeMatch || freqMatch || barcodeMatch) {
     return {
       dose: doseMatch?.[1].trim() ?? '',

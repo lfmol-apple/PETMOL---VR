@@ -1,0 +1,16 @@
+[Unit]
+Description=PETMOL commerce quality optimizer
+After=network.target petmol-api.service
+Requires=petmol-api.service
+
+[Service]
+Type=oneshot
+User=petmol
+Group=petmol
+WorkingDirectory=/opt/petmol/current/services/price-service
+EnvironmentFile=/opt/petmol/shared/env/api.env
+# Conservative daily mode: no marketplace/API calls here. It enriches local
+# catalog identity/image from already-synced Awin feeds and reports gaps
+# (missing barcode, missing image, missing offer) for the products pets
+# actually use. Shopee bulk sync remains the separate shopee-sync timer.
+ExecStart=/opt/petmol/current/services/price-service/.venv/bin/python scripts/optimize_commerce_quality.py --apply --autofill-safe-gtin --limit 500 --summary-only
