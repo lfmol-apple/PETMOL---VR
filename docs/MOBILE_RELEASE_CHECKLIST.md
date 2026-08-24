@@ -1,0 +1,78 @@
+# Checklist de Release Mobile (PETMOL)
+
+Checklist de lançamento para App Store + Google Play, mantido a partir do push de release do dia 24/08/2026. Cada item tem estado, PR/commit de referência quando aplicável, e o que falta.
+
+## Legal / conteúdo
+
+- [x] Landing page sem promessa de "grátis para sempre" — `apps/web/src/app/page.tsx`, `login/page.tsx`, `home/page.tsx`, `profile/page.tsx` (PR #55, `567a95b`)
+- [x] Termos de Uso cobrindo afiliados/comissão/parceiros/planos futuros — `apps/web/src/app/legal/terms/page.tsx` (PR #55, `263697c`)
+- [x] Política de Privacidade — já cobria o escopo real de dados, pública sem login
+- [x] Exclusão de conta remove dados de todas as tabelas relacionadas (LGPD) — `services/price-service/src/user_auth/router.py` (PR #55, `076246b`)
+
+## IA / vacinas
+
+- [x] Cadastro manual de vacina funciona sem foto/IA (3 fluxos: foto+IA, foto ruim+correção manual, 100% manual)
+- [x] Falha de IA nunca bloqueia — leitura de carteirinha de vacina agora tem timeout de 30s no backend + abort de 90s no cliente + botão "Cancelar" visível (PR #55, `031b50a`)
+
+## Commerce / afiliados
+
+- [x] Araujo (advertiser Awin 17919) excluído em todas as camadas — confirmado ao vivo em produção: nenhum path público (`/api/catalog/search/v2`, `/api/commerce/offers`, `/api/catalog/search`) retorna `araujo`
+- [x] Petz confirmado desativado em produção — `/api/handoff/shop?partner=petz` → 503 `partner_url_not_configured`
+- [ ] Links de afiliado no mobile abrem fora do WebView (app da loja ou navegador externo) — depende do shell nativo existir (ver seção Android/iOS abaixo)
+
+## Responsividade / UX mobile
+
+- [x] Touch target do botão fechar em `OverdueAlertsGrid.tsx` corrigido (24px → 36px) (PR #55, `cefbee3`)
+- [ ] 3 botões de fechar em ~32px identificados como borderline — não bloqueiam lançamento, ficam como P2
+- [ ] Smoke test completo em 320/360/375/390/412/430px + tablet + desktop dos fluxos: criar conta, login, cadastrar pet, foto do pet, home, ração, vacina manual, vacina por foto, medicação, antiparasitário, Loja, busca, escolher oferta, configurações, excluir conta
+
+## Backup / disaster recovery
+
+- [x] Bug de symlink vazio no backup de uploads corrigido (`tar -h`) (PR #55, `eb5d269`)
+- [x] Secrets (`.env`) removidos do arquivo principal, isolados e criptografados via `BACKUP_ENCRYPTION_KEY` (PR #55, `eb5d269`)
+- [x] Bug de `source` quebrando o backup em `.env` não-bash-safe corrigido (PR #55, `2205471`)
+- [x] Teste de restore real executado (backup → checksum → `pg_restore` em banco isolado → contagem de linhas em 14 tabelas críticas, todas batendo) — ver `docs/BACKUP_ROTINA.md`
+- [ ] Cópia off-site real configurada — `BACKUP_OFFSITE_CMD` existe como mecanismo mas nenhum destino real está setado hoje
+- [ ] nginx de produção versionado em `deploy/nginx/petmol.conf` (hoje só existe na VPS — risco documentado em `docs/DEPLOYMENT.md`)
+
+## Segurança
+
+- [x] JWT secret fail-closed em produção, CORS restrito, docs/redoc desativados em prod, bcrypt, rate limiting em login/registro/reset de senha, sem segredos client-side ou commitados
+- [x] CI (frontend + backend) verde na branch de release
+
+## Capacidade
+
+- [ ] Benchmark de carga local (nunca em produção) em 50/100/250/500/1000 de concorrência nos endpoints health/login/home/pets/reminders/commerce-offers
+- [ ] Documentar thresholds de escala (CPU sustentado, RAM, p95, conexões de banco) a partir do benchmark
+
+## Android
+
+- [ ] Scaffolding do Capacitor (`npx cap init`) — nada instalado no repo hoje (zero `@capacitor/*`, sem pasta `android/`)
+- [ ] Definir package ID (`br.com.petmol.app` proposto — confirmar que não conflita com nada antes de fixar)
+- [ ] Instalar Android SDK via CLI tools (viável neste Mac — Java 17 já presente, `ANDROID_HOME` ausente)
+- [ ] Adicionar `@capacitor/browser` (`Browser.open()`) em `navigateToPartnerUrl` para links de afiliado escaparem do WebView
+- [ ] `@capacitor/push-notifications` como substituto do Web Push cru para o shell nativo
+- [ ] Build de release compilável + AAB gerado
+- [ ] Validar ícone adaptativo, splash, permissões, assinatura
+- [ ] Play Console: Internal Testing track
+
+## iOS
+
+- [ ] **Bloqueado hoje**: Xcode não está instalado neste Mac (só Command Line Tools) — requer instalação interativa via App Store com o Apple ID do usuário; não pode ser feito de forma não-interativa
+- [ ] Mesmo shell Capacitor do Android, uma vez existente
+- [ ] Bundle identifier, ícones, launch screen, usage descriptions de câmera/fotos, entitlement de notificação
+- [ ] Documentar para App Review que o app usa recursos nativos reais do PETMOL (cadastro de pet, scanner, alimentação, saúde, lembretes, medicação, comparação de produtos) — não é apenas um WebView passivo
+- [ ] Build de release compilável + archive
+- [ ] TestFlight interno
+
+## Metadados de loja
+
+- [ ] Apple App Privacy — mapear com base no código real: nome, email, ID de conta, informações do pet, fotos, dados de saúde do pet, analytics de uso, dados de crash, dados de clique de afiliado
+- [ ] Google Data Safety — matriz equivalente (coletado? compartilhado? propósito? obrigatório? criptografado em trânsito? deletável?)
+- [ ] Conta de revisor dedicada (nunca uma conta real) com pet, ração, vacina, medicação e antiparasitário cadastrados — credenciais documentadas fora do Git
+- [ ] Review notes para App Store e Google Play (como logar, cadastrar pet, scanner, vacinas, notificações, Loja, links externos, explicação de afiliados)
+- [ ] Copy de loja sem "grátis"/"menor preço garantido"/"diagnóstico"/"garantia de saúde"
+
+## Estado geral (24/08/2026)
+
+Todo o código local/reversível identificado como P0 nesta rodada está commitado na PR #55 (`fix/release-day-p0-legal-copy`), CI verde, aguardando merge. O que resta é: (1) trabalho de shell nativo (Capacitor/Android/iOS) ainda não iniciado, (2) build iOS bloqueado por falta de Xcode neste Mac — ação manual do usuário, (3) preparação de metadados de loja, (4) benchmark de capacidade, (5) configurar destino real de backup off-site.
