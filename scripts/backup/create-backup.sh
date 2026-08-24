@@ -36,8 +36,11 @@ trap cleanup_pg_dump EXIT
 
 DID_DUMP_DB=0
 if [[ -f "${BACKEND_ENV_FILE}" ]]; then
-  # shellcheck disable=SC1090
-  set -a; source "${BACKEND_ENV_FILE}"; set +a
+  # Extract just DATABASE_URL rather than `source`-ing the whole file: other
+  # values in .env (e.g. a User-Agent string with spaces/parens) aren't
+  # valid bash and previously crashed the backup here with a syntax error
+  # before pg_dump ever ran — found while setting up a restore-test run.
+  DATABASE_URL="$(grep -m1 '^DATABASE_URL=' "${BACKEND_ENV_FILE}" | cut -d= -f2-)"
 
   if [[ "${DATABASE_URL:-}" == postgresql* ]]; then
     if ! command -v pg_dump >/dev/null 2>&1; then

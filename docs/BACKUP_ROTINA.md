@@ -15,6 +15,8 @@ Arquivo principal (`petmol_HOST_TIMESTAMP.tar.gz`):
 
 Se `DATABASE_URL` for Postgres e `pg_dump` falhar (ou nao estiver instalado), o script para com erro em vez de gerar um backup incompleto silenciosamente.
 
+O script le `DATABASE_URL` do `.env` do backend com `grep`/`cut`, nao com `source` do arquivo inteiro — algumas variaveis do `.env` (ex: um User-Agent com espacos e parenteses) nao sao bash valido, e um `source` ingenuo quebrava o backup inteiro com erro de sintaxe antes mesmo do `pg_dump` rodar. Bug real, encontrado ao preparar um teste de restore, corrigido.
+
 ### Secrets (`.env`) — arquivo separado, criptografado
 
 `.env` (raiz, web, functions, backend) **nao entra mais no arquivo principal** — eles carregam JWT secret, credenciais de banco, chaves de API etc., e o arquivo principal e o que sai da VPS (ver off-site abaixo). Em vez disso:
@@ -117,4 +119,4 @@ So depois de conferir os dados nesse banco isolado (contagem de usuarios, pets, 
 ## RPO / RTO
 
 - **RPO alvo: ≤ 6 horas** — cron padrao roda a cada 6h (`15 */6 * * *`). Se o agendamento real em producao for mais espacado, o RPO efetivo e o intervalo do cron, nao este numero — conferir com `crontab -l` na VPS.
-- **RTO**: nao cronometrado formalmente ainda. Passos de restauracao (extrair, verificar checksum, `pg_restore` num banco isolado, conferir contagens) estao documentados acima e sao rapidos manualmente para o tamanho atual do banco; o gargalo real numa recuperacao de desastre seria provisionar uma VPS nova, nao o restore em si. Nao bloqueia lancamento — revisar com um teste de restore cronometrado quando houver tempo.
+- **RTO**: teste de restore real executado em 2026-08-24 contra o mirror local de producao — `create-backup.sh` (com `BACKUP_DIR` apontando pra um diretorio temporario) → checksum conferido → `pg_restore --no-owner --no-privileges` num banco isolado (`petmol_restore_test`, nunca o de producao) → contagem de linhas comparada tabela a tabela contra o banco de origem. Todas as 14 tabelas criticas bateram exatamente (`users`, `pets`, `events`, `feeding_plans`, `vaccine_records`, `parasite_control_records`, `grooming_records`, `care_plans`, `push_subscriptions`, `reminders`, `missing_pets`, `found_reports`, `affiliate_feed_offers`, `marketplace_offers`). Fim a fim (dump + restore + verificacao) levou poucos minutos no tamanho atual do banco; o gargalo real numa recuperacao de desastre seria provisionar uma VPS nova, nao o restore em si. Banco e diretorio de teste foram descartados apos a verificacao.
