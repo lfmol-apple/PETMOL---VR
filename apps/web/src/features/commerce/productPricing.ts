@@ -24,6 +24,7 @@ export const MERCHANT_LABELS: Record<string, string> = {
   zeenow: 'Zee Now',
   zeedog: 'Zee Dog',
   shopee: 'Shopee',
+  petz: 'Petz',
 };
 
 export function merchantLabel(merchant: string): string {
