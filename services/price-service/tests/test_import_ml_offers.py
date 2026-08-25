@@ -41,10 +41,10 @@ def _register_product(gtin: str) -> int:
         db.close()
 
 
-def _write_csv(tmp_path: Path, rows: list[dict]) -> Path:
-    csv_path = tmp_path / "ml.csv"
+def _write_csv(tmp_path: Path, rows: list[dict], name: str = "ml.csv") -> Path:
+    csv_path = tmp_path / name
     with csv_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["product_id", "affiliate_url", "price"])
+        writer = csv.DictWriter(f, fieldnames=["product_id", "gtin", "affiliate_url", "price"])
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
@@ -150,3 +150,154 @@ def test_ml_csv_skips_empty_affiliate_url(tmp_path):
     assert errors == []
     assert stats["skipped_empty"] == 1
     assert stats["created"] == 0
+
+
+# ── §17/§18 da revisão (25/08/2026) — GTIN do CSV precisa bater com o
+# GTIN cadastrado pro product_id da mesma linha; um CSV desatualizado/
+# reordenado nunca deve conseguir apontar um link pro produto errado.
+
+def test_ml_import_gtin_mismatch_rejected(tmp_path):
+    real_gtin = "7896000000201"
+    product_id = _register_product(real_gtin)
+    csv_path = _write_csv(tmp_path, [{
+        "product_id": product_id, "gtin": "7896000000999",  # GTIN errado
+        "affiliate_url": OFFICIAL_URL, "price": "",
+    }])
+
+    db = SessionLocal()
+    try:
+        stats, errors = import_ml_offers.run_import(csv_path, db, apply=False, max_batch=30)
+    finally:
+        db.close()
+
+    assert stats["created"] == 0
+    assert len(errors) == 1
+    assert str(product_id) in errors[0]
+    assert "GTIN" in errors[0]
+
+
+def test_ml_import_gtin_match_accepted(tmp_path):
+    real_gtin = "7896000000202"
+    product_id = _register_product(real_gtin)
+    csv_path = _write_csv(tmp_path, [{
+        "product_id": product_id, "gtin": real_gtin,
+        "affiliate_url": OFFICIAL_URL, "price": "",
+    }])
+
+    db = SessionLocal()
+    try:
+        stats, errors = import_ml_offers.run_import(csv_path, db, apply=False, max_batch=30)
+    finally:
+        db.close()
+
+    assert errors == []
+    assert stats["created"] == 1
+
+
+def test_ml_import_gtin_column_absent_is_not_an_error(tmp_path):
+    """CSV editado à mão, sem coluna gtin preenchida — continua
+    funcionando (a checagem é um reforço, não uma exigência nova)."""
+    product_id = _register_product("7896000000203")
+    csv_path = _write_csv(tmp_path, [{"product_id": product_id, "affiliate_url": OFFICIAL_URL, "price": ""}])
+
+    db = SessionLocal()
+    try:
+        stats, errors = import_ml_offers.run_import(csv_path, db, apply=False, max_batch=30)
+    finally:
+        db.close()
+
+    assert errors == []
+    assert stats["created"] == 1
+
+
+def test_ml_import_idempotent(tmp_path):
+    """O mesmo CSV aplicado duas vezes produz uma única MarketplaceOffer
+    — update, nunca linha duplicada."""
+    gtin = "7896000000204"
+    product_id = _register_product(gtin)
+    csv_path = _write_csv(tmp_path, [{
+        "product_id": product_id, "gtin": gtin, "affiliate_url": OFFICIAL_URL, "price": "99.90",
+    }])
+
+    for _ in range(2):
+        db = SessionLocal()
+        try:
+            stats, errors = import_ml_offers.run_import(csv_path, db, apply=True, max_batch=30)
+        finally:
+            db.close()
+        assert errors == []
+
+    db = SessionLocal()
+    try:
+        offers = db.scalars(
+            select(MarketplaceOffer).where(MarketplaceOffer.product_id == product_id, MarketplaceOffer.merchant == "mercadolivre")
+        ).all()
+        assert len(offers) == 1
+        assert offers[0].affiliate_url == OFFICIAL_URL
+    finally:
+        db.close()
+
+
+# ── §20 da revisão — em --apply, um CSV maior que o lote é recusado
+# por inteiro (nunca aplica os primeiros 30 e descarta o resto calado).
+
+def test_ml_apply_over_30_fails_closed(tmp_path):
+    rows = []
+    for i in range(35):
+        gtin = f"78960002{i:05d}"
+        product_id = _register_product(gtin)
+        rows.append({"product_id": product_id, "gtin": gtin, "affiliate_url": OFFICIAL_URL, "price": ""})
+    csv_path = _write_csv(tmp_path, rows)
+
+    before = _offer_count()
+    db = SessionLocal()
+    try:
+        stats, errors = import_ml_offers.run_import(csv_path, db, apply=True, max_batch=30)
+    finally:
+        db.close()
+
+    assert stats["created"] == 0
+    assert stats["updated"] == 0
+    assert len(errors) == 1
+    assert "35" in errors[0] and "30" in errors[0]
+    assert _offer_count() == before  # nada foi escrito, nem os 30 primeiros
+
+
+def test_ml_apply_over_30_succeeds_with_explicit_force(tmp_path):
+    rows = []
+    for i in range(35):
+        gtin = f"78960003{i:05d}"
+        product_id = _register_product(gtin)
+        rows.append({"product_id": product_id, "gtin": gtin, "affiliate_url": OFFICIAL_URL, "price": ""})
+    csv_path = _write_csv(tmp_path, rows)
+
+    db = SessionLocal()
+    try:
+        stats, errors = import_ml_offers.run_import(csv_path, db, apply=True, max_batch=30, force_large_batch=True)
+    finally:
+        db.close()
+
+    assert errors == []
+    assert stats["created"] == 30
+    assert stats["skipped_over_batch"] == 5
+
+
+def test_ml_dry_run_over_30_reports_without_refusing(tmp_path):
+    """Em dry-run nada é escrito de qualquer forma, então não há motivo
+    pra recusar a execução — só reportar o tamanho real do lote."""
+    rows = []
+    for i in range(35):
+        gtin = f"78960004{i:05d}"
+        product_id = _register_product(gtin)
+        rows.append({"product_id": product_id, "gtin": gtin, "affiliate_url": OFFICIAL_URL, "price": ""})
+    csv_path = _write_csv(tmp_path, rows)
+
+    db = SessionLocal()
+    try:
+        stats, errors = import_ml_offers.run_import(csv_path, db, apply=False, max_batch=30)
+    finally:
+        db.close()
+
+    assert errors == []
+    assert stats["created"] == 30
+    assert stats["skipped_over_batch"] == 5

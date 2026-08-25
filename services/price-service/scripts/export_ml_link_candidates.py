@@ -16,14 +16,17 @@ Uso:
     python3 scripts/export_ml_link_candidates.py --limit 150 --min-scans 1 --out top_demanda.csv
     python3 scripts/export_ml_link_candidates.py --pet-categories-only --out so_categorizados.csv
 
-    # Lote diário — o Gerador de Links do Mercado Livre aceita no máximo 30
-    # URLs por vez (confirmado 24/08/2026); --exclude-existing-offers pula
-    # automaticamente quem já tem MarketplaceOffer(merchant="mercadolivre")
-    # ativo, então rodar isso de novo todo dia sempre devolve o "próximo 30"
-    # de verdade — sem repetir trabalho, sem precisar guardar estado à
-    # parte (a fonte da verdade é o próprio banco: o que já foi importado
-    # já não aparece de novo):
-    python3 scripts/export_ml_link_candidates.py --exclude-existing-offers --limit 30 --out lote_hoje.csv
+    # Fila por demanda — o Gerador de Links do Mercado Livre aceita no
+    # máximo 30 URLs por vez (confirmado 24/08/2026); --exclude-existing-offers
+    # pula automaticamente quem já tem MarketplaceOffer(merchant="mercadolivre")
+    # ativo, então rodar isso de novo sempre devolve o "próximo 30" de
+    # verdade — sem repetir trabalho, sem precisar guardar estado à parte
+    # (a fonte da verdade é o próprio banco: o que já foi importado já
+    # não aparece de novo). Não existe cadência obrigatória — não é um
+    # job diário, é demand-driven: novos produtos entram na fila conforme
+    # tutores escaneiam/buscam, um humano tira até 30 quando fizer
+    # sentido (pode ser todo dia se houver demanda, pode ser semanal):
+    python3 scripts/export_ml_link_candidates.py --exclude-existing-offers --limit 30 --out proximo_lote.csv
 
 Por padrão exporta TODO o catálogo (products_catalog inteiro — 76% dos
 produtos reais de produção não têm categoria preenchida, então filtrar
