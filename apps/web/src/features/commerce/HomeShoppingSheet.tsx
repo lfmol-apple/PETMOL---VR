@@ -10,6 +10,7 @@ import {
   openHomeShoppingPartner,
   navigateToPartnerUrl,
   copyPetzCouponAndOpen,
+  PETZ_COUPON_CODE,
   isPartnerVisibleForSearch,
   partnerGenericLinkType,
   type HomeShoppingPartner,
@@ -138,13 +139,23 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                           }}
                           onPetzBuy={(url) => {
                             void copyPetzCouponAndOpen(url);
+                            // §7/§18 da auditoria de monetização — ver mesmo
+                            // comentário em MonetizedOffersList.tsx::handleVerNaPetz.
+                            const petzStorefrontUrl = HOME_SHOPPING_PARTNERS.find((p) => p.id === 'petz')?.storefrontAffiliateUrl;
                             void trackClick({
                               source: 'home',
                               cta_type: 'shop_reorder_buy_petz',
                               target: 'petz',
                               link_type: 'affiliate_store',
                               pet_id: currentPet.pet_id,
-                              metadata: { domain: card.domain, label: card.label },
+                              metadata: {
+                                domain: card.domain,
+                                label: card.label,
+                                monetization_mode: 'coupon_attribution_verified',
+                                destination_type: url === petzStorefrontUrl ? 'storefront' : 'product',
+                                coupon: PETZ_COUPON_CODE,
+                                product_gtin: card.gtin ?? undefined,
+                              },
                             });
                           }}
                         />
