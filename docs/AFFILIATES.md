@@ -33,7 +33,7 @@ libera exposição, ver seção Awin abaixo).
 | Cobasi | MAIS/UTM (7%, confirmado) + Awin (advertiser 17870, approved, 8,5% nominal) | API pública VTEX (dinâmico) + Awin feed (GTIN exato) | `route=awin` preferida desde 14/08/2026 (decisão de produto, comissão Awin ainda não validada por venda real); `route=mais` é o fallback e **sempre** vence quando há link cadastrado manualmente (`is_manually_cached`), independente de preferência | sim, 8.398 produtos sincronizados | monetização real ligada; exposição ainda depende de `AWIN_ENABLED=true` em produção |
 | Zee Now | Awin (advertiser 127557, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116779, 13.835 produtos observados; 13.605 GTINs válidos diretos, 152 UPC-11 corrigíveis, 78 inválidos e 9 grupos duplicados em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeenow`, exposição depende dos gates Awin |
 | Zee Dog | Awin (advertiser 127555, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116649, 1.799 produtos observados, 100% GTIN válido/único em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeedog`, exposição depende dos gates Awin |
-| Petz | Awin (advertiser 127553, pending) + programa próprio (CNAE em tratamento) | `PetzProductMapping` — aprendizado por produto, confirmação humana (ver §Petz) | nenhuma — shadow mode, `PETZ_AFFILIATE_ENABLED=false` | não | pending comercialmente; arquitetura de aprendizado pronta |
+| Petz | Awin (advertiser 127553, pending) + programa próprio "Loja Parceira" (ativo) | `PetzProductMapping` — aprendizado por produto, confirmação humana (ver §Petz) | storefront fixa + cupom PETTMOL (10% off), sem preço por produto (`link_type: affiliate_store`, ver "Ver na Petz") | não | Awin pending; Loja Parceira ativa e ligada |
 | Araújo | Awin (advertiser 17919, pending/not_joined) | nenhum | nenhuma | **não** (0 produtos no ShopWindow) | nunca pode virar `AwinFeedProvider` — exigiria outra fonte de discovery |
 | Shopee | Shopee Affiliates | nenhum | nenhuma (`MarketplaceOffer`/`MarketplaceOfferProvider` prontos, gated por `SHOPEE_AFFILIATE_ENABLED=false`) | n/a | PJ, fiscal/bancário em avaliação, mídia aprovada e primeiro link oficial ainda pendentes |
 | Mercado Livre | ML Afiliados | `MarketplaceOffer`/`mercadolivre_link_validator.py` — ponte manual controlada (candidato via WebSearch → revisão humana → link real gerado no Gerador de Links do ML → `affiliate_url`) | nenhuma exposta ao tutor — gated por `MERCADOLIVRE_PUBLIC_OFFERS_ENABLED=false` e `MERCADOLIVRE_AFFILIATE_ENABLED=false` | n/a | shadow mode — bridge manual pronta e testada (`export_ml_link_candidates.py`/`import_ml_offers.py`), scraping/automação do site proibidos após bloqueio de IP; ver PR #56 |
@@ -814,7 +814,7 @@ A camada A funcionar **não** significa que a oferta pode ser mostrada ao tutor 
 | merchant_type | retailer |
 | status | comercial pending — PJ bloqueada por validação de CNAE (CNPJ já tem 7319-0/02, em tratamento); arquitetura de aprendizado por produto pronta (shadow mode) |
 | affiliate_mode | none confirmado ainda — nenhuma `ProductAffiliateLink(merchant="petz")` é criada automaticamente |
-| storefront_available | sim, URL conhecida (`https://petz.com.br/parceiro/pettmol`) — **não cadastrada em `STOREFRONT_AFFILIATE_URLS`** enquanto atribuição/comissão não forem confirmadas (ver "Aprendizado por produto" abaixo); cadastrar essa linha ativa a loja publicamente via `GET /commerce/monetized-offer?context=store`, então é uma decisão comercial deliberada, não técnica |
+| storefront_available | sim — `https://petz.com.br/parceiro/pettmol`, cadastrada em `STOREFRONT_AFFILIATE_URLS["petz"]` (confirmado pelo usuário como mecanismo real de atribuição em 25/08/2026 — ver "Ver na Petz" abaixo) |
 | product_deeplink_available | não via API/feed — só por confirmação manual, um produto de cada vez (ver abaixo) |
 | api_available | unknown — nenhuma API de catálogo/afiliados comprovada |
 | api_confirmed | não |
@@ -855,30 +855,40 @@ Uma `product_url` confirmada **nunca** vira `affiliate_product_url` sozinha — 
 
 `PetzProvider` (`petz_provider.py`) está sempre registrado no `CommerceEngine`, gated por `PETZ_AFFILIATE_ENABLED` (default `false`). Mesmo com a flag ligada e um link afiliado real confirmado, `find_offer()` sempre retorna `price=None` — não existe fonte de preço Petz confirmada hoje, e nunca inventamos uma; o `CommerceEngine` descarta qualquer oferta sem preço antes de exibi-la, então "não mostrar preço Petz" é garantido estruturalmente, não por uma regra extra.
 
-#### "Ver na Petz" — tráfego direto sem comissão (decisão de produto, 25/08/2026)
+#### "Ver na Petz" — storefront fixa + cupom PETTMOL (decisão de produto, 25/08/2026)
 
-Decisão explícita do usuário: mostrar a Petz como referência (`GET
-/commerce/petz-direct-link?gtin=...`) usando a **URL direta** do produto
-(`PetzProductMapping.product_url`) assim que o produto for confirmado
-por um humano (`match_status` em `confirmed`/`affiliate_pending`/
-`affiliate_ready` — ver `DIRECT_LINK_ELIGIBLE_STATUSES` em
-`petz_mapping.py`) — **antes** de existir link afiliado real, aceitando
-tráfego sem comissão enquanto o CNAE não libera.
+Mecanismo real confirmado pelo usuário: a Petz não expõe deep-link nem
+busca por produto no programa "Loja Parceira" — o que existe é uma
+**URL fixa da vitrine** (`https://petz.com.br/parceiro/pettmol`) e um
+**cupom (PETTMOL, 10% off)** que o próprio tutor digita manualmente no
+checkout. Não há como pré-carregar produto nem aplicar o cupom via
+parâmetro de URL — confirmado explicitamente, não presumido.
 
-Isto é uma exceção deliberada, contida e documentada ao princípio geral
-`AFFILIATE_ONLY_COMMERCE` — não uma reversão dele:
-- Caminho **totalmente separado** do `CommerceEngine`/`GET
-  /commerce/offers` (nunca entra na lista de comparação de preço,
-  nunca usa `ProductAffiliateLink`, nunca é afetado por
-  `PETZ_AFFILIATE_ENABLED`).
-- Resposta sempre marca `link_type: "direct"` — nunca
-  `affiliate_product`, pra frontend e analytics nunca confundirem isso
-  com uma oferta monetizada.
-- Renderizado no frontend (`MonetizedOffersList.tsx` → `VerNaPetzLink`)
-  como uma linha neutra e isolada, sem preço, sem estilo de "melhor
-  oferta" — nunca dentro da lista de ofertas monetizadas.
-- Continua exigindo confirmação humana do produto (nunca aparece pra
-  candidato/ambíguo/rejeitado/desconhecido).
+Arquitetura:
+- `STOREFRONT_AFFILIATE_URLS["petz"]` (`affiliate_links.py`) — mesmo
+  mecanismo genérico já usado pela Cobasi (`context="store"` em
+  `GET /commerce/monetized-offer`), agora também servido por `GET
+  /commerce/petz-direct-link?gtin=...`, que só retorna a URL quando o
+  **produto** já foi confirmado no catálogo Petz (`match_status` em
+  `confirmed`/`affiliate_pending`/`affiliate_ready` —
+  `DIRECT_LINK_ELIGIBLE_STATUSES` em `petz_mapping.py`). A confirmação
+  de produto continua existindo (via `PetzProductMapping`) mesmo sem
+  deep-link real — ela é o que garante "esse produto existe mesmo na
+  Petz" antes de mostrar o cupom pra esse item específico.
+- `link_type: "affiliate_store"` — mesma semântica do storefront da
+  Cobasi; nunca aparece na lista de comparação de preço (`GET
+  /commerce/offers`/`CommerceEngine`), porque não existe fonte de
+  preço Petz por produto — é uma referência isolada de "esse produto
+  existe na Petz, com desconto via cupom".
+- Frontend: card visualmente completo (não uma linha discreta) —
+  `MonetizedOffersList.tsx` (`PetzStorefrontCard`, ficha de produto) e
+  `HomeShoppingSheet.tsx` (`OfferPickerRow`, seletor "Escolha a loja"
+  em "Comprar novamente") — com logo da Petz e "Cupom PETTMOL -10%"
+  no lugar do preço. Só aparece quando o produto já foi confirmado;
+  nunca entra em `QUICK_BUY_PARTNERS` (busca genérica sem confirmação).
+- `STOREFRONT_AFFILIATE_URLS["petz"]` deve espelhar o mesmo valor de
+  `storefrontAffiliateUrl` na entrada `petz` de
+  `apps/web/src/features/commerce/homeShoppingPartners.ts`.
 
 ### Petlove Produtos
 
