@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { trackClick } from '@/lib/analytics/click';
+import { showAppToast } from '@/features/interactions/userPromptChannel';
 
 export type HomeShoppingPartnerId = 'cobasi' | 'shopee' | 'zeenow' | 'zeedog' | 'petz';
 
@@ -318,6 +319,35 @@ export function navigateToPartnerUrl(url: string): void {
   // window.open deve ser chamado sincronamente dentro do gesto do usuário —
   // por isso a analítica é disparada em background sem bloquear a abertura.
   window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+export const PETZ_COUPON_CODE = 'PETTMOL';
+
+/**
+ * Mitigação pro caso do app da Petz interceptar o link (iOS Universal
+ * Links / Android App Links) e abrir na tela inicial do app em vez do
+ * produto — comportamento do sistema operacional, não algo que o
+ * @capacitor/browser (nem nenhum código nosso) tem como desligar: a
+ * documentação oficial do plugin não expõe nenhuma opção pra isso (ver
+ * docs/AFFILIATES.md §Petz). Em vez de tentar (sem garantia) evitar a
+ * interceptação, garante que o cupom já esteja no clipboard do tutor
+ * ANTES de navegar — não importa em qual tela ele cair (produto certo,
+ * home do app, ou o navegador), o cupom está pronto pra colar no
+ * carrinho sem precisar decorar/redigitar "PETTMOL".
+ */
+export async function copyPetzCouponAndOpen(url: string): Promise<void> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(PETZ_COUPON_CODE);
+      showAppToast(`Cupom ${PETZ_COUPON_CODE} copiado — cole no carrinho da Petz para 10% de desconto`, {
+        tone: 'success',
+        durationMs: 5000,
+      });
+    }
+  } catch {
+    // best-effort — nunca bloqueia a navegação, mesmo sem permissão de clipboard
+  }
+  navigateToPartnerUrl(url);
 }
 
 /**
