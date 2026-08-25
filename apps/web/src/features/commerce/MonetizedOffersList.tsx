@@ -10,8 +10,8 @@
  * Cobasi, Shopee, Zee Now e Zee Dog são as lojas mantidas por enquanto.
  */
 
-import { useEffect } from 'react';
-import { formatBRLPrice, hasReliablePrice, merchantLabel, offerPriceLabel, type CommerceOffer } from './productPricing';
+import { useEffect, useState } from 'react';
+import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerPriceLabel, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import {
   navigateToPartnerUrl,
 } from './homeShoppingPartners';
@@ -50,12 +50,43 @@ export function MonetizedOffersList({
   emptyStateSubtitle = 'Ainda não encontramos uma oferta ativa para este produto.',
 }: MonetizedOffersListProps) {
   const { offers, loading } = useCommerceOffers(query, packageSizeKg, gtin);
+  const [petzLink, setPetzLink] = useState<PetzDirectLink | null>(null);
 
   useEffect(() => {
     if (loading || offers.length === 0) return;
     void trackClick({ source, cta_type: 'offer_viewed', target: offers[0]?.merchant, pet_id: petId, metadata: { offers_count: offers.length } });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, offers]);
+
+  // "Ver na Petz" — caminho deliberadamente separado das ofertas
+  // monetizadas acima (ver productPricing.ts::fetchPetzDirectLink e
+  // docs/AFFILIATES.md). Não bloqueia nem afeta o carregamento das
+  // ofertas normais; falha em silêncio, igual ao resto do comércio.
+  useEffect(() => {
+    if (!gtin) {
+      setPetzLink(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchPetzDirectLink(gtin).then((link) => {
+      if (!cancelled) setPetzLink(link);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [gtin]);
+
+  function handleVerNaPetz() {
+    if (!petzLink?.url) return;
+    navigateToPartnerUrl(petzLink.url);
+    void trackClick({
+      source,
+      cta_type: 'petz_direct_link_click',
+      target: 'petz',
+      link_type: 'direct',
+      pet_id: petId,
+    });
+  }
 
   if (loading) {
     return (
@@ -84,6 +115,7 @@ export function MonetizedOffersList({
           <p className="text-[13px] font-bold text-gray-700">{emptyStateTitle}</p>
           <p className="mt-1 text-[12px] text-gray-500">{emptyStateSubtitle}</p>
         </div>
+        <VerNaPetzLink petzLink={petzLink} onClick={handleVerNaPetz} />
       </div>
     );
   }
@@ -140,6 +172,27 @@ export function MonetizedOffersList({
         Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
         {offers.some((offer) => offer.price_is_stale) ? ' *Preço confirmado ao abrir a loja.' : ''}
       </p>
+      <VerNaPetzLink petzLink={petzLink} onClick={handleVerNaPetz} />
     </div>
+  );
+}
+
+/**
+ * Linha isolada e visualmente neutra (não é um card de oferta, não tem
+ * preço, não implica comissão) — ver docs/AFFILIATES.md §Petz. Nunca
+ * renderiza nada até o backend confirmar que existe URL direta pra este
+ * GTIN (petzLink.available); some sozinha se a chamada falhar/demorar.
+ */
+function VerNaPetzLink({ petzLink, onClick }: { petzLink: PetzDirectLink | null; onClick: () => void }) {
+  if (!petzLink?.available || !petzLink.url) return null;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center justify-center gap-1.5 py-2 text-[12px] font-semibold text-gray-500 hover:text-gray-700"
+    >
+      Ver na Petz
+      <span aria-hidden="true">↗</span>
+    </button>
   );
 }

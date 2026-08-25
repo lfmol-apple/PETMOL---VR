@@ -855,6 +855,31 @@ Uma `product_url` confirmada **nunca** vira `affiliate_product_url` sozinha — 
 
 `PetzProvider` (`petz_provider.py`) está sempre registrado no `CommerceEngine`, gated por `PETZ_AFFILIATE_ENABLED` (default `false`). Mesmo com a flag ligada e um link afiliado real confirmado, `find_offer()` sempre retorna `price=None` — não existe fonte de preço Petz confirmada hoje, e nunca inventamos uma; o `CommerceEngine` descarta qualquer oferta sem preço antes de exibi-la, então "não mostrar preço Petz" é garantido estruturalmente, não por uma regra extra.
 
+#### "Ver na Petz" — tráfego direto sem comissão (decisão de produto, 25/08/2026)
+
+Decisão explícita do usuário: mostrar a Petz como referência (`GET
+/commerce/petz-direct-link?gtin=...`) usando a **URL direta** do produto
+(`PetzProductMapping.product_url`) assim que o produto for confirmado
+por um humano (`match_status` em `confirmed`/`affiliate_pending`/
+`affiliate_ready` — ver `DIRECT_LINK_ELIGIBLE_STATUSES` em
+`petz_mapping.py`) — **antes** de existir link afiliado real, aceitando
+tráfego sem comissão enquanto o CNAE não libera.
+
+Isto é uma exceção deliberada, contida e documentada ao princípio geral
+`AFFILIATE_ONLY_COMMERCE` — não uma reversão dele:
+- Caminho **totalmente separado** do `CommerceEngine`/`GET
+  /commerce/offers` (nunca entra na lista de comparação de preço,
+  nunca usa `ProductAffiliateLink`, nunca é afetado por
+  `PETZ_AFFILIATE_ENABLED`).
+- Resposta sempre marca `link_type: "direct"` — nunca
+  `affiliate_product`, pra frontend e analytics nunca confundirem isso
+  com uma oferta monetizada.
+- Renderizado no frontend (`MonetizedOffersList.tsx` → `VerNaPetzLink`)
+  como uma linha neutra e isolada, sem preço, sem estilo de "melhor
+  oferta" — nunca dentro da lista de ofertas monetizadas.
+- Continua exigindo confirmação humana do produto (nunca aparece pra
+  candidato/ambíguo/rejeitado/desconhecido).
+
 ### Petlove Produtos
 
 | Campo | Valor |

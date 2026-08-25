@@ -353,3 +353,82 @@ async def test_commerce_engine_still_returns_empty_with_real_affiliate_link_but_
         assert all(o.merchant != "petz" for o in offers)
     finally:
         db.close()
+
+
+# ── GET /commerce/petz-direct-link ("Ver na Petz") ───────────────────────
+# Caminho deliberadamente separado do CommerceEngine (ver docstring do
+# endpoint em main.py) — nunca depende de petz_affiliate_enabled, nunca
+# retorna affiliate_product_url, só product_url (direta) quando o produto
+# já foi confirmado por um humano.
+
+def test_petz_direct_link_unavailable_for_unknown_gtin(client):
+    resp = client.get("/commerce/petz-direct-link", params={"gtin": "0000000000000"})
+    assert resp.status_code == 200
+    assert resp.json() == {"available": False, "url": None}
+
+
+def test_petz_direct_link_unavailable_when_never_learned(client):
+    product_id = _register_product(gtin="9990000000001")
+    resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000001"})
+    assert resp.status_code == 200
+    assert resp.json()["available"] is False
+
+
+def test_petz_direct_link_unavailable_for_ambiguous_candidate(client):
+    product_id = _register_product(gtin="9990000000002")
+    db = SessionLocal()
+    try:
+        mark_ambiguous(db, product_id, reason="duas variantes plausíveis")
+    finally:
+        db.close()
+
+    resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000002"})
+    assert resp.json()["available"] is False
+
+
+def test_petz_direct_link_available_once_product_confirmed(client):
+    product_id = _register_product(gtin="9990000000003")
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, product_id, petz_product_id="100223",
+            product_url="https://www.petz.com.br/produto/racao-royal-canin-100223",
+        )
+    finally:
+        db.close()
+
+    resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000003"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body == {
+        "available": True,
+        "url": "https://www.petz.com.br/produto/racao-royal-canin-100223",
+        "link_type": "direct",
+    }
+
+
+def test_petz_direct_link_never_exposes_a_real_affiliate_url(client):
+    """Mesmo se um ProductAffiliateLink(merchant="petz") já existir (ex:
+    affiliate_ready), este endpoint continua devolvendo product_url (a
+    URL direta do mapping), nunca affiliate_product_url — ele não sabe
+    nem deveria saber sobre ProductAffiliateLink."""
+    product_id = _register_product(gtin="9990000000004")
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, product_id, petz_product_id="100224",
+            product_url="https://www.petz.com.br/produto/direta-100224",
+        )
+        db.add(ProductAffiliateLink(
+            product_id=product_id, merchant="petz",
+            affiliate_product_url="https://www.petz.com.br/produto/afiliada-100224?matt=xyz",
+            affiliate_program="petz_partner", active=True,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000004"})
+    body = resp.json()
+    assert body["url"] == "https://www.petz.com.br/produto/direta-100224"
+    assert "afiliada" not in body["url"]

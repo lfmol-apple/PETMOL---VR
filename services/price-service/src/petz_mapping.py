@@ -40,8 +40,17 @@ MATCH_STATUSES = (
     "rejected",
 )
 
-# Único status que pode gerar oferta pública (ver petz_provider.py).
+# Único status que pode gerar oferta pública MONETIZADA, com preço, na
+# lista de comparação do CommerceEngine (ver petz_provider.py).
 PUBLISHABLE_MATCH_STATUSES = frozenset({"affiliate_ready"})
+
+# Status que já provam PRODUTO correto (não necessariamente monetização) —
+# suficiente pra oferecer "Ver na Petz" como referência/tráfego direto
+# (decisão de produto: aceitar tráfego sem comissão enquanto o CNAE não
+# libera o link afiliado — ver GET /commerce/petz-direct-link em main.py).
+# "ambiguous"/"candidate"/"rejected"/"unknown" nunca entram aqui — produto
+# ainda não confirmado por um humano.
+DIRECT_LINK_ELIGIBLE_STATUSES = frozenset({"confirmed", "affiliate_pending", "affiliate_ready"})
 
 
 class PetzProductMapping(Base):

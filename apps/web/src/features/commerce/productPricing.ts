@@ -114,6 +114,36 @@ export async function searchAwinCatalog(query: string, merchant?: string): Promi
   }
 }
 
+export interface PetzDirectLink {
+  available: boolean;
+  url: string | null;
+  link_type?: 'direct';
+}
+
+/**
+ * "Ver na Petz" — caminho DELIBERADAMENTE separado de fetchCommerceOffers.
+ * Nunca entra na lista de comparação de preço (é uma referência isolada,
+ * sem preço, sem comissão confirmada — ver GET /commerce/petz-direct-link
+ * no backend e a decisão de produto de 24/08/2026 em docs/AFFILIATES.md).
+ * Sempre falha em silêncio (available:false), igual às outras chamadas
+ * de comércio deste arquivo.
+ */
+export async function fetchPetzDirectLink(gtin: string): Promise<PetzDirectLink> {
+  const trimmed = gtin.trim();
+  if (!trimmed) return { available: false, url: null };
+  try {
+    const res = await fetch(`${API_BASE_URL}/commerce/petz-direct-link?gtin=${encodeURIComponent(trimmed)}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return { available: false, url: null };
+    const data = (await res.json()) as PetzDirectLink;
+    return data?.available && data.url ? data : { available: false, url: null };
+  } catch {
+    return { available: false, url: null };
+  }
+}
+
 export async function fetchCommerceOffers(query: string, packageSizeKg?: number, gtin?: string): Promise<CommerceOffer[]> {
   const trimmed = query.trim();
   if (!trimmed && !gtin) return [];
