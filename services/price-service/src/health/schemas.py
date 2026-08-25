@@ -126,6 +126,9 @@ class FeedingPlanItemData(BaseModel):
     last_refill_date: Optional[str] = None
     mode: str = "kibble"
     barcode: Optional[str] = None
+    # Resolvida automaticamente no backend a partir de `barcode` (Ago 2026)
+    # — nunca aceita do cliente (não existe em FeedingPlanItemPayload).
+    product_id: Optional[int] = None
     category: Optional[str] = None
     notes: Optional[str] = None
     is_primary: bool = False
