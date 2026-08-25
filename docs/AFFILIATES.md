@@ -874,14 +874,32 @@ quando um mapping não tiver `product_url` — não deveria acontecer,
 resposta de `context="store"` em `GET /commerce/monetized-offer`
 (área geral "Lojas", sem produto específico).
 
+**Gate único (25/08/2026 — auditoria de monetização, corrige P0 real em
+produção):** "produto confirmado no catálogo Petz" e "comissão do
+cupom PETTMOL comprovada por uma compra real" são dois fatos
+DISTINTOS — nem `PetzProvider` nem `/commerce/petz-direct-link` nem
+`/commerce/monetized-offer?merchant=petz` servem nada a menos que
+`petz_provider.is_petz_publicly_servable()` retorne `True`, o que
+exige AMBOS `petz_affiliate_enabled` (rollout técnico) E
+`petz_coupon_attribution_verified` (prova comercial — ver
+`docs/PETZ_COMMISSION_VALIDATION.md`, ainda **NÃO COMPROVADO**: nenhum
+teste de compra real foi feito ainda, então esta flag é `false` em
+produção hoje e nenhuma URL Petz é servida publicamente). Antes desta
+correção, `/commerce/petz-direct-link` só checava
+`DIRECT_LINK_ELIGIBLE_STATUSES` (produto confirmado) e ignorava as
+duas flags — um produto meramente confirmado bastava pra gerar saída
+comercial, sem nenhuma prova de comissão.
+
 Arquitetura:
-- `GET /commerce/petz-direct-link?gtin=...` só retorna URL quando o
-  **produto** já foi confirmado no catálogo Petz (`match_status` em
+- `GET /commerce/petz-direct-link?gtin=...` só retorna URL quando
+  `is_petz_publicly_servable()` é `True` **e** o **produto** já foi
+  confirmado no catálogo Petz (`match_status` em
   `confirmed`/`affiliate_pending`/`affiliate_ready` —
   `DIRECT_LINK_ELIGIBLE_STATUSES` em `petz_mapping.py`). A confirmação
   de produto é o que garante "esse produto existe mesmo na Petz" antes
-  de mostrar o cupom pra esse item específico — mesmo sem afetar o
-  mecanismo de comissão em si (o cupom, não a URL de chegada).
+  de mostrar o cupom pra esse item específico — mas sozinha nunca é
+  prova de que o cupom de fato atribui comissão ao PETMOL (são dois
+  fatos distintos por design, ver gate único acima).
 - `link_type: "affiliate_store"` — mesma semântica do storefront da
   Cobasi; nunca aparece na lista de comparação de preço (`GET
   /commerce/offers`/`CommerceEngine`), porque não existe fonte de
