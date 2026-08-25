@@ -28,9 +28,18 @@ from .db import Base
 # Storefronts afiliadas fixas (navegação geral, não por produto) — URLs
 # públicas confirmadas, nunca modificadas/geradas dinamicamente. Ver
 # docs/AFFILIATES.md. Deve espelhar o mesmo valor usado em
-# apps/web/src/features/commerce/homeShoppingPartners.ts para a Cobasi.
+# apps/web/src/features/commerce/homeShoppingPartners.ts para a Cobasi/Petz.
+#
+# Petz (25/08/2026): programa próprio "Loja Parceira" — URL fixa da
+# vitrine + cupom PETTMOL (10% off) aplicado manualmente pelo tutor no
+# checkout. Confirmado pelo usuário como mecanismo real de atribuição,
+# não um link de busca/deep-link por produto (a Petz não expõe isso) —
+# por isso nunca aparece em GET /commerce/offers (comparação de preço
+# via CommerceEngine/PetzProvider, que segue sem fonte de preço), só em
+# GET /commerce/petz-direct-link, gated por PetzProductMapping confirmado.
 STOREFRONT_AFFILIATE_URLS: dict[str, str] = {
     "cobasi": "https://minhaloja.cobasi.com.br?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol",
+    "petz": "https://petz.com.br/parceiro/pettmol",
 }
 
 _BLOCKED_SCHEMES = {"javascript", "data", "file"}
