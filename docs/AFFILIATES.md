@@ -857,24 +857,31 @@ Uma `product_url` confirmada **nunca** vira `affiliate_product_url` sozinha — 
 
 #### "Ver na Petz" — storefront fixa + cupom PETTMOL (decisão de produto, 25/08/2026)
 
-Mecanismo real confirmado pelo usuário: a Petz não expõe deep-link nem
-busca por produto no programa "Loja Parceira" — o que existe é uma
-**URL fixa da vitrine** (`https://petz.com.br/parceiro/pettmol`) e um
-**cupom (PETTMOL, 10% off)** que o próprio tutor digita manualmente no
-checkout. Não há como pré-carregar produto nem aplicar o cupom via
-parâmetro de URL — confirmado explicitamente, não presumido.
+Mecanismo real confirmado pelo usuário: o programa "Loja Parceira" da
+Petz não tem parâmetro de URL pra aplicar o cupom automaticamente — o
+**cupom (PETTMOL, 10% off)** é digitado manualmente pelo tutor no
+checkout, sempre. Mas a página de CHEGADA pode (e deve) ser a do
+produto específico: `GET /commerce/petz-direct-link` usa
+`PetzProductMapping.product_url` (a página real confirmada, ex:
+`.../produto/racao-royal-canin-...-100223`) sempre que disponível — o
+tutor cai direto no produto certo, pronto pra adicionar ao carrinho, em
+vez de na home da loja tendo que buscar de novo (25/08/2026, correção
+sobre a decisão anterior que usava só a storefront genérica).
+`STOREFRONT_AFFILIATE_URLS["petz"]` (URL fixa da vitrine,
+`https://petz.com.br/parceiro/pettmol`) vira só o fallback defensivo
+quando um mapping não tiver `product_url` — não deveria acontecer,
+`confirm_petz_mapping` sempre exige essa URL — e continua sendo a
+resposta de `context="store"` em `GET /commerce/monetized-offer`
+(área geral "Lojas", sem produto específico).
 
 Arquitetura:
-- `STOREFRONT_AFFILIATE_URLS["petz"]` (`affiliate_links.py`) — mesmo
-  mecanismo genérico já usado pela Cobasi (`context="store"` em
-  `GET /commerce/monetized-offer`), agora também servido por `GET
-  /commerce/petz-direct-link?gtin=...`, que só retorna a URL quando o
+- `GET /commerce/petz-direct-link?gtin=...` só retorna URL quando o
   **produto** já foi confirmado no catálogo Petz (`match_status` em
   `confirmed`/`affiliate_pending`/`affiliate_ready` —
   `DIRECT_LINK_ELIGIBLE_STATUSES` em `petz_mapping.py`). A confirmação
-  de produto continua existindo (via `PetzProductMapping`) mesmo sem
-  deep-link real — ela é o que garante "esse produto existe mesmo na
-  Petz" antes de mostrar o cupom pra esse item específico.
+  de produto é o que garante "esse produto existe mesmo na Petz" antes
+  de mostrar o cupom pra esse item específico — mesmo sem afetar o
+  mecanismo de comissão em si (o cupom, não a URL de chegada).
 - `link_type: "affiliate_store"` — mesma semântica do storefront da
   Cobasi; nunca aparece na lista de comparação de preço (`GET
   /commerce/offers`/`CommerceEngine`), porque não existe fonte de
