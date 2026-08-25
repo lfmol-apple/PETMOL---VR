@@ -310,6 +310,17 @@ class Settings(BaseSettings):
     # sempre responde 401, mesmo com qualquer header enviado.
     shopee_sync_trigger_token: Optional[str] = None
 
+    # ── Petz (aprendizado por produto) ──────────────────────────────────
+    # Master gate — mesmo papel de shopee_affiliate_enabled/
+    # mercadolivre_affiliate_enabled. Padrão False (diferente da Shopee):
+    # o programa próprio da Petz ainda está pending (CNAE em tratamento,
+    # ver docs/AFFILIATES.md §Petz) e a Awin também está pending sem
+    # feed — nenhum caminho comercial confirmado ainda. Ligar isto
+    # sozinho não expõe nada: PetzProvider só serve o que já existir em
+    # ProductAffiliateLink(merchant="petz"), e nenhuma linha é criada
+    # sem confirmação humana explícita via admin/petz_router.py.
+    petz_affiliate_enabled: bool = False
+
     @field_validator("debug", mode="before")
     @classmethod
     def _coerce_bool_like(cls, value):

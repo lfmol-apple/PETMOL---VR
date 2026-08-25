@@ -191,6 +191,59 @@ class AffiliateLinksListOut(BaseModel):
     data: List[AffiliateLinkOut]
 
 
+# Petz — aprendizado de mapeamento produto↔Petz (ver petz_mapping.py).
+# Distinto de AffiliateLink*: guarda estado de DESCOBERTA (status,
+# confiança, variante, query de busca), não o link comercial final.
+class PetzMappingOut(BaseModel):
+    id: Optional[int] = None
+    product_id: Optional[int] = None
+    gtin: str
+    petz_product_id: Optional[str] = None
+    product_url: Optional[str] = None
+    search_query: Optional[str] = None
+    match_status: str
+    match_confidence: Optional[float] = None
+    variant_label: Optional[str] = None
+    variant_weight_kg: Optional[float] = None
+    rejection_reason: Optional[str] = None
+    last_verified_at: OptionalUtcInstant = None
+    created_at: OptionalUtcInstant = None
+    updated_at: OptionalUtcInstant = None
+
+
+class PetzMappingSuggestOut(BaseModel):
+    gtin: str
+    search_query: Optional[str] = None
+    current_status: str
+
+
+class PetzMappingConfirmRequest(BaseModel):
+    petz_product_id: str
+    product_url: str
+    variant_label: Optional[str] = None
+    variant_weight_kg: Optional[float] = None
+    match_confidence: Optional[float] = None
+
+
+class PetzMappingRejectRequest(BaseModel):
+    reason: Optional[str] = None
+
+
+class PetzSetAffiliateLinkRequest(BaseModel):
+    affiliate_product_url: str
+
+
+class PetzCoverageOut(BaseModel):
+    total: int
+    unknown: int
+    candidate: int
+    ambiguous: int
+    confirmed: int
+    affiliate_pending: int
+    affiliate_ready: int
+    rejected: int
+
+
 # Marketplace offers (link oficial de vendedor/marketplace por produto —
 # Shopee hoje; NUNCA gerado por template, sempre colado do Portal do
 # Afiliado — ver marketplace_offer_provider.py / shopee_link_validator.py)

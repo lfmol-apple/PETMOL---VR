@@ -33,7 +33,7 @@ libera exposição, ver seção Awin abaixo).
 | Cobasi | MAIS/UTM (7%, confirmado) + Awin (advertiser 17870, approved, 8,5% nominal) | API pública VTEX (dinâmico) + Awin feed (GTIN exato) | `route=awin` preferida desde 14/08/2026 (decisão de produto, comissão Awin ainda não validada por venda real); `route=mais` é o fallback e **sempre** vence quando há link cadastrado manualmente (`is_manually_cached`), independente de preferência | sim, 8.398 produtos sincronizados | monetização real ligada; exposição ainda depende de `AWIN_ENABLED=true` em produção |
 | Zee Now | Awin (advertiser 127557, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116779, 13.835 produtos observados; 13.605 GTINs válidos diretos, 152 UPC-11 corrigíveis, 78 inválidos e 9 grupos duplicados em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeenow`, exposição depende dos gates Awin |
 | Zee Dog | Awin (advertiser 127555, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116649, 1.799 produtos observados, 100% GTIN válido/único em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeedog`, exposição depende dos gates Awin |
-| Petz | Awin (advertiser 127553, pending) + programa próprio (CNAE em tratamento) | nenhum | nenhuma | não | pending nos dois caminhos, nenhum ligado |
+| Petz | Awin (advertiser 127553, pending) + programa próprio (CNAE em tratamento) | `PetzProductMapping` — aprendizado por produto, confirmação humana (ver §Petz) | nenhuma — shadow mode, `PETZ_AFFILIATE_ENABLED=false` | não | pending comercialmente; arquitetura de aprendizado pronta |
 | Araújo | Awin (advertiser 17919, pending/not_joined) | nenhum | nenhuma | **não** (0 produtos no ShopWindow) | nunca pode virar `AwinFeedProvider` — exigiria outra fonte de discovery |
 | Shopee | Shopee Affiliates | nenhum | nenhuma (`MarketplaceOffer`/`MarketplaceOfferProvider` prontos, gated por `SHOPEE_AFFILIATE_ENABLED=false`) | n/a | PJ, fiscal/bancário em avaliação, mídia aprovada e primeiro link oficial ainda pendentes |
 | Mercado Livre | ML Afiliados | `MarketplaceOffer`/`mercadolivre_link_validator.py` — ponte manual controlada (candidato via WebSearch → revisão humana → link real gerado no Gerador de Links do ML → `affiliate_url`) | nenhuma exposta ao tutor — gated por `MERCADOLIVRE_PUBLIC_OFFERS_ENABLED=false` e `MERCADOLIVRE_AFFILIATE_ENABLED=false` | n/a | shadow mode — bridge manual pronta e testada (`export_ml_link_candidates.py`/`import_ml_offers.py`), scraping/automação do site proibidos após bloqueio de IP; ver PR #56 |
@@ -810,22 +810,50 @@ A camada A funcionar **não** significa que a oferta pode ser mostrada ao tutor 
 
 | Campo | Valor |
 |---|---|
-| program_name | unknown (a definir quando aprovado) |
+| program_name | programa próprio ("Loja Parceira", `https://petz.com.br/parceiro/pettmol`) + Awin (advertiser 127553, pending) |
 | merchant_type | retailer |
-| status | pending — PJ bloqueada por validação de CNAE (CNPJ já tem 7319-0/02, em tratamento) |
-| affiliate_mode | none |
-| storefront_available | não |
-| product_deeplink_available | não |
-| api_available | unknown |
+| status | comercial pending — PJ bloqueada por validação de CNAE (CNPJ já tem 7319-0/02, em tratamento); arquitetura de aprendizado por produto pronta (shadow mode) |
+| affiliate_mode | none confirmado ainda — nenhuma `ProductAffiliateLink(merchant="petz")` é criada automaticamente |
+| storefront_available | sim, URL conhecida (`https://petz.com.br/parceiro/pettmol`) — **não cadastrada em `STOREFRONT_AFFILIATE_URLS`** enquanto atribuição/comissão não forem confirmadas (ver "Aprendizado por produto" abaixo); cadastrar essa linha ativa a loja publicamente via `GET /commerce/monetized-offer?context=store`, então é uma decisão comercial deliberada, não técnica |
+| product_deeplink_available | não via API/feed — só por confirmação manual, um produto de cada vez (ver abaixo) |
+| api_available | unknown — nenhuma API de catálogo/afiliados comprovada |
 | api_confirmed | não |
-| manual_generation | unknown |
+| manual_generation | arquitetura pronta (`admin/petz_router.py`), nenhum link real gerado/confirmado ainda |
 | attribution_window | unknown |
 | attribution_model | unknown |
 | invoice_requirements | unknown |
 | paid_media_restrictions | unknown |
-| scraping | forbidden |
-| last_terms_review | 2026-08-11 |
+| scraping | forbidden — nenhuma função faz busca/crawler automático na Petz (ver abaixo) |
+| last_terms_review | 2026-08-24 |
 | notes | não presumir Lomadee; não enviar tráfego gratuito enquanto pending; também listada na Awin (advertiser 127553, pending, sem feed disponível — exigiria monetização por texto/API, não por feed estruturado como a Cobasi) — ver seção Awin |
+
+#### Aprendizado por produto (shadow mode, 24/08/2026)
+
+Como a Petz não tem API/feed de catálogo nem de afiliados comprovado,
+a integração segue um modelo de APRENDIZADO + CONFIRMAÇÃO + REUTILIZAÇÃO,
+nunca cadastro manual em massa nem scraping:
+
+```
+produto PETMOL (GTIN)
+  → PetzProductMapping (petz_mapping.py) — candidato/query de busca
+  → confirmação humana do PRODUTO (admin/petz_router.py .../confirm)
+  → match_status: unknown → candidate → confirmed
+       (ou: ambiguous/rejected — nunca publicam)
+  → link afiliado real confirmado separadamente (.../affiliate-link)
+  → ProductAffiliateLink(merchant="petz", affiliate_program="petz_partner")
+  → match_status: affiliate_ready
+  → PetzProvider (petz_provider.py) → CommerceEngine → frontend
+```
+
+Separação deliberada de dois conceitos (nunca confundidos):
+- **`PetzProductMapping`** (`petz_mapping.py`, tabela `petz_product_mappings`) — estado de DESCOBERTA: `petz_product_id` (identificador estável no final da URL do produto, ex: `100223` — nunca tratado como substituto do GTIN), `product_url` (URL **direta**, não afiliada), `search_query`, `match_status`, `match_confidence`, `variant_label`/`variant_weight_kg` (uma página Petz pode ter várias apresentações — nunca associa o preço/link de uma variante errada ao GTIN do tutor).
+- **`ProductAffiliateLink(merchant="petz")`** (`affiliate_links.py`, reaproveitada, não duplicada) — o link comercial final, só existe depois de confirmação humana explícita e separada da confirmação de produto.
+
+Uma `product_url` confirmada **nunca** vira `affiliate_product_url` sozinha — são dois passos humanos distintos (`.../confirm` depois `.../affiliate-link`), e só `affiliate_ready` pode gerar oferta pública (`PUBLISHABLE_MATCH_STATUSES` em `petz_mapping.py`).
+
+`build_petz_search_query()` só gera texto de busca (GTIN exato > marca+nome+peso > nome) — nenhuma função chama a rede da Petz; toda descoberta de candidato é feita por um humano fora do código (mesma lição aprendida com o Mercado Livre: automação de busca/geração de link na Petz está fora de escopo, ver seção Mercado Livre acima sobre o bloqueio de IP real).
+
+`PetzProvider` (`petz_provider.py`) está sempre registrado no `CommerceEngine`, gated por `PETZ_AFFILIATE_ENABLED` (default `false`). Mesmo com a flag ligada e um link afiliado real confirmado, `find_offer()` sempre retorna `price=None` — não existe fonte de preço Petz confirmada hoje, e nunca inventamos uma; o `CommerceEngine` descarta qualquer oferta sem preço antes de exibi-la, então "não mostrar preço Petz" é garantido estruturalmente, não por uma regra extra.
 
 ### Petlove Produtos
 
