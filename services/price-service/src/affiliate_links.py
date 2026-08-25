@@ -174,7 +174,21 @@ def get_monetized_offer(
     publicação/vendedor que pode expirar sem afetar o produto PETMOL (ver
     MarketplaceOffer). Nenhum merchant popula isso ainda — Shopee/ML não
     integrados nesta tarefa (ver docs/AFFILIATES.md).
+
+    Petz (25/08/2026): gate único extra — is_petz_publicly_servable()
+    exige tanto petz_affiliate_enabled quanto
+    petz_coupon_attribution_verified (prova comercial ainda não validada
+    com compra real, ver docs/PETZ_COMMISSION_VALIDATION.md). Nenhum dos
+    três contextos retorna nada pra merchant="petz" sem isso — mesmo que
+    STOREFRONT_AFFILIATE_URLS/ProductAffiliateLink já tenham dado real
+    cadastrado. Import local pra evitar ciclo (petz_provider importa
+    deste módulo).
     """
+    if merchant == "petz":
+        from .petz_provider import is_petz_publicly_servable
+        if not is_petz_publicly_servable():
+            return None
+
     if context == "product":
         if product_id is None:
             return None

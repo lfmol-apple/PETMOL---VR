@@ -36,9 +36,20 @@ MERCHANT = "petz"
 
 
 def is_petz_publicly_servable() -> bool:
-    """Único ponto de decisão — mesmo papel de
-    is_marketplace_merchant_publicly_servable/is_awin_merchant_publicly_servable."""
-    return get_settings().petz_affiliate_enabled
+    """Único ponto de decisão pra QUALQUER caminho público Petz — não só
+    o CommerceEngine/PetzProvider, também GET /commerce/petz-direct-link
+    (main.py) e qualquer outro que vier a existir. Mesmo papel de
+    is_marketplace_merchant_publicly_servable/is_awin_merchant_publicly_servable,
+    com uma condição a mais: exige as DUAS flags, não uma.
+
+    petz_affiliate_enabled = rollout/kill-switch técnico.
+    petz_coupon_attribution_verified = prova comercial separada — "o
+    cupom PETTMOL realmente gera comissão" nunca foi validado com uma
+    compra real (ver docs/PETZ_COMMISSION_VALIDATION.md). Produto
+    confirmado no catálogo (petz_mapping.match_status) NUNCA é, sozinho,
+    prova de monetização — são conceitos distintos por design."""
+    settings = get_settings()
+    return settings.petz_affiliate_enabled and settings.petz_coupon_attribution_verified
 
 
 class PetzProvider:

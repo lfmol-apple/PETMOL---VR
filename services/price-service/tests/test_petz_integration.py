@@ -34,13 +34,18 @@ GTIN = "7896181298083"
 @pytest.fixture(autouse=True)
 def _reset_settings(monkeypatch):
     monkeypatch.delenv("PETZ_AFFILIATE_ENABLED", raising=False)
+    monkeypatch.delenv("PETZ_COUPON_ATTRIBUTION_VERIFIED", raising=False)
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
 
 
 def _enable_petz(monkeypatch) -> None:
+    """Liga as DUAS flags do gate único (is_petz_publicly_servable) — o
+    rollout técnico E a prova comercial (nunca confundir "produto
+    confirmado" com "comissão comprovada", ver petz_provider.py)."""
     monkeypatch.setenv("PETZ_AFFILIATE_ENABLED", "true")
+    monkeypatch.setenv("PETZ_COUPON_ATTRIBUTION_VERIFIED", "true")
     get_settings.cache_clear()
 
 
@@ -363,20 +368,23 @@ async def test_commerce_engine_still_returns_empty_with_real_affiliate_link_but_
 # por produto), nunca a affiliate_product_url de um ProductAffiliateLink
 # específico, e só quando o produto já foi confirmado por um humano.
 
-def test_petz_direct_link_unavailable_for_unknown_gtin(client):
+def test_petz_direct_link_unavailable_for_unknown_gtin(client, monkeypatch):
+    _enable_petz(monkeypatch)
     resp = client.get("/commerce/petz-direct-link", params={"gtin": "0000000000000"})
     assert resp.status_code == 200
     assert resp.json() == {"available": False, "url": None}
 
 
-def test_petz_direct_link_unavailable_when_never_learned(client):
+def test_petz_direct_link_unavailable_when_never_learned(client, monkeypatch):
+    _enable_petz(monkeypatch)
     product_id = _register_product(gtin="9990000000001")
     resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000001"})
     assert resp.status_code == 200
     assert resp.json()["available"] is False
 
 
-def test_petz_direct_link_unavailable_for_ambiguous_candidate(client):
+def test_petz_direct_link_unavailable_for_ambiguous_candidate(client, monkeypatch):
+    _enable_petz(monkeypatch)
     product_id = _register_product(gtin="9990000000002")
     db = SessionLocal()
     try:
@@ -388,7 +396,8 @@ def test_petz_direct_link_unavailable_for_ambiguous_candidate(client):
     assert resp.json()["available"] is False
 
 
-def test_petz_direct_link_available_once_product_confirmed(client):
+def test_petz_direct_link_available_once_product_confirmed(client, monkeypatch):
+    _enable_petz(monkeypatch)
     product_id = _register_product(gtin="9990000000003")
     db = SessionLocal()
     try:
@@ -409,10 +418,11 @@ def test_petz_direct_link_available_once_product_confirmed(client):
     }
 
 
-def test_petz_direct_link_falls_back_to_storefront_without_product_url(client):
+def test_petz_direct_link_falls_back_to_storefront_without_product_url(client, monkeypatch):
     """Defensivo: confirm_petz_mapping sempre exige product_url na
     prática, mas se por algum motivo um mapping existir sem ela, cai pra
     STOREFRONT_AFFILIATE_URLS["petz"] em vez de quebrar."""
+    _enable_petz(monkeypatch)
     product_id = _register_product(gtin="9990000000005")
     db = SessionLocal()
     try:
@@ -434,12 +444,13 @@ def test_petz_direct_link_falls_back_to_storefront_without_product_url(client):
     }
 
 
-def test_petz_direct_link_never_exposes_a_per_product_affiliate_url(client):
+def test_petz_direct_link_never_exposes_a_per_product_affiliate_url(client, monkeypatch):
     """Mesmo se um ProductAffiliateLink(merchant="petz") já existir (ex:
     affiliate_ready), este endpoint continua devolvendo a URL de produto
     do MAPPING (product_url), nunca a affiliate_product_url de um link
     específico — este endpoint não sabe nem deveria saber sobre
     ProductAffiliateLink."""
+    _enable_petz(monkeypatch)
     product_id = _register_product(gtin="9990000000004")
     db = SessionLocal()
     try:
@@ -460,3 +471,87 @@ def test_petz_direct_link_never_exposes_a_per_product_affiliate_url(client):
     body = resp.json()
     assert body["url"] == "https://www.petz.com.br/produto/direta-100224"
     assert "afiliada" not in body["url"]
+
+
+def test_petz_master_gate_blocks_direct_link_even_with_confirmed_product(client, monkeypatch):
+    """Regressão do bug real: /commerce/petz-direct-link chegou a ficar no
+    ar em produção servindo product_url pra qualquer produto confirmado,
+    sem checar NENHUMA flag — nem petz_affiliate_enabled, nem prova
+    comercial. Com as duas flags no padrão (False), nada pode ser
+    servido, mesmo com um mapping totalmente confirmado."""
+    product_id = _register_product(gtin="9990000000006")
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, product_id, petz_product_id="100226",
+            product_url="https://www.petz.com.br/produto/racao-100226",
+        )
+    finally:
+        db.close()
+
+    resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000006"})
+    assert resp.status_code == 200
+    assert resp.json() == {"available": False, "url": None}
+
+
+def test_petz_confirmed_product_is_not_automatically_commercially_verified(client, monkeypatch):
+    """"Produto confirmado" (petz_mapping.match_status) e "comissão
+    comprovada" (petz_coupon_attribution_verified) são conceitos
+    distintos por design — ligar só o rollout técnico não basta."""
+    monkeypatch.setenv("PETZ_AFFILIATE_ENABLED", "true")
+    monkeypatch.setenv("PETZ_COUPON_ATTRIBUTION_VERIFIED", "false")
+    get_settings.cache_clear()
+
+    product_id = _register_product(gtin="9990000000007")
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, product_id, petz_product_id="100227",
+            product_url="https://www.petz.com.br/produto/racao-100227",
+        )
+    finally:
+        db.close()
+
+    assert is_petz_publicly_servable() is False
+    resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000007"})
+    assert resp.json() == {"available": False, "url": None}
+
+
+def test_petz_coupon_verified_mode_allows_product_url(client, monkeypatch):
+    """Com as duas flags ligadas (rollout técnico + prova comercial já
+    validada por compra real), o produto confirmado passa a servir a
+    URL — este é o caminho correto pra "ligar" a Petz de verdade."""
+    _enable_petz(monkeypatch)
+    product_id = _register_product(gtin="9990000000008")
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, product_id, petz_product_id="100228",
+            product_url="https://www.petz.com.br/produto/racao-100228",
+        )
+    finally:
+        db.close()
+
+    resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000008"})
+    body = resp.json()
+    assert body["available"] is True
+    assert body["url"] == "https://www.petz.com.br/produto/racao-100228"
+
+
+def test_petz_monetized_offer_store_context_respects_master_gate(client):
+    """GET /commerce/monetized-offer?merchant=petz&context=store também
+    respeita is_petz_publicly_servable() — não é um caminho paralelo com
+    regra própria (ver affiliate_links.get_monetized_offer)."""
+    resp = client.get("/commerce/monetized-offer", params={"merchant": "petz", "context": "store"})
+    assert resp.json()["offer"] is None
+
+
+def test_petz_monetized_offer_store_context_works_once_verified(client, monkeypatch):
+    _enable_petz(monkeypatch)
+    resp = client.get("/commerce/monetized-offer", params={"merchant": "petz", "context": "store"})
+    offer = resp.json()["offer"]
+    assert offer == {
+        "merchant": "petz",
+        "url": "https://petz.com.br/parceiro/pettmol",
+        "link_type": "affiliate_store",
+    }
