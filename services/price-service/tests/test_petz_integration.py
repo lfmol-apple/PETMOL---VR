@@ -404,6 +404,31 @@ def test_petz_direct_link_available_once_product_confirmed(client):
     body = resp.json()
     assert body == {
         "available": True,
+        "url": "https://www.petz.com.br/produto/racao-royal-canin-100223",
+        "link_type": "affiliate_store",
+    }
+
+
+def test_petz_direct_link_falls_back_to_storefront_without_product_url(client):
+    """Defensivo: confirm_petz_mapping sempre exige product_url na
+    prática, mas se por algum motivo um mapping existir sem ela, cai pra
+    STOREFRONT_AFFILIATE_URLS["petz"] em vez de quebrar."""
+    product_id = _register_product(gtin="9990000000005")
+    db = SessionLocal()
+    try:
+        mapping = confirm_petz_mapping(
+            db, product_id, petz_product_id="100225",
+            product_url="https://www.petz.com.br/produto/temp-100225",
+        )
+        mapping.product_url = None
+        db.commit()
+    finally:
+        db.close()
+
+    resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000005"})
+    body = resp.json()
+    assert body == {
+        "available": True,
         "url": "https://petz.com.br/parceiro/pettmol",
         "link_type": "affiliate_store",
     }
@@ -411,9 +436,10 @@ def test_petz_direct_link_available_once_product_confirmed(client):
 
 def test_petz_direct_link_never_exposes_a_per_product_affiliate_url(client):
     """Mesmo se um ProductAffiliateLink(merchant="petz") já existir (ex:
-    affiliate_ready), este endpoint continua devolvendo a storefront FIXA
-    (STOREFRONT_AFFILIATE_URLS["petz"]), nunca a affiliate_product_url de
-    um link específico — a Petz não tem deep-link por produto."""
+    affiliate_ready), este endpoint continua devolvendo a URL de produto
+    do MAPPING (product_url), nunca a affiliate_product_url de um link
+    específico — este endpoint não sabe nem deveria saber sobre
+    ProductAffiliateLink."""
     product_id = _register_product(gtin="9990000000004")
     db = SessionLocal()
     try:
@@ -432,4 +458,5 @@ def test_petz_direct_link_never_exposes_a_per_product_affiliate_url(client):
 
     resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000004"})
     body = resp.json()
-    assert body["url"] == "https://petz.com.br/parceiro/pettmol"
+    assert body["url"] == "https://www.petz.com.br/produto/direta-100224"
+    assert "afiliada" not in body["url"]

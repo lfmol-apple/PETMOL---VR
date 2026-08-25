@@ -1524,29 +1524,31 @@ async def commerce_petz_direct_link(
     """
     "Ver na Petz" — caminho DELIBERADAMENTE separado do CommerceEngine/
     MonetizedOffer (ver commerce_provider.py, petz_provider.py), mas
-    ainda assim monetizado: a Petz não expõe deep-link/busca por produto
-    (confirmado — programa "Loja Parceira"), então o mecanismo real é a
-    URL FIXA da vitrine (STOREFRONT_AFFILIATE_URLS["petz"]) + cupom
-    PETTMOL (10% off) aplicado manualmente pelo tutor no checkout —
-    decisão de produto confirmada em 25/08/2026 (ver docs/AFFILIATES.md).
+    ainda assim monetizado: o cupom PETTMOL (10% off, programa "Loja
+    Parceira") é aplicado manualmente pelo tutor no checkout, não por
+    parâmetro de URL — decisão de produto confirmada em 25/08/2026 (ver
+    docs/AFFILIATES.md).
 
-    `link_type` vem "affiliate_store" (mesma semântica do context="store"
-    de /commerce/monetized-offer) — nunca aparece na lista de comparação
-    de preço (/commerce/offers), porque não existe fonte de preço Petz
-    por produto; aqui é uma referência isolada de "esse produto existe
-    na Petz, com desconto via cupom".
+    Prioriza a URL ESPECÍFICA do produto (`PetzProductMapping.product_url`
+    — a página real confirmada, ex: .../produto/racao-...-100223) sobre a
+    storefront genérica: leva o tutor direto pro produto certo, já pronto
+    pra adicionar ao carrinho, em vez de cair na home da loja e precisar
+    buscar de novo. Cai pra `STOREFRONT_AFFILIATE_URLS["petz"]` só se o
+    mapping não tiver `product_url` por algum motivo (não deveria
+    acontecer — `confirm_petz_mapping` sempre exige essa URL).
+
+    `link_type` vem "affiliate_store" mesmo apontando pra uma URL de
+    produto — o mecanismo de comissão é o cupom aplicado no checkout, não
+    a URL de chegada; nunca aparece na lista de comparação de preço
+    (/commerce/offers), porque não existe fonte de preço Petz por produto.
 
     Só retorna algo quando o produto já foi confirmado por um humano
     (petz_mapping.DIRECT_LINK_ELIGIBLE_STATUSES) — nunca por candidato/
-    ambíguo/rejeitado — E quando a storefront estiver cadastrada.
+    ambíguo/rejeitado.
     """
     from .affiliate_links import STOREFRONT_AFFILIATE_URLS
     from .petz_mapping import DIRECT_LINK_ELIGIBLE_STATUSES, get_mapping
     from .product_catalog_lookup import ProductCatalog, normalize_gtin
-
-    storefront_url = STOREFRONT_AFFILIATE_URLS.get("petz")
-    if not storefront_url:
-        return {"available": False, "url": None}
 
     gtin_normalized = normalize_gtin(gtin)
     if not gtin_normalized:
@@ -1560,7 +1562,11 @@ async def commerce_petz_direct_link(
     if not mapping or mapping.match_status not in DIRECT_LINK_ELIGIBLE_STATUSES:
         return {"available": False, "url": None}
 
-    return {"available": True, "url": storefront_url, "link_type": "affiliate_store"}
+    url = mapping.product_url or STOREFRONT_AFFILIATE_URLS.get("petz")
+    if not url:
+        return {"available": False, "url": None}
+
+    return {"available": True, "url": url, "link_type": "affiliate_store"}
 
 
 @app.get("/commerce/product-candidates", tags=["Catalog"])
