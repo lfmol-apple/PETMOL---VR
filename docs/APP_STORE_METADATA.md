@@ -53,6 +53,8 @@ Confirmado via schema do banco (`petmol_prod_mirror`) e leitura do código nesta
 
 Nenhuma categoria de "Financial info", "Health info padronizado (do usuário humano)", "Contacts" ou "SMS/Call Log" se aplica.
 
+**URL de exclusão de dados (campo obrigatório do formulário Data Safety)**: `https://petmol.com.br/excluir-conta` — página pública, funcional (login + confirmação de senha reaproveitando a mesma verificação de identidade do fluxo in-app), acessível sem o app instalado (ver `apps/web/src/app/excluir-conta/page.tsx`).
+
 ## Conta de revisor (App Review / Google Play Review)
 
 **Pendente de decisão do usuário** — precisa ser uma conta real, dedicada, com e-mail acessível para verificação/reset se o revisor pedir, nunca uma conta de usuário real. Não fui eu quem decidiu as credenciais porque isso é um artefato permanente ligado à ficha do app nos dois consoles — se quiser, eu crio a conta em produção (registro comum, sem custo) assim que você confirmar o e-mail/senha que prefere usar. Passos, uma vez com as credenciais definidas:
@@ -79,7 +81,7 @@ Rascunho, ajustar tom conforme o formulário pedir:
 >
 > Para enviar uma sugestão, relatar um problema ou pedir ajuda, use "Fale com o PETMOL" na tela de Perfil.
 >
-> Para excluir a conta de teste: Perfil → Mais opções → Excluir conta. A exclusão remove permanentemente pets, fotos, documentos e histórico de saúde associados; alguns registros não-identificáveis (como cliques em ofertas agregados) são desvinculados da conta em vez de apagados, para fins estatísticos, sem reter nenhum dado pessoal.
+> Para excluir a conta de teste: Perfil → Mais opções → Excluir conta, ou pela página pública petmol.com.br/excluir-conta (não exige o app instalado — exigência do Google Play). A exclusão remove permanentemente pets, fotos, documentos e histórico de saúde associados do banco ativo e do storage de arquivos imediatamente; cópias de segurança automáticas (backup diário) podem reter uma versão por até 14 dias até expirarem pela rotina normal de retenção. Registros não-identificáveis (como cliques em ofertas agregados) são desvinculados da conta em vez de apagados, para fins estatísticos, sem reter nenhum dado pessoal.
 
 ## Copy de loja — lembretes já em vigor (ver seção "Landing page" do release)
 
