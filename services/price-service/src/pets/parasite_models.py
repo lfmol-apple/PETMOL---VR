@@ -51,6 +51,14 @@ class ParasiteControlRecord(Base):
     # código escaneado aqui só ia pro texto livre de `notes`.
     barcode: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
+    # FK real pro catálogo canônico (Ago 2026) — resolvida automaticamente
+    # no backend a partir de `barcode` (ver parasite_router.py), nunca
+    # aceita direto do cliente. Sem isso, todo cruzamento com o catálogo
+    # (comparação de preço, matching de afiliado) tinha que re-normalizar e
+    # re-buscar o `barcode` cru de novo — o vínculo estrutural já existia
+    # pro produto (products_catalog), só não chegava até aqui.
+    product_id: Mapped[Optional[int]] = mapped_column(ForeignKey("products_catalog.id"), nullable=True, index=True)
+
     # Coleira (dados específicos)
     collar_expiry_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
