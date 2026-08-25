@@ -27,6 +27,8 @@ import {
 import { buildPartialFoodName, extractFoodFields } from '@/features/product-detection/foodParser';
 import { submitLearningConfirmation, findLocalCorrection, type ScanDecisionSource } from '@/features/product-detection/learningStore';
 import { searchAwinCatalog, type AwinSearchResult, formatBRLPrice } from '@/features/commerce/productPricing';
+import { hasAiPhotoConsent } from '@/features/ai/aiPhotoConsent';
+import { AIPhotoConsentPrompt } from '@/features/ai/AIPhotoConsentPrompt';
 
 type Step =
   | 'entry'
@@ -34,6 +36,7 @@ type Step =
   | 'resolving'
   | 'not-found'
   | 'photo-capture'
+  | 'ai-consent'
   | 'photo-processing'
   | 'manual'
   | 'confirm';
@@ -74,6 +77,7 @@ const STEP_TITLE: Record<Step, string> = {
   resolving: 'Identificando...',
   'not-found': 'Produto não encontrado',
   'photo-capture': 'Foto da embalagem',
+  'ai-consent': 'Usar inteligência artificial?',
   'photo-processing': 'Analisando...',
   manual: 'Buscar produto',
   confirm: 'Confirmar produto',
@@ -644,6 +648,10 @@ export function ProductDetectionSheetGold({
         ? 'photo-capture'
         : 'entry';
   const [step, setStep] = useState<Step>(initialStep);
+  // Foto validada, aguardando consentimento explícito antes de ir pro
+  // Gemini (ver features/ai/aiPhotoConsent.ts) — nunca chamar
+  // identifyProductFromPhoto antes disso.
+  const [pendingAiConsentFile, setPendingAiConsentFile] = useState<File | null>(null);
   const [confirmed, setConfirmed] = useState<ScannedProduct | null>(null);
   const [isEditingProduct, setIsEditingProduct] = useState(false);
   const [editName, setEditName] = useState('');
@@ -1598,6 +1606,31 @@ export function ProductDetectionSheetGold({
       return;
     }
 
+    // Zero requisição ao Gemini antes de consentimento explícito.
+    if (!hasAiPhotoConsent()) {
+      setPendingAiConsentFile(file);
+      setStep('ai-consent');
+      return;
+    }
+
+    await continueWithAiPhotoIdentification(file);
+  };
+
+  const handleAiConsentAccept = async () => {
+    const file = pendingAiConsentFile;
+    setPendingAiConsentFile(null);
+    if (file) {
+      setStep('photo-processing');
+      await continueWithAiPhotoIdentification(file);
+    }
+  };
+
+  const handleAiConsentDecline = () => {
+    setPendingAiConsentFile(null);
+    setStep('manual');
+  };
+
+  const continueWithAiPhotoIdentification = async (file: File) => {
     const url = URL.createObjectURL(file);
     setPhotoUrl(url);
 
@@ -2891,6 +2924,11 @@ export function ProductDetectionSheetGold({
             {step === 'scanning' && renderScanning()}
             {step === 'resolving' && renderResolving()}
             {step === 'photo-capture' && renderPhotoCapture()}
+            {step === 'ai-consent' && (
+              <div className="p-5">
+                <AIPhotoConsentPrompt onAccept={handleAiConsentAccept} onDecline={handleAiConsentDecline} />
+              </div>
+            )}
             {step === 'photo-processing' && renderPhotoProcessing()}
             {step === 'manual' && renderManual()}
             {step === 'not-found' && renderNotFound()}
