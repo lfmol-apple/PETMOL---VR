@@ -183,7 +183,7 @@ export function HomeNavigationModals({
                   ...(currentPet?.species === 'dog'
                     ? [{ icon: '📿', image: '/cuidados-coleira.webp', label: 'Coleira', gradient: 'from-teal-100 to-cyan-200 border-teal-300', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
                     : []),
-                  { icon: '🛁', image: '/cuidados-banho-tosa.webp', label: 'Banho e Tosa', gradient: 'from-sky-100 to-blue-200 border-sky-300', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
+                  { icon: '🛁', image: '/cuidados-pets-banho.webp', label: 'Banho e Tosa', gradient: 'from-sky-100 to-blue-200 border-sky-300', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
                   { icon: '💊', label: 'Medicação', gradient: 'from-purple-100 to-violet-200 border-purple-300', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
                 ].map(({ icon, image, label, gradient, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
@@ -230,11 +230,11 @@ export function HomeNavigationModals({
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
                     {image ? (
-                      <span className="absolute top-1.5 right-1.5 flex h-[72px] w-[72px] items-center justify-center rounded-2xl border border-white bg-white/90 shadow-md transition-transform duration-300 group-hover:scale-110">
-                        <img src={image} alt="" className="h-14 w-14 object-contain" />
+                      <span className="absolute top-1 right-1 opacity-95 transition-transform duration-300 group-hover:scale-110">
+                        <img src={image} alt="" className="h-[76px] w-[76px] object-contain" />
                       </span>
                     ) : (
-                      <span className={`absolute top-1.5 right-1.5 flex h-[72px] w-[72px] items-center justify-center rounded-2xl border border-white bg-white/90 text-4xl shadow-md transition-transform duration-300 group-hover:scale-110 ${isEmergency ? 'drop-shadow-[0_0_10px_rgba(239,68,68,0.28)]' : ''}`}>{icon}</span>
+                      <span className={`absolute top-1 right-1 text-[52px] leading-none transition-transform duration-300 group-hover:scale-110 ${isEmergency ? 'opacity-100 drop-shadow-[0_0_10px_rgba(239,68,68,0.28)]' : 'opacity-95'}`}>{icon}</span>
                     )}
                     {isEmergency && (
                       <span className="pointer-events-none absolute right-2 top-2 h-6 w-6 rounded-full bg-red-300/35 blur-md animate-pulse" />
