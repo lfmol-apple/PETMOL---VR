@@ -10,6 +10,7 @@ import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import { guessFoodKind, type ScannedProduct } from '@/lib/productScanner';
 import { googleShoppingUrl } from '@/lib/externalShopping';
 import { resolveFoodCommerceSnapshot } from '@/features/commerce/homeContextualCommerce';
+import { AFFILIATE_ONLY_COMMERCE } from '@/features/commerce/homeShoppingPartners';
 import { requestUserDecision } from '@/features/interactions/userPromptChannel';
 import { scheduleFoodReminder, buildRemindAt } from '@/features/notifications/pushService';
 
@@ -531,7 +532,13 @@ export function FoodControlTab({
     daysLeft: displayDaysLeft,
     estimatedEndDate: displayEndDate ? fmtDate(displayEndDate) : null,
   });
-  const foodHandoffUrl = commerceSnapshot
+  // Auditoria de monetização (25/08/2026): /api/handoff/shopping abre uma
+  // busca pura do Google Shopping — sem afiliado, sem comissão nenhuma.
+  // Em produção (AFFILIATE_ONLY_COMMERCE) não existe hoje um caminho
+  // monetizado equivalente pra recompra de ração, então a CTA fica
+  // escondida em vez de abrir um link que não remunera o PETMOL (mesmo
+  // princípio já aplicado em resolvePartnerUrl/homeShoppingPartners.ts).
+  const foodHandoffUrl = commerceSnapshot && !AFFILIATE_ONLY_COMMERCE
     ? `/api/handoff/shopping?query=${encodeURIComponent(commerceSnapshot.searchQuery)}&fallback=${encodeURIComponent(googleShoppingUrl(commerceSnapshot.searchQuery))}`
     : null;
 

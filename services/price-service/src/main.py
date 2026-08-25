@@ -5344,10 +5344,25 @@ async def handoff_shopping(
     """
     Shopping handoff with pet-only validation.
     INFALÍVEL: sempre retorna 302 (nunca 422/500).
+
+    Auditoria de monetização (25/08/2026): a bridge /go/shopping abre uma
+    busca PURA do Google Shopping — sem afiliado, sem comissão nenhuma
+    (ver externalShopping.ts/go/shopping/page.tsx). Isso violava o
+    princípio central "NO MONETIZATION PROOF → NO BUY BUTTON" (ver
+    docs/AFFILIATES.md) — era o único comportamento deste endpoint, não
+    um fallback. Em produção (affiliate_only_commerce_enforced), este
+    endpoint agora recusa fail-closed em vez de mandar pro Google
+    Shopping; o frontend (FoodControlTab.tsx) já esconde a CTA
+    "Recomprar" sob a mesma flag, mas o endpoint precisa recusar por si
+    só — é público e pode ser chamado direto, sem passar pela UI.
     """
+    settings = get_settings()
+    if settings.affiliate_only_commerce_enforced:
+        return RedirectResponse(url="/go/error?reason=not_monetized&source=shopping", status_code=302)
+
     # Generate lead_id
     lead_id = _generate_lead_id()
-    
+
     # Validate query
     if not query or not isinstance(query, str) or len(query.strip()) < 2:
         # Redirect to error page

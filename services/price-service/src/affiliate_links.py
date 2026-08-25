@@ -24,6 +24,7 @@ from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, Str
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .db import Base
+from .config import get_settings
 
 # Storefronts afiliadas fixas (navegação geral, não por produto) — URLs
 # públicas confirmadas, nunca modificadas/geradas dinamicamente. Ver
@@ -183,10 +184,27 @@ def get_monetized_offer(
     STOREFRONT_AFFILIATE_URLS/ProductAffiliateLink já tenham dado real
     cadastrado. Import local pra evitar ciclo (petz_provider importa
     deste módulo).
+
+    Cobasi/Shopee/Mercado Livre (25/08/2026): esta função só verificava
+    se a LINHA existia (ProductAffiliateLink/MarketplaceOffer), nunca se
+    o mecanismo de monetização daquele merchant estava realmente ligado
+    — mesma classe de bug do gap Petz original, fechada aqui pelo mesmo
+    padrão de defesa em profundidade. Um link cadastrado no banco não é
+    prova de que o modo comercial que o originou continua ativo (ex:
+    cobasi_affiliate_mode virou "disabled" em 15/08/2026 sem apagar as
+    linhas antigas de ProductAffiliateLink/STOREFRONT_AFFILIATE_URLS).
     """
     if merchant == "petz":
         from .petz_provider import is_petz_publicly_servable
         if not is_petz_publicly_servable():
+            return None
+
+    if merchant == "cobasi" and get_settings().cobasi_affiliate_mode == "disabled":
+        return None
+
+    if merchant in ("shopee", "mercadolivre"):
+        from .marketplace_offer_provider import is_marketplace_merchant_publicly_servable
+        if not is_marketplace_merchant_publicly_servable(merchant):
             return None
 
     if context == "product":

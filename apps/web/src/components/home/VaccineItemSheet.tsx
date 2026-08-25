@@ -7,6 +7,8 @@ import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
 import { ModalPortal } from '@/components/ModalPortal';
 import { localTodayISO } from '@/lib/localDate';
 import { trackPartnerClicked } from '@/lib/v1Metrics';
+import { HOME_SHOPPING_PARTNERS, isPartnerVisibleInStoreArea, openHomeShoppingPartner } from '@/features/commerce/homeShoppingPartners';
+import { QUICK_BUY_PARTNERS } from '@/features/commerce/petStoreContent';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -580,33 +582,37 @@ export function VaccineItemSheet({
             <p className="text-sm text-gray-500">Escolha onde encontrar vacinas e serviços:</p>
 
             <div className="space-y-3">
-              {[
-                { name: 'Cobasi', url: 'https://www.cobasi.com.br/capsulas-e-saude/vacinas', emoji: '🐾' },
-                { name: 'Shopee', url: 'https://shopee.com.br/search?keyword=pet%20saude', emoji: '🛍️' },
-                { name: 'Zee Now', url: 'https://www.zeenow.com.br/busca?q=pet%20saude', emoji: '⚡' },
-                { name: 'Zee Dog', url: 'https://www.zeedog.com.br/busca?q=pet%20saude', emoji: '🐾' },
-              ].map(store => (
-                <button
-                  key={store.name}
-                  onClick={() => {
-                    trackPartnerClicked({
-                      source: 'vaccine_sheet',
-                      partner: store.name.toLowerCase(),
-                      pet_id: '', // handle generic if needed
-                      control_type: 'vaccines',
-                    });
-                    window.open(store.url, '_blank', 'noopener,noreferrer');
-                  }}
-                  className="w-full flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left"
-                >
-                  <span className="text-2xl">{store.emoji}</span>
-                  <div className="flex-1">
-                    <p className="font-bold text-gray-900 text-sm">{store.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Agendar ou comprar</p>
-                  </div>
-                  <span className="text-gray-400 text-lg">›</span>
-                </button>
-              ))}
+              {/* Auditoria de monetização (25/08/2026): antes eram 4 URLs de
+                  busca fixas, sem afiliado nenhum — sempre abriam sem
+                  remunerar o PETMOL. Agora usa o mesmo catálogo/gate já
+                  auditado do resto do app (isPartnerVisibleInStoreArea +
+                  openHomeShoppingPartner), então some da lista quem não tem
+                  mecanismo de comissão comprovado em produção. */}
+              {HOME_SHOPPING_PARTNERS
+                .filter((partner) => QUICK_BUY_PARTNERS.includes(partner.id))
+                .filter(isPartnerVisibleInStoreArea)
+                .map((partner) => (
+                  <button
+                    key={partner.id}
+                    onClick={() => {
+                      trackPartnerClicked({
+                        source: 'vaccine_sheet',
+                        partner: partner.id,
+                        pet_id: '', // handle generic if needed
+                        control_type: 'vaccines',
+                      });
+                      openHomeShoppingPartner(partner.id, 'pet saude vacina');
+                    }}
+                    className="w-full flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left"
+                  >
+                    <span className="text-2xl">🐾</span>
+                    <div className="flex-1">
+                      <p className="font-bold text-gray-900 text-sm">{partner.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Agendar ou comprar</p>
+                    </div>
+                    <span className="text-gray-400 text-lg">›</span>
+                  </button>
+                ))}
             </div>
 
             <button
