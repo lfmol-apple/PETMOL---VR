@@ -24,7 +24,8 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 
 - [x] Touch target do botão fechar em `OverdueAlertsGrid.tsx` corrigido (24px → 36px) (PR #55, `cefbee3`)
 - [ ] 3 botões de fechar em ~32px identificados como borderline — não bloqueiam lançamento, ficam como P2
-- [ ] Smoke test completo em 320/360/375/390/412/430px + tablet + desktop dos fluxos: criar conta, login, cadastrar pet, foto do pet, home, ração, vacina manual, vacina por foto, medicação, antiparasitário, Loja, busca, escolher oferta, configurações, excluir conta
+- [x] Spot-check em 360/375/390/412/430px de home, modal de alimentação e perfil (24/08/2026) — sem overflow, sem corte/sobreposição de conteúdo; automação para vacina/cuidados/loja/offer-picker travou num estado de fallback de câmera repetido (limitação do script de teste, não um bug confirmado do produto)
+- [ ] Smoke test completo em 320/360/375/390/412/430px + tablet + desktop dos fluxos: criar conta, login, cadastrar pet, foto do pet, home, ração, vacina manual, vacina por foto, medicação, antiparasitário, Loja, busca, escolher oferta, configurações, excluir conta — cobre especificamente vacina/cuidados/loja/offer-picker, que não puderam ser verificados por automação nesta rodada
 
 ## Backup / disaster recovery
 
