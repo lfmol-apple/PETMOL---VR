@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { trackClick } from '@/lib/analytics/click';
 
-export type HomeShoppingPartnerId = 'cobasi' | 'shopee' | 'zeenow' | 'zeedog';
+export type HomeShoppingPartnerId = 'cobasi' | 'shopee' | 'zeenow' | 'zeedog' | 'petz';
 
 /**
  * Estado real da integração de afiliado do merchant — não confundir com
@@ -95,6 +95,7 @@ const AFF: Record<HomeShoppingPartnerId, string | undefined> = {
   shopee:       process.env.NEXT_PUBLIC_AFFILIATE_SHOPEE,
   zeenow:       undefined, // Awin (advertiser 127557, approved) — sem link genérico Lomadee-style
   zeedog:       undefined, // Awin (advertiser 127555, approved) — sem link genérico Lomadee-style
+  petz:         undefined, // storefront fixa (storefrontAffiliateUrl abaixo), não usa este mecanismo
 };
 
 export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
@@ -187,6 +188,31 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     buildAffiliateUrl: (query, base) =>
       `${base}&url=${encodeURIComponent(`https://www.zeedog.com.br/busca?q=${encodeURIComponent(query)}`)}`,
   },
+  {
+    id: 'petz',
+    name: 'Petz',
+    description: 'Loja parceira PETMOL — cupom PETTMOL, 10% de desconto',
+    logoSrc: '/partner-logos/petz.png',
+    logoAlt: 'Petz',
+    // Programa próprio "Loja Parceira" (25/08/2026) — URL FIXA da vitrine,
+    // sem busca/deep-link por produto (confirmado: a Petz não expõe isso).
+    // Cupom PETTMOL (10% off) é aplicado manualmente pelo tutor no
+    // checkout — nunca embutido na URL. Deve espelhar o mesmo valor de
+    // STOREFRONT_AFFILIATE_URLS["petz"] em affiliate_links.py (backend).
+    //
+    // Diferente de Cobasi/Shopee/Zee Now/Zee Dog: NÃO entra em
+    // QUICK_BUY_PARTNERS (petStoreContent.ts) — a Petz só deve aparecer
+    // pra um produto específico quando GET /commerce/petz-direct-link
+    // confirma que aquele produto existe no catálogo da Petz (ver
+    // fetchPetzDirectLink em productPricing.ts), nunca como fallback
+    // genérico de busca.
+    affiliateStatus: 'active',
+    merchantType: 'retailer',
+    affiliateMode: 'fixed_store',
+    supportsProductDeepLink: false,
+    supportsStorefrontAffiliate: true,
+    storefrontAffiliateUrl: 'https://petz.com.br/parceiro/pettmol',
+  },
 ];
 
 // URLs diretas só podem ser usadas em desenvolvimento. Em produção
@@ -197,6 +223,9 @@ const DIRECT_SEARCH_URLS: Record<HomeShoppingPartnerId, (q: string) => string> =
   shopee:       (q) => `https://shopee.com.br/search?keyword=${encodeURIComponent(q)}`,
   zeenow:       (q) => `https://www.zeenow.com.br/busca?q=${encodeURIComponent(q)}`,
   zeedog:       (q) => `https://www.zeedog.com.br/busca?q=${encodeURIComponent(q)}`,
+  // Petz não tem busca por produto — resolvePartnerUrl() sempre resolve
+  // pela storefrontAffiliateUrl antes de chegar aqui; nunca de fato usado.
+  petz:         () => 'https://petz.com.br/parceiro/pettmol',
 };
 
 // Cobasi's "Minha Loja"/"Mais" storefront (minhaloja.cobasi.com.br/paco)

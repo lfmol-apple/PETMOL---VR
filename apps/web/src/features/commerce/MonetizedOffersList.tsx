@@ -8,6 +8,9 @@
  * loja sem link afiliado ativo (Regra 1 — ver docs/AFFILIATES.md).
  *
  * Cobasi, Shopee, Zee Now e Zee Dog são as lojas mantidas por enquanto.
+ * Petz entra por um caminho paralelo e visualmente distinto (ver
+ * PetzStorefrontCard abaixo) — storefront fixa + cupom, sem preço por
+ * produto, nunca misturada na comparação de preço acima.
  */
 
 import { useEffect, useState } from 'react';
@@ -83,7 +86,7 @@ export function MonetizedOffersList({
       source,
       cta_type: 'petz_direct_link_click',
       target: 'petz',
-      link_type: 'direct',
+      link_type: 'affiliate_store',
       pet_id: petId,
     });
   }
@@ -115,7 +118,7 @@ export function MonetizedOffersList({
           <p className="text-[13px] font-bold text-gray-700">{emptyStateTitle}</p>
           <p className="mt-1 text-[12px] text-gray-500">{emptyStateSubtitle}</p>
         </div>
-        <VerNaPetzLink petzLink={petzLink} onClick={handleVerNaPetz} />
+        <PetzStorefrontCard petzLink={petzLink} productLabel={productLabel} onClick={handleVerNaPetz} />
       </div>
     );
   }
@@ -172,27 +175,42 @@ export function MonetizedOffersList({
         Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
         {offers.some((offer) => offer.price_is_stale) ? ' *Preço confirmado ao abrir a loja.' : ''}
       </p>
-      <VerNaPetzLink petzLink={petzLink} onClick={handleVerNaPetz} />
+      <PetzStorefrontCard petzLink={petzLink} productLabel={productLabel} onClick={handleVerNaPetz} />
     </div>
   );
 }
 
 /**
- * Linha isolada e visualmente neutra (não é um card de oferta, não tem
- * preço, não implica comissão) — ver docs/AFFILIATES.md §Petz. Nunca
- * renderiza nada até o backend confirmar que existe URL direta pra este
- * GTIN (petzLink.available); some sozinha se a chamada falhar/demorar.
+ * Card no mesmo formato visual dos cards de oferta acima, mas em azul (não
+ * emerald) pra nunca parecer "a mesma comparação de preço" — a Petz não
+ * tem preço por produto, só a storefront fixa + cupom PETTMOL (10% off,
+ * aplicado manualmente no checkout — ver docs/AFFILIATES.md §Petz). Nunca
+ * renderiza nada até o backend confirmar que o produto existe no catálogo
+ * Petz (petzLink.available); some sozinho se a chamada falhar/demorar.
  */
-function VerNaPetzLink({ petzLink, onClick }: { petzLink: PetzDirectLink | null; onClick: () => void }) {
+function PetzStorefrontCard({ petzLink, productLabel, onClick }: { petzLink: PetzDirectLink | null; productLabel: string; onClick: () => void }) {
   if (!petzLink?.available || !petzLink.url) return null;
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center justify-center gap-1.5 py-2 text-[12px] font-semibold text-gray-500 hover:text-gray-700"
+      className="w-full p-4 text-left bg-white border border-gray-200 rounded-2xl shadow-sm transition-all active:scale-[0.99] hover:border-blue-200"
     >
-      Ver na Petz
-      <span aria-hidden="true">↗</span>
+      <div className="flex items-center gap-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/partner-logos/petz.png" alt="Petz" className="w-9 h-9 rounded-lg object-contain border border-gray-100 flex-shrink-0 bg-white" />
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-gray-900 text-[15px] leading-tight truncate">{productLabel}</p>
+          <p className="text-[12px] text-gray-500">Petz</p>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <p className="text-[13px] font-black leading-tight text-blue-700">Cupom PETTMOL</p>
+          <p className="text-[11px] text-gray-500">10% off no checkout</p>
+        </div>
+      </div>
+      <span className="mt-2.5 flex w-full items-center justify-center rounded-xl bg-blue-600 text-white text-[13px] font-bold py-2">
+        Ver na Petz ↗
+      </span>
     </button>
   );
 }

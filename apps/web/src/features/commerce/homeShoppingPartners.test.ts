@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 describe('homeShoppingPartners — parceiros ativos no app', () => {
-  it('mantém somente Cobasi, Shopee, Zee Now e Zee Dog no cadastro exposto ao app', async () => {
+  it('mantém somente Cobasi, Shopee, Zee Now, Zee Dog e Petz no cadastro exposto ao app', async () => {
     const { HOME_SHOPPING_PARTNERS } = await import('./homeShoppingPartners');
 
     expect(HOME_SHOPPING_PARTNERS.map((partner) => partner.id)).toEqual([
@@ -9,10 +9,11 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       'shopee',
       'zeenow',
       'zeedog',
+      'petz',
     ]);
   });
 
-  it('mostra as quatro lojas nos cards e no comprar novamente', async () => {
+  it('mostra as cinco lojas nos cards e no comprar novamente', async () => {
     const {
       HOME_SHOPPING_PARTNERS,
       isPartnerVisibleForSearch,
@@ -24,18 +25,24 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       'active',
       'active',
       'active',
+      'active',
     ]);
     expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
       'cobasi',
       'shopee',
       'zeenow',
       'zeedog',
+      'petz',
     ]);
+    // Petz não entra em isPartnerVisibleForSearch por afinidade de busca —
+    // entra porque tem storefrontAffiliateUrl (mesmo caminho da Cobasi),
+    // não porque suporta busca por produto (supportsProductDeepLink: false).
     expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
       'cobasi',
       'shopee',
       'zeenow',
       'zeedog',
+      'petz',
     ]);
   });
 
@@ -85,12 +92,14 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       const shopee = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'shopee');
       const zeenow = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'zeenow');
       const zeedog = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'zeedog');
+      const petz = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'petz');
 
       expect(cobasi && resolvePartnerUrl(cobasi, 'ração pet', '')).toContain('minhaloja.cobasi.com.br');
       expect(shopee && resolvePartnerUrl(shopee, 'ração pet', '')).toBeNull();
       expect(zeenow && resolvePartnerUrl(zeenow, 'ração pet', '')).toBeNull();
       expect(zeedog && resolvePartnerUrl(zeedog, 'ração pet', '')).toBeNull();
-      expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual(['cobasi']);
+      expect(petz && resolvePartnerUrl(petz, 'ração pet', '')).toContain('petz.com.br/parceiro/pettmol');
+      expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual(['cobasi', 'petz']);
     } finally {
       if (previous === undefined) {
         delete process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE;
@@ -119,7 +128,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       const shopee = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'shopee');
       expect(shopee && resolvePartnerUrl(shopee, 'ração baby', '')).toBe('https://s.shopee.com.br/PETMOL?keyword=ra%C3%A7%C3%A3o%20baby');
       expect(partnerGenericLinkType('shopee')).toBe('affiliate_search');
-      expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual(['cobasi', 'shopee']);
+      expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual(['cobasi', 'shopee', 'petz']);
     } finally {
       if (previousOnly === undefined) {
         delete process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE;

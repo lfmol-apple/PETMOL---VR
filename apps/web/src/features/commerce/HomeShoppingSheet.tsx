@@ -15,7 +15,7 @@ import {
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
 import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
-import { formatBRLPrice, hasReliablePrice, merchantLabel, offerPriceLabel, type CommerceOffer } from './productPricing';
+import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerPriceLabel, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
 import {
   buildReorderCards,
@@ -135,6 +135,17 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                               metadata: { domain: card.domain, label: card.label, price: offer.price },
                             });
                           }}
+                          onPetzBuy={(url) => {
+                            navigateToPartnerUrl(url);
+                            void trackClick({
+                              source: 'home',
+                              cta_type: 'shop_reorder_buy_petz',
+                              target: 'petz',
+                              link_type: 'affiliate_store',
+                              pet_id: currentPet.pet_id,
+                              metadata: { domain: card.domain, label: card.label },
+                            });
+                          }}
                         />
                       );
                     })}
@@ -176,6 +187,7 @@ interface ReorderCardItemProps {
   onTogglePicker: () => void;
   onQuickBuy: (partnerId: HomeShoppingPartnerId) => void;
   onDirectBuy: (offer: CommerceOffer) => void;
+  onPetzBuy: (url: string) => void;
 }
 
 // Busca a lista de ofertas monetizáveis (mesma fonte usada em toda tela de
@@ -185,34 +197,63 @@ interface ReorderCardItemProps {
 // Exportado pra ser reaproveitado fora desta sheet (ver
 // MedicationItemSheet.tsx "onde comprar") — mesma lógica de preço/picker já
 // validada aqui, sem duplicar useCommerceOffers numa segunda cópia.
-export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy }: ReorderCardItemProps) {
+export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy, onPetzBuy }: ReorderCardItemProps) {
   const { offers, loading } = useCommerceOffers(card.searchQuery, card.packageSizeKg, card.gtin);
   const offer = offers[0] ?? null;
   const [imageFailed, setImageFailed] = useState(false);
+  const [petzLink, setPetzLink] = useState<PetzDirectLink | null>(null);
+
+  // "Ver na Petz" — caminho separado de useCommerceOffers (sem preço por
+  // produto, ver docs/AFFILIATES.md §Petz). Só entra na conta de opções de
+  // compra quando o GTIN do card já foi confirmado no catálogo Petz.
+  useEffect(() => {
+    if (!card.gtin) {
+      setPetzLink(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchPetzDirectLink(card.gtin).then((link) => {
+      if (!cancelled) setPetzLink(link);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [card.gtin]);
+
   // Toda oferta na lista é o mesmo produto (mesmo GTIN) — só preço/loja
   // mudam. Nem toda loja tem imagem (Shopee/busca por palavra-chave ainda
   // não tem, só o feed Awin tem), então usa a primeira com imagem em vez
   // de travar na foto só da oferta mais barata.
   const imageUrl = offers.find((o) => o.image_url)?.image_url ?? null;
+  const hasPetz = Boolean(petzLink?.available && petzLink.url);
   // offers já vem ordenado por preço crescente (CommerceEngine) — offer é
-  // sempre o mais barato. Quando mais de um provider responde pro mesmo
-  // GTIN (ex: Cobasi + Shopee), oferece escolha de loja em vez de comprar
-  // direto no mais barato sem avisar (ver OfferPickerRow abaixo).
-  const hasMultipleOffers = offers.length > 1;
+  // sempre o mais barato. Quando mais de uma opção de compra existe pro
+  // mesmo GTIN (mais de um provider com preço, e/ou Petz confirmada),
+  // oferece escolha de loja em vez de comprar direto sem avisar (ver
+  // OfferPickerRow abaixo).
+  const totalBuyOptions = offers.length + (hasPetz ? 1 : 0);
+  const hasMultipleOffers = totalBuyOptions > 1;
 
   const hasMonetizedOffer = Boolean(offer && offer.url);
   const priceReliable = Boolean(offer && hasReliablePrice(offer));
   const hasDiscount = Boolean(
     hasMonetizedOffer && offer && priceReliable && typeof offer.list_price === 'number' && offer.list_price > (offer.price ?? 0),
   );
-  const noBuyOptionAtAll = !hasMonetizedOffer && visibleQuickBuyPartners.length === 0;
+  const noBuyOptionAtAll = !hasMonetizedOffer && !hasPetz && visibleQuickBuyPartners.length === 0;
   const canAct = !loading && !noBuyOptionAtAll;
 
   function handlePrimaryAction() {
     if (!canAct) return;
+    if ((hasMonetizedOffer || hasPetz) && hasMultipleOffers) {
+      onTogglePicker();
+      return;
+    }
     if (hasMonetizedOffer && offer) {
-      if (hasMultipleOffers) onTogglePicker();
-      else onDirectBuy(offer);
+      onDirectBuy(offer);
+      return;
+    }
+    if (hasPetz && petzLink?.url) {
+      onPetzBuy(petzLink.url);
       return;
     }
     onTogglePicker();
@@ -272,9 +313,14 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
               )}
               {hasMultipleOffers && (
                 <span className="block mt-0.5 text-[9px] font-black uppercase tracking-wide text-blue-600">
-                  +{offers.length - 1} loja{offers.length - 1 > 1 ? 's' : ''}
+                  +{totalBuyOptions - 1} loja{totalBuyOptions - 1 > 1 ? 's' : ''}
                 </span>
               )}
+            </p>
+          )}
+          {!loading && !hasMonetizedOffer && hasPetz && (
+            <p className="text-[12px] mt-1 font-bold text-blue-700">
+              Disponível na Petz · cupom PETTMOL -10%
             </p>
           )}
           {!loading && noBuyOptionAtAll && (
@@ -287,12 +333,7 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
             disabled={loading}
             onClick={(event) => {
               event.stopPropagation();
-              if (hasMonetizedOffer && offer) {
-                if (hasMultipleOffers) onTogglePicker();
-                else onDirectBuy(offer);
-              } else {
-                onTogglePicker();
-              }
+              handlePrimaryAction();
             }}
             className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[12px] font-bold px-3 py-1.5 active:scale-95 transition-all disabled:opacity-50"
           >
@@ -300,20 +341,30 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
           </button>
         )}
       </div>
-      {hasMonetizedOffer && hasMultipleOffers && isPickerOpen && (
-        <OfferPickerRow offers={offers} onPick={onDirectBuy} />
+      {hasMultipleOffers && isPickerOpen && (
+        <OfferPickerRow
+          offers={offers}
+          onPick={onDirectBuy}
+          petzLink={hasPetz ? petzLink : null}
+          onPickPetz={() => petzLink?.url && onPetzBuy(petzLink.url)}
+        />
       )}
       {offers.some((item) => item.price_is_stale) && (
         <p className="mt-1.5 text-[9px] font-medium text-gray-400">*Preço confirmado ao abrir a loja.</p>
       )}
-      {!hasMonetizedOffer && isPickerOpen && visibleQuickBuyPartners.length > 0 && (
+      {!hasMonetizedOffer && !hasPetz && isPickerOpen && visibleQuickBuyPartners.length > 0 && (
         <QuickBuyRow partners={visibleQuickBuyPartners} onPick={onQuickBuy} />
       )}
     </div>
   );
 }
 
-function OfferPickerRow({ offers, onPick }: { offers: CommerceOffer[]; onPick: (offer: CommerceOffer) => void }) {
+function OfferPickerRow({ offers, onPick, petzLink, onPickPetz }: {
+  offers: CommerceOffer[];
+  onPick: (offer: CommerceOffer) => void;
+  petzLink?: PetzDirectLink | null;
+  onPickPetz?: () => void;
+}) {
   return (
     <div className="mt-2.5 pt-2.5 border-t border-gray-100 space-y-1.5" onClick={(e) => e.stopPropagation()}>
       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Escolha a loja</p>
@@ -337,6 +388,20 @@ function OfferPickerRow({ offers, onPick }: { offers: CommerceOffer[]; onPick: (
           </button>
         );
       })}
+      {petzLink?.available && petzLink.url && onPickPetz && (
+        <button
+          type="button"
+          onClick={onPickPetz}
+          className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-blue-300 px-3 py-2 transition-all active:scale-[0.98]"
+        >
+          <span className="flex items-center gap-1.5 min-w-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/partner-logos/petz.png" alt="" className="w-4 h-4 rounded object-contain bg-white border border-gray-200 flex-shrink-0" />
+            <span className="text-[12px] font-bold text-gray-800 truncate">Petz</span>
+          </span>
+          <span className="text-[12px] font-bold text-blue-700 flex-shrink-0">Cupom -10%</span>
+        </button>
+      )}
     </div>
   );
 }

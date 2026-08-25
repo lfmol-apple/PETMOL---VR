@@ -357,9 +357,11 @@ async def test_commerce_engine_still_returns_empty_with_real_affiliate_link_but_
 
 # ── GET /commerce/petz-direct-link ("Ver na Petz") ───────────────────────
 # Caminho deliberadamente separado do CommerceEngine (ver docstring do
-# endpoint em main.py) — nunca depende de petz_affiliate_enabled, nunca
-# retorna affiliate_product_url, só product_url (direta) quando o produto
-# já foi confirmado por um humano.
+# endpoint em main.py) — nunca depende de petz_affiliate_enabled. Retorna
+# a URL FIXA da storefront (STOREFRONT_AFFILIATE_URLS["petz"], cupom
+# PETTMOL aplicado manualmente no checkout — a Petz não expõe deep-link
+# por produto), nunca a affiliate_product_url de um ProductAffiliateLink
+# específico, e só quando o produto já foi confirmado por um humano.
 
 def test_petz_direct_link_unavailable_for_unknown_gtin(client):
     resp = client.get("/commerce/petz-direct-link", params={"gtin": "0000000000000"})
@@ -402,16 +404,16 @@ def test_petz_direct_link_available_once_product_confirmed(client):
     body = resp.json()
     assert body == {
         "available": True,
-        "url": "https://www.petz.com.br/produto/racao-royal-canin-100223",
-        "link_type": "direct",
+        "url": "https://petz.com.br/parceiro/pettmol",
+        "link_type": "affiliate_store",
     }
 
 
-def test_petz_direct_link_never_exposes_a_real_affiliate_url(client):
+def test_petz_direct_link_never_exposes_a_per_product_affiliate_url(client):
     """Mesmo se um ProductAffiliateLink(merchant="petz") já existir (ex:
-    affiliate_ready), este endpoint continua devolvendo product_url (a
-    URL direta do mapping), nunca affiliate_product_url — ele não sabe
-    nem deveria saber sobre ProductAffiliateLink."""
+    affiliate_ready), este endpoint continua devolvendo a storefront FIXA
+    (STOREFRONT_AFFILIATE_URLS["petz"]), nunca a affiliate_product_url de
+    um link específico — a Petz não tem deep-link por produto."""
     product_id = _register_product(gtin="9990000000004")
     db = SessionLocal()
     try:
@@ -430,5 +432,4 @@ def test_petz_direct_link_never_exposes_a_real_affiliate_url(client):
 
     resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000004"})
     body = resp.json()
-    assert body["url"] == "https://www.petz.com.br/produto/direta-100224"
-    assert "afiliada" not in body["url"]
+    assert body["url"] == "https://petz.com.br/parceiro/pettmol"
