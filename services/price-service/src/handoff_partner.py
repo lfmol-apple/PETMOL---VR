@@ -26,11 +26,10 @@ e tinha dois problemas reais, corrigidos aqui:
    /commerce/petz-direct-link). Corrigido: petz e cobasi agora passam
    por `get_monetized_offer(..., context="store")`, que já aplica
    os gates corretos (petz: is_petz_publicly_servable; cobasi:
-   cobasi_affiliate_mode != "disabled"). `petlove` não tem gate
-   equivalente na arquitetura ainda (não é um merchant auditado em
-   nenhum outro lugar do código) — mantido como estava, só com
-   validação de URL, pra não desligar algo que pode estar em uso
-   comercial real sem prova de que deveria.
+   cobasi_affiliate_mode != "disabled").
+3. `partner=petlove`/`doglife` aceitava PETLOVE_DOG_LIFE_URL como prova
+   suficiente. Corrigido: URL sozinha não libera compra; precisa do gate
+   PETLOVE_AFFILIATE_ENABLED=true.
 """
 import secrets
 import json
@@ -95,7 +94,7 @@ def handoff_shop(
 
     - partner=cobasi  → get_monetized_offer("cobasi", context="store") — gated por cobasi_affiliate_mode
     - partner=petz    → get_monetized_offer("petz", context="store") — gated por is_petz_publicly_servable()
-    - partner=petlove → PETLOVE_DOG_LIFE_URL (sem gate equivalente ainda — ver docstring do módulo)
+    - partner=petlove → PETLOVE_DOG_LIFE_URL + PETLOVE_AFFILIATE_ENABLED=true
     - partner=amazon  → desativado; retorna 503 controlado
     - q=brand         → appends ?q=brand to affiliate URL for contextual search
     - Se URL não configurada/não monetizável → 503 JSON (não 500)
@@ -112,7 +111,7 @@ def handoff_shop(
         affiliate_url = offer["url"] if offer else None
         target = "cobasi"
     elif partner == "petlove":
-        affiliate_url = settings.petlove_dog_life_url
+        affiliate_url = settings.petlove_dog_life_url if settings.petlove_affiliate_enabled else None
         target = "petlove"
     elif partner == "amazon":
         return _no_url_response("amazon")
@@ -148,14 +147,15 @@ def handoff_doglife(
     """Redireciona para plano PetLove Dog Life com tracking de lead.
 
     - Lê PETLOVE_DOG_LIFE_URL do ambiente.
-    - Se URL não configurada → 503 JSON (não 500)
+    - Exige PETLOVE_AFFILIATE_ENABLED=true.
+    - Se URL/gate não configurado → 503 JSON (não 500)
 
     `dest` foi removido (25/08/2026) — era um open redirect (ver
     handoff_shop acima).
     """
     settings = get_settings()
 
-    affiliate_url = settings.petlove_dog_life_url
+    affiliate_url = settings.petlove_dog_life_url if settings.petlove_affiliate_enabled else None
     lead_id = _ensure_lead(lead_id, db, source="handoff_doglife", cta_type="doglife_redirect", target="petlove")
 
     if not affiliate_url:

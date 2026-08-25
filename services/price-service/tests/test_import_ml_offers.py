@@ -44,7 +44,7 @@ def _register_product(gtin: str) -> int:
 def _write_csv(tmp_path: Path, rows: list[dict]) -> Path:
     csv_path = tmp_path / "ml.csv"
     with csv_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["product_id", "affiliate_url", "price"])
+        writer = csv.DictWriter(f, fieldnames=["product_id", "gtin", "affiliate_url", "price"])
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
@@ -62,7 +62,7 @@ def _offer_count() -> int:
 def test_ml_csv_dry_run(tmp_path):
     """Padrão é dry-run: reporta o que faria mas não grava nada no banco."""
     product_id = _register_product("7896000000101")
-    csv_path = _write_csv(tmp_path, [{"product_id": product_id, "affiliate_url": OFFICIAL_URL, "price": "99.90"}])
+    csv_path = _write_csv(tmp_path, [{"product_id": product_id, "gtin": "7896000000101", "affiliate_url": OFFICIAL_URL, "price": "99.90"}])
 
     before = _offer_count()
     db = SessionLocal()
@@ -78,7 +78,7 @@ def test_ml_csv_dry_run(tmp_path):
 
 def test_ml_csv_apply_actually_writes(tmp_path):
     product_id = _register_product("7896000000102")
-    csv_path = _write_csv(tmp_path, [{"product_id": product_id, "affiliate_url": OFFICIAL_URL, "price": "99.90"}])
+    csv_path = _write_csv(tmp_path, [{"product_id": product_id, "gtin": "7896000000102", "affiliate_url": OFFICIAL_URL, "price": "99.90"}])
 
     db = SessionLocal()
     try:
@@ -102,7 +102,7 @@ def test_ml_csv_rejects_invalid_tracking(tmp_path):
     """URL de produto comum (sem matt_word/matt_tool) — rejeitada, nunca
     cadastrada, mesmo em dry-run (o erro tem que aparecer no relatório)."""
     product_id = _register_product("7896000000103")
-    csv_path = _write_csv(tmp_path, [{"product_id": product_id, "affiliate_url": PLAIN_URL, "price": ""}])
+    csv_path = _write_csv(tmp_path, [{"product_id": product_id, "gtin": "7896000000103", "affiliate_url": PLAIN_URL, "price": ""}])
 
     db = SessionLocal()
     try:
@@ -123,7 +123,7 @@ def test_ml_csv_batch_30(tmp_path):
     rows = []
     for i in range(35):
         product_id = _register_product(f"78960001{i:05d}")
-        rows.append({"product_id": product_id, "affiliate_url": OFFICIAL_URL, "price": ""})
+        rows.append({"product_id": product_id, "gtin": f"78960001{i:05d}", "affiliate_url": OFFICIAL_URL, "price": ""})
     csv_path = _write_csv(tmp_path, rows)
 
     db = SessionLocal()
@@ -137,9 +137,114 @@ def test_ml_csv_batch_30(tmp_path):
     assert stats["skipped_over_batch"] == 5
 
 
+def test_ml_apply_requires_gtin(tmp_path):
+    product_id = _register_product("7896000000104")
+    csv_path = _write_csv(tmp_path, [{"product_id": product_id, "gtin": "", "affiliate_url": OFFICIAL_URL, "price": ""}])
+
+    db = SessionLocal()
+    try:
+        stats, errors = import_ml_offers.run_import(csv_path, db, apply=True, max_batch=30)
+    finally:
+        db.close()
+
+    assert stats["created"] == 0
+    assert len(errors) == 1
+    assert "gtin obrigatório" in errors[0]
+    assert _offer_count() == 0
+
+
+def test_ml_import_gtin_mismatch_rejected(tmp_path):
+    product_id = _register_product("7896000000105")
+    csv_path = _write_csv(tmp_path, [{"product_id": product_id, "gtin": "7896000000999", "affiliate_url": OFFICIAL_URL, "price": ""}])
+
+    db = SessionLocal()
+    try:
+        stats, errors = import_ml_offers.run_import(csv_path, db, apply=True, max_batch=30)
+    finally:
+        db.close()
+
+    assert stats["created"] == 0
+    assert len(errors) == 1
+    assert "gtin divergente" in errors[0]
+    assert _offer_count() == 0
+
+
+def test_ml_import_gtin_match_accepted(tmp_path):
+    product_id = _register_product("7896000000106")
+    csv_path = _write_csv(tmp_path, [{"product_id": product_id, "gtin": "7896000000106", "affiliate_url": OFFICIAL_URL, "price": ""}])
+
+    db = SessionLocal()
+    try:
+        stats, errors = import_ml_offers.run_import(csv_path, db, apply=True, max_batch=30)
+    finally:
+        db.close()
+
+    assert errors == []
+    assert stats["created"] == 1
+    assert _offer_count() == 1
+
+
+def test_ml_apply_over_30_rejected(tmp_path):
+    rows = []
+    for i in range(31):
+        gtin = f"78960002{i:05d}"
+        product_id = _register_product(gtin)
+        rows.append({"product_id": product_id, "gtin": gtin, "affiliate_url": OFFICIAL_URL, "price": ""})
+    csv_path = _write_csv(tmp_path, rows)
+
+    db = SessionLocal()
+    try:
+        stats, errors = import_ml_offers.run_import(csv_path, db, apply=True, max_batch=30)
+    finally:
+        db.close()
+
+    assert stats["created"] == 0
+    assert len(errors) == 1
+    assert "aceita no máximo 30" in errors[0]
+    assert _offer_count() == 0
+
+
+def test_ml_apply_over_30_rejected_even_with_larger_max_batch(tmp_path):
+    rows = []
+    for i in range(31):
+        gtin = f"78960003{i:05d}"
+        product_id = _register_product(gtin)
+        rows.append({"product_id": product_id, "gtin": gtin, "affiliate_url": OFFICIAL_URL, "price": ""})
+    csv_path = _write_csv(tmp_path, rows)
+
+    db = SessionLocal()
+    try:
+        stats, errors = import_ml_offers.run_import(csv_path, db, apply=True, max_batch=999)
+    finally:
+        db.close()
+
+    assert stats["created"] == 0
+    assert len(errors) == 1
+    assert "aceita no máximo 30" in errors[0]
+    assert _offer_count() == 0
+
+
+def test_ml_import_idempotent(tmp_path):
+    product_id = _register_product("7896000000107")
+    csv_path = _write_csv(tmp_path, [{"product_id": product_id, "gtin": "7896000000107", "affiliate_url": OFFICIAL_URL, "price": "88.00"}])
+
+    db = SessionLocal()
+    try:
+        stats_first, errors_first = import_ml_offers.run_import(csv_path, db, apply=True, max_batch=30)
+        stats_second, errors_second = import_ml_offers.run_import(csv_path, db, apply=True, max_batch=30)
+    finally:
+        db.close()
+
+    assert errors_first == []
+    assert errors_second == []
+    assert stats_first["created"] == 1
+    assert stats_second["updated"] == 1
+    assert _offer_count() == 1
+
+
 def test_ml_csv_skips_empty_affiliate_url(tmp_path):
     product_id = _register_product("7896000000199")
-    csv_path = _write_csv(tmp_path, [{"product_id": product_id, "affiliate_url": "", "price": ""}])
+    csv_path = _write_csv(tmp_path, [{"product_id": product_id, "gtin": "7896000000199", "affiliate_url": "", "price": ""}])
 
     db = SessionLocal()
     try:

@@ -22,9 +22,8 @@ Uso (dry-run é o padrão — nada é escrito, só mostra o que aconteceria):
 O Gerador de Links do Mercado Livre aceita no máximo 30 URLs por vez
 (mesmo limite documentado em export_ml_link_candidates.py), então este
 importador também limita a 30 linhas com affiliate_url preenchido por
-execução (--max-batch pra ajustar, nunca pra contornar sem querer —
-linhas além do limite são reportadas como puladas, não truncadas
-silenciosamente). Rode em lotes de 30 até zerar a fila.
+execução. No --apply, mais de 30 links preenchidos aborta a execução
+inteira, sem writes parciais. Rode em lotes de 30 até zerar a fila.
 
 Roda seguro mesmo com mercadolivre_affiliate_enabled=False — só grava
 Postgres local, nunca liga nada pro tutor sozinho (quem decide se a
@@ -35,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,6 +52,16 @@ MERCHANT = "mercadolivre"
 DEFAULT_MAX_BATCH = 30
 
 
+def _normalize_gtin(value: str | None) -> str:
+    return re.sub(r"\D+", "", value or "")
+
+
+def _filled_affiliate_rows(csv_path: Path) -> int:
+    with csv_path.open("r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return sum(1 for row in reader if (row.get("affiliate_url") or "").strip())
+
+
 def run_import(csv_path: Path, db, apply: bool, max_batch: int) -> tuple[dict[str, int], list[str]]:
     """Faz uma passada pelo CSV. Sem `apply`, valida e reporta tudo mas
     nunca chama db.add/db.commit — dry-run real, não só "imprime o que
@@ -59,6 +69,16 @@ def run_import(csv_path: Path, db, apply: bool, max_batch: int) -> tuple[dict[st
     stats = {"created": 0, "updated": 0, "skipped_empty": 0, "skipped_over_batch": 0}
     errors: list[str] = []
     rows_in_batch = 0
+    filled_rows = _filled_affiliate_rows(csv_path)
+
+    effective_max_batch = min(max_batch, DEFAULT_MAX_BATCH) if apply else max_batch
+
+    if apply and filled_rows > effective_max_batch:
+        db.rollback()
+        return stats, [
+            f"CSV tem {filled_rows} linha(s) com affiliate_url preenchida(s); "
+            f"--apply aceita no máximo {effective_max_batch}. Nenhuma linha foi gravada."
+        ]
 
     with csv_path.open("r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -68,7 +88,7 @@ def run_import(csv_path: Path, db, apply: bool, max_batch: int) -> tuple[dict[st
                 stats["skipped_empty"] += 1
                 continue
 
-            if rows_in_batch >= max_batch:
+            if rows_in_batch >= effective_max_batch:
                 stats["skipped_over_batch"] += 1
                 continue
 
@@ -81,6 +101,18 @@ def run_import(csv_path: Path, db, apply: bool, max_batch: int) -> tuple[dict[st
             product = db.get(ProductCatalog, product_id)
             if not product:
                 errors.append(f"linha {line_num}: product_id={product_id} não existe em products_catalog")
+                continue
+
+            csv_gtin = _normalize_gtin(row.get("gtin"))
+            catalog_gtin = _normalize_gtin(product.barcode_normalized or product.barcode)
+            if apply and not csv_gtin:
+                errors.append(f"linha {line_num} (product_id={product_id}): gtin obrigatório no --apply")
+                continue
+            if csv_gtin and csv_gtin != catalog_gtin:
+                errors.append(
+                    f"linha {line_num} (product_id={product_id}): gtin divergente "
+                    f"(csv={csv_gtin!r}, catalog={catalog_gtin!r})"
+                )
                 continue
 
             try:
@@ -141,7 +173,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv", type=str, required=True, help="Caminho do CSV preenchido")
     parser.add_argument("--apply", action="store_true", help="Aplica de verdade (padrão: dry-run, nada é escrito)")
-    parser.add_argument("--max-batch", type=int, default=DEFAULT_MAX_BATCH, help=f"Máximo de linhas com affiliate_url processadas nesta execução (padrão {DEFAULT_MAX_BATCH}, mesmo limite do Gerador de Links do ML)")
+    parser.add_argument("--max-batch", type=int, default=DEFAULT_MAX_BATCH, help=f"Máximo de linhas analisadas no dry-run (padrão {DEFAULT_MAX_BATCH}); --apply nunca passa de {DEFAULT_MAX_BATCH}")
     args = parser.parse_args()
 
     csv_path = Path(args.csv)
@@ -159,7 +191,7 @@ def main() -> int:
     print(
         f"{mode}: {stats['created']} criado(s), {stats['updated']} atualizado(s), "
         f"{stats['skipped_empty']} linha(s) sem affiliate_url ignorada(s), "
-        f"{stats['skipped_over_batch']} linha(s) além do lote de {args.max_batch} ignorada(s) (rode de novo pro próximo lote)"
+        f"{stats['skipped_over_batch']} linha(s) além do lote de {args.max_batch} ignorada(s) no dry-run"
     )
     if not args.apply and (stats["created"] or stats["updated"]) and not errors:
         print(f"Rode com --apply pra gravar de verdade: python3 {sys.argv[0]} --csv {args.csv} --apply")

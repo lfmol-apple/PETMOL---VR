@@ -25,6 +25,8 @@ def _reset_settings(monkeypatch):
     monkeypatch.delenv("COBASI_AFFILIATE_MODE", raising=False)
     monkeypatch.delenv("COBASI_AFFILIATE_URL", raising=False)
     monkeypatch.delenv("PETZ_AFFILIATE_URL", raising=False)
+    monkeypatch.delenv("PETLOVE_AFFILIATE_ENABLED", raising=False)
+    monkeypatch.delenv("PETLOVE_DOG_LIFE_URL", raising=False)
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
@@ -101,7 +103,24 @@ def test_handoff_doglife_ignores_dest_open_redirect(client):
     assert resp.status_code == 503
 
 
+def test_petlove_disabled_by_default(client, monkeypatch):
+    monkeypatch.setenv("PETLOVE_DOG_LIFE_URL", "https://www.petlove.com.br/dog-life")
+    get_settings.cache_clear()
+
+    resp = client.get("/handoff/doglife", follow_redirects=False)
+    assert resp.status_code == 503
+
+
+def test_petlove_url_alone_not_enough(client, monkeypatch):
+    monkeypatch.setenv("PETLOVE_DOG_LIFE_URL", "https://www.petlove.com.br/dog-life")
+    get_settings.cache_clear()
+
+    resp = client.get("/handoff/shop", params={"partner": "petlove"}, follow_redirects=False)
+    assert resp.status_code == 503
+
+
 def test_handoff_doglife_rejects_non_https_configured_url(client, monkeypatch):
+    monkeypatch.setenv("PETLOVE_AFFILIATE_ENABLED", "true")
     monkeypatch.setenv("PETLOVE_DOG_LIFE_URL", "javascript:alert(1)")
     get_settings.cache_clear()
 
@@ -109,7 +128,8 @@ def test_handoff_doglife_rejects_non_https_configured_url(client, monkeypatch):
     assert resp.status_code == 503
 
 
-def test_handoff_doglife_redirects_to_configured_https_url(client, monkeypatch):
+def test_petlove_verified_gate(client, monkeypatch):
+    monkeypatch.setenv("PETLOVE_AFFILIATE_ENABLED", "true")
     monkeypatch.setenv("PETLOVE_DOG_LIFE_URL", "https://www.petlove.com.br/dog-life")
     get_settings.cache_clear()
 
