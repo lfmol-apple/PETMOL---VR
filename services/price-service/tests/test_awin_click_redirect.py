@@ -160,3 +160,63 @@ async def test_resolve_rejects_destination_that_does_not_match_advertiser(monkey
 async def test_resolve_rejects_unknown_awin_advertiser():
     with pytest.raises(ValueError, match="Advertiser Awin não permitido"):
         await resolve_awin_click_target("https://www.awin1.com/pclick.php?p=1&a=3032803&m=999999")
+
+
+class _FakeAwinClient:
+    """Client falso reutilizável — devolve `target` como destino final,
+    simulando o redirect real (302 com Location) do lado da Awin."""
+
+    def __init__(self, target: str):
+        self._target = target
+
+    def __call__(self, *args, **kwargs):
+        return self
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return None
+
+    async def get(self, *args, **kwargs):
+        class FakeResponse:
+            status_code = 302
+            headers = {"location": self._target}
+        FakeResponse.headers = {"location": self._target}
+        return FakeResponse()
+
+
+@pytest.mark.asyncio
+async def test_awin_redirect_preserves_attribution_param(monkeypatch):
+    """Contrato central da seção 9: domínio+path corretos não bastam —
+    o destino final precisa carregar o parâmetro `awc` (o que de fato
+    prova a atribuição de comissão Awin), não só "parecer" uma página
+    de produto da loja certa."""
+    target = "https://www.zeenow.com.br/produto/biscoito-pedigree?awc=abc123"
+    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", _FakeAwinClient(target))
+
+    resolved = await resolve_awin_click_target(ZEENOW_AWIN_URL)
+    assert resolved == target
+    assert "awc=abc123" in resolved
+
+
+@pytest.mark.asyncio
+async def test_awin_redirect_rejects_destination_missing_attribution_param(monkeypatch):
+    """Regressão: um destino com domínio/path corretos mas SEM `awc`
+    (ex: a Awin muda de comportamento, um proxy/cache remove a query
+    string) tinha antes sido aceito — domínio válido não é prova de
+    comissão. Agora precisa ser rejeitado, fail-closed."""
+    target = "https://www.zeenow.com.br/produto/biscoito-pedigree"  # sem awc
+    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", _FakeAwinClient(target))
+
+    with pytest.raises(ValueError, match="atribuição"):
+        await resolve_awin_click_target(ZEENOW_AWIN_URL)
+
+
+@pytest.mark.asyncio
+async def test_awin_redirect_rejects_destination_with_empty_attribution_param(monkeypatch):
+    target = "https://www.zeenow.com.br/produto/biscoito-pedigree?awc="
+    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", _FakeAwinClient(target))
+
+    with pytest.raises(ValueError, match="atribuição"):
+        await resolve_awin_click_target(ZEENOW_AWIN_URL)

@@ -103,4 +103,17 @@ async def resolve_awin_click_target(awin_url: str) -> str:
         raise ValueError("Destino Awin inesperado")
     if advertiser_id == "17870" and "/p" not in parts.path:
         raise ValueError("Destino Awin não parece página de produto Cobasi")
+
+    # Domínio+path corretos não bastam como prova de atribuição — o
+    # parâmetro `awc` (Awin Click) é o que de fato carrega o
+    # identificador de comissão na URL final (ver docstring do módulo).
+    # Sem validar isso, um redirect Awin que por algum motivo (cache,
+    # mudança no lado da Awin, etc.) perdesse o `awc` no caminho seria
+    # aceito e encaminhado como se estivesse tudo bem — destino
+    # tecnicamente válido, mas sem comissão nenhuma. Fail closed: exige
+    # o parâmetro estar presente e não-vazio.
+    query_params = parse_qs(parts.query)
+    if not query_params.get("awc") or not query_params["awc"][0]:
+        raise ValueError("Destino Awin sem parâmetro de atribuição (awc) — comissão não comprovada")
+
     return target
