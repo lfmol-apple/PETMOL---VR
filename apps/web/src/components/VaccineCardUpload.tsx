@@ -9,6 +9,8 @@
 
 import { useState } from 'react';
 import { getToken } from '@/lib/tokenStorage';
+import { hasAiPhotoConsent } from '@/features/ai/aiPhotoConsent';
+import { AIPhotoConsentPrompt } from '@/features/ai/AIPhotoConsentPrompt';
 
 interface VaccineData {
   name: string;
@@ -35,6 +37,10 @@ export function VaccineCardUpload({ petId, onExtracted, onCancel }: VaccineCardU
   const [error, setError] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [extractResult, setExtractResult] = useState<ExtractResult | null>(null);
+  // Foto validada e com preview pronto, mas AINDA NÃO enviada ao Gemini —
+  // fica assim até o tutor confirmar consentimento explícito (ver
+  // features/ai/aiPhotoConsent.ts). Nunca chamar processImage antes disso.
+  const [pendingConsentFile, setPendingConsentFile] = useState<File | null>(null);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -63,8 +69,28 @@ export function VaccineCardUpload({ petId, onExtracted, onCancel }: VaccineCardU
     };
     reader.readAsDataURL(file);
 
-    // Processar com IA
-    await processImage(file);
+    // Zero requisição ao Gemini antes de consentimento explícito — se já
+    // foi concedido antes (lembrado), segue direto; senão, pausa aqui e
+    // mostra a tela de consentimento.
+    if (hasAiPhotoConsent()) {
+      await processImage(file);
+    } else {
+      setPendingConsentFile(file);
+    }
+  };
+
+  const handleConsentAccept = async () => {
+    const file = pendingConsentFile;
+    setPendingConsentFile(null);
+    if (file) {
+      await processImage(file);
+    }
+  };
+
+  const handleConsentDecline = () => {
+    setPendingConsentFile(null);
+    setImagePreview(null);
+    onCancel();
   };
 
   const processImage = async (file: File) => {
@@ -160,7 +186,11 @@ export function VaccineCardUpload({ petId, onExtracted, onCancel }: VaccineCardU
         </div>
       </div>
 
-      {!imagePreview && !isProcessing && (
+      {pendingConsentFile && !isProcessing && (
+        <AIPhotoConsentPrompt onAccept={handleConsentAccept} onDecline={handleConsentDecline} />
+      )}
+
+      {!imagePreview && !isProcessing && !pendingConsentFile && (
         <div>
           <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
             <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -190,7 +220,7 @@ export function VaccineCardUpload({ petId, onExtracted, onCancel }: VaccineCardU
         </div>
       )}
 
-      {imagePreview && !isProcessing && !extractResult && (
+      {imagePreview && !isProcessing && !extractResult && !pendingConsentFile && (
         <div className="space-y-3">
           <img src={imagePreview} alt="Preview" className="w-full rounded-lg border border-gray-300" />
           <div className="flex gap-2">
