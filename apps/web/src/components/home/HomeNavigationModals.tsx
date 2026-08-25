@@ -226,15 +226,15 @@ export function HomeNavigationModals({
                       onCloseHealthOptionsModal();
                       onOpenHealthTab(tab);
                     }}
-                    className={`group relative overflow-hidden bg-gradient-to-br ${gradient} border rounded-2xl p-4 h-[124px] transition-all duration-200 hover:shadow-lg hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-sm ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
+                    className={`group relative overflow-hidden bg-gradient-to-br ${gradient} border rounded-2xl p-4 h-[134px] transition-all duration-200 hover:shadow-lg hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-sm ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
                     {image ? (
-                      <span className="absolute top-1.5 right-1.5 flex h-16 w-16 items-center justify-center rounded-2xl border border-white bg-white/90 shadow-md transition-transform duration-300 group-hover:scale-110">
-                        <img src={image} alt="" className="h-12 w-12 object-contain" />
+                      <span className="absolute top-1.5 right-1.5 flex h-[72px] w-[72px] items-center justify-center rounded-2xl border border-white bg-white/90 shadow-md transition-transform duration-300 group-hover:scale-110">
+                        <img src={image} alt="" className="h-14 w-14 object-contain" />
                       </span>
                     ) : (
-                      <span className={`absolute top-1.5 right-1.5 flex h-16 w-16 items-center justify-center rounded-2xl border border-white bg-white/90 text-4xl shadow-md transition-transform duration-300 group-hover:scale-110 ${isEmergency ? 'drop-shadow-[0_0_10px_rgba(239,68,68,0.28)]' : ''}`}>{icon}</span>
+                      <span className={`absolute top-1.5 right-1.5 flex h-[72px] w-[72px] items-center justify-center rounded-2xl border border-white bg-white/90 text-4xl shadow-md transition-transform duration-300 group-hover:scale-110 ${isEmergency ? 'drop-shadow-[0_0_10px_rgba(239,68,68,0.28)]' : ''}`}>{icon}</span>
                     )}
                     {isEmergency && (
                       <span className="pointer-events-none absolute right-2 top-2 h-6 w-6 rounded-full bg-red-300/35 blur-md animate-pulse" />
