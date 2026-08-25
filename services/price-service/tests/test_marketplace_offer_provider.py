@@ -389,4 +389,32 @@ def test_monetize_disabled_returns_none(monkeypatch):
 
 def test_is_marketplace_merchant_publicly_servable_unknown_merchant_always_false(monkeypatch):
     _enable_shopee(monkeypatch)
-    assert is_marketplace_merchant_publicly_servable("mercadolivre") is False
+    assert is_marketplace_merchant_publicly_servable("submarino") is False
+
+
+def test_shopee_never_returns_direct_url_in_prod(monkeypatch):
+    """direct_url e affiliate_url podem divergir na mesma linha
+    (ex: direct_url só de referência/imagem) — monetize() sempre tem
+    que devolver affiliate_url, nunca direct_url, mesmo que os dois
+    existam na mesma MarketplaceOffer."""
+    _enable_shopee(monkeypatch)
+    product_id = _register_product()
+    db = SessionLocal()
+    try:
+        row = MarketplaceOffer(
+            product_id=product_id, merchant="shopee",
+            affiliate_url="https://s.shopee.com.br/real-affiliate-link",
+            direct_url="https://shopee.com.br/produto/sem-comissao",
+            price=59.9, active=True,
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+
+        provider = MarketplaceOfferProvider(db, "shopee")
+        discovered = DiscoveredOffer(merchant="shopee", price=59.9, external_id=str(row.id))
+        url, link_type, route, is_manually_cached = provider.monetize(discovered, ProductContext(gtin=GTIN))
+        assert url == "https://s.shopee.com.br/real-affiliate-link"
+        assert "sem-comissao" not in url
+    finally:
+        db.close()
