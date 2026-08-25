@@ -17,12 +17,14 @@ export function PetmolMark({ className, style }: { className?: string; style?: R
   );
 }
 
-// Marca oficial (fonte: petmol-mark-transparent.png — derivado da arte
-// oficial fornecida pelo usuário via color-key: tinta branca do original
-// vira alpha, sem reinterpretar/redesenhar nada) tem alpha real, sem fundo
-// azul embutido — usada como máscara CSS pra poder pintar da cor que o
-// fundo de cada tela precisar (branco em fundo escuro, azul em fundo
-// claro), em vez de um filtro aproximado sobre um PNG com fundo opaco.
+// Marca oficial (fonte: petmol-mark-transparent.png — alpha extraído por
+// color-key da arte final aprovada em /Users/leonardomol/Downloads/Logo
+// Oficial Petmol.png: "P" + patinha, tinta branca vira alpha, fundo azul
+// vira transparente, sem reinterpretar/redesenhar nada) tem alpha real,
+// sem fundo azul embutido — usada como máscara CSS pra poder pintar da
+// cor que o fundo de cada tela precisar (branco em fundo escuro, azul em
+// fundo claro), em vez de um filtro aproximado sobre um PNG com fundo
+// opaco.
 export function PetmolTextLogo({ className, color }: { className?: string; showMark?: boolean; color?: string }) {
   const fill = color || '#FFFFFF';
   return (
@@ -31,7 +33,7 @@ export function PetmolTextLogo({ className, color }: { className?: string; showM
       aria-label="PETMOL"
       className={`relative inline-block select-none pointer-events-none ${className}`}
       style={{
-        aspectRatio: '737 / 253',
+        aspectRatio: '720 / 828',
         height: '1em',
         width: 'auto',
         backgroundColor: fill,

@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Carteirinha digital, vacinas, saúde e agenda completa para seu pet',
     start_url: '/home',
     display: 'standalone',
-    background_color: '#0A5CF5',
-    theme_color: '#0A5CF5',
+    background_color: '#003DA8',
+    theme_color: '#003DA8',
     orientation: 'portrait',
     icons: [
       {

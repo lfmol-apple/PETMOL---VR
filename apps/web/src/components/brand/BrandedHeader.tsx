@@ -176,14 +176,15 @@ export function BrandedHeader({
               // Todas as variantes deste header (glass/ribbon/night) são
               // fundos coloridos/escuros — a marca é sempre branca. Usa
               // petmol-mark-transparent.png (alpha real, sem fundo azul
-              // embutido) como máscara CSS em vez de um PNG opaco + filter,
-              // que deixava a marca ilegível na variante 'night' (o filtro
+              // embutido, extraído da arte final aprovada: "P" + patinha)
+              // como máscara CSS em vez de um PNG opaco + filter, que
+              // deixava a marca ilegível na variante 'night' (o filtro
               // brightness(0)+invert(1) clareava o retângulo azul de fundo
               // junto com o texto, virando um bloco branco sólido).
               <div
                 role="img"
                 aria-label="PETMOL"
-                className="h-8 w-[120px]"
+                className="h-8 w-8"
                 style={{
                   backgroundColor: '#FFFFFF',
                   WebkitMaskImage: 'url(/brand/petmol-mark-transparent.png)',
@@ -192,8 +193,8 @@ export function BrandedHeader({
                   maskSize: 'contain',
                   WebkitMaskRepeat: 'no-repeat',
                   maskRepeat: 'no-repeat',
-                  WebkitMaskPosition: 'left center',
-                  maskPosition: 'left center',
+                  WebkitMaskPosition: 'center',
+                  maskPosition: 'center',
                 }}
               />
             ) : (
