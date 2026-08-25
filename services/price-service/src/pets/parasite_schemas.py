@@ -65,6 +65,9 @@ class ParasiteControlOut(ParasiteControlBase):
     id: str
     pet_id: str
     deleted: bool = False
+    # Resolvida automaticamente no backend a partir de `barcode` — nunca
+    # aceita do cliente (não existe em ParasiteControlCreate/Update).
+    product_id: Optional[int] = None
     created_at: UtcInstant
     updated_at: UtcInstant
 

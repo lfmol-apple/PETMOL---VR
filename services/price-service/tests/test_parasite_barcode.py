@@ -2,6 +2,21 @@
 comercial por identidade exata (AwinFeedProvider), mesmo caminho já usado
 por FeedingPlanItemEntry.barcode pra ração (ver docs/AFFILIATES.md)."""
 
+from src.db import SessionLocal
+from src.product_catalog_lookup import ProductCatalog
+
+
+def _register_catalog_product(gtin: str) -> int:
+    db = SessionLocal()
+    try:
+        product = ProductCatalog(barcode=gtin, barcode_normalized=gtin, name="Produto Teste", brand="Marca Teste")
+        db.add(product)
+        db.commit()
+        db.refresh(product)
+        return product.id
+    finally:
+        db.close()
+
 
 def _headers(cid: str, token: str | None = None) -> dict:
     h = {"X-PETMOL-CLIENT-ID": cid}
@@ -88,3 +103,45 @@ def test_barcode_untouched_by_partial_update(client):
     )
     assert update.status_code == 200, update.text
     assert update.json()["barcode"] == "7899999999999"
+
+
+def test_barcode_resolves_product_id_when_already_catalogued(client):
+    gtin = "7896012345678"
+    product_id = _register_catalog_product(gtin)
+
+    token, pet_id = _signup_login_and_pet(client, "cid-parasite-4", "tutor.parasita4@example.com")
+    headers = _headers("cid-parasite-4", token)
+
+    create = client.post(
+        f"/pets/{pet_id}/parasites",
+        json={
+            "type": "dewormer",
+            "product_name": "Vermífugo Catalogado",
+            "date_applied": "2026-08-14T00:00:00Z",
+            "barcode": gtin,
+        },
+        headers=headers,
+    )
+    assert create.status_code == 201, create.text
+    assert create.json()["product_id"] == product_id
+
+
+def test_product_id_is_never_accepted_directly_from_client(client):
+    """product_id só é resolvido a partir de `barcode` no backend — um
+    valor inventado enviado direto pelo cliente é ignorado (o schema de
+    entrada nem tem esse campo)."""
+    token, pet_id = _signup_login_and_pet(client, "cid-parasite-5", "tutor.parasita5@example.com")
+    headers = _headers("cid-parasite-5", token)
+
+    create = client.post(
+        f"/pets/{pet_id}/parasites",
+        json={
+            "type": "dewormer",
+            "product_name": "Vermífugo Sem Catálogo",
+            "date_applied": "2026-08-14T00:00:00Z",
+            "product_id": 999999,
+        },
+        headers=headers,
+    )
+    assert create.status_code == 201, create.text
+    assert create.json()["product_id"] is None
