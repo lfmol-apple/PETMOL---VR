@@ -33,7 +33,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: 'cover', // safe-area iOS
-  themeColor: '#2563eb',
+  themeColor: '#003DA8',
 };
 
 export const metadata: Metadata = {
