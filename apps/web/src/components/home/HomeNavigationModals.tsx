@@ -181,10 +181,10 @@ export function HomeNavigationModals({
                   { icon: '🛡️', label: 'Antipulgas', gradient: 'from-emerald-100 to-green-200 border-green-300', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
                   // Coleira antiparasitária é uso específico de cães — outras espécies não usam
                   ...(currentPet?.species === 'dog'
-                    ? [{ icon: '📿', label: 'Coleira', gradient: 'from-teal-100 to-cyan-200 border-teal-300', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
+                    ? [{ icon: '📿', image: '/cuidados-coleira.webp', label: 'Coleira', gradient: 'from-teal-100 to-cyan-200 border-teal-300', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
                     : []),
-                  { icon: '🛁', label: 'Banho e Tosa', gradient: 'from-sky-100 to-blue-200 border-sky-300', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
-                  { icon: '💊', label: 'Medicação', gradient: 'from-purple-100 to-violet-200 border-purple-300', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
+                  { icon: '🛁', image: '/cuidados-banho-tosa.webp', label: 'Banho e Tosa', gradient: 'from-sky-100 to-blue-200 border-sky-300', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
+                  { icon: '💊', image: '/cuidados-medicacao.webp', label: 'Medicação', gradient: 'from-purple-100 to-violet-200 border-purple-300', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
                 ].map(({ icon, image, label, gradient, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 
