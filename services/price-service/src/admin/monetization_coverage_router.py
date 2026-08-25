@@ -19,9 +19,11 @@ router = APIRouter(prefix="/v1/admin/monetization-coverage", tags=["Admin Moneti
 class MerchantCoverageOut(BaseModel):
     merchant: str
     known_products: int
-    monetized_products: int
+    matched_products: int
+    commercially_linked_products: int
+    publicly_servable_products: int
     coverage_percent: Optional[float]
-    unmonetized_products: int
+    pending_products: int
 
 
 class MonetizationCoverageListOut(BaseModel):
