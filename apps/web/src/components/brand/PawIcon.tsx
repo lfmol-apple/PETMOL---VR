@@ -14,7 +14,7 @@ interface PawIconProps {
 export function PawIcon({ 
   className = '', 
   size = 24, 
-  color = '#7C3AED',
+  color = '#1269FA',
   inherit = false 
 }: PawIconProps) {
   const fillColor = inherit ? 'currentColor' : color;

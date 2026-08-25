@@ -17,32 +17,34 @@ export function PetmolMark({ className, style }: { className?: string; style?: R
   );
 }
 
-export function PetmolTextLogo({ className, showMark = true, color }: { className?: string; showMark?: boolean; color?: string }) {
+// Marca oficial (fonte: petmol-mark-transparent.png — derivado da arte
+// oficial fornecida pelo usuário via color-key: tinta branca do original
+// vira alpha, sem reinterpretar/redesenhar nada) tem alpha real, sem fundo
+// azul embutido — usada como máscara CSS pra poder pintar da cor que o
+// fundo de cada tela precisar (branco em fundo escuro, azul em fundo
+// claro), em vez de um filtro aproximado sobre um PNG com fundo opaco.
+export function PetmolTextLogo({ className, color }: { className?: string; showMark?: boolean; color?: string }) {
+  const fill = color || '#FFFFFF';
   return (
-    <div className={`relative flex items-center gap-3 select-none pointer-events-none ${className}`}>
-      <span className="font-bold tracking-[-0.04em]" 
-            style={{ fontFamily: 'var(--font-fredoka), sans-serif', color: color || '#FFFFFF' }}>
-        petmol
-      </span>
-
-      {/* Uso da IMAGEM REAL fornecida pelo usuário */}
-      {showMark && (
-        <div className="flex items-center space-x-1 -translate-y-1 ml-1">
-          <img 
-            src="/brand/pata-custom.png" 
-            alt="🐾" 
-            className="w-5 h-5 object-contain rotate-[-10deg]" 
-            style={{ filter: color ? 'brightness(0) invert(32%) sepia(86%) saturate(1478%) hue-rotate(204deg) brightness(97%) contrast(93%)' : 'brightness(0) invert(1)' }}
-          />
-          <img 
-            src="/brand/pata-custom.png" 
-            alt="🐾" 
-            className="w-5 h-5 object-contain rotate-[15deg] -mt-3 opacity-70" 
-            style={{ filter: color ? 'brightness(0) invert(32%) sepia(86%) saturate(1478%) hue-rotate(204deg) brightness(97%) contrast(93%)' : 'brightness(0) invert(1)' }}
-          />
-        </div>
-      )}
-    </div>
+    <div
+      role="img"
+      aria-label="PETMOL"
+      className={`relative inline-block select-none pointer-events-none ${className}`}
+      style={{
+        aspectRatio: '737 / 253',
+        height: '1em',
+        width: 'auto',
+        backgroundColor: fill,
+        WebkitMaskImage: 'url(/brand/petmol-mark-transparent.png)',
+        maskImage: 'url(/brand/petmol-mark-transparent.png)',
+        WebkitMaskSize: 'contain',
+        maskSize: 'contain',
+        WebkitMaskRepeat: 'no-repeat',
+        maskRepeat: 'no-repeat',
+        WebkitMaskPosition: 'center',
+        maskPosition: 'center',
+      }}
+    />
   );
 }
 
