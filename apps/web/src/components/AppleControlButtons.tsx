@@ -168,7 +168,7 @@ export function AppleControlButtons({
             className="group relative min-h-[80px] overflow-hidden rounded-xl border border-emerald-400 bg-gradient-to-br from-emerald-100 via-emerald-100 to-teal-200 p-2.5 shadow-sm shadow-emerald-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[92px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorVaccines, alertVaccines) && <AlertDot tone={colorVaccines} />}
-            <span className="absolute bottom-1 right-1 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:bottom-1.5 min-[390px]:right-1.5">
+            <span className="absolute top-2 -right-1 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:top-2.5 min-[390px]:-right-1.5">
               <img
                 src="/vacina-ampolas-seringa.webp"
                 alt=""
@@ -199,7 +199,7 @@ export function AppleControlButtons({
             onClick={onShoppingClick}
             className="group relative min-h-[80px] overflow-hidden rounded-xl border-2 border-blue-500 bg-gradient-to-br from-blue-100 via-blue-200 to-cyan-200 p-2.5 shadow-md shadow-blue-900/15 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-95 min-[390px]:min-h-[92px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
-            <span className="absolute bottom-0.5 -right-1.5 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:bottom-1 min-[390px]:-right-2">
+            <span className="absolute bottom-2 -right-1.5 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:bottom-2.5 min-[390px]:-right-2">
               <img
                 src="/loja-cart-ossos.webp"
                 alt=""
