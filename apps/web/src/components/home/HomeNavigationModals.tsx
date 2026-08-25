@@ -184,7 +184,7 @@ export function HomeNavigationModals({
                     ? [{ icon: '📿', image: '/cuidados-coleira.webp', label: 'Coleira', gradient: 'from-teal-100 to-cyan-200 border-teal-300', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
                     : []),
                   { icon: '🛁', image: '/cuidados-banho-tosa.webp', label: 'Banho e Tosa', gradient: 'from-sky-100 to-blue-200 border-sky-300', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
-                  { icon: '💊', image: '/cuidados-medicacao.webp', label: 'Medicação', gradient: 'from-purple-100 to-violet-200 border-purple-300', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
+                  { icon: '💊', label: 'Medicação', gradient: 'from-purple-100 to-violet-200 border-purple-300', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
                 ].map(({ icon, image, label, gradient, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 
@@ -226,12 +226,12 @@ export function HomeNavigationModals({
                       onCloseHealthOptionsModal();
                       onOpenHealthTab(tab);
                     }}
-                    className={`group relative overflow-hidden bg-gradient-to-br ${gradient} border rounded-2xl p-4 h-[94px] transition-all duration-200 hover:shadow-lg hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-sm ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
+                    className={`group relative overflow-hidden bg-gradient-to-br ${gradient} border rounded-2xl p-4 h-[116px] transition-all duration-200 hover:shadow-lg hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-sm ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
                     {image ? (
-                      <span className="absolute top-2 right-2 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 opacity-90">
-                        <img src={image} alt="" className="w-9 h-9 object-contain" />
+                      <span className="absolute top-1 right-1 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 opacity-95">
+                        <img src={image} alt="" className="w-14 h-14 object-contain" />
                       </span>
                     ) : (
                       <span className={`absolute top-2 right-2 text-2xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 ${isEmergency ? 'opacity-100 drop-shadow-[0_0_10px_rgba(239,68,68,0.28)]' : 'opacity-90'}`}>{icon}</span>
