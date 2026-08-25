@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerPriceLabel, type CommerceOffer, type PetzDirectLink } from './productPricing';
+import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, merchantLogoSrc, offerPriceLabel, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import {
   copyPetzCouponAndOpen,
   navigateToPartnerUrl,
@@ -152,6 +152,7 @@ export function MonetizedOffersList({
         const priceReliable = hasReliablePrice(offer);
         const hasDiscount = priceReliable && typeof offer.list_price === 'number' && offer.list_price > offer.price;
         const offerMerchantLabel = merchantLabel(offer.merchant);
+        const offerLogoSrc = merchantLogoSrc(offer.merchant);
 
         return (
           <button
@@ -161,7 +162,12 @@ export function MonetizedOffersList({
             className={`w-full p-4 text-left bg-white border rounded-2xl shadow-sm transition-all active:scale-[0.99] hover:border-emerald-200 ${isBest ? 'border-emerald-300 bg-emerald-50/40' : 'border-gray-200'}`}
           >
             <div className="flex items-center gap-3">
-              <span className="text-2xl flex-shrink-0">{icon}</span>
+              {offerLogoSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={offerLogoSrc} alt={offerMerchantLabel} className="w-9 h-9 rounded-lg object-contain border border-gray-100 flex-shrink-0 bg-white" />
+              ) : (
+                <span className="text-2xl flex-shrink-0">{icon}</span>
+              )}
               <div className="flex-1 min-w-0">
                 {isBest && offers.length > 1 && (
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[10px] font-black leading-none mb-0.5">
