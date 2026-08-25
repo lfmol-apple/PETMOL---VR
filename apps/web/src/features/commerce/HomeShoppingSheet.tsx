@@ -9,6 +9,7 @@ import {
   HOME_SHOPPING_PARTNERS,
   openHomeShoppingPartner,
   navigateToPartnerUrl,
+  copyPetzCouponAndOpen,
   isPartnerVisibleForSearch,
   partnerGenericLinkType,
   type HomeShoppingPartner,
@@ -136,7 +137,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                             });
                           }}
                           onPetzBuy={(url) => {
-                            navigateToPartnerUrl(url);
+                            void copyPetzCouponAndOpen(url);
                             void trackClick({
                               source: 'home',
                               cta_type: 'shop_reorder_buy_petz',

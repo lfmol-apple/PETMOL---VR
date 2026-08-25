@@ -16,6 +16,7 @@
 import { useEffect, useState } from 'react';
 import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerPriceLabel, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import {
+  copyPetzCouponAndOpen,
   navigateToPartnerUrl,
 } from './homeShoppingPartners';
 import { useCommerceOffers } from './useCommerceOffers';
@@ -81,7 +82,7 @@ export function MonetizedOffersList({
 
   function handleVerNaPetz() {
     if (!petzLink?.url) return;
-    navigateToPartnerUrl(petzLink.url);
+    void copyPetzCouponAndOpen(petzLink.url);
     void trackClick({
       source,
       cta_type: 'petz_direct_link_click',

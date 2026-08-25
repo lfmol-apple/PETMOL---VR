@@ -897,6 +897,37 @@ Arquitetura:
   `storefrontAffiliateUrl` na entrada `petz` de
   `apps/web/src/features/commerce/homeShoppingPartners.ts`.
 
+#### Interceptação por app instalado (Universal Links/App Links) — limitação conhecida, 25/08/2026
+
+Em aparelhos com o app da Petz instalado, o próprio sistema operacional
+(iOS Universal Links / Android App Links) pode interceptar o link e
+abrir o app da Petz em vez do navegador — às vezes caindo na tela
+inicial do app em vez do produto específico. **Confirmado que não há
+como desligar isso pelo `@capacitor/browser`** (documentação oficial do
+plugin não expõe nenhuma opção pra isso) — é decisão do sistema
+operacional + de como o app da Petz implementa (ou não) deep-link pra
+página de produto, fora do nosso controle.
+
+Também não é possível confirmar por código se o mecanismo de comissão
+da "Loja Parceira" depende da URL de chegada (cookie/referrer) ou só do
+cupom aplicado no checkout — se for o primeiro caso, cair no app pode
+quebrar a atribuição. Isso só a Petz pode esclarecer.
+
+Mitigação implementada (`copyPetzCouponAndOpen` em
+`homeShoppingPartners.ts`): copia o cupom PETTMOL pro clipboard do
+tutor ANTES de navegar — não resolve a interceptação em si, mas garante
+que o tutor tenha o cupom pronto pra colar independente de cair no
+produto certo, na home do app, ou no navegador.
+
+Caminho real de correção (não implementado — exige teste em aparelho
+físico, fora do alcance deste ambiente): no Android, a Chrome Custom
+Tabs API permite forçar abertura sem redirecionar pro app instalado
+vinculando uma `CustomTabsSession` ao `CustomTabsIntent` antes de abrir
+— isso não é exposto pelo `@capacitor/browser` (só pela API nativa
+Android), exigiria um plugin Capacitor customizado ou fork do plugin
+oficial. Não encontrada solução equivalente documentada e confiável
+para iOS/SFSafariViewController.
+
 ### Petlove Produtos
 
 | Campo | Valor |
