@@ -2,8 +2,8 @@
  * Brand Tokens - Sistema de design baseado na logomarca PETMOL
  * 
  * Cores extraídas de: /public/brand/logo.svg
- * - Primary: #7C3AED (roxo da patinha)
- * - Secondary: #0F172A (texto escuro)
+ * - Primary: #1269FA (azul oficial)
+ * - Secondary: #FFFFFF (marca em branco sobre azul)
  */
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -12,13 +12,13 @@
 
 export const brandColors = {
   // Cores principais da logo
-  primary: '#7C3AED',       // Purple-600 (patinha + "MOL")
-  secondary: '#0F172A',     // Slate-900 (texto "PET")
+  primary: '#1269FA',       // Azul oficial extraído da arte
+  secondary: '#FFFFFF',     // Marca em branco
   
   // Variações de accent
-  accent: '#A78BFA',        // Purple-400 (mais claro)
-  accentDark: '#6D28D9',    // Purple-700 (mais escuro)
-  accentLight: '#C4B5FD',   // Purple-300 (bem claro)
+  accent: '#3B8BFF',
+  accentDark: '#0056D2',
+  accentLight: '#CFE4FF',
   
   // Text colors
   textOnBrand: '#FFFFFF',   // Branco (para fundos escuros)
@@ -39,17 +39,17 @@ export const brandColors = {
 // ────────────────────────────────────────────────────────────────────────────
 
 export const brandGradients = {
-  // Variant A: Glass (default) - Roxo claro -> Lilás
-  glass: 'linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)',
-  glassSubtle: 'linear-gradient(135deg, rgba(124, 58, 237, 0.9) 0%, rgba(167, 139, 250, 0.9) 100%)',
+  // Variant A: Glass (default) - azul oficial
+  glass: 'linear-gradient(135deg, #1269FA 0%, #3B8BFF 100%)',
+  glassSubtle: 'linear-gradient(135deg, rgba(18, 105, 250, 0.9) 0%, rgba(59, 139, 255, 0.9) 100%)',
   
-  // Variant B: Ribbon - Roxo vibrante -> Rosa
-  ribbon: 'linear-gradient(135deg, #7C3AED 0%, #C026D3 50%, #EC4899 100%)',
-  ribbonSubtle: 'linear-gradient(135deg, rgba(124, 58, 237, 0.95) 0%, rgba(192, 38, 211, 0.95) 50%, rgba(236, 72, 153, 0.95) 100%)',
+  // Variant B: Ribbon - azul -> ciano
+  ribbon: 'linear-gradient(135deg, #1269FA 0%, #00A6D6 50%, #22C55E 100%)',
+  ribbonSubtle: 'linear-gradient(135deg, rgba(18, 105, 250, 0.95) 0%, rgba(0, 166, 214, 0.95) 50%, rgba(34, 197, 94, 0.95) 100%)',
   
-  // Variant C: Night - Roxo escuro -> Quase preto
-  night: 'linear-gradient(135deg, #6D28D9 0%, #4C1D95 50%, #0F172A 100%)',
-  nightSubtle: 'linear-gradient(135deg, rgba(109, 40, 217, 0.98) 0%, rgba(76, 29, 149, 0.98) 50%, rgba(15, 23, 42, 0.98) 100%)',
+  // Variant C: Night - azul escuro -> quase preto
+  night: 'linear-gradient(135deg, #0056D2 0%, #123A8C 50%, #0F172A 100%)',
+  nightSubtle: 'linear-gradient(135deg, rgba(0, 86, 210, 0.98) 0%, rgba(18, 58, 140, 0.98) 50%, rgba(15, 23, 42, 0.98) 100%)',
 } as const;
 
 // CSS inline para uso direto

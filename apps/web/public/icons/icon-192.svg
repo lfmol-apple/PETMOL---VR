@@ -1,15 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0066ff"/>
-      <stop offset="100%" stop-color="#00c4d4"/>
-    </linearGradient>
-  </defs>
-  <rect width="192" height="192" rx="42" fill="url(#bg)"/>
-  <text x="96" y="102" font-family="Arial Black,Arial,Helvetica,sans-serif" font-size="118" font-weight="900" fill="white" text-anchor="middle" dominant-baseline="middle">P</text>
-  <ellipse cx="157" cy="51" rx="14" ry="11" fill="white" fill-opacity="0.92"/>
-  <ellipse cx="139" cy="31" rx="6" ry="7.5" fill="white" fill-opacity="0.92" transform="rotate(-20 139 31)"/>
-  <ellipse cx="151" cy="22" rx="6" ry="7.5" fill="white" fill-opacity="0.92" transform="rotate(-7 151 22)"/>
-  <ellipse cx="164" cy="22" rx="6" ry="7.5" fill="white" fill-opacity="0.92" transform="rotate(7 164 22)"/>
-  <ellipse cx="176" cy="31" rx="6" ry="7.5" fill="white" fill-opacity="0.92" transform="rotate(20 176 31)"/>
+  <image href="/icons/icon-192.png" x="0" y="0" width="192" height="192" preserveAspectRatio="xMidYMid meet"/>
 </svg>

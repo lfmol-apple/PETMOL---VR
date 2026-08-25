@@ -22,7 +22,6 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
 import { PawWatermark } from './PawWatermark';
 import { brandTokens, type HeaderVariant } from './brandTokens';
 
@@ -174,16 +173,28 @@ export function BrandedHeader({
           {/* Logo ou Title/Subtitle */}
           <div className="flex flex-col justify-center min-w-0 flex-1">
             {showLogo ? (
-              <Image
-                src="/brand/logo.svg"
-                alt="PETMOL"
-                width={120}
-                height={27}
-                className="h-8 w-auto"
-                style={{ 
-                  filter: variant === 'night' ? 'brightness(0) invert(1)' : 'none',
+              // Todas as variantes deste header (glass/ribbon/night) são
+              // fundos coloridos/escuros — a marca é sempre branca. Usa
+              // petmol-mark-transparent.png (alpha real, sem fundo azul
+              // embutido) como máscara CSS em vez de um PNG opaco + filter,
+              // que deixava a marca ilegível na variante 'night' (o filtro
+              // brightness(0)+invert(1) clareava o retângulo azul de fundo
+              // junto com o texto, virando um bloco branco sólido).
+              <div
+                role="img"
+                aria-label="PETMOL"
+                className="h-8 w-[120px]"
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  WebkitMaskImage: 'url(/brand/petmol-mark-transparent.png)',
+                  maskImage: 'url(/brand/petmol-mark-transparent.png)',
+                  WebkitMaskSize: 'contain',
+                  maskSize: 'contain',
+                  WebkitMaskRepeat: 'no-repeat',
+                  maskRepeat: 'no-repeat',
+                  WebkitMaskPosition: 'left center',
+                  maskPosition: 'left center',
                 }}
-                priority
               />
             ) : (
               <>

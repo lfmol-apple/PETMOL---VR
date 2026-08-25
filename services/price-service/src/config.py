@@ -158,6 +158,7 @@ class Settings(BaseSettings):
     petz_affiliate_url: Optional[str] = None
     cobasi_affiliate_url: Optional[str] = None
     petlove_dog_life_url: Optional[str] = None
+    petlove_affiliate_enabled: bool = False
 
     # Affiliate-only commerce: em produção, uma loja/oferta só pode ser
     # apresentada como opção de compra quando existe link monetizável real.

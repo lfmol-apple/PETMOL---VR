@@ -8,7 +8,7 @@ export default function PrivacyPage() {
       backHref="/"
     >
       <PremiumCard>
-        <p className="text-slate-500 text-xs mb-6">Última atualização: 11 de agosto de 2026</p>
+        <p className="text-slate-500 text-xs mb-6">Última atualização: 25 de agosto de 2026</p>
         <div className="prose prose-sm prose-slate max-w-none">
           <h2>1. Introdução</h2>
           <p>
@@ -31,7 +31,7 @@ export default function PrivacyPage() {
             <li>Sexo, peso, informações de castração</li>
             <li>Fotos do pet (opcional)</li>
             <li><strong>Dados de saúde</strong> (vacinas, vermífugos, consultas, medicamentos, controles antiparasitários) — tratados com nível de proteção equivalente a dados sensíveis nos termos da LGPD, utilizados exclusivamente para as funcionalidades do app e nunca compartilhados com terceiros para fins comerciais</li>
-            <li>Documentos enviados (fotos de carteirinha de vacinação, receitas, laudos) podem ser processados por inteligência artificial (Google Gemini, OpenAI) para extração automática de informações como nome da vacina e data — o arquivo original é armazenado nos nossos servidores, não retido pelo provedor de IA além do processamento da requisição</li>
+            <li>Documentos enviados (fotos de carteirinha de vacinação, receitas, laudos) podem ser processados por inteligência artificial (Google Gemini) para extração automática de informações como nome da vacina e data — sempre com seu consentimento explícito antes do envio da foto (você pode optar por preencher manualmente, sem usar IA). O PETMOL armazena o arquivo original somente quando ele vira um registro do app; o tratamento pelo provedor de IA segue os termos, configurações e controles do serviço Google Gemini contratado</li>
           </ul>
 
           <h3>2.3. Dados de Uso</h3>
@@ -102,7 +102,7 @@ export default function PrivacyPage() {
           <p>Podemos compartilhar seus dados apenas com:</p>
           <ul>
             <li><strong>Provedores de serviço:</strong> Hospedagem, e-mail, notificações push (sob contrato de confidencialidade)</li>
-            <li><strong>APIs externas:</strong> Google Maps/Places (busca de estabelecimentos), Supabase (autenticação), Google Gemini e OpenAI (leitura automática de documentos e identificação de produtos por foto), Cosmos Bluesoft e GTIN (consulta de código de barras de produtos)</li>
+            <li><strong>APIs externas:</strong> Google Maps/Places (busca de estabelecimentos), Google Gemini (leitura automática de documentos e identificação de produtos por foto, sempre com consentimento prévio por usuário), Cosmos Bluesoft e GTIN (consulta de código de barras de produtos)</li>
             <li><strong>Autoridades:</strong> Quando exigido por lei ou ordem judicial</li>
             <li><strong>Estabelecimentos:</strong> Apenas se você optar por compartilhar informações específicas (ex: carteirinha digital)</li>
           </ul>
@@ -122,7 +122,7 @@ export default function PrivacyPage() {
           <h3>6.1. Onde Armazenamos</h3>
           <ul>
             <li>Servidores localizados no Brasil ou países com nível adequado de proteção</li>
-            <li>Backup em nuvem com criptografia</li>
+            <li>Backups diários do banco de dados armazenados localmente na infraestrutura de hospedagem, com retenção operacional de até 14 dias; não há destino off-site ativo documentado no momento</li>
           </ul>
 
           <h3>6.2. Medidas de Segurança</h3>
@@ -130,9 +130,7 @@ export default function PrivacyPage() {
             <li>Criptografia de senhas (bcrypt/argon2)</li>
             <li>Conexões HTTPS (SSL/TLS)</li>
             <li>Controle de acesso restrito</li>
-            <li>Monitoramento de segurança 24/7</li>
-            <li>Backups regulares</li>
-            <li>Testes de segurança periódicos</li>
+            <li>Backups regulares (diários)</li>
           </ul>
 
           <h3>6.3. Tempo de Retenção</h3>
@@ -143,7 +141,13 @@ export default function PrivacyPage() {
             <li>Cumprir obrigações legais enquanto a conta estiver ativa</li>
             <li>Resolver disputas e fazer cumprir nossos acordos</li>
           </ul>
-          <p>Ao solicitar a exclusão da conta, todos os seus dados pessoais e dos pets são removidos permanentemente dos nossos sistemas de forma imediata e irreversível.</p>
+          <p>
+            Ao solicitar a exclusão da conta, todos os seus dados pessoais e dos pets são
+            removidos permanentemente do nosso banco de dados ativo e dos servidores de arquivo
+            de forma imediata. Cópias de segurança automáticas (backups diários) podem manter uma
+            versão dos dados por até 14 dias após a exclusão, até serem descartadas pela rotina
+            normal de retenção — essas cópias não são acessadas nem restauradas individualmente.
+          </p>
 
           <h2>7. Seus Direitos (LGPD)</h2>
           <p>Você tem direito a:</p>
@@ -160,6 +164,7 @@ export default function PrivacyPage() {
           <h3>Como Exercer Seus Direitos</h3>
           <ul>
             <li>Através das configurações da sua conta (exclusão de conta disponível diretamente no app)</li>
+            <li>Pela página pública <Link href="/excluir-conta" className="text-[#0056D2] hover:underline">petmol.com.br/excluir-conta</Link>, sem precisar do aplicativo instalado</li>
             <li>Enviando e-mail para: privacidade@petmol.com.br</li>
           </ul>
           <p className="text-sm text-gray-600">
@@ -237,8 +242,8 @@ export default function PrivacyPage() {
 
           <div className="mt-4 p-6 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-blue-900">
-              <strong>Versão:</strong> 2026-08-11<br />
-              <strong>Data de vigência:</strong> 11 de agosto de 2026<br />
+              <strong>Versão:</strong> 2026-08-25<br />
+              <strong>Data de vigência:</strong> 25 de agosto de 2026<br />
               <strong>Conformidade:</strong> LGPD (Lei 13.709/2018)
             </p>
           </div>
@@ -256,4 +261,3 @@ export default function PrivacyPage() {
     </PremiumScreenShell>
   );
 }
-

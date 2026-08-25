@@ -12,7 +12,7 @@ Confirmado via schema do banco (`petmol_prod_mirror`) e leitura do código nesta
 - **Documentos do pet**: uploads de arquivos (`pet_documents` — carteirinha de vacina, receitas, etc.), com tipo MIME e tamanho
 - **Localização**: latitude/longitude só no fluxo opcional "Pet Sumido" (último local visto de um pet perdido) — não há rastreamento contínuo de localização do usuário
 - **Notificações push**: endpoint/chaves de inscrição Web Push (VAPID), não um token de um SDK de push de terceiros
-- **Uso de IA**: fotos (carteirinha de vacina, identificação de produto) são enviadas à API do Gemini (Google) para extração/leitura — é compartilhamento com terceiro nesse fluxo específico
+- **Uso de IA**: fotos (carteirinha de vacina, identificação de produto) só são enviadas à API do Gemini (Google) para extração/leitura após consentimento explícito por usuário — é compartilhamento com terceiro nesse fluxo específico
 - **Analytics — só primeira-parte**: `analytics_events`/`analytics_clicks` (tabelas próprias do PETMOL) guardam `lead_id`, IP **hasheado** (não o IP bruto), user-agent, tipo de evento/CTA, e cliques em ofertas de afiliados (qual parceiro, produto). **Confirmado: nenhum SDK de analytics de terceiros** (sem Google Analytics/gtag, sem Facebook Pixel) no frontend.
 - **Crash reporting**: **confirmado: nenhum SDK de terceiros** (sem Sentry/Crashlytics/Bugsnag) — o que a própria loja (Apple/Google) coleta automaticamente no nível do SO não é declarável pelo desenvolvedor.
 - **E-mail transacional**: SMTP genérico (compatível com Gmail/Outlook/qualquer provedor — configurado via env, não é um vendor fixo com API própria de tracking)
@@ -45,13 +45,15 @@ Confirmado via schema do banco (`petmol_prod_mirror`) e leitura do código nesta
 |---|---|---|---|---|---|---|
 | Nome, e-mail, telefone | Sim | Não | Funcionalidade do app, contas | Sim (nome/e-mail) | Sim (HTTPS) | Sim (exclusão de conta no app) |
 | Endereço | Sim (opcional) | Não | Funcionalidade do app | Não | Sim | Sim |
-| Fotos (pet, documentos, carteirinha de vacina) | Sim | Sim, só com Google/Gemini quando o usuário usa leitura por IA | Funcionalidade do app | Não | Sim | Sim |
+| Fotos (pet, documentos, carteirinha de vacina) | Sim | Sim, só com Google/Gemini quando o usuário consente e usa leitura por IA | Funcionalidade do app | Não | Sim | Sim |
 | Localização precisa | Sim, só no fluxo "Pet Sumido" | Não | Funcionalidade do app (localizar pet perdido) | Não (fluxo opcional) | Sim | Sim (dado apagado com o registro) |
 | Histórico de uso/cliques em ofertas | Sim | Não (analytics é first-party) | Analytics, funcionalidade do app | Não | Sim | Sim (vinculado à conta, removido na exclusão) |
 | ID do dispositivo/push | Sim (endpoint Web Push e/ou token nativo FCM/APNs) | Não (fica só entre o dispositivo e o próprio serviço de push do SO — FCM/APNs — e o servidor PETMOL) | Funcionalidade do app (notificações) | Não | Sim | Sim |
 | Mensagens de suporte ("Fale com o PETMOL") | Sim | Não | Funcionalidade do app, suporte ao cliente | Não | Sim | Sim (vinculado à conta, anonimizado na exclusão) |
 
 Nenhuma categoria de "Financial info", "Health info padronizado (do usuário humano)", "Contacts" ou "SMS/Call Log" se aplica.
+
+**URL de exclusão de dados (campo obrigatório do formulário Data Safety)**: `https://petmol.com.br/excluir-conta` — página pública, funcional (login + confirmação de senha reaproveitando a mesma verificação de identidade do fluxo in-app), acessível sem o app instalado (ver `apps/web/src/app/excluir-conta/page.tsx`).
 
 ## Conta de revisor (App Review / Google Play Review)
 
@@ -79,7 +81,7 @@ Rascunho, ajustar tom conforme o formulário pedir:
 >
 > Para enviar uma sugestão, relatar um problema ou pedir ajuda, use "Fale com o PETMOL" na tela de Perfil.
 >
-> Para excluir a conta de teste: Perfil → Mais opções → Excluir conta. A exclusão remove permanentemente pets, fotos, documentos e histórico de saúde associados; alguns registros não-identificáveis (como cliques em ofertas agregados) são desvinculados da conta em vez de apagados, para fins estatísticos, sem reter nenhum dado pessoal.
+> Para excluir a conta de teste: Perfil → Mais opções → Excluir conta, ou pela página pública petmol.com.br/excluir-conta (não exige o app instalado — exigência do Google Play). A exclusão remove permanentemente pets, fotos, documentos e histórico de saúde associados do banco ativo e do storage de arquivos imediatamente; cópias de segurança automáticas (backup diário) podem reter uma versão por até 14 dias até expirarem pela rotina normal de retenção. Registros não-identificáveis (como cliques em ofertas agregados) são desvinculados da conta em vez de apagados, para fins estatísticos, sem reter nenhum dado pessoal.
 
 ## Copy de loja — lembretes já em vigor (ver seção "Landing page" do release)
 

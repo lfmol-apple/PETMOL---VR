@@ -1,16 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg width="180" height="40" viewBox="0 0 180 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Paw Icon -->
-  <g transform="translate(0, 2)">
-    <!-- Main pad -->
-    <ellipse cx="18" cy="26" rx="10" ry="9" fill="#7C3AED"/>
-    <!-- Toe pads -->
-    <ellipse cx="8" cy="14" rx="5" ry="5.5" fill="#7C3AED"/>
-    <ellipse cx="18" cy="10" rx="4.5" ry="5" fill="#7C3AED"/>
-    <ellipse cx="28" cy="14" rx="5" ry="5.5" fill="#7C3AED"/>
-  </g>
-  <!-- Text: PETMOL -->
-  <text x="46" y="29" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="24" font-weight="700" fill="#0F172A">
-    <tspan>PET</tspan><tspan fill="#7C3AED">MOL</tspan>
-  </text>
+<svg width="840" height="326" viewBox="0 0 840 326" xmlns="http://www.w3.org/2000/svg">
+  <image href="/brand/petmol-logo-official-wordmark.png" x="0" y="0" width="840" height="326" preserveAspectRatio="xMidYMid meet"/>
 </svg>

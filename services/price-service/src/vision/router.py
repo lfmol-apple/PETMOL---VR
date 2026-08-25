@@ -5,9 +5,10 @@ Extracts vaccine data from pet vaccination card images using Gemini AI
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import base64
 import os
 import logging
@@ -17,7 +18,7 @@ import time
 from ..db import get_db
 from ..rate_limit import rate_limiter
 from ..user_auth.deps import get_current_user
-from ..user_auth.models import User
+from ..user_auth.models import User, UserConsent
 from ..product_catalog_lookup import compute_image_phash, find_reliable_catalog_match_by_image
 from .service import VisionService
 from .monitor import list_product_photo_events, list_all_recent_events, record_product_photo_event
@@ -25,6 +26,10 @@ from .monitor import list_product_photo_events, list_all_recent_events, record_p
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/vision", tags=["vision"])
+
+AI_PHOTO_PROVIDER = "google_gemini"
+AI_PHOTO_CONSENT_TYPE = "ai_photo_processing"
+AI_PHOTO_POLICY_VERSION = "2026-08-25"
 
 
 # Schemas
@@ -114,6 +119,52 @@ class ProductPhotoMonitorResponse(BaseModel):
     items: List[ProductPhotoMonitorEntry]
 
 
+class AIPhotoConsentResponse(BaseModel):
+    granted: bool
+    provider: str = AI_PHOTO_PROVIDER
+    consent_type: str = AI_PHOTO_CONSENT_TYPE
+    policy_version: str = AI_PHOTO_POLICY_VERSION
+    granted_at: Optional[datetime] = None
+    revoked_at: Optional[datetime] = None
+
+
+def _current_ai_photo_consent(db: Session, user_id: str) -> Optional[UserConsent]:
+    return db.scalar(
+        select(UserConsent).where(
+            UserConsent.user_id == user_id,
+            UserConsent.provider == AI_PHOTO_PROVIDER,
+            UserConsent.consent_type == AI_PHOTO_CONSENT_TYPE,
+            UserConsent.policy_version == AI_PHOTO_POLICY_VERSION,
+        )
+    )
+
+
+def _has_ai_photo_consent(db: Session, user_id: str) -> bool:
+    consent = _current_ai_photo_consent(db, user_id)
+    return bool(consent and consent.revoked_at is None)
+
+
+def _require_ai_photo_consent(db: Session, user_id: str) -> None:
+    if not _has_ai_photo_consent(db, user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "ai_photo_consent_required",
+                "provider": AI_PHOTO_PROVIDER,
+                "consent_type": AI_PHOTO_CONSENT_TYPE,
+                "policy_version": AI_PHOTO_POLICY_VERSION,
+            },
+        )
+
+
+def _consent_response(consent: Optional[UserConsent]) -> AIPhotoConsentResponse:
+    return AIPhotoConsentResponse(
+        granted=bool(consent and consent.revoked_at is None),
+        granted_at=consent.granted_at if consent else None,
+        revoked_at=consent.revoked_at if consent else None,
+    )
+
+
 # This wraps the WHOLE identify_product_from_image call (identification +
 # independent OCR, run concurrently via asyncio.gather) — it must stay above
 # the Gemini SDK's own per-call timeout (30s, service.py's
@@ -193,6 +244,51 @@ async def get_recent_product_photo_results(
     )
 
 
+@router.get("/consent/ai-photo", response_model=AIPhotoConsentResponse)
+def get_ai_photo_consent(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _consent_response(_current_ai_photo_consent(db, str(current_user.id)))
+
+
+@router.post("/consent/ai-photo", response_model=AIPhotoConsentResponse)
+def grant_ai_photo_consent(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    now = datetime.now(timezone.utc)
+    consent = _current_ai_photo_consent(db, str(current_user.id))
+    if consent:
+        consent.granted_at = now
+        consent.revoked_at = None
+    else:
+        consent = UserConsent(
+            user_id=str(current_user.id),
+            provider=AI_PHOTO_PROVIDER,
+            consent_type=AI_PHOTO_CONSENT_TYPE,
+            policy_version=AI_PHOTO_POLICY_VERSION,
+            granted_at=now,
+        )
+        db.add(consent)
+    db.commit()
+    db.refresh(consent)
+    return _consent_response(consent)
+
+
+@router.delete("/consent/ai-photo", response_model=AIPhotoConsentResponse)
+def revoke_ai_photo_consent(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    consent = _current_ai_photo_consent(db, str(current_user.id))
+    if consent and consent.revoked_at is None:
+        consent.revoked_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(consent)
+    return _consent_response(consent)
+
+
 # Temporary, token-gated, cross-user diagnostic dump for the brand-hallucination
 # investigation — bypasses per-user auth so it can be fetched directly while
 # debugging without needing the tester's own session. Returns the full raw
@@ -215,7 +311,8 @@ async def debug_dump_product_photo_events(
 async def extract_vaccine_card(
     request: ExtractVaccineCardRequest,
     http_request: Request,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Extrai dados de vacinas de uma foto da carteirinha
@@ -239,6 +336,8 @@ async def extract_vaccine_card(
     allowed, _, _ = rate_limiter.check_rate_limit(http_request, max_requests=20, window_seconds=3600)
     if not allowed:
         raise HTTPException(status_code=429, detail="Muitas leituras de imagem. Aguarde um momento.")
+
+    _require_ai_photo_consent(db, str(current_user.id))
 
     # Verificar feature flag
     feature_enabled = os.getenv("FEATURE_AI_VACCINE_SCAN", "false").lower() == "true"
@@ -311,6 +410,8 @@ async def identify_product_photo(
     allowed, _, _ = rate_limiter.check_rate_limit(http_request, max_requests=20, window_seconds=3600)
     if not allowed:
         raise HTTPException(status_code=429, detail="Muitas leituras de imagem. Aguarde um momento.")
+
+    _require_ai_photo_consent(db, str(current_user.id))
 
     started_at = time.perf_counter()
 
@@ -561,11 +662,14 @@ class DocumentClassificationResponse(BaseModel):
 async def classify_document_ocr(
     request: DocumentClassificationRequest,
     http_request: Request,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     allowed, _, _ = rate_limiter.check_rate_limit(http_request, max_requests=20, window_seconds=3600)
     if not allowed:
         raise HTTPException(status_code=429, detail="Muitas leituras de documento. Aguarde um momento.")
+
+    _require_ai_photo_consent(db, str(current_user.id))
 
     # A Caderneta (armazenamento/classificação genérica de documentos) saiu
     # da navegação da home — este endpoint fica desligado por padrão até

@@ -42,13 +42,13 @@ export const metadata: Metadata = {
   keywords: ['pet', 'cachorro', 'gato', 'carteirinha digital', 'vacinas', 'saúde pet', 'agenda pet'],
   icons: {
     icon: [
-      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.png', sizes: '32x32', type: 'image/png' },
       { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
     ],
     apple: [
       { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
     ],
-    shortcut: '/favicon.svg',
+    shortcut: '/favicon.ico',
   },
   appleWebApp: {
     capable: true,

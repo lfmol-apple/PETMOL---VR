@@ -9,6 +9,7 @@ import { useNotificationPermissionController } from '@/features/interactions/use
 import { IosSwitch } from '@/components/ui/IosSwitch';
 import { useAdmin } from '@/hooks/useAdmin';
 import { trackV1Metric } from '@/lib/v1Metrics';
+import { fetchAiPhotoConsent, revokeAiPhotoConsent } from '@/features/ai/aiPhotoConsent';
 
 // ── Design tokens ─────────────────────────────────────────────
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
@@ -122,6 +123,8 @@ export default function ProfilePage() {
   const [pushFeedback, setPushFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoStatus, setGeoStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
+  const [aiPhotoConsentGranted, setAiPhotoConsentGranted] = useState(false);
+  const [aiPhotoConsentLoading, setAiPhotoConsentLoading] = useState(false);
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('permissions' in navigator)) return;
@@ -238,6 +241,11 @@ export default function ProfilePage() {
           else if (d.length === 11) data.phone = `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7,11)}`;
         }
         setTutorData(data);
+        setAiPhotoConsentLoading(true);
+        fetchAiPhotoConsent(data.id, token)
+          .then(setAiPhotoConsentGranted)
+          .catch(() => setAiPhotoConsentGranted(false))
+          .finally(() => setAiPhotoConsentLoading(false));
       } else if (res.status === 404) {
         setError('Perfil não encontrado. Complete seu cadastro.');
       } else {
@@ -247,6 +255,22 @@ export default function ProfilePage() {
       setError('Erro de conexão.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRevokeAiPhotoConsent = async () => {
+    if (!tutorData?.id) return;
+    const token = getToken();
+    if (!token) return;
+    setAiPhotoConsentLoading(true);
+    try {
+      await revokeAiPhotoConsent(tutorData.id, token);
+      setAiPhotoConsentGranted(false);
+      showBlockingNotice('Consentimento de IA revogado. Na próxima foto, o PETMOL perguntará novamente.');
+    } catch {
+      showBlockingNotice('Não foi possível revogar agora. Tente novamente.');
+    } finally {
+      setAiPhotoConsentLoading(false);
     }
   };
 
@@ -824,6 +848,30 @@ export default function ProfilePage() {
                           </label>
                         ))}
                       </div>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-black text-slate-900">Uso de IA para fotos</p>
+                          <p className="mt-1 text-xs font-medium leading-relaxed text-slate-500">
+                            Autoriza o PETMOL a enviar fotos escolhidas por você ao Google Gemini para leitura automática.
+                          </p>
+                        </div>
+                        <span className={`flex-shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${aiPhotoConsentGranted ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {aiPhotoConsentLoading ? 'Verificando' : aiPhotoConsentGranted ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </div>
+                      {aiPhotoConsentGranted && (
+                        <button
+                          type="button"
+                          onClick={() => void handleRevokeAiPhotoConsent()}
+                          disabled={aiPhotoConsentLoading}
+                          className="mt-3 w-full rounded-xl bg-slate-100 py-2.5 text-xs font-black uppercase tracking-widest text-slate-600 transition-all active:scale-[0.98] disabled:opacity-40"
+                        >
+                          Revogar uso de IA para fotos
+                        </button>
+                      )}
                     </div>
 
                     {pushFeedback && (

@@ -4,8 +4,11 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { BrowserCodeReader, BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { ModalPortal } from '@/components/ModalPortal';
+import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
+import { AIPhotoConsentPrompt } from '@/features/ai/AIPhotoConsentPrompt';
+import { declineAiPhotoConsent, ensureAiPhotoConsent, grantAiPhotoConsent } from '@/features/ai/aiPhotoConsent';
 import {
   identifyProductByBarcode,
   saveToScanHistory,
@@ -34,6 +37,7 @@ type Step =
   | 'resolving'
   | 'not-found'
   | 'photo-capture'
+  | 'photo-consent'
   | 'photo-processing'
   | 'manual'
   | 'confirm';
@@ -74,6 +78,7 @@ const STEP_TITLE: Record<Step, string> = {
   resolving: 'Identificando...',
   'not-found': 'Produto não encontrado',
   'photo-capture': 'Foto da embalagem',
+  'photo-consent': 'Usar IA',
   'photo-processing': 'Analisando...',
   manual: 'Buscar produto',
   confirm: 'Confirmar produto',
@@ -171,7 +176,7 @@ interface PhotoProductIdentifyResponse {
 
 interface PhotoIdentifyOutcome {
   product: ScannedProduct | null;
-  errorCode: 'photo_ai_not_found' | 'photo_ai_error' | 'photo_ai_timeout' | 'photo_invalid_type' | 'photo_too_large' | null;
+  errorCode: 'photo_ai_not_found' | 'photo_ai_error' | 'photo_ai_timeout' | 'photo_consent_required' | 'photo_invalid_type' | 'photo_too_large' | null;
   origin?: ProductDetectionOrigin;
   resultType?: ProductDetectionResultType;
   confidence?: ProductDetectionConfidence;
@@ -494,6 +499,8 @@ function describeScannerError(errorCode: string | null): string | null {
       return 'A leitura da foto demorou demais. A foto foi mantida para você tentar outra imagem ou seguir pela confirmação assistida.';
     case 'photo_ai_error':
       return 'A leitura visual da embalagem falhou agora. Você pode tentar outra foto ou digitar o produto.';
+    case 'photo_consent_required':
+      return 'Autorize o uso de IA para processar a foto ou continue manualmente.';
     case 'photo_invalid_type':
       return 'Selecione uma imagem válida do celular, como JPEG, PNG ou WEBP.';
     case 'photo_too_large':
@@ -598,6 +605,7 @@ export function ProductDetectionSheetGold({
   onProductConfirmed,
   onClose,
 }: ProductDetectionSheetProps) {
+  const { tutor } = useAuth();
   const cooldownRef = useRef(false);
   const cameraPhotoInputRef = useRef<HTMLInputElement>(null);
   const galleryPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -702,6 +710,8 @@ export function ProductDetectionSheetGold({
     return () => clearInterval(interval);
   }, [step]);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [pendingConsentFile, setPendingConsentFile] = useState<File | null>(null);
+  const [isConsentSaving, setIsConsentSaving] = useState(false);
   const [cameraFailed, setCameraFailed] = useState(false);
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -769,11 +779,18 @@ export function ProductDetectionSheetGold({
 
   const identifyProductFromPhoto = useCallback(async (file: File, barcodeFromPhoto?: string): Promise<PhotoIdentifyOutcome> => {
     try {
+      const token = getToken();
+      const hasConsent = await ensureAiPhotoConsent(tutor?.id, token);
+      if (!hasConsent) {
+        setPendingConsentFile(file);
+        setStep('photo-consent');
+        return { product: null, errorCode: 'photo_consent_required' };
+      }
+
       // Comprime imagens grandes internamente antes de enviar para a API de visão
       // Garante que fotos de alta resolução do celular funcionem sem erros de tamanho
       const fileForAnalysis = await compressImageForAnalysis(file);
       const image = await fileToBase64(fileForAnalysis);
-      const token = getToken();
       const res = await fetch(`${API_BASE_URL}/vision/identify-product-photo`, {
         method: 'POST',
         headers: {
@@ -795,6 +812,11 @@ export function ProductDetectionSheetGold({
       if (!res.ok) {
         if (res.status === 504) {
           return { product: null, errorCode: 'photo_ai_timeout' };
+        }
+        if (res.status === 403) {
+          setPendingConsentFile(file);
+          setStep('photo-consent');
+          return { product: null, errorCode: 'photo_consent_required' };
         }
         return { product: null, errorCode: 'photo_ai_error' };
       }
@@ -943,11 +965,23 @@ export function ProductDetectionSheetGold({
       }
       return { product: null, errorCode: 'photo_ai_error' };
     }
-  }, [hint, petId]);
+  }, [hint, petId, tutor?.id]);
 
   const identifyFoodByPackageImage = useCallback(async (file: File): Promise<FoodPhotoIdentifyOutcome> => {
     try {
       const token = getToken();
+      const hasConsent = await ensureAiPhotoConsent(tutor?.id, token);
+      if (!hasConsent) {
+        setPendingConsentFile(file);
+        setStep('photo-consent');
+        return {
+          product: null,
+          errorCode: 'photo_consent_required',
+          structuredFields: {},
+          extractedRawText: '',
+          decisionReason: 'ai_photo_consent_required',
+        };
+      }
       let payload: PhotoProductIdentifyResponse | null = null;
       let lastErrorCode: PhotoIdentifyOutcome['errorCode'] = 'photo_ai_error';
 
@@ -1156,7 +1190,7 @@ export function ProductDetectionSheetGold({
         decisionReason: 'food_image_pipeline_exception',
       };
     }
-  }, [petId]);
+  }, [petId, tutor?.id]);
 
   const openCameraPhotoPicker = useCallback(() => {
     setScannerError(null);
@@ -1603,6 +1637,9 @@ export function ProductDetectionSheetGold({
 
     // Pipeline único para todos os tipos (consistência com versão estável)
     const identifiedFromPhoto = await identifyProductFromPhoto(file, undefined);
+    if (identifiedFromPhoto.errorCode === 'photo_consent_required') {
+      return;
+    }
     if (identifiedFromPhoto.product) {
       const photoProduct = identifiedFromPhoto.product;
       // Verificar se há correção prévia para o nome sugerido pela IA
@@ -1676,6 +1713,37 @@ export function ProductDetectionSheetGold({
       category: hint ?? 'other',
       brand: null,
     });
+  };
+
+  const handlePhotoConsentAccept = async () => {
+    if (!pendingConsentFile || tutor?.id == null) return;
+    const token = getToken();
+    if (!token) {
+      setScannerError('Sessão expirada. Faça login novamente.');
+      setStep('photo-capture');
+      return;
+    }
+    setIsConsentSaving(true);
+    try {
+      const granted = await grantAiPhotoConsent(tutor.id, token);
+      if (!granted) {
+        setScannerError('Não foi possível registrar o consentimento agora. Você pode tentar novamente ou seguir manualmente.');
+        setStep('photo-capture');
+        return;
+      }
+      const file = pendingConsentFile;
+      setPendingConsentFile(null);
+      setStep('photo-processing');
+      await handlePhotoFile(file);
+    } finally {
+      setIsConsentSaving(false);
+    }
+  };
+
+  const handlePhotoConsentDecline = () => {
+    declineAiPhotoConsent();
+    setPendingConsentFile(null);
+    setStep('manual');
   };
 
   const selectManual = (name: string) => {
@@ -2236,6 +2304,24 @@ export function ProductDetectionSheetGold({
         <p className="font-semibold text-gray-800">Analisando a foto...</p>
           <p className="mt-1 text-sm text-gray-400">Lendo código e embalagem para identificar o produto</p>
       </div>
+    </div>
+  );
+
+  const renderPhotoConsent = () => (
+    <div className="space-y-4 p-5 pb-8">
+      {photoUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={photoUrl}
+          alt="Prévia da embalagem"
+          className="max-h-52 w-full rounded-xl border border-slate-200 bg-white object-contain"
+        />
+      )}
+      <AIPhotoConsentPrompt
+        onAccept={handlePhotoConsentAccept}
+        onDecline={handlePhotoConsentDecline}
+        disabled={isConsentSaving}
+      />
     </div>
   );
 
@@ -2891,6 +2977,7 @@ export function ProductDetectionSheetGold({
             {step === 'scanning' && renderScanning()}
             {step === 'resolving' && renderResolving()}
             {step === 'photo-capture' && renderPhotoCapture()}
+            {step === 'photo-consent' && renderPhotoConsent()}
             {step === 'photo-processing' && renderPhotoProcessing()}
             {step === 'manual' && renderManual()}
             {step === 'not-found' && renderNotFound()}

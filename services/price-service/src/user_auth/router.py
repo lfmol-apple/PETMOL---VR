@@ -539,6 +539,7 @@ def delete_account(
     db.execute(text("DELETE FROM push_subscriptions WHERE user_id = :uid"), {"uid": uid})
     db.execute(text("DELETE FROM native_push_tokens WHERE user_id = :uid"), {"uid": uid})
     db.execute(text("DELETE FROM reminders WHERE user_id = :uid"), {"uid": uid})
+    db.execute(text("DELETE FROM user_consents WHERE user_id = :uid"), {"uid": uid})
     db.execute(text("DELETE FROM missing_pets WHERE user_id = :uid"), {"uid": uid})
     db.execute(text("DELETE FROM missing_pet_followers WHERE finder_user_id = :uid"), {"uid": uid})
     db.execute(text("DELETE FROM found_reports WHERE finder_user_id = :uid"), {"uid": uid})

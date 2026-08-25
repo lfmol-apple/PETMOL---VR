@@ -99,6 +99,24 @@ def run_pg_migrations(engine: Engine) -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens (user_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens (token_hash)"))
 
+        # Consentimentos explícitos por usuário para processamento de fotos por IA.
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS user_consents (
+                id              TEXT PRIMARY KEY,
+                user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                provider        TEXT NOT NULL,
+                consent_type    TEXT NOT NULL,
+                policy_version  TEXT NOT NULL,
+                granted_at      TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+                revoked_at      TIMESTAMPTZ,
+                CONSTRAINT uq_user_consents_active_scope
+                    UNIQUE (user_id, provider, consent_type, policy_version)
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_user_consents_user ON user_consents (user_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_user_consents_provider ON user_consents (provider)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_user_consents_type ON user_consents (consent_type)"))
+
         # establishments: CNPJ + terms
         _pg_add_column_if_missing(conn, "establishments", "cnpj", "TEXT")
         _pg_add_column_if_missing(conn, "establishments", "terms_version", "TEXT")

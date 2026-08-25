@@ -8,7 +8,10 @@
 'use client';
 
 import { useState } from 'react';
-import { getToken } from '@/lib/tokenStorage';
+import { useAuth } from '@/contexts/AuthContext';
+import { getToken } from '@/lib/auth-token';
+import { AIPhotoConsentPrompt } from '@/features/ai/AIPhotoConsentPrompt';
+import { declineAiPhotoConsent, ensureAiPhotoConsent, grantAiPhotoConsent } from '@/features/ai/aiPhotoConsent';
 
 interface VaccineData {
   name: string;
@@ -31,10 +34,13 @@ interface VaccineCardUploadProps {
 }
 
 export function VaccineCardUpload({ petId, onExtracted, onCancel }: VaccineCardUploadProps) {
+  const { tutor } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isConsentSaving, setIsConsentSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [extractResult, setExtractResult] = useState<ExtractResult | null>(null);
+  const [pendingConsentFile, setPendingConsentFile] = useState<File | null>(null);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -55,6 +61,7 @@ export function VaccineCardUpload({ petId, onExtracted, onCancel }: VaccineCardU
     setError(null);
     setImagePreview(null);
     setExtractResult(null);
+    setPendingConsentFile(null);
 
     // Criar preview
     const reader = new FileReader();
@@ -63,8 +70,41 @@ export function VaccineCardUpload({ petId, onExtracted, onCancel }: VaccineCardU
     };
     reader.readAsDataURL(file);
 
-    // Processar com IA
-    await processImage(file);
+    const token = getToken();
+    const hasConsent = await ensureAiPhotoConsent(tutor?.id, token);
+    if (hasConsent) {
+      await processImage(file);
+      return;
+    }
+    setPendingConsentFile(file);
+  };
+
+  const handleConsentAccept = async () => {
+    if (!pendingConsentFile || tutor?.id == null) return;
+    const token = getToken();
+    if (!token) {
+      setError('Sessão expirada. Faça login novamente.');
+      return;
+    }
+    setIsConsentSaving(true);
+    try {
+      const granted = await grantAiPhotoConsent(tutor.id, token);
+      if (!granted) {
+        setError('Não foi possível registrar o consentimento agora. Tente novamente ou preencha manualmente.');
+        return;
+      }
+      const file = pendingConsentFile;
+      setPendingConsentFile(null);
+      await processImage(file);
+    } finally {
+      setIsConsentSaving(false);
+    }
+  };
+
+  const handleConsentDecline = () => {
+    declineAiPhotoConsent();
+    setPendingConsentFile(null);
+    onCancel();
   };
 
   const processImage = async (file: File) => {
@@ -97,6 +137,11 @@ export function VaccineCardUpload({ petId, onExtracted, onCancel }: VaccineCardU
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         
+        if (response.status === 403 && errorData?.detail?.error === 'ai_photo_consent_required') {
+          setPendingConsentFile(file);
+          throw new Error('Autorize o uso de IA para processar esta foto ou preencha manualmente.');
+        }
+
         if (response.status === 403) {
           throw new Error('Recurso de IA não está habilitado. Configure FEATURE_AI_VACCINE_SCAN=true no backend.');
         }
@@ -180,6 +225,14 @@ export function VaccineCardUpload({ petId, onExtracted, onCancel }: VaccineCardU
             />
           </label>
         </div>
+      )}
+
+      {pendingConsentFile && !isProcessing && !extractResult && (
+        <AIPhotoConsentPrompt
+          onAccept={handleConsentAccept}
+          onDecline={handleConsentDecline}
+          disabled={isConsentSaving}
+        />
       )}
 
       {isProcessing && (
