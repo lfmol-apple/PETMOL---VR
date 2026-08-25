@@ -1,0 +1,161 @@
+name: Mercado Livre — Configure Shadow Mode
+
+# One-off, deliberately narrow workflow to turn on the Mercado Livre backend
+# provider in SHADOW MODE ONLY (never public-facing) and restart petmol-api.
+#
+# Safety properties:
+#  - The only source for the client secret is the `MERCADOLIVRE_CLIENT_SECRET`
+#    GitHub Actions repository secret. There is no free-text input for it —
+#    workflow_dispatch inputs are NOT masked in logs, but values pulled from
+#    `secrets.*` into an `env:` block ARE automatically redacted everywhere
+#    they appear in the log, so this is the only supported path.
+#  - MERCADOLIVRE_PUBLIC_OFFERS_ENABLED and MERCADOLIVRE_AFFILIATE_ENABLED are
+#    hardcoded to "false" by deploy/scripts/ml_shadow_rewrite_env.py (not
+#    exposed as inputs at all) — there is no way to dispatch this workflow
+#    into a state that exposes ML offers to tutors or creates affiliate links.
+#  - The secret is written to a file on the runner and copied to the VPS via
+#    scp, never passed as a command-line argument or embedded in a script
+#    literal, so it never appears in `ps aux` on either machine. Remote temp
+#    files are deleted immediately after use.
+#  - deploy/scripts/ml_shadow_rewrite_env.py rewrites the env file atomically
+#    (temp file + os.replace on the same filesystem), preserving the original
+#    owner/group/mode, and leaves every other existing variable untouched. It
+#    never bash-`source`s the file (a value elsewhere in it containing
+#    spaces/parens has broken a naive `source`-based script before in this
+#    repo) — see that file's own docstring.
+#  - Only `petmol-api` is restarted. Nothing else on the VPS is touched.
+#  - deploy/scripts/ml_shadow_verify.py never prints the secret, the access
+#    token, or any Authorization header — only booleans/counts and
+#    non-sensitive product fields (title/brand/price) from the real search.
+#  - Both scripts are committed, reviewable files (not generated inline),
+#    already dry-run tested locally against a fake env file.
+#
+# Rollback: re-run with confirm=ROLLBACK to set ENABLE_ML_PROVIDER=false and
+# restart petmol-api, without needing the secret again (whatever secret is
+# already on disk is left as-is either way — rollback only flips the flag).
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type CONFIGURE to enable ML shadow mode, or ROLLBACK to disable it again'
+        required: true
+
+jobs:
+  configure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Validate confirmation input
+        run: |
+          case "${{ github.event.inputs.confirm }}" in
+            CONFIGURE|ROLLBACK) ;;
+            *) echo "confirm must be exactly CONFIGURE or ROLLBACK — aborting."; exit 1 ;;
+          esac
+
+      - name: Guard — secret must exist for CONFIGURE
+        if: github.event.inputs.confirm == 'CONFIGURE'
+        env:
+          ML_CLIENT_SECRET: ${{ secrets.MERCADOLIVRE_CLIENT_SECRET }}
+        run: |
+          if [ -z "${ML_CLIENT_SECRET:-}" ]; then
+            echo "MERCADOLIVRE_CLIENT_SECRET repository secret is not set. Add it under"
+            echo "Settings -> Secrets and variables -> Actions -> New repository secret"
+            echo "before dispatching this workflow with CONFIGURE. Aborting without"
+            echo "touching the VPS."
+            exit 1
+          fi
+          echo "Secret is present (length only, never the value): ${#ML_CLIENT_SECRET} chars"
+
+      - uses: actions/checkout@v4
+
+      - name: Configure VPS and restart petmol-api
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          ML_CLIENT_SECRET: ${{ secrets.MERCADOLIVRE_CLIENT_SECRET }}
+          CONFIRM_MODE: ${{ github.event.inputs.confirm }}
+        run: |
+          set -euo pipefail
+          VPS_PORT="${VPS_PORT:-22}"
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+          SSH_OPTS="-i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o BatchMode=yes -o ServerAliveInterval=10 -o ServerAliveCountMax=2"
+          SSH="ssh $SSH_OPTS $VPS_USER@$VPS_IP"
+          SCP="scp $SSH_OPTS"
+
+          RUN_TAG="mlshadow-${GITHUB_RUN_ID}"
+          REMOTE_SECRET_FILE="/tmp/${RUN_TAG}-secret"
+          REMOTE_REWRITE_SCRIPT="/tmp/${RUN_TAG}-rewrite.py"
+          REMOTE_VERIFY_SCRIPT="/tmp/${RUN_TAG}-verify.py"
+          REMOTE_BACKUP_MARKER="/tmp/${RUN_TAG}-backup-path"
+
+          MODE="configure"
+          if [ "$CONFIRM_MODE" = "ROLLBACK" ]; then
+            MODE="rollback"
+          fi
+
+          mkdir -p /tmp/ml-shadow
+          # Secret never touches argv: written to a runner-local file, then
+          # scp'd. For rollback there's no secret to write.
+          if [ "$MODE" = "configure" ]; then
+            printf '%s' "$ML_CLIENT_SECRET" > /tmp/ml-shadow/secret
+          else
+            printf '' > /tmp/ml-shadow/secret
+          fi
+          chmod 600 /tmp/ml-shadow/secret
+
+          $SCP /tmp/ml-shadow/secret "$VPS_USER@$VPS_IP:${REMOTE_SECRET_FILE}"
+          $SCP deploy/scripts/ml_shadow_rewrite_env.py "$VPS_USER@$VPS_IP:${REMOTE_REWRITE_SCRIPT}"
+          $SCP deploy/scripts/ml_shadow_verify.py "$VPS_USER@$VPS_IP:${REMOTE_VERIFY_SCRIPT}"
+          rm -f /tmp/ml-shadow/secret
+
+          $SSH "chmod 600 '${REMOTE_SECRET_FILE}' '${REMOTE_REWRITE_SCRIPT}' '${REMOTE_VERIFY_SCRIPT}'"
+
+          echo "::group::Backup env file"
+          $SSH "
+            set -e
+            ENV_FILE=/opt/petmol/shared/env/api.env
+            BACKUP=\"\${ENV_FILE}.bak.\$(date +%Y%m%d%H%M%S)\"
+            cp -p \"\$ENV_FILE\" \"\$BACKUP\"
+            echo \"Backup created: \$BACKUP\"
+            echo \"\$BACKUP\" > ${REMOTE_BACKUP_MARKER}
+          "
+          echo "::endgroup::"
+
+          echo "::group::Atomic rewrite (5 ML keys only, all other vars untouched)"
+          $SSH "python3 ${REMOTE_REWRITE_SCRIPT} ${REMOTE_SECRET_FILE} ${MODE}"
+          echo "::endgroup::"
+
+          echo "::group::Cleanup remote secret temp file (never leave it on disk)"
+          $SSH "shred -u '${REMOTE_SECRET_FILE}' 2>/dev/null || rm -f '${REMOTE_SECRET_FILE}'; rm -f '${REMOTE_REWRITE_SCRIPT}'"
+          echo "::endgroup::"
+
+          echo "::group::Restart petmol-api only"
+          $SSH "sudo systemctl restart petmol-api && sleep 3 && systemctl is-active petmol-api"
+          echo "::endgroup::"
+
+          echo "::group::Health check (local, on the VPS)"
+          $SSH "curl -sS -o /dev/null -w 'local /health status: %{http_code}\n' http://127.0.0.1:8000/health"
+          echo "::endgroup::"
+
+          if [ "$MODE" = "configure" ]; then
+            echo "::group::Token acquisition + real search test (shadow, backend-only — never through a public route)"
+            $SSH "cd /opt/petmol/current/services/price-service && .venv/bin/python3 ${REMOTE_VERIFY_SCRIPT}"
+            echo "::endgroup::"
+
+            echo "::group::Log scan for accidental secret/token exposure (count only, never the matched lines)"
+            $SSH "journalctl -u petmol-api --since '-3 min' --no-pager 2>/dev/null | grep -ci 'client_secret\|access_token\|authorization: bearer' || echo 0"
+            echo "::endgroup::"
+          fi
+
+          $SSH "rm -f '${REMOTE_VERIFY_SCRIPT}'"
+
+      - name: Public health check (external)
+        run: |
+          curl -sS -o /dev/null -w 'public https://petmol.com.br/api/health status: %{http_code}\n' https://petmol.com.br/api/health
+          curl -sS https://petmol.com.br/version.json

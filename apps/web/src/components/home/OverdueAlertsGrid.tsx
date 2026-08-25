@@ -44,7 +44,7 @@ export function OverdueAlertsGrid({ alerts, petName, onAlertClick, onClose }: Ov
         </p>
         <button
           onClick={onClose}
-          className="text-rose-400 hover:text-rose-600 text-lg font-bold leading-none active:scale-90 transition-transform px-1"
+          className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-rose-400 hover:text-rose-600 hover:bg-rose-200/50 text-lg font-bold leading-none active:scale-90 transition-transform"
           aria-label="Fechar"
         >
           ×

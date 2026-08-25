@@ -34,10 +34,15 @@ export async function analyzeVaccineCardFiles({
   files,
   hint,
   maxAiImages,
+  signal,
 }: {
   files: File[];
   hint: string;
   maxAiImages: number;
+  /** Lets the caller cancel (user tap) and/or bound the request (client-side
+   * timeout) — the "Analisando com IA..." screen used to have no way out
+   * short of the backend eventually responding, found in a pre-launch audit. */
+  signal?: AbortSignal;
 }): Promise<VaccineCardOcrResponse> {
   const form = new FormData();
   files.forEach((file) => form.append('files', file));
@@ -46,10 +51,19 @@ export async function analyzeVaccineCardFiles({
   form.append('prefer_local', 'false');
   form.append('max_ai_images', String(Math.min(files.length, Math.max(1, maxAiImages))));
 
-  const response = await fetch(`${API_BASE_URL}/vision/extract-vaccine-card-files`, {
-    method: 'POST',
-    body: form,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/vision/extract-vaccine-card-files`, {
+      method: 'POST',
+      body: form,
+      signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw err;
+    }
+    throw new Error('Falha de conexão ao analisar cartão de vacina');
+  }
 
   if (!response.ok) {
     let errorMsg = 'Falha ao analisar cartão de vacina';

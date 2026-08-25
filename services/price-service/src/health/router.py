@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -21,6 +22,7 @@ from ..pets.access import get_accessible_pet_or_404
 from ..pets.models import Pet
 from ..pets.vaccine_models import VaccineRecord
 from ..events.models import Event
+from ..product_catalog_lookup import ProductCatalog, normalize_gtin
 from .models import FeedingPlan
 from .catalog import VACCINE_CATALOG, COUNTRY_CONFIG, lookup_vaccine_code
 from .schemas import (
@@ -166,13 +168,31 @@ def _derive_duration_days(start: Optional[date], end: Optional[date]) -> Optiona
     return (end - start).days
 
 
-def _normalize_feeding_items_from_request(request: FeedingPlanCreateRequest) -> List[Dict[str, Any]]:
+def _resolve_product_id(db: Session, barcode: Optional[str]) -> Optional[int]:
+    """Resolve barcode -> products_catalog.id, se já catalogado.
+
+    Nunca cria/consulta provedor externo aqui (esse trabalho é do fluxo de
+    escaneamento, product_catalog_lookup.lookup_product_by_gtin) — só
+    reaproveita o que já foi resolvido antes. Sem match, product_id fica
+    None (não bloqueia o item, o barcode cru continua salvo em items_json).
+    """
+    if not barcode:
+        return None
+    gtin_normalized = normalize_gtin(barcode)
+    if not gtin_normalized:
+        return None
+    product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
+    return product.id if product else None
+
+
+def _normalize_feeding_items_from_request(db: Session, request: FeedingPlanCreateRequest) -> List[Dict[str, Any]]:
     raw_items = request.items or []
     normalized: List[Dict[str, Any]] = []
 
     for index, item in enumerate(raw_items):
         _parse_feeding_date(item.last_refill_date, f"items[{index}].last_refill_date")
         brand = (item.food_brand or "").strip() or None
+        barcode = (item.barcode or "").strip() or None
         normalized.append({
             "id": item.id or str(uuid4()),
             "label": (item.label or brand or f"Produto {index + 1}").strip(),
@@ -182,7 +202,8 @@ def _normalize_feeding_items_from_request(request: FeedingPlanCreateRequest) -> 
             "duration_days": _coerce_duration_days(item.duration_days),
             "last_refill_date": item.last_refill_date,
             "mode": item.mode or request.mode,
-            "barcode": (item.barcode or "").strip() or None,
+            "barcode": barcode,
+            "product_id": _resolve_product_id(db, barcode),
             "category": (item.category or "").strip() or None,
             "notes": (item.notes or "").strip() or None,
             "is_primary": bool(item.is_primary),
@@ -201,6 +222,7 @@ def _normalize_feeding_items_from_request(request: FeedingPlanCreateRequest) -> 
             "last_refill_date": request.last_refill_date,
             "mode": request.mode,
             "barcode": None,
+            "product_id": None,
             "category": None,
             "notes": None,
             "is_primary": True,
@@ -224,6 +246,7 @@ def _fallback_feeding_item_from_plan(plan: FeedingPlan) -> Dict[str, Any]:
         "last_refill_date": plan.last_refill_date.isoformat() if plan.last_refill_date else None,
         "mode": plan.mode,
         "barcode": None,
+        "product_id": None,
         "category": None,
         "notes": None,
         "is_primary": True,
@@ -250,6 +273,7 @@ def _parse_feeding_items_from_plan(plan: FeedingPlan) -> List[Dict[str, Any]]:
                         "last_refill_date": raw_item.get("last_refill_date"),
                         "mode": str(raw_item.get("mode") or plan.mode or "kibble"),
                         "barcode": str(raw_item.get("barcode") or "").strip() or None,
+                        "product_id": raw_item.get("product_id"),
                         "category": str(raw_item.get("category") or "").strip() or None,
                         "notes": str(raw_item.get("notes") or "").strip() or None,
                         "is_primary": bool(raw_item.get("is_primary")),
@@ -335,6 +359,7 @@ def _build_feeding_item_data(items: List[Dict[str, Any]]) -> List[FeedingPlanIte
             last_refill_date=item.get("last_refill_date"),
             mode=str(item.get("mode") or "kibble"),
             barcode=item.get("barcode"),
+            product_id=item.get("product_id"),
             category=item.get("category"),
             notes=item.get("notes"),
             is_primary=bool(item.get("is_primary")),
@@ -799,7 +824,7 @@ async def create_or_update_feeding_plan(
     # Validate pet belongs to user
     pet = _check_pet_ownership(pet_id, current_user, db)
     
-    items_payload = _normalize_feeding_items_from_request(request)
+    items_payload = _normalize_feeding_items_from_request(db, request)
     primary_item = _get_primary_feeding_item(items_payload)
     last_refill_date_obj = _parse_feeding_date(primary_item.get("last_refill_date"), "last_refill_date")
 

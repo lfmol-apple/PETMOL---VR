@@ -42,7 +42,11 @@ export type V1MetricEvent =
   | 'register_step1_completed'
   | 'register_completed'
   | 'welcome_register_pet_clicked'
-  | 'welcome_skipped';
+  | 'welcome_skipped'
+  | 'signup_started'
+  | 'onboarding_completed'
+  | 'account_deleted'
+  | 'feedback_submitted';
 
 export function trackV1Metric(name: V1MetricEvent, properties: Record<string, unknown> = {}): void {
   track(name, properties);

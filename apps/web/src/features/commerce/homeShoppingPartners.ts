@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { trackClick } from '@/lib/analytics/click';
 
 export type HomeShoppingPartnerId = 'cobasi' | 'shopee' | 'zeenow' | 'zeedog';
@@ -268,8 +269,19 @@ export function isStandaloneInstalledApp(): boolean {
  * Regular (non-installed, e.g. desktop/Android Chrome tab) usage keeps
  * window.open, which isn't affected by this and lets the tutor return to
  * a still-open PETMOL tab instead of losing it.
+ *
+ * Inside the Capacitor native shell (iOS/Android), neither of the above
+ * applies: the WebView has no chrome at all, so window.open/location.href
+ * would just navigate the store's checkout INSIDE the app's own WebView —
+ * exactly what the affiliate-link handoff must never do. @capacitor/browser
+ * opens the partner in the system browser (SFSafariViewController / Chrome
+ * Custom Tabs) instead, preserving the affiliate URL/UTM/SubIDs untouched.
  */
 export function navigateToPartnerUrl(url: string): void {
+  if (Capacitor.isNativePlatform()) {
+    void import('@capacitor/browser').then(({ Browser }) => Browser.open({ url }));
+    return;
+  }
   if (isStandaloneInstalledApp()) {
     window.location.href = url;
     return;

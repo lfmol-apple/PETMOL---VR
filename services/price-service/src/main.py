@@ -481,9 +481,15 @@ app.include_router(establishments_router)
 from .establishments.admin_router import router as establishments_admin_router
 app.include_router(establishments_admin_router)
 
-# Include Feedback/Learning System router
+# Include Feedback/Learning System router (vaccine-OCR correction learning
+# — not the same as support_router below)
 from .feedback.router import router as feedback_router
 app.include_router(feedback_router)
+
+# "Fale com o PETMOL" — general user support/suggestion/bug intake
+from .support import support_router  # noqa: E402
+app.include_router(support_router)
+from .support.models import SupportFeedback as _support_feedback_model  # noqa: F401,E402 — register with Base
 
 
 # SLICE 3 (REFACTOR): Events router - DESATIVADO (simplificação)

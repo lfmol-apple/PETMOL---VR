@@ -79,6 +79,7 @@ export default function RegisterPage() {
     // all — nativePushSupported is false the same as "no push support",
     // but here it's actually "would work if installed first".
     setIosNeedsInstall(!nativePushSupported && needsIosInstallForPush());
+    trackV1Metric('signup_started', {});
   }, []);
 
   const canContinueName = name.trim().length >= 2;

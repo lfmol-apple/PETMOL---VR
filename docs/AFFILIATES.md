@@ -36,7 +36,7 @@ libera exposição, ver seção Awin abaixo).
 | Petz | Awin (advertiser 127553, pending) + programa próprio (CNAE em tratamento) | `PetzProductMapping` — aprendizado por produto, confirmação humana (ver §Petz) | nenhuma — shadow mode, `PETZ_AFFILIATE_ENABLED=false` | não | pending comercialmente; arquitetura de aprendizado pronta |
 | Araújo | Awin (advertiser 17919, pending/not_joined) | nenhum | nenhuma | **não** (0 produtos no ShopWindow) | nunca pode virar `AwinFeedProvider` — exigiria outra fonte de discovery |
 | Shopee | Shopee Affiliates | nenhum | nenhuma (`MarketplaceOffer`/`MarketplaceOfferProvider` prontos, gated por `SHOPEE_AFFILIATE_ENABLED=false`) | n/a | PJ, fiscal/bancário em avaliação, mídia aprovada e primeiro link oficial ainda pendentes |
-| Mercado Livre | ML Afiliados | nenhum | nenhuma | n/a | pending |
+| Mercado Livre | ML Afiliados | `MarketplaceOffer`/`mercadolivre_link_validator.py` — ponte manual controlada (candidato via WebSearch → revisão humana → link real gerado no Gerador de Links do ML → `affiliate_url`) | nenhuma exposta ao tutor — gated por `MERCADOLIVRE_PUBLIC_OFFERS_ENABLED=false` e `MERCADOLIVRE_AFFILIATE_ENABLED=false` | n/a | shadow mode — bridge manual pronta e testada (`export_ml_link_candidates.py`/`import_ml_offers.py`), scraping/automação do site proibidos após bloqueio de IP; ver PR #56 |
 | Amazon | Amazon Associates encerrado em 22/08/2026 (`petmol-20`) | nenhum | nenhum; integração temporariamente removida das superfícies públicas | n/a | disabled — reativação proibida até nova aprovação e nova tag válida |
 | Petlove Produtos | — | nenhum | nenhuma | n/a | disabled deliberadamente |
 | Petlove Plano de Saúde | — | n/a (service, não produto) | nenhuma | n/a | pending — possível duplicata de DogLife, não confirmado |
@@ -762,20 +762,27 @@ só tem publisher ID e token de API.
 |---|---|
 | program_name | Mercado Livre Afiliados |
 | merchant_type | marketplace |
-| status | pending (cadastro ainda por fazer) |
-| affiliate_mode | none |
-| storefront_available | pending verification |
-| product_deeplink_available | não — marketplace usa `MarketplaceOffer` |
-| api_available | pending verification |
-| api_confirmed | não |
-| manual_generation | pending verification |
+| status | cadastro feito; bridge manual construída e testada; exposição pública ainda desligada |
+| affiliate_mode | manual bridge (`ManualAffiliateLinkProvider`-equivalente) — sem API oficial de afiliados ainda |
+| storefront_available | n/a — modelo é por produto, não por vitrine |
+| product_deeplink_available | não via API — `MarketplaceOffer.affiliate_url` populado manualmente após revisão humana, um link real por vez, no Gerador de Links oficial do ML |
+| api_available | Client-Credentials API existe para *discovery* de catálogo/preço (camada A), mas não gera link de afiliado (camada B) — as duas camadas são distintas por princípio, ver seção "Mercado Livre — duas camadas" abaixo |
+| api_confirmed | discovery: sim (client-credentials). Afiliação automática: não |
+| manual_generation | confirmada — pelo menos um link real gerado manualmente, com `matt_word`/`matt_tool` reais, validado pelo `mercadolivre_link_validator.py` |
 | attribution_window | unknown |
 | attribution_model | unknown |
 | invoice_requirements | unknown |
 | paid_media_restrictions | unknown |
-| scraping | forbidden |
+| scraping | forbidden — **confirmado por incidente real**: automação de browser pra gerar links em lote resultou no Mercado Livre bloqueando o IP público do usuário (22/08/2026); busca de candidatos usa só WebSearch (motor de busca genérico), nunca requisição direta ao mercadolivre.com.br |
 | last_terms_review | 2026-08-11 |
-| notes | não presumir que `affId` arbitrário gera comissão real; validar programa antes de ativar |
+| notes | não presumir que `affId` arbitrário gera comissão real; cada oferta exige `affiliate_url` real e revisada — nunca a URL de origem/candidata (`source_url`); status de match (`candidate`/`ambiguous`/`confirmed`/`rejected`/`affiliate_pending`/`affiliate_ready`) — ambíguo nunca publica sozinho; lote é sob demanda (não é rotina diária fixa), sempre excluindo ofertas/produtos já processados via `--exclude-existing-offers`; gates de produção (`MERCADOLIVRE_PUBLIC_OFFERS_ENABLED`, `MERCADOLIVRE_AFFILIATE_ENABLED`) continuam `false` até existir geração de link comissionado em escala comprovada |
+
+#### Mercado Livre — duas camadas (não confundir)
+
+1. **Discovery de produto/preço** (camada A) — a API pública/client-credentials do ML já funciona tecnicamente hoje para achar produto e preço.
+2. **Monetização por afiliado** (camada B) — só existe hoje via geração manual de link no Gerador de Links oficial do ML, um de cada vez, com revisão humana.
+
+A camada A funcionar **não** significa que a oferta pode ser mostrada ao tutor — o PETMOL é `AFFILIATE_ONLY_COMMERCE`: nunca envia tráfego comercial não-monetizado quando o objetivo é monetização. Só a camada B, com `affiliate_url` real e revisada, torna uma oferta elegível para o `CommerceEngine`.
 
 ### Amazon
 

@@ -44,6 +44,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
       return;
     }
     void trackClick({ source: 'home', cta_type: 'shop_sheet_view', pet_id: currentPet.pet_id });
+    void trackClick({ source: 'home', cta_type: 'store_opened', pet_id: currentPet.pet_id });
   }, [open, currentPet.pet_id]);
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);

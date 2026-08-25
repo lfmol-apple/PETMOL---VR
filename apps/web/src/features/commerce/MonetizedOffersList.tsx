@@ -10,6 +10,7 @@
  * Cobasi, Shopee, Zee Now e Zee Dog são as lojas mantidas por enquanto.
  */
 
+import { useEffect } from 'react';
 import { formatBRLPrice, hasReliablePrice, merchantLabel, offerPriceLabel, type CommerceOffer } from './productPricing';
 import {
   navigateToPartnerUrl,
@@ -49,6 +50,12 @@ export function MonetizedOffersList({
   emptyStateSubtitle = 'Ainda não encontramos uma oferta ativa para este produto.',
 }: MonetizedOffersListProps) {
   const { offers, loading } = useCommerceOffers(query, packageSizeKg, gtin);
+
+  useEffect(() => {
+    if (loading || offers.length === 0) return;
+    void trackClick({ source, cta_type: 'offer_viewed', target: offers[0]?.merchant, pet_id: petId, metadata: { offers_count: offers.length } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, offers]);
 
   if (loading) {
     return (

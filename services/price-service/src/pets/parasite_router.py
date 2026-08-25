@@ -6,7 +6,10 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from sqlalchemy import select
+
 from ..db import get_db
+from ..product_catalog_lookup import ProductCatalog, normalize_gtin
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
 from .access import get_accessible_pet_or_404
@@ -23,6 +26,23 @@ def _parse_optional_date(value):
     if isinstance(value, date) and not isinstance(value, datetime):
         return value
     return date.fromisoformat(str(value))
+
+
+def _resolve_product_id(db: Session, barcode) -> "int | None":
+    """Resolve barcode -> products_catalog.id, se já catalogado.
+
+    Nunca cria/consulta provedor externo aqui (esse trabalho é do fluxo de
+    escaneamento, product_catalog_lookup.lookup_product_by_gtin) — só
+    reaproveita o que já foi resolvido antes. Sem match, product_id fica
+    None (não bloqueia o registro, o barcode cru continua salvo).
+    """
+    if not barcode:
+        return None
+    gtin_normalized = normalize_gtin(barcode)
+    if not gtin_normalized:
+        return None
+    product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
+    return product.id if product else None
 
 
 def _get_pet_owned(db: Session, pet_id: str, user: User) -> Pet:
@@ -64,6 +84,7 @@ def create_parasite_control(
     record = ParasiteControlRecord(
         id=record_id,
         pet_id=pet_id,
+        product_id=_resolve_product_id(db, data.get("barcode")),
         **data,
     )
     db.add(record)
@@ -89,12 +110,15 @@ def update_parasite_control(
     ).first()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro não encontrado")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    for field, value in updates.items():
         if field == "reminder_date":
             value = _parse_optional_date(value)
         if field == "reminder_time" and isinstance(value, str):
             value = value[:5] or None
         setattr(record, field, value)
+    if "barcode" in updates:
+        record.product_id = _resolve_product_id(db, updates["barcode"])
     db.commit()
     db.refresh(record)
     return record
