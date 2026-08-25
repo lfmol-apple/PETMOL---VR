@@ -168,18 +168,18 @@ export function AppleControlButtons({
             className="group relative min-h-[80px] overflow-hidden rounded-xl border border-emerald-400 bg-gradient-to-br from-emerald-100 via-emerald-100 to-teal-200 p-2.5 shadow-sm shadow-emerald-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[92px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorVaccines, alertVaccines) && <AlertDot tone={colorVaccines} />}
-            <span className="absolute right-0.5 top-1 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-1 min-[390px]:top-1.5">
+            <span className="absolute right-0.5 top-1.5 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-1 min-[390px]:top-2">
               <img
                 src="/vacina-ampolas-seringa.webp"
                 alt=""
-                className="h-14 w-[91px] object-contain min-[390px]:h-16 min-[390px]:w-[104px]"
+                className="h-11 w-[72px] object-contain min-[390px]:h-12 min-[390px]:w-[82px]"
               />
             </span>
-            <div className="flex h-full flex-col justify-center pr-[95px] pt-2 text-left min-[390px]:pr-[108px] min-[390px]:pt-3">
+            <div className="flex h-full flex-col justify-center pr-[74px] pt-2 text-left min-[390px]:pr-[86px] min-[390px]:pt-3">
               <h3 className="truncate text-[13px] font-semibold leading-tight text-emerald-950 min-[390px]:text-[14px] sm:text-base">
                 Vacina
               </h3>
-              <p className="mt-0.5 line-clamp-1 text-[9px] leading-[1.1] text-emerald-900/80 min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs">{vaccineHeadline || `Mantenha ${petName || 'seu pet'} em dia com a vacinação`}</p>
+              <p className="mt-0.5 line-clamp-2 text-[9px] leading-[1.1] text-emerald-900/80 min-[390px]:text-[10px] sm:text-xs">{vaccineHeadline || `Mantenha ${petName || 'seu pet'} em dia com a vacinação`}</p>
               {vaccineSubline && (
                 <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.1] text-emerald-900 min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
                   {vaccineSubline}
