@@ -1516,6 +1516,46 @@ async def commerce_monetized_offer(
     return {"offer": offer}
 
 
+@app.get("/commerce/petz-direct-link", tags=["Catalog"])
+async def commerce_petz_direct_link(
+    gtin: str = Query(..., description="GTIN escaneado do produto"),
+    db: Session = Depends(get_db),
+):
+    """
+    "Ver na Petz" — caminho DELIBERADAMENTE separado do CommerceEngine/
+    MonetizedOffer (ver commerce_provider.py, petz_provider.py).
+
+    Diferente de /commerce/offers e /commerce/monetized-offer: aqui a URL
+    retornada é a URL DIRETA do produto (product_url), nunca uma
+    affiliate_product_url — decisão de produto explícita (24/08/2026):
+    aceitar tráfego sem comissão pra Petz enquanto o CNAE não libera o
+    link afiliado real, em vez de esconder a Petz até lá. `link_type` vem
+    sempre "direct" pro frontend nunca confundir isso com uma oferta
+    monetizada — nunca aparece na lista de comparação de preço
+    (/commerce/offers), só como uma referência isolada.
+
+    Só retorna algo quando o produto já foi confirmado por um humano
+    (petz_mapping.DIRECT_LINK_ELIGIBLE_STATUSES) — nunca por candidato/
+    ambíguo/rejeitado.
+    """
+    from .petz_mapping import DIRECT_LINK_ELIGIBLE_STATUSES, get_mapping
+    from .product_catalog_lookup import ProductCatalog, normalize_gtin
+
+    gtin_normalized = normalize_gtin(gtin)
+    if not gtin_normalized:
+        raise HTTPException(status_code=400, detail="GTIN inválido")
+
+    product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
+    if not product:
+        return {"available": False, "url": None}
+
+    mapping = get_mapping(db, product.id)
+    if not mapping or mapping.match_status not in DIRECT_LINK_ELIGIBLE_STATUSES or not mapping.product_url:
+        return {"available": False, "url": None}
+
+    return {"available": True, "url": mapping.product_url, "link_type": "direct"}
+
+
 @app.get("/commerce/product-candidates", tags=["Catalog"])
 async def commerce_product_candidates(
     q: str = Query(..., min_length=2, max_length=150, description="Product search query"),
