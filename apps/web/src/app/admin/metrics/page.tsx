@@ -18,6 +18,7 @@ function prettyStore(value: string): string {
   const map: Record<string, string> = {
     cobasi: 'Cobasi',
     shopee: 'Shopee',
+    mercadolivre: 'Mercado Livre',
     zeenow: 'Zee Now',
     zeedog: 'Zee Dog',
     loja_fisica: 'Loja física',

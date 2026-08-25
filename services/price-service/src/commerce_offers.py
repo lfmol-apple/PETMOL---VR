@@ -30,12 +30,15 @@ from .commerce_provider import CommerceEngine, CommerceProvider, MonetizedOffer,
 from .marketplace_offer_provider import MarketplaceOfferProvider
 from .mercadolivre_commerce_provider import MercadoLivreCommerceProvider, is_mercadolivre_commerce_publicly_servable
 
-# Merchants marketplace conhecidos (Shopee hoje) — sempre registrados,
-# nunca condicionado a settings aqui: is_marketplace_merchant_publicly_servable()
-# é revalidada dentro de find_offer()/monetize() a cada chamada (defesa em
-# profundidade, mesmo padrão do AwinFeedProvider) — sem custo de rede
-# nenhum em registrar sem uso (só lê Postgres local quando de fato chamado).
-_MARKETPLACE_MERCHANTS = ("shopee",)
+# Merchants marketplace conhecidos (Shopee, Mercado Livre) — sempre
+# registrados, nunca condicionado a settings aqui:
+# is_marketplace_merchant_publicly_servable() é revalidada dentro de
+# find_offer()/monetize() a cada chamada (defesa em profundidade, mesmo
+# padrão do AwinFeedProvider) — sem custo de rede nenhum em registrar sem
+# uso (só lê Postgres local quando de fato chamado). Mercado Livre fica
+# invisível até mercadolivre_affiliate_enabled=true (hoje false — sem
+# links cadastrados ainda, ver docs/AFFILIATES.md).
+_MARKETPLACE_MERCHANTS = ("shopee", "mercadolivre")
 
 
 class ProductOfferResult(BaseModel):
