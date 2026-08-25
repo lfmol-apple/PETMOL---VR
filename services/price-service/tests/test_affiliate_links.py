@@ -81,18 +81,15 @@ def test_monetized_offer_store_context_cobasi_has_storefront(client):
     assert offer["link_type"] == "affiliate_store"
 
 
-def test_monetized_offer_store_context_petz_returns_fixed_storefront(client):
-    """Petz (25/08/2026): programa "Loja Parceira" — URL fixa da vitrine
-    (cupom PETTMOL aplicado manualmente no checkout), confirmada como
-    mecanismo real de atribuição. Ver STOREFRONT_AFFILIATE_URLS."""
+def test_monetized_offer_store_context_petz_blocked_without_commercial_proof(client):
+    """Diferente da Cobasi (acima): Petz tem um gate próprio adicional
+    (petz_provider.is_petz_publicly_servable) porque a atribuição por
+    cupom PETTMOL ainda não foi validada com uma compra real — ver
+    docs/PETZ_COMMISSION_VALIDATION.md e tests/test_petz_integration.py
+    pros testes completos do gate (desligado/parcial/ligado)."""
     r = client.get("/commerce/monetized-offer", params={"merchant": "petz", "context": "store"})
     assert r.status_code == 200
-    offer = r.json()["offer"]
-    assert offer == {
-        "merchant": "petz",
-        "url": "https://petz.com.br/parceiro/pettmol",
-        "link_type": "affiliate_store",
-    }
+    assert r.json()["offer"] is None
 
 
 # ── Teste 3/4: recompra de produto específico exige deep link daquele produto ──

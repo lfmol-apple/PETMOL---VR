@@ -320,6 +320,19 @@ class Settings(BaseSettings):
     # ProductAffiliateLink(merchant="petz"), e nenhuma linha é criada
     # sem confirmação humana explícita via admin/petz_router.py.
     petz_affiliate_enabled: bool = False
+    # Prova comercial SEPARADA do gate acima (25/08/2026) — distingue
+    # "produto confirmado no catálogo Petz" (petz_mapping.match_status)
+    # de "o cupom PETTMOL realmente atribui comissão ao PETMOL quando o
+    # tutor chega direto na URL comum do produto". A segunda coisa ainda
+    # NUNCA foi provada com uma compra real testada e confirmada no
+    # painel da Petz (ver docs/PETZ_COMMISSION_VALIDATION.md) — até lá,
+    # tratar a URL comum do produto como link monetizado seria presumir,
+    # não comprovar. Padrão False: nenhum caminho público Petz (nem
+    # PetzProvider nem /commerce/petz-direct-link) serve nada enquanto
+    # isto não for explicitamente virado True, e só deve virar True
+    # depois de um teste de compra real documentado confirmar a
+    # atribuição — nunca "porque parece razoável que funcione assim".
+    petz_coupon_attribution_verified: bool = False
 
     @field_validator("debug", mode="before")
     @classmethod

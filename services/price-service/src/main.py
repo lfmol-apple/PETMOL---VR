@@ -1524,31 +1524,40 @@ async def commerce_petz_direct_link(
     """
     "Ver na Petz" — caminho DELIBERADAMENTE separado do CommerceEngine/
     MonetizedOffer (ver commerce_provider.py, petz_provider.py), mas
-    ainda assim monetizado: o cupom PETTMOL (10% off, programa "Loja
-    Parceira") é aplicado manualmente pelo tutor no checkout, não por
-    parâmetro de URL — decisão de produto confirmada em 25/08/2026 (ver
-    docs/AFFILIATES.md).
+    respeitando o MESMO gate único (petz_provider.is_petz_publicly_servable)
+    — nunca um caminho público Petz próprio com sua própria regra de
+    exposição (ver docs/AFFILIATES.md).
+
+    IMPORTANTE — "produto confirmado" ≠ "monetização comprovada":
+    petz_mapping.match_status (DIRECT_LINK_ELIGIBLE_STATUSES) só prova
+    que o produto certo foi identificado no catálogo Petz — nunca que o
+    cupom PETTMOL (10% off, programa "Loja Parceira") de fato atribui
+    comissão ao PETMOL quando o tutor chega direto na URL comum do
+    produto. Essa prova comercial é DISTINTA e ainda não foi validada
+    com uma compra real (ver docs/PETZ_COMMISSION_VALIDATION.md) — por
+    isso a segunda condição, settings.petz_coupon_attribution_verified,
+    tem que estar True também: sem isso, nenhuma URL é servida, mesmo
+    com o produto confirmado.
 
     Prioriza a URL ESPECÍFICA do produto (`PetzProductMapping.product_url`
     — a página real confirmada, ex: .../produto/racao-...-100223) sobre a
-    storefront genérica: leva o tutor direto pro produto certo, já pronto
-    pra adicionar ao carrinho, em vez de cair na home da loja e precisar
-    buscar de novo. Cai pra `STOREFRONT_AFFILIATE_URLS["petz"]` só se o
-    mapping não tiver `product_url` por algum motivo (não deveria
-    acontecer — `confirm_petz_mapping` sempre exige essa URL).
+    storefront genérica, quando a prova comercial já existir. Cai pra
+    `STOREFRONT_AFFILIATE_URLS["petz"]` só se o mapping não tiver
+    `product_url` por algum motivo (não deveria acontecer —
+    `confirm_petz_mapping` sempre exige essa URL).
 
-    `link_type` vem "affiliate_store" mesmo apontando pra uma URL de
-    produto — o mecanismo de comissão é o cupom aplicado no checkout, não
-    a URL de chegada; nunca aparece na lista de comparação de preço
-    (/commerce/offers), porque não existe fonte de preço Petz por produto.
-
-    Só retorna algo quando o produto já foi confirmado por um humano
-    (petz_mapping.DIRECT_LINK_ELIGIBLE_STATUSES) — nunca por candidato/
-    ambíguo/rejeitado.
+    `link_type` vem "affiliate_store" — o mecanismo de comissão é o
+    cupom aplicado no checkout, não a URL de chegada; nunca aparece na
+    lista de comparação de preço (/commerce/offers), porque não existe
+    fonte de preço Petz por produto.
     """
     from .affiliate_links import STOREFRONT_AFFILIATE_URLS
     from .petz_mapping import DIRECT_LINK_ELIGIBLE_STATUSES, get_mapping
+    from .petz_provider import is_petz_publicly_servable
     from .product_catalog_lookup import ProductCatalog, normalize_gtin
+
+    if not is_petz_publicly_servable():
+        return {"available": False, "url": None}
 
     gtin_normalized = normalize_gtin(gtin)
     if not gtin_normalized:
