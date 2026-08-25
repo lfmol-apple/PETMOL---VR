@@ -10,6 +10,7 @@ const PUBLIC_PATHS = [
   '/legal',
   '/privacy',
   '/terms',
+  '/excluir-conta',
   '/coverage',
   '/go',
   '/v/',
