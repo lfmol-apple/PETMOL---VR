@@ -1923,7 +1923,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           )}
         </div>
       </div>
-      <div className="max-w-2xl mx-auto px-4 py-4">
+      <div className="mx-auto max-w-2xl px-2 py-3 min-[390px]:px-3 sm:px-4 sm:py-4">
         {/* Fixed-height slot, always mounted while there's a pet — the pill
             INSIDE still mounts/unmounts on sync-state changes, but the slot
             itself never does, so the pet card and everything below it never
@@ -2211,7 +2211,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
         {/* Pet Management - if pets exist */}
         {pets.length > 0 ? (
-          <div className="mx-auto max-w-xl space-y-4 rounded-3xl border border-slate-200 bg-gradient-to-b from-[#F0F4F8] to-[#E2E8F0] p-3 shadow-2xl sm:p-4">
+          <div className="mx-auto max-w-2xl space-y-3 rounded-[26px] border border-slate-200 bg-gradient-to-b from-[#F0F4F8] to-[#E2E8F0] p-2 shadow-2xl min-[390px]:space-y-4 min-[390px]:rounded-3xl min-[390px]:p-2.5 sm:p-4">
             {(() => {
               const currentPet = pets.find(p => p.pet_id === selectedPetId);
               if (!currentPet) return null;
@@ -2312,7 +2312,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
                   {/* Compartilhar cuidado — só para o dono do pet */}
                   {currentPet && loggedUserId && (currentPet.owner_user_id ?? loggedUserId) === loggedUserId && (
-                    <div className="flex flex-col gap-2 px-3 pb-1 sm:px-4 sm:pb-2">
+                    <div className="flex flex-col gap-2 px-2 pb-1 min-[390px]:px-3 sm:px-4 sm:pb-2">
                       <button
                         onClick={handleSharePet}
                         disabled={shareLoading}
