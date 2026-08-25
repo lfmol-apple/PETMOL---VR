@@ -32,6 +32,23 @@ export function merchantLabel(merchant: string): string {
   return MERCHANT_LABELS[merchant] ?? merchant;
 }
 
+// Logomarca por merchant — mesma lista de lojas de MERCHANT_LABELS. Usado
+// nas telas de comparação de preço (MonetizedOffersList) pra identificar a
+// loja de cada oferta visualmente, em vez de um ícone genérico igual pra
+// todas. Sem logo mapeado, quem chama cai no ícone genérico do card.
+export const MERCHANT_LOGOS: Record<string, string> = {
+  cobasi: '/partner-logos/cobasi.png',
+  zeenow: '/partner-logos/zeenow.png',
+  zeedog: '/partner-logos/zeedog.png',
+  shopee: '/partner-logos/shopee.png',
+  mercadolivre: '/partner-logos/mercadolivre.png',
+  petz: '/partner-logos/petz.png',
+};
+
+export function merchantLogoSrc(merchant: string): string | null {
+  return MERCHANT_LOGOS[merchant] ?? null;
+}
+
 export interface CommerceOffer {
   merchant: string;
   url: string;
