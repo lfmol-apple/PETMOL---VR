@@ -327,6 +327,16 @@ def run_pg_migrations(engine: Engine) -> None:
         # MAIS/busca textual (ver docs/AFFILIATES.md e commerce_provider.py).
         _pg_add_column_if_missing(conn, "parasite_control_records", "barcode", "VARCHAR(64)")
 
+        # parasite_control_records: FK real pro catálogo (Ago 2026) — até
+        # aqui só o `barcode` cru era salvo; nenhum cruzamento (comparação de
+        # preço, matching de afiliado) tinha um product_id pra usar direto,
+        # tinha que re-normalizar/re-buscar o texto cru toda vez. Resolvido
+        # automaticamente no backend a partir de `barcode` (ver
+        # parasite_router.py), nunca aceito do cliente. Rode
+        # scripts/backfill_product_id.py --apply depois do deploy pra
+        # preencher os registros que já existiam antes desta coluna.
+        _pg_add_column_if_missing(conn, "parasite_control_records", "product_id", "INTEGER REFERENCES products_catalog(id)")
+
         # affiliate_feed_sync_runs: observabilidade segura do sync Awin.
         # Contadores apenas; nunca GTINs específicos, URLs de feed ou secrets.
         _pg_add_column_if_missing(conn, "affiliate_feed_sync_runs", "rows_with_gtin", "INTEGER DEFAULT 0 NOT NULL")
@@ -800,6 +810,12 @@ def run_sqlite_migrations(engine: Engine) -> None:
         # parasite_control_records: GTIN/EAN escaneado (Ago 2026) — ver
         # comentário equivalente em run_pg_migrations.
         changed |= _sqlite_add_column_if_missing(conn, "parasite_control_records", "barcode", "TEXT")
+
+        # parasite_control_records: FK real pro catálogo (Ago 2026) — ver
+        # comentário equivalente em run_pg_migrations. SQLite não aplica a
+        # FK de fato sem PRAGMA foreign_keys=ON, mas a coluna precisa
+        # existir do mesmo jeito.
+        changed |= _sqlite_add_column_if_missing(conn, "parasite_control_records", "product_id", "INTEGER")
 
         # affiliate_feed_sync_runs: observabilidade segura do sync Awin.
         changed |= _sqlite_add_column_if_missing(conn, "affiliate_feed_sync_runs", "rows_with_gtin", "INTEGER DEFAULT 0")
