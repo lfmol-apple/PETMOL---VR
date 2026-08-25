@@ -29,6 +29,7 @@ from .cobasi_provider import CobasiProvider
 from .commerce_provider import CommerceEngine, CommerceProvider, MonetizedOffer, ProductContext
 from .marketplace_offer_provider import MarketplaceOfferProvider
 from .mercadolivre_commerce_provider import MercadoLivreCommerceProvider, is_mercadolivre_commerce_publicly_servable
+from .petz_provider import PetzProvider
 
 # Merchants marketplace conhecidos (Shopee hoje) — sempre registrados,
 # nunca condicionado a settings aqui: is_marketplace_merchant_publicly_servable()
@@ -101,7 +102,13 @@ def build_default_engine(db: Session) -> CommerceEngine:
     tenha linhas cadastradas (ver marketplace_offer_provider.py).
 
     Amazon está desativada desde 22/08/2026 e não entra aqui. Qualquer
-    reativação futura exige novo provider oficial e nova tag aprovada."""
+    reativação futura exige novo provider oficial e nova tag aprovada.
+
+    Petz (petz_provider.py) segue um padrão próprio, nem Awin nem
+    marketplace: aprendizado por produto via ProductAffiliateLink,
+    confirmado manualmente em admin/petz_router.py (ver
+    docs/AFFILIATES.md §Petz). Sempre registrado; sem fonte de preço
+    confirmada, nunca produz oferta pública hoje."""
     # Awin primeiro, CobasiProvider (MAIS) depois: CobasiProvider.should_run()
     # decide se vale a pena rodar com base em ofertas Awin já resolvidas
     # nesta mesma chamada (ver cobasi_provider.py) — só funciona se Awin já
@@ -115,6 +122,12 @@ def build_default_engine(db: Session) -> CommerceEngine:
         providers.append(MercadoLivreCommerceProvider())
     for merchant in _MARKETPLACE_MERCHANTS:
         providers.append(MarketplaceOfferProvider(db, merchant))
+    # Petz (aprendizado por produto, ver petz_provider.py/petz_mapping.py):
+    # sempre registrado, gate real (config.petz_affiliate_enabled) checado
+    # dentro do provider a cada chamada — hoje nunca produz oferta pública
+    # de qualquer forma, porque não existe fonte de preço Petz confirmada
+    # (ver docstring de petz_provider.py).
+    providers.append(PetzProvider(db))
     return CommerceEngine(providers)
 
 
