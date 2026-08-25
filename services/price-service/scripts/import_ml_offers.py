@@ -20,11 +20,23 @@ Uso (dry-run é o padrão — nada é escrito, só mostra o que aconteceria):
     python3 scripts/import_ml_offers.py --csv ml_link_candidates_preenchido.csv --apply
 
 O Gerador de Links do Mercado Livre aceita no máximo 30 URLs por vez
-(mesmo limite documentado em export_ml_link_candidates.py), então este
-importador também limita a 30 linhas com affiliate_url preenchido por
-execução (--max-batch pra ajustar, nunca pra contornar sem querer —
-linhas além do limite são reportadas como puladas, não truncadas
-silenciosamente). Rode em lotes de 30 até zerar a fila.
+(mesmo limite documentado em export_ml_link_candidates.py). Em
+--dry-run, linhas além do lote são só reportadas (skipped_over_batch),
+pra você ver o tamanho real do CSV sem surpresa. Em --apply, um CSV com
+mais de max-batch linhas preenchidas é RECUSADO por inteiro — nunca
+aplica os primeiros 30 e descarta o resto em silêncio, porque isso
+poderia dar a impressão de que o lote inteiro foi processado quando na
+verdade produtos ficaram de fora sem ninguém perceber. Divida o CSV, ou
+use --force-large-batch (uso administrativo explícito, não o caminho
+padrão) se você realmente quer aplicar tudo de uma vez.
+
+Cada linha com GTIN preenchido tem o GTIN conferido contra o
+product_id da mesma linha (products_catalog.barcode_normalized) antes
+de cadastrar — um CSV desatualizado/reordenado apontando um
+affiliate_url pro product_id errado é rejeitado, nunca aplicado
+silenciosamente (GTIN é opcional só porque export_ml_link_candidates.py
+sempre o preenche; um CSV editado à mão sem essa coluna ainda funciona,
+só sem essa checagem extra).
 
 Roda seguro mesmo com mercadolivre_affiliate_enabled=False — só grava
 Postgres local, nunca liga nada pro tutor sozinho (quem decide se a
@@ -46,18 +58,40 @@ from sqlalchemy import select  # noqa: E402
 from src.affiliate_links import MarketplaceOffer  # noqa: E402
 from src.db import SessionLocal  # noqa: E402
 from src.mercadolivre_link_validator import InvalidMercadoLivreAffiliateUrlError, validate_mercadolivre_affiliate_url  # noqa: E402
-from src.product_catalog_lookup import ProductCatalog  # noqa: E402
+from src.product_catalog_lookup import ProductCatalog, normalize_gtin  # noqa: E402
 
 MERCHANT = "mercadolivre"
 DEFAULT_MAX_BATCH = 30
 
 
-def run_import(csv_path: Path, db, apply: bool, max_batch: int) -> tuple[dict[str, int], list[str]]:
+def _count_filled_rows(csv_path: Path) -> int:
+    """Quantas linhas têm affiliate_url preenchido no CSV inteiro,
+    independente de serem válidas — é essa contagem (não só as
+    aceitas) que precisa respeitar o limite de lote, senão um CSV com
+    erros esconderia quantas URLs de verdade foram digitadas."""
+    with csv_path.open("r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return sum(1 for row in reader if (row.get("affiliate_url") or "").strip())
+
+
+def run_import(
+    csv_path: Path, db, apply: bool, max_batch: int, force_large_batch: bool = False
+) -> tuple[dict[str, int], list[str]]:
     """Faz uma passada pelo CSV. Sem `apply`, valida e reporta tudo mas
     nunca chama db.add/db.commit — dry-run real, não só "imprime o que
     faria" sem checar o banco de verdade."""
     stats = {"created": 0, "updated": 0, "skipped_empty": 0, "skipped_over_batch": 0}
     errors: list[str] = []
+
+    filled_rows = _count_filled_rows(csv_path)
+    if apply and filled_rows > max_batch and not force_large_batch:
+        errors.append(
+            f"recusado: {filled_rows} linha(s) com affiliate_url preenchido excede o lote de "
+            f"{max_batch} — divida o CSV, ou rode com --force-large-batch se realmente quer "
+            f"aplicar tudo de uma vez (não é o caminho padrão)"
+        )
+        return stats, errors
+
     rows_in_batch = 0
 
     with csv_path.open("r", newline="", encoding="utf-8") as f:
@@ -82,6 +116,17 @@ def run_import(csv_path: Path, db, apply: bool, max_batch: int) -> tuple[dict[st
             if not product:
                 errors.append(f"linha {line_num}: product_id={product_id} não existe em products_catalog")
                 continue
+
+            csv_gtin_raw = (row.get("gtin") or "").strip()
+            if csv_gtin_raw:
+                csv_gtin = normalize_gtin(csv_gtin_raw)
+                catalog_gtin = normalize_gtin(product.barcode_normalized or product.barcode or "")
+                if csv_gtin != catalog_gtin:
+                    errors.append(
+                        f"linha {line_num}: GTIN do CSV ({csv_gtin}) não bate com o GTIN cadastrado "
+                        f"pra product_id={product_id} ({catalog_gtin}) — CSV desatualizado/reordenado, não cadastrado"
+                    )
+                    continue
 
             try:
                 validate_mercadolivre_affiliate_url(affiliate_url)
@@ -142,6 +187,7 @@ def main() -> int:
     parser.add_argument("--csv", type=str, required=True, help="Caminho do CSV preenchido")
     parser.add_argument("--apply", action="store_true", help="Aplica de verdade (padrão: dry-run, nada é escrito)")
     parser.add_argument("--max-batch", type=int, default=DEFAULT_MAX_BATCH, help=f"Máximo de linhas com affiliate_url processadas nesta execução (padrão {DEFAULT_MAX_BATCH}, mesmo limite do Gerador de Links do ML)")
+    parser.add_argument("--force-large-batch", action="store_true", help="Permite --apply mesmo com mais de --max-batch linhas preenchidas (uso administrativo explícito, não o caminho padrão)")
     args = parser.parse_args()
 
     csv_path = Path(args.csv)
@@ -151,7 +197,9 @@ def main() -> int:
 
     db = SessionLocal()
     try:
-        stats, errors = run_import(csv_path, db, apply=args.apply, max_batch=args.max_batch)
+        stats, errors = run_import(
+            csv_path, db, apply=args.apply, max_batch=args.max_batch, force_large_batch=args.force_large_batch
+        )
     finally:
         db.close()
 
