@@ -60,7 +60,11 @@ type EventName =
   | 'register_step1_completed'
   | 'register_completed'
   | 'welcome_register_pet_clicked'
-  | 'welcome_skipped';
+  | 'welcome_skipped'
+  | 'signup_started'
+  | 'onboarding_completed'
+  | 'account_deleted'
+  | 'feedback_submitted';
 
 interface TrackEvent {
   name: EventName;

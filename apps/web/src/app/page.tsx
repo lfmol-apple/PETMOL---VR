@@ -35,19 +35,18 @@ export default function LandingPage() {
       <section className="px-6 pt-14 pb-12 text-center bg-gradient-to-b from-blue-50 to-white">
         <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wider mb-6">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          Gratuito • Sem anúncios
+          Sem anúncios
         </div>
         <h1 className="text-[32px] font-black text-slate-900 leading-[1.15] tracking-tight">
           Nunca esqueça nada<br />do que importa<br />pro seu pet.
         </h1>
         <p className="mt-4 text-base text-slate-500 leading-relaxed font-medium max-w-xs mx-auto">
-          Vacinas, remédios e ração organizados, com aviso na hora certa — e o melhor preço comparado pra você.
+          Vacinas, remédios e ração organizados, com aviso na hora certa — e comparação de preços entre lojas parceiras.
         </p>
         <Link href="/register"
           className="mt-8 inline-block w-full max-w-xs rounded-2xl bg-[#0056D2] px-6 py-4 text-base font-black text-white shadow-lg shadow-blue-500/25 active:scale-[0.98]">
-          Criar conta grátis
+          Criar conta
         </Link>
-        <p className="mt-3 text-xs text-slate-400">Sem cartão de crédito. Cancele quando quiser.</p>
       </section>
 
       {/* Features */}
@@ -73,7 +72,7 @@ export default function LandingPage() {
           color="bg-blue-50 border-blue-100"
           iconBg="bg-blue-500"
           tag="Comprar"
-          title="O menor preço, sem esforço"
+          title="Compare preços, sem esforço"
           body="Remédio, ração ou antiparasitário: comparamos Cobasi, Shopee, Zee Now e Zee Dog automaticamente e mostramos onde sai mais barato."
         />
       </section>
@@ -88,11 +87,11 @@ export default function LandingPage() {
 
       {/* CTA final */}
       <section className="px-5 pb-12 text-center">
-        <h2 className="text-2xl font-black text-slate-900">Comece agora.<br />É grátis.</h2>
+        <h2 className="text-2xl font-black text-slate-900">Comece agora.</h2>
         <p className="mt-2 text-sm text-slate-500 font-medium">Cadastre em menos de 1 minuto.</p>
         <Link href="/register"
           className="mt-6 inline-block w-full max-w-xs rounded-2xl bg-[#0056D2] px-6 py-4 text-base font-black text-white shadow-lg shadow-blue-500/25 active:scale-[0.98]">
-          Criar conta grátis
+          Criar conta
         </Link>
         <Link href="/login" className="mt-3 inline-block text-sm text-slate-400 font-semibold">
           Já tenho conta

@@ -89,6 +89,7 @@ export interface VaccineItemSheetProps {
   setAiImageLimit?: Dispatch<SetStateAction<number>>;
   handleFilesSelectedAppend: (event: ChangeEvent<HTMLInputElement>) => void;
   handleProcessCards: (selected: File[]) => Promise<void>;
+  cancelProcessCards?: () => void;
   initialMode?: 'view' | 'buy';
   forceJustSaved?: boolean;
   onForceJustSavedConsumed?: () => void;
@@ -114,6 +115,7 @@ export function VaccineItemSheet({
   importingCard,
   handleFilesSelectedAppend,
   handleProcessCards,
+  cancelProcessCards,
   initialMode,
   forceJustSaved,
   onForceJustSavedConsumed,
@@ -714,7 +716,16 @@ export function VaccineItemSheet({
               <div className="py-8 text-center">
                 <div className="animate-spin w-10 h-10 border-4 border-sky-200 border-t-sky-700 rounded-full mx-auto mb-4" />
                 <div className="font-semibold text-sky-900 mb-1">Analisando com IA...</div>
-                <div className="text-sm text-sky-600">Pode levar alguns segundos</div>
+                <div className="text-sm text-sky-600 mb-4">Pode levar alguns segundos</div>
+                {cancelProcessCards && (
+                  <button
+                    type="button"
+                    onClick={cancelProcessCards}
+                    className="min-h-[44px] px-6 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 active:scale-95 transition-transform"
+                  >
+                    Cancelar
+                  </button>
+                )}
               </div>
             )}
           </div>

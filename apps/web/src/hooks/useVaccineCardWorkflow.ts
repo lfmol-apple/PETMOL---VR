@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
 import {
   analyzeVaccineCardFiles,
   normalizeAnalyzedVaccineRecords,
@@ -45,6 +45,7 @@ interface UseVaccineCardWorkflowResult {
   addReviewRegistro: () => void;
   handleFilesSelectedAppend: (event: ChangeEvent<HTMLInputElement>) => void;
   handleProcessCards: (selected: File[]) => Promise<void>;
+  cancelProcessCards: () => void;
 }
 
 export function useVaccineCardWorkflow({
@@ -63,6 +64,11 @@ export function useVaccineCardWorkflow({
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
   const [reviewLearnEnabled, setReviewLearnEnabled] = useState(true);
   const [rawRegistros, setRawRegistros] = useState<VaccineCardOcrRecord[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const cancelProcessCards = useCallback(() => {
+    abortControllerRef.current?.abort();
+  }, []);
 
   const closeCardAnalysis = useCallback(() => {
     setCardAnalysis(null);
@@ -133,11 +139,21 @@ export function useVaccineCardWorkflow({
     setCardAnalysis(null);
     setReviewConfirmed(false);
 
+    // Bounds the request from the client side too (user-cancel via the same
+    // controller, or an automatic 90s cap) — previously nothing here could
+    // ever end the "Analisando com IA..." screen except the backend itself
+    // eventually responding, found in a pre-launch audit.
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const timeoutId = setTimeout(() => controller.abort(), 90_000);
+    let wasCancelled = false;
+
     try {
       const analysisResult = await analyzeVaccineCardFiles({
         files: selected,
         hint: `Carteira de vacinação do pet ${petName || 'pet'}`,
         maxAiImages: aiImageLimit,
+        signal: controller.signal,
       });
 
       setCardAnalysis({ processed_images: selected.length, ...analysisResult });
@@ -148,22 +164,32 @@ export function useVaccineCardWorkflow({
       setReviewExpectedCount(uniqueRegistros.length);
       setShowImportCard(false);
     } catch (error) {
-      console.error('Erro na análise do cartão:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      const hasHeic = selected.some((file) =>
-        file.type === 'image/heic' ||
-        file.type === 'image/heif' ||
-        file.name.toLowerCase().endsWith('.heic') ||
-        file.name.toLowerCase().endsWith('.heif')
-      );
-      const heicHint = hasHeic
-        ? '\n\n⚠️ Foram detectadas fotos HEIC (formato iPhone). Tente enviar como JPG/PNG ou use a câmera diretamente pelo navegador.'
-        : '';
-      showBlockingNotice(`${ocrErrorMessage}\n\n${errorMessage}\n\n${ocrRetryMessage}${heicHint}`, {
-        title: 'Não foi possível analisar o cartão',
-        tone: 'danger',
-      });
+      // Both a user-initiated cancel and the 90s client-side timeout above
+      // surface as AbortError — either way, skip the generic error dialog
+      // and just fall back to the manual-entry screen silently.
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        wasCancelled = true;
+      }
+      if (!wasCancelled) {
+        console.error('Erro na análise do cartão:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+        const hasHeic = selected.some((file) =>
+          file.type === 'image/heic' ||
+          file.type === 'image/heif' ||
+          file.name.toLowerCase().endsWith('.heic') ||
+          file.name.toLowerCase().endsWith('.heif')
+        );
+        const heicHint = hasHeic
+          ? '\n\n⚠️ Foram detectadas fotos HEIC (formato iPhone). Tente enviar como JPG/PNG ou use a câmera diretamente pelo navegador.'
+          : '';
+        showBlockingNotice(`${ocrErrorMessage}\n\n${errorMessage}\n\n${ocrRetryMessage}${heicHint}`, {
+          title: 'Não foi possível analisar o cartão',
+          tone: 'danger',
+        });
+      }
     } finally {
+      clearTimeout(timeoutId);
+      abortControllerRef.current = null;
       setImportingCard(false);
     }
   }, [aiImageLimit, ocrErrorMessage, ocrRetryMessage, petName]);
@@ -196,5 +222,6 @@ export function useVaccineCardWorkflow({
     addReviewRegistro,
     handleFilesSelectedAppend,
     handleProcessCards,
+    cancelProcessCards,
   };
 }

@@ -8,7 +8,7 @@ export default function TermsPage() {
       backHref="/"
     >
       <PremiumCard>
-        <p className="text-slate-500 text-xs mb-6">Última atualização: 03 de fevereiro de 2026</p>
+        <p className="text-slate-500 text-xs mb-6">Última atualização: 24 de agosto de 2026</p>
         <div className="prose prose-sm prose-slate max-w-none">
           <h2>1. Aceitação dos Termos</h2>
           <p>
@@ -17,15 +17,21 @@ export default function TermsPage() {
 
           <h2>2. Descrição do Serviço</h2>
           <p>
-            O PETMOL é uma plataforma digital que oferece:
+            O PETMOL é uma plataforma digital de organização de cuidados com pets, que oferece:
           </p>
           <ul>
-            <li>Gerenciamento de informações de saúde de pets (vacinas, vermífugos, consultas)</li>
+            <li>Gerenciamento de informações de saúde de pets (vacinas, vermífugos, antipulgas, consultas)</li>
+            <li>Controle de alimentação e ração, com estimativa de consumo e avisos</li>
+            <li>Controle de medicamentos e lembretes de dose</li>
             <li>Agendamento e controle de eventos (banho, tosa, consultas veterinárias)</li>
             <li>Busca de estabelecimentos pet-friendly (petshops, clínicas, emergências)</li>
             <li>Sistema de lembretes para cuidados com pets</li>
             <li>Carteirinha digital de vacinação</li>
+            <li>Comparação de preços e ofertas de produtos entre lojas parceiras (ver Seção 7)</li>
           </ul>
+          <p>
+            O PETMOL pode oferecer diferentes funcionalidades, planos ou condições comerciais ao longo do tempo (ver Seção 9).
+          </p>
 
           <h2>3. Cadastro e Conta de Usuário</h2>
           <p>
@@ -75,14 +81,16 @@ export default function TermsPage() {
             <strong>Importante:</strong> O PETMOL é uma ferramenta de organização e lembretes. Sempre consulte um médico veterinário qualificado para decisões relacionadas à saúde do seu pet.
           </p>
 
-          <h2>7. Estabelecimentos Parceiros</h2>
+          <h2>7. Estabelecimentos Parceiros, Comparação de Ofertas e Links de Afiliados</h2>
           <p>
-            O PETMOL pode listar estabelecimentos parceiros (petshops, clínicas, etc.). Nós não somos responsáveis por:
+            O PETMOL pode listar estabelecimentos parceiros (petshops, clínicas, etc.) e exibir ofertas de produtos de lojas parceiras (como Cobasi, Shopee, Zee Now e Zee Dog, entre outras que podem ser adicionadas ou removidas ao longo do tempo), com o objetivo de ajudar você a comparar preços disponíveis. Nesse contexto:
           </p>
           <ul>
-            <li>Qualidade dos serviços prestados por terceiros</li>
-            <li>Preços, disponibilidade ou políticas dos estabelecimentos</li>
-            <li>Disputas entre usuários e estabelecimentos</li>
+            <li>Preços, estoque, condições de pagamento e prazos de entrega são definidos por cada loja parceira e podem mudar a qualquer momento, sem aviso prévio do PETMOL.</li>
+            <li>A compra é sempre realizada diretamente no site ou aplicativo da loja parceira — o PETMOL não processa pagamentos, não emite nota fiscal da compra e não tem acesso aos seus dados financeiros.</li>
+            <li>Alguns links de compra exibidos no PETMOL são links de afiliados: ao clicar e comprar, o PETMOL pode receber uma comissão da loja parceira, sem qualquer custo adicional para você.</li>
+            <li>O PETMOL busca apresentar ofertas relevantes entre as lojas parceiras disponíveis, mas não garante que qualquer oferta exibida é a de menor preço no mercado em geral.</li>
+            <li>Qualidade dos produtos e serviços prestados por terceiros, disputas entre usuários e estabelecimentos, e políticas específicas de cada loja são de responsabilidade exclusiva da loja parceira.</li>
           </ul>
 
           <h2>8. Propriedade Intelectual</h2>
@@ -90,9 +98,12 @@ export default function TermsPage() {
             Todo o conteúdo do PETMOL (textos, gráficos, logos, ícones, imagens, software) é propriedade da PETMOL ou de seus licenciadores e está protegido por leis de direitos autorais.
           </p>
 
-          <h2>9. Modificações do Serviço</h2>
+          <h2>9. Modificações do Serviço e Condições Comerciais</h2>
           <p>
             Reservamo-nos o direito de modificar, suspender ou descontinuar qualquer parte do serviço a qualquer momento, com ou sem aviso prévio.
+          </p>
+          <p>
+            O PETMOL poderá oferecer diferentes funcionalidades, planos ou condições comerciais ao longo do tempo. Eventual cobrança será informada previamente ao usuário e dependerá do aceite/contratação correspondente — funcionalidades já em uso não passam a ser cobradas retroativamente sem esse aceite explícito.
           </p>
 
           <h2>10. Limitação de Responsabilidade</h2>
@@ -131,8 +142,8 @@ export default function TermsPage() {
 
           <div className="mt-12 p-6 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-blue-900">
-              <strong>Versão:</strong> 2026-02-03<br />
-              <strong>Data de vigência:</strong> 03 de fevereiro de 2026
+              <strong>Versão:</strong> 2026-08-24<br />
+              <strong>Data de vigência:</strong> 24 de agosto de 2026
             </p>
           </div>
         </div>

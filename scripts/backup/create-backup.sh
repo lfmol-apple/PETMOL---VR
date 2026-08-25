@@ -36,8 +36,11 @@ trap cleanup_pg_dump EXIT
 
 DID_DUMP_DB=0
 if [[ -f "${BACKEND_ENV_FILE}" ]]; then
-  # shellcheck disable=SC1090
-  set -a; source "${BACKEND_ENV_FILE}"; set +a
+  # Extract just DATABASE_URL rather than `source`-ing the whole file: other
+  # values in .env (e.g. a User-Agent string with spaces/parens) aren't
+  # valid bash and previously crashed the backup here with a syntax error
+  # before pg_dump ever ran — found while setting up a restore-test run.
+  DATABASE_URL="$(grep -m1 '^DATABASE_URL=' "${BACKEND_ENV_FILE}" | cut -d= -f2-)"
 
   if [[ "${DATABASE_URL:-}" == postgresql* ]]; then
     if ! command -v pg_dump >/dev/null 2>&1; then
@@ -58,16 +61,16 @@ if [[ -f "${BACKEND_ENV_FILE}" ]]; then
   fi
 fi
 
+# Secrets (.env files) are intentionally NOT in the main data archive —
+# that archive is what's meant to leave the VPS (off-site hook below), and
+# shipping plaintext JWT/DB/API secrets off-host is a real exposure. They
+# get their own, separately-encrypted archive further down instead.
 TARGETS=(
   "analysis"
   "uploads"
   "services/price-service/uploads"
   "services/price-service/petmol.db"
   "services/price-service/push_subscriptions.json"
-  ".env"
-  "apps/web/.env"
-  "functions/.env"
-  "services/price-service/.env"
 )
 
 if [[ "${DID_DUMP_DB}" -eq 1 ]]; then
@@ -90,19 +93,79 @@ echo "Iniciando backup: ${BACKUP_NAME}"
 echo "Diretorio: ${BACKUP_DIR}"
 echo "Itens: ${EXISTING_TARGETS[*]}"
 
-tar -czf "${ARCHIVE_PATH}" -C "${ROOT_DIR}" "${EXISTING_TARGETS[@]}"
+# -h dereferences symlinks: services/price-service/uploads is a symlink to
+# the shared uploads dir (see deploy/release/activate.sh) so every real
+# release archives it that way. Without -h, tar stores the symlink itself
+# and every pet photo/document is silently missing from the backup while
+# the script still exits 0 — this bit us for real, fixed here for good.
+tar -czhf "${ARCHIVE_PATH}" -C "${ROOT_DIR}" "${EXISTING_TARGETS[@]}"
 shasum -a 256 "${ARCHIVE_PATH}" > "${CHECKSUM_PATH}"
+
+# ── Secrets, separately and (when a key is configured) encrypted ───────────
+SECRETS_TARGETS=(
+  ".env"
+  "apps/web/.env"
+  "functions/.env"
+  "services/price-service/.env"
+)
+EXISTING_SECRETS=()
+for target in "${SECRETS_TARGETS[@]}"; do
+  if [[ -e "${ROOT_DIR}/${target}" ]]; then
+    EXISTING_SECRETS+=("${target}")
+  fi
+done
+
+SECRETS_ARCHIVE_PATH="${BACKUP_DIR}/${BACKUP_NAME}_secrets.tar.gz"
+SECRETS_ENC_PATH="${SECRETS_ARCHIVE_PATH}.enc"
+DID_BACKUP_SECRETS=0
+if [[ "${#EXISTING_SECRETS[@]}" -gt 0 ]]; then
+  if [[ -n "${BACKUP_ENCRYPTION_KEY:-}" ]]; then
+    tar -czhf "${SECRETS_ARCHIVE_PATH}" -C "${ROOT_DIR}" "${EXISTING_SECRETS[@]}"
+    openssl enc -aes-256-cbc -pbkdf2 -salt -in "${SECRETS_ARCHIVE_PATH}" \
+      -out "${SECRETS_ENC_PATH}" -pass env:BACKUP_ENCRYPTION_KEY
+    rm -f "${SECRETS_ARCHIVE_PATH}"
+    shasum -a 256 "${SECRETS_ENC_PATH}" > "${SECRETS_ENC_PATH}.sha256"
+    DID_BACKUP_SECRETS=1
+    echo "Secrets: arquivados e criptografados em ${SECRETS_ENC_PATH}."
+  else
+    echo "AVISO: BACKUP_ENCRYPTION_KEY nao definido — secrets (.env) NAO foram" >&2
+    echo "incluidos neste backup. Defina BACKUP_ENCRYPTION_KEY para tambem" >&2
+    echo "arquivar .env de forma criptografada, ou gerencie secrets separadamente." >&2
+  fi
+fi
+
+# ── Off-site copy ────────────────────────────────────────────────────────
+# Generic hook instead of hardcoding a provider: set BACKUP_OFFSITE_CMD to
+# any command that accepts a file path as its final argument (rclone copy,
+# rsync, scp, aws s3 cp, etc). Runs for the main archive, its checksum, and
+# the encrypted secrets archive when present. Off by default (empty = skip)
+# until a real destination is configured.
+if [[ -n "${BACKUP_OFFSITE_CMD:-}" ]]; then
+  echo "Copiando off-site via: ${BACKUP_OFFSITE_CMD}"
+  ${BACKUP_OFFSITE_CMD} "${ARCHIVE_PATH}"
+  ${BACKUP_OFFSITE_CMD} "${CHECKSUM_PATH}"
+  if [[ "${DID_BACKUP_SECRETS}" -eq 1 ]]; then
+    ${BACKUP_OFFSITE_CMD} "${SECRETS_ENC_PATH}"
+    ${BACKUP_OFFSITE_CMD} "${SECRETS_ENC_PATH}.sha256"
+  fi
+fi
 
 if [[ -n "${MIRROR_DIR}" ]]; then
   mkdir -p "${MIRROR_DIR}"
   cp "${ARCHIVE_PATH}" "${MIRROR_DIR}/"
   cp "${CHECKSUM_PATH}" "${MIRROR_DIR}/"
+  if [[ "${DID_BACKUP_SECRETS}" -eq 1 ]]; then
+    cp "${SECRETS_ENC_PATH}" "${MIRROR_DIR}/"
+    cp "${SECRETS_ENC_PATH}.sha256" "${MIRROR_DIR}/"
+  fi
   find "${MIRROR_DIR}" -type f -name "petmol_*.tar.gz" -mtime +"${RETENTION_DAYS}" -delete
   find "${MIRROR_DIR}" -type f -name "petmol_*.sha256" -mtime +"${RETENTION_DAYS}" -delete
+  find "${MIRROR_DIR}" -type f -name "petmol_*.enc" -mtime +"${RETENTION_DAYS}" -delete
 fi
 
 find "${BACKUP_DIR}" -type f -name "petmol_*.tar.gz" -mtime +"${RETENTION_DAYS}" -delete
 find "${BACKUP_DIR}" -type f -name "petmol_*.sha256" -mtime +"${RETENTION_DAYS}" -delete
+find "${BACKUP_DIR}" -type f -name "petmol_*.enc" -mtime +"${RETENTION_DAYS}" -delete
 
 echo "Backup concluido: ${ARCHIVE_PATH}"
 if [[ "${DID_DUMP_DB}" -eq 1 ]]; then
