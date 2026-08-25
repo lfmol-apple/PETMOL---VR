@@ -19,6 +19,7 @@ GTIN = "7891234567890"
 @pytest.fixture(autouse=True)
 def _reset_settings(monkeypatch):
     monkeypatch.delenv("SHOPEE_AFFILIATE_ENABLED", raising=False)
+    monkeypatch.delenv("MERCADOLIVRE_AFFILIATE_ENABLED", raising=False)
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
@@ -26,6 +27,11 @@ def _reset_settings(monkeypatch):
 
 def _enable_shopee(monkeypatch) -> None:
     monkeypatch.setenv("SHOPEE_AFFILIATE_ENABLED", "true")
+    get_settings.cache_clear()
+
+
+def _enable_mercadolivre(monkeypatch) -> None:
+    monkeypatch.setenv("MERCADOLIVRE_AFFILIATE_ENABLED", "true")
     get_settings.cache_clear()
 
 
@@ -390,3 +396,81 @@ def test_monetize_disabled_returns_none(monkeypatch):
 def test_is_marketplace_merchant_publicly_servable_unknown_merchant_always_false(monkeypatch):
     _enable_shopee(monkeypatch)
     assert is_marketplace_merchant_publicly_servable("mercadolivre") is False
+
+
+# ── Mercado Livre — §12/§14/§15 da auditoria de monetização (25/08/2026) ──
+# ML nunca tem API de geração de link (confirmado, ver
+# mercadolivre_link_validator.py) — todo link vem do Gerador de Links
+# oficial, colado manualmente via import_ml_offers.py. Estes testes
+# provam a separação: descoberta (ProductCatalog/scan) nunca é
+# monetização (MarketplaceOffer); sem oferta cadastrada, ML é invisível.
+
+def test_ml_plain_product_url_rejected(monkeypatch):
+    """Uma URL comum de produto ML (sem os parâmetros de rastreamento do
+    Gerador de Links) nunca pode ser aceita como affiliate_url — mesma
+    regra do validador, testada aqui pela borda que importa: monetize()
+    nunca devolve isso pro tutor."""
+    _enable_mercadolivre(monkeypatch)
+    product_id = _register_product()
+    db = SessionLocal()
+    try:
+        row = MarketplaceOffer(
+            product_id=product_id, merchant="mercadolivre",
+            affiliate_url="https://www.mercadolivre.com.br/produto-generico/p/MLB123",
+            price=89.9, active=True,
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+
+        provider = MarketplaceOfferProvider(db, "mercadolivre")
+        discovered = DiscoveredOffer(merchant="mercadolivre", price=89.9, external_id=str(row.id))
+        result = provider.monetize(discovered, ProductContext(gtin=GTIN))
+        assert result is None
+    finally:
+        db.close()
+
+
+def test_ml_official_affiliate_url_accepted(monkeypatch):
+    """Link real gerado pelo Gerador de Links oficial (matt_word/matt_tool
+    presentes) — aceito e devolvido sem reescrever nada."""
+    _enable_mercadolivre(monkeypatch)
+    product_id = _register_product()
+    db = SessionLocal()
+    try:
+        official_url = "https://www.mercadolivre.com.br/social/petmol?matt_word=petmol&matt_tool=12345&ref=x"
+        row = MarketplaceOffer(
+            product_id=product_id, merchant="mercadolivre",
+            affiliate_url=official_url,
+            price=89.9, active=True,
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+
+        provider = MarketplaceOfferProvider(db, "mercadolivre")
+        discovered = DiscoveredOffer(merchant="mercadolivre", price=89.9, external_id=str(row.id))
+        result = provider.monetize(discovered, ProductContext(gtin=GTIN))
+        assert result == (official_url, "affiliate_marketplace_offer", "mercadolivre", True)
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_ml_product_without_affiliate_offer_invisible(monkeypatch):
+    """Núcleo do §15: produto conhecido pelo PETMOL (existe em
+    ProductCatalog, foi escaneado) mas SEM MarketplaceOffer(merchant=
+    mercadolivre) cadastrada — precisa ficar invisível, mesmo com o
+    master gate ligado. Nunca: 'sem link, então busca URL direta na API
+    do ML' — essa ponte não existe por design (ver commerce_provider.py:
+    a API do ML é só descoberta/catálogo, nunca monetização)."""
+    _enable_mercadolivre(monkeypatch)
+    _register_product()  # produto existe, mas nenhuma MarketplaceOffer é criada
+
+    db = SessionLocal()
+    try:
+        provider = MarketplaceOfferProvider(db, "mercadolivre")
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is None
+    finally:
+        db.close()

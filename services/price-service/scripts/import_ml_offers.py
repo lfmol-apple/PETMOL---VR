@@ -15,8 +15,16 @@ oferta fica cadastrada mas CommerceEngine não mostra pro tutor até
 alguém confirmar o preço (mesma regra "sem preço real, não aparece" do
 resto do sistema — ver marketplace_offer_provider.py).
 
-Uso:
-    python3 scripts/import_ml_offers.py ml_link_candidates_preenchido.csv
+Uso (dry-run é o padrão — nada é escrito, só mostra o que aconteceria):
+    python3 scripts/import_ml_offers.py --csv ml_link_candidates_preenchido.csv --dry-run
+    python3 scripts/import_ml_offers.py --csv ml_link_candidates_preenchido.csv --apply
+
+O Gerador de Links do Mercado Livre aceita no máximo 30 URLs por vez
+(mesmo limite documentado em export_ml_link_candidates.py), então este
+importador também limita a 30 linhas com affiliate_url preenchido por
+execução (--max-batch pra ajustar, nunca pra contornar sem querer —
+linhas além do limite são reportadas como puladas, não truncadas
+silenciosamente). Rode em lotes de 30 até zerar a fila.
 
 Roda seguro mesmo com mercadolivre_affiliate_enabled=False — só grava
 Postgres local, nunca liga nada pro tutor sozinho (quem decide se a
@@ -25,6 +33,7 @@ parte a cada chamada real).
 """
 from __future__ import annotations
 
+import argparse
 import csv
 import sys
 from datetime import datetime, timezone
@@ -40,73 +49,74 @@ from src.mercadolivre_link_validator import InvalidMercadoLivreAffiliateUrlError
 from src.product_catalog_lookup import ProductCatalog  # noqa: E402
 
 MERCHANT = "mercadolivre"
+DEFAULT_MAX_BATCH = 30
 
 
-def main() -> int:
-    if len(sys.argv) != 2:
-        print(f"uso: {sys.argv[0]} <caminho_do_csv>", file=sys.stderr)
-        return 2
-
-    csv_path = Path(sys.argv[1])
-    if not csv_path.exists():
-        print(f"ERRO: arquivo não encontrado: {csv_path}", file=sys.stderr)
-        return 1
-
-    db = SessionLocal()
-    created = 0
-    updated = 0
-    skipped_empty = 0
+def run_import(csv_path: Path, db, apply: bool, max_batch: int) -> tuple[dict[str, int], list[str]]:
+    """Faz uma passada pelo CSV. Sem `apply`, valida e reporta tudo mas
+    nunca chama db.add/db.commit — dry-run real, não só "imprime o que
+    faria" sem checar o banco de verdade."""
+    stats = {"created": 0, "updated": 0, "skipped_empty": 0, "skipped_over_batch": 0}
     errors: list[str] = []
+    rows_in_batch = 0
 
-    try:
-        with csv_path.open("r", newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for line_num, row in enumerate(reader, start=2):  # linha 1 é o header
-                affiliate_url = (row.get("affiliate_url") or "").strip()
-                if not affiliate_url:
-                    skipped_empty += 1
-                    continue
+    with csv_path.open("r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for line_num, row in enumerate(reader, start=2):  # linha 1 é o header
+            affiliate_url = (row.get("affiliate_url") or "").strip()
+            if not affiliate_url:
+                stats["skipped_empty"] += 1
+                continue
 
-                product_id_raw = (row.get("product_id") or "").strip()
-                if not product_id_raw.isdigit():
-                    errors.append(f"linha {line_num}: product_id inválido {product_id_raw!r}")
-                    continue
-                product_id = int(product_id_raw)
+            if rows_in_batch >= max_batch:
+                stats["skipped_over_batch"] += 1
+                continue
 
-                product = db.get(ProductCatalog, product_id)
-                if not product:
-                    errors.append(f"linha {line_num}: product_id={product_id} não existe em products_catalog")
-                    continue
+            product_id_raw = (row.get("product_id") or "").strip()
+            if not product_id_raw.isdigit():
+                errors.append(f"linha {line_num}: product_id inválido {product_id_raw!r}")
+                continue
+            product_id = int(product_id_raw)
 
+            product = db.get(ProductCatalog, product_id)
+            if not product:
+                errors.append(f"linha {line_num}: product_id={product_id} não existe em products_catalog")
+                continue
+
+            try:
+                validate_mercadolivre_affiliate_url(affiliate_url)
+            except InvalidMercadoLivreAffiliateUrlError as exc:
+                errors.append(f"linha {line_num} (product_id={product_id}): {exc}")
+                continue
+
+            price_raw = (row.get("price") or "").strip()
+            price = None
+            if price_raw:
                 try:
-                    validate_mercadolivre_affiliate_url(affiliate_url)
-                except InvalidMercadoLivreAffiliateUrlError as exc:
-                    errors.append(f"linha {line_num} (product_id={product_id}): {exc}")
-                    continue
+                    price = float(price_raw.replace(",", "."))
+                except ValueError:
+                    errors.append(f"linha {line_num} (product_id={product_id}): price inválido {price_raw!r}, ignorando só o preço")
 
-                price_raw = (row.get("price") or "").strip()
-                price = None
-                if price_raw:
-                    try:
-                        price = float(price_raw.replace(",", "."))
-                    except ValueError:
-                        errors.append(f"linha {line_num} (product_id={product_id}): price inválido {price_raw!r}, ignorando só o preço")
+            rows_in_batch += 1
 
-                existing = db.scalar(
-                    select(MarketplaceOffer).where(
-                        MarketplaceOffer.product_id == product_id,
-                        MarketplaceOffer.merchant == MERCHANT,
-                    )
+            existing = db.scalar(
+                select(MarketplaceOffer).where(
+                    MarketplaceOffer.product_id == product_id,
+                    MarketplaceOffer.merchant == MERCHANT,
                 )
-                now = datetime.now(timezone.utc)
-                if existing:
+            )
+            now = datetime.now(timezone.utc)
+            if existing:
+                stats["updated"] += 1
+                if apply:
                     existing.affiliate_url = affiliate_url
                     existing.price = price
                     existing.active = True
                     existing.verified_at = now
                     existing.updated_at = now
-                    updated += 1
-                else:
+            else:
+                stats["created"] += 1
+                if apply:
                     db.add(
                         MarketplaceOffer(
                             product_id=product_id,
@@ -118,13 +128,41 @@ def main() -> int:
                             verified_at=now,
                         )
                     )
-                    created += 1
 
+    if apply:
         db.commit()
+    else:
+        db.rollback()
+
+    return stats, errors
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--csv", type=str, required=True, help="Caminho do CSV preenchido")
+    parser.add_argument("--apply", action="store_true", help="Aplica de verdade (padrão: dry-run, nada é escrito)")
+    parser.add_argument("--max-batch", type=int, default=DEFAULT_MAX_BATCH, help=f"Máximo de linhas com affiliate_url processadas nesta execução (padrão {DEFAULT_MAX_BATCH}, mesmo limite do Gerador de Links do ML)")
+    args = parser.parse_args()
+
+    csv_path = Path(args.csv)
+    if not csv_path.exists():
+        print(f"ERRO: arquivo não encontrado: {csv_path}", file=sys.stderr)
+        return 1
+
+    db = SessionLocal()
+    try:
+        stats, errors = run_import(csv_path, db, apply=args.apply, max_batch=args.max_batch)
     finally:
         db.close()
 
-    print(f"OK: {created} criado(s), {updated} atualizado(s), {skipped_empty} linha(s) sem affiliate_url ignorada(s)")
+    mode = "APLICADO" if args.apply else "DRY-RUN (nada foi escrito)"
+    print(
+        f"{mode}: {stats['created']} criado(s), {stats['updated']} atualizado(s), "
+        f"{stats['skipped_empty']} linha(s) sem affiliate_url ignorada(s), "
+        f"{stats['skipped_over_batch']} linha(s) além do lote de {args.max_batch} ignorada(s) (rode de novo pro próximo lote)"
+    )
+    if not args.apply and (stats["created"] or stats["updated"]) and not errors:
+        print(f"Rode com --apply pra gravar de verdade: python3 {sys.argv[0]} --csv {args.csv} --apply")
     if errors:
         print(f"{len(errors)} erro(s):", file=sys.stderr)
         for err in errors:
