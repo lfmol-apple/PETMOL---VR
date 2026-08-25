@@ -26,6 +26,8 @@ describe('middleware — isPublic não deve liberar rotas autenticadas por acide
     expect(isPublic('/go/abc123')).toBe(true);
     expect(isPublic('/v/algum-token')).toBe(true);
     expect(isPublic('/cuidar/xyz')).toBe(true);
+    // Exigência Google Play — precisa funcionar sem sessão/app instalado.
+    expect(isPublic('/excluir-conta')).toBe(true);
   });
 
   it('prefixo solto não deve capturar rotas parecidas mas diferentes', () => {
