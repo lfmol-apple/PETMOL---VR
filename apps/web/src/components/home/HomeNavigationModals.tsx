@@ -230,7 +230,7 @@ export function HomeNavigationModals({
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
                     {image ? (
-                      <span className="absolute top-1 right-1 opacity-95 transition-transform duration-300 group-hover:scale-110">
+                      <span className={`absolute opacity-95 transition-transform duration-300 group-hover:scale-110 ${tab === 'flea_tick' ? 'top-6 right-4' : 'top-1 right-1'}`}>
                         <img
                           src={image}
                           alt=""
@@ -244,7 +244,7 @@ export function HomeNavigationModals({
                         />
                       </span>
                     ) : (
-                      <span className={`absolute top-1 right-1 text-[32px] leading-none transition-transform duration-300 group-hover:scale-110 ${isEmergency ? 'opacity-100 drop-shadow-[0_0_10px_rgba(239,68,68,0.28)]' : 'opacity-95'}`}>{icon}</span>
+                      <span className={`absolute text-[32px] leading-none transition-transform duration-300 group-hover:scale-110 ${tab === 'medication' ? 'top-6 right-4' : 'top-1 right-1'} ${isEmergency ? 'opacity-100 drop-shadow-[0_0_10px_rgba(239,68,68,0.28)]' : 'opacity-95'}`}>{icon}</span>
                     )}
                     {isEmergency && (
                       <span className="pointer-events-none absolute right-2 top-2 h-6 w-6 rounded-full bg-red-300/35 blur-md animate-pulse" />

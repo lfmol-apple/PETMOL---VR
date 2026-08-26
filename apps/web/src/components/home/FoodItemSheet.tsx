@@ -295,11 +295,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   // secundário (petisco) em vez do item primário (ração) — ver botão
   // "🛒 Comprar" na seção "Outros alimentos".
   const [buyTargetItem, setBuyTargetItem] = useState<{ label: string; query: string; gtin: string | null; packageSizeKg: number | null } | null>(null);
-  // "Editar plano" numa ração já cadastrada pulava direto pro formulário
-  // manual — só o cadastro inicial oferecia foto. Reabrir a câmera aqui
-  // deixa o tutor trocar de embalagem/sabor sem redigitar tudo, reusando o
-  // mesmo fluxo (handleFoodProductConfirmed já pré-preenche o formulário).
-  const [showEditPlanChoice, setShowEditPlanChoice] = useState(false);
   const [deletingPlan, setDeletingPlan] = useState(false);
   const [deletingSecondaryId, setDeletingSecondaryId] = useState<string | null>(null);
   // Alterna qual seção a tela principal mostra — ração (controle de peso/
@@ -599,7 +594,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
 
   const handleClose = useCallback(() => {
     clearPendingScannedProduct();
-    setShowEditPlanChoice(false);
     onClose();
   }, [onClose]);
 
@@ -771,7 +765,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
       });
       dispatchFoodPlanUpdated();
       onSaved?.();
-      setShowEditPlanChoice(false);
       await refreshFoodPlan();
     } catch {
       setFeedback({ msg: 'Não deu pra excluir agora. Tente de novo.', tone: 'red' });
@@ -1418,18 +1411,36 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               na mesma tela (confuso, reportado pelo tutor).
                               "Excluir" fica direto ao lado — ação decisiva,
                               sem precisar entrar no painel pra achar. */}
-                          {!showEditPlanChoice && (
-                            <div className="space-y-2">
-                              <button type="button"
-                                onClick={() => setShowEditPlanChoice(true)}
-                                className="w-full flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-800 shadow-sm active:scale-[0.98] transition-all"
+                          {/* Feedback do usuário: "Atualizar" e "Editar plano" eram
+                              dois botões pro mesmo lugar, com um passo
+                              intermediário no meio — confuso. O botão
+                              principal agora vai direto pra mode='edit',
+                              que já escaneia código de barras (linha ~1280)
+                              além de peso/duração/datas — não precisa de
+                              painel de escolha antes. "Não uso mais este
+                              produto" e "Excluir" ficam como ações
+                              secundárias, sempre visíveis. */}
+                          <div className="space-y-2">
+                            <button type="button"
+                              onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
+                              className="w-full flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-800 shadow-sm active:scale-[0.98] transition-all"
+                            >
+                              <span className="text-xl">✏️</span>
+                              <span className="flex-1 text-left">
+                                <span className="block">Editar plano</span>
+                                <span className="block text-[12px] font-semibold text-blue-700/70">Código de barras, peso, duração ou datas</span>
+                              </span>
+                              <span className="text-blue-300 text-lg">›</span>
+                            </button>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => { void handleDeclareNonKibble(); }}
+                                disabled={declaringNonKibble}
+                                className="w-full py-2 min-h-[40px] rounded-xl bg-white border border-gray-200 text-gray-600 text-[12px] font-semibold hover:bg-gray-50 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                               >
-                                <span className="text-xl">✏️</span>
-                                <span className="flex-1 text-left">
-                                  <span className="block">Atualizar ou editar plano</span>
-                                  <span className="block text-[12px] font-semibold text-blue-700/70">Código de barras, peso, duração ou datas</span>
-                                </span>
-                                <span className="text-blue-300 text-lg">›</span>
+                                <span>🍲</span>
+                                {declaringNonKibble ? 'Salvando...' : 'Não uso mais'}
                               </button>
                               <button type="button"
                                 onClick={() => { void handleDeletePlan(); }}
@@ -1437,67 +1448,10 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                                 className="w-full py-2 min-h-[40px] rounded-xl bg-white border border-red-100 text-red-500 text-[12px] font-semibold hover:bg-red-50 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                               >
                                 <span>🗑️</span>
-                                {deletingPlan ? 'Excluindo...' : 'Excluir este plano'}
+                                {deletingPlan ? 'Excluindo...' : 'Excluir plano'}
                               </button>
                             </div>
-                          )}
-
-                          {showEditPlanChoice && (
-                            <div className="rounded-2xl border border-gray-200 bg-white p-4 space-y-4">
-                              <div className="space-y-2">
-                                <div>
-                                  <p className="text-[12px] font-black uppercase tracking-wide text-gray-400">Atualizar produto</p>
-                                  <p className="text-[12px] text-gray-500">Use quando trocou a embalagem, sabor, peso ou marca.</p>
-                                </div>
-                                <ProductBarcodeScanner
-                                  label="Escanear código de barras"
-                                  expectedCategory="food"
-                                  defaultMode="scan"
-                                  petId={pet.pet_id}
-                                  petName={pet.pet_name}
-                                  allowScanning
-                                  onProductConfirmed={(product) => {
-                                    setShowEditPlanChoice(false);
-                                    setFoodScanIntent('ask');
-                                    handleFoodProductConfirmed(product, 'ask');
-                                  }}
-                                  onDismiss={() => setShowEditPlanChoice(false)}
-                                />
-                              </div>
-
-                              <div className="space-y-2">
-                                <div>
-                                  <p className="text-[12px] font-black uppercase tracking-wide text-gray-400">Plano de consumo</p>
-                                  <p className="text-[12px] text-gray-500">Ajuste peso, duração, datas ou remova este produto.</p>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => { setShowEditPlanChoice(false); setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
-                                  className="w-full flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-800 shadow-sm active:scale-[0.98] transition-all"
-                                >
-                                  <span className="text-xl">✏️</span>
-                                  <span className="flex-1 text-left">
-                                    <span className="block">Editar plano</span>
-                                    <span className="block text-[12px] font-semibold text-blue-700/70">Peso, duração, datas ou excluir</span>
-                                  </span>
-                                  <span className="text-blue-300 text-lg">›</span>
-                                </button>
-                              </div>
-
-                              <div className="space-y-2">
-                                <p className="text-[12px] font-black uppercase tracking-wide text-gray-400">Outras opções</p>
-                                <button
-                                  type="button"
-                                  onClick={() => { setShowEditPlanChoice(false); void handleDeclareNonKibble(); }}
-                                  disabled={declaringNonKibble}
-                                  className="w-full flex items-center justify-center gap-2 py-2.5 min-h-[40px] rounded-xl border border-gray-200 bg-white text-[13px] font-semibold text-gray-600 hover:bg-gray-50 active:scale-[0.98] disabled:opacity-50 transition-all"
-                                >
-                                  <span>🍲</span>
-                                  {declaringNonKibble ? 'Salvando...' : 'Não uso mais este produto'}
-                                </button>
-                              </div>
-                            </div>
-                          )}
+                          </div>
 
                           {/* 4. Ajustes rápidos */}
                           <div className="grid grid-cols-2 gap-2">
