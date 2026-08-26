@@ -21,6 +21,13 @@ AWIN_ALLOWED_TARGETS_BY_ADVERTISER = {
     # Zee Now
     "127557": {"www.zeenow.com.br", "zeenow.com.br"},
 }
+AWIN_BROWSER_SIDE_ADVERTISERS = {
+    # Zee Now BR: painel Awin informa "Otimizado para Celular: Sim" e
+    # "Rastreamento de App: Sim" (publisher 3032803, advertiser 127557).
+    # Nesse caso, deixar Awin/Zee Now decidirem web/app no dispositivo é
+    # mais fiel ao modelo last-click/app tracking do que resolver server-side.
+    "127557",
+}
 
 
 def advertiser_id_from_awin_url(url: str) -> str | None:
@@ -33,6 +40,10 @@ def publisher_id_from_awin_url(url: str) -> str | None:
     query = parse_qs(urlsplit(url).query)
     values = query.get("a") or query.get("awinaffid") or []
     return values[0] if values else None
+
+
+def should_redirect_awin_in_browser(url: str) -> bool:
+    return advertiser_id_from_awin_url(url) in AWIN_BROWSER_SIDE_ADVERTISERS
 
 
 def is_supported_awin_click_url(url: str) -> bool:

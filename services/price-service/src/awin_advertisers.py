@@ -93,14 +93,16 @@ AWIN_ADVERTISERS: dict[str, AwinAdvertiser] = {
         cpa_percent=3.0,
         feed_id="116779",
         notes=(
-            "Aprovada 22/08/2026. Feed 116779 observado com 13.835 "
-            "produtos; todos com preço, imagem, marca, product_type, "
-            "in_stock e aw_deep_link monetizado com publisher 3032803 e "
-            "advertiser 127557. stock_status vazio e in_stock=1 em 100% "
-            "das linhas; category_name vazio, usar product_type como "
-            "categoria. GTIN: 13.605 válidos diretos, 152 UPC-11 "
-            "corrigíveis com zero à esquerda, 78 inválidos e 9 grupos "
-            "duplicados observados."
+            "Inscrito em 19/08/2026; programa lançado em 31/07/2026. "
+            "Modelo: Last Click Awin, cookie 1 dia/24h, CPA 3% para "
+            "demais categorias (cashback 4%). Painel Awin informa "
+            "Otimizado para Celular=Sim e Rastreamento de App=Sim; por "
+            "isso o clique deve permanecer browser-side/app-tracking, sem "
+            "forçar resolução server-side como Cobasi. ShopWindow: 13.839 "
+            "produtos, última atualização hoje no painel informado; feed "
+            "116779 observado com aw_deep_link monetizado para publisher "
+            "3032803 e advertiser 127557. Restrições: search direto/"
+            "indireto, e-mail marketing e pessoa física não permitidos."
         ),
     ),
     "zeedog": AwinAdvertiser(

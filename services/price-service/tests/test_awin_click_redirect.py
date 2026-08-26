@@ -9,6 +9,7 @@ from src.awin_click_redirect import (
     build_cobasi_awin_deep_link,
     decode_awin_click_url,
     resolve_awin_click_target,
+    should_redirect_awin_in_browser,
 )
 
 
@@ -72,6 +73,12 @@ def test_cobasi_awin_deep_link_uses_cread_with_product_destination():
     assert query["ued"] == [COBASI_MERCHANT_URL]
 
 
+def test_zeenow_uses_browser_side_awin_strategy():
+    assert should_redirect_awin_in_browser(ZEENOW_AWIN_URL) is True
+    assert should_redirect_awin_in_browser(AWIN_URL) is False
+    assert should_redirect_awin_in_browser(ZEEDOG_AWIN_URL) is False
+
+
 def test_unsupported_awin_url_is_left_untouched():
     url = "https://track.awin.com/deep-link-teste"
 
@@ -116,6 +123,19 @@ def test_cobasi_awin_click_resolves_cread_to_web_product_url(client, monkeypatch
     assert response.status_code == 302
     assert response.headers["location"] == COBASI_AWC_TARGET
     assert advertiser_id_from_awin_url(awin_url) == "17870"
+
+
+def test_zeenow_awin_click_redirects_browser_to_original_awin_url(client, monkeypatch):
+    class ForbiddenClient:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("Zee Now must use Awin browser/app tracking, not server-side resolution")
+
+    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", ForbiddenClient)
+
+    response = client.get(build_awin_click_redirect_url(ZEENOW_AWIN_URL), follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == ZEENOW_AWIN_URL
 
 
 @pytest.mark.parametrize(
