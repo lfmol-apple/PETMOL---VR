@@ -42,7 +42,7 @@ from sqlalchemy.orm import Session
 from .affiliate_feed import AffiliateFeedOffer, AffiliateFeedSyncRun
 from .affiliate_offer_identity import has_ambiguous_offer_identity
 from .awin_advertisers import is_awin_merchant_publicly_servable
-from .awin_click_redirect import build_awin_click_redirect_url
+from .awin_click_redirect import build_awin_click_redirect_url, build_cobasi_awin_deep_link
 from .commerce_pricing import fetch_cobasi_price
 from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
@@ -210,7 +210,10 @@ class AwinFeedProvider:
         if not row or not row.affiliate_url:
             return None
 
-        return build_awin_click_redirect_url(row.affiliate_url), "affiliate_product", "awin"
+        affiliate_url = row.affiliate_url
+        if self.merchant == "cobasi":
+            affiliate_url = build_cobasi_awin_deep_link(row.affiliate_url, row.merchant_url)
+        return build_awin_click_redirect_url(affiliate_url), "affiliate_product", "awin"
 
     def _find_rows_by_gtin(self, gtin: str) -> list[AffiliateFeedOffer]:
         query = (

@@ -1,16 +1,19 @@
 import base64
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
 from src.awin_click_redirect import (
     advertiser_id_from_awin_url,
     build_awin_click_redirect_url,
+    build_cobasi_awin_deep_link,
     decode_awin_click_url,
     resolve_awin_click_target,
 )
 
 
 AWIN_URL = "https://www.awin1.com/pclick.php?p=31117188249&a=3032803&m=17870&clickref=petmol%2Fabc&foo=bar"
+COBASI_MERCHANT_URL = "https://www.cobasi.com.br/produto-teste/p?idsku=123"
 ZEENOW_AWIN_URL = "https://www.awin1.com/pclick.php?p=45390676945&a=3032803&m=127557"
 ZEEDOG_AWIN_URL = "https://www.awin1.com/pclick.php?p=45390600000&a=3032803&m=127555"
 
@@ -20,6 +23,28 @@ def test_supported_awin_pclick_becomes_petmol_redirect():
 
     assert redirect_url.startswith("/commerce/awin-click?u=")
     assert decode_awin_click_url(redirect_url.split("u=", 1)[1]) == AWIN_URL
+
+
+def test_supported_awin_cread_becomes_petmol_redirect():
+    awin_url = build_cobasi_awin_deep_link(AWIN_URL, COBASI_MERCHANT_URL)
+    redirect_url = build_awin_click_redirect_url(awin_url)
+
+    assert redirect_url.startswith("/commerce/awin-click?u=")
+    assert decode_awin_click_url(redirect_url.split("u=", 1)[1]) == awin_url
+
+
+def test_cobasi_awin_deep_link_uses_cread_with_product_destination():
+    awin_url = build_cobasi_awin_deep_link(AWIN_URL, COBASI_MERCHANT_URL)
+    parts = urlsplit(awin_url)
+    query = parse_qs(parts.query)
+
+    assert parts.scheme == "https"
+    assert parts.netloc == "www.awin1.com"
+    assert parts.path == "/cread.php"
+    assert query["awinmid"] == ["17870"]
+    assert query["awinaffid"] == ["3032803"]
+    assert query["clickref"] == ["petmol/abc"]
+    assert query["ued"] == [COBASI_MERCHANT_URL]
 
 
 def test_unsupported_awin_url_is_left_untouched():
@@ -63,6 +88,21 @@ def test_cobasi_awin_click_preserves_existing_awin_parameters(client, monkeypatc
 
     assert response.status_code == 302
     assert response.headers["location"] == awin_url
+
+
+def test_cobasi_awin_click_redirects_browser_to_original_awin_cread_url(client, monkeypatch):
+    class ForbiddenClient:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("Cobasi click must not be resolved server-side")
+
+    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", ForbiddenClient)
+    awin_url = build_cobasi_awin_deep_link(AWIN_URL, COBASI_MERCHANT_URL)
+
+    response = client.get(build_awin_click_redirect_url(awin_url), follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == awin_url
+    assert advertiser_id_from_awin_url(response.headers["location"]) == "17870"
 
 
 @pytest.mark.parametrize(

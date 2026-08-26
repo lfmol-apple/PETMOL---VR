@@ -12,6 +12,7 @@ import asyncio
 import pytest
 
 from src.affiliate_feed import AffiliateFeedOffer, AffiliateFeedSyncRun
+from src.awin_click_redirect import decode_awin_click_url
 from src.awin_feed_provider import AwinFeedProvider
 from src.commerce_pricing import ProductPriceResult
 from src.commerce_provider import DiscoveredOffer, ProductContext
@@ -74,9 +75,10 @@ async def test_finds_offer_by_exact_gtin():
 
 def test_cobasi_monetize_uses_affiliate_url_not_direct_merchant_url():
     awin_url = "https://www.awin1.com/pclick.php?p=1&a=3032803&m=17870&clickref=petmol"
+    merchant_url = "https://www.cobasi.com.br/produto-teste/p?sem-comissao=1"
     db = SessionLocal()
     try:
-        db.add(_row(affiliate_url=awin_url, merchant_url="https://www.cobasi.com.br/produto-teste/p?sem-comissao=1"))
+        db.add(_row(affiliate_url=awin_url, merchant_url=merchant_url))
         db.commit()
 
         result = AwinFeedProvider(db, "cobasi").monetize(_discovered_offer(), ProductContext(gtin=GTIN))
@@ -85,6 +87,12 @@ def test_cobasi_monetize_uses_affiliate_url_not_direct_merchant_url():
         url, link_type, route = result
         assert url.startswith("/commerce/awin-click?u=")
         assert "www.cobasi.com.br" not in url
+        decoded = decode_awin_click_url(url.split("u=", 1)[1])
+        assert decoded.startswith("https://www.awin1.com/cread.php?")
+        assert "awinmid=17870" in decoded
+        assert "awinaffid=3032803" in decoded
+        assert "clickref=petmol" in decoded
+        assert "ued=https%3A%2F%2Fwww.cobasi.com.br%2Fproduto-teste%2Fp%3Fsem-comissao%3D1" in decoded
         assert link_type == "affiliate_product"
         assert route == "awin"
     finally:

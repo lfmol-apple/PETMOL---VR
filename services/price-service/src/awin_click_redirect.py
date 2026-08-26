@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import base64
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 import httpx
 
 
 AWIN_CLICK_PATH = "/commerce/awin-click"
+AWIN_SUPPORTED_CLICK_PATHS = {"/pclick.php", "/cread.php"}
 AWIN_DESKTOP_USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) "
     "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
@@ -23,7 +24,14 @@ AWIN_ALLOWED_TARGETS_BY_ADVERTISER = {
 
 
 def advertiser_id_from_awin_url(url: str) -> str | None:
-    values = parse_qs(urlsplit(url).query).get("m") or []
+    query = parse_qs(urlsplit(url).query)
+    values = query.get("m") or query.get("awinmid") or []
+    return values[0] if values else None
+
+
+def publisher_id_from_awin_url(url: str) -> str | None:
+    query = parse_qs(urlsplit(url).query)
+    values = query.get("a") or query.get("awinaffid") or []
     return values[0] if values else None
 
 
@@ -32,8 +40,41 @@ def is_supported_awin_click_url(url: str) -> bool:
     return (
         parts.scheme == "https"
         and parts.netloc.lower() == "www.awin1.com"
-        and parts.path == "/pclick.php"
+        and parts.path in AWIN_SUPPORTED_CLICK_PATHS
     )
+
+
+def _is_supported_cobasi_product_url(url: str) -> bool:
+    parts = urlsplit((url or "").strip())
+    return parts.scheme == "https" and parts.netloc.lower() == "www.cobasi.com.br" and "/p" in parts.path
+
+
+def build_cobasi_awin_deep_link(affiliate_url: str, merchant_url: str | None) -> str:
+    """Use an Awin browser-side deeplink with an explicit Cobasi product URL.
+
+    Cobasi's mobile OneLink can open the app homepage from product-feed
+    pclick URLs. Awin's documented deeplink shape (`cread.php` + `ued`)
+    keeps attribution in the browser while making the product destination
+    explicit to Awin/Cobasi.
+    """
+    if advertiser_id_from_awin_url(affiliate_url) != "17870":
+        return affiliate_url
+    if not merchant_url or not _is_supported_cobasi_product_url(merchant_url):
+        return affiliate_url
+    publisher_id = publisher_id_from_awin_url(affiliate_url)
+    if not publisher_id:
+        return affiliate_url
+
+    source_query = parse_qs(urlsplit(affiliate_url).query)
+    query: list[tuple[str, str]] = [
+        ("awinmid", "17870"),
+        ("awinaffid", publisher_id),
+    ]
+    for key in ("clickref", "clickref2", "clickref3", "clickref4", "clickref5", "clickref6", "pref1", "pref2", "pref3", "pref4", "pref5", "pref6"):
+        for value in source_query.get(key, []):
+            query.append((key, value))
+    query.append(("ued", merchant_url))
+    return f"https://www.awin1.com/cread.php?{urlencode(query)}"
 
 
 def build_awin_click_redirect_url(url: str) -> str:
