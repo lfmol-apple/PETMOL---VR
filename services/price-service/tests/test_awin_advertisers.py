@@ -92,8 +92,11 @@ def test_zeenow_approved_with_feed_id():
     assert zeenow.commercial_status == "approved"
     assert zeenow.feed_id == "116779"
     assert zeenow.enabled is True
-    assert "13.835 produtos" in zeenow.notes
-    assert "152 UPC-11" in zeenow.notes
+    assert "13.839 produtos" in zeenow.notes
+    assert "Otimizado para Celular=Sim" in zeenow.notes
+    assert "Rastreamento de App=Sim" in zeenow.notes
+    assert "CPA 3%" in zeenow.notes
+    assert "search direto/indireto" in zeenow.notes
 
 
 def test_merchants_without_feed_have_no_feed_id():
