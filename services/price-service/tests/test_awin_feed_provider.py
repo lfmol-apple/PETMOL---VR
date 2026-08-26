@@ -46,6 +46,16 @@ def _row(**overrides) -> AffiliateFeedOffer:
     return AffiliateFeedOffer(**defaults)
 
 
+def _discovered_offer(external_id: str = "1") -> DiscoveredOffer:
+    return DiscoveredOffer(
+        merchant="cobasi",
+        product_name="Produto Teste",
+        direct_url="https://www.cobasi.com.br/produto-teste/p",
+        ean=GTIN,
+        external_id=external_id,
+    )
+
+
 @pytest.mark.asyncio
 async def test_finds_offer_by_exact_gtin():
     db = SessionLocal()
@@ -58,6 +68,38 @@ async def test_finds_offer_by_exact_gtin():
         assert offer is not None
         assert offer.price == 100.0
         assert offer.ean == GTIN
+    finally:
+        db.close()
+
+
+def test_cobasi_monetize_uses_affiliate_url_not_direct_merchant_url():
+    awin_url = "https://www.awin1.com/pclick.php?p=1&a=3032803&m=17870&clickref=petmol"
+    db = SessionLocal()
+    try:
+        db.add(_row(affiliate_url=awin_url, merchant_url="https://www.cobasi.com.br/produto-teste/p?sem-comissao=1"))
+        db.commit()
+
+        result = AwinFeedProvider(db, "cobasi").monetize(_discovered_offer(), ProductContext(gtin=GTIN))
+
+        assert result is not None
+        url, link_type, route = result
+        assert url.startswith("/commerce/awin-click?u=")
+        assert "www.cobasi.com.br" not in url
+        assert link_type == "affiliate_product"
+        assert route == "awin"
+    finally:
+        db.close()
+
+
+def test_cobasi_monetize_fails_closed_without_affiliate_url():
+    db = SessionLocal()
+    try:
+        db.add(_row(affiliate_url=None, merchant_url="https://www.cobasi.com.br/produto-teste/p"))
+        db.commit()
+
+        result = AwinFeedProvider(db, "cobasi").monetize(_discovered_offer(), ProductContext(gtin=GTIN))
+
+        assert result is None
     finally:
         db.close()
 

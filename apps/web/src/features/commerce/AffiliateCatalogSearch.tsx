@@ -55,9 +55,8 @@ type BarcodeLookupState = 'idle' | 'loading' | 'done' | 'not_found' | 'error';
 // JS) — a navegação mais parecida possível com "tocar num link", que é
 // o que as restrições do iOS pra apps instalados esperam. Para Cobasi via
 // Awin, o backend agora troca o pclick por /commerce/awin-click: no clique
-// real ele resolve a Awin com user-agent desktop e redireciona direto para
-// a URL web afiliada da Cobasi, sem expor o Safari iPhone ao OneLink
-// AppsFlyer (`af_dp=appcobasi://`), que foi o salto que caía na home.
+// real o browser segue para a URL Awin original, e a infraestrutura
+// Awin/Cobasi decide Web/App preservando a atribuição.
 const TEXT_SEARCH_PARTNER_IDS: HomeShoppingPartnerId[] = ['cobasi', 'shopee', 'zeenow', 'zeedog'];
 
 export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilter }: AffiliateCatalogSearchProps) {

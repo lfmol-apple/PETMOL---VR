@@ -3,13 +3,14 @@ import base64
 import pytest
 
 from src.awin_click_redirect import (
+    advertiser_id_from_awin_url,
     build_awin_click_redirect_url,
     decode_awin_click_url,
     resolve_awin_click_target,
 )
 
 
-AWIN_URL = "https://www.awin1.com/pclick.php?p=31117188249&a=3032803&m=17870"
+AWIN_URL = "https://www.awin1.com/pclick.php?p=31117188249&a=3032803&m=17870&clickref=petmol%2Fabc&foo=bar"
 ZEENOW_AWIN_URL = "https://www.awin1.com/pclick.php?p=45390676945&a=3032803&m=127557"
 ZEEDOG_AWIN_URL = "https://www.awin1.com/pclick.php?p=45390600000&a=3032803&m=127555"
 
@@ -34,20 +35,59 @@ def test_decode_rejects_non_awin_url():
         decode_awin_click_url(encoded)
 
 
-def test_commerce_awin_click_redirects_to_resolved_cobasi_url(client, monkeypatch):
-    target = "https://www.cobasi.com.br/produto-teste/p?idsku=1&awc=abc"
+def test_cobasi_awin_click_redirects_browser_to_original_awin_url(client, monkeypatch):
+    class ForbiddenClient:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("Cobasi click must not be resolved server-side")
 
-    async def fake_resolve(url: str) -> str:
-        assert url == AWIN_URL
-        return target
-
-    monkeypatch.setattr("src.awin_click_redirect.resolve_awin_click_target", fake_resolve)
+    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", ForbiddenClient)
     redirect_url = build_awin_click_redirect_url(AWIN_URL)
 
     response = client.get(redirect_url, follow_redirects=False)
 
     assert response.status_code == 302
-    assert response.headers["location"] == target
+    assert response.headers["location"] == AWIN_URL
+    assert decode_awin_click_url(redirect_url.split("u=", 1)[1]) == AWIN_URL
+    assert advertiser_id_from_awin_url(response.headers["location"]) == "17870"
+
+
+def test_cobasi_awin_click_preserves_existing_awin_parameters(client, monkeypatch):
+    class ForbiddenClient:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("Cobasi click must not be resolved server-side")
+
+    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", ForbiddenClient)
+    awin_url = "https://www.awin1.com/pclick.php?p=1&a=3032803&m=17870&clickref=PETMOL-26%2F08&ued=https%3A%2F%2Fwww.cobasi.com.br%2Fproduto%2Fp"
+
+    response = client.get(build_awin_click_redirect_url(awin_url), follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == awin_url
+
+
+@pytest.mark.parametrize(
+    "user_agent",
+    [
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 Safari/605.1.15",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148",
+        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/125 Mobile Safari/537.36",
+    ],
+)
+def test_cobasi_awin_click_is_platform_neutral(client, monkeypatch, user_agent):
+    class ForbiddenClient:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("Cobasi click must not be resolved server-side")
+
+    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", ForbiddenClient)
+
+    response = client.get(
+        build_awin_click_redirect_url(AWIN_URL),
+        follow_redirects=False,
+        headers={"User-Agent": user_agent},
+    )
+
+    assert response.status_code == 302
+    assert response.headers["location"] == AWIN_URL
 
 
 @pytest.mark.asyncio
