@@ -88,10 +88,6 @@ export function AppleControlButtons({
   foodTitle,
   foodHeadline,
   foodSubline,
-  vaccineHeadline,
-  vaccineSubline,
-  healthHeadline,
-  healthSubline,
   alertHealth,
   alertFood,
   alertVaccines,
@@ -105,17 +101,20 @@ export function AppleControlButtons({
   const foodHeadlineText = !hasFoodData
     ? 'Cuidado em aberto'
     : (foodHeadline || t('home.food.desc'));
-  const healthHeadlineText = healthHeadline || `Mantenha os cuidados ${petDo({ sex: petSex })} ${petName || 'seu pet'} em dia`;
-  const vaccineHeadlineText = vaccineHeadline || `Mantenha ${petName || 'seu pet'} em dia com a vacinação`;
+  // Subtexto fixo por pedido — o card externo só sinaliza problema via
+  // AlertDot (bolinha vermelha/âmbar), nunca troca esse texto por um
+  // resumo do problema (isso fica só dentro do modal de Cuidados/Vacina).
+  const healthHeadlineText = `Cuidados ${petDo({ sex: petSex })} ${petName || 'seu pet'}`;
+  const vaccineHeadlineText = `Vacinas ${petDo({ sex: petSex })} ${petName || 'seu pet'}`;
   const foodIsDense = isDenseCardCopy(foodTitle || t('home.food.title'), foodHeadlineText, foodSubline);
-  const healthIsDense = isDenseCardCopy('Cuidados', healthHeadlineText, healthSubline);
-  const vaccineIsDense = isDenseCardCopy('Vacina', vaccineHeadlineText, vaccineSubline);
+  const healthIsDense = isDenseCardCopy('Cuidados', healthHeadlineText);
+  const vaccineIsDense = isDenseCardCopy('Vacina', vaccineHeadlineText);
   const shoppingIsDense = isDenseCardCopy(shoppingTitle, `Tudo que ${petName || 'seu pet'} usa`);
   const foodIconClass = foodIsDense
     ? 'right-0.5 top-0.5 h-9 w-9 opacity-75 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-10 min-[390px]:w-10'
     : 'right-1 top-1 h-10 w-10 opacity-95 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-12 min-[390px]:w-12';
-  const referenceIconClass = 'right-1 top-1 h-10 w-10 opacity-95 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-12 min-[390px]:w-12';
-  const denseReferenceIconClass = 'right-0.5 top-0.5 h-9 w-9 opacity-75 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-10 min-[390px]:w-10';
+  const referenceIconClass = 'right-1 top-1 h-12 w-12 opacity-95 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-14 min-[390px]:w-14';
+  const denseReferenceIconClass = 'right-0.5 top-0.5 h-10 w-10 opacity-75 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-12 min-[390px]:w-12';
   const foodCopyClass = foodIsDense
     ? 'pr-3 pt-5 min-[390px]:pr-4 min-[390px]:pt-6'
     : 'pr-6 pt-2 min-[390px]:pr-7 min-[390px]:pt-3';
@@ -174,11 +173,6 @@ export function AppleControlButtons({
             <div className={`relative z-10 flex h-full flex-col justify-center text-left transition-[padding] ${healthIsDense ? denseCareCopyClass : careCopyClass}`}>
               <h3 className="line-clamp-1 break-words text-[13px] font-semibold leading-tight text-indigo-950 min-[390px]:text-[14px] sm:text-base">Cuidados</h3>
               <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-indigo-900/80 min-[390px]:text-[10px] sm:text-xs">{healthHeadlineText}</p>
-              {healthSubline && (
-                <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.12] text-indigo-900 min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
-                  {healthSubline}
-                </p>
-              )}
             </div>
           </button>
 
@@ -204,11 +198,6 @@ export function AppleControlButtons({
                 Vacina
               </h3>
               <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-emerald-900/80 min-[390px]:text-[10px] sm:text-xs">{vaccineHeadlineText}</p>
-              {vaccineSubline && (
-                <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.12] text-emerald-900 min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
-                  {vaccineSubline}
-                </p>
-              )}
             </div>
           </button>
 

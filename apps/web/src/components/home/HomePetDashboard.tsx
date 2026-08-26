@@ -9,8 +9,29 @@ import type { PetEventRecord } from '@/lib/petEvents';
 import type { PetHealthProfile, VaccineRecord } from '@/lib/petHealth';
 import type { FeedingPlanEntry } from '@/lib/types/homeForms';
 import type { GroomingRecord, ParasiteControl } from '@/lib/types/home';
+import { getOwnerProfile } from '@/lib/ownerProfile';
 
 type CardTone = 'neutral' | 'ok' | 'warning' | 'critical';
+
+// Cidades brasileiras de alta incidência de leishmaniose visceral canina —
+// lista inicial/heurística (não exaustiva; expandir com dado epidemiológico
+// real quando disponível). Nessas regiões o aviso da Coleira fica sempre
+// ativo mesmo com proteção já registrada — o risco local justifica
+// vigilância contínua, não só "comprou uma vez" (feedback explícito do
+// usuário, que citou Belo Horizonte como exemplo).
+const LEISHMANIASIS_ENDEMIC_CITIES = new Set([
+  'belo horizonte', 'aracatuba', 'camacari', 'aracaju', 'fortaleza',
+  'teresina', 'palmas', 'campo grande', 'salvador', 'bauru', 'birigui',
+  'santarem', 'contagem', 'betim',
+]);
+
+function normalizeCityName(city: string | undefined | null): string {
+  return (city || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toLowerCase();
+}
 
 function createLocalDate(dateStr: string): Date {
   if (!dateStr) return new Date();
@@ -183,7 +204,9 @@ export function HomePetDashboard({
   const hasLeishmaniaseProtection = parasiteControls.some(
     (p) => p.type === 'collar' || p.type === 'leishmaniasis',
   );
-  const needsLeishmaniaseAwareness = currentPet.species === 'dog' && !hasLeishmaniaseProtection;
+  const isInLeishmaniaseEndemicRegion = LEISHMANIASIS_ENDEMIC_CITIES.has(normalizeCityName(getOwnerProfile()?.address?.city));
+  const needsLeishmaniaseAwareness =
+    currentPet.species === 'dog' && (!hasLeishmaniaseProtection || isInLeishmaniaseEndemicRegion);
 
   // A pet with ZERO vaccine history ('neutral' — never registered) is a
   // real gap worth the red dot, same as an actually-overdue one — treated
