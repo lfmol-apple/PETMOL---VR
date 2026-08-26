@@ -71,6 +71,11 @@ function AlertDot({ tone = 'critical' }: { tone?: ControlTone }) {
   );
 }
 
+function isDenseCardCopy(...parts: Array<string | undefined | null>) {
+  const text = parts.filter(Boolean).join(' ');
+  return text.length > 42 || parts.filter(Boolean).length >= 3;
+}
+
 export function AppleControlButtons({
   onHealthClick,
   onVaccinesClick,
@@ -97,6 +102,25 @@ export function AppleControlButtons({
   const { t } = useI18n();
   const [showEmergencyChoice, setShowEmergencyChoice] = useState(false);
   const shoppingTitle = petName ? `Loja ${petDo({ sex: petSex })} ${petName}` : t('home.shopping.title');
+  const foodHeadlineText = !hasFoodData
+    ? 'Cuidado em aberto'
+    : (foodHeadline || t('home.food.desc'));
+  const healthHeadlineText = healthHeadline || `Mantenha os cuidados ${petDo({ sex: petSex })} ${petName || 'seu pet'} em dia`;
+  const vaccineHeadlineText = vaccineHeadline || `Mantenha ${petName || 'seu pet'} em dia com a vacinação`;
+  const foodIsDense = isDenseCardCopy(foodTitle || t('home.food.title'), foodHeadlineText, foodSubline);
+  const healthIsDense = isDenseCardCopy('Cuidados', healthHeadlineText, healthSubline);
+  const vaccineIsDense = isDenseCardCopy('Vacina', vaccineHeadlineText, vaccineSubline);
+  const shoppingIsDense = isDenseCardCopy(shoppingTitle, `Tudo que ${petName || 'seu pet'} usa`);
+  const foodIconClass = foodIsDense
+    ? 'right-0.5 top-0.5 h-9 w-9 opacity-75 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-10 min-[390px]:w-10'
+    : 'right-1 top-1 h-10 w-10 opacity-95 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-12 min-[390px]:w-12';
+  const referenceIconClass = 'right-1 top-1 h-10 w-10 opacity-95 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-12 min-[390px]:w-12';
+  const denseReferenceIconClass = 'right-0.5 top-0.5 h-9 w-9 opacity-75 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-10 min-[390px]:w-10';
+  const foodCopyClass = foodIsDense
+    ? 'pr-3 pt-5 min-[390px]:pr-4 min-[390px]:pt-6'
+    : 'pr-6 pt-2 min-[390px]:pr-7 min-[390px]:pt-3';
+  const careCopyClass = 'pr-7 pt-2 min-[390px]:pr-9 min-[390px]:pt-3';
+  const denseCareCopyClass = 'pr-3 pt-5 min-[390px]:pr-4 min-[390px]:pt-6';
 
   return (
     <>
@@ -108,25 +132,25 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onAlimentacaoClick}
-            className="group relative min-h-[68px] overflow-hidden rounded-xl border border-amber-400 bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-200 p-2.5 shadow-sm shadow-amber-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-amber-400 bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-200 p-2.5 shadow-sm shadow-amber-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {(!hasFoodData || shouldShowAlert(colorFood, alertFood)) && (
               <AlertDot tone={!hasFoodData ? 'critical' : colorFood} />
             )}
-            <span className="absolute right-1 top-1 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-1.5 min-[390px]:top-1.5">
+            <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${foodIconClass}`}>
               <img
                 src="/alimentacao-tigela.webp"
                 alt=""
-                className="h-10 w-10 object-contain min-[390px]:h-12 min-[390px]:w-12"
+                className="h-full w-full object-contain"
               />
             </span>
-            <div className="flex h-full flex-col justify-center pr-6 pt-2 text-left min-[390px]:pr-7 min-[390px]:pt-3">
+            <div className={`flex h-full flex-col justify-center text-left transition-[padding] ${foodCopyClass}`}>
               <h3 className="line-clamp-2 text-[12px] font-bold leading-tight text-amber-950 min-[390px]:text-[13px] sm:text-base">{foodTitle || t('home.food.title')}</h3>
-              <p className={`mt-0.5 line-clamp-1 text-[9px] leading-[1.1] min-[390px]:line-clamp-2 min-[390px]:text-[10px] sm:text-xs ${!hasFoodData ? 'font-bold text-red-700' : 'text-amber-800/85'}`}>
-                {!hasFoodData ? 'Cuidado em aberto' : (hasFoodData ? (foodHeadline || t('home.food.desc')) : (foodHeadline || 'Toque para cadastrar'))}
+              <p className={`mt-0.5 ${foodIsDense ? 'line-clamp-2' : 'line-clamp-1 min-[390px]:line-clamp-2'} text-[9px] leading-[1.12] min-[390px]:text-[10px] sm:text-xs ${!hasFoodData ? 'font-bold text-red-700' : 'text-amber-800/85'}`}>
+                {foodHeadlineText}
               </p>
               {foodSubline && hasFoodData && (
-                <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.1] text-amber-900 min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
+                <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.12] text-amber-900 min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
                   {foodSubline}
                 </p>
               )}
@@ -137,21 +161,21 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onHealthClick}
-            className="group relative min-h-[68px] overflow-hidden rounded-xl border border-indigo-400 bg-gradient-to-br from-indigo-100 via-violet-100 to-violet-200 p-2.5 shadow-sm shadow-indigo-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[76px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[76px] overflow-hidden rounded-xl border border-indigo-400 bg-gradient-to-br from-indigo-100 via-violet-100 to-violet-200 p-2.5 shadow-sm shadow-indigo-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[86px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
-            <span className="absolute right-1 top-1 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:right-1.5 min-[390px]:top-1.5">
+            <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${healthIsDense ? denseReferenceIconClass : referenceIconClass}`}>
               <img
                 src="/cuidados-pets-banho.webp"
                 alt=""
-                className="h-10 w-[60px] object-contain min-[390px]:h-12 min-[390px]:w-[72px]"
+                className="h-full w-full object-contain"
               />
             </span>
-            <div className="relative z-10 flex h-full flex-col justify-center pr-8 pt-2 text-left min-[390px]:pr-9 min-[390px]:pt-3">
+            <div className={`relative z-10 flex h-full flex-col justify-center text-left transition-[padding] ${healthIsDense ? denseCareCopyClass : careCopyClass}`}>
               <h3 className="line-clamp-1 break-words text-[13px] font-semibold leading-tight text-indigo-950 min-[390px]:text-[14px] sm:text-base">Cuidados</h3>
-              <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.1] text-indigo-900/80 min-[390px]:text-[10px] sm:text-xs">{healthHeadline || `Mantenha os cuidados ${petDo({ sex: petSex })} ${petName || 'seu pet'} em dia`}</p>
+              <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-indigo-900/80 min-[390px]:text-[10px] sm:text-xs">{healthHeadlineText}</p>
               {healthSubline && (
-                <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.1] text-indigo-900 min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
+                <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.12] text-indigo-900 min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
                   {healthSubline}
                 </p>
               )}
@@ -165,23 +189,23 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onVaccinesClick}
-            className="group relative min-h-[80px] overflow-hidden rounded-xl border border-emerald-400 bg-gradient-to-br from-emerald-100 via-emerald-100 to-teal-200 p-2.5 shadow-sm shadow-emerald-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[92px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[84px] overflow-hidden rounded-xl border border-emerald-400 bg-gradient-to-br from-emerald-100 via-emerald-100 to-teal-200 p-2.5 shadow-sm shadow-emerald-900/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 min-[390px]:min-h-[96px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
             {shouldShowAlert(colorVaccines, alertVaccines) && <AlertDot tone={colorVaccines} />}
-            <span className="absolute top-2 -right-1 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:top-2.5 min-[390px]:-right-1.5">
+            <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${vaccineIsDense ? denseReferenceIconClass : referenceIconClass}`}>
               <img
                 src="/vacina-ampolas-seringa.webp"
                 alt=""
-                className="h-10 w-[65px] object-contain min-[390px]:h-12 min-[390px]:w-[78px]"
+                className="h-full w-full object-contain"
               />
             </span>
-            <div className="relative z-10 flex h-full flex-col justify-center pr-8 pt-2 text-left min-[390px]:pr-9 min-[390px]:pt-3">
+            <div className={`relative z-10 flex h-full flex-col justify-center text-left transition-[padding] ${vaccineIsDense ? denseCareCopyClass : careCopyClass}`}>
               <h3 className="line-clamp-1 break-words text-[13px] font-semibold leading-tight text-emerald-950 min-[390px]:text-[14px] sm:text-base">
                 Vacina
               </h3>
-              <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.1] text-emerald-900/80 min-[390px]:text-[10px] sm:text-xs">{vaccineHeadline || `Mantenha ${petName || 'seu pet'} em dia com a vacinação`}</p>
+              <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-emerald-900/80 min-[390px]:text-[10px] sm:text-xs">{vaccineHeadlineText}</p>
               {vaccineSubline && (
-                <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.1] text-emerald-900 min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
+                <p className="mt-0.5 line-clamp-1 text-[9px] font-bold leading-[1.12] text-emerald-900 min-[390px]:mt-1 min-[390px]:text-[10px] sm:text-xs">
                   {vaccineSubline}
                 </p>
               )}
@@ -197,18 +221,18 @@ export function AppleControlButtons({
           <button
             type="button"
             onClick={onShoppingClick}
-            className="group relative min-h-[80px] overflow-hidden rounded-xl border-2 border-blue-500 bg-gradient-to-br from-blue-100 via-blue-200 to-cyan-200 p-2.5 shadow-md shadow-blue-900/15 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-95 min-[390px]:min-h-[92px] min-[390px]:rounded-2xl min-[390px]:p-3"
+            className="group relative min-h-[84px] overflow-hidden rounded-xl border-2 border-blue-500 bg-gradient-to-br from-blue-100 via-blue-200 to-cyan-200 p-2.5 shadow-md shadow-blue-900/15 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-95 min-[390px]:min-h-[96px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
-            <span className="absolute bottom-2 -right-1.5 opacity-95 pointer-events-none transition-transform group-hover:scale-105 min-[390px]:bottom-2.5 min-[390px]:-right-2">
+            <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${shoppingIsDense ? 'right-0.5 top-0.5 h-10 w-10 opacity-80 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-12 min-[390px]:w-12' : 'right-1 top-1 h-12 w-12 opacity-95 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-14 min-[390px]:w-14'}`}>
               <img
                 src="/loja-cart-ossos.webp"
                 alt=""
-                className="h-[62px] w-[72px] object-contain min-[390px]:h-[74px] min-[390px]:w-[86px]"
+                className="h-full w-full object-contain"
               />
             </span>
-            <div className="relative z-10 flex h-full flex-col justify-center pr-11 pt-2 text-left min-[390px]:pr-12 min-[390px]:pt-3">
+            <div className={`relative z-10 flex h-full flex-col justify-center text-left transition-[padding] ${shoppingIsDense ? 'pr-4 pt-5 min-[390px]:pr-5 min-[390px]:pt-6' : 'pr-10 pt-2 min-[390px]:pr-12 min-[390px]:pt-3'}`}>
               <h3 className="line-clamp-2 break-words text-[13px] font-bold leading-tight text-blue-950 min-[390px]:text-[14px] sm:text-base">{shoppingTitle}</h3>
-              <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.1] text-blue-900/75 min-[390px]:text-[10px] sm:text-xs">Tudo que {petName || 'seu pet'} usa</p>
+              <p className="mt-0.5 line-clamp-2 break-words text-[9px] leading-[1.12] text-blue-900/75 min-[390px]:text-[10px] sm:text-xs">Tudo que {petName || 'seu pet'} usa</p>
             </div>
           </button>
 
