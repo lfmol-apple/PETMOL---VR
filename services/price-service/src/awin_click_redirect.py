@@ -1,12 +1,4 @@
-"""
-Redirect seguro para cliques Awin em mobile.
-
-Em iPhone, a Awin redireciona `www.awin1.com/pclick.php` para um OneLink
-AppsFlyer da Cobasi (`cobasi.onelink.me`) com `af_dp=appcobasi://`. Esse
-salto pode cair na home da Cobasi em Safari/iOS. No clique real, resolvemos
-a Awin server-side com user-agent desktop para obter a URL web afiliada com
-`awc` e redirecionamos o tutor direto para a página do produto.
-"""
+"""Helpers for the internal Awin click redirect endpoint."""
 from __future__ import annotations
 
 import base64
@@ -30,7 +22,7 @@ AWIN_ALLOWED_TARGETS_BY_ADVERTISER = {
 }
 
 
-def _advertiser_id_from_awin_url(url: str) -> str | None:
+def advertiser_id_from_awin_url(url: str) -> str | None:
     values = parse_qs(urlsplit(url).query).get("m") or []
     return values[0] if values else None
 
@@ -76,7 +68,7 @@ async def resolve_awin_click_target(awin_url: str) -> str:
     o site oficial do advertiser indicado pelo `m=` da própria URL Awin.
     Validamos esse par advertiser/dominio para impedir redirect aberto.
     """
-    advertiser_id = _advertiser_id_from_awin_url(awin_url)
+    advertiser_id = advertiser_id_from_awin_url(awin_url)
     allowed_hosts = AWIN_ALLOWED_TARGETS_BY_ADVERTISER.get(advertiser_id or "")
     if not allowed_hosts:
         raise ValueError("Advertiser Awin não permitido")
