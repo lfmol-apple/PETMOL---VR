@@ -1471,17 +1471,15 @@ async def commerce_awin_click(
     """Redirect interno para cliques Awin.
 
     O parâmetro `u` só aceita URLs `https://www.awin1.com/pclick.php...`
-    geradas por AwinFeedProvider. Para Cobasi (advertiser 17870), o browser
-    do tutor atravessa a URL Awin original; o backend não consome o clique
-    server-side.
+    geradas por AwinFeedProvider. Para Cobasi (advertiser 17870), priorizamos
+    experiência web/produto: resolvemos a Awin com UA desktop e devolvemos a
+    URL Cobasi `/p` afiliada, evitando o OneLink mobile cair na home do app.
     """
     from fastapi.responses import RedirectResponse
-    from .awin_click_redirect import advertiser_id_from_awin_url, decode_awin_click_url, resolve_awin_click_target
+    from .awin_click_redirect import decode_awin_click_url, resolve_awin_click_target
 
     try:
         awin_url = decode_awin_click_url(u)
-        if advertiser_id_from_awin_url(awin_url) == "17870":
-            return RedirectResponse(url=awin_url, status_code=302)
         target = await resolve_awin_click_target(awin_url)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
