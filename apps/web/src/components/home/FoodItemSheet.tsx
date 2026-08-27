@@ -14,7 +14,7 @@ import { petDo } from '@/lib/petGender';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import { guessFoodKind, type ScannedProduct } from '@/lib/productScanner';
 import { resolveFoodCommerceSnapshot } from '@/features/commerce/homeContextualCommerce';
-import { MonetizedOffersList } from '@/features/commerce/MonetizedOffersList';
+import { AffiliateCatalogSearch } from '@/features/commerce/AffiliateCatalogSearch';
 import { requestUserDecision } from '@/features/interactions/userPromptChannel';
 
 export interface FoodItemSheetProps {
@@ -1163,22 +1163,9 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <div className="p-5 pb-8 space-y-4">
-                  {/* Mesma oferta monetizável do card "Comprar novamente" da
-                      Loja do Pet — mesma query, mesmo peso real do pacote.
-                      Nunca mostra loja sem link afiliado ativo. Quando
-                      buyTargetItem está definido, é a compra de um petisco/
-                      outro alimento (ver seção "Outros alimentos"), não da
-                      ração principal. */}
-                  <MonetizedOffersList
-                    query={buyTargetItem ? buyTargetItem.query : (foodBrand ? `${foodBrand} ração` : 'ração pet')}
-                    packageSizeKg={buyTargetItem ? buyTargetItem.packageSizeKg : foodState.packageSizeKg}
-                    gtin={buyTargetItem ? buyTargetItem.gtin : foodState.gtin}
+                  <AffiliateCatalogSearch
                     petId={pet.pet_id}
-                    productLabel={buyTargetItem ? buyTargetItem.label : (foodBrand || 'Ração')}
-                    icon={buyTargetItem ? '🦴' : '🥣'}
-                    source="food_sheet"
-                    ctaType="food_buy_direct"
-                    controlType="food"
+                    initialQuery={buyTargetItem ? buyTargetItem.query : (foodBrand ? `${foodBrand} ração` : 'ração pet')}
                   />
                 </div>
               </div>

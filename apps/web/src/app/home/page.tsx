@@ -2731,6 +2731,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
       {showVaccineSheet && selectedPetId && (
         <VaccineItemSheet
+          petId={selectedPetId}
           petName={currentPet?.pet_name}
           petSpecies={currentPet?.species}
           petPhotoUrl={currentPet?.photo}

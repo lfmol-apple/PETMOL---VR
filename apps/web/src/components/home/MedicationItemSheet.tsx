@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
-import { extractMedicationBarcode } from '@/lib/petCareDomain';
 import { ModalPortal } from '@/components/ModalPortal';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { buildRemindAt, listReminders, deleteReminder, createReminder, refreshSubscription } from '@/features/notifications/pushService';
@@ -13,7 +12,6 @@ import { IosSwitch } from '@/components/ui/IosSwitch';
 import type { ScannedProduct } from '@/lib/productScanner';
 import { requestUserDecision } from '@/features/interactions/userPromptChannel';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
-import { MonetizedOffersList } from '@/features/commerce/MonetizedOffersList';
 import { AffiliateCatalogSearch } from '@/features/commerce/AffiliateCatalogSearch';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -961,47 +959,11 @@ export function MedicationItemSheet({
           {mode === 'buy' && (
             <div className="p-5 pb-8 space-y-4">
               <h3 className="text-[16px] font-bold text-gray-900">Onde comprar</h3>
-
-              {medications.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">
-                    ❤️ Preço das medicações {petName ? `de ${petName}` : 'do pet'}
-                  </p>
-                  <div className="space-y-5">
-                    {medications.map(ev => (
-                      <div key={ev.id}>
-                        <p className="font-bold text-gray-900 text-[14px] mb-2 truncate">{ev.title}</p>
-                        <MonetizedOffersList
-                          query={ev.title?.trim() || 'medicamento pet'}
-                          gtin={extractMedicationBarcode(ev.notes)}
-                          petId={petId}
-                          productLabel={ev.title}
-                          icon="💊"
-                          source="medication_sheet"
-                          ctaType="medication_buy_direct"
-                          controlType="medication"
-                          emptyStateTitle="Preço indisponível"
-                          emptyStateSubtitle="Ainda não encontramos uma oferta ativa para esta medicação."
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {medications.length === 0 && (
-                <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center shadow-sm">
-                  <p className="text-[13px] font-bold text-gray-700">Nenhuma medicação cadastrada</p>
-                  <p className="mt-1 text-[12px] text-gray-500">
-                    Cadastre uma medicação em &quot;Nova medicação&quot; pra ver os preços aqui.
-                  </p>
-                </div>
-              )}
-
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🐾 Buscar produtos</p>
-                <AffiliateCatalogSearch petId={petId} />
-              </div>
+              <p className="text-sm text-gray-500">Busque pelo nome ou marca do medicamento.</p>
+              <AffiliateCatalogSearch
+                petId={petId}
+                initialQuery={medications[0]?.title?.trim() || 'medicamento pet'}
+              />
             </div>
           )}
 

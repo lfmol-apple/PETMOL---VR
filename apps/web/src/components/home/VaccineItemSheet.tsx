@@ -6,10 +6,8 @@ import type { VaccineFormData } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
 import { ModalPortal } from '@/components/ModalPortal';
 import { localTodayISO } from '@/lib/localDate';
-import { trackPartnerClicked } from '@/lib/v1Metrics';
-import { HOME_SHOPPING_PARTNERS, isPartnerVisibleInStoreArea, openHomeShoppingPartner } from '@/features/commerce/homeShoppingPartners';
-import { QUICK_BUY_PARTNERS } from '@/features/commerce/petStoreContent';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
+import { AffiliateCatalogSearch } from '@/features/commerce/AffiliateCatalogSearch';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -71,6 +69,7 @@ function computeStatus(overdue: number, nextDiff: number | null) {
 
 // ── Types ────────────────────────────────────────────────────────────────────
 export interface VaccineItemSheetProps {
+  petId?: string;
   petName?: string;
   petSpecies?: string;
   petPhotoUrl?: string | null;
@@ -99,6 +98,7 @@ export interface VaccineItemSheetProps {
 
 // ── Component ────────────────────────────────────────────────────────────────
 export function VaccineItemSheet({
+  petId,
   petName,
   petSpecies,
   petPhotoUrl,
@@ -579,41 +579,8 @@ export function VaccineItemSheet({
         {mode === 'buy' && (
           <div className="p-5 space-y-4 pb-8">
             <h3 className="text-[16px] font-bold text-gray-900">Onde comprar</h3>
-            <p className="text-sm text-gray-500">Escolha onde encontrar vacinas e serviços:</p>
-
-            <div className="space-y-3">
-              {/* Auditoria de monetização (25/08/2026): antes eram 4 URLs de
-                  busca fixas, sem afiliado nenhum — sempre abriam sem
-                  remunerar o PETMOL. Agora usa o mesmo catálogo/gate já
-                  auditado do resto do app (isPartnerVisibleInStoreArea +
-                  openHomeShoppingPartner), então some da lista quem não tem
-                  mecanismo de comissão comprovado em produção. */}
-              {HOME_SHOPPING_PARTNERS
-                .filter((partner) => QUICK_BUY_PARTNERS.includes(partner.id))
-                .filter(isPartnerVisibleInStoreArea)
-                .map((partner) => (
-                  <button
-                    key={partner.id}
-                    onClick={() => {
-                      trackPartnerClicked({
-                        source: 'vaccine_sheet',
-                        partner: partner.id,
-                        pet_id: '', // handle generic if needed
-                        control_type: 'vaccines',
-                      });
-                      openHomeShoppingPartner(partner.id, 'pet saude vacina');
-                    }}
-                    className="w-full flex items-center gap-4 p-4 bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left"
-                  >
-                    <span className="text-2xl">🐾</span>
-                    <div className="flex-1">
-                      <p className="font-bold text-gray-900 text-sm">{partner.name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Agendar ou comprar</p>
-                    </div>
-                    <span className="text-gray-400 text-lg">›</span>
-                  </button>
-                ))}
-            </div>
+            <p className="text-sm text-gray-500">Busque vacina, medicamento ou item de saúde pet.</p>
+            <AffiliateCatalogSearch petId={petId ?? ''} initialQuery="vacina pet" />
 
             <button
               type="button"
