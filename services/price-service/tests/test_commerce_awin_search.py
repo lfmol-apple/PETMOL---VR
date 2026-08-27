@@ -133,6 +133,17 @@ def test_search_ignores_inactive(client, monkeypatch):
         _cleanup()
 
 
+def test_search_ignores_rows_without_affiliate_url(client, monkeypatch):
+    _enable_awin(monkeypatch)
+    _cleanup()
+    _add_offer(external_product_id="1", title="Racao Golden Adulto 15kg", affiliate_url=None)
+    try:
+        r = client.get("/commerce/awin-search", params={"q": "golden"})
+        assert r.json()["results"] == []
+    finally:
+        _cleanup()
+
+
 def test_search_ignores_rows_without_gtin(client, monkeypatch):
     _enable_awin(monkeypatch)
     _cleanup()

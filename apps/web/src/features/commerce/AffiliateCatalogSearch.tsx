@@ -75,6 +75,15 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const trimmedQuery = query.trim();
   const activeMerchantFilter = merchantFilter ?? undefined;
+  const visibleResults = results.filter((item) => {
+    const resolved = offersByGtin[item.gtin];
+    return !(Array.isArray(resolved) && resolved.length === 0);
+  });
+  const resolvingCatalogResults = results.some((item) => {
+    const resolved = offersByGtin[item.gtin];
+    return resolved === undefined || resolved === 'loading';
+  });
+  const hasOnlyUnavailableCatalogResults = results.length > 0 && visibleResults.length === 0 && !resolvingCatalogResults;
 
   useEffect(() => {
     setQuery(initialQuery);
@@ -260,13 +269,17 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
         <p className="text-[12px] text-gray-400 mt-2 px-1">Buscando...</p>
       )}
 
-      {!loading && query.trim().length >= 2 && results.length === 0 && (
+      {!loading && trimmedQuery.length >= 2 && results.length === 0 && (
         <p className="text-[12px] text-gray-400 mt-2 px-1">Nenhum produto encontrado para &quot;{query.trim()}&quot;.</p>
       )}
 
-      {results.length > 0 && (
+      {!loading && trimmedQuery.length >= 2 && hasOnlyUnavailableCatalogResults && (
+        <p className="text-[12px] text-gray-400 mt-2 px-1">Nenhuma oferta disponível para &quot;{trimmedQuery}&quot; agora.</p>
+      )}
+
+      {visibleResults.length > 0 && (
         <div className="mt-2.5 space-y-2.5 max-h-[32rem] overflow-y-auto">
-          {results.map((item) => {
+          {visibleResults.map((item) => {
             const resolved = offersByGtin[item.gtin];
             const choosingStore = storeChoicesForGtin === item.gtin;
             const singleOffer = Array.isArray(resolved) && resolved.length === 1 ? resolved[0] : null;

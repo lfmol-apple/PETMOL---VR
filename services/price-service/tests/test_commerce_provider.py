@@ -14,17 +14,24 @@ class _FakeProvider:
     def __init__(
         self, merchant: str, price: Optional[float], monetizable: bool = True,
         route: Optional[str] = None, manually_cached: bool = False,
+        is_available: Optional[bool] = True,
     ):
         self.merchant = merchant
         self._price = price
         self._monetizable = monetizable
         self._route = route
         self._manually_cached = manually_cached
+        self._is_available = is_available
 
     async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
         if self._price is None:
             return None
-        return DiscoveredOffer(merchant=self.merchant, price=self._price, product_name="Produto Teste")
+        return DiscoveredOffer(
+            merchant=self.merchant,
+            price=self._price,
+            product_name="Produto Teste",
+            is_available=self._is_available,
+        )
 
     def monetize(self, offer: DiscoveredOffer, context: ProductContext):
         if not self._monetizable:
@@ -53,6 +60,17 @@ async def test_discards_offer_without_monetization():
     engine = CommerceEngine([
         _FakeProvider("cobasi", 100.0, monetizable=False),
         _FakeProvider("shopee", 150.0, monetizable=True),
+    ])
+    offers = await engine.get_offers(ProductContext(gtin="123"))
+    assert len(offers) == 1
+    assert offers[0].merchant == "shopee"
+
+
+@pytest.mark.asyncio
+async def test_discards_offer_marked_unavailable_even_when_monetizable():
+    engine = CommerceEngine([
+        _FakeProvider("cobasi", 100.0, monetizable=True, is_available=False),
+        _FakeProvider("shopee", 150.0, monetizable=True, is_available=True),
     ])
     offers = await engine.get_offers(ProductContext(gtin="123"))
     assert len(offers) == 1

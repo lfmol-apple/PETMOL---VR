@@ -141,6 +141,8 @@ class CommerceEngine:
             discovered = await provider.find_offer(context)
             if discovered is None or discovered.price is None:
                 continue
+            if discovered.is_available is False:
+                continue
 
             monetized = provider.monetize(discovered, context)
             if monetized is None:

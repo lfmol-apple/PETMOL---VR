@@ -180,7 +180,9 @@ export async function fetchCommerceOffers(query: string, packageSizeKg?: number,
     if (!res.ok) return [];
     const data = (await res.json()) as { offers?: CommerceOffer[] };
     return Array.isArray(data.offers)
-      ? data.offers.map((offer) => ({ ...offer, url: normalizeOfferUrl(offer.url) }))
+      ? data.offers
+          .map((offer) => ({ ...offer, url: normalizeOfferUrl(offer.url) }))
+          .filter((offer) => offer.is_available !== false && Boolean(offer.url))
       : [];
   } catch {
     return [];
