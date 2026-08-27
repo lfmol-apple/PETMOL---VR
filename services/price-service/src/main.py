@@ -34,7 +34,7 @@ from .search import clear_cache, search_offers
 from .utils.weights import parse_weight_to_kg, calculate_price_per_kg
 from .auth import ml_oauth_router
 from .auth.ml_oauth import debug_router as ml_debug_router
-from sqlalchemy import and_, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 from .db import Base, engine, SessionLocal, get_db
 from .user_auth import user_auth_router
@@ -1651,15 +1651,18 @@ async def commerce_awin_search(
     if not merchants:
         return {"results": []}
 
-    # Uma condição por palavra digitada, todas em AND — "racao golden frango"
-    # acha "Ração Golden Special Adulto Sabor Frango" mesmo a frase completa
-    # não aparecendo contígua no título (cada palavra pode estar em qualquer
-    # posição da descrição, não só um match do texto inteiro digitado).
+    # Uma condição por palavra digitada. A listagem é propositalmente
+    # "democrática": qualquer termo digitado pode trazer candidato, e quem
+    # casa mais termos sobe primeiro. Isso evita o vazio ruim quando o tutor
+    # refina com palavras que o feed não trouxe exatamente, mas mantém
+    # relevância por score. Cada termo usa "%termo%", então pedaços do meio
+    # ("ontal" -> "Drontal") também funcionam.
     words = [w for w in q.strip().split() if w]
     if not words:
         return {"results": []}
     is_postgres = db.bind.dialect.name == "postgresql"
     word_matches = []
+    match_score_terms = []
     for word in words:
         like = f"%{word}%"
         if is_postgres:
@@ -1668,7 +1671,21 @@ async def commerce_awin_search(
         else:
             title_match = AffiliateFeedOffer.title.ilike(like)
             brand_match = AffiliateFeedOffer.brand.ilike(like)
-        word_matches.append(title_match | brand_match)
+        word_match = title_match | brand_match
+        word_matches.append(word_match)
+        match_score_terms.append(case((word_match, 1), else_=0))
+
+    phrase_like = f"%{q.strip()}%"
+    if is_postgres:
+        phrase_match = (
+            func.unaccent(AffiliateFeedOffer.title).ilike(func.unaccent(phrase_like))
+            | func.unaccent(AffiliateFeedOffer.brand).ilike(func.unaccent(phrase_like))
+        )
+    else:
+        phrase_match = AffiliateFeedOffer.title.ilike(phrase_like) | AffiliateFeedOffer.brand.ilike(phrase_like)
+    match_score = case((phrase_match, 3), else_=0)
+    for score_term in match_score_terms:
+        match_score = match_score + score_term
 
     # Uma linha por (gtin, merchant) que bate no filtro; rn=1 é a mais
     # barata daquele gtin entre TODOS os merchants liberados, offer_count
@@ -1686,9 +1703,10 @@ async def commerce_awin_search(
             AffiliateFeedOffer.list_price,
             AffiliateFeedOffer.image_url,
             AffiliateFeedOffer.merchant,
+            match_score.label("match_score"),
             func.row_number().over(
                 partition_by=AffiliateFeedOffer.gtin,
-                order_by=AffiliateFeedOffer.price.asc(),
+                order_by=(match_score.desc(), AffiliateFeedOffer.price.asc()),
             ).label("rn"),
             func.count().over(partition_by=AffiliateFeedOffer.gtin).label("offer_count"),
         )
@@ -1701,14 +1719,14 @@ async def commerce_awin_search(
             AffiliateFeedOffer.affiliate_url.isnot(None),
             AffiliateFeedOffer.affiliate_url != "",
             AffiliateFeedOffer.gtin.isnot(None),
-            and_(*word_matches),
+            or_(*word_matches),
         )
         .subquery()
     )
     final_stmt = (
         select(ranked)
         .where(ranked.c.rn == 1)
-        .order_by(ranked.c.price.asc())
+        .order_by(ranked.c.match_score.desc(), ranked.c.price.asc())
         .limit(limit)
     )
     rows = db.execute(final_stmt).all()

@@ -7,7 +7,6 @@ import { identifyProductByBarcode, type ScannedProduct } from '@/lib/productScan
 import { formatBRLPrice, fetchCommerceOffers, merchantLabel, offerPriceLabel, searchAwinCatalog, type AwinSearchResult, type CommerceOffer } from './productPricing';
 import {
   HOME_SHOPPING_PARTNERS,
-  navigateToPartnerUrl,
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
 
@@ -75,15 +74,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const trimmedQuery = query.trim();
   const activeMerchantFilter = merchantFilter ?? undefined;
-  const visibleResults = results.filter((item) => {
-    const resolved = offersByGtin[item.gtin];
-    return !(Array.isArray(resolved) && resolved.length === 0);
-  });
-  const resolvingCatalogResults = results.some((item) => {
-    const resolved = offersByGtin[item.gtin];
-    return resolved === undefined || resolved === 'loading';
-  });
-  const hasOnlyUnavailableCatalogResults = results.length > 0 && visibleResults.length === 0 && !resolvingCatalogResults;
+  const visibleResults = results;
 
   useEffect(() => {
     setQuery(initialQuery);
@@ -230,7 +221,8 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
     <div>
       {/* Escanear código / código de barras manual: ocultos por enquanto
           (feedback do tutor) — só a busca por texto, maior e direta. */}
-      <div className="relative">
+      <div className="sticky top-0 z-20 bg-white pb-2">
+        <div className="relative">
         <input
           ref={searchInputRef}
           type="text"
@@ -247,6 +239,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
           className="w-full border-2 border-gray-200 rounded-2xl pl-12 pr-4 py-4 text-[16px] font-semibold text-gray-900 placeholder-gray-400 outline-none focus:border-blue-400 transition-colors"
         />
         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">🔎</span>
+        </div>
       </div>
 
       {scannerOpen && (
@@ -273,26 +266,16 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
         <p className="text-[12px] text-gray-400 mt-2 px-1">Nenhum produto encontrado para &quot;{query.trim()}&quot;.</p>
       )}
 
-      {!loading && trimmedQuery.length >= 2 && hasOnlyUnavailableCatalogResults && (
-        <p className="text-[12px] text-gray-400 mt-2 px-1">Nenhuma oferta disponível para &quot;{trimmedQuery}&quot; agora.</p>
-      )}
-
       {visibleResults.length > 0 && (
-        <div className="mt-2.5 space-y-2.5 max-h-[32rem] overflow-y-auto">
+        <div className="mt-2.5 space-y-2.5">
           {visibleResults.map((item) => {
             const resolved = offersByGtin[item.gtin];
             const choosingStore = storeChoicesForGtin === item.gtin;
-            const singleOffer = Array.isArray(resolved) && resolved.length === 1 ? resolved[0] : null;
-            const multipleOffers = Array.isArray(resolved) && resolved.length > 1 ? resolved : null;
             const unavailable = Array.isArray(resolved) && resolved.length === 0;
-            const canOpen = Boolean((singleOffer && singleOffer.url) || multipleOffers);
+            const offers = Array.isArray(resolved) ? resolved : [];
+            const canOpen = offers.length > 0;
             const handleResultTap = () => {
-              if (singleOffer?.url) {
-                trackBuyClick(item.gtin, singleOffer);
-                navigateToPartnerUrl(singleOffer.url);
-                return;
-              }
-              if (multipleOffers) setStoreChoicesForGtin(choosingStore ? null : item.gtin);
+              if (offers.length > 0) setStoreChoicesForGtin(choosingStore ? null : item.gtin);
             };
             const handleResultKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
               if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -337,23 +320,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                     )}
                   </div>
 
-                  {singleOffer && singleOffer.url ? (
-                    // <a href target="_blank"> real — navegação nativa do
-                    // navegador, sem JS entre o toque e a saída da página,
-                    // sempre em aba nova (ver docstring do componente).
-                    <a
-                      href={singleOffer.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        trackBuyClick(item.gtin, singleOffer);
-                      }}
-                      className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[11px] font-bold px-3 py-1.5 active:scale-95 transition-all"
-                    >
-                      🛒 Comprar
-                    </a>
-                  ) : multipleOffers ? (
+                  {offers.length > 0 ? (
                     <button
                       type="button"
                       onClick={(event) => {
@@ -366,19 +333,19 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                     </button>
                   ) : unavailable ? (
                     <span className="flex-shrink-0 rounded-full bg-gray-100 text-gray-400 text-[11px] font-bold px-3 py-1.5">
-                      Indisponível
+                      Sem loja
                     </span>
                   ) : (
                     <span className="flex-shrink-0 rounded-full bg-gray-100 text-gray-400 text-[11px] font-bold px-3 py-1.5">
-                      ...
+                      Buscando
                     </span>
                   )}
                 </div>
 
-                {choosingStore && multipleOffers && (
+                {choosingStore && offers.length > 0 && (
                   <div className="mt-2.5 pt-2.5 border-t border-gray-100 space-y-1.5">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Escolha a loja</p>
-                    {multipleOffers.map((offer) => (
+                    {offers.map((offer) => (
                       offer.url ? (
                         <a
                           key={offer.merchant}

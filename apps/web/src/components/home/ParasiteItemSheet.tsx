@@ -6,6 +6,7 @@ import { getToken } from '@/lib/auth-token';
 import type { ParasiteControl } from '@/lib/types/home';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { MonetizedOffersList } from '@/features/commerce/MonetizedOffersList';
+import { AffiliateCatalogSearch } from '@/features/commerce/AffiliateCatalogSearch';
 import { ModalPortal } from '@/components/ModalPortal';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
@@ -905,27 +906,37 @@ export function ParasiteItemSheet({
                 </div>
               </div>
 
-              {/* Mesma oferta monetizável usada em "Comprar novamente" na Loja
-                  do Pet e na ficha da ração — nunca mostra loja sem link
-                  afiliado ativo (ver docs/AFFILIATES.md). */}
-              <MonetizedOffersList
-                query={
-                  current?.product_name
-                    ? current.product_name
-                    : type === 'dewormer'
+              {current?.product_name || current?.barcode ? (
+                <MonetizedOffersList
+                  query={
+                    current?.product_name
+                      ? current.product_name
+                      : type === 'dewormer'
+                        ? 'vermífugo cão'
+                        : type === 'collar'
+                          ? 'coleira antipulgas cão'
+                          : 'antipulgas cão'
+                  }
+                  gtin={current?.barcode}
+                  petId={petId}
+                  productLabel={current?.product_name || cfg.title}
+                  icon={cfg.icon}
+                  source="parasite_sheet"
+                  ctaType="parasite_buy_direct"
+                  controlType={type}
+                />
+              ) : (
+                <AffiliateCatalogSearch
+                  petId={petId}
+                  initialQuery={
+                    type === 'dewormer'
                       ? 'vermífugo cão'
                       : type === 'collar'
                         ? 'coleira antipulgas cão'
                         : 'antipulgas cão'
-                }
-                gtin={current?.barcode}
-                petId={petId}
-                productLabel={current?.product_name || cfg.title}
-                icon={cfg.icon}
-                source="parasite_sheet"
-                ctaType="parasite_buy_direct"
-                controlType={type}
-              />
+                  }
+                />
+              )}
 
               <button
                 onClick={() => setMode('apply')}

@@ -962,7 +962,7 @@ export function MedicationItemSheet({
             <div className="p-5 pb-8 space-y-4">
               <h3 className="text-[16px] font-bold text-gray-900">Onde comprar</h3>
 
-              {medications.length > 0 && (
+              {medications.length > 0 ? (
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">
                     ❤️ Preço das medicações {petName ? `de ${petName}` : 'do pet'}
@@ -987,21 +987,15 @@ export function MedicationItemSheet({
                     ))}
                   </div>
                 </div>
-              )}
-
-              {medications.length === 0 && (
-                <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center shadow-sm">
-                  <p className="text-[13px] font-bold text-gray-700">Nenhuma medicação cadastrada</p>
-                  <p className="mt-1 text-[12px] text-gray-500">
-                    Cadastre uma medicação em &quot;Nova medicação&quot; pra ver os preços aqui.
-                  </p>
+              ) : (
+                <div>
+                  <p className="text-sm text-gray-500 mb-3">Busque pelo nome ou marca do medicamento.</p>
+                  <AffiliateCatalogSearch
+                    petId={petId}
+                    initialQuery="medicamento pet"
+                  />
                 </div>
               )}
-
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🐾 Buscar produtos</p>
-                <AffiliateCatalogSearch petId={petId} />
-              </div>
             </div>
           )}
 
