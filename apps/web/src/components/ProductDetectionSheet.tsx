@@ -534,7 +534,10 @@ function AwinCatalogConfirmSearch({
     setStatus('loading');
     searchAwinCatalog(seedQuery).then((found) => {
       if (cancelled) return;
-      setResults(found.slice(0, 4));
+      // Mesmo critério da Loja (AffiliateCatalogSearch): mostrar o máximo
+      // de resultados possíveis, não só uma amostra de 4 — feedback do
+      // tutor, um nome parecido tem que trazer tudo que existe.
+      setResults(found);
       setStatus('done');
     });
     return () => { cancelled = true; };
@@ -555,8 +558,8 @@ function AwinCatalogConfirmSearch({
       <p className="text-[11px] font-bold uppercase tracking-wider text-blue-700">
         Achamos {results.length > 1 ? 'estes produtos' : 'este produto'} nas lojas parceiras
       </p>
-      <p className="text-xs text-gray-500">Confirme qual é o certo para gerar um link de compra exato.</p>
-      <div className="space-y-1.5">
+      <p className="text-xs text-gray-500">Toque no produto certo pra continuar.</p>
+      <div className="max-h-[26rem] space-y-2 overflow-y-auto">
         {results.map((result) => (
           <button
             key={result.gtin}
@@ -566,16 +569,16 @@ function AwinCatalogConfirmSearch({
           >
             {result.image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={result.image_url} alt="" className="h-10 w-10 flex-shrink-0 rounded-lg object-contain bg-gray-50" />
+              <img src={result.image_url} alt="" className="h-16 w-16 flex-shrink-0 rounded-lg object-contain bg-gray-50" />
             ) : (
-              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-gray-50 text-lg">📦</span>
+              <span className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-gray-50 text-2xl">📦</span>
             )}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-semibold text-gray-900">{result.title || 'Produto'}</p>
-              {result.brand && <p className="truncate text-[11px] text-gray-400">{result.brand}</p>}
+              <p className="text-[14px] font-semibold leading-tight text-gray-900 line-clamp-2">{result.title || 'Produto'}</p>
+              {result.brand && <p className="truncate text-[12px] text-gray-400 mt-0.5">{result.brand}</p>}
             </div>
             {result.price != null && (
-              <span className="flex-shrink-0 text-[12px] font-bold text-emerald-600">{formatBRLPrice(result.price)}</span>
+              <span className="flex-shrink-0 text-[13px] font-bold text-emerald-600">{formatBRLPrice(result.price)}</span>
             )}
           </button>
         ))}
@@ -1948,66 +1951,86 @@ export function ProductDetectionSheetGold({
   const renderEntry = () => (
     <div className="space-y-5 p-5 pb-8">
       <div className="pb-1 pt-2 text-center">
-        <p className="mb-3 text-5xl">🔍</p>
-        <h2 className="text-[19px] font-bold text-gray-900">Como quer identificar?</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          {photoUnlocked ? 'Escolha o jeito mais fácil para você' : 'Escanear é o jeito mais rápido e preciso'}
-        </p>
+        <h2 className="text-[19px] font-bold text-gray-900">Qual produto é esse?</h2>
+        <p className="mt-1 text-sm text-gray-500">Digite o nome ou a marca — sem precisar de código de barras.</p>
       </div>
 
-      <div className="space-y-3">
+      {/* Busca em primeiro lugar — feedback direto do tutor: nem todo
+          mundo sabe/quer usar código de barras, e isso travava o
+          cadastro. A busca (mesma base do catálogo Awin usada na Loja)
+          tem que aparecer de cara; escanear/digitar código viram opções
+          menores logo abaixo, pra quem já tem o código em mãos. */}
+      <div className="relative">
+        <input
+          type="text"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onFocus={(event) => {
+            window.setTimeout(() => event.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && query.trim()) selectManual(query.trim());
+          }}
+          placeholder="Buscar produto..."
+          className="w-full rounded-2xl border-2 border-gray-200 pl-12 pr-4 py-4 text-[16px] font-semibold text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-blue-400"
+        />
+        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[18px] text-gray-400">🔎</span>
+      </div>
+
+      {query.trim() && (
+        <AwinCatalogConfirmSearch
+          seedQuery={query.trim()}
+          onPick={selectCatalogResult}
+        />
+      )}
+
+      {query.trim() && (
+        <button
+          type="button"
+          onClick={() => selectManual(query.trim())}
+          className="w-full rounded-2xl bg-gray-900 py-3.5 font-bold text-white transition-all active:scale-95"
+        >
+          Usar &ldquo;{query.trim()}&rdquo;
+        </button>
+      )}
+
+      <div className={`grid gap-2 ${allowScanning && manualUnlocked ? 'grid-cols-2' : 'grid-cols-1'}`}>
         {allowScanning && (
           <button
             type="button"
             onClick={startScanner}
-            className="w-full rounded-2xl border border-blue-200 bg-blue-50 p-4 text-left transition-all active:scale-[0.98]"
+            className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-[12px] font-bold text-blue-800 transition-all active:scale-[0.98]"
           >
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-blue-100 text-2xl">📷</div>
-              <div className="flex-1">
-                <p className="text-[15px] font-bold text-blue-900">Escanear código de barras</p>
-                <p className="mt-0.5 text-xs text-blue-600">Câmera traseira em tela cheia e leitura contínua</p>
-              </div>
-              <span className="flex-shrink-0 text-xl text-blue-300">›</span>
-            </div>
+            📷 Escanear código
           </button>
         )}
-
         {manualUnlocked && (
           <button
             type="button"
             onClick={() => setStep('manual')}
-            className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition-all active:scale-[0.98]"
+            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] font-bold text-slate-700 transition-all active:scale-[0.98]"
           >
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-2xl">⌨️</div>
-              <div className="flex-1">
-                <p className="text-[15px] font-bold text-slate-900">Digitar código de barras</p>
-                <p className="mt-0.5 text-xs text-slate-600">Digite o código de barras ou busque por nome</p>
-              </div>
-              <span className="flex-shrink-0 text-xl text-slate-300">›</span>
-            </div>
+            ⌨️ Tenho o código de barras
           </button>
         )}
-
-        {photoUnlocked && (
-          <button
-            type="button"
-            onClick={() => setStep('photo-capture')}
-            className="w-full rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left transition-all active:scale-[0.98]"
-          >
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-2xl">🖼️</div>
-              <div className="flex-1">
-                <p className="text-[15px] font-bold text-emerald-900">Fotografar a embalagem</p>
-                <p className="mt-0.5 text-xs text-emerald-600">Tire uma foto e tentamos identificar o produto</p>
-              </div>
-              <span className="flex-shrink-0 text-xl text-emerald-300">›</span>
-            </div>
-          </button>
-        )}
-
       </div>
+
+      {photoUnlocked && (
+        <button
+          type="button"
+          onClick={() => setStep('photo-capture')}
+          className="w-full rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left transition-all active:scale-[0.98]"
+        >
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-2xl">🖼️</div>
+            <div className="flex-1">
+              <p className="text-[15px] font-bold text-emerald-900">Fotografar a embalagem</p>
+              <p className="mt-0.5 text-xs text-emerald-600">Tire uma foto e tentamos identificar o produto</p>
+            </div>
+            <span className="flex-shrink-0 text-xl text-emerald-300">›</span>
+          </div>
+        </button>
+      )}
 
       {history.length > 0 && (
         <div>

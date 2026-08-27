@@ -1012,7 +1012,7 @@ export function MedicationItemSheet({
                 <div className="rounded-2xl border border-purple-200 bg-purple-50 p-5 space-y-4">
                   <div>
                     <h3 className="text-[18px] font-black text-gray-900 leading-tight">Identifique o medicamento</h3>
-                    <p className="text-[13px] text-gray-600 mt-1">Escaneie ou digite o código de barras. Se não der, liberamos foto da embalagem e busca por nome.</p>
+                    <p className="text-[13px] text-gray-600 mt-1">Busque pelo nome ou marca — código de barras também funciona, se preferir.</p>
                   </div>
                   <ProductBarcodeScanner
                     label="Escanear código de barras"

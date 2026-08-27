@@ -1267,7 +1267,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 space-y-4">
                       <div>
                         <h3 className="text-[20px] font-black text-gray-900 leading-tight">Como {pet.pet_name} se alimenta?</h3>
-                        <p className="text-[13px] text-amber-900/80 mt-1">Escaneie o código de barras da embalagem — se não der, a gente libera foto e cadastro manual na hora.</p>
+                        <p className="text-[13px] text-amber-900/80 mt-1">Busque o produto pelo nome ou marca — sem código de barras à mão também dá.</p>
                       </div>
                       <div className="space-y-2">
                         <ProductBarcodeScanner
