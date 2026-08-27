@@ -94,7 +94,35 @@ def test_search_matches_words_out_of_order_and_non_contiguous(client, monkeypatc
 
         r2 = client.get("/commerce/awin-search", params={"q": "golden pipicat"})
         assert r2.status_code == 200
-        assert r2.json()["results"] == []
+        # Busca democrática: se a frase ficou ampla/ambígua, não zera a
+        # listagem; traz candidatos que casam pelo menos um termo.
+        assert {item["gtin"] for item in r2.json()["results"]} == {"7891234500001", "7891234500002"}
+    finally:
+        _cleanup()
+
+
+def test_search_matches_middle_substrings_and_ranks_more_terms_first(client, monkeypatch):
+    _enable_awin(monkeypatch)
+    _cleanup()
+    _add_offer(
+        external_product_id="1",
+        title="Vermifugo Drontal Puppy para Caes",
+        brand="Drontal",
+        gtin="7891234500001",
+        price=70.0,
+    )
+    _add_offer(
+        external_product_id="2",
+        title="Vermifugo Drontal Spot On para Gatos",
+        brand="Drontal",
+        gtin="7891234500002",
+        price=90.0,
+    )
+    try:
+        r = client.get("/commerce/awin-search", params={"q": "ontal gatos"})
+        assert r.status_code == 200
+        results = r.json()["results"]
+        assert [item["gtin"] for item in results] == ["7891234500002", "7891234500001"]
     finally:
         _cleanup()
 

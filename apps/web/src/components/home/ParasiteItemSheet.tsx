@@ -5,6 +5,7 @@ import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import type { ParasiteControl } from '@/lib/types/home';
 import { trackV1Metric } from '@/lib/v1Metrics';
+import { MonetizedOffersList } from '@/features/commerce/MonetizedOffersList';
 import { AffiliateCatalogSearch } from '@/features/commerce/AffiliateCatalogSearch';
 import { ModalPortal } from '@/components/ModalPortal';
 import { ReminderPicker } from '@/components/ReminderPicker';
@@ -905,18 +906,37 @@ export function ParasiteItemSheet({
                 </div>
               </div>
 
-              <AffiliateCatalogSearch
-                petId={petId}
-                initialQuery={
-                  current?.product_name
-                    ? current.product_name
-                    : type === 'dewormer'
+              {current?.product_name || current?.barcode ? (
+                <MonetizedOffersList
+                  query={
+                    current?.product_name
+                      ? current.product_name
+                      : type === 'dewormer'
+                        ? 'vermífugo cão'
+                        : type === 'collar'
+                          ? 'coleira antipulgas cão'
+                          : 'antipulgas cão'
+                  }
+                  gtin={current?.barcode}
+                  petId={petId}
+                  productLabel={current?.product_name || cfg.title}
+                  icon={cfg.icon}
+                  source="parasite_sheet"
+                  ctaType="parasite_buy_direct"
+                  controlType={type}
+                />
+              ) : (
+                <AffiliateCatalogSearch
+                  petId={petId}
+                  initialQuery={
+                    type === 'dewormer'
                       ? 'vermífugo cão'
                       : type === 'collar'
                         ? 'coleira antipulgas cão'
                         : 'antipulgas cão'
-                }
-              />
+                  }
+                />
+              )}
 
               <button
                 onClick={() => setMode('apply')}

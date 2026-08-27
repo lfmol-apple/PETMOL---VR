@@ -14,6 +14,7 @@ import { petDo } from '@/lib/petGender';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import { guessFoodKind, type ScannedProduct } from '@/lib/productScanner';
 import { resolveFoodCommerceSnapshot } from '@/features/commerce/homeContextualCommerce';
+import { MonetizedOffersList } from '@/features/commerce/MonetizedOffersList';
 import { AffiliateCatalogSearch } from '@/features/commerce/AffiliateCatalogSearch';
 import { requestUserDecision } from '@/features/interactions/userPromptChannel';
 
@@ -1163,10 +1164,24 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <div className="p-5 pb-8 space-y-4">
-                  <AffiliateCatalogSearch
-                    petId={pet.pet_id}
-                    initialQuery={buyTargetItem ? buyTargetItem.query : (foodBrand ? `${foodBrand} ração` : 'ração pet')}
-                  />
+                  {buyTargetItem || foodBrand || foodState.gtin ? (
+                    <MonetizedOffersList
+                      query={buyTargetItem ? buyTargetItem.query : (foodBrand ? `${foodBrand} ração` : 'ração pet')}
+                      packageSizeKg={buyTargetItem ? buyTargetItem.packageSizeKg : foodState.packageSizeKg}
+                      gtin={buyTargetItem ? buyTargetItem.gtin : foodState.gtin}
+                      petId={pet.pet_id}
+                      productLabel={buyTargetItem ? buyTargetItem.label : (foodBrand || 'Ração')}
+                      icon={buyTargetItem ? '🦴' : '🥣'}
+                      source="food_sheet"
+                      ctaType="food_buy_direct"
+                      controlType="food"
+                    />
+                  ) : (
+                    <AffiliateCatalogSearch
+                      petId={pet.pet_id}
+                      initialQuery="ração pet"
+                    />
+                  )}
                 </div>
               </div>
             </>
