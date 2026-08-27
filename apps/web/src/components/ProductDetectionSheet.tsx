@@ -528,22 +528,36 @@ function AwinCatalogConfirmSearch({
 }) {
   const [status, setStatus] = useState<'loading' | 'done'>('loading');
   const [results, setResults] = useState<AwinSearchResult[]>([]);
+  const searchRunRef = useRef(0);
+  const trimmedSeedQuery = seedQuery.trim();
 
   useEffect(() => {
-    let cancelled = false;
+    const trimmed = seedQuery.trim();
+    const runId = ++searchRunRef.current;
+    if (trimmed.length < 2) {
+      setResults([]);
+      setStatus('done');
+      return;
+    }
     setStatus('loading');
-    searchAwinCatalog(seedQuery).then((found) => {
-      if (cancelled) return;
+    searchAwinCatalog(trimmed).then((found) => {
+      if (searchRunRef.current !== runId) return;
       // Mesmo critério da Loja (AffiliateCatalogSearch): mostrar o máximo
       // de resultados possíveis, não só uma amostra de 4 — feedback do
       // tutor, um nome parecido tem que trazer tudo que existe.
       setResults(found);
       setStatus('done');
+    }).catch(() => {
+      if (searchRunRef.current !== runId) return;
+      setResults([]);
+      setStatus('done');
     });
-    return () => { cancelled = true; };
+    return () => {
+      if (searchRunRef.current === runId) searchRunRef.current += 1;
+    };
   }, [seedQuery]);
 
-  if (status === 'loading') {
+  if (status === 'loading' && results.length === 0) {
     return (
       <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-center text-xs text-gray-400">
         Procurando este produto no catálogo das lojas parceiras…
@@ -551,15 +565,20 @@ function AwinCatalogConfirmSearch({
     );
   }
 
-  if (results.length === 0) return null;
+  if (trimmedSeedQuery.length < 2 || results.length === 0) return null;
 
   return (
     <div className="space-y-2 rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
-      <p className="text-[11px] font-bold uppercase tracking-wider text-blue-700">
-        Achamos {results.length > 1 ? 'estes produtos' : 'este produto'} nas lojas parceiras
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-blue-700">
+          Achamos {results.length > 1 ? 'estes produtos' : 'este produto'} nas lojas parceiras
+        </p>
+        {status === 'loading' && (
+          <span className="flex-shrink-0 text-[10px] font-bold text-blue-400">Atualizando…</span>
+        )}
+      </div>
       <p className="text-xs text-gray-500">Toque no produto certo pra continuar.</p>
-      <div className="max-h-[26rem] space-y-2 overflow-y-auto">
+      <div className="space-y-2">
         {results.map((result) => (
           <button
             key={result.gtin}

@@ -71,6 +71,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
   const [offersByGtin, setOffersByGtin] = useState<Record<string, ResolvedOffers>>({});
   const [storeChoicesForGtin, setStoreChoicesForGtin] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchRunRef = useRef(0);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const resolvingGtinsRef = useRef<Set<string>>(new Set());
   const trimmedQuery = query.trim();
@@ -85,18 +86,22 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const trimmed = query.trim();
     if (trimmed.length < 2) {
+      searchRunRef.current += 1;
       setResults([]);
       setLoading(false);
       return;
     }
     setLoading(true);
+    const runId = ++searchRunRef.current;
     debounceRef.current = setTimeout(async () => {
       const found = await searchAwinCatalog(trimmed, activeMerchantFilter);
+      if (searchRunRef.current !== runId) return;
       setResults(found);
       setLoading(false);
     }, 400);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (searchRunRef.current === runId) searchRunRef.current += 1;
     };
   }, [query, activeMerchantFilter]);
 
