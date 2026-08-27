@@ -72,6 +72,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
   const [storeChoicesForGtin, setStoreChoicesForGtin] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const resolvingGtinsRef = useRef<Set<string>>(new Set());
   const trimmedQuery = query.trim();
   const activeMerchantFilter = merchantFilter ?? undefined;
   const visibleResults = results;
@@ -99,24 +100,28 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
     };
   }, [query, activeMerchantFilter]);
 
+  function loadOffersForGtin(gtin: string) {
+    const current = offersByGtin[gtin];
+    if (current === 'loading' || Array.isArray(current) || resolvingGtinsRef.current.has(gtin)) return;
+
+    resolvingGtinsRef.current.add(gtin);
+    setOffersByGtin((prev) => ({ ...prev, [gtin]: 'loading' }));
+    // Passa pelo commerce engine de verdade (GET /commerce/offers), mas
+    // SEM texto de busca — só gtin. Isso mantém a compra monetizada por
+    // identidade exata sem disparar busca textual externa para cada card.
+    fetchCommerceOffers('', undefined, gtin)
+      .then((offers) => setOffersByGtin((prev) => ({ ...prev, [gtin]: offers })))
+      .catch(() => setOffersByGtin((prev) => ({ ...prev, [gtin]: 'error' })))
+      .finally(() => {
+        resolvingGtinsRef.current.delete(gtin);
+      });
+  }
+
   useEffect(() => {
-    for (const item of results) {
-      if (offersByGtin[item.gtin] !== undefined) continue;
-      setOffersByGtin((prev) => ({ ...prev, [item.gtin]: 'loading' }));
-      // Passa pelo commerce engine de verdade (GET /commerce/offers), mas
-      // SEM texto de busca — só gtin. Descoberto testando: mandar o título
-      // junto fazia o CobasiProvider rodar sua própria busca textual ao
-      // vivo (imprecisa) em paralelo, e como a rota preferida é "awin",
-      // isso não muda o vencedor, mas evita uma chamada redundante à API
-      // da Cobasi. Só gtin faz o CobasiProvider nem tentar (sem query,
-      // find_offer retorna cedo — ver cobasi_provider.py), deixando o
-      // AwinFeedProvider resolver sozinho o produto certo. Já volta
-      // deduplicado por loja — se mais de uma loja tiver o mesmo GTIN,
-      // aqui é o grid de preços de verdade.
-      fetchCommerceOffers('', undefined, item.gtin)
-        .then((offers) => setOffersByGtin((prev) => ({ ...prev, [item.gtin]: offers })))
-        .catch(() => setOffersByGtin((prev) => ({ ...prev, [item.gtin]: 'error' })));
-    }
+    // Não resolva lojas para todos os 50 resultados de uma vez: no celular
+    // isso deixava vários cards presos em "Buscando". Prefetch curto para
+    // os primeiros resultados; os demais carregam sob demanda no toque.
+    results.slice(0, 6).forEach((item) => loadOffersForGtin(item.gtin));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results]);
 
@@ -271,11 +276,16 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
           {visibleResults.map((item) => {
             const resolved = offersByGtin[item.gtin];
             const choosingStore = storeChoicesForGtin === item.gtin;
+            const loadingStores = resolved === undefined || resolved === 'loading';
+            const storeLoadError = resolved === 'error';
             const unavailable = Array.isArray(resolved) && resolved.length === 0;
             const offers = Array.isArray(resolved) ? resolved : [];
-            const canOpen = offers.length > 0;
+            const expectedStoreCount = Math.max(offers.length, item.offer_count || 0);
+            const canOpen = expectedStoreCount > 0;
             const handleResultTap = () => {
-              if (offers.length > 0) setStoreChoicesForGtin(choosingStore ? null : item.gtin);
+              if (!canOpen) return;
+              setStoreChoicesForGtin(choosingStore ? null : item.gtin);
+              if (!Array.isArray(resolved)) loadOffersForGtin(item.gtin);
             };
             const handleResultKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
               if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -320,16 +330,16 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                     )}
                   </div>
 
-                  {offers.length > 0 ? (
+                  {canOpen ? (
                     <button
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation();
-                        setStoreChoicesForGtin(choosingStore ? null : item.gtin);
+                        handleResultTap();
                       }}
                       className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[11px] font-bold px-3 py-1.5 active:scale-95 transition-all"
                     >
-                      🛒 Comprar
+                      🛒 Lojas
                     </button>
                   ) : unavailable ? (
                     <span className="flex-shrink-0 rounded-full bg-gray-100 text-gray-400 text-[11px] font-bold px-3 py-1.5">
@@ -342,9 +352,31 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                   )}
                 </div>
 
-                {choosingStore && offers.length > 0 && (
+                {choosingStore && canOpen && (
                   <div className="mt-2.5 pt-2.5 border-t border-gray-100 space-y-1.5">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Escolha a loja</p>
+                    {loadingStores && (
+                      <p className="rounded-xl bg-gray-50 px-3 py-2 text-[12px] font-semibold text-gray-500">
+                        Carregando lojas disponíveis...
+                      </p>
+                    )}
+                    {storeLoadError && (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          loadOffersForGtin(item.gtin);
+                        }}
+                        className="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[12px] font-bold text-amber-800 active:scale-[0.98]"
+                      >
+                        Não carregou agora. Tocar para tentar novamente.
+                      </button>
+                    )}
+                    {unavailable && (
+                      <p className="rounded-xl bg-gray-50 px-3 py-2 text-[12px] font-semibold text-gray-500">
+                        Nenhuma loja ativa retornou para este produto agora.
+                      </p>
+                    )}
                     {offers.map((offer) => (
                       offer.url ? (
                         <a

@@ -1177,10 +1177,22 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                       controlType="food"
                     />
                   ) : (
-                    <AffiliateCatalogSearch
-                      petId={pet.pet_id}
-                      initialQuery="ração pet"
-                    />
+                    <>
+                      <AffiliateCatalogSearch
+                        petId={pet.pet_id}
+                        initialQuery="ração pet"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormRequest({ id: Date.now(), mode: 'quick_setup' });
+                          setMode('edit');
+                        }}
+                        className="w-full py-3 rounded-2xl border border-emerald-200 bg-emerald-50 text-[14px] font-black text-emerald-800 active:scale-[0.98] transition-all"
+                      >
+                        Já comprei — cadastrar ração
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -1284,6 +1296,18 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             handleFoodProductConfirmed(product, 'ask');
                           }}
                         />
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: null });
+                            setMode('buy');
+                          }}
+                          className="w-full flex items-center justify-center gap-2.5 py-3 min-h-[44px] rounded-2xl bg-emerald-500 text-[14px] font-black text-white shadow-md shadow-emerald-500/25 active:scale-95 transition-all"
+                        >
+                          <span className="text-lg">🛒</span>
+                          Comprar ração
+                        </button>
 
                         {/* Não usa ração de saco */}
                         <button
