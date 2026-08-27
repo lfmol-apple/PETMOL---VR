@@ -117,7 +117,7 @@ export async function searchAwinCatalog(query: string, merchant?: string): Promi
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
   try {
-    const params = new URLSearchParams({ q: trimmed });
+    const params = new URLSearchParams({ q: trimmed, limit: '50' });
     if (merchant) params.set('merchant', merchant);
     const res = await fetch(`${API_BASE_URL}/commerce/awin-search?${params.toString()}`, {
       cache: 'no-store',
