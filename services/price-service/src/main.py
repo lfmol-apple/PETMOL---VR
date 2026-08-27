@@ -1673,7 +1673,10 @@ async def commerce_awin_search(
     # Uma linha por (gtin, merchant) que bate no filtro; rn=1 é a mais
     # barata daquele gtin entre TODOS os merchants liberados, offer_count
     # é quantas lojas (liberadas) têm aquele gtin — tudo calculado pelo
-    # Postgres, nunca em Python.
+    # Postgres, nunca em Python. A busca só lista candidatos que podem
+    # virar compra monetizada: estoque, preço e affiliate_url precisam
+    # existir já no feed. Se não, o tutor vê "produto" que depois vira
+    # "Indisponível" no botão, que foi exatamente o bug observado.
     ranked = (
         select(
             AffiliateFeedOffer.gtin,
@@ -1694,6 +1697,9 @@ async def commerce_awin_search(
             AffiliateFeedOffer.merchant.in_(merchants),
             AffiliateFeedOffer.active.is_(True),
             AffiliateFeedOffer.in_stock.is_(True),
+            AffiliateFeedOffer.price.isnot(None),
+            AffiliateFeedOffer.affiliate_url.isnot(None),
+            AffiliateFeedOffer.affiliate_url != "",
             AffiliateFeedOffer.gtin.isnot(None),
             and_(*word_matches),
         )
