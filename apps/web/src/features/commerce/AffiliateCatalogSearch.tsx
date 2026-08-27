@@ -8,9 +8,6 @@ import { formatBRLPrice, fetchCommerceOffers, merchantLabel, offerPriceLabel, se
 import {
   HOME_SHOPPING_PARTNERS,
   navigateToPartnerUrl,
-  openHomeShoppingPartner,
-  partnerGenericLinkType,
-  type HomeShoppingPartner,
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
 
@@ -58,11 +55,12 @@ type BarcodeLookupState = 'idle' | 'loading' | 'done' | 'not_found' | 'error';
 // real o backend resolve a Awin com UA desktop e entrega a URL Cobasi `/p`
 // com `awc`, priorizando abrir produto web em vez do OneLink cair na home
 // do app Cobasi.
-const TEXT_SEARCH_PARTNER_IDS: HomeShoppingPartnerId[] = ['cobasi', 'shopee', 'zeenow', 'zeedog'];
 
 export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilter }: AffiliateCatalogSearchProps) {
   const [query, setQuery] = useState(initialQuery);
-  const [selectedTextMerchant, setSelectedTextMerchant] = useState<HomeShoppingPartnerId | null>(null);
+  // Escanear/código de barras: ocultos por enquanto (feedback do tutor —
+  // deixar só a busca por texto, maior e mais direta). Estado e handlers
+  // continuam aqui prontos pra reativar rápido depois, só a UI some.
   const [barcode, setBarcode] = useState('');
   const [barcodeState, setBarcodeState] = useState<BarcodeLookupState>('idle');
   const [barcodeProduct, setBarcodeProduct] = useState<ScannedProduct | null>(null);
@@ -74,15 +72,12 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
   const [offersByGtin, setOffersByGtin] = useState<Record<string, ResolvedOffers>>({});
   const [storeChoicesForGtin, setStoreChoicesForGtin] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const trimmedQuery = query.trim();
-  const activeMerchantFilter = merchantFilter ?? selectedTextMerchant ?? undefined;
-  const textSearchPartners = TEXT_SEARCH_PARTNER_IDS
-    .map((id) => HOME_SHOPPING_PARTNERS.find((partner) => partner.id === id))
-    .filter((partner): partner is HomeShoppingPartner => Boolean(partner));
+  const activeMerchantFilter = merchantFilter ?? undefined;
 
   useEffect(() => {
     setQuery(initialQuery);
-    setSelectedTextMerchant(null);
   }, [initialQuery, merchantFilter]);
 
   useEffect(() => {
@@ -135,24 +130,6 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
       metadata: { gtin },
     });
     setStoreChoicesForGtin(null);
-  }
-
-  function handleTextStoreSearch(partnerId: HomeShoppingPartnerId) {
-    if (trimmedQuery.length < 2) return;
-    if (partnerId === 'cobasi' || partnerId === 'zeenow' || partnerId === 'zeedog') {
-      setSelectedTextMerchant(selectedTextMerchant === partnerId ? null : partnerId);
-      setStoreChoicesForGtin(null);
-      return;
-    }
-    const opened = openHomeShoppingPartner(partnerId, trimmedQuery);
-    void trackClick({
-      source: 'home',
-      cta_type: 'shop_text_store_search',
-      target: partnerId,
-      link_type: opened ? partnerGenericLinkType(partnerId) : 'direct',
-      pet_id: petId,
-      metadata: { query: trimmedQuery, opened },
-    });
   }
 
   async function resolveBarcode(raw: string) {
@@ -242,69 +219,26 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
 
   return (
     <div>
-      <div className="grid grid-cols-2 gap-2 mb-2">
-        <button
-          type="button"
-          onClick={() => setScannerOpen(true)}
-          className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-[12px] font-bold text-blue-800 active:scale-[0.98] transition-all"
-        >
-          📷 Escanear código
-        </button>
-        <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={barcode}
-            onChange={(event) => setBarcode(event.target.value.replace(/\D/g, ''))}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') void resolveBarcode(barcode);
-            }}
-            placeholder="Código de barras"
-            className="min-w-0 flex-1 bg-transparent px-2 text-[12px] font-semibold text-slate-800 placeholder-slate-400 outline-none"
-          />
-          <button
-            type="button"
-            onClick={() => void resolveBarcode(barcode)}
-            className="rounded-lg bg-slate-900 px-2.5 text-[11px] font-bold text-white active:scale-95 transition-all"
-          >
-            OK
-          </button>
-        </div>
-      </div>
-
-      {renderOffersForBarcode()}
-
-      <div className="relative mt-3">
+      {/* Escanear código / código de barras manual: ocultos por enquanto
+          (feedback do tutor) — só a busca por texto, maior e direta. */}
+      <div className="relative">
         <input
+          ref={searchInputRef}
           type="text"
           value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setSelectedTextMerchant(null);
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={(e) => {
+            // font-size >= 16px evita o zoom automático do Safari iOS ao
+            // focar um input (o que empurrava o campo pra fora da área
+            // visível); scrollIntoView garante que ele fique acima do
+            // teclado mesmo dentro de uma sheet/modal rolável.
+            window.setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300);
           }}
           placeholder="Buscar produto..."
-          className="w-full border-2 border-gray-200 rounded-2xl pl-10 pr-4 py-3 text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-400 transition-colors"
+          className="w-full border-2 border-gray-200 rounded-2xl pl-12 pr-4 py-4 text-[16px] font-semibold text-gray-900 placeholder-gray-400 outline-none focus:border-blue-400 transition-colors"
         />
-        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-[15px]">🔎</span>
+        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">🔎</span>
       </div>
-
-      {trimmedQuery.length >= 2 && !merchantFilter && (
-        <div className="mt-2 rounded-2xl border border-gray-200 bg-white p-2.5 shadow-sm">
-          <p className="px-0.5 text-[10px] font-black uppercase tracking-wide text-gray-400">Escolha a loja</p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {textSearchPartners.map((partner) => (
-              <button
-                key={partner.id}
-                type="button"
-                onClick={() => handleTextStoreSearch(partner.id)}
-                className={`rounded-xl border px-3 py-2 text-left text-[12px] font-bold transition-all active:scale-[0.98] ${selectedTextMerchant === partner.id ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-emerald-300 hover:bg-white'}`}
-              >
-                {partner.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {scannerOpen && (
         <ProductDetectionSheetGold
@@ -331,7 +265,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
       )}
 
       {results.length > 0 && (
-        <div className="mt-2.5 space-y-2 max-h-72 overflow-y-auto">
+        <div className="mt-2.5 space-y-2.5 max-h-[32rem] overflow-y-auto">
           {results.map((item) => {
             const resolved = offersByGtin[item.gtin];
             const choosingStore = storeChoicesForGtin === item.gtin;
@@ -360,10 +294,10 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                 tabIndex={canOpen ? 0 : undefined}
                 onClick={canOpen ? handleResultTap : undefined}
                 onKeyDown={canOpen ? handleResultKeyDown : undefined}
-                className={`p-2.5 bg-white border border-gray-200 rounded-2xl shadow-sm transition-all ${canOpen ? 'cursor-pointer hover:border-emerald-200 active:scale-[0.99]' : ''}`}
+                className={`p-3 bg-white border border-gray-200 rounded-2xl shadow-sm transition-all ${canOpen ? 'cursor-pointer hover:border-emerald-200 active:scale-[0.99]' : ''}`}
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-xl overflow-hidden bg-gray-50 border border-gray-100 flex-shrink-0 flex items-center justify-center">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-50 border border-gray-100 flex-shrink-0 flex items-center justify-center">
                     {item.image_url && !failedImageGtins.has(item.gtin) ? (
                       <img
                         src={item.image_url}
@@ -373,16 +307,16 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                         onError={() => setFailedImageGtins((prev) => new Set(prev).add(item.gtin))}
                       />
                     ) : (
-                      <span className="text-lg">🛍️</span>
+                      <span className="text-2xl">🛍️</span>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[12px] font-bold text-gray-900 leading-tight line-clamp-2">{item.title}</p>
+                    <p className="text-[14px] font-bold text-gray-900 leading-tight line-clamp-2">{item.title}</p>
                     {typeof item.price === 'number' && (
-                      <p className="text-[12px] font-bold text-emerald-700 mt-0.5">
+                      <p className="text-[13px] font-bold text-emerald-700 mt-1">
                         {item.offer_count > 1 ? 'A partir de ' : ''}{formatBRLPrice(item.price)}
                         {item.offer_count > 1 && (
-                          <span className="block mt-0.5 text-[9px] font-black uppercase tracking-wide text-blue-600 whitespace-nowrap">
+                          <span className="block mt-0.5 text-[10px] font-black uppercase tracking-wide text-blue-600 whitespace-nowrap">
                             {merchantLabel(item.merchant)} · +{item.offer_count - 1} loja{item.offer_count - 1 > 1 ? 's' : ''}
                           </span>
                         )}

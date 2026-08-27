@@ -1603,7 +1603,7 @@ async def commerce_product_candidates(
 async def commerce_awin_search(
     q: str = Query(..., min_length=2, max_length=150, description="Busca por nome/marca no catálogo sincronizado"),
     merchant: Optional[str] = Query(None, description="Filtra por um merchant específico — por padrão busca em todos os merchants Awin habilitados"),
-    limit: int = Query(20, ge=1, le=30),
+    limit: int = Query(50, ge=1, le=60),
     db: Session = Depends(get_db),
 ):
     """
