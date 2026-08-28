@@ -928,13 +928,6 @@ export function ParasiteItemSheet({
               ) : (
                 <AffiliateCatalogSearch
                   petId={petId}
-                  initialQuery={
-                    type === 'dewormer'
-                      ? 'vermífugo cão'
-                      : type === 'collar'
-                        ? 'coleira antipulgas cão'
-                        : 'antipulgas cão'
-                  }
                 />
               )}
 
