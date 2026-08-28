@@ -9,6 +9,7 @@ Endpoints:
 """
 import json
 import math
+import mimetypes
 import os
 import uuid
 import logging
@@ -22,6 +23,7 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import Column, Integer, String, DateTime, Text, Float
 from sqlalchemy.orm import Session
@@ -1005,6 +1007,26 @@ def public_missing_pet_status(token: str, db: Session = Depends(get_db)):
     }
 
 
+@router.get("/status/{token}/found-reports/{report_id}/video")
+def public_missing_pet_status_video(token: str, report_id: str, db: Session = Depends(get_db)):
+    """Serve vídeo de prova para quem possui o link/token privado de acompanhamento."""
+    mp = db.query(MissingPet).filter(MissingPet.access_token == token).first()
+    if not mp:
+        raise HTTPException(status_code=404, detail="Registro não encontrado")
+    report = (
+        db.query(FoundReport)
+        .filter(
+            FoundReport.id == report_id,
+            FoundReport.missing_pet_id == mp.id,
+            FoundReport.dismissed != 1,
+        )
+        .first()
+    )
+    if not report:
+        raise HTTPException(status_code=404, detail="Report não encontrado")
+    return _found_report_video_response(report)
+
+
 @router.get("/public-cases")
 def public_missing_pet_cases(db: Session = Depends(get_db)):
     pets = (
@@ -1254,6 +1276,46 @@ def get_found_report_photos(
         **_compatibility_payload(report.compatibility_score, report.compatibility_analysis),
         **_risk_payload(report),
     }
+
+
+def _found_report_video_file_path(video_url: str) -> str:
+    filename = os.path.basename((video_url or "").split("?", 1)[0])
+    if not filename:
+        raise HTTPException(status_code=404, detail="Vídeo não encontrado")
+    upload_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "uploads", "found_videos"))
+    file_path = os.path.abspath(os.path.join(upload_dir, filename))
+    if not file_path.startswith(upload_dir + os.sep):
+        raise HTTPException(status_code=400, detail="Caminho de vídeo inválido")
+    return file_path
+
+
+def _found_report_video_response(report: FoundReport):
+    if not report.finder_video_url:
+        raise HTTPException(status_code=404, detail="Vídeo não encontrado")
+    file_path = _found_report_video_file_path(report.finder_video_url)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Arquivo de vídeo não encontrado")
+    media_type = mimetypes.guess_type(file_path)[0] or "video/mp4"
+    return FileResponse(
+        file_path,
+        media_type=media_type,
+        filename=os.path.basename(file_path),
+    )
+
+
+@router.get("/found-reports/{report_id}/video")
+def get_found_report_video(
+    report_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Serve o vídeo do achador apenas para o tutor/família com acesso ao pet."""
+    report = db.query(FoundReport).filter(FoundReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report não encontrado")
+    mp = db.query(MissingPet).filter(MissingPet.id == report.missing_pet_id).first()
+    _ensure_missing_pet_access(db, str(current_user.id), mp)
+    return _found_report_video_response(report)
 
 
 @router.get("/my-active")

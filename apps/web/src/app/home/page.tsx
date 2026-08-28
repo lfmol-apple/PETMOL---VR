@@ -879,24 +879,71 @@ function HomePageInner() {
     risk_level?: string;
     risk_label?: string;
     risk_flags?: string[];
-    score: number | null;
-    analysis: string | null;
+    score?: number | null;
+    analysis?: string | null;
+    compatibility_score?: number | null;
+    compatibility_analysis?: string | null;
     confidence_level?: string;
     confidence_label?: string;
     requires_human_confirmation?: boolean;
   };
   const [photosModal, setPhotosModal] = useState<PhotosModalData | null>(null);
   const [photosModalLoading, setPhotosModalLoading] = useState(false);
+  const [photosModalVideoSrc, setPhotosModalVideoSrc] = useState<string | null>(null);
+  const [photosModalVideoError, setPhotosModalVideoError] = useState(false);
+  const photosModalObjectUrlRef = useRef<string | null>(null);
+
+  const clearPhotosModalVideo = useCallback(() => {
+    if (photosModalObjectUrlRef.current) {
+      URL.revokeObjectURL(photosModalObjectUrlRef.current);
+      photosModalObjectUrlRef.current = null;
+    }
+    setPhotosModalVideoSrc(null);
+    setPhotosModalVideoError(false);
+  }, []);
+
+  useEffect(() => () => clearPhotosModalVideo(), [clearPhotosModalVideo]);
+
+  const closePhotosModal = useCallback(() => {
+    clearPhotosModalVideo();
+    setPhotosModal(null);
+  }, [clearPhotosModalVideo]);
 
   const openPhotosModal = async (reportId: string) => {
     setPhotosModalLoading(true);
     setPhotosModal(null);
+    clearPhotosModalVideo();
     try {
       const token = getToken();
       const r = await fetch(`${API_BASE_URL}/missing-pets/found-reports/${reportId}/photos`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (r.ok) setPhotosModal(await r.json() as PhotosModalData);
+      if (r.ok) {
+        const raw = await r.json() as PhotosModalData;
+        const normalized: PhotosModalData = {
+          ...raw,
+          score: raw.score ?? raw.compatibility_score ?? null,
+          analysis: raw.analysis ?? raw.compatibility_analysis ?? null,
+        };
+        setPhotosModal(normalized);
+        setPhotosModalLoading(false);
+        if (normalized.video_url && token) {
+          try {
+            const vr = await fetch(`${API_BASE_URL}/missing-pets/found-reports/${reportId}/video`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (vr.ok) {
+              const objectUrl = URL.createObjectURL(await vr.blob());
+              photosModalObjectUrlRef.current = objectUrl;
+              setPhotosModalVideoSrc(objectUrl);
+            } else {
+              setPhotosModalVideoError(true);
+            }
+          } catch {
+            setPhotosModalVideoError(true);
+          }
+        }
+      }
     } catch { /* silent */ }
     setPhotosModalLoading(false);
   };
@@ -2076,18 +2123,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     </button>
                   )}
 
-                  {rep.video_url && (
-                    <div className="mt-3 overflow-hidden rounded-2xl border border-white/20 bg-black/35">
-                      <video
-                        src={resolvePetPhotoUrl(rep.video_url) ?? rep.video_url}
-                        controls
-                        playsInline
-                        preload="metadata"
-                        className="max-h-72 w-full bg-black object-contain"
-                      />
-                    </div>
-                  )}
-
                   <div className="mt-3 flex gap-2">
                     <a
                       href={`https://wa.me/55${rep.finder_contact.replace(/\D/g, '')}`}
@@ -2867,7 +2902,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
       {/* Modal de fotos do achador */}
       {(photosModal || photosModalLoading) && (
-        <div className="fixed inset-0 z-[80] flex flex-col bg-black/80 backdrop-blur-sm" onClick={() => { setPhotosModal(null); }}>
+        <div className="fixed inset-0 z-[80] flex flex-col bg-black/80 backdrop-blur-sm" onClick={closePhotosModal}>
           <div
             className="mt-auto bg-[#0F0D0B] rounded-t-[28px] max-h-[90dvh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
@@ -2879,7 +2914,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
               <p className="font-black text-white text-[16px]">Provas do achador</p>
               <button
                 type="button"
-                onClick={() => setPhotosModal(null)}
+                onClick={closePhotosModal}
                 className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/60"
               >×</button>
             </div>
@@ -2934,7 +2969,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       </div>
                     </div>
                   )}
-                  {photosModal.video_url && (
+                  {(photosModal.video_url || photosModalVideoSrc) && (
                     <div className="rounded-2xl border border-amber-500/40 bg-amber-950/40 p-3">
                       <p className="mb-2 text-[12px] font-black uppercase tracking-widest text-amber-200">
                         Prova dinâmica em vídeo
@@ -2947,19 +2982,39 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       <div className="mb-3 rounded-xl bg-black/20 px-3 py-2 text-[11px] font-semibold leading-snug text-amber-100/75">
                         Confira se o pet aparece se mexendo, se o desafio foi cumprido e se o ambiente parece atual. Se algo parecer estranho, marque como suspeito.
                       </div>
-                      <video
-                        src={resolvePetPhotoUrl(photosModal.video_url) ?? photosModal.video_url}
-                        controls
-                        playsInline
-                        preload="metadata"
-                        className="max-h-[420px] w-full rounded-xl bg-black object-contain"
-                      />
+                      {photosModalVideoSrc ? (
+                        <video
+                          src={photosModalVideoSrc}
+                          controls
+                          playsInline
+                          preload="metadata"
+                          className="max-h-[420px] w-full rounded-xl bg-black object-contain"
+                        />
+                      ) : photosModalVideoError ? (
+                        <div className="flex min-h-40 items-center justify-center rounded-xl bg-black/30 px-4 text-center text-[12px] font-bold text-amber-100/70">
+                          Não foi possível carregar o vídeo protegido. Feche e abra as provas novamente.
+                        </div>
+                      ) : (
+                        <div className="flex min-h-40 items-center justify-center rounded-xl bg-black/30 text-[12px] font-bold text-amber-100/70">
+                          Carregando vídeo protegido...
+                        </div>
+                      )}
+                      {photosModalVideoSrc && (
+                        <a
+                          href={photosModalVideoSrc}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-flex text-[12px] font-black text-amber-100 underline decoration-amber-300/50 underline-offset-4"
+                        >
+                          Abrir vídeo em tela cheia
+                        </a>
+                      )}
                     </div>
                   )}
                   <div className={`grid gap-3 ${photosModal.photos.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                     {photosModal.photos.map((photo, i) => (
                       /* eslint-disable-next-line @next/next/no-img-element */
-                      <img key={i} src={photo} alt={`Foto ${i + 1}`} className="w-full rounded-2xl object-cover border border-white/10" style={{ maxHeight: 340 }} />
+                      <img key={i} src={resolvePetPhotoUrl(photo) ?? photo} alt={`Foto ${i + 1}`} className="w-full rounded-2xl object-cover border border-white/10" style={{ maxHeight: 340 }} />
                     ))}
                   </div>
                 </>
