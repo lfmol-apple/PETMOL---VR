@@ -4,6 +4,7 @@ Endpoint admin de disparo/acompanhamento do sync da Shopee via HTTPS
 sync_shopee_offer_for_gtin é sempre monkeypatchado.
 """
 import time
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -16,7 +17,7 @@ import pytest
 _REAL_SLEEP = time.sleep
 
 import src.admin.shopee_sync_router as sync_router
-from src.affiliate_feed import AffiliateFeedOffer
+from src.affiliate_feed import AffiliateFeedOffer, AffiliateFeedSyncRun
 from src.config import get_settings
 from src.db import SessionLocal
 from src.main import app
@@ -62,6 +63,30 @@ def _register_product(gtin: str) -> None:
         db.commit()
     finally:
         db.close()
+
+
+def _mark_awin_success(merchant: str, *, finished_at: datetime | None = None) -> None:
+    db = SessionLocal()
+    try:
+        db.add(AffiliateFeedSyncRun(
+            network="awin",
+            merchant=merchant,
+            advertiser_id=f"test-{merchant}",
+            feed_id=f"feed-{merchant}",
+            status="success",
+            finished_at=finished_at or datetime.now(timezone.utc),
+            rows_seen=1,
+            rows_upserted=1,
+            rows_in_stock=1,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+
+def _mark_default_awin_success() -> None:
+    for merchant in ("cobasi", "zeenow", "zeedog"):
+        _mark_awin_success(merchant)
 
 
 def _wait_until_finished(client, headers, timeout_s: float = 5.0) -> dict:
@@ -167,6 +192,7 @@ def test_run_dispara_processa_e_atualiza_status(monkeypatch, client):
 
 def test_run_awin_feed_all_usa_linha_do_feed_para_criar_catalogo(monkeypatch, client):
     _enable_token(monkeypatch)
+    _mark_default_awin_success()
     gtin = "7891234500094"
     db = SessionLocal()
     try:
@@ -230,6 +256,25 @@ def test_run_awin_feed_all_usa_linha_do_feed_para_criar_catalogo(monkeypatch, cl
     assert final["audit_deactivated"] == 2
     assert audits == [((("cobasi", "zeenow", "zeedog")), True, sync_router.DEFAULT_AUDIT_MAX_ROWS)]
     assert calls == [(gtin, "Vermifugo Teste Zee Now 10kg", "Marca Teste")]
+
+
+def test_run_awin_feed_all_recusa_quando_feed_awin_esta_stale(monkeypatch, client):
+    _enable_token(monkeypatch)
+    stale_finished_at = datetime.now(timezone.utc) - timedelta(hours=get_settings().awin_stale_after_hours + 1)
+    _mark_awin_success("cobasi", finished_at=stale_finished_at)
+    _mark_awin_success("zeenow")
+    _mark_awin_success("zeedog")
+
+    r = client.post(
+        "/v1/admin/shopee-sync/run",
+        json={"source": "awin_feed_all", "feed_merchants": ["cobasi", "zeenow", "zeedog"]},
+        headers={"X-Sync-Token": TOKEN},
+    )
+
+    assert r.status_code == 409
+    assert "Awin feed stale" in r.json()["detail"]
+    with sync_router.STATE.lock:
+        assert sync_router.STATE.running is False
 
 
 def test_run_enquanto_ja_esta_rodando_nao_dispara_outro(monkeypatch, client):

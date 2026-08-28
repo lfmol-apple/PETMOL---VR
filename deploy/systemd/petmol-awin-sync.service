@@ -1,0 +1,10 @@
+[Unit]
+Description=PETMOL Awin product feed sync (Cobasi/Zee Now/Zee Dog)
+After=network.target
+
+[Service]
+Type=oneshot
+User=petmol
+Group=petmol
+WorkingDirectory=/opt/petmol/current/services/price-service
+ExecStart=/opt/petmol/shared/bin/petmol-awin-sync-trigger.sh
