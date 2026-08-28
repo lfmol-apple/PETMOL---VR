@@ -32,7 +32,7 @@ fail() { echo "[activate][FAIL] $*" >&2; exit 1; }
 [ -f "$TARBALL" ] || fail "tarball not found: $TARBALL"
 
 mkdir -p "$RELEASES_DIR" "$SHARED_DIR/env" "$SHARED_DIR/uploads" "$SHARED_DIR/logs" \
-    "$SHARED_DIR/persistent" "$SHARED_DIR/venv"
+    "$SHARED_DIR/persistent" "$SHARED_DIR/venv" "$SHARED_DIR/bin"
 
 # ── Step 1: extract (outside lock) ──────────────────────────────────────────
 if [ -d "$RELEASE_DIR" ]; then
@@ -103,6 +103,11 @@ if compgen -G "$RELEASE_DIR/deploy/systemd/*.service" >/dev/null; then
 fi
 if compgen -G "$RELEASE_DIR/deploy/systemd/*.timer" >/dev/null; then
     cp "$RELEASE_DIR"/deploy/systemd/*.timer /etc/systemd/system/
+fi
+if compgen -G "$RELEASE_DIR/deploy/systemd/*.sh" >/dev/null; then
+    for script_path in "$RELEASE_DIR"/deploy/systemd/*.sh; do
+        install -o petmol -g petmol -m 0750 "$script_path" "$SHARED_DIR/bin/$(basename "$script_path")"
+    done
 fi
 systemctl daemon-reload
 if compgen -G "$RELEASE_DIR/deploy/systemd/*.timer" >/dev/null; then

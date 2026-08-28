@@ -1,6 +1,6 @@
 [Unit]
 Description=PETMOL Shopee sync trigger (Awin feed — Cobasi/Zee Now/Zee Dog)
-After=network.target petmol-api.service
+After=network.target petmol-api.service petmol-awin-sync.service
 Requires=petmol-api.service
 
 [Service]
@@ -10,9 +10,9 @@ Group=petmol
 # Only fires the HTTP trigger — the sync itself runs in a background thread
 # inside petmol-api (see shopee_sync_router.py) and outlives this oneshot.
 # skip_existing_shopee=true makes repeat runs cheap (only new/unmatched
-# feed rows are processed); the router itself refuses to start a second
-# run while one is still in progress, so a slow first pass never overlaps
-# with the next scheduled trigger.
+# feed rows are processed). The router also refuses to run from Awin feed
+# sources when the Awin catalog is stale, because otherwise Shopee remains
+# fresh while Cobasi/Zee Now/Zee Dog disappear from /commerce/offers.
 #
 # Inlining the curl call here (rather than calling a script) was tried
 # first and failed: systemd's own ExecStart= line parser mangles

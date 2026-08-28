@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily PETMOL Awin product feed sync
+
+[Timer]
+# 04:00 UTC ~= 01:00 America/Sao_Paulo. Runs before Shopee sync so
+# marketplace enrichment never becomes the only fresh source of offers.
+OnCalendar=*-*-* 04:00:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target

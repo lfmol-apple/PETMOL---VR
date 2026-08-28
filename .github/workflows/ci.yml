@@ -139,6 +139,7 @@ jobs:
           cp deploy/release/activate.sh deploy/release/rollback.sh deploy/release/health_check.sh /tmp/release/deploy/release/
           cp deploy/systemd/*.service /tmp/release/deploy/systemd/
           cp deploy/systemd/*.timer /tmp/release/deploy/systemd/
+          cp deploy/systemd/*.sh /tmp/release/deploy/systemd/
 
       - name: Write manifest
         run: |

@@ -21,12 +21,14 @@ import hmac
 import logging
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import select
 
+from ..affiliate_feed import AffiliateFeedSyncRun
 from ..config import get_settings
 from ..db import SessionLocal
 from ..product_catalog_lookup import ProductCatalog
@@ -75,6 +77,49 @@ def _require_token(x_sync_token: Optional[str]) -> None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
 
 
+def _last_successful_awin_sync(db, merchant: str) -> Optional[datetime]:
+    return db.scalar(
+        select(AffiliateFeedSyncRun.finished_at)
+        .where(
+            AffiliateFeedSyncRun.network == "awin",
+            AffiliateFeedSyncRun.merchant == merchant,
+            AffiliateFeedSyncRun.status == "success",
+        )
+        .order_by(AffiliateFeedSyncRun.finished_at.desc())
+        .limit(1)
+    )
+
+
+def _assert_awin_source_fresh(db, merchants: tuple[str, ...]) -> None:
+    """Shopee enrichment depends on Awin as the product identity source.
+
+    If Shopee keeps refreshing while Awin is stale, /commerce/offers can
+    show only Shopee because AwinFeedProvider correctly blocks stale feeds.
+    Refuse that run loudly instead of making marketplace data the only
+    fresh commercial source.
+    """
+    settings = get_settings()
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=settings.awin_stale_after_hours)
+    stale: list[str] = []
+    for merchant in merchants:
+        last_success = _last_successful_awin_sync(db, merchant)
+        if last_success is None:
+            stale.append(f"{merchant}:never_synced")
+            continue
+        if last_success.tzinfo is None:
+            last_success = last_success.replace(tzinfo=timezone.utc)
+        if last_success < cutoff:
+            stale.append(f"{merchant}:{last_success.isoformat()}")
+    if stale:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Awin feed stale; run petmol-awin-sync before Shopee sync "
+                f"(stale={', '.join(stale)})"
+            ),
+        )
+
+
 def _run_sync(
     categories: list[str],
     source: str = "categories",
@@ -88,6 +133,11 @@ def _run_sync(
     db = SessionLocal()
     try:
         source_merchants = tuple(feed_merchants or ["cobasi", "zeenow", "zeedog"])
+        if source == "awin_feed_all":
+            _assert_awin_source_fresh(db, source_merchants)
+        elif source == "awin_feed":
+            _assert_awin_source_fresh(db, (feed_merchant,))
+
         if source == "awin_feed_all" and audit_existing_shopee:
             with STATE.lock:
                 STATE.phase = "auditing_existing_shopee"
@@ -182,6 +232,16 @@ def run_sync(payload: RunRequest, x_sync_token: Optional[str] = Header(default=N
     _require_token(x_sync_token)
     if payload.source not in ALLOWED_SOURCES:
         raise HTTPException(status_code=400, detail=f"source inválido: {payload.source}")
+    source_merchants = tuple(payload.feed_merchants or ["cobasi", "zeenow", "zeedog"])
+    if payload.source in {"awin_feed", "awin_feed_all"}:
+        db = SessionLocal()
+        try:
+            if payload.source == "awin_feed_all":
+                _assert_awin_source_fresh(db, source_merchants)
+            else:
+                _assert_awin_source_fresh(db, (payload.feed_merchant,))
+        finally:
+            db.close()
     with STATE.lock:
         if STATE.running:
             return {"started": False, "reason": "already_running"}
