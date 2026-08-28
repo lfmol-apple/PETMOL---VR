@@ -994,6 +994,10 @@ def public_missing_pet_status(token: str, db: Session = Depends(get_db)):
                 "created_at": r.created_at.isoformat() if r.created_at else None,
                 "has_photos": bool(r.finder_photos),
                 "photo_count": len(json.loads(r.finder_photos)) if r.finder_photos else 0,
+                "has_video": bool(r.finder_video_url),
+                "video_url": r.finder_video_url,
+                "proof_challenge": r.proof_challenge,
+                "proof_verified": bool(r.proof_verified),
                 **_compatibility_payload(r.compatibility_score, r.compatibility_analysis),
             }
             for r in reports
@@ -1136,6 +1140,7 @@ def my_found_reports(db: Session = Depends(get_db), current_user=Depends(get_cur
             "has_photos": bool(r.finder_photos),
             "photo_count": len(json.loads(r.finder_photos)) if r.finder_photos else 0,
             "has_video": bool(r.finder_video_url),
+            "video_url": r.finder_video_url,
             "proof_challenge": r.proof_challenge,
             "proof_verified": bool(r.proof_verified),
         }

@@ -580,7 +580,7 @@ export function VaccineItemSheet({
           <div className="p-5 space-y-4 pb-8">
             <h3 className="text-[16px] font-bold text-gray-900">Onde comprar</h3>
             <p className="text-sm text-gray-500">Busque vacina, medicamento ou item de saúde pet.</p>
-            <AffiliateCatalogSearch petId={petId ?? ''} initialQuery="vacina pet" />
+            <AffiliateCatalogSearch petId={petId ?? ''} />
 
             <button
               type="button"

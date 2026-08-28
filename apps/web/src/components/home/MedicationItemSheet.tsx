@@ -992,7 +992,6 @@ export function MedicationItemSheet({
                   <p className="text-sm text-gray-500 mb-3">Busque pelo nome ou marca do medicamento.</p>
                   <AffiliateCatalogSearch
                     petId={petId}
-                    initialQuery="medicamento pet"
                   />
                 </div>
               )}

@@ -23,6 +23,10 @@ type PublicStatus = {
     created_at: string | null;
     has_photos: boolean;
     photo_count: number;
+    has_video?: boolean;
+    video_url?: string | null;
+    proof_challenge?: string | null;
+    proof_verified?: boolean;
     confidence_label?: string;
   }>;
 };
@@ -199,7 +203,24 @@ export default function ReportarPetPerdidoPage() {
                       <p className="font-bold">{report.confidence_label || 'Novo contato recebido'}</p>
                       <p className="mt-1 text-sm text-slate-600">{report.finder_location || 'Local não informado'}</p>
                       {report.notes && <p className="mt-2 text-sm text-slate-700">{report.notes}</p>}
+                      {report.video_url && (
+                        <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-black">
+                          <video
+                            src={resolvePetPhotoUrl(report.video_url) ?? report.video_url}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            className="max-h-72 w-full bg-black object-contain"
+                          />
+                        </div>
+                      )}
+                      {report.has_video && !report.video_url && <p className="mt-2 text-xs font-bold text-amber-700">Vídeo enviado</p>}
                       {report.has_photos && <p className="mt-2 text-xs font-bold text-blue-700">{report.photo_count} foto(s) enviada(s)</p>}
+                      {report.proof_challenge && (
+                        <p className="mt-2 text-xs text-slate-500">
+                          Prova dinâmica: {report.proof_verified ? 'validada' : 'pendente'}.
+                        </p>
+                      )}
                     </div>
                   ))
                 ) : (

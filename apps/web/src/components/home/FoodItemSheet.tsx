@@ -1180,7 +1180,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                     <>
                       <AffiliateCatalogSearch
                         petId={pet.pet_id}
-                        initialQuery="ração pet"
                       />
                       <button
                         type="button"

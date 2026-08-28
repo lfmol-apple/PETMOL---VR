@@ -869,7 +869,7 @@ function HomePageInner() {
     compatibility_score: number | null; compatibility_analysis: string | null;
     confidence_level?: string; confidence_label?: string; requires_human_confirmation?: boolean;
     risk_level?: string; risk_label?: string; risk_flags?: string[]; proof_verified?: boolean;
-    has_photos: boolean; photo_count: number; has_video?: boolean; proof_challenge?: string | null;
+    has_photos: boolean; photo_count: number; has_video?: boolean; video_url?: string | null; proof_challenge?: string | null;
   };
   type PhotosModalData = {
     photos: string[];
@@ -2076,6 +2076,18 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     </button>
                   )}
 
+                  {rep.video_url && (
+                    <div className="mt-3 overflow-hidden rounded-2xl border border-white/20 bg-black/35">
+                      <video
+                        src={resolvePetPhotoUrl(rep.video_url) ?? rep.video_url}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        className="max-h-72 w-full bg-black object-contain"
+                      />
+                    </div>
+                  )}
+
                   <div className="mt-3 flex gap-2">
                     <a
                       href={`https://wa.me/55${rep.finder_contact.replace(/\D/g, '')}`}
@@ -2939,6 +2951,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                         src={resolvePetPhotoUrl(photosModal.video_url) ?? photosModal.video_url}
                         controls
                         playsInline
+                        preload="metadata"
                         className="max-h-[420px] w-full rounded-xl bg-black object-contain"
                       />
                     </div>
