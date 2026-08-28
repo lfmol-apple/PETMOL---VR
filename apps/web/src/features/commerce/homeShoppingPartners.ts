@@ -93,11 +93,14 @@ export const AFFILIATE_ONLY_COMMERCE: boolean =
 //   NEXT_PUBLIC_AFFILIATE_SHOPEE=https://s.shopee.com.br/SUA_URL_AFILIADA
 //   NEXT_PUBLIC_AFFILIATE_ZEENOW=https://www.awin1.com/cread.php?awinmid=127557&awinaffid=SEU_ID
 //   NEXT_PUBLIC_AFFILIATE_ZEEDOG=https://www.awin1.com/cread.php?awinmid=127555&awinaffid=SEU_ID
+const DEFAULT_SHOPEE_AFFILIATE_URL = 'https://s.shopee.com.br/4AzW1leQcW';
+const DEFAULT_AWIN_PUBLISHER_ID = '3032803';
+
 const AFF: Record<HomeShoppingPartnerId, string | undefined> = {
   cobasi:       process.env.NEXT_PUBLIC_AFFILIATE_COBASI,
-  shopee:       process.env.NEXT_PUBLIC_AFFILIATE_SHOPEE,
-  zeenow:       process.env.NEXT_PUBLIC_AFFILIATE_ZEENOW,
-  zeedog:       process.env.NEXT_PUBLIC_AFFILIATE_ZEEDOG,
+  shopee:       process.env.NEXT_PUBLIC_AFFILIATE_SHOPEE ?? DEFAULT_SHOPEE_AFFILIATE_URL,
+  zeenow:       process.env.NEXT_PUBLIC_AFFILIATE_ZEENOW ?? `https://www.awin1.com/cread.php?awinmid=127557&awinaffid=${DEFAULT_AWIN_PUBLISHER_ID}`,
+  zeedog:       process.env.NEXT_PUBLIC_AFFILIATE_ZEEDOG ?? `https://www.awin1.com/cread.php?awinmid=127555&awinaffid=${DEFAULT_AWIN_PUBLISHER_ID}`,
   petz:         undefined, // storefront fixa (storefrontAffiliateUrl abaixo), não usa este mecanismo
 };
 
