@@ -76,6 +76,24 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
     }
   });
 
+  it('abre a URL afiliada exata sem cortar o referer do navegador', async () => {
+    const openSpy = vi.fn();
+    vi.stubGlobal('open', openSpy);
+
+    try {
+      const { navigateToPartnerUrl } = await import('./homeShoppingPartners');
+      const url = 'https://www.awin1.com/cread.php?awinmid=127557&awinaffid=123456&ued=https%3A%2F%2Fwww.zeenow.com.br%2Fpromocoes';
+
+      navigateToPartnerUrl(url);
+
+      expect(openSpy).toHaveBeenCalledWith(url, '_blank', 'noopener');
+      expect(openSpy.mock.calls[0]?.[2]).not.toContain('noreferrer');
+    } finally {
+      vi.unstubAllGlobals();
+      vi.resetModules();
+    }
+  });
+
   it('em affiliate-only não abre busca direta genérica sem afiliado confirmado', async () => {
     const previous = process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE;
     process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE = 'true';
@@ -139,6 +157,59 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
         delete process.env.NEXT_PUBLIC_AFFILIATE_SHOPEE;
       } else {
         process.env.NEXT_PUBLIC_AFFILIATE_SHOPEE = previousShopee;
+      }
+      vi.resetModules();
+    }
+  });
+
+  it('monta deep link Awin com ued para Zee Now e Zee Dog quando as URLs afiliadas estão configuradas', async () => {
+    const previousOnly = process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE;
+    const previousZeeNow = process.env.NEXT_PUBLIC_AFFILIATE_ZEENOW;
+    const previousZeeDog = process.env.NEXT_PUBLIC_AFFILIATE_ZEEDOG;
+    process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE = 'true';
+    process.env.NEXT_PUBLIC_AFFILIATE_ZEENOW = 'https://www.awin1.com/cread.php?awinmid=127557&awinaffid=123456';
+    process.env.NEXT_PUBLIC_AFFILIATE_ZEEDOG = 'https://www.awin1.com/cread.php?awinmid=127555&awinaffid=123456';
+    vi.resetModules();
+
+    try {
+      const {
+        HOME_SHOPPING_PARTNERS,
+        resolvePartnerUrl,
+        isPartnerVisibleInStoreArea,
+      } = await import('./homeShoppingPartners');
+
+      const zeenow = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'zeenow');
+      const zeedog = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'zeedog');
+      const zeenowUrl = zeenow && resolvePartnerUrl(zeenow, 'ração baby', '');
+      const zeedogUrl = zeedog && resolvePartnerUrl(zeedog, 'ração baby', '');
+
+      expect(zeenowUrl).toContain('https://www.awin1.com/cread.php?awinmid=127557&awinaffid=123456&ued=');
+      expect(zeenowUrl).toContain(encodeURIComponent('https://www.zeenow.com.br/busca?q=ra%C3%A7%C3%A3o%20baby'));
+      expect(zeenowUrl).not.toContain('&url=');
+      expect(zeedogUrl).toContain('https://www.awin1.com/cread.php?awinmid=127555&awinaffid=123456&ued=');
+      expect(zeedogUrl).toContain(encodeURIComponent('https://www.zeedog.com.br/busca?q=ra%C3%A7%C3%A3o%20baby'));
+      expect(zeedogUrl).not.toContain('&url=');
+      expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
+        'cobasi',
+        'zeenow',
+        'zeedog',
+        'petz',
+      ]);
+    } finally {
+      if (previousOnly === undefined) {
+        delete process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE;
+      } else {
+        process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE = previousOnly;
+      }
+      if (previousZeeNow === undefined) {
+        delete process.env.NEXT_PUBLIC_AFFILIATE_ZEENOW;
+      } else {
+        process.env.NEXT_PUBLIC_AFFILIATE_ZEENOW = previousZeeNow;
+      }
+      if (previousZeeDog === undefined) {
+        delete process.env.NEXT_PUBLIC_AFFILIATE_ZEEDOG;
+      } else {
+        process.env.NEXT_PUBLIC_AFFILIATE_ZEEDOG = previousZeeDog;
       }
       vi.resetModules();
     }

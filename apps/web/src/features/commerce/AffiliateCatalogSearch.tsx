@@ -209,7 +209,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                   key={`${barcode}:${offer.merchant}`}
                   href={offer.url}
                   target="_blank"
-                  rel="noopener noreferrer"
+                  rel="noopener"
                   onClick={() => trackBuyClick(barcode, offer)}
                   className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 transition-all active:scale-[0.98]"
                 >
@@ -388,7 +388,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                           key={offer.merchant}
                           href={offer.url}
                           target="_blank"
-                          rel="noopener noreferrer"
+                          rel="noopener"
                           onClick={(event) => {
                             event.stopPropagation();
                             trackBuyClick(item.gtin, offer);

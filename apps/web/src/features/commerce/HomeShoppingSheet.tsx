@@ -9,9 +9,11 @@ import {
   HOME_SHOPPING_PARTNERS,
   openHomeShoppingPartner,
   navigateToPartnerUrl,
+  resolvePartnerUrl,
   copyPetzCouponAndOpen,
   PETZ_COUPON_CODE,
   isPartnerVisibleForSearch,
+  isPartnerVisibleInStoreArea,
   partnerGenericLinkType,
   type HomeShoppingPartner,
   type HomeShoppingPartnerId,
@@ -39,10 +41,12 @@ interface HomeShoppingSheetProps {
 // antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
 export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
+  const [reorderOpen, setReorderOpen] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setQuickBuyFor(null);
+      setReorderOpen(false);
       return;
     }
     void trackClick({ source: 'home', cta_type: 'shop_sheet_view', pet_id: currentPet.pet_id });
@@ -50,6 +54,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   }, [open, currentPet.pet_id]);
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
+  const visibleStorePartners = useMemo(() => HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea), []);
 
   const visibleQuickBuyPartners = useMemo(
     () =>
@@ -74,6 +79,29 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
       pet_id: currentPet.pet_id,
       metadata: { ...metadata, opened },
     });
+  }
+
+  function handleStorePartnerOpen(partner: HomeShoppingPartner) {
+    const searchQuery = 'produtos pet';
+    const url = resolvePartnerUrl(partner, searchQuery, '');
+    void trackClick({
+      source: 'home',
+      cta_type: 'shop_partner_store_click',
+      target: partner.id,
+      link_type: partnerGenericLinkType(partner.id),
+      pet_id: currentPet.pet_id,
+      metadata: {
+        opened: Boolean(url),
+        surface: 'store_grid',
+        search_query: searchQuery,
+      },
+    });
+    if (!url) return;
+    if (partner.id === 'petz') {
+      void copyPetzCouponAndOpen(url);
+      return;
+    }
+    navigateToPartnerUrl(url);
   }
 
   return (
@@ -111,62 +139,82 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
         {/* Scrollable content */}
         <div className="overflow-y-auto overscroll-contain flex-1 px-5 pb-8 space-y-5">
-              {/* ❤️ Comprar novamente — sempre primeiro */}
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">❤️ Comprar novamente</p>
-                {reorderCards.length > 0 ? (
-                  <div className="space-y-2">
-                    {reorderCards.map((card) => {
-                      const pickerKey = `reorder:${card.id}`;
-                      return (
-                        <ReorderCardItem
-                          key={card.id}
-                          card={card}
-                          isPickerOpen={quickBuyFor === pickerKey}
-                          visibleQuickBuyPartners={visibleQuickBuyPartners}
-                          onTogglePicker={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
-                          onQuickBuy={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, label: card.label })}
-                          onDirectBuy={(offer) => {
-                            if (offer.url) navigateToPartnerUrl(offer.url);
-                            void trackClick({
-                              source: 'home',
-                              cta_type: 'shop_reorder_buy_direct',
-                              target: offer.merchant,
-                              link_type: offer.link_type,
-                              pet_id: currentPet.pet_id,
-                              metadata: { domain: card.domain, label: card.label, price: offer.price },
-                            });
-                          }}
-                          onPetzBuy={(url) => {
-                            void copyPetzCouponAndOpen(url);
-                            // §7/§18 da auditoria de monetização — ver mesmo
-                            // comentário em MonetizedOffersList.tsx::handleVerNaPetz.
-                            const petzStorefrontUrl = HOME_SHOPPING_PARTNERS.find((p) => p.id === 'petz')?.storefrontAffiliateUrl;
-                            void trackClick({
-                              source: 'home',
-                              cta_type: 'shop_reorder_buy_petz',
-                              target: 'petz',
-                              link_type: 'affiliate_store',
-                              pet_id: currentPet.pet_id,
-                              metadata: {
-                                domain: card.domain,
-                                label: card.label,
-                                monetization_mode: 'coupon_attribution_verified',
-                                destination_type: url === petzStorefrontUrl ? 'storefront' : 'product',
-                                coupon: PETZ_COUPON_CODE,
-                                product_gtin: card.gtin ?? undefined,
-                              },
-                            });
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-gray-200 p-4 text-center">
-                    <p className="text-[13px] text-gray-500">
-                      Cadastre a ração ou o antiparasitário {petDo(currentPet)} {petName || 'pet'} para ver as recompras aqui.
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
+                <button
+                  type="button"
+                  onClick={() => setReorderOpen((value) => !value)}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-white p-3 text-left shadow-sm transition-all hover:border-emerald-200 active:scale-[0.99]"
+                  aria-expanded={reorderOpen}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                      Produtos {petDo(currentPet)} {petName || 'pet'}
                     </p>
+                    <p className="text-[12px] font-semibold text-gray-500 truncate">Comprar novamente</p>
+                  </div>
+                  <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-black text-gray-500">{reorderCards.length}</span>
+                  <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-emerald-500 text-sm font-black text-white">
+                    {reorderOpen ? '−' : '+'}
+                  </span>
+                </button>
+
+                {reorderOpen && (
+                  <div className="mt-3">
+                    {reorderCards.length > 0 ? (
+                      <div className="space-y-2">
+                        {reorderCards.map((card) => {
+                          const pickerKey = `reorder:${card.id}`;
+                          return (
+                            <ReorderCardItem
+                              key={card.id}
+                              card={card}
+                              isPickerOpen={quickBuyFor === pickerKey}
+                              visibleQuickBuyPartners={visibleQuickBuyPartners}
+                              onTogglePicker={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
+                              onQuickBuy={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, label: card.label })}
+                              onDirectBuy={(offer) => {
+                                if (offer.url) navigateToPartnerUrl(offer.url);
+                                void trackClick({
+                                  source: 'home',
+                                  cta_type: 'shop_reorder_buy_direct',
+                                  target: offer.merchant,
+                                  link_type: offer.link_type,
+                                  pet_id: currentPet.pet_id,
+                                  metadata: { domain: card.domain, label: card.label, price: offer.price },
+                                });
+                              }}
+                              onPetzBuy={(url) => {
+                                void copyPetzCouponAndOpen(url);
+                                // §7/§18 da auditoria de monetização — ver mesmo
+                                // comentário em MonetizedOffersList.tsx::handleVerNaPetz.
+                                const petzStorefrontUrl = HOME_SHOPPING_PARTNERS.find((p) => p.id === 'petz')?.storefrontAffiliateUrl;
+                                void trackClick({
+                                  source: 'home',
+                                  cta_type: 'shop_reorder_buy_petz',
+                                  target: 'petz',
+                                  link_type: 'affiliate_store',
+                                  pet_id: currentPet.pet_id,
+                                  metadata: {
+                                    domain: card.domain,
+                                    label: card.label,
+                                    monetization_mode: 'coupon_attribution_verified',
+                                    destination_type: url === petzStorefrontUrl ? 'storefront' : 'product',
+                                    coupon: PETZ_COUPON_CODE,
+                                    product_gtin: card.gtin ?? undefined,
+                                  },
+                                });
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-4 text-center">
+                        <p className="text-[13px] text-gray-500">
+                          Cadastre a ração ou o antiparasitário {petDo(currentPet)} {petName || 'pet'} para ver as recompras aqui.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -182,11 +230,45 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                 <AffiliateCatalogSearch petId={currentPet.pet_id} />
               </div>
 
+              <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
+
               <p className="text-center text-[10px] text-gray-400 pt-1">
                 Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
                 A disponibilidade, preço, pagamento e entrega são de responsabilidade da loja escolhida.
               </p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PartnerStoreGrid({
+  partners,
+  onOpen,
+}: {
+  partners: HomeShoppingPartner[];
+  onOpen: (partner: HomeShoppingPartner) => void;
+}) {
+  if (partners.length === 0) return null;
+
+  return (
+    <div>
+      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Lojas parceiras</p>
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+        {partners.map((partner) => (
+          <button
+            key={partner.id}
+            type="button"
+            onClick={() => onOpen(partner)}
+            className="flex min-h-[96px] flex-col items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white p-3 text-center shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-50 active:scale-[0.98]"
+          >
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-gray-100 bg-white">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={partner.logoSrc} alt="" className="max-h-9 max-w-10 object-contain" loading="lazy" />
+            </span>
+            <span className="text-[12px] font-black text-gray-800">{partner.name}</span>
+          </button>
+        ))}
       </div>
     </div>
   );

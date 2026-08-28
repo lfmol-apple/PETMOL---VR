@@ -91,13 +91,33 @@ export const AFFILIATE_ONLY_COMMERCE: boolean =
 // Configure em .env.local ou no VPS /etc/petmol/petmol.env:
 //   NEXT_PUBLIC_AFFILIATE_COBASI=https://www.lomadee.com/link/SEU_ID/_id_SEU_PROGRAMA/
 //   NEXT_PUBLIC_AFFILIATE_SHOPEE=https://s.shopee.com.br/SUA_URL_AFILIADA
+//   NEXT_PUBLIC_AFFILIATE_ZEENOW=https://www.awin1.com/cread.php?awinmid=127557&awinaffid=SEU_ID
+//   NEXT_PUBLIC_AFFILIATE_ZEEDOG=https://www.awin1.com/cread.php?awinmid=127555&awinaffid=SEU_ID
 const AFF: Record<HomeShoppingPartnerId, string | undefined> = {
   cobasi:       process.env.NEXT_PUBLIC_AFFILIATE_COBASI,
   shopee:       process.env.NEXT_PUBLIC_AFFILIATE_SHOPEE,
-  zeenow:       undefined, // Awin (advertiser 127557, approved) — sem link genérico Lomadee-style
-  zeedog:       undefined, // Awin (advertiser 127555, approved) — sem link genérico Lomadee-style
+  zeenow:       process.env.NEXT_PUBLIC_AFFILIATE_ZEENOW,
+  zeedog:       process.env.NEXT_PUBLIC_AFFILIATE_ZEEDOG,
   petz:         undefined, // storefront fixa (storefrontAffiliateUrl abaixo), não usa este mecanismo
 };
+
+function appendAffiliateParam(baseUrl: string, name: string, value: string): string {
+  const separator = baseUrl.includes('?') ? '&' : '?';
+  return `${baseUrl}${separator}${name}=${encodeURIComponent(value)}`;
+}
+
+function buildAwinDeepLink(baseUrl: string, destinationUrl: string): string {
+  if (baseUrl.includes('{ued}')) {
+    return baseUrl.replaceAll('{ued}', encodeURIComponent(destinationUrl));
+  }
+  if (baseUrl.includes('{url}')) {
+    return baseUrl.replaceAll('{url}', encodeURIComponent(destinationUrl));
+  }
+  if (/[?&]ued=/.test(baseUrl)) {
+    return baseUrl;
+  }
+  return appendAffiliateParam(baseUrl, 'ued', destinationUrl);
+}
 
 export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   {
@@ -169,7 +189,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     supportsProductDeepLink: true,
     supportsStorefrontAffiliate: false,
     buildAffiliateUrl: (query, base) =>
-      `${base}&url=${encodeURIComponent(`https://www.zeenow.com.br/busca?q=${encodeURIComponent(query)}`)}`,
+      buildAwinDeepLink(base, `https://www.zeenow.com.br/busca?q=${encodeURIComponent(query)}`),
   },
   {
     id: 'zeedog',
@@ -187,7 +207,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     supportsProductDeepLink: true,
     supportsStorefrontAffiliate: false,
     buildAffiliateUrl: (query, base) =>
-      `${base}&url=${encodeURIComponent(`https://www.zeedog.com.br/busca?q=${encodeURIComponent(query)}`)}`,
+      buildAwinDeepLink(base, `https://www.zeedog.com.br/busca?q=${encodeURIComponent(query)}`),
   },
   {
     id: 'petz',
@@ -318,7 +338,7 @@ export function navigateToPartnerUrl(url: string): void {
   }
   // window.open deve ser chamado sincronamente dentro do gesto do usuário —
   // por isso a analítica é disparada em background sem bloquear a abertura.
-  window.open(url, '_blank', 'noopener,noreferrer');
+  window.open(url, '_blank', 'noopener');
 }
 
 export const PETZ_COUPON_CODE = 'PETTMOL';
