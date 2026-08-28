@@ -206,7 +206,7 @@ export default function ReportarPetPerdidoPage() {
                       {report.video_url && (
                         <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-black">
                           <video
-                            src={resolvePetPhotoUrl(report.video_url) ?? report.video_url}
+                            src={`${API_BASE_URL}/missing-pets/status/${encodeURIComponent(statusToken)}/found-reports/${encodeURIComponent(report.report_id)}/video`}
                             controls
                             playsInline
                             preload="metadata"
