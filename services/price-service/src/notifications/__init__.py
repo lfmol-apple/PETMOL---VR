@@ -192,6 +192,52 @@ def _save_subscriptions(subs: dict) -> None:
         db.close()
 
 
+def _load_subscriptions_by_user() -> dict[str, list[dict]]:
+    """Return all active Web Push subscriptions grouped by user_id.
+
+    Newer flows should use this instead of _load_subscriptions(), which is a
+    legacy compatibility shim that keeps only the latest device per user.
+    """
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(PushSubscription)
+            .filter(PushSubscription.disabled_at.is_(None))
+            .order_by(PushSubscription.last_seen_at.desc())
+            .all()
+        )
+        result: dict[str, list[dict]] = {}
+        for r in rows:
+            entry = {
+                "id": r.id,
+                "endpoint": r.endpoint,
+                "keys": {"p256dh": r.p256dh, "auth": r.auth},
+            }
+            if r.lat is not None:
+                entry["lat"] = r.lat
+            if r.lng is not None:
+                entry["lng"] = r.lng
+            result.setdefault(r.user_id, []).append(entry)
+        return result
+    finally:
+        db.close()
+
+
+def _disable_push_subscription_ids(subscription_ids: set[str]) -> None:
+    if not subscription_ids:
+        return
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        db.query(PushSubscription).filter(PushSubscription.id.in_(subscription_ids)).update(
+            {"disabled_at": now},
+            synchronize_session=False,
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
 # ── Deep link builder ────────────────────────────────────────────────────────
 
 _TYPE_TO_MODAL = {
