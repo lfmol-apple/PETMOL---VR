@@ -1524,9 +1524,9 @@ async def commerce_monetized_offer(
 
 @app.get("/commerce/petz-direct-link", tags=["Catalog"])
 async def commerce_petz_direct_link(
-    gtin: str = Query(..., description="GTIN escaneado do produto"),
-    q: Optional[str] = Query(None, description="Nome do produto — usado no fallback de busca da Petz"),
-    brand: Optional[str] = Query(None, description="Marca do produto — melhora o fallback de busca da Petz"),
+    gtin: Optional[str] = Query(None, description="GTIN do produto — quando conhecido, permite a página exata via PetzProductMapping"),
+    q: Optional[str] = Query(None, description="Nome do produto — usado na busca da Petz (fallback universal, funciona sem GTIN)"),
+    brand: Optional[str] = Query(None, description="Marca do produto — melhora a busca da Petz"),
     db: Session = Depends(get_db),
 ):
     """
@@ -1575,11 +1575,19 @@ async def commerce_petz_direct_link(
             "affiliate_program": PETZ_AFFILIATE_PROGRAM,
         }
 
-    gtin_normalized = normalize_gtin(gtin)
-    if not gtin_normalized:
+    gtin_raw = (gtin or "").strip()
+    gtin_normalized = normalize_gtin(gtin_raw) if gtin_raw else None
+    if gtin_raw and not gtin_normalized:
         raise HTTPException(status_code=400, detail="GTIN inválido")
 
-    product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
+    # Sem GTIN → sem página exata (o mapping é por produto do catálogo),
+    # mas a busca da Petz pelo nome ainda funciona: "Ver na Petz" aparece
+    # pra qualquer produto que tenha ao menos um nome.
+    product = (
+        db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
+        if gtin_normalized
+        else None
+    )
 
     direct_product_url: Optional[str] = None
     if product is not None:

@@ -487,6 +487,32 @@ def test_petz_direct_link_unknown_gtin_with_name_uses_site_search(client, monkey
     _assert_petz_search_fallback(resp.json())
 
 
+def test_petz_direct_link_no_gtin_with_name_uses_site_search(client, monkeypatch):
+    """Produto sem GTIN (card da home, medicação sem código) — "Ver na
+    Petz" ainda aparece, levando à busca do site pelo nome."""
+    _enable_petz(monkeypatch)
+    resp = client.get("/commerce/petz-direct-link", params={"q": "Simparic 10 a 20 kg"})
+    assert resp.status_code == 200
+    _assert_petz_search_fallback(resp.json())
+
+
+def test_petz_direct_link_no_gtin_no_name_still_ok_partner_store(client, monkeypatch):
+    _enable_petz(monkeypatch)
+    resp = client.get("/commerce/petz-direct-link")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["available"] is True
+    assert body["direct_product_url"] is None
+    assert body["search_url"] is None
+    assert body["url"] == PETZ_PARTNER_STORE_URL
+
+
+def test_petz_direct_link_bad_gtin_still_400(client, monkeypatch):
+    _enable_petz(monkeypatch)
+    resp = client.get("/commerce/petz-direct-link", params={"gtin": "abc"})
+    assert resp.status_code == 400
+
+
 def test_petz_site_search_term_is_short_and_brand_first(client, monkeypatch):
     """A busca da Petz devolve 0 resultados com o título Awin completo
     (marca + variante + tamanho). O fallback manda marca + poucas
