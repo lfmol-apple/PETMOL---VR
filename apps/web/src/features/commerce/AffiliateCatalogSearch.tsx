@@ -143,7 +143,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
     // de ofertas do CommerceEngine. Com o programa Parceiro Petz ativo,
     // "Ver na Petz" aparece pra qualquer produto: página do produto
     // confirmado quando existe, senão busca do site da Petz pelo nome.
-    fetchPetzDirectLink(gtin, item.title ?? undefined)
+    fetchPetzDirectLink(gtin, item.title ?? undefined, item.brand ?? undefined)
       .then((link) => setPetzByGtin((prev) => ({ ...prev, [gtin]: link })))
       .finally(() => {
         resolvingPetzGtinsRef.current.delete(gtin);

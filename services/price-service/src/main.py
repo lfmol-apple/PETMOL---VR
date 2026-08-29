@@ -1526,6 +1526,7 @@ async def commerce_monetized_offer(
 async def commerce_petz_direct_link(
     gtin: str = Query(..., description="GTIN escaneado do produto"),
     q: Optional[str] = Query(None, description="Nome do produto — usado no fallback de busca da Petz"),
+    brand: Optional[str] = Query(None, description="Marca do produto — melhora o fallback de busca da Petz"),
     db: Session = Depends(get_db),
 ):
     """
@@ -1587,7 +1588,8 @@ async def commerce_petz_direct_link(
             direct_product_url = mapping.product_url
 
     search_term = (q or "").strip() or (product.name if product and product.name else "")
-    search_url = petz_site_search_url(search_term) if search_term else None
+    search_brand = (brand or "").strip() or (product.brand if product and getattr(product, "brand", None) else None)
+    search_url = petz_site_search_url(search_term, search_brand) if search_term else None
 
     url = direct_product_url or search_url or PETZ_PARTNER_STORE_URL
 
