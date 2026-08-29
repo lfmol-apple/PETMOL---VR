@@ -71,6 +71,28 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
     }
   });
 
+  it('só a Petz passa pela ponte /go/petz; Cobasi/Shopee/ML abrem a URL afiliada direto', async () => {
+    const openSpy = vi.fn();
+    vi.stubGlobal('open', openSpy);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn().mockResolvedValue(undefined) }, configurable: true });
+
+    try {
+      const { openHomeShoppingPartner } = await import('./homeShoppingPartners');
+
+      openHomeShoppingPartner('cobasi', 'ração');
+      expect(openSpy.mock.calls.at(-1)?.[0]).toContain('minhaloja.cobasi.com.br');
+      expect(openSpy.mock.calls.at(-1)?.[0]).not.toContain('/go/petz');
+
+      openHomeShoppingPartner('petz', 'ração');
+      await Promise.resolve();
+      expect(openSpy.mock.calls.at(-1)?.[0]).toContain('/go/petz?to=');
+      expect(openSpy.mock.calls.at(-1)?.[0].startsWith('https://www.petz.com.br')).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.resetModules();
+    }
+  });
+
   it('abre a URL afiliada exata sem cortar o referer do navegador', async () => {
     const openSpy = vi.fn();
     vi.stubGlobal('open', openSpy);

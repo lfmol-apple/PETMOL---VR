@@ -921,36 +921,59 @@ Arquitetura (revisada 29/08/2026 — cobertura universal):
   `storefrontAffiliateUrl` na entrada `petz` de
   `apps/web/src/features/commerce/homeShoppingPartners.ts`.
 
-#### Interceptação por app instalado (Universal Links/App Links) — limitação conhecida, 25/08/2026
+#### Interceptação por app instalado (Universal Links/App Links) — ponte `/go/petz` (29/08/2026)
 
-Em aparelhos com o app da Petz instalado, o próprio sistema operacional
-(iOS Universal Links / Android App Links) pode interceptar o link e
-abrir o app da Petz em vez do navegador — às vezes caindo na tela
-inicial do app em vez do produto específico. **Confirmado que não há
-como desligar isso pelo `@capacitor/browser`** (documentação oficial do
-plugin não expõe nenhuma opção pra isso) — é decisão do sistema
-operacional + de como o app da Petz implementa (ou não) deep-link pra
-página de produto, fora do nosso controle.
+**Sintoma (reproduzido em iPhone real):** ao tocar numa opção Petz, o
+PETMOL abre a URL da Petz, mas o iOS entrega o link ao **app** da Petz
+instalado, que cai numa rota "DETALHES" quebrada ("Não foi possível
+carregar").
 
-Também não é possível confirmar por código se o mecanismo de comissão
-da "Loja Parceira" depende da URL de chegada (cookie/referrer) ou só do
-cupom aplicado no checkout — se for o primeiro caso, cair no app pode
-quebrar a atribuição. Isso só a Petz pode esclarecer.
+**Causa raiz:** o app da Petz registra Universal Links (iOS) / App Links
+(Android) para `petz.com.br`. Quando o PETMOL abre uma URL da Petz
+diretamente — SFSafariViewController via `@capacitor/browser`, ou aba do
+navegador — o SO pode entregar essa URL ao app. A rota que o app deriva
+de uma URL `/busca?q=` ou `/produto/...` nem sempre existe → tela
+quebrada.
 
-Mitigação implementada (`copyPetzCouponAndOpen` em
-`homeShoppingPartners.ts`): copia o cupom PETTMOL pro clipboard do
-tutor ANTES de navegar — não resolve a interceptação em si, mas garante
-que o tutor tenha o cupom pronto pra colar independente de cair no
-produto certo, na home do app, ou no navegador.
+**O que dá pra controlar (pesquisa técnica, não o comentário antigo):**
+o iOS **só** dispara Universal Link quando o usuário **toca num `<a>`**.
+Ele **não** dispara:
+- no carregamento inicial de uma página no SFSafariViewController
+  (`SFSafariViewController` não abre Universal Link on-load);
+- num redirect por JavaScript (`location.replace` / `location.href`) ou
+  `<meta refresh>` / 302 — e ficou mais restrito ainda no iOS 17/18
+  ("deep link via redirect parou de abrir o app").
+Fontes: Apple Developer Forums (threads 725403, 747131, 780496), openradar
+rdar://32840565, relatos consolidados em linkrunner.io / jessesquires TIL.
 
-Caminho real de correção (não implementado — exige teste em aparelho
-físico, fora do alcance deste ambiente): no Android, a Chrome Custom
-Tabs API permite forçar abertura sem redirecionar pro app instalado
-vinculando uma `CustomTabsSession` ao `CustomTabsIntent` antes de abrir
-— isso não é exposto pelo `@capacitor/browser` (só pela API nativa
-Android), exigiria um plugin Capacitor customizado ou fork do plugin
-oficial. Não encontrada solução equivalente documentada e confiável
-para iOS/SFSafariViewController.
+`SFSafariViewController` **não** aceita configuração pra desligar
+Universal Links (nem o `@capacitor/browser`). Plugins alternativos
+(`@capgo/capacitor-inappbrowser` tem `preventDeeplink`) exigiriam trocar
+o plugin nativo + rebuild + nova submissão — fora de escopo agora.
+
+**Solução implementada — ponte no domínio do PETMOL:**
+`petzBridgeUrl()` (`homeShoppingPartners.ts`) troca a navegação direta
+`→ petz.com.br` por `→ petmol.com.br/go/petz?to=<URL real da Petz>`.
+`petmol.com.br` **não** tem `associated-domains` (sem AASA — conferido
+em `apps/web/ios/App/App/App.entitlements`), então essa página abre no
+navegador normalmente. A página `/go/petz` (`app/go/petz/page.tsx`):
+1. reafirma o cupom `PETTMOL` (o clique no app já copiou; re-tenta best-effort);
+2. faz `window.location.replace(<URL real da Petz>)` — **redirect JS, não
+   toque de link → o SO não entrega ao app** → o tutor cai na página
+   certa da Petz, no navegador;
+3. botão manual "Abrir a Petz agora" também navega por JS
+   (`location.replace`), nunca um `<a href>`, pelo mesmo motivo.
+
+Segurança: `/go/petz` só redireciona pra `https://(www.)petz.com.br/...`
+(`isRealPetzUrl`); qualquer outro `to` cai na Loja Parceira PETTMOL
+(anti open-redirect). Cupom PETTMOL, URL real da Petz, gates e analytics
+preservados 1:1. Cobasi/Shopee/Mercado Livre não passam pela ponte.
+
+**Limite residual:** se a *própria página* da Petz, já carregada no
+navegador, forçar a abertura do app (smart app banner + auto-redirect
+`petzapp://`, ou "abrir no app" que o tutor toca), isso é JS da Petz,
+fora do controle do PETMOL. A ponte elimina a interceptação causada
+pelo PETMOL abrir a URL; não controla o que a Petz faz depois.
 
 ### Petlove Produtos
 
