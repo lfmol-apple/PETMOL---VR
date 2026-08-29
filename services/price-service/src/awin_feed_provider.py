@@ -42,7 +42,8 @@ from sqlalchemy.orm import Session
 from .affiliate_feed import AffiliateFeedOffer, AffiliateFeedSyncRun
 from .affiliate_offer_identity import has_ambiguous_offer_identity
 from .awin_advertisers import is_awin_merchant_publicly_servable
-from .awin_click_redirect import build_awin_click_redirect_url, build_cobasi_awin_deep_link
+from .awin_click_redirect import build_awin_click_redirect_url
+from .cobasi_utm import InvalidCobasiUrlError, build_cobasi_affiliate_url
 from .commerce_pricing import fetch_cobasi_price
 from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
@@ -189,11 +190,10 @@ class AwinFeedProvider:
         return result
 
     def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str, str]]:
-        """affiliate_url já vem pronta do feed — nunca gerada aqui, nunca
-        cai para merchant_url limpa em produção (ver §17). route="awin"
-        (ver merchant_routes.py) — usado pro CommerceEngine nunca exibir o
-        mesmo merchant duas vezes quando também houver um CobasiProvider
-        (route="mais") ativo pro mesmo merchant."""
+        """Para Cobasi, o feed Awin é usado só como catálogo/preço/URL de
+        produto; a monetização sai pelo programa MAIS, anexando os UTMs
+        oficiais à URL do produto. Para os demais merchants Awin, usa a
+        affiliate_url pronta do feed."""
         if not self._is_authorized(context):
             return None
         if not offer.external_id:
@@ -207,12 +207,22 @@ class AwinFeedProvider:
                 AffiliateFeedOffer.active.is_(True),
             )
         )
-        if not row or not row.affiliate_url:
+        if not row:
+            return None
+
+        if self.merchant == "cobasi":
+            merchant_url = row.merchant_url or offer.direct_url
+            if not merchant_url:
+                return None
+            try:
+                return build_cobasi_affiliate_url(merchant_url), "affiliate_product", "mais"
+            except InvalidCobasiUrlError:
+                return None
+
+        if not row.affiliate_url:
             return None
 
         affiliate_url = row.affiliate_url
-        if self.merchant == "cobasi":
-            affiliate_url = build_cobasi_awin_deep_link(row.affiliate_url, row.merchant_url)
         return build_awin_click_redirect_url(affiliate_url), "affiliate_product", "awin"
 
     def _find_rows_by_gtin(self, gtin: str) -> list[AffiliateFeedOffer]:

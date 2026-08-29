@@ -12,7 +12,6 @@ import asyncio
 import pytest
 
 from src.affiliate_feed import AffiliateFeedOffer, AffiliateFeedSyncRun
-from src.awin_click_redirect import decode_awin_click_url
 from src.awin_feed_provider import AwinFeedProvider
 from src.commerce_pricing import ProductPriceResult
 from src.commerce_provider import DiscoveredOffer, ProductContext
@@ -73,9 +72,9 @@ async def test_finds_offer_by_exact_gtin():
         db.close()
 
 
-def test_cobasi_monetize_uses_affiliate_url_not_direct_merchant_url():
+def test_cobasi_monetize_uses_mais_utm_product_url_from_awin_catalog():
     awin_url = "https://www.awin1.com/pclick.php?p=1&a=3032803&m=17870&clickref=petmol"
-    merchant_url = "https://www.cobasi.com.br/produto-teste/p?sem-comissao=1"
+    merchant_url = "https://www.cobasi.com.br/produto-teste/p?idsku=123"
     db = SessionLocal()
     try:
         db.add(_row(affiliate_url=awin_url, merchant_url=merchant_url))
@@ -85,21 +84,17 @@ def test_cobasi_monetize_uses_affiliate_url_not_direct_merchant_url():
 
         assert result is not None
         url, link_type, route = result
-        assert url.startswith("/commerce/awin-click?u=")
-        assert "www.cobasi.com.br" not in url
-        decoded = decode_awin_click_url(url.split("u=", 1)[1])
-        assert decoded.startswith("https://www.awin1.com/cread.php?")
-        assert "awinmid=17870" in decoded
-        assert "awinaffid=3032803" in decoded
-        assert "clickref=petmol" in decoded
-        assert "ued=https%3A%2F%2Fwww.cobasi.com.br%2Fproduto-teste%2Fp%3Fsem-comissao%3D1" in decoded
+        assert url == (
+            "https://www.cobasi.com.br/produto-teste/p?"
+            "idsku=123&utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol"
+        )
         assert link_type == "affiliate_product"
-        assert route == "awin"
+        assert route == "mais"
     finally:
         db.close()
 
 
-def test_cobasi_monetize_fails_closed_without_affiliate_url():
+def test_cobasi_monetize_uses_mais_utm_even_without_awin_affiliate_url():
     db = SessionLocal()
     try:
         db.add(_row(affiliate_url=None, merchant_url="https://www.cobasi.com.br/produto-teste/p"))
@@ -107,7 +102,11 @@ def test_cobasi_monetize_fails_closed_without_affiliate_url():
 
         result = AwinFeedProvider(db, "cobasi").monetize(_discovered_offer(), ProductContext(gtin=GTIN))
 
-        assert result is None
+        assert result is not None
+        url, link_type, route = result
+        assert url == "https://www.cobasi.com.br/produto-teste/p?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol"
+        assert link_type == "affiliate_product"
+        assert route == "mais"
     finally:
         db.close()
 
