@@ -7,7 +7,7 @@ import { identifyProductByBarcode, type ScannedProduct } from '@/lib/productScan
 import { formatBRLPrice, fetchCommerceOffers, fetchPetzDirectLink, merchantLabel, offerPriceLabel, searchAwinCatalog, type AwinSearchResult, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import {
   HOME_SHOPPING_PARTNERS,
-  copyPetzCouponAndOpen,
+  openPetzPartnerStore,
   PETZ_COUPON_CODE,
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
@@ -447,7 +447,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          void copyPetzCouponAndOpen(item.title ?? undefined);
+                          void openPetzPartnerStore(item.title ?? undefined);
                           setStoreChoicesForGtin(null);
                           void trackClick({
                             source: 'home',

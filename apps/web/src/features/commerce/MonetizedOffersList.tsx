@@ -16,7 +16,7 @@
 import { useEffect, useState } from 'react';
 import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, merchantLogoSrc, offerPriceLabel, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import {
-  copyPetzCouponAndOpen,
+  openPetzPartnerStore,
   navigateToPartnerUrl,
   PETZ_COUPON_CODE,
 } from './homeShoppingPartners';
@@ -83,7 +83,7 @@ export function MonetizedOffersList({
 
   function handleVerNaPetz() {
     if (!petzLink?.url) return;
-    void copyPetzCouponAndOpen(productLabel);
+    void openPetzPartnerStore(productLabel);
     // Destino sempre a Loja Parceira (/parceiro/pettmol) via ponte /go/petz
     // — é entrando por ela que a Petz aplica os 10% e atribui a venda
     // (cookie petzPartner; ver docs/PETZ_COMMISSION_VALIDATION.md).

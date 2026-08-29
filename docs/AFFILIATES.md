@@ -873,16 +873,20 @@ teste real até o carrinho, sem finalizar — ver
   acumula com promoção maior do produto.
 - **Não existe deep link oficial de produto.** Painel → Divulgação só dá
   cupom `PETTMOL` + link fixo `petz.com.br/parceiro/pettmol`. Testado e
-  negado: `/parceiro/pettmol/produto/<slug>` → 404; `?redirectUrl=` /
-  `?url=` / `?q=` → ignorados. A loja parceira tem o catálogo completo e
-  busca própria.
+  negado: `/parceiro/pettmol/produto/<slug>` · `/busca` · `/c/<cat>` →
+  404; `?q` · `?query` · `?term` · `?keyword` · `?busca` · `#termo` →
+  ignorados (abre a home); `/busca?q=X&parceiro=pettmol` · `&loja=pettmol`
+  → não grava o cookie. A home da loja parceira é o único destino; depois
+  dela não há controle. Um salto duplo automático (loja parceira →
+  produto) é impossível.
 
-**Decisão de produto:** "Ver na Petz" leva o cliente à **Loja Parceira**
-(`petz.com.br/parceiro/pettmol`), passando só o **nome do produto** pra
-ele procurar dentro da loja. Assim os 10% entram sozinhos e a venda é
-atribuída. Chegar direto na página do produto **não** grava o cookie →
-sem atribuição garantida — por isso a ponte nunca abre `/produto/...`
-nem `/busca?q=` diretamente.
+**Decisão de produto (29/08/2026):** "Ver na Petz" leva o cliente à
+**Loja Parceira** (`petz.com.br/parceiro/pettmol`) e **copia o nome do
+produto pro clipboard** pra ele colar na busca da Petz. Assim o cupom
+PETTMOL e os 10% entram sozinhos e a venda é atribuída. O cupom **não** é
+copiado — já é automático na loja parceira. Chegar direto na página do
+produto **não** grava o cookie → sem atribuição garantida — por isso a
+ponte nunca abre `/produto/...` nem `/busca?q=` diretamente.
 
 **Gate único:** nem a ponte nem `/commerce/petz-direct-link` servem nada
 a menos que `petz_provider.is_petz_publicly_servable()` seja `True`
@@ -896,7 +900,7 @@ a menos que `petz_provider.is_petz_publicly_servable()` seja `True`
   produto pra dica de busca. `direct_product_url` / `search_url` viram
   metadados — a ponte não os usa como destino.
 - Frontend: `petzBridgeUrl(productName)` → `/go/petz?q=<nome>`.
-  `copyPetzCouponAndOpen(productName)` copia `PETTMOL` (reserva) e abre a
+  `openPetzPartnerStore(productName)` copia o **nome do produto** e abre a
   ponte. Usado em `AffiliateCatalogSearch.tsx`, `HomeShoppingSheet.tsx`,
   `MonetizedOffersList.tsx`. Cobasi/Shopee/Mercado Livre **não** passam
   pela ponte.
@@ -926,7 +930,7 @@ nativo = rebuild + submissão (fora de escopo).
 `petmol.com.br` **não** tem `associated-domains` (sem AASA — conferido em
 `apps/web/ios/App/App/App.entitlements`), então abre no navegador. A
 página `/go/petz` (`app/go/petz/page.tsx`):
-1. copia `PETTMOL` (reserva — o clique no app já copiou);
+1. copia o **nome do produto** (`?q=`) pro clipboard;
 2. `window.location.replace('https://www.petz.com.br/parceiro/pettmol')`
    — redirect JS, não toque → o SO não entrega ao app;
 3. botão manual "Abrir minha loja Petz" também navega por JS, nunca `<a href>`.
