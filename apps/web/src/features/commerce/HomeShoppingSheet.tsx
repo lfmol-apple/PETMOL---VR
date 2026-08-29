@@ -254,17 +254,22 @@ function PartnerStoreGrid({
   return (
     <div>
       <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Lojas parceiras</p>
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {partners.map((partner) => (
           <button
             key={partner.id}
             type="button"
             onClick={() => onOpen(partner)}
-            className="flex min-h-[96px] flex-col items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white p-3 text-center shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-50 active:scale-[0.98]"
+            className="flex min-h-[112px] flex-col items-center justify-center gap-2.5 rounded-[1.35rem] border border-gray-200 bg-white p-3 text-center shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-50 active:scale-[0.98]"
           >
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-gray-100 bg-white">
+            <span className="flex h-[68px] w-[86px] items-center justify-center rounded-[1.25rem] border border-gray-100 bg-gradient-to-br from-white via-white to-slate-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_18px_rgba(15,23,42,0.06)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={partner.logoSrc} alt="" className="max-h-9 max-w-10 object-contain" loading="lazy" />
+              <img
+                src={partner.logoSrc}
+                alt=""
+                className={`object-contain ${partnerLogoClassName(partner.id)}`}
+                loading="lazy"
+              />
             </span>
             <span className="text-[12px] font-black text-gray-800">{partner.name}</span>
           </button>
@@ -272,6 +277,12 @@ function PartnerStoreGrid({
       </div>
     </div>
   );
+}
+
+function partnerLogoClassName(partnerId: HomeShoppingPartnerId): string {
+  if (partnerId === 'mercadolivre') return 'max-h-10 w-[72px]';
+  if (partnerId === 'shopee') return 'h-14 w-14';
+  return 'h-14 w-14 rounded-[0.65rem]';
 }
 
 interface ReorderCardItemProps {
