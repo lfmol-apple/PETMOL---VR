@@ -132,9 +132,15 @@ export async function searchAwinCatalog(query: string, merchant?: string): Promi
 }
 
 export interface PetzDirectLink {
+  /** true = programa Parceiro Petz ativo → mostrar "Ver na Petz" para qualquer produto. */
   available: boolean;
+  partner_program_active?: boolean;
+  /** Melhor destino: página do produto confirmado > busca do site > vitrine. */
   url: string | null;
+  /** Página real do produto, só quando há mapping Petz confirmado. */
   direct_product_url?: string | null;
+  /** Busca do site da Petz pelo nome do produto (fallback universal). */
+  search_url?: string | null;
   partner_store_url?: string | null;
   coupon_code?: string | null;
   affiliate_program?: string | null;
@@ -142,18 +148,21 @@ export interface PetzDirectLink {
 }
 
 /**
- * "Ver na Petz" — caminho DELIBERADAMENTE separado de fetchCommerceOffers.
- * Nunca entra na lista de comparação de preço (não existe fonte de preço
- * Petz por produto). A URL retornada é a página real do produto
- * confirmado; o modelo comercial fica explícito nos campos separados
- * partner_store_url/coupon_code/affiliate_program. Ver GET
- * /commerce/petz-direct-link no backend e docs/AFFILIATES.md.
+ * "Ver na Petz" — caminho DELIBERADAMENTE separado de fetchCommerceOffers
+ * (nunca entra na comparação de preço: não há fonte de preço Petz por
+ * produto). Quando o programa Parceiro Petz está ativo, aparece para
+ * QUALQUER produto: leva à página do produto confirmado quando existe,
+ * senão à busca do site da Petz pelo nome — em ambos os casos a comissão
+ * vem do cupom PETTMOL no checkout. Ver GET /commerce/petz-direct-link e
+ * docs/PETZ_COMMISSION_VALIDATION.md.
  */
-export async function fetchPetzDirectLink(gtin: string): Promise<PetzDirectLink> {
+export async function fetchPetzDirectLink(gtin: string, productName?: string): Promise<PetzDirectLink> {
   const trimmed = gtin.trim();
   if (!trimmed) return { available: false, url: null };
   try {
-    const res = await fetch(`${API_BASE_URL}/commerce/petz-direct-link?gtin=${encodeURIComponent(trimmed)}`, {
+    const params = new URLSearchParams({ gtin: trimmed });
+    if (productName?.trim()) params.set('q', productName.trim());
+    const res = await fetch(`${API_BASE_URL}/commerce/petz-direct-link?${params.toString()}`, {
       cache: 'no-store',
       signal: AbortSignal.timeout(5000),
     });

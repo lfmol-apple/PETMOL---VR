@@ -309,21 +309,22 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
   const [petzLink, setPetzLink] = useState<PetzDirectLink | null>(null);
 
   // "Ver na Petz" — caminho separado de useCommerceOffers (sem preço por
-  // produto, ver docs/AFFILIATES.md §Petz). Só entra na conta de opções de
-  // compra quando o GTIN do card já foi confirmado no catálogo Petz.
+  // produto, ver docs/AFFILIATES.md §Petz). Com o programa Parceiro Petz
+  // ativo, aparece pra qualquer produto do card: página do produto
+  // confirmado quando existe, senão busca do site da Petz pelo nome.
   useEffect(() => {
     if (!card.gtin) {
       setPetzLink(null);
       return;
     }
     let cancelled = false;
-    void fetchPetzDirectLink(card.gtin).then((link) => {
+    void fetchPetzDirectLink(card.gtin, card.label).then((link) => {
       if (!cancelled) setPetzLink(link);
     });
     return () => {
       cancelled = true;
     };
-  }, [card.gtin]);
+  }, [card.gtin, card.label]);
 
   // Toda oferta na lista é o mesmo produto (mesmo GTIN) — só preço/loja
   // mudam. Nem toda loja tem imagem (Shopee/busca por palavra-chave ainda

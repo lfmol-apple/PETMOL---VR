@@ -15,6 +15,7 @@ from src.affiliate_links import (
     PETZ_AFFILIATE_PROGRAM,
     PETZ_COUPON_CODE,
     PETZ_PARTNER_STORE_URL,
+    PETZ_SITE_SEARCH_BASE,
     ProductAffiliateLink,
     get_active_link,
 )
@@ -82,12 +83,27 @@ def _register_product(gtin: str = GTIN, **overrides) -> int:
 
 
 def _assert_petz_unavailable_payload(body: dict) -> None:
+    """Master gate DESLIGADO — nenhum destino Petz é servido."""
     assert body["available"] is False
+    assert body.get("partner_program_active") is False
     assert body["url"] is None
     assert body["direct_product_url"] is None
+    assert body["search_url"] is None
     assert body["partner_store_url"] == PETZ_PARTNER_STORE_URL
     assert body["coupon_code"] == PETZ_COUPON_CODE
     assert body["affiliate_program"] == PETZ_AFFILIATE_PROGRAM
+
+
+def _assert_petz_search_fallback(body: dict) -> None:
+    """Master gate LIGADO, produto sem mapping confirmado — "Ver na Petz"
+    ainda aparece, levando à busca do site da Petz + cupom PETTMOL."""
+    assert body["available"] is True
+    assert body["partner_program_active"] is True
+    assert body["direct_product_url"] is None
+    assert body["search_url"].startswith(PETZ_SITE_SEARCH_BASE + "?q=")
+    assert body["url"] == body["search_url"]
+    assert body["coupon_code"] == PETZ_COUPON_CODE
+    assert body["link_type"] == "affiliate_store"
 
 
 # ── Validação de URL ─────────────────────────────────────────────────────
@@ -450,22 +466,36 @@ async def test_commerce_engine_still_returns_empty_with_confirmed_petz_but_no_pr
 # separada da storefront fixa + cupom PETTMOL. Nunca lê nem inventa
 # affiliate_product_url individual.
 
-def test_petz_direct_link_unavailable_for_unknown_gtin(client, monkeypatch):
+def test_petz_direct_link_unknown_gtin_without_name_falls_back_to_partner_store(client, monkeypatch):
     _enable_petz(monkeypatch)
     resp = client.get("/commerce/petz-direct-link", params={"gtin": "0000000000000"})
     assert resp.status_code == 200
-    _assert_petz_unavailable_payload(resp.json())
+    body = resp.json()
+    assert body["available"] is True
+    assert body["partner_program_active"] is True
+    assert body["direct_product_url"] is None
+    assert body["search_url"] is None
+    assert body["url"] == PETZ_PARTNER_STORE_URL
 
 
-def test_petz_direct_link_unavailable_when_never_learned(client, monkeypatch):
+def test_petz_direct_link_unknown_gtin_with_name_uses_site_search(client, monkeypatch):
     _enable_petz(monkeypatch)
-    product_id = _register_product(gtin="9990000000001")
+    resp = client.get(
+        "/commerce/petz-direct-link",
+        params={"gtin": "0000000000000", "q": "Ração Golden Fórmula Adulto"},
+    )
+    _assert_petz_search_fallback(resp.json())
+
+
+def test_petz_direct_link_never_learned_product_uses_site_search(client, monkeypatch):
+    _enable_petz(monkeypatch)
+    _register_product(gtin="9990000000001")
     resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000001"})
     assert resp.status_code == 200
-    _assert_petz_unavailable_payload(resp.json())
+    _assert_petz_search_fallback(resp.json())
 
 
-def test_petz_direct_link_unavailable_for_ambiguous_candidate(client, monkeypatch):
+def test_petz_direct_link_ambiguous_candidate_uses_site_search(client, monkeypatch):
     _enable_petz(monkeypatch)
     product_id = _register_product(gtin="9990000000002")
     db = SessionLocal()
@@ -475,7 +505,7 @@ def test_petz_direct_link_unavailable_for_ambiguous_candidate(client, monkeypatc
         db.close()
 
     resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000002"})
-    _assert_petz_unavailable_payload(resp.json())
+    _assert_petz_search_fallback(resp.json())
 
 
 def test_petz_direct_link_available_once_product_confirmed(client, monkeypatch):
@@ -493,22 +523,21 @@ def test_petz_direct_link_available_once_product_confirmed(client, monkeypatch):
     resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000003"})
     assert resp.status_code == 200
     body = resp.json()
-    assert body == {
-        "available": True,
-        "url": "https://www.petz.com.br/produto/racao-royal-canin-100223",
-        "direct_product_url": "https://www.petz.com.br/produto/racao-royal-canin-100223",
-        "partner_store_url": PETZ_PARTNER_STORE_URL,
-        "coupon_code": PETZ_COUPON_CODE,
-        "affiliate_program": PETZ_AFFILIATE_PROGRAM,
-        "link_type": "affiliate_store",
-    }
+    assert body["available"] is True
+    assert body["partner_program_active"] is True
+    # Produto confirmado → destino é a página real do produto.
+    assert body["url"] == "https://www.petz.com.br/produto/racao-royal-canin-100223"
+    assert body["direct_product_url"] == "https://www.petz.com.br/produto/racao-royal-canin-100223"
+    assert body["partner_store_url"] == PETZ_PARTNER_STORE_URL
+    assert body["coupon_code"] == PETZ_COUPON_CODE
+    assert body["affiliate_program"] == PETZ_AFFILIATE_PROGRAM
+    assert body["link_type"] == "affiliate_store"
     assert "/parceiro/pettmol/produto" not in body["url"]
-    assert "?" not in body["url"]
 
 
-def test_petz_direct_link_does_not_replace_missing_product_url_with_storefront(client, monkeypatch):
-    """Sem product_url confirmada não há link de produto. A storefront
-    fica apenas como dado comercial separado."""
+def test_petz_direct_link_confirmed_without_product_url_falls_back_to_site_search(client, monkeypatch):
+    """Produto confirmado mas sem product_url — não há link direto de
+    produto, mas "Ver na Petz" continua (busca do site + cupom)."""
     _enable_petz(monkeypatch)
     product_id = _register_product(gtin="9990000000005")
     db = SessionLocal()
@@ -523,9 +552,7 @@ def test_petz_direct_link_does_not_replace_missing_product_url_with_storefront(c
         db.close()
 
     resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000005"})
-    body = resp.json()
-    _assert_petz_unavailable_payload(body)
-    assert body["partner_store_url"] == PETZ_PARTNER_STORE_URL
+    _assert_petz_search_fallback(resp.json())
 
 
 def test_petz_direct_link_never_exposes_a_per_product_affiliate_url(client, monkeypatch):

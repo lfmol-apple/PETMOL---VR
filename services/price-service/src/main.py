@@ -1525,74 +1525,78 @@ async def commerce_monetized_offer(
 @app.get("/commerce/petz-direct-link", tags=["Catalog"])
 async def commerce_petz_direct_link(
     gtin: str = Query(..., description="GTIN escaneado do produto"),
+    q: Optional[str] = Query(None, description="Nome do produto — usado no fallback de busca da Petz"),
     db: Session = Depends(get_db),
 ):
     """
     "Ver na Petz" — caminho DELIBERADAMENTE separado do CommerceEngine/
-    MonetizedOffer (ver commerce_provider.py, petz_provider.py), mas
-    respeitando o MESMO gate único (petz_provider.is_petz_publicly_servable)
-    — nunca um caminho público Petz próprio com sua própria regra de
-    exposição (ver docs/AFFILIATES.md).
+    MonetizedOffer (ver commerce_provider.py, petz_provider.py). Gated pelo
+    mesmo master gate (petz_provider.is_petz_publicly_servable): as duas
+    flags `petz_affiliate_enabled` E `petz_coupon_attribution_verified`
+    (prova comercial — compra real testada em 29/08/2026, ver
+    docs/PETZ_COMMISSION_VALIDATION.md).
 
-    IMPORTANTE — "produto confirmado" ≠ "monetização comprovada":
-    petz_mapping.match_status (DIRECT_LINK_ELIGIBLE_STATUSES) só prova
-    que o produto certo foi identificado no catálogo Petz — nunca que o
-    cupom PETTMOL (10% off, programa "Loja Parceira") de fato atribui
-    comissão ao PETMOL quando o tutor chega direto na URL comum do
-    produto. Essa prova comercial é DISTINTA — validada com uma compra
-    real em 29/08/2026 (ver docs/PETZ_COMMISSION_VALIDATION.md), então a
-    segunda condição, settings.petz_coupon_attribution_verified, passou
-    a ser ligada explicitamente em produção; continua obrigatória (True)
-    pra servir qualquer URL, mesmo com o produto confirmado — o default
-    no código segue False.
+    MECANISMO DE COMISSÃO (Parceiro Petz): é o CUPOM `PETTMOL` aplicado no
+    checkout — "7% em cima de todas as vendas no site/app utilizando o
+    seu código" (doc oficial Petz). A URL de chegada NÃO importa para a
+    atribuição. Por isso, quando o master gate está ligado, este endpoint
+    sempre devolve `partner_program_active: true` e um destino utilizável:
 
-    Retorna a URL ESPECÍFICA do produto (`PetzProductMapping.product_url`
-    — a página real confirmada, ex: .../produto/racao-...-100223) como
-    `direct_product_url`/`url`, separada da storefront comercial fixa
-    (`partner_store_url`) e do cupom (`coupon_code`). Nunca concatena
-    /parceiro/pettmol com /produto nem cria query string.
+    - `direct_product_url`: página real do produto, quando existe um
+      `PetzProductMapping` confirmado (DIRECT_LINK_ELIGIBLE_STATUSES).
+    - `search_url`: busca do site da Petz pelo nome do produto (`q`),
+      fallback universal quando não há mapping confirmado.
+    - `partner_store_url`: vitrine da Loja Parceira (último fallback).
 
-    `link_type` vem "affiliate_store" — o mecanismo de comissão é o
-    cupom aplicado no checkout, não a URL de chegada; nunca aparece na
-    lista de comparação de preço (/commerce/offers), porque não existe
-    fonte de preço Petz por produto.
+    `url` = melhor destino disponível nessa ordem. `link_type:
+    "affiliate_store"` — nunca entra na comparação de preço
+    (/commerce/offers), não existe fonte de preço Petz por produto.
     """
-    from .affiliate_links import PETZ_AFFILIATE_PROGRAM, PETZ_COUPON_CODE, PETZ_PARTNER_STORE_URL
+    from .affiliate_links import (
+        PETZ_AFFILIATE_PROGRAM,
+        PETZ_COUPON_CODE,
+        PETZ_PARTNER_STORE_URL,
+        petz_site_search_url,
+    )
     from .petz_mapping import DIRECT_LINK_ELIGIBLE_STATUSES, get_mapping
     from .petz_provider import is_petz_publicly_servable
     from .product_catalog_lookup import ProductCatalog, normalize_gtin
 
-    unavailable = {
-        "available": False,
-        "url": None,
-        "direct_product_url": None,
-        "partner_store_url": PETZ_PARTNER_STORE_URL,
-        "coupon_code": PETZ_COUPON_CODE,
-        "affiliate_program": PETZ_AFFILIATE_PROGRAM,
-    }
     if not is_petz_publicly_servable():
-        return unavailable
+        return {
+            "available": False,
+            "partner_program_active": False,
+            "url": None,
+            "direct_product_url": None,
+            "search_url": None,
+            "partner_store_url": PETZ_PARTNER_STORE_URL,
+            "coupon_code": PETZ_COUPON_CODE,
+            "affiliate_program": PETZ_AFFILIATE_PROGRAM,
+        }
 
     gtin_normalized = normalize_gtin(gtin)
     if not gtin_normalized:
         raise HTTPException(status_code=400, detail="GTIN inválido")
 
     product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
-    if not product:
-        return unavailable
 
-    mapping = get_mapping(db, product.id)
-    if not mapping or mapping.match_status not in DIRECT_LINK_ELIGIBLE_STATUSES:
-        return unavailable
+    direct_product_url: Optional[str] = None
+    if product is not None:
+        mapping = get_mapping(db, product.id)
+        if mapping and mapping.match_status in DIRECT_LINK_ELIGIBLE_STATUSES and mapping.product_url:
+            direct_product_url = mapping.product_url
 
-    url = mapping.product_url
-    if not url:
-        return unavailable
+    search_term = (q or "").strip() or (product.name if product and product.name else "")
+    search_url = petz_site_search_url(search_term) if search_term else None
+
+    url = direct_product_url or search_url or PETZ_PARTNER_STORE_URL
 
     return {
         "available": True,
+        "partner_program_active": True,
         "url": url,
-        "direct_product_url": url,
+        "direct_product_url": direct_product_url,
+        "search_url": search_url,
         "partner_store_url": PETZ_PARTNER_STORE_URL,
         "coupon_code": PETZ_COUPON_CODE,
         "affiliate_program": PETZ_AFFILIATE_PROGRAM,

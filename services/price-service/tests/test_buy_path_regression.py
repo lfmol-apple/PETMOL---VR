@@ -59,8 +59,10 @@ def test_no_unmonetized_public_buy_paths(client):
     r = client.get("/commerce/petz-direct-link", params={"gtin": GTIN})
     assert r.json() == {
         "available": False,
+        "partner_program_active": False,
         "url": None,
         "direct_product_url": None,
+        "search_url": None,
         "partner_store_url": PETZ_PARTNER_STORE_URL,
         "coupon_code": PETZ_COUPON_CODE,
         "affiliate_program": PETZ_AFFILIATE_PROGRAM,

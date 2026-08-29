@@ -42,3 +42,27 @@ está `true` desde 29/08/2026.
 `PETZ_COUPON_ATTRIBUTION_VERIFIED=true` em produção desde 29/08/2026.
 
 Status atual: **COMPROVADO** — `PETZ_COUPON_ATTRIBUTION_VERIFIED=true`.
+
+## Mecanismo de atribuição (documentação oficial Petz, revisado 29/08/2026)
+
+O rastreio do "Parceiro Petz" é feito pelo **CUPOM/CÓDIGO** (`PETTMOL`),
+não pela URL de chegada. Trecho oficial da Petz:
+
+> "Com ele você cria um cupom de 10% de desconto e ganha 7% em cima de
+> **todas as vendas realizadas no nosso site e app utilizando o seu
+> código**."
+
+Ou seja: o tutor pode chegar em **qualquer página de produto** e, ao
+**aplicar o cupom `PETTMOL` no checkout**, a venda é atribuída ao PETMOL
+(7% de comissão). A vitrine `https://www.petz.com.br/parceiro/pettmol`
+é só um endereço de divulgação — não é o que rastreia.
+
+Consequência de produto: "Ver na Petz" **deve** abrir a página real do
+produto (`PetzProductMapping.product_url`) e reforçar o passo do cupom —
+é o cupom aplicado no carrinho, e só ele, que gera a comissão. Não faz
+sentido forçar o tutor a passar pela vitrine.
+
+Fontes:
+- https://www.petz.com.br/blog/programa-de-parcerias/
+- https://www.petz.com.br/blog/conquiste-uma-renda-extra-com-o-parceiro-petz/
+- https://www.tiktok.com/@petz/video/7381580412684061958 (declaração oficial Petz)
