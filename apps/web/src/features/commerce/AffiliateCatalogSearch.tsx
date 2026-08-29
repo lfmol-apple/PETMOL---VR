@@ -4,9 +4,11 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
 import { trackClick } from '@/lib/analytics/click';
 import { identifyProductByBarcode, type ScannedProduct } from '@/lib/productScanner';
-import { formatBRLPrice, fetchCommerceOffers, merchantLabel, offerPriceLabel, searchAwinCatalog, type AwinSearchResult, type CommerceOffer } from './productPricing';
+import { formatBRLPrice, fetchCommerceOffers, fetchPetzDirectLink, merchantLabel, offerPriceLabel, searchAwinCatalog, type AwinSearchResult, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import {
   HOME_SHOPPING_PARTNERS,
+  copyPetzCouponAndOpen,
+  PETZ_COUPON_CODE,
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
 
@@ -68,11 +70,13 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
   const [loading, setLoading] = useState(false);
   const [failedImageGtins, setFailedImageGtins] = useState<Set<string>>(new Set());
   const [offersByGtin, setOffersByGtin] = useState<Record<string, ResolvedOffers>>({});
+  const [petzByGtin, setPetzByGtin] = useState<Record<string, PetzDirectLink | 'loading' | undefined>>({});
   const [storeChoicesForGtin, setStoreChoicesForGtin] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchRunRef = useRef(0);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const resolvingGtinsRef = useRef<Set<string>>(new Set());
+  const resolvingPetzGtinsRef = useRef<Set<string>>(new Set());
   const trimmedQuery = query.trim();
   const activeMerchantFilter = merchantFilter ?? undefined;
   const visibleResults = results;
@@ -127,11 +131,34 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
       });
   }
 
+  function loadPetzForGtin(gtin: string) {
+    const current = petzByGtin[gtin];
+    if (current === 'loading' || (typeof current === 'object' && current !== null) || resolvingPetzGtinsRef.current.has(gtin)) return;
+
+    resolvingPetzGtinsRef.current.add(gtin);
+    setPetzByGtin((prev) => ({ ...prev, [gtin]: 'loading' }));
+    // Caminho DELIBERADAMENTE separado de fetchCommerceOffers (ver
+    // docs/AFFILIATES.md §Petz) — sem preço, a Petz nunca entra na lista
+    // de ofertas do CommerceEngine. Sem chamar isto aqui também, a Petz
+    // nunca aparecia no "Escolha a loja" desta tela, mesmo com produto já
+    // confirmado no catálogo (só o card "Comprar novamente" chamava).
+    fetchPetzDirectLink(gtin)
+      .then((link) => setPetzByGtin((prev) => ({ ...prev, [gtin]: link })))
+      .finally(() => {
+        resolvingPetzGtinsRef.current.delete(gtin);
+      });
+  }
+
+  function loadStoresForGtin(item: AwinSearchResult) {
+    loadOffersForGtin(item);
+    loadPetzForGtin(item.gtin);
+  }
+
   useEffect(() => {
     // Não resolva lojas para todos os 50 resultados de uma vez: no celular
     // isso deixava vários cards presos em "Buscando". Prefetch curto para
     // os primeiros resultados; os demais carregam sob demanda no toque.
-    results.slice(0, 6).forEach((item) => loadOffersForGtin(item));
+    results.slice(0, 6).forEach((item) => loadStoresForGtin(item));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results]);
 
@@ -285,17 +312,23 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
         <div className="mt-2.5 space-y-2.5">
           {visibleResults.map((item) => {
             const resolved = offersByGtin[item.gtin];
+            const petzResolved = petzByGtin[item.gtin];
             const choosingStore = storeChoicesForGtin === item.gtin;
-            const loadingStores = resolved === undefined || resolved === 'loading';
+            const offersLoading = resolved === undefined || resolved === 'loading';
+            const petzLoading = petzResolved === undefined || petzResolved === 'loading';
+            const loadingStores = offersLoading || petzLoading;
             const storeLoadError = resolved === 'error';
-            const unavailable = Array.isArray(resolved) && resolved.length === 0;
             const offers = Array.isArray(resolved) ? resolved : [];
-            const expectedStoreCount = Math.max(offers.length, item.offer_count || 0);
-            const canOpen = expectedStoreCount > 0;
+            const hasPetz = Boolean(
+              typeof petzResolved === 'object' && petzResolved !== null && petzResolved.available && petzResolved.url,
+            );
+            const unavailable = !loadingStores && !storeLoadError && offers.length === 0 && !hasPetz;
+            const expectedStoreCount = Math.max(offers.length + (hasPetz ? 1 : 0), item.offer_count || 0);
+            const canOpen = expectedStoreCount > 0 || hasPetz || loadingStores;
             const handleResultTap = () => {
               if (!canOpen) return;
               setStoreChoicesForGtin(choosingStore ? null : item.gtin);
-              if (!Array.isArray(resolved)) loadOffersForGtin(item);
+              if (!Array.isArray(resolved)) loadStoresForGtin(item);
             };
             const handleResultKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
               if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -375,7 +408,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          loadOffersForGtin(item);
+                          loadStoresForGtin(item);
                         }}
                         className="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[12px] font-bold text-amber-800 active:scale-[0.98]"
                       >
@@ -408,6 +441,31 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                         </a>
                       ) : null
                     ))}
+                    {hasPetz && typeof petzResolved === 'object' && petzResolved && (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void copyPetzCouponAndOpen(petzResolved.url as string);
+                          setStoreChoicesForGtin(null);
+                          void trackClick({
+                            source: 'home',
+                            cta_type: 'shop_awin_search_buy',
+                            target: 'petz',
+                            link_type: 'affiliate_store',
+                            pet_id: petId,
+                            metadata: { gtin: item.gtin, coupon: PETZ_COUPON_CODE },
+                          });
+                        }}
+                        className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-blue-300 px-3 py-2 transition-all active:scale-[0.98]"
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <MerchantLogo merchant="petz" />
+                          <span className="text-[12px] font-bold text-gray-800 truncate">Petz</span>
+                        </span>
+                        <span className="text-[12px] font-bold text-blue-700 flex-shrink-0">Cupom -10%</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
