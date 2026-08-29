@@ -104,16 +104,22 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
     };
   }, [query, activeMerchantFilter]);
 
-  function loadOffersForGtin(gtin: string) {
+  function loadOffersForGtin(item: AwinSearchResult) {
+    const gtin = item.gtin;
     const current = offersByGtin[gtin];
     if (current === 'loading' || Array.isArray(current) || resolvingGtinsRef.current.has(gtin)) return;
 
     resolvingGtinsRef.current.add(gtin);
     setOffersByGtin((prev) => ({ ...prev, [gtin]: 'loading' }));
-    // Passa pelo commerce engine de verdade (GET /commerce/offers), mas
-    // SEM texto de busca — só gtin. Isso mantém a compra monetizada por
-    // identidade exata sem disparar busca textual externa para cada card.
-    fetchCommerceOffers('', undefined, gtin)
+    // Passa pelo commerce engine de verdade (GET /commerce/offers). Desde
+    // 29/08/2026 a Cobasi só monetiza via busca ao vivo na VTEX
+    // (CobasiProvider), nunca por GTIN puro via Awin (AWIN_SELLABLE_MERCHANTS
+    // vazio — ver awin_advertisers.py) — sem um texto de busca aqui, a Cobasi
+    // nunca aparecia no "Escolha a loja" mesmo quando o próprio card veio com
+    // preço Cobasi do catálogo Awin. título+marca do resultado já buscado é
+    // texto suficiente pra CobasiProvider re-resolver o mesmo produto.
+    const searchQuery = [item.brand, item.title].filter(Boolean).join(' ').trim();
+    fetchCommerceOffers(searchQuery, undefined, gtin)
       .then((offers) => setOffersByGtin((prev) => ({ ...prev, [gtin]: offers })))
       .catch(() => setOffersByGtin((prev) => ({ ...prev, [gtin]: 'error' })))
       .finally(() => {
@@ -125,7 +131,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
     // Não resolva lojas para todos os 50 resultados de uma vez: no celular
     // isso deixava vários cards presos em "Buscando". Prefetch curto para
     // os primeiros resultados; os demais carregam sob demanda no toque.
-    results.slice(0, 6).forEach((item) => loadOffersForGtin(item.gtin));
+    results.slice(0, 6).forEach((item) => loadOffersForGtin(item));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results]);
 
@@ -289,7 +295,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
             const handleResultTap = () => {
               if (!canOpen) return;
               setStoreChoicesForGtin(choosingStore ? null : item.gtin);
-              if (!Array.isArray(resolved)) loadOffersForGtin(item.gtin);
+              if (!Array.isArray(resolved)) loadOffersForGtin(item);
             };
             const handleResultKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
               if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -369,7 +375,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          loadOffersForGtin(item.gtin);
+                          loadOffersForGtin(item);
                         }}
                         className="w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[12px] font-bold text-amber-800 active:scale-[0.98]"
                       >
