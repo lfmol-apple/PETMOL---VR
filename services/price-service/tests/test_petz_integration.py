@@ -439,7 +439,7 @@ def test_petz_direct_link_falls_back_to_storefront_without_product_url(client, m
     body = resp.json()
     assert body == {
         "available": True,
-        "url": "https://petz.com.br/parceiro/pettmol",
+        "url": "https://www.petz.com.br/parceiro/pettmol",
         "link_type": "affiliate_store",
     }
 
@@ -552,6 +552,6 @@ def test_petz_monetized_offer_store_context_works_once_verified(client, monkeypa
     offer = resp.json()["offer"]
     assert offer == {
         "merchant": "petz",
-        "url": "https://petz.com.br/parceiro/pettmol",
+        "url": "https://www.petz.com.br/parceiro/pettmol",
         "link_type": "affiliate_store",
     }

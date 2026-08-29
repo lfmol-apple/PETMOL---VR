@@ -40,7 +40,7 @@ from .config import get_settings
 # GET /commerce/petz-direct-link, gated por PetzProductMapping confirmado.
 STOREFRONT_AFFILIATE_URLS: dict[str, str] = {
     "cobasi": "https://minhaloja.cobasi.com.br?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol",
-    "petz": "https://petz.com.br/parceiro/pettmol",
+    "petz": "https://www.petz.com.br/parceiro/pettmol",
 }
 
 _BLOCKED_SCHEMES = {"javascript", "data", "file"}

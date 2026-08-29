@@ -155,7 +155,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     affiliateMode: 'fixed_store',
     supportsProductDeepLink: false,
     supportsStorefrontAffiliate: true,
-    storefrontAffiliateUrl: 'https://petz.com.br/parceiro/pettmol',
+    storefrontAffiliateUrl: 'https://www.petz.com.br/parceiro/pettmol',
   },
   {
     id: 'mercadolivre',
@@ -208,7 +208,7 @@ const DIRECT_SEARCH_URLS: Record<HomeShoppingPartnerId, (q: string) => string> =
   cobasi:       (q) => `https://www.cobasi.com.br/busca?q=${encodeURIComponent(q)}`,
   // Petz não tem busca por produto — resolvePartnerUrl() sempre resolve
   // pela storefrontAffiliateUrl antes de chegar aqui; nunca de fato usado.
-  petz:         () => 'https://petz.com.br/parceiro/pettmol',
+  petz:         () => 'https://www.petz.com.br/parceiro/pettmol',
   mercadolivre: (q) => `https://lista.mercadolivre.com.br/${encodeURIComponent(q)}`,
   shopee:       (q) => `https://shopee.com.br/search?keyword=${encodeURIComponent(q)}`,
 };
