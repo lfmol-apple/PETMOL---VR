@@ -22,6 +22,11 @@ AWIN_ALLOWED_TARGETS_BY_ADVERTISER = {
     "127557": {"www.zeenow.com.br", "zeenow.com.br"},
 }
 AWIN_BROWSER_SIDE_ADVERTISERS = {
+    # Cobasi BR: o clique precisa passar pelo navegador do tutor para a
+    # Awin/Cobasi gravarem cookie/sessão de atribuição. Resolver server-side
+    # até a URL final com awc abriu produto, mas podia quebrar comissão em
+    # compras navegando depois da landing.
+    "17870",
     # Zee Now BR: painel Awin informa "Otimizado para Celular: Sim" e
     # "Rastreamento de App: Sim" (publisher 3032803, advertiser 127557).
     # Nesse caso, deixar Awin/Zee Now decidirem web/app no dispositivo é
