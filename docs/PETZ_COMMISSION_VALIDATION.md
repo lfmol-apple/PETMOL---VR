@@ -1,68 +1,71 @@
-# Validação de comissão — Petz (cupom PETTMOL)
+# Validação de comissão — Parceiro Petz (cupom PETTMOL)
 
-O programa "Loja Parceira" da Petz funciona por URL fixa da vitrine
-(`https://petz.com.br/parceiro/pettmol`) + cupom `PETTMOL` (10% off)
-aplicado manualmente pelo tutor no checkout. **Nunca foi comprovado**
-que esse mecanismo realmente atribui comissão ao PETMOL quando o tutor
-chega direto na URL comum de um produto específico (em vez de entrar
-pela vitrine) — essa é exatamente a hipótese que
-`config.petz_coupon_attribution_verified` existe pra guardar, e que
-`petz_provider.is_petz_publicly_servable()` bloqueia até ser confirmada
-(ver `docs/AFFILIATES.md` §Petz).
+Status: **COMPROVADO** — `PETZ_COUPON_ATTRIBUTION_VERIFIED=true` em
+produção desde 29/08/2026.
 
-Confirmado — ver Registro/Resultado abaixo. `PETZ_COUPON_ATTRIBUTION_VERIFIED`
-está `true` desde 29/08/2026.
+## Mecanismo real (investigação no navegador do painel + checkout, 29/08/2026)
 
-## Procedimento
+O Parceiro Petz tem **dois** caminhos de comissão direta (7% do valor
+líquido). Trecho da FAQ oficial do painel (`parceiropetz.com.br/manager`
+→ Dúvidas → comissão):
 
-1. Escolher um produto barato (ex: um antiparasitário de baixo valor)
-   entre os já confirmados no catálogo Petz (`match_status=confirmed`
-   ou superior — ver `GET /v1/admin/petz/coverage`).
-2. Abrir o link pelo fluxo real do PETMOL ("Ver na Petz" na ficha do
-   produto) — confirmar que o destino é a página do produto específico
-   (não a home da vitrine).
-3. Aplicar o cupom `PETTMOL` no carrinho/checkout.
-4. Finalizar a compra normalmente.
-5. Aguardar o prazo de confirmação do painel de parceiros da Petz.
-6. Confirmar no painel se a venda foi atribuída ao programa PETMOL.
-7. Registrar o resultado abaixo — **apenas os campos listados**, nunca
-   pedido, CPF, nome, endereço ou comprovante (nada sensível entra no
-   Git; guardar evidência, se necessária, fora do repositório).
+> "Comissão Direta: Você ganha 7% do valor líquido de cada pedido que
+> **usar o seu cupom** no aplicativo ou site da Petz, **OU compras feitas
+> na sua loja virtual do Parceiro**."
+
+### Caminho A — entrar pela Loja Parceira (recomendado)
+
+Ao abrir **`https://www.petz.com.br/parceiro/pettmol`** (navegação
+top-level), a Petz grava um cookie first-party:
+
+| Cookie | `petzPartner` |
+|---|---|
+| Domínio / path | `www.petz.com.br` / `/` |
+| Conteúdo | JSON URL-encoded com `idPartner` + `pettmol` (~126 chars, legível por JS) |
+| SameSite / Secure / HttpOnly | `Lax` / não / não |
+| Expiração | **~30 minutos**, renovada a cada visita à loja parceira |
+
+Com esse cookie presente, no carrinho (`/checkout`):
+- aparece **"Você está comprando na loja pettmol do Parceiro Petz"**
+  (atribuição ativa — vale mesmo sem login);
+- o campo "Cupom de desconto" vem **pré-preenchido com `PETTMOL`** e
+  validado (✓);
+- o desconto de **10% é aplicado automaticamente** (testado em produto
+  sem promoção: R$ 99,99 → −R$ 10,00).
+
+**Não existe deep link oficial de produto.** O painel (Divulgação) só
+oferece: cupom `PETTMOL`, código de convite `PETTMOL` e o link fixo
+`petz.com.br/parceiro/pettmol`. Testado e negado:
+`/parceiro/pettmol/produto/<slug>` → 404; `?redirectUrl=` / `?url=` /
+`?q=` → ignorados. A loja parceira tem catálogo completo (mesmo do site)
+e busca própria — o cliente procura o produto lá dentro.
+
+### Caminho B — cupom PETTMOL digitado
+
+Também atribui, mas: **não acumula com promoção maior do produto**
+(ex: produto com 30% OFF → PETTMOL adiciona R$ 0). Serve de reserva
+quando o cookie do Caminho A expira.
+
+## Consequência para o PETMOL
+
+"Ver na Petz" deve levar o cliente à **Loja Parceira**
+(`/parceiro/pettmol`) via a ponte `/go/petz` (ver `docs/AFFILIATES.md`
+§Petz e `homeShoppingPartners.ts::petzBridgeUrl`). Assim os 10% entram
+sozinhos e a venda é atribuída. Chegar direto na página do produto
+**não** grava o cookie → sem atribuição garantida. O cupom PETTMOL vai
+pro clipboard só como reserva.
+
+## Fontes
+
+- Painel `parceiropetz.com.br/manager` (FAQ, Divulgação) — investigado 29/08/2026
+- Checkout `www.petz.com.br/checkout` — teste real até o carrinho, sem finalizar
+- https://www.petz.com.br/blog/programa-de-parcerias/
+- https://www.tiktok.com/@petz/video/7381580412684061958 (declaração oficial Petz)
 
 ## Registro
 
-| Data | GTIN testado | Tipo de destino (produto direto / vitrine) | Comissão atribuída? | Observação |
-|---|---|---|---|---|
-| 29/08/2026 | (não registrado — confirmar e preencher aqui quando disponível) | produto direto | YES | Confirmado pelo usuário diretamente no painel de parceiros da Petz. |
-
-## Resultado
-
-**YES** — comissão atribuída mesmo entrando direto no link do produto
-(sem passar pela vitrine). Mecanismo comercial validado;
-`PETZ_COUPON_ATTRIBUTION_VERIFIED=true` em produção desde 29/08/2026.
-
-Status atual: **COMPROVADO** — `PETZ_COUPON_ATTRIBUTION_VERIFIED=true`.
-
-## Mecanismo de atribuição (documentação oficial Petz, revisado 29/08/2026)
-
-O rastreio do "Parceiro Petz" é feito pelo **CUPOM/CÓDIGO** (`PETTMOL`),
-não pela URL de chegada. Trecho oficial da Petz:
-
-> "Com ele você cria um cupom de 10% de desconto e ganha 7% em cima de
-> **todas as vendas realizadas no nosso site e app utilizando o seu
-> código**."
-
-Ou seja: o tutor pode chegar em **qualquer página de produto** e, ao
-**aplicar o cupom `PETTMOL` no checkout**, a venda é atribuída ao PETMOL
-(7% de comissão). A vitrine `https://www.petz.com.br/parceiro/pettmol`
-é só um endereço de divulgação — não é o que rastreia.
-
-Consequência de produto: "Ver na Petz" **deve** abrir a página real do
-produto (`PetzProductMapping.product_url`) e reforçar o passo do cupom —
-é o cupom aplicado no carrinho, e só ele, que gera a comissão. Não faz
-sentido forçar o tutor a passar pela vitrine.
-
-Fontes:
-- https://www.petz.com.br/blog/programa-de-parcerias/
-- https://www.petz.com.br/blog/conquiste-uma-renda-extra-com-o-parceiro-petz/
-- https://www.tiktok.com/@petz/video/7381580412684061958 (declaração oficial Petz)
+| Data | Produto | Caminho | Atribuição no carrinho | Desconto 10% | Observação |
+|---|---|---|---|---|---|
+| 29/08/2026 | Kit Enxoval Modernpet Bege (full price) | A — via `/parceiro/pettmol` | "loja pettmol do Parceiro Petz" | sim, automático (−R$ 10,00) | cupom pré-preenchido + ✓ |
+| 29/08/2026 | Drontal Plus (30% OFF) | A | idem | R$ 0 extra (não acumula com promo) | promoção do produto prevalece |
+| 29/08/2026 | produto direto, sem passar pela loja parceira | — | nenhuma | — | cookie `petzPartner` ausente |

@@ -19,7 +19,6 @@ import {
   copyPetzCouponAndOpen,
   navigateToPartnerUrl,
   PETZ_COUPON_CODE,
-  HOME_SHOPPING_PARTNERS,
 } from './homeShoppingPartners';
 import { useCommerceOffers } from './useCommerceOffers';
 import { trackClick } from '@/lib/analytics/click';
@@ -84,15 +83,10 @@ export function MonetizedOffersList({
 
   function handleVerNaPetz() {
     if (!petzLink?.url) return;
-    void copyPetzCouponAndOpen(petzLink.url);
-    // §7/§18 da auditoria de monetização (25/08/2026): registra o
-    // mecanismo comercial real do clique, não só "abriu a Petz" — a
-    // URL só chega aqui quando o backend já confirmou
-    // is_petz_publicly_servable() (mode sempre "coupon_attribution_verified"
-    // neste ponto), mas destination_type distingue produto específico
-    // de storefront genérica (relevante pro teste de comissão em
-    // docs/PETZ_COMMISSION_VALIDATION.md).
-    const petzStorefrontUrl = HOME_SHOPPING_PARTNERS.find((p) => p.id === 'petz')?.storefrontAffiliateUrl;
+    void copyPetzCouponAndOpen(productLabel);
+    // Destino sempre a Loja Parceira (/parceiro/pettmol) via ponte /go/petz
+    // — é entrando por ela que a Petz aplica os 10% e atribui a venda
+    // (cookie petzPartner; ver docs/PETZ_COMMISSION_VALIDATION.md).
     void trackClick({
       source,
       cta_type: 'petz_direct_link_click',
@@ -101,7 +95,7 @@ export function MonetizedOffersList({
       pet_id: petId,
       metadata: {
         monetization_mode: 'coupon_attribution_verified',
-        destination_type: petzLink.url === petzStorefrontUrl ? 'storefront' : 'product',
+        destination_type: 'partner_store',
         coupon: PETZ_COUPON_CODE,
         product_gtin: gtin ?? undefined,
       },
