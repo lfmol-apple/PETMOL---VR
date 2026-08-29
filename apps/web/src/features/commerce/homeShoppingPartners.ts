@@ -355,99 +355,37 @@ export function petzBridgeUrl(productName?: string): string {
  *  800ms bastou nos testes, 2000ms é a margem de rede escolhida). */
 export const PETZ_TWO_HOP_DELAY_MS = 2000;
 
-/** Teto de espera pelo `browserPageLoaded` do 1º hop nativo antes de
- *  seguir mesmo assim (o Set-Cookie já veio no header da resposta bem
- *  antes do load terminar). */
-export const PETZ_NATIVE_HOP_LOAD_TIMEOUT_MS = 3500;
-/** Intervalo entre fechar e reabrir o navegador do sistema — dá tempo do
- *  SFSafariViewController desmontar pra `@capacitor/browser` 8.0.4
- *  aceitar a 2ª `open` (no iOS `prepare()` só cria se `safariVC == nil`). */
-export const PETZ_NATIVE_REOPEN_GAP_MS = 700;
-
 /**
- * TWO-HOP NATIVO (Capacitor — app PETMOL).
+ * TWO-HOP NO APP (Capacitor) — POR QUE NÃO DÁ.
  *
- * No app, `window.open` não devolve handle utilizável, então o two-hop
- * web não roda. Aqui a gente encadeia dois `@capacitor/browser`:
- *   1. abre a Loja Parceira no navegador do sistema (SFSafariViewController
- *      no iOS / Chrome Custom Tabs no Android) → a Petz grava o cookie
- *      `petzPartner` no header da resposta;
- *   2. espera a página carregar, FECHA e REABRE já no 2º hop (página exata
- *      do produto, ou a busca da Petz com o termo). O navegador do sistema
- *      mantém a mesma sessão/cookies dentro do app, então a atribuição
- *      continua valendo.
+ * O two-hop precisa de um contexto que orquestre as duas navegações de
+ * fora. No web isso é a janela do `window.open`. No app não existe:
+ *  - `@capacitor/browser` abre um SFSafariViewController (iOS) / Chrome
+ *    Custom Tab (Android) *modal sobre* o WebView do PETMOL;
+ *  - enquanto ele está por cima, o iOS **suspende o JS do WebView** — o
+ *    código que fecharia e reabriria no 2º hop só volta a rodar quando o
+ *    usuário fecha o navegador na mão. Resultado observado (PR #107, prod):
+ *    abre a Loja Parceira e trava ali;
+ *  - a ponte `/go/petz` também não resolve: uma vez que ela navega pra
+ *    `petz.com.br`, o controle acabou (é página da Petz).
+ * E a Petz não expõe deep link de produto pela loja parceira (`?q`/`#`/
+ * `/parceiro/pettmol/produto/...` = ignorados/404 — ver
+ * docs/PETZ_COMMISSION_VALIDATION.md).
  *
- * A COMISSÃO já está garantida assim que o 1º hop carrega. Se o 2º hop
- * falhar (ex: a view ainda não desmontou e a 2ª `open` é recusada),
- * reabrimos a Loja Parceira — o mesmo destino seguro do fallback.
- *
- * Segurança: o cookie é criado EXCLUSIVAMENTE pela Petz numa navegação
- * top-level a `/parceiro/pettmol`. Não lemos, não fabricamos, não
- * copiamos cookie; não inventamos parâmetro de URL.
- *
- * @returns true se assumiu o fluxo (mesmo caindo no reabrir-a-loja
- *   interno); false se nem o 1º hop abriu (o chamador usa a ponte /go/petz).
+ * Então no app "Ver na Petz" usa o FALLBACK: ponte `/go/petz` → Loja
+ * Parceira (cookie `petzPartner` → comissão garantida) + nome do produto
+ * copiado pra o cliente colar na busca da Petz. Two-hop (produto exato /
+ * busca) só no navegador do celular.
  */
-async function openPetzNativeTwoHop(secondHopUrl: string): Promise<boolean> {
-  let Browser: (typeof import('@capacitor/browser'))['Browser'];
-  try {
-    ({ Browser } = await import('@capacitor/browser'));
-  } catch {
-    return false;
-  }
-
-  // 1º hop — Loja Parceira. Set-Cookie `petzPartner` vem no header.
-  try {
-    await Browser.open({ url: PETZ_PARTNER_STORE_URL });
-  } catch {
-    return false;
-  }
-
-  // Espera a Loja Parceira carregar (garante o Set-Cookie), com teto de
-  // tempo. Se o usuário fechar antes, aborta o 2º hop.
-  let userClosed = false;
-  await new Promise<void>((resolve) => {
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      void Browser.removeAllListeners();
-      resolve();
-    };
-    void Browser.addListener('browserPageLoaded', finish);
-    void Browser.addListener('browserFinished', () => {
-      userClosed = true;
-      finish();
-    });
-    setTimeout(finish, PETZ_NATIVE_HOP_LOAD_TIMEOUT_MS);
-  });
-  if (userClosed) return true; // desistência do usuário — não força o produto
-
-  // Fecha e reabre já no produto. O cookie persiste na sessão do
-  // navegador do sistema (mesmo app) → atribuição mantida.
-  try {
-    await Browser.close();
-  } catch {
-    /* já fechado */
-  }
-  await new Promise<void>((r) => setTimeout(r, PETZ_NATIVE_REOPEN_GAP_MS));
-
-  try {
-    await Browser.open({ url: secondHopUrl }); // 2º hop — produto exato ou busca da Petz
-  } catch {
-    // 2ª open recusada (view ainda montada). Comissão intacta (cookie já
-    // gravado) — reabre a Loja Parceira, comportamento seguro.
-    try {
-      await Browser.open({ url: PETZ_PARTNER_STORE_URL });
-    } catch {
-      /* nada aberto — raro; usuário pode tocar de novo */
-    }
-  }
-  return true;
-}
 
 /**
  * Clique "Ver na Petz".
+ *
+ * TWO-HOP WEB (comprovado no navegador — ver docs/PETZ_COMMISSION_VALIDATION.md):
+ *   gesto → window.open('about:blank') → win.location.href = Loja Parceira
+ *   (Petz grava o cookie) → aguarda PETZ_TWO_HOP_DELAY_MS →
+ *   win.location.replace(2º hop) NA MESMA janela. Tudo por JS (nunca
+ *   <a href>) → o link não é entregue ao app da Petz.
  *
  * O 2º hop tem duas formas, na ordem de preferência:
  *  - `productUrl` (`/produto/...`): produto mapeado (`PetzProductMapping`
@@ -457,20 +395,10 @@ async function openPetzNativeTwoHop(secondHopUrl: string): Promise<boolean> {
  * Nos dois casos o cookie `petzPartner` (Path=/) sobrevive à navegação →
  * a venda continua atribuída à loja pettmol.
  *
- * TWO-HOP WEB (comprovado no navegador — ver docs/PETZ_COMMISSION_VALIDATION.md):
- *   gesto → window.open('about:blank') → win.location.href = Loja Parceira
- *   (Petz grava o cookie) → aguarda PETZ_TWO_HOP_DELAY_MS →
- *   win.location.replace(2º hop) NA MESMA janela. Tudo por JS (nunca
- *   <a href>) → o link não é entregue ao app da Petz.
- *
- * TWO-HOP NATIVO (Capacitor): sem `window.open` utilizável, encadeia dois
- * `@capacitor/browser` (abre a Loja Parceira → grava cookie → fecha →
- * reabre no 2º hop). Ver `openPetzNativeTwoHop`.
- *
- * FALLBACK (popup bloqueado / sem 2º hop utilizável / nem o 1º hop nativo
- * abriu): ponte /go/petz → só a Loja Parceira, copiando o NOME do produto
- * pra busca manual. Comissão garantida; só o destino do 2º hop que não
- * acontece.
+ * FALLBACK (Capacitor / popup bloqueado / sem 2º hop utilizável): ponte
+ * /go/petz → só a Loja Parceira, copiando o NOME do produto pra busca
+ * manual. Comissão garantida; só o destino do 2º hop que não acontece.
+ * (Ver acima por que o app nunca faz two-hop.)
  */
 export async function openPetzPartnerStore(
   opts: {
@@ -515,19 +443,11 @@ export async function openPetzPartnerStore(
     return;
   }
 
-  if (secondHop && isNative) {
-    // ── TWO-HOP NATIVO (app PETMOL) ──
-    void copyText(PETZ_COUPON_CODE); // cupom como segurança (logado: auto; deslogado: cliente cola)
-    showAppToast('Desconto PETTMOL ativado pela Loja Parceira. Cupom PETTMOL também foi copiado caso a Petz solicite.', {
-      tone: 'success',
-      durationMs: 6000,
-    });
-    const handled = await openPetzNativeTwoHop(secondHop);
-    if (handled) return;
-    // nem o 1º hop abriu → cai no fallback abaixo
-  }
+  // App (Capacitor) nunca faz two-hop (o iOS suspende o JS do WebView
+  // enquanto o navegador do sistema está por cima — ver o bloco "TWO-HOP
+  // NO APP — POR QUE NÃO DÁ" acima). Cai direto no fallback.
 
-  // ── FALLBACK: popup bloqueado / sem 2º hop utilizável / 1º hop nativo indisponível ──
+  // ── FALLBACK: Capacitor / popup bloqueado / sem 2º hop utilizável ──
   const copied = productName ? await copyText(productName).catch(() => false) : false;
   if (copied) {
     showAppToast(`"${productName}" copiado — cole na busca da Petz. Seu cupom PETTMOL já está na Loja Parceira.`, {
