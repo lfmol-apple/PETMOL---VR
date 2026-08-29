@@ -37,6 +37,20 @@ from .config import get_settings
 PETZ_PARTNER_STORE_URL = "https://www.petz.com.br/parceiro/pettmol"
 PETZ_COUPON_CODE = "PETTMOL"
 PETZ_AFFILIATE_PROGRAM = "petz_partner"
+# Busca do site da Petz (plataforma VTEX — padrão /busca?q=). Usada como
+# fallback do "Ver na Petz" quando o produto ainda não tem mapping
+# confirmado: a comissão do Parceiro Petz vem do cupom PETTMOL aplicado
+# no checkout (ver docs/PETZ_COMMISSION_VALIDATION.md), então qualquer
+# página de chegada dentro de petz.com.br remunera igual — o importante
+# é levar o tutor ao produto certo e com o cupom no clipboard.
+PETZ_SITE_SEARCH_BASE = "https://www.petz.com.br/busca"
+
+
+def petz_site_search_url(query: str) -> str:
+    from urllib.parse import quote_plus
+
+    term = " ".join((query or "").split())[:120]
+    return f"{PETZ_SITE_SEARCH_BASE}?q={quote_plus(term)}" if term else PETZ_PARTNER_STORE_URL
 
 STOREFRONT_AFFILIATE_URLS: dict[str, str] = {
     "cobasi": "https://minhaloja.cobasi.com.br?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol",

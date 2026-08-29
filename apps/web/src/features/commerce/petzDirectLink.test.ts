@@ -6,13 +6,15 @@ describe('fetchPetzDirectLink — "Ver na Petz" (caminho separado do CommerceEng
     vi.resetModules();
   });
 
-  it('retorna a URL quando o backend confirma available:true', async () => {
+  it('produto confirmado → destino é a página real do produto', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
         available: true,
+        partner_program_active: true,
         url: 'https://www.petz.com.br/produto/x-100223',
         direct_product_url: 'https://www.petz.com.br/produto/x-100223',
+        search_url: 'https://www.petz.com.br/busca?q=Ra%C3%A7%C3%A3o+X',
         partner_store_url: 'https://www.petz.com.br/parceiro/pettmol',
         coupon_code: 'PETTMOL',
         affiliate_program: 'petz_partner',
@@ -21,17 +23,36 @@ describe('fetchPetzDirectLink — "Ver na Petz" (caminho separado do CommerceEng
     }));
 
     const { fetchPetzDirectLink } = await import('./productPricing');
-    const result = await fetchPetzDirectLink('7896181298090');
+    const result = await fetchPetzDirectLink('7896181298090', 'Ração X');
 
-    expect(result).toEqual({
-      available: true,
-      url: 'https://www.petz.com.br/produto/x-100223',
-      direct_product_url: 'https://www.petz.com.br/produto/x-100223',
-      partner_store_url: 'https://www.petz.com.br/parceiro/pettmol',
-      coupon_code: 'PETTMOL',
-      affiliate_program: 'petz_partner',
-      link_type: 'affiliate_store',
+    expect(result.url).toBe('https://www.petz.com.br/produto/x-100223');
+    expect(result.direct_product_url).toBe('https://www.petz.com.br/produto/x-100223');
+    expect(result.coupon_code).toBe('PETTMOL');
+  });
+
+  it('produto sem mapping confirmado → destino é a busca do site da Petz + passa o nome como q', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        available: true,
+        partner_program_active: true,
+        url: 'https://www.petz.com.br/busca?q=Ra%C3%A7%C3%A3o+Golden',
+        direct_product_url: null,
+        search_url: 'https://www.petz.com.br/busca?q=Ra%C3%A7%C3%A3o+Golden',
+        partner_store_url: 'https://www.petz.com.br/parceiro/pettmol',
+        coupon_code: 'PETTMOL',
+        affiliate_program: 'petz_partner',
+        link_type: 'affiliate_store',
+      }),
     });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchPetzDirectLink } = await import('./productPricing');
+    const result = await fetchPetzDirectLink('7899999999999', 'Ração Golden');
+
+    expect(fetchMock.mock.calls[0][0]).toContain('q=Ra%C3%A7%C3%A3o+Golden');
+    expect(result.url).toBe('https://www.petz.com.br/busca?q=Ra%C3%A7%C3%A3o+Golden');
+    expect(result.direct_product_url).toBeNull();
   });
 
   it('retorna available:false quando o backend responde available:false', async () => {

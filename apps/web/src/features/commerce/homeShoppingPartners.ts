@@ -323,9 +323,12 @@ export async function copyPetzCouponAndOpen(url: string): Promise<void> {
   try {
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(PETZ_COUPON_CODE);
-      showAppToast(`Cupom ${PETZ_COUPON_CODE} copiado — cole no carrinho da Petz para 10% de desconto`, {
+      // O cupom é o mecanismo de atribuição do Parceiro Petz — sem ele
+      // aplicado no checkout, a compra não gera comissão (ver
+      // docs/AFFILIATES.md §Petz). Toast reforçado pra não passar batido.
+      showAppToast(`Cupom ${PETZ_COUPON_CODE} copiado — cole no carrinho da Petz antes de finalizar (10% de desconto)`, {
         tone: 'success',
-        durationMs: 5000,
+        durationMs: 6000,
       });
     }
   } catch {

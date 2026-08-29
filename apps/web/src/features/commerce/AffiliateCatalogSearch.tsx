@@ -131,7 +131,8 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
       });
   }
 
-  function loadPetzForGtin(gtin: string) {
+  function loadPetzForGtin(item: AwinSearchResult) {
+    const gtin = item.gtin;
     const current = petzByGtin[gtin];
     if (current === 'loading' || (typeof current === 'object' && current !== null) || resolvingPetzGtinsRef.current.has(gtin)) return;
 
@@ -139,10 +140,10 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
     setPetzByGtin((prev) => ({ ...prev, [gtin]: 'loading' }));
     // Caminho DELIBERADAMENTE separado de fetchCommerceOffers (ver
     // docs/AFFILIATES.md §Petz) — sem preço, a Petz nunca entra na lista
-    // de ofertas do CommerceEngine. Sem chamar isto aqui também, a Petz
-    // nunca aparecia no "Escolha a loja" desta tela, mesmo com produto já
-    // confirmado no catálogo (só o card "Comprar novamente" chamava).
-    fetchPetzDirectLink(gtin)
+    // de ofertas do CommerceEngine. Com o programa Parceiro Petz ativo,
+    // "Ver na Petz" aparece pra qualquer produto: página do produto
+    // confirmado quando existe, senão busca do site da Petz pelo nome.
+    fetchPetzDirectLink(gtin, item.title ?? undefined)
       .then((link) => setPetzByGtin((prev) => ({ ...prev, [gtin]: link })))
       .finally(() => {
         resolvingPetzGtinsRef.current.delete(gtin);
@@ -151,7 +152,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
 
   function loadStoresForGtin(item: AwinSearchResult) {
     loadOffersForGtin(item);
-    loadPetzForGtin(item.gtin);
+    loadPetzForGtin(item);
   }
 
   useEffect(() => {

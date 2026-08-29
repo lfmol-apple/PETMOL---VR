@@ -74,13 +74,13 @@ export function MonetizedOffersList({
       return;
     }
     let cancelled = false;
-    void fetchPetzDirectLink(gtin).then((link) => {
+    void fetchPetzDirectLink(gtin, query || productLabel).then((link) => {
       if (!cancelled) setPetzLink(link);
     });
     return () => {
       cancelled = true;
     };
-  }, [gtin]);
+  }, [gtin, query, productLabel]);
 
   function handleVerNaPetz() {
     if (!petzLink?.url) return;
@@ -234,6 +234,9 @@ function PetzStorefrontCard({ petzLink, productLabel, onClick }: { petzLink: Pet
       <span className="mt-2.5 flex w-full items-center justify-center rounded-xl bg-blue-600 text-white text-[13px] font-bold py-2">
         Ver na Petz ↗
       </span>
+      <p className="mt-1.5 text-center text-[11px] font-semibold text-blue-700">
+        Aplique o cupom PETTMOL no carrinho antes de finalizar
+      </p>
     </button>
   );
 }

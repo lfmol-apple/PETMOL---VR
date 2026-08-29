@@ -890,27 +890,33 @@ correção, `/commerce/petz-direct-link` só checava
 duas flags — um produto meramente confirmado bastava pra gerar saída
 comercial, sem nenhuma prova de comissão.
 
-Arquitetura:
-- `GET /commerce/petz-direct-link?gtin=...` só retorna URL quando
-  `is_petz_publicly_servable()` é `True` **e** o **produto** já foi
-  confirmado no catálogo Petz (`match_status` em
-  `confirmed`/`affiliate_pending`/`affiliate_ready` —
-  `DIRECT_LINK_ELIGIBLE_STATUSES` em `petz_mapping.py`). A confirmação
-  de produto é o que garante "esse produto existe mesmo na Petz" antes
-  de mostrar o cupom pra esse item específico — mas sozinha nunca é
-  prova de que o cupom de fato atribui comissão ao PETMOL (são dois
-  fatos distintos por design, ver gate único acima).
-- `link_type: "affiliate_store"` — mesma semântica do storefront da
-  Cobasi; nunca aparece na lista de comparação de preço (`GET
-  /commerce/offers`/`CommerceEngine`), porque não existe fonte de
-  preço Petz por produto — é uma referência isolada de "esse produto
-  existe na Petz, com desconto via cupom".
-- Frontend: card visualmente completo (não uma linha discreta) —
-  `MonetizedOffersList.tsx` (`PetzStorefrontCard`, ficha de produto) e
-  `HomeShoppingSheet.tsx` (`OfferPickerRow`, seletor "Escolha a loja"
-  em "Comprar novamente") — com logo da Petz e "Cupom PETTMOL -10%"
-  no lugar do preço. Só aparece quando o produto já foi confirmado;
-  nunca entra em `QUICK_BUY_PARTNERS` (busca genérica sem confirmação).
+Arquitetura (revisada 29/08/2026 — cobertura universal):
+- A atribuição do Parceiro Petz é pelo **cupom `PETTMOL` no checkout**
+  ("7% em cima de todas as vendas no site/app utilizando o seu código" —
+  doc oficial Petz), **não** pela URL de chegada. Ver
+  `docs/PETZ_COMMISSION_VALIDATION.md`.
+- `GET /commerce/petz-direct-link?gtin=...&q=<nome>`: quando
+  `is_petz_publicly_servable()` é `True`, sempre devolve
+  `partner_program_active: true` e um destino utilizável:
+  - `direct_product_url` — página real do produto, quando há um
+    `PetzProductMapping` confirmado (`DIRECT_LINK_ELIGIBLE_STATUSES`).
+  - `search_url` — busca do site da Petz (`/busca?q=<nome>`, plataforma
+    VTEX) pelo nome do produto: **fallback universal** para produto sem
+    mapping confirmado.
+  - `partner_store_url` — vitrine da Loja Parceira, último fallback
+    (produto desconhecido e sem nome).
+  - `url` = melhor destino nessa ordem.
+- Com o master gate **desligado**, nada é servido (`available: false`,
+  `partner_program_active: false`).
+- `link_type: "affiliate_store"` — nunca aparece na comparação de preço
+  (`/commerce/offers`), não há fonte de preço Petz por produto.
+- Frontend: "Ver na Petz" aparece em **qualquer** busca de produto e nos
+  cards de "Comprar novamente" quando o programa está ativo —
+  `AffiliateCatalogSearch.tsx`, `HomeShoppingSheet.tsx` (`OfferPickerRow`),
+  `MonetizedOffersList.tsx` (`PetzStorefrontCard`). O cupom `PETTMOL` vai
+  pro clipboard automaticamente ao abrir (`copyPetzCouponAndOpen`), com
+  toast reforçado — não há como pré-aplicar o cupom por URL (Petz não
+  expõe esse mecanismo).
 - `STOREFRONT_AFFILIATE_URLS["petz"]` deve espelhar o mesmo valor de
   `storefrontAffiliateUrl` na entrada `petz` de
   `apps/web/src/features/commerce/homeShoppingPartners.ts`.
