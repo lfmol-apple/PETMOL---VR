@@ -529,14 +529,14 @@ async def test_picks_row_matching_weight_among_multiple():
 def test_monetize_returns_feed_affiliate_url():
     db = SessionLocal()
     try:
-        row = _row()
+        row = _row(merchant="zeedog", advertiser_id="127555")
         db.add(row)
         db.commit()
         db.refresh(row)
 
-        provider = AwinFeedProvider(db, "cobasi")
+        provider = AwinFeedProvider(db, "zeedog")
         from src.commerce_provider import DiscoveredOffer
-        offer = DiscoveredOffer(merchant="cobasi", price=100.0, direct_url=row.merchant_url, ean=GTIN, external_id=row.external_product_id)
+        offer = DiscoveredOffer(merchant="zeedog", price=100.0, direct_url=row.merchant_url, ean=GTIN, external_id=row.external_product_id)
         result = provider.monetize(offer, ProductContext(gtin=GTIN))
         assert result == ("https://track.awin.com/deep-link-teste", "affiliate_product", "awin")
     finally:
@@ -544,17 +544,17 @@ def test_monetize_returns_feed_affiliate_url():
 
 
 def test_monetize_returns_none_when_affiliate_url_empty():
-    """§17: NUNCA usar merchant_url limpa como fallback em produção."""
+    """§17: Awin genérica NUNCA usa merchant_url limpa como fallback."""
     db = SessionLocal()
     try:
-        row = _row(affiliate_url=None)
+        row = _row(merchant="zeedog", advertiser_id="127555", affiliate_url=None)
         db.add(row)
         db.commit()
         db.refresh(row)
 
-        provider = AwinFeedProvider(db, "cobasi")
+        provider = AwinFeedProvider(db, "zeedog")
         from src.commerce_provider import DiscoveredOffer
-        offer = DiscoveredOffer(merchant="cobasi", price=100.0, direct_url=row.merchant_url, ean=GTIN, external_id=row.external_product_id)
+        offer = DiscoveredOffer(merchant="zeedog", price=100.0, direct_url=row.merchant_url, ean=GTIN, external_id=row.external_product_id)
         result = provider.monetize(offer, ProductContext(gtin=GTIN))
         assert result is None
 
@@ -747,7 +747,11 @@ def test_awin_test_gtin_authorizes_monetize_too(monkeypatch, _not_publicly_serva
         provider = AwinFeedProvider(db, "cobasi")
         offer = DiscoveredOffer(merchant="cobasi", price=100.0, direct_url=row.merchant_url, ean=GTIN, external_id=row.external_product_id)
         result = provider.monetize(offer, ProductContext(gtin=GTIN))
-        assert result == ("https://track.awin.com/deep-link-teste", "affiliate_product", "awin")
+        assert result == (
+            "https://www.cobasi.com.br/produto-teste/p?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol",
+            "affiliate_product",
+            "mais",
+        )
     finally:
         db.close()
         get_settings.cache_clear()

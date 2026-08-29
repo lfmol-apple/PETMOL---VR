@@ -74,10 +74,8 @@ class CobasiProvider:
             return False
         if preferred_route_for(self.merchant) != "awin":
             return True
-        has_preferred_offer = any(
-            o.merchant == self.merchant and o.route == "awin" for o in offers_so_far
-        )
-        if not has_preferred_offer:
+        has_existing_offer = any(o.merchant == self.merchant for o in offers_so_far)
+        if not has_existing_offer:
             return True
         if context.gtin and self._has_manual_link(context.gtin):
             return True

@@ -100,7 +100,7 @@ async def test_mais_not_called_when_scanned_gtin_resolves_via_awin(monkeypatch):
     assert calls["count"] == 0, "fetch_cobasi_price não deveria ser chamado quando Awin já resolveu o GTIN"
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
     assert len(cobasi_offers) == 1
-    assert cobasi_offers[0].route == "awin"
+    assert cobasi_offers[0].route == "mais"
 
 
 @pytest.mark.asyncio
