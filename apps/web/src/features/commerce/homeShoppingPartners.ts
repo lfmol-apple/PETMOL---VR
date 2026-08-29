@@ -372,9 +372,10 @@ export const PETZ_NATIVE_REOPEN_GAP_MS = 700;
  *   1. abre a Loja Parceira no navegador do sistema (SFSafariViewController
  *      no iOS / Chrome Custom Tabs no Android) → a Petz grava o cookie
  *      `petzPartner` no header da resposta;
- *   2. espera a página carregar, FECHA e REABRE já na URL REAL do produto.
- *      O navegador do sistema mantém a mesma sessão/cookies dentro do app,
- *      então a atribuição continua valendo e o cliente vê o produto exato.
+ *   2. espera a página carregar, FECHA e REABRE já no 2º hop (página exata
+ *      do produto, ou a busca da Petz com o termo). O navegador do sistema
+ *      mantém a mesma sessão/cookies dentro do app, então a atribuição
+ *      continua valendo.
  *
  * A COMISSÃO já está garantida assim que o 1º hop carrega. Se o 2º hop
  * falhar (ex: a view ainda não desmontou e a 2ª `open` é recusada),
@@ -387,7 +388,7 @@ export const PETZ_NATIVE_REOPEN_GAP_MS = 700;
  * @returns true se assumiu o fluxo (mesmo caindo no reabrir-a-loja
  *   interno); false se nem o 1º hop abriu (o chamador usa a ponte /go/petz).
  */
-async function openPetzNativeTwoHop(productUrl: string): Promise<boolean> {
+async function openPetzNativeTwoHop(secondHopUrl: string): Promise<boolean> {
   let Browser: (typeof import('@capacitor/browser'))['Browser'];
   try {
     ({ Browser } = await import('@capacitor/browser'));
@@ -432,7 +433,7 @@ async function openPetzNativeTwoHop(productUrl: string): Promise<boolean> {
   await new Promise<void>((r) => setTimeout(r, PETZ_NATIVE_REOPEN_GAP_MS));
 
   try {
-    await Browser.open({ url: productUrl }); // 2º hop — produto exato
+    await Browser.open({ url: secondHopUrl }); // 2º hop — produto exato ou busca da Petz
   } catch {
     // 2ª open recusada (view ainda montada). Comissão intacta (cookie já
     // gravado) — reabre a Loja Parceira, comportamento seguro.
@@ -448,31 +449,49 @@ async function openPetzNativeTwoHop(productUrl: string): Promise<boolean> {
 /**
  * Clique "Ver na Petz".
  *
+ * O 2º hop tem duas formas, na ordem de preferência:
+ *  - `productUrl` (`/produto/...`): produto mapeado (`PetzProductMapping`
+ *    confirmado) — o cliente cai NA página exata do produto.
+ *  - `searchUrl` (`/busca?q=...`): qualquer outro produto — o cliente cai
+ *    na BUSCA da Petz já com o termo, escolhe o item certo da lista.
+ * Nos dois casos o cookie `petzPartner` (Path=/) sobrevive à navegação →
+ * a venda continua atribuída à loja pettmol.
+ *
  * TWO-HOP WEB (comprovado no navegador — ver docs/PETZ_COMMISSION_VALIDATION.md):
  *   gesto → window.open('about:blank') → win.location.href = Loja Parceira
- *   (Petz grava o cookie `petzPartner`) → aguarda PETZ_TWO_HOP_DELAY_MS →
- *   win.location.replace(URL REAL do produto) NA MESMA janela. O cliente
- *   vê o produto exato e o carrinho continua atribuído à loja pettmol.
- *   A 2ª navegação é por JS (nunca <a href>) → /produto/* não é entregue
- *   ao app da Petz.
+ *   (Petz grava o cookie) → aguarda PETZ_TWO_HOP_DELAY_MS →
+ *   win.location.replace(2º hop) NA MESMA janela. Tudo por JS (nunca
+ *   <a href>) → o link não é entregue ao app da Petz.
  *
  * TWO-HOP NATIVO (Capacitor): sem `window.open` utilizável, encadeia dois
  * `@capacitor/browser` (abre a Loja Parceira → grava cookie → fecha →
- * reabre no produto). Ver `openPetzNativeTwoHop`.
+ * reabre no 2º hop). Ver `openPetzNativeTwoHop`.
  *
- * FALLBACK (popup bloqueado / produto sem URL exata / nem o 1º hop nativo
- * abriu): ponte /go/petz → só Loja Parceira, copiando o NOME do produto
- * pra busca. A comissão continua garantida (cookie da Loja Parceira); só
- * o "produto exato" que não acontece nesse caminho.
+ * FALLBACK (popup bloqueado / sem 2º hop utilizável / nem o 1º hop nativo
+ * abriu): ponte /go/petz → só a Loja Parceira, copiando o NOME do produto
+ * pra busca manual. Comissão garantida; só o destino do 2º hop que não
+ * acontece.
  */
 export async function openPetzPartnerStore(
-  opts: { productUrl?: string | null; productName?: string | null } = {},
+  opts: {
+    productUrl?: string | null;
+    productName?: string | null;
+    searchUrl?: string | null;
+  } = {},
 ): Promise<void> {
   const productUrl = (opts.productUrl ?? '').trim();
   const productName = (opts.productName ?? '').trim();
-  const hasExactProduct = !!productUrl && isRealPetzUrl(productUrl);
+  const searchUrl = (opts.searchUrl ?? '').trim();
+
+  // 2º hop: página exata do produto > busca da Petz com o termo.
+  const secondHop =
+    productUrl && isRealPetzUrl(productUrl)
+      ? productUrl
+      : searchUrl && isRealPetzUrl(searchUrl)
+        ? searchUrl
+        : '';
   const isNative = Capacitor.isNativePlatform();
-  const canTwoHop = hasExactProduct && !isNative && typeof window !== 'undefined';
+  const canTwoHop = !!secondHop && !isNative && typeof window !== 'undefined';
 
   // window.open PRIMEIRO e SÍNCRONO, dentro do gesto — senão o popup blocker mata.
   const win = canTwoHop ? window.open('about:blank', '_blank') : null;
@@ -488,7 +507,7 @@ export async function openPetzPartnerStore(
     win.location.href = PETZ_PARTNER_STORE_URL; // 1º hop — Petz grava petzPartner
     window.setTimeout(() => {
       try {
-        win.location.replace(productUrl); // 2º hop — produto real, MESMA janela
+        win.location.replace(secondHop); // 2º hop — produto/busca, MESMA janela
       } catch {
         /* janela fechada pelo usuário — ignora */
       }
@@ -496,19 +515,19 @@ export async function openPetzPartnerStore(
     return;
   }
 
-  if (hasExactProduct && isNative) {
+  if (secondHop && isNative) {
     // ── TWO-HOP NATIVO (app PETMOL) ──
     void copyText(PETZ_COUPON_CODE); // cupom como segurança (logado: auto; deslogado: cliente cola)
     showAppToast('Desconto PETTMOL ativado pela Loja Parceira. Cupom PETTMOL também foi copiado caso a Petz solicite.', {
       tone: 'success',
       durationMs: 6000,
     });
-    const handled = await openPetzNativeTwoHop(productUrl);
+    const handled = await openPetzNativeTwoHop(secondHop);
     if (handled) return;
     // nem o 1º hop abriu → cai no fallback abaixo
   }
 
-  // ── FALLBACK: popup bloqueado / produto sem URL exata / 1º hop nativo indisponível ──
+  // ── FALLBACK: popup bloqueado / sem 2º hop utilizável / 1º hop nativo indisponível ──
   const copied = productName ? await copyText(productName).catch(() => false) : false;
   if (copied) {
     showAppToast(`"${productName}" copiado — cole na busca da Petz. Seu cupom PETTMOL já está na Loja Parceira.`, {

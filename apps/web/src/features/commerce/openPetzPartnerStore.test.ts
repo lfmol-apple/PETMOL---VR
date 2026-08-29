@@ -4,14 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 //
 // TWO-HOP WEB (comprovado no navegador): gesto → window.open('about:blank')
 // → win.location.href = Loja Parceira (Petz grava petzPartner) → delay →
-// win.location.replace(URL REAL do produto). Cliente vê o produto exato,
-// carrinho continua atribuído à loja pettmol.
+// win.location.replace(2º hop). O cookie (Path=/) sobrevive → carrinho
+// continua atribuído à loja pettmol.
+//   2º hop = /produto/... (produto mapeado) OU /busca?q=... (qualquer
+//   outro produto — cliente escolhe da lista).
 //
-// FALLBACK (Capacitor / popup bloqueado / produto sem URL exata): ponte
+// FALLBACK (Capacitor / popup bloqueado / SEM 2º hop utilizável): ponte
 // /go/petz → só a Loja Parceira, copiando o NOME do produto pra busca.
 
 const PARTNER_STORE = 'https://www.petz.com.br/parceiro/pettmol';
 const REAL_PRODUCT = 'https://www.petz.com.br/produto/kit-enxoval-modernpet-201842';
+const SEARCH_URL = 'https://www.petz.com.br/busca?q=Royal+Canin+racao';
 
 function fakeWindow() {
   return {
@@ -43,7 +46,7 @@ describe('openPetzPartnerStore', () => {
     vi.stubGlobal('open', openSpy);
 
     const { openPetzPartnerStore, PETZ_TWO_HOP_DELAY_MS } = await import('./homeShoppingPartners');
-    await openPetzPartnerStore({ productUrl: REAL_PRODUCT, productName: 'Kit Enxoval' });
+    await openPetzPartnerStore({ productUrl: REAL_PRODUCT, searchUrl: SEARCH_URL, productName: 'Kit Enxoval' });
 
     // janela em branco no gesto, opener neutralizado
     expect(openSpy).toHaveBeenCalledWith('about:blank', '_blank');
@@ -52,11 +55,25 @@ describe('openPetzPartnerStore', () => {
     expect(win.location.href).toBe(PARTNER_STORE);
     // 2º hop ainda NÃO aconteceu
     expect(win.location.replace).not.toHaveBeenCalled();
-    // ...só depois do delay
+    // ...só depois do delay — e prefere o PRODUTO exato ao searchUrl
     vi.advanceTimersByTime(PETZ_TWO_HOP_DELAY_MS);
     expect(win.location.replace).toHaveBeenCalledWith(REAL_PRODUCT);
-    // nunca abre a URL da Petz direto na janela original
     expect(openSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('produto SEM URL exata mas COM searchUrl → two-hop pra BUSCA da Petz', async () => {
+    const win = fakeWindow();
+    vi.stubGlobal('open', vi.fn(() => win));
+
+    const { openPetzPartnerStore, PETZ_TWO_HOP_DELAY_MS } = await import('./homeShoppingPartners');
+    await openPetzPartnerStore({ searchUrl: SEARCH_URL, productName: 'Ração Golden' });
+
+    expect(win.location.href).toBe(PARTNER_STORE);
+    vi.advanceTimersByTime(PETZ_TWO_HOP_DELAY_MS);
+    expect(win.location.replace).toHaveBeenCalledWith(SEARCH_URL);
+    // com 2º hop utilizável, copia o CUPOM (não o nome)
+    expect(writeText).toHaveBeenCalledWith('PETTMOL');
+    expect(writeText).not.toHaveBeenCalledWith('Ração Golden');
   });
 
   it('two-hop copia o CUPOM PETTMOL (não o nome do produto)', async () => {
@@ -68,7 +85,7 @@ describe('openPetzPartnerStore', () => {
     expect(writeText).not.toHaveBeenCalledWith('Ração Golden Fórmula');
   });
 
-  it('produto SEM URL exata → fallback: ponte /go/petz + copia o NOME do produto', async () => {
+  it('sem productUrl E sem searchUrl → fallback: ponte /go/petz + copia o NOME do produto', async () => {
     const openSpy = vi.fn((..._a: unknown[]) => fakeWindow());
     vi.stubGlobal('open', openSpy);
 
@@ -84,16 +101,16 @@ describe('openPetzPartnerStore', () => {
     expect(writeText).not.toHaveBeenCalledWith('PETTMOL');
   });
 
-  it('URL de produto inválida / maliciosa → NÃO faz two-hop, cai no fallback', async () => {
+  it('productUrl E searchUrl inválidos / maliciosos → NÃO faz two-hop, cai no fallback', async () => {
     const openSpy = vi.fn((..._a: unknown[]) => fakeWindow());
     vi.stubGlobal('open', openSpy);
 
+    const bad = ['https://evil.com/produto/x', 'http://www.petz.com.br/produto/x', 'https://petz.com.br.evil.com/x', 'javascript:alert(1)'];
     const { openPetzPartnerStore } = await import('./homeShoppingPartners');
-    for (const bad of ['https://evil.com/produto/x', 'http://www.petz.com.br/produto/x', 'https://petz.com.br.evil.com/x', 'javascript:alert(1)']) {
+    for (const url of bad) {
       openSpy.mockClear();
-      await openPetzPartnerStore({ productUrl: bad, productName: 'X' });
+      await openPetzPartnerStore({ productUrl: url, searchUrl: url, productName: 'X' });
       const opened = openSpy.mock.calls[0][0] as string;
-      // abriu a ponte /go/petz, nunca 'about:blank' (two-hop) nem a URL ruim
       expect(opened).toContain('/go/petz');
       expect(opened).not.toBe('about:blank');
       expect(opened).not.toContain('evil.com');

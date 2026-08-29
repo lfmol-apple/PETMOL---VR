@@ -184,7 +184,11 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                                 });
                               }}
                               onPetzBuy={(petzLink) => {
-                                void openPetzPartnerStore({ productUrl: petzLink.direct_product_url, productName: card.label });
+                                void openPetzPartnerStore({
+                                  productUrl: petzLink.direct_product_url,
+                                  searchUrl: petzLink.search_url,
+                                  productName: card.label,
+                                });
                                 void trackClick({
                                   source: 'home',
                                   cta_type: 'shop_reorder_buy_petz',

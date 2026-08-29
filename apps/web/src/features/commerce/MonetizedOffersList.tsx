@@ -86,7 +86,11 @@ export function MonetizedOffersList({
     // Entra pela Loja Parceira (cookie petzPartner → atribuição garantida);
     // no web, se há URL real de produto confirmado, faz o two-hop e o
     // cliente cai no produto exato. Ver docs/PETZ_COMMISSION_VALIDATION.md.
-    void openPetzPartnerStore({ productUrl: petzLink.direct_product_url, productName: productLabel });
+    void openPetzPartnerStore({
+      productUrl: petzLink.direct_product_url,
+      searchUrl: petzLink.search_url,
+      productName: productLabel,
+    });
     void trackClick({
       source,
       cta_type: 'petz_direct_link_click',
