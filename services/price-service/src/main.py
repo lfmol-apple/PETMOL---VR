@@ -1539,11 +1539,12 @@ async def commerce_petz_direct_link(
     que o produto certo foi identificado no catálogo Petz — nunca que o
     cupom PETTMOL (10% off, programa "Loja Parceira") de fato atribui
     comissão ao PETMOL quando o tutor chega direto na URL comum do
-    produto. Essa prova comercial é DISTINTA e ainda não foi validada
-    com uma compra real (ver docs/PETZ_COMMISSION_VALIDATION.md) — por
-    isso a segunda condição, settings.petz_coupon_attribution_verified,
-    tem que estar True também: sem isso, nenhuma URL é servida, mesmo
-    com o produto confirmado.
+    produto. Essa prova comercial é DISTINTA — validada com uma compra
+    real em 29/08/2026 (ver docs/PETZ_COMMISSION_VALIDATION.md), então a
+    segunda condição, settings.petz_coupon_attribution_verified, passou
+    a ser ligada explicitamente em produção; continua obrigatória (True)
+    pra servir qualquer URL, mesmo com o produto confirmado — o default
+    no código segue False.
 
     Prioriza a URL ESPECÍFICA do produto (`PetzProductMapping.product_url`
     — a página real confirmada, ex: .../produto/racao-...-100223) sobre a

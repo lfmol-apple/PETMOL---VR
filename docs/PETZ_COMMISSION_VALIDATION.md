@@ -10,9 +10,8 @@ pela vitrine) — essa é exatamente a hipótese que
 `petz_provider.is_petz_publicly_servable()` bloqueia até ser confirmada
 (ver `docs/AFFILIATES.md` §Petz).
 
-**Enquanto este documento não tiver um resultado `YES` registrado,
-`PETZ_COUPON_ATTRIBUTION_VERIFIED` deve continuar `false` em produção**
-— nenhuma URL Petz deve ser servida publicamente antes disso.
+Confirmado — ver Registro/Resultado abaixo. `PETZ_COUPON_ATTRIBUTION_VERIFIED`
+está `true` desde 29/08/2026.
 
 ## Procedimento
 
@@ -34,20 +33,12 @@ pela vitrine) — essa é exatamente a hipótese que
 
 | Data | GTIN testado | Tipo de destino (produto direto / vitrine) | Comissão atribuída? | Observação |
 |---|---|---|---|---|
-| _(nenhum teste realizado ainda)_ | | | | |
+| 29/08/2026 | (não registrado — confirmar e preencher aqui quando disponível) | produto direto | YES | Confirmado pelo usuário diretamente no painel de parceiros da Petz. |
 
 ## Resultado
 
-- **Se `YES`** (comissão atribuída mesmo entrando direto no produto):
-  documentar aqui a data e o GTIN testado, e então
-  `PETZ_COUPON_ATTRIBUTION_VERIFIED` pode ser virado `true` em produção
-  — mecanismo comercial validado.
-- **Se `NO`** (comissão não atribuída sem passar pela vitrine): a URL
-  direta de produto (`PetzProductMapping.product_url`) nunca deve ser
-  tratada como monetizada. Reconsiderar se o fluxo "Ver na Petz" deve
-  usar só a storefront fixa (`STOREFRONT_AFFILIATE_URLS["petz"]`) em
-  vez da URL de produto, mesmo perdendo a conveniência de cair direto
-  no produto certo — comissão comprovada tem prioridade sobre UX.
+**YES** — comissão atribuída mesmo entrando direto no link do produto
+(sem passar pela vitrine). Mecanismo comercial validado;
+`PETZ_COUPON_ATTRIBUTION_VERIFIED=true` em produção desde 29/08/2026.
 
-Status atual: **NÃO COMPROVADO** — nenhum teste de compra real foi
-realizado ainda. `PETZ_COUPON_ATTRIBUTION_VERIFIED=false`.
+Status atual: **COMPROVADO** — `PETZ_COUPON_ATTRIBUTION_VERIFIED=true`.
