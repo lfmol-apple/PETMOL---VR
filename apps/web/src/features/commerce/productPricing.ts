@@ -156,12 +156,13 @@ export interface PetzDirectLink {
  * vem do cupom PETTMOL no checkout. Ver GET /commerce/petz-direct-link e
  * docs/PETZ_COMMISSION_VALIDATION.md.
  */
-export async function fetchPetzDirectLink(gtin: string, productName?: string): Promise<PetzDirectLink> {
+export async function fetchPetzDirectLink(gtin: string, productName?: string, brand?: string): Promise<PetzDirectLink> {
   const trimmed = gtin.trim();
   if (!trimmed) return { available: false, url: null };
   try {
     const params = new URLSearchParams({ gtin: trimmed });
     if (productName?.trim()) params.set('q', productName.trim());
+    if (brand?.trim()) params.set('brand', brand.trim());
     const res = await fetch(`${API_BASE_URL}/commerce/petz-direct-link?${params.toString()}`, {
       cache: 'no-store',
       signal: AbortSignal.timeout(5000),

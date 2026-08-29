@@ -487,6 +487,29 @@ def test_petz_direct_link_unknown_gtin_with_name_uses_site_search(client, monkey
     _assert_petz_search_fallback(resp.json())
 
 
+def test_petz_site_search_term_is_short_and_brand_first(client, monkeypatch):
+    """A busca da Petz devolve 0 resultados com o título Awin completo
+    (marca + variante + tamanho). O fallback manda marca + poucas
+    palavras significativas, sem tamanho/pontuação/"para Cães e Gatos"."""
+    _enable_petz(monkeypatch)
+    resp = client.get(
+        "/commerce/petz-direct-link",
+        params={
+            "gtin": "0000000000001",
+            "q": "Shampoo Tonalizante Pelos Claros Sanol - 500 ml",
+            "brand": "Sanol",
+        },
+    )
+    body = resp.json()
+    from urllib.parse import parse_qs, urlsplit
+
+    term = parse_qs(urlsplit(body["search_url"]).query)["q"][0]
+    assert term.lower().startswith("sanol ")
+    assert "500" not in term and "ml" not in term.lower().split()
+    assert "-" not in term
+    assert len(term.split()) <= 5
+
+
 def test_petz_direct_link_never_learned_product_uses_site_search(client, monkeypatch):
     _enable_petz(monkeypatch)
     _register_product(gtin="9990000000001")

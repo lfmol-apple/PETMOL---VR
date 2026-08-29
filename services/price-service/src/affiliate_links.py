@@ -16,9 +16,10 @@ ativar/desativar um link não deve exigir deploy de frontend.
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Optional
-from urllib.parse import urlsplit
+from urllib.parse import quote_plus, urlsplit
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
@@ -45,11 +46,49 @@ PETZ_AFFILIATE_PROGRAM = "petz_partner"
 # é levar o tutor ao produto certo e com o cupom no clipboard.
 PETZ_SITE_SEARCH_BASE = "https://www.petz.com.br/busca"
 
+# A busca da Petz devolve "0 resultados" quando o termo é o título Awin
+# completo (marca + variante + tamanho + "para Cães e Gatos"). Reduzimos
+# a marca + as 2 primeiras palavras significativas do nome — o suficiente
+# pra cair na categoria certa filtrada pela marca.
+_PETZ_SIZE_RE = re.compile(
+    r"\b\d+([.,]\d+)?\s?(ml|l|kg|g|un|und|unidades?|comprimidos?|caps?|c[áa]psulas?|"
+    r"sach[êe]s?|tabletes?|litros?|gramas?)\b",
+    re.IGNORECASE,
+)
+_PETZ_FILLER = {
+    "para", "com", "sem", "de", "da", "do", "e", "ou", "a", "o",
+    "cães", "caes", "cão", "cao", "gatos", "gato", "cachorros", "cachorro",
+    "filhotes", "filhote", "adultos", "adulto", "todos", "todas", "raças", "racas",
+}
 
-def petz_site_search_url(query: str) -> str:
-    from urllib.parse import quote_plus
 
-    term = " ".join((query or "").split())[:120]
+def _petz_search_term(query: str, brand: Optional[str] = None) -> str:
+    raw = " ".join((query or "").split())
+    # corta variante/tamanho depois de "–", "—", "|" ou " - " seguido de dígito
+    raw = re.split(r"\s[–—|]\s|\s-\s(?=\d)", raw)[0]
+    raw = re.sub(r"\(.*?\)", " ", raw)
+    raw = _PETZ_SIZE_RE.sub(" ", raw)
+
+    brand_clean = " ".join((brand or "").split())
+    if brand_clean:
+        # remove a marca (1+ palavras) de qualquer posição do título
+        raw = re.sub(rf"\b{re.escape(brand_clean)}\b", " ", raw, flags=re.IGNORECASE)
+
+    words = raw.split()
+    meaningful = [
+        w for w in words
+        if w.lower() not in _PETZ_FILLER and not re.fullmatch(r"\d+([.,]\d+)?", w)
+    ] or words
+
+    limit = 3 if brand_clean else 5
+    term = " ".join(meaningful[:limit])
+    if brand_clean:
+        term = f"{brand_clean} {term}".strip()
+    return " ".join(term.split())[:80]
+
+
+def petz_site_search_url(query: str, brand: Optional[str] = None) -> str:
+    term = _petz_search_term(query, brand)
     return f"{PETZ_SITE_SEARCH_BASE}?q={quote_plus(term)}" if term else PETZ_PARTNER_STORE_URL
 
 STOREFRONT_AFFILIATE_URLS: dict[str, str] = {
