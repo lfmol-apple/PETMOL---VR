@@ -64,8 +64,16 @@ há como ter "produto na tela" **e** "cookie de atribuição" ao mesmo tempo.
 
 | Backend devolve | `?to=` | Cliente vê |
 |---|---|---|
-| `search_url` (sempre, com `q`) | `/busca?q=<marca+palavras>` | a busca da Petz; produto mapeado = 1º resultado |
+| `search_url` (produto mapeado) | `/busca?q=<busca curada>` | o produto no topo (às vezes único resultado) |
+| `search_url` (produto não mapeado) | `/busca?q=<marca+palavras>` | a busca da Petz com o termo |
 | sem `search_url` | `/parceiro/pettmol` | a Loja Parceira |
+
+**Busca curada dos mapeados** (`PETZ_CURATED_SEARCH` em `affiliate_links.py`,
+verificada em petz.com.br/busca 30/08): a heurística por nome do catálogo
+dava resultados ruins (ex: "Drontal Vermífugo Plus +" → 20 produtos
+aleatórios). Cada `petz_product_id` confirmado tem um termo curado que
+traz o produto no topo (Drontal / RC Urinary = 1 resultado exato). Sem
+curadoria → deslug da própria URL do produto (`deslug_petz_product_url`).
 
 - **NUNCA `/produto/<slug>`.** A AASA da Petz reivindica `/`, `/produto/*`,
   `/colecao/*`, `/minhas-assinaturas/*` — redirecionar (mesmo por

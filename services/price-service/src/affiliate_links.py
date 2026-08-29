@@ -91,6 +91,45 @@ def petz_site_search_url(query: str, brand: Optional[str] = None) -> str:
     term = _petz_search_term(query, brand)
     return f"{PETZ_SITE_SEARCH_BASE}?q={quote_plus(term)}" if term else PETZ_PARTNER_STORE_URL
 
+
+def petz_search_url_from_term(term: str) -> str:
+    """Monta /busca?q= com um termo JÁ pronto (curado/deslugado) — sem
+    passar pela heurística de encurtamento de `petz_site_search_url`."""
+    clean = " ".join((term or "").split())[:80]
+    return f"{PETZ_SITE_SEARCH_BASE}?q={quote_plus(clean)}" if clean else PETZ_PARTNER_STORE_URL
+
+
+def deslug_petz_product_url(product_url: str) -> str:
+    """Deriva um termo de busca da própria URL do produto Petz: pega o
+    slug depois de `/produto/`, tira o `-<id>` final e troca `-` por
+    espaço. O slug costuma trazer o produto no topo de /busca — melhor
+    que a heurística por nome do catálogo."""
+    try:
+        path = urlsplit(product_url or "").path
+    except ValueError:
+        return ""
+    if "/produto/" not in path:
+        return ""
+    seg = path.split("/produto/", 1)[1].strip("/")
+    seg = re.sub(r"-\d+$", "", seg)
+    return " ".join(seg.replace("-", " ").split())[:80]
+
+
+# Buscas curadas — verificadas manualmente em petz.com.br/busca (30/08/2026):
+# trazem o produto mapeado no topo dos resultados. Chave = petz_product_id
+# do PetzProductMapping. Usadas antes do deslug/heurística. "Ver na Petz"
+# nunca abre /produto/* (a AASA da Petz entrega ao app — ver
+# docs/PETZ_COMMISSION_VALIDATION.md), então a qualidade da busca é o que
+# faz o cliente achar o produto certo.
+PETZ_CURATED_SEARCH: dict[str, str] = {
+    "100223": "racao royal canin urinary small dog",
+    "99446": "racao royal canin mini indoor",
+    "biscoito-pedigree-biscrok-multi-para-caes-adultos": "biscoito pedigree biscrok multi",
+    "83755": "drontal plus para caes de 10 kg",
+    "94808": "nexgard caes 4,1 a 10",
+    "81288": "coleira antiparasitas scalibor",
+}
+
 STOREFRONT_AFFILIATE_URLS: dict[str, str] = {
     "cobasi": "https://minhaloja.cobasi.com.br?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol",
     "petz": PETZ_PARTNER_STORE_URL,

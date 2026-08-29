@@ -1556,7 +1556,10 @@ async def commerce_petz_direct_link(
     from .affiliate_links import (
         PETZ_AFFILIATE_PROGRAM,
         PETZ_COUPON_CODE,
+        PETZ_CURATED_SEARCH,
         PETZ_PARTNER_STORE_URL,
+        deslug_petz_product_url,
+        petz_search_url_from_term,
         petz_site_search_url,
     )
     from .petz_mapping import DIRECT_LINK_ELIGIBLE_STATUSES, get_mapping
@@ -1590,14 +1593,27 @@ async def commerce_petz_direct_link(
     )
 
     direct_product_url: Optional[str] = None
+    curated_search: Optional[str] = None
     if product is not None:
         mapping = get_mapping(db, product.id)
         if mapping and mapping.match_status in DIRECT_LINK_ELIGIBLE_STATUSES and mapping.product_url:
             direct_product_url = mapping.product_url
+            # Produto confirmado → busca curada (verificada) > deslug da
+            # URL do produto. "Ver na Petz" abre /busca (a AASA da Petz
+            # sequestra /produto/*), então a busca tem que trazer ESTE
+            # produto no topo. Ver docs/PETZ_COMMISSION_VALIDATION.md.
+            curated_search = (
+                PETZ_CURATED_SEARCH.get((mapping.petz_product_id or "").strip())
+                or deslug_petz_product_url(mapping.product_url)
+                or None
+            )
 
-    search_term = (q or "").strip() or (product.name if product and product.name else "")
     search_brand = (brand or "").strip() or (product.brand if product and getattr(product, "brand", None) else None)
-    search_url = petz_site_search_url(search_term, search_brand) if search_term else None
+    if curated_search:
+        search_url = petz_search_url_from_term(curated_search)
+    else:
+        search_term = (q or "").strip() or (product.name if product and product.name else "")
+        search_url = petz_site_search_url(search_term, search_brand) if search_term else None
 
     url = direct_product_url or search_url or PETZ_PARTNER_STORE_URL
 

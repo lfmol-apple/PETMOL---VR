@@ -574,14 +574,34 @@ def test_petz_direct_link_available_once_product_confirmed(client, monkeypatch):
     body = resp.json()
     assert body["available"] is True
     assert body["partner_program_active"] is True
-    # Produto confirmado → destino é a página real do produto.
-    assert body["url"] == "https://www.petz.com.br/produto/racao-royal-canin-100223"
     assert body["direct_product_url"] == "https://www.petz.com.br/produto/racao-royal-canin-100223"
+    # search_url usa a BUSCA CURADA do petz_product_id 100223 (o frontend
+    # abre /busca, nunca /produto/* — a AASA da Petz sequestra).
+    assert body["search_url"] == "https://www.petz.com.br/busca?q=racao+royal+canin+urinary+small+dog"
     assert body["partner_store_url"] == PETZ_PARTNER_STORE_URL
     assert body["coupon_code"] == PETZ_COUPON_CODE
     assert body["affiliate_program"] == PETZ_AFFILIATE_PROGRAM
     assert body["link_type"] == "affiliate_store"
-    assert "/parceiro/pettmol/produto" not in body["url"]
+
+
+def test_petz_direct_link_confirmed_without_curated_query_deslugs_the_url(client, monkeypatch):
+    """petz_product_id fora do dicionário curado → a busca vem do slug da
+    própria URL do produto (sem o -<id> final)."""
+    _enable_petz(monkeypatch)
+    product_id = _register_product(gtin="9990000000123")
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, product_id, petz_product_id="555999",
+            product_url="https://www.petz.com.br/produto/brinquedo-kong-classic-medio-para-caes-555999",
+        )
+    finally:
+        db.close()
+
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000123"}).json()
+    assert body["search_url"] == (
+        "https://www.petz.com.br/busca?q=brinquedo+kong+classic+medio+para+caes"
+    )
 
 
 def test_petz_direct_link_confirmed_without_product_url_falls_back_to_site_search(client, monkeypatch):
