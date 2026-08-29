@@ -49,12 +49,13 @@ def _offer(direct_url="https://www.cobasi.com.br/produto/p") -> DiscoveredOffer:
     return DiscoveredOffer(merchant="cobasi", price=100.0, direct_url=direct_url, ean=GTIN)
 
 
-def test_default_mode_is_disabled_not_utm(monkeypatch):
-    """§ 'UTM Cobasi ainda não foi ativada em produção sem confirmação
-    formal' — o padrão nunca deve ser 'utm' sem configuração explícita.
-    Desde 15/08/2026, o padrão é 'disabled' (MAIS totalmente desativado,
-    decisão de produto — ver config.py)."""
-    assert get_settings().cobasi_affiliate_mode == "disabled"
+def test_default_mode_is_utm(monkeypatch):
+    """Desde 29/08/2026, o padrão é 'utm' — confirmado manualmente via
+    painel MAIS (URL de produto real gerou link que resolve pra página
+    real, não 404) e decisão de produto de nunca monetizar via Awin (ver
+    AWIN_SELLABLE_MERCHANTS em awin_advertisers.py, sempre vazio) — o
+    programa MAIS/UTM é a única rota real de venda da Cobasi agora."""
+    assert get_settings().cobasi_affiliate_mode == "utm"
 
 
 def test_cached_mode_uses_registered_link(monkeypatch):
@@ -269,16 +270,15 @@ async def test_find_offer_passes_through_weight_for_sku_selection(monkeypatch):
         db.close()
 
 
-def test_prod_env_default_mode_is_still_disabled(monkeypatch):
-    """§ 'UTM Cobasi ainda não foi ativada em produção sem confirmação
-    formal' — mesmo com ENV=prod, sem COBASI_AFFILIATE_MODE explícito o
-    padrão continua 'disabled' (desde 15/08/2026), nunca 'utm'
-    automaticamente por estar em prod."""
+def test_prod_env_default_mode_is_still_utm(monkeypatch):
+    """Mesmo com ENV=prod, sem COBASI_AFFILIATE_MODE explícito o padrão
+    continua 'utm' (desde 29/08/2026) — não depende do ENV pra decidir,
+    é uma decisão de produto fixa (ver test_default_mode_is_utm)."""
     monkeypatch.setenv("ENV", "prod")
     monkeypatch.delenv("COBASI_AFFILIATE_MODE", raising=False)
     get_settings.cache_clear()
     try:
-        assert get_settings().cobasi_affiliate_mode == "disabled"
+        assert get_settings().cobasi_affiliate_mode == "utm"
     finally:
         monkeypatch.setenv("ENV", "dev")
         get_settings.cache_clear()

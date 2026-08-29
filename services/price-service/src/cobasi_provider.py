@@ -13,33 +13,33 @@ Sem link cadastrado, o modo decide o que fazer com o restante do catálogo:
   - "cached" — sem link, não monetiza (em prod) ou cai pra URL crua só
     em dev (nunca em produção; affiliate_only_commerce_enforced).
   - "utm" — sem link, gera URL com UTM dinamicamente (cobasi_utm.py).
-    NÃO ativado por padrão — precisa de confirmação formal da Cobasi/MAIS
-    antes de virar o padrão de produção.
+    Padrão desde 29/08/2026 — confirmado manualmente via painel MAIS (ver
+    cobasi_utm.py e config.py::cobasi_affiliate_mode). Único caminho real
+    de monetização da Cobasi hoje: Awin nunca gera link de compra (ver
+    AWIN_SELLABLE_MERCHANTS em awin_advertisers.py, sempre vazio).
   - "api" — reservado para API oficial futura. Não implementado.
-  - "disabled" (padrão desde 15/08/2026) — Cobasi nunca monetiza, nem
-    link cadastrado é usado; ver should_run() abaixo — o provider nem
-    roda mais nesse modo.
+  - "disabled" — Cobasi nunca monetiza, nem link cadastrado é usado; ver
+    should_run() abaixo — o provider nem roda nesse modo. Como Awin
+    também nunca monetiza, "disabled" significa Cobasi sem NENHUMA
+    oferta de compra.
 
 route retornado é sempre "mais" (link cadastrado ou UTM — ambos via
-programa MAIS da Cobasi) — usado por commerce_provider.py pra nunca
-mostrar Cobasi duas vezes quando AwinFeedProvider("cobasi") também
-está registrado (ver merchant_routes.py). is_manually_cached=True SÓ
-no branch de link cadastrado (nunca em UTM/dev fallback) — blinda essa
-oferta específica contra qualquer troca de PREFERRED_ROUTE_BY_MERCHANT
-no dedupe do CommerceEngine (ver _dedupe_by_merchant).
+programa MAIS da Cobasi) — historicamente usado por commerce_provider.py
+pra nunca mostrar Cobasi duas vezes quando AwinFeedProvider("cobasi")
+também estava registrado (ver merchant_routes.py); com
+AWIN_SELLABLE_MERCHANTS vazio isso não acontece mais na prática, mas o
+dedupe continua correto/documentado se essa decisão for revisitada.
+is_manually_cached=True SÓ no branch de link cadastrado (nunca em
+UTM/dev fallback) — blinda essa oferta específica contra qualquer troca
+de PREFERRED_ROUTE_BY_MERCHANT no dedupe do CommerceEngine (ver
+_dedupe_by_merchant).
 
-should_run(): dois motivos pra pular find_offer() (nem a busca ao vivo
-na VTEX roda):
-  1. cobasi_affiliate_mode == "disabled" (padrão desde 15/08/2026, decisão
-     de produto — MAIS totalmente fora do ar por enquanto, só Awin
-     resolve a Cobasi) — curto-circuito incondicional, nem olha Awin.
-  2. Mesmo com MAIS habilitado: quando o GTIN escaneado já resolveu por
-     identidade exata via Awin (rota preferida da Cobasi), a busca ao
-     vivo na VTEX é redundante — o feed Awin já traz preço, nome e link
-     monetizável completos pro mesmo produto. Só roda mesmo assim quando
-     existe link cadastrado manualmente pra esse GTIN (ex: Baby/Royal
-     Canin), porque esse link precisa ter a chance de vencer o dedupe
-     mesmo com Awin preferida — ver docstring acima e commerce_provider.py.
+should_run(): motivo pra pular find_offer() (nem a busca ao vivo na VTEX
+roda): cobasi_affiliate_mode == "disabled" — curto-circuito incondicional.
+Fora isso, o provider sempre roda: com AWIN_SELLABLE_MERCHANTS vazio não
+existe mais uma oferta Awin concorrente pra evitar redundância contra
+(ver preferred_route_for()/merchant_routes.py — preferred_route="mais"
+faz should_run() retornar True direto, sem checar offers_so_far).
 """
 from __future__ import annotations
 
