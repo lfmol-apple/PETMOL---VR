@@ -1,16 +1,19 @@
-"""CobasiProvider.should_run() (cobasi_provider.py) — quando o GTIN
-escaneado já resolve por identidade exata via Awin (rota preferida da
-Cobasi desde 14/08/2026, ver merchant_routes.py), a busca ao vivo na VTEX
-(fetch_cobasi_price) é redundante e não deve rodar. Só continua rodando
-quando existe link cadastrado manualmente pra esse GTIN, porque esse link
-precisa ter a chance de vencer o dedupe mesmo com Awin preferida.
+"""CobasiProvider.should_run() (cobasi_provider.py) — desde 29/08/2026,
+Awin nunca monetiza nenhum merchant (AWIN_SELLABLE_MERCHANTS sempre
+vazio, ver awin_advertisers.py), então AwinFeedProvider nunca é
+registrado em build_default_engine() e nunca produz uma oferta
+"cobasi" concorrente, mesmo com o GTIN presente no catálogo Awin. A
+rota preferida da Cobasi é "mais" (merchant_routes.py), o que faz
+should_run() curto-circuitar pra True incondicionalmente — MAIS
+(fetch_cobasi_price, busca ao vivo na VTEX) SEMPRE roda agora,
+catálogo Awin tendo ou não uma linha pra esse GTIN.
 
 Estes testes provam isso contando chamadas reais a fetch_cobasi_price
 (não só o resultado final da lista de ofertas, que os testes de
-test_commerce_offers_awin_dedupe.py já cobrem) — a motivação concreta é
-evitar uma chamada de rede desnecessária no fluxo "escaneei a ração →
-cliquei em comprar", que antes disparava Awin E MAIS sempre, mesmo com o
-GTIN já resolvendo por completo via Awin.
+test_commerce_offers_awin_dedupe.py já cobrem). Até 14/08/2026 existia
+um cenário onde Awin resolvia primeiro e MAIS era pulado — revertido em
+29/08/2026 junto com a decisão de nunca monetizar via Awin (ver
+merchant_routes.py e cobasi_provider.py).
 """
 import pytest
 
@@ -84,10 +87,12 @@ def _counting_fetch(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_mais_not_called_when_scanned_gtin_resolves_via_awin(monkeypatch):
-    """O cenário concreto do usuário: escaneou a ração (GTIN real), Awin
-    resolve por identidade exata, sem link manual cadastrado pra esse
-    produto — MAIS não deve fazer NENHUMA chamada de rede."""
+async def test_mais_still_called_even_when_awin_catalog_has_matching_gtin(monkeypatch):
+    """Mesmo com uma linha de catálogo Awin sincronizada pra esse GTIN
+    exato, MAIS sempre roda: AwinFeedProvider nunca é registrado como
+    vendável (AWIN_SELLABLE_MERCHANTS vazio), então essa linha de
+    catálogo nunca vira uma oferta concorrente — só alimenta busca por
+    nome/foto/preço (ver commerce_offers.py)."""
     calls = _counting_fetch(monkeypatch)
     _register_awin_offer()
 
@@ -97,7 +102,7 @@ async def test_mais_not_called_when_scanned_gtin_resolves_via_awin(monkeypatch):
     finally:
         db.close()
 
-    assert calls["count"] == 0, "fetch_cobasi_price não deveria ser chamado quando Awin já resolveu o GTIN"
+    assert calls["count"] == 1, "MAIS deve rodar sempre — catálogo Awin nunca produz oferta vendável"
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
     assert len(cobasi_offers) == 1
     assert cobasi_offers[0].route == "mais"

@@ -171,15 +171,23 @@ class Settings(BaseSettings):
     # cobasi_utm.py / docs/AFFILIATES.md):
     #   cached   — usa ProductAffiliateLink cadastrado manualmente.
     #   utm      — gera URL com UTM dinamicamente, sem cadastro manual.
-    #             NÃO ativar em produção sem confirmação formal da
-    #             Cobasi/MAIS de que UTM sozinho gera comissão (não
-    #             confirmado — ver documento de arquitetura interno).
+    #             Padrão desde 29/08/2026 — confirmado manualmente via
+    #             painel MAIS (URL de produto real colada no gerador de
+    #             link retornou uma página Cobasi válida, não 404; UTM
+    #             utm_source=mais&utm_medium=maisplataforma&utm_campaign=
+    #             lojapetmol é o mesmo padrão do link gerado — ver
+    #             cobasi_utm.py). Decisão de produto: PETMOL nunca
+    #             monetiza via Awin (nenhum merchant) — Awin fica restrito
+    #             a nome/foto/preço (busca e feed), nunca ao clique de
+    #             compra. Ver AWIN_PUBLIC_COMMERCE_MERCHANTS em
+    #             awin_advertisers.py (hoje vazio) e MERCHANT_ROUTE_POLICIES
+    #             em merchant_routes.py.
     #   api      — reservado para API oficial futura. Não implementado.
-    #   disabled (padrão, decisão de produto em 15/08/2026) — MAIS
-    #             completamente desativado (nem a busca ao vivo na VTEX
-    #             roda — ver CobasiProvider.should_run()); só Awin resolve
-    #             a Cobasi enquanto essa decisão não é revisitada.
-    cobasi_affiliate_mode: str = "disabled"
+    #   disabled — MAIS completamente desativado (nem a busca ao vivo na
+    #             VTEX roda — ver CobasiProvider.should_run()); Cobasi não
+    #             monetiza nada nesse modo (Awin nunca é usado pra vender,
+    #             então não há rota alternativa).
+    cobasi_affiliate_mode: str = "utm"
 
     @field_validator("cobasi_affiliate_mode")
     @classmethod

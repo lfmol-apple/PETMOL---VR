@@ -59,12 +59,13 @@ AWIN_ADVERTISERS: dict[str, AwinAdvertiser] = {
         cpa_percent=8.5,
         feed_id="48117",
         notes=(
-            "Aprovada 13/08/2026. Cobasi já monetiza hoje via MAIS/UTM "
-            "(cobasi_provider.py, cobasi_affiliate_mode). Awin é a rota "
-            "preferida quando validada; MAIS/UTM continua fallback — "
-            "nunca remover MAIS só porque a Awin foi aprovada (ver §28 do "
-            "documento de arquitetura interno: transição em fases, "
-            "shadow mode antes de exibir ao tutor)."
+            "Aprovada 13/08/2026. Feed usado só pra busca/catálogo "
+            "(nome/foto/preço, GET /commerce/awin-search) e enriquecimento "
+            "interno de GTIN — decisão de produto em 29/08/2026: Cobasi "
+            "nunca monetiza via Awin. Quem gera o link de compra é o "
+            "programa MAIS/UTM próprio da Cobasi (cobasi_provider.py, "
+            "cobasi_affiliate_mode=\"utm\") — ver AWIN_SELLABLE_MERCHANTS "
+            "(sempre vazio) e merchant_routes.py."
         ),
     ),
     "petz": AwinAdvertiser(
@@ -148,11 +149,37 @@ AWIN_ADVERTISERS: dict[str, AwinAdvertiser] = {
     ),
 }
 
-# Merchants Awin cujo feed pode alimentar endpoints públicos de compra/busca
-# comercial do PETMOL. Zee Now e Zee Dog permanecem cadastrados acima para
-# sync/enriquecimento interno de catálogo/GTIN, mas não são mais lojas de
-# venda expostas ao tutor.
+# Merchants Awin cujo feed pode alimentar a BUSCA pública por nome/marca
+# (GET /commerce/awin-search — nome, foto, preço de catálogo). Zee Now e
+# Zee Dog permanecem cadastrados acima para sync/enriquecimento interno de
+# catálogo/GTIN (ajudar a casar produto/preço em OUTRAS lojas), mas não
+# entram aqui — não são um resultado de busca navegável.
+#
+# IMPORTANTE: isto NUNCA decide quem pode monetizar/vender — só o que
+# aparece como resultado de busca com nome/foto/preço. Quem pode gerar um
+# link de compra de verdade é AWIN_SELLABLE_MERCHANTS, abaixo (hoje vazio
+# de propósito — ver docstring lá).
 AWIN_PUBLIC_COMMERCE_MERCHANTS = frozenset({"cobasi"})
+
+# Merchants Awin cujo feed pode gerar o link de COMPRA (monetizado) via
+# AwinFeedProvider — ver commerce_offers.py::build_default_engine().
+#
+# Decisão de produto em 29/08/2026: PETMOL nunca monetiza através da rede
+# Awin, pra nenhum merchant. Awin fica restrito a nome/foto/preço (ver
+# AWIN_PUBLIC_COMMERCE_MERCHANTS acima e awin_feed_sync.py) — o clique de
+# "Comprar" sempre usa o programa de afiliados PRÓPRIO daquela loja
+# (Cobasi → painel MAIS via CobasiProvider/cobasi_utm.py; Petz → storefront
+# fixa; Mercado Livre/Shopee → link de afiliado próprio — ver
+# homeShoppingPartners.ts). Motivo: cookie de atribuição Awin mais curto e
+# comissão nominal ainda não confirmada por venda real, contra o programa
+# direto de cada loja, que é confirmado/mais previsível — ver
+# merchant_routes.py e cobasi_provider.py.
+#
+# Deixar este conjunto vazio (em vez de simplesmente apagar o mecanismo) é
+# proposital: mantém o "circuit breaker" pronto pra religar Awin como rota
+# de venda pra um merchant específico só mudando esta linha, sem reescrever
+# lógica, se essa decisão for revisitada.
+AWIN_SELLABLE_MERCHANTS: frozenset[str] = frozenset()
 
 
 def get_awin_advertiser(merchant: str) -> Optional[AwinAdvertiser]:
@@ -210,12 +237,29 @@ def awin_merchants_publicly_servable() -> list[str]:
     return [m for m in AWIN_ADVERTISERS if is_awin_merchant_publicly_servable(m)]
 
 
-def awin_merchants_publicly_sellable() -> list[str]:
-    """Subset de merchants Awin que podem aparecer como loja/opção de
-    compra no PETMOL. Não altera sync/feed interno."""
+def awin_merchants_publicly_searchable() -> list[str]:
+    """Subset de merchants Awin que podem aparecer como resultado de busca
+    por nome/marca (nome, foto, preço de catálogo — GET /commerce/awin-
+    search). NÃO decide quem pode gerar link de compra — ver
+    AWIN_SELLABLE_MERCHANTS/awin_merchants_publicly_sellable() pra isso.
+    Não altera sync/feed interno."""
     return [
         merchant
         for merchant in AWIN_PUBLIC_COMMERCE_MERCHANTS
+        if is_awin_merchant_publicly_servable(merchant)
+    ]
+
+
+def awin_merchants_publicly_sellable() -> list[str]:
+    """Subset de merchants Awin que podem gerar um link de COMPRA
+    monetizado via AwinFeedProvider — ver commerce_offers.py e a docstring
+    de AWIN_SELLABLE_MERCHANTS (hoje sempre vazio: Awin nunca monetiza).
+    Distinto de "buscável" (awin_merchants_publicly_searchable) — um
+    merchant pode aparecer na busca por nome/preço sem nunca vender por
+    aqui."""
+    return [
+        merchant
+        for merchant in AWIN_SELLABLE_MERCHANTS
         if is_awin_merchant_publicly_servable(merchant)
     ]
 
