@@ -314,18 +314,20 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
   // ativo, aparece pra qualquer produto do card: página do produto
   // confirmado quando existe, senão busca do site da Petz pelo nome.
   useEffect(() => {
-    if (!card.gtin) {
+    const petzName = card.searchQuery || card.label;
+    if (!card.gtin && !petzName) {
       setPetzLink(null);
       return;
     }
     let cancelled = false;
-    void fetchPetzDirectLink(card.gtin, card.label).then((link) => {
+    // Sem GTIN ainda mostra "Ver na Petz" → busca da Petz pelo nome.
+    void fetchPetzDirectLink(card.gtin ?? undefined, petzName).then((link) => {
       if (!cancelled) setPetzLink(link);
     });
     return () => {
       cancelled = true;
     };
-  }, [card.gtin, card.label]);
+  }, [card.gtin, card.label, card.searchQuery]);
 
   // Toda oferta na lista é o mesmo produto (mesmo GTIN) — só preço/loja
   // mudam. Nem toda loja tem imagem (Shopee/busca por palavra-chave ainda

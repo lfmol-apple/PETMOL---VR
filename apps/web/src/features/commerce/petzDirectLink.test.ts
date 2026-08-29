@@ -74,14 +74,35 @@ describe('fetchPetzDirectLink — "Ver na Petz" (caminho separado do CommerceEng
     await expect(fetchPetzDirectLink('7896181298090')).resolves.toEqual({ available: false, url: null });
   });
 
-  it('GTIN vazio nunca chama a rede', async () => {
+  it('sem GTIN E sem nome nunca chama a rede', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const { fetchPetzDirectLink } = await import('./productPricing');
-    const result = await fetchPetzDirectLink('   ');
-
-    expect(result).toEqual({ available: false, url: null });
+    expect(await fetchPetzDirectLink('   ')).toEqual({ available: false, url: null });
+    expect(await fetchPetzDirectLink(undefined)).toEqual({ available: false, url: null });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('sem GTIN mas COM nome → busca a Petz pelo nome (só ?q=, sem gtin)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        available: true,
+        url: 'https://www.petz.com.br/busca?q=Simparic',
+        direct_product_url: null,
+        search_url: 'https://www.petz.com.br/busca?q=Simparic',
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchPetzDirectLink } = await import('./productPricing');
+    const result = await fetchPetzDirectLink(undefined, 'Simparic 10 a 20 kg');
+
+    expect(result.available).toBe(true);
+    expect(result.search_url).toContain('/busca?q=');
+    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    expect(calledUrl).toContain('q=Simparic');
+    expect(calledUrl).not.toContain('gtin=');
   });
 });

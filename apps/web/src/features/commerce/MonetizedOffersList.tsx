@@ -68,12 +68,14 @@ export function MonetizedOffersList({
   // docs/AFFILIATES.md). Não bloqueia nem afeta o carregamento das
   // ofertas normais; falha em silêncio, igual ao resto do comércio.
   useEffect(() => {
-    if (!gtin) {
+    const petzName = query || productLabel;
+    if (!gtin && !petzName) {
       setPetzLink(null);
       return;
     }
     let cancelled = false;
-    void fetchPetzDirectLink(gtin, query || productLabel).then((link) => {
+    // Sem GTIN ainda mostra "Ver na Petz" → busca da Petz pelo nome.
+    void fetchPetzDirectLink(gtin ?? undefined, petzName).then((link) => {
       if (!cancelled) setPetzLink(link);
     });
     return () => {

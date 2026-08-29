@@ -156,12 +156,20 @@ export interface PetzDirectLink {
  * vem do cupom PETTMOL no checkout. Ver GET /commerce/petz-direct-link e
  * docs/PETZ_COMMISSION_VALIDATION.md.
  */
-export async function fetchPetzDirectLink(gtin: string, productName?: string, brand?: string): Promise<PetzDirectLink> {
-  const trimmed = gtin.trim();
-  if (!trimmed) return { available: false, url: null };
+export async function fetchPetzDirectLink(
+  gtin?: string | null,
+  productName?: string,
+  brand?: string,
+): Promise<PetzDirectLink> {
+  const trimmedGtin = (gtin ?? '').trim();
+  const trimmedName = (productName ?? '').trim();
+  // Sem GTIN a página exata não é possível, mas a busca da Petz pelo nome
+  // sim — só desiste quando não há NENHUM dos dois.
+  if (!trimmedGtin && !trimmedName) return { available: false, url: null };
   try {
-    const params = new URLSearchParams({ gtin: trimmed });
-    if (productName?.trim()) params.set('q', productName.trim());
+    const params = new URLSearchParams();
+    if (trimmedGtin) params.set('gtin', trimmedGtin);
+    if (trimmedName) params.set('q', trimmedName);
     if (brand?.trim()) params.set('brand', brand.trim());
     const res = await fetch(`${API_BASE_URL}/commerce/petz-direct-link?${params.toString()}`, {
       cache: 'no-store',
