@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { trackClick } from '@/lib/analytics/click';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
+import { copyText } from '@/lib/clipboard';
 
 export type HomeShoppingPartnerId = 'cobasi' | 'petz' | 'mercadolivre' | 'shopee';
 
@@ -359,16 +360,15 @@ export function petzBridgeUrl(realPetzUrl: string): string {
  * (ver petzBridgeUrl). A URL real da Petz nunca é alterada.
  */
 export async function copyPetzCouponAndOpen(url: string): Promise<void> {
-  try {
-    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(PETZ_COUPON_CODE);
-      showAppToast(`Cupom ${PETZ_COUPON_CODE} copiado — cole no carrinho da Petz antes de finalizar (10% de desconto)`, {
-        tone: 'success',
-        durationMs: 6000,
-      });
-    }
-  } catch {
-    // best-effort — nunca bloqueia a navegação, mesmo sem permissão de clipboard
+  // Cópia no tempo do gesto (onClick) — melhor chance de sucesso no
+  // WebView do iOS. A ponte /go/petz ainda recopia e mostra o cupom
+  // grande com botão "Copiar", caso isto falhe.
+  const copied = await copyText(PETZ_COUPON_CODE).catch(() => false);
+  if (copied) {
+    showAppToast(`Cupom ${PETZ_COUPON_CODE} copiado — cole no carrinho da Petz antes de finalizar (10% de desconto)`, {
+      tone: 'success',
+      durationMs: 6000,
+    });
   }
   navigateToPartnerUrl(petzBridgeUrl(url));
 }

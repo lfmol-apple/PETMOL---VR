@@ -84,9 +84,10 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(openSpy.mock.calls.at(-1)?.[0]).not.toContain('/go/petz');
 
       openHomeShoppingPartner('petz', 'ração');
-      await Promise.resolve();
-      expect(openSpy.mock.calls.at(-1)?.[0]).toContain('/go/petz?to=');
-      expect(openSpy.mock.calls.at(-1)?.[0].startsWith('https://www.petz.com.br')).toBe(false);
+      await new Promise((r) => setTimeout(r, 0));
+      const lastPetz = openSpy.mock.calls.at(-1)?.[0] as string;
+      expect(lastPetz).toContain('/go/petz?to=');
+      expect(lastPetz.startsWith('https://www.petz.com.br')).toBe(false);
     } finally {
       vi.unstubAllGlobals();
       vi.resetModules();

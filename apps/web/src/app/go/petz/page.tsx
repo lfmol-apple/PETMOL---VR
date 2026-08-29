@@ -1,21 +1,26 @@
 'use client';
 
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { isRealPetzUrl, PETZ_COUPON_CODE, PETZ_PARTNER_STORE_URL } from '@/features/commerce/homeShoppingPartners';
+import { copyText } from '@/lib/clipboard';
 
 // Ponte "Ver na Petz" — ver petzBridgeUrl() em
-// features/commerce/homeShoppingPartners.ts para a causa raiz.
+// features/commerce/homeShoppingPartners.ts para a causa raiz (o app da
+// Petz interceptava o link via Universal Link / App Link).
 //
-// Esta página existe só para NÃO deixar o iOS/Android entregar o link ao
-// app da Petz instalado (Universal Link / App Link). O SO só dispara isso
-// num TOQUE de <a>, nunca num redirect por JavaScript. Então: carrega
-// petmol.com.br/go/petz (sem associação universal), copia o cupom (best-
-// effort — o app já copiou no toque) e faz location.replace() para a URL
-// REAL da Petz. O botão manual também navega por JS (não é um <a href>),
-// pelo mesmo motivo.
+// Esta página NÃO deixa o iOS/Android entregarem o link ao app da Petz:
+// o SO só dispara isso num TOQUE de <a>, nunca num redirect por
+// JavaScript. Aqui carrega petmol.com.br/go/petz (sem associação
+// universal), deixa o cupom PETTMOL em destaque + no clipboard, e navega
+// pra URL REAL da Petz por JS (location.replace / botão com onClick,
+// nunca <a href>).
+//
+// LIMITE: a Petz não expõe forma de PRÉ-APLICAR o cupom por URL — o
+// tutor cola PETTMOL no carrinho. Esta tela existe pra garantir que ele
+// tenha o cupom em mãos antes de ir.
 
-const REDIRECT_DELAY_MS = 700;
+const AUTO_REDIRECT_MS = 3500;
 
 function safePetzUrl(raw: string | null): string {
   return raw && isRealPetzUrl(raw) ? raw : PETZ_PARTNER_STORE_URL;
@@ -24,28 +29,30 @@ function safePetzUrl(raw: string | null): string {
 function PetzBridge() {
   const params = useSearchParams();
   const target = safePetzUrl(params?.get('to') ?? null);
+  const [copied, setCopied] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
-  const goNow = () => {
+  const go = () => {
+    if (redirecting) return;
+    setRedirecting(true);
+    // redirect por JS (não é toque de link) → o app da Petz não intercepta
     if (typeof window !== 'undefined') window.location.replace(target);
+  };
+
+  const copyAndGo = () => {
+    void copyText(PETZ_COUPON_CODE).then((ok) => setCopied(ok || true));
+    go();
   };
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      try {
-        if (navigator?.clipboard?.writeText) {
-          await navigator.clipboard.writeText(PETZ_COUPON_CODE);
-        }
-      } catch {
-        // best-effort — o clique no app já copiou o cupom
-      }
-      if (cancelled) return;
-    })();
-
-    const timer = window.setTimeout(goNow, REDIRECT_DELAY_MS);
+    void copyText(PETZ_COUPON_CODE).then((ok) => {
+      if (!cancelled && ok) setCopied(true);
+    });
+    const t = window.setTimeout(go, AUTO_REDIRECT_MS);
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
+      window.clearTimeout(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target]);
@@ -62,32 +69,52 @@ function PetzBridge() {
         fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
       }}
     >
-      <div style={{ maxWidth: 360, textAlign: 'center' }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>🐾</div>
-        <p style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: '0 0 6px' }}>
-          Cupom <span style={{ color: '#1d4ed8' }}>PETTMOL</span> copiado
+      <div style={{ maxWidth: 380, width: '100%', textAlign: 'center' }}>
+        <div style={{ fontSize: 40, marginBottom: 8 }}>🐾</div>
+        <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 4px' }}>
+          Use o cupom na Petz para 10% de desconto
         </p>
-        <p style={{ fontSize: 13, color: '#475569', margin: '0 0 18px' }}>
-          Cole no carrinho da Petz antes de finalizar para 10% de desconto.
+        <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 16px' }}>
+          Cole o código no carrinho antes de finalizar a compra.
         </p>
-        <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 18px' }}>Abrindo a Petz…</p>
+
+        <div
+          style={{
+            border: '2px dashed #1d4ed8',
+            borderRadius: 14,
+            padding: '14px 12px',
+            background: '#eff6ff',
+            marginBottom: 14,
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: '#1e40af' }}>
+            CUPOM {copied ? '· copiado ✓' : ''}
+          </div>
+          <div style={{ fontSize: 30, fontWeight: 900, color: '#1d4ed8', letterSpacing: 2 }}>
+            {PETZ_COUPON_CODE}
+          </div>
+        </div>
+
         <button
           type="button"
-          onClick={goNow}
+          onClick={copyAndGo}
           style={{
             width: '100%',
-            padding: '12px 16px',
+            padding: '13px 16px',
             borderRadius: 12,
             border: 'none',
             background: '#1d4ed8',
             color: '#fff',
-            fontSize: 14,
-            fontWeight: 700,
+            fontSize: 15,
+            fontWeight: 800,
             cursor: 'pointer',
           }}
         >
-          Abrir a Petz agora
+          Copiar cupom e abrir a Petz
         </button>
+        <p style={{ fontSize: 12, color: '#94a3b8', margin: '12px 0 0' }}>
+          {redirecting ? 'Abrindo a Petz…' : 'Abre automaticamente em instantes…'}
+        </p>
       </div>
     </main>
   );
