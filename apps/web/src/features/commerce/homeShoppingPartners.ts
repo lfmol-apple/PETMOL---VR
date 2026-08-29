@@ -322,14 +322,47 @@ export function isRealPetzUrl(url: string): boolean {
 }
 
 /**
- * Ponte /go/petz — evita a interceptação pelo app da Petz (Universal Link
- * / App Link): o SO só entrega o link ao app num TOQUE de <a>, nunca num
- * redirect por JavaScript (Apple docs + relatos iOS 17/18 — ver
- * docs/AFFILIATES.md §Petz). A página /go/petz fica em petmol.com.br (sem
- * associação universal) e navega pra Petz só por JS (`location.replace`).
+ * Paths que a **AASA da Petz** reivindica
+ * (`www.petz.com.br/.well-known/apple-app-site-association`, verificado
+ * 29/08/2026): `/`, `/produto/*`, `/colecao/*`, `/minhas-assinaturas/*`.
+ * Abrir qualquer um deles no iPhone — inclusive por `location.replace`
+ * dentro do SFSafariViewController — faz o iOS entregar ao app da Petz,
+ * que cai numa tela "DETALHES" quebrada (bug real reproduzido).
  *
- * `to`  = destino final na Petz (página do produto ou busca), validado
- *         como URL real de petz.com.br (sem open-redirect).
+ * `/busca` e `/parceiro/*` NÃO são reivindicados → seguros. Por isso o
+ * "Ver na Petz" **nunca** manda pra `/produto/...`, sempre pra
+ * `/busca?q=` (o produto aparece como 1º resultado) ou pra Loja Parceira.
+ */
+export function isPetzAppClaimedUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (!PETZ_ALLOWED_HOSTS.includes(u.hostname)) return false;
+    const p = u.pathname;
+    return (
+      p === '/' ||
+      p.startsWith('/produto/') ||
+      p.startsWith('/colecao/') ||
+      p.startsWith('/minhas-assinaturas/')
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Um destino da Petz só é utilizável na ponte se for URL real de
+ *  petz.com.br E não estiver na AASA do app (senão o iOS intercepta). */
+function isSafePetzTarget(url: string): boolean {
+  return isRealPetzUrl(url) && !isPetzAppClaimedUrl(url);
+}
+
+/**
+ * Ponte /go/petz — evita a interceptação pelo app da Petz (Universal Link
+ * / App Link): a página fica em petmol.com.br (sem AASA) e navega pra Petz
+ * só por JS (`location.replace`), pra um path NÃO reivindicado pela AASA
+ * da Petz (`/busca`, `/parceiro/*`).
+ *
+ * `to`  = destino final na Petz, validado com `isSafePetzTarget`
+ *         (petz.com.br real + fora da AASA — sem open-redirect).
  * `q`   = nome do produto — só exibição na ponte.
  */
 export function petzBridgeUrl(target: string, productName?: string): string {
@@ -338,7 +371,7 @@ export function petzBridgeUrl(target: string, productName?: string): string {
       ? window.location.origin
       : 'https://www.petmol.com.br';
   const params = new URLSearchParams();
-  if (target && isRealPetzUrl(target) && target !== PETZ_PARTNER_STORE_URL) {
+  if (target && isSafePetzTarget(target) && target !== PETZ_PARTNER_STORE_URL) {
     params.set('to', target);
   }
   const name = (productName ?? '').trim();
@@ -348,20 +381,23 @@ export function petzBridgeUrl(target: string, productName?: string): string {
 }
 
 /**
- * Clique "Ver na Petz". Abre a página da Petz ONDE O PRODUTO APARECE:
- *  - produto mapeado (`PetzProductMapping` confirmado) → `productUrl`
- *    (`/produto/...`): a página exata do produto;
- *  - qualquer outro produto → `searchUrl` (`/busca?q=...`): a busca da
- *    Petz já com o termo — o cliente escolhe o item da lista;
- *  - sem nenhum dos dois → a Loja Parceira `/parceiro/pettmol`.
+ * Clique "Ver na Petz". Leva o cliente pra ONDE O PRODUTO APARECE, sem
+ * cair no app da Petz:
+ *  - `searchUrl` (`/busca?q=...`): a busca da Petz já com o termo — o
+ *    produto aparece nos resultados (1º, pra produto mapeado). É o
+ *    caminho padrão: `/busca` NÃO está na AASA da Petz, então o iOS não
+ *    entrega ao app.
+ *  - sem `searchUrl` utilizável → a Loja Parceira `/parceiro/pettmol`.
  *
- * Copia o cupom `PETTMOL` pro clipboard — é o que garante os 10% e a
- * comissão do Parceiro Petz quando o cliente cola no carrinho (ver
- * docs/AFFILIATES.md §Petz). Chegar direto na página do produto NÃO grava
- * o cookie `petzPartner`, então a atribuição depende do cupom.
+ * `productUrl` (`/produto/...`) **não é usado como destino** — esse path
+ * está na AASA da Petz e o iOS o entrega ao app (tela "DETALHES"
+ * quebrada). Fica na assinatura só pra o backend continuar mandando.
  *
- * Sempre via a ponte `/go/petz` (redirect JS) pra o app da Petz não
- * interceptar no iPhone. Vale igual em web, PWA e Capacitor.
+ * Copia o cupom `PETTMOL` pro clipboard — é o que garante os 10% + a
+ * comissão do Parceiro Petz quando o cliente cola no carrinho.
+ *
+ * Sempre via a ponte `/go/petz` (redirect JS). Vale igual em web, PWA e
+ * Capacitor.
  */
 export async function openPetzPartnerStore(
   opts: {
@@ -370,17 +406,11 @@ export async function openPetzPartnerStore(
     searchUrl?: string | null;
   } = {},
 ): Promise<void> {
-  const productUrl = (opts.productUrl ?? '').trim();
   const productName = (opts.productName ?? '').trim();
   const searchUrl = (opts.searchUrl ?? '').trim();
 
-  // Onde o produto aparece: página do produto > busca da Petz > loja parceira.
-  const target =
-    productUrl && isRealPetzUrl(productUrl)
-      ? productUrl
-      : searchUrl && isRealPetzUrl(searchUrl)
-        ? searchUrl
-        : PETZ_PARTNER_STORE_URL;
+  // `/busca?q=` (fora da AASA da Petz) → senão a Loja Parceira.
+  const target = isSafePetzTarget(searchUrl) ? searchUrl : PETZ_PARTNER_STORE_URL;
 
   // Cupom no tempo do gesto (onClick) — melhor chance no WebView do iOS.
   const copied = await copyText(PETZ_COUPON_CODE).catch(() => false);

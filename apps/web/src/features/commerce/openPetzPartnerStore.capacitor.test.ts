@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Capacitor (app nativo PETMOL): "Ver na Petz" abre a ponte /go/petz no
 // navegador do sistema (SFSafariViewController / Chrome Custom Tab) via
-// @capacitor/browser. A ponte redireciona por JS pra a página do produto
-// (ou a busca da Petz). O cupom PETTMOL vai pro clipboard antes.
+// @capacitor/browser. A ponte redireciona por JS pra a BUSCA da Petz
+// (`/busca?q=`) — nunca `/produto/...`, que a AASA da Petz reivindica e o
+// iOS entrega ao app. O cupom PETTMOL vai pro clipboard antes.
 // Ver docs/AFFILIATES.md §Petz.
 
 const browserOpen = vi.fn().mockResolvedValue(undefined);
@@ -28,7 +29,7 @@ describe('openPetzPartnerStore — Capacitor', () => {
     vi.unstubAllGlobals();
   });
 
-  it('produto mapeado: abre a ponte /go/petz?to=<produto> no navegador do sistema', async () => {
+  it('mesmo com productUrl (/produto/), a ponte vai pra a BUSCA — nunca /produto/', async () => {
     const openSpy = vi.fn();
     vi.stubGlobal('open', openSpy);
 
@@ -40,7 +41,8 @@ describe('openPetzPartnerStore — Capacitor', () => {
     expect(browserOpen).toHaveBeenCalledTimes(1);
     const url = new URL(browserOpen.mock.calls[0][0].url as string);
     expect(url.pathname).toBe('/go/petz');
-    expect(url.searchParams.get('to')).toBe(PRODUCT_URL);
+    expect(url.searchParams.get('to')).toBe(SEARCH_URL);
+    expect(url.href).not.toContain('/produto/');
     expect(writeText).toHaveBeenCalledWith('PETTMOL');
   });
 

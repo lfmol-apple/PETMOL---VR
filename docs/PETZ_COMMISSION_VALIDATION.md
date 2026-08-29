@@ -64,22 +64,27 @@ há como ter "produto na tela" **e** "cookie de atribuição" ao mesmo tempo.
 
 | Backend devolve | `?to=` | Cliente vê |
 |---|---|---|
-| `direct_product_url` (mapping confirmado, 7 hoje) | `/produto/<slug>` | a página exata do produto |
-| só `search_url` | `/busca?q=<marca+palavras>` | a busca da Petz com o resultado |
-| nenhum | `/parceiro/pettmol` | a Loja Parceira |
+| `search_url` (sempre, com `q`) | `/busca?q=<marca+palavras>` | a busca da Petz; produto mapeado = 1º resultado |
+| sem `search_url` | `/parceiro/pettmol` | a Loja Parceira |
 
+- **NUNCA `/produto/<slug>`.** A AASA da Petz reivindica `/`, `/produto/*`,
+  `/colecao/*`, `/minhas-assinaturas/*` — redirecionar (mesmo por
+  `location.replace` no SFSafariViewController) pra qualquer um deles faz
+  o iOS entregar ao app da Petz → tela **"DETALHES" quebrada** (bug real,
+  iPhone, 30/08). `/busca` e `/parceiro/*` não são reivindicados.
+  `isPetzAppClaimedUrl()` barra os reivindicados; `direct_product_url`
+  fica na resposta do backend mas o frontend ignora.
 - ponte faz `window.location.replace(to)` (redirect JS, nunca `<a href>`)
-  → o app da Petz **não intercepta** no iPhone. Vale em web, PWA e app.
-- **cupom `PETTMOL` copiado pro clipboard** no gesto do clique — é o
-  mecanismo de atribuição deste caminho (Caminho B da FAQ). Chegar direto
-  na página do produto **não grava** `petzPartner`.
+  pra um path fora da AASA. Vale em web, PWA e app.
+- **cupom `PETTMOL` copiado pro clipboard** — mecanismo de atribuição
+  (Caminho B da FAQ). A busca da Petz **não grava** `petzPartner`.
 - **10% / comissão dependem do cliente colar `PETTMOL` no carrinho.**
   Não acumula com promoção maior do produto.
 
-**Trade-off aceito:** comissão passa a depender do cupom colado (vs.
-automático) em troca de o produto aparecer na tela em **todas** as
-plataformas, inclusive o app. Decisão do usuário (29/08/2026):
-"pelo menos conseguíamos colocar o produto na tela do usuário".
+**Trade-off aceito:** (a) comissão depende do cupom colado; (b) produto
+mapeado abre a busca (1º resultado), não a página exata — em troca de
+funcionar em todas as plataformas sem cair no app quebrado. Decisão do
+usuário (29/08/2026): "pelo menos conseguíamos colocar o produto na tela".
 
 ## Fontes
 
@@ -99,4 +104,5 @@ plataformas, inclusive o app. Decisão do usuário (29/08/2026):
 | 29/08/2026 | **two-hop via `window.open('about:blank')` + `w.location`** | deslogado | **atribuição preservada, produto exato** | idem | comprovado no Chrome (aba real); NÃO na PWA nem no app |
 | 29/08/2026 | **two-hop nativo** (Capacitor): `Browser.open(loja)` → `close()` → `Browser.open(produto)` | app | — | — | **NÃO FUNCIONA**: iOS suspende o JS do WebView enquanto o SFSafariVC está aberto → o 2º hop nunca roda |
 | 29/08/2026 | **ABANDONADO o caminho pela Loja Parceira** (PR #110) — "Ver na Petz" → `/go/petz?to=` → página do produto / busca; cupom `PETTMOL` copiado | todas | não (cliente cola o cupom) | ao colar PETTMOL | produto na tela em web/PWA/app; comissão via cupom |
+| 30/08/2026 | **BUG: `/go/petz` → `/produto/...` cai no app da Petz** ("DETALHES" quebrada, iPhone). AASA da Petz reivindica `/produto/*`. Fix (PR #112): ponte só redireciona pra `/busca` (fora da AASA); `/produto/` nunca usado. | app iOS | — | — | `isPetzAppClaimedUrl()` barra `/`, `/produto/*`, `/colecao/*`, `/minhas-assinaturas/*` |
 | 29/08/2026 | two-hop web direto: `/parceiro/pettmol` → `/produto/drontal-83755` → add ao carrinho | **deslogado** | **"Você está comprando na loja pettmol do Parceiro Petz"** | campo de cupom vazio (deslogado); Drontal tinha 30% OFF próprio | re-comprovado no Playwright — cookie `idPartner 41281` persiste em todos os hops |
