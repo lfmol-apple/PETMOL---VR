@@ -988,7 +988,10 @@ nativo = rebuild + submissão (fora de escopo).
 `associated-domains` (sem AASA — conferido em
 `apps/web/ios/App/App/App.entitlements`), então `/go/petz` abre no
 navegador / navegador do sistema. A página (`app/go/petz/page.tsx`):
-1. copia o cupom **`PETTMOL`** pro clipboard;
+1. mostra o cupom **`PETTMOL`** grande com botão **Copiar** — no app o
+   `navigator.clipboard` do WKWebView é instável, mas a ponte roda no
+   SFSafariViewController, onde `copyText` funciona **sob gesto** (tap no
+   cupom ou no "Ir pra a Petz", que copia antes de redirecionar);
 2. lê `?to=<url petz>`, valida com `isRealPetzUrl` **e**
    `!isPetzAppClaimedUrl` (só https de `[www.]petz.com.br`, e o path NÃO
    pode estar na AASA da Petz — `/`, `/produto/*`, `/colecao/*`,

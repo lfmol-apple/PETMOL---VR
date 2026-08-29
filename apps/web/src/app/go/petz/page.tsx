@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   PETZ_PARTNER_STORE_URL,
@@ -12,21 +12,18 @@ import { copyText } from '@/lib/clipboard';
 
 // Ponte "Ver na Petz".
 //
-// Objetivo: evitar que o app da Petz instalado intercepte o link (iOS
-// Universal Link / Android App Link). Esta página fica em petmol.com.br
-// (sem AASA) e navega pra Petz via location.replace / botão onClick —
-// nunca <a href>.
-//
-// O `to` SÓ é aceito se for petz.com.br real E fora da AASA da Petz
-// (`/`, `/produto/*`, `/colecao/*`, `/minhas-assinaturas/*` são
-// reivindicados pelo app → o iOS entrega ao app mesmo num redirect JS,
-// cai na tela "DETALHES" quebrada). Destinos válidos: `/busca?q=...` e
-// `/parceiro/pettmol`. Qualquer outra coisa → Loja Parceira.
-//
-// `q`  = nome do produto (só exibição).
-// Cupom PETTMOL copiado pro clipboard (10% + comissão ao colar no carrinho).
+// Dois objetivos:
+// 1. Evitar que o app da Petz intercepte o link (iOS Universal Link):
+//    esta página fica em petmol.com.br (sem AASA) e navega pra Petz por
+//    JS (location.replace) pra um path FORA da AASA da Petz
+//    (`/busca`, `/parceiro/*` — nunca `/`, `/produto/*`, `/colecao/*`).
+// 2. Entregar o cupom PETTMOL: no app (WKWebView) `navigator.clipboard`
+//    é instável, mas AQUI a página roda no SFSafariViewController /
+//    navegador do sistema, onde `copyText` funciona SOB GESTO. Por isso
+//    o cupom é o herói da tela, com botão de copiar, e o "Ir pra a
+//    Petz" copia antes de redirecionar.
 
-const AUTO_REDIRECT_MS = 2500;
+const AUTO_REDIRECT_MS = 8000;
 
 function PetzBridge() {
   const params = useSearchParams();
@@ -36,16 +33,26 @@ function PetzBridge() {
     rawTo && isRealPetzUrl(rawTo) && !isPetzAppClaimedUrl(rawTo) ? rawTo : PETZ_PARTNER_STORE_URL;
   const goesToSearch = target.includes('/busca');
 
+  const [copied, setCopied] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  const wentRef = useRef(false);
+
+  const doCopy = async () => {
+    const ok = await copyText(PETZ_COUPON_CODE).catch(() => false);
+    if (ok) setCopied(true);
+    return ok;
+  };
 
   const go = () => {
-    if (redirecting) return;
+    if (wentRef.current) return;
+    wentRef.current = true;
     setRedirecting(true);
     if (typeof window !== 'undefined') window.location.replace(target);
   };
 
   useEffect(() => {
-    void copyText(PETZ_COUPON_CODE);
+    // 1ª tentativa (pode falhar sem gesto — o botão é o caminho confiável).
+    void doCopy();
     const t = window.setTimeout(go, AUTO_REDIRECT_MS);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -66,27 +73,59 @@ function PetzBridge() {
       <div style={{ maxWidth: 380, width: '100%', textAlign: 'center' }}>
         <div style={{ fontSize: 40, marginBottom: 8 }}>🐾</div>
         <p style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>
-          {goesToSearch ? 'Abrindo a busca na Petz' : 'Abrindo sua loja Petz'}
+          Use o cupom <strong>{PETZ_COUPON_CODE}</strong> na Petz
         </p>
         <p style={{ fontSize: 13, color: '#475569', margin: '0 0 16px' }}>
-          Cupom <strong>{PETZ_COUPON_CODE}</strong> copiado — cole no carrinho da Petz pra
-          <strong> 10% de desconto</strong>.
+          Cole no carrinho pra <strong>10% de desconto</strong>.
         </p>
+
+        <button
+          type="button"
+          onClick={() => void doCopy()}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            border: `2px dashed ${copied ? '#16a34a' : '#cbd5e1'}`,
+            borderRadius: 12,
+            padding: '14px 16px',
+            background: '#fff',
+            marginBottom: 12,
+            cursor: 'pointer',
+          }}
+        >
+          <span
+            style={{
+              fontSize: 20,
+              fontWeight: 800,
+              letterSpacing: 2,
+              color: '#0f172a',
+              fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace',
+            }}
+          >
+            {PETZ_COUPON_CODE}
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: copied ? '#16a34a' : '#1d4ed8' }}>
+            {copied ? 'Copiado ✓' : 'Copiar'}
+          </span>
+        </button>
 
         {productName && goesToSearch && (
           <div
             style={{
               border: '1px solid #e2e8f0',
               borderRadius: 12,
-              padding: '12px',
+              padding: '10px 12px',
               background: '#fff',
               marginBottom: 14,
             }}
           >
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, color: '#64748b' }}>
-              RESULTADO PARA
+              PROCURANDO NA PETZ
             </div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
               {productName}
             </div>
           </div>
@@ -94,7 +133,9 @@ function PetzBridge() {
 
         <button
           type="button"
-          onClick={go}
+          onClick={() => {
+            void doCopy().finally(go);
+          }}
           style={{
             width: '100%',
             padding: '13px 16px',
@@ -107,7 +148,7 @@ function PetzBridge() {
             cursor: 'pointer',
           }}
         >
-          Abrir a Petz
+          Ir pra a Petz
         </button>
         <p style={{ fontSize: 12, color: '#94a3b8', margin: '12px 0 0' }}>
           {redirecting ? 'Abrindo…' : 'Abre automaticamente em instantes…'}
