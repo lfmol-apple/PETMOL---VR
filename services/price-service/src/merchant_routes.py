@@ -45,19 +45,20 @@ class MerchantRoutePolicy:
     fallback_routes: tuple[str, ...] = field(default_factory=tuple)
 
 
-# Cobasi: decisão de produto em 14/08/2026 — Awin (8,5% nominal, ainda não
-# confirmado por venda real, cookie de 1 dia) vira a rota preferida sobre
-# MAIS (7%, confirmado), aceitando o risco de a comissão realizada da Awin
-# ficar abaixo do nominal por causa da janela curta de atribuição. "mais"
-# passa a ser o fallback — continua vencendo quando a Awin não resolver
-# nada pro produto (sem feed sincronizado, fora de estoque, etc.).
-# IMPORTANTE: isto sozinho não expõe nada — awin_enabled=False no master
-# gate global (config.py) continua sendo o que efetivamente decide se
-# qualquer oferta Awin existe. Link cadastrado manualmente
-# (is_manually_cached, ex: Baby/Royal Canin) continua vencendo os dois,
-# sempre — ver docstring do módulo, critério 2.
+# Cobasi: decisão de produto em 29/08/2026 — revertida a decisão de
+# 14/08/2026 (Awin como rota preferida). Awin nunca mais monetiza pra
+# nenhum merchant (ver AWIN_SELLABLE_MERCHANTS em awin_advertisers.py,
+# hoje vazio) — "mais" (painel MAIS da própria Cobasi, via
+# CobasiProvider/cobasi_utm.py) é a única rota real de venda agora. Motivo:
+# comissão MAIS é confirmada e o link de produto foi validado manualmente
+# (colado no gerador do painel, retornou página real, não 404), contra a
+# comissão Awin nominal (nunca confirmada por venda real) com cookie de
+# atribuição de só 1 dia. fallback_routes fica vazio de propósito — sem
+# rota Awin ativa, não há mais o que cair como fallback; ver docstring do
+# módulo pra como isto se comporta se um dia AWIN_SELLABLE_MERCHANTS
+# voltar a incluir "cobasi".
 MERCHANT_ROUTE_POLICIES: dict[str, MerchantRoutePolicy] = {
-    "cobasi": MerchantRoutePolicy(merchant="cobasi", preferred_route="awin", fallback_routes=("mais",)),
+    "cobasi": MerchantRoutePolicy(merchant="cobasi", preferred_route="mais", fallback_routes=()),
 }
 
 # Mantido por compatibilidade com código/testes existentes — dict simples

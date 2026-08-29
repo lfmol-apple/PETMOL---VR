@@ -1624,12 +1624,14 @@ async def commerce_awin_search(
     Mercado Livre/Shopee NÃO entram aqui — não têm feed/catálogo
     estruturado. Amazon está desativada desde 22/08/2026.
 
-    Master gate: só busca merchants em awin_merchants_publicly_sellable()
+    Master gate: só busca merchants em awin_merchants_publicly_searchable()
     (subset comercial público + awin_enabled=True, awin_shadow_mode=False,
-    merchant individualmente enabled=True — ver awin_advertisers.py). Um
-    `merchant=` explícito NUNCA contorna isto — se o merchant pedido não
-    estiver na lista liberada para venda, retorna lista vazia sem consultar
-    nenhuma linha daquele merchant.
+    merchant individualmente enabled=True — ver awin_advertisers.py). Isto
+    é sobre APARECER na busca (nome/foto/preço), não sobre vender — Awin
+    nunca gera o link de compra (ver AWIN_SELLABLE_MERCHANTS, sempre
+    vazio). Um `merchant=` explícito NUNCA contorna isto — se o merchant
+    pedido não estiver na lista buscável, retorna lista vazia sem
+    consultar nenhuma linha daquele merchant.
 
     Agrupamento por GTIN e "menor preço" são calculados no PRÓPRIO SQL
     (window functions ROW_NUMBER/COUNT, Postgres e SQLite — nunca
@@ -1640,9 +1642,9 @@ async def commerce_awin_search(
     AwinFeedProvider: sync em lote, leitura local rápida.
     """
     from .affiliate_feed import AffiliateFeedOffer
-    from .awin_advertisers import awin_merchants_publicly_sellable
+    from .awin_advertisers import awin_merchants_publicly_searchable
 
-    allowed = set(awin_merchants_publicly_sellable())
+    allowed = set(awin_merchants_publicly_searchable())
     if merchant:
         merchants = [merchant] if merchant in allowed else []
     else:

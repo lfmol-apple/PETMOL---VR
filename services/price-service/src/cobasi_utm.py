@@ -1,13 +1,14 @@
 """
-UTM builder para a Cobasi — função pura, testável, mas NÃO ativada em
-produção (ver `cobasi_affiliate_mode` em config.py, padrão "cached").
+UTM builder para a Cobasi — função pura, testável. Ativa em produção
+desde 29/08/2026 (ver `cobasi_affiliate_mode` em config.py, padrão "utm").
 
-Contexto (documento de arquitetura interno, seções 6-8): o painel MAIS
-confirma que UTM é o mecanismo de tracking usado, mas NÃO está
-formalmente confirmado que simplesmente anexar UTM a uma URL de produto
-comum substitui o link gerado pelo painel (mais.app/...) em todos os
-cenários — só ativar `COBASI_AFFILIATE_MODE=utm` depois dessa
-confirmação com a Cobasi/MAIS.
+Contexto: confirmado manualmente que colar uma URL de produto Cobasi real
+no gerador de link do painel MAIS produz um link que, aberto fora do
+painel, resolve pra uma página de produto real (não 404) com
+utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol — os
+mesmos 3 parâmetros que esta função anexa. É o único mecanismo de
+monetização da Cobasi hoje: Awin nunca gera link de compra (ver
+AWIN_SELLABLE_MERCHANTS em awin_advertisers.py, sempre vazio).
 """
 from __future__ import annotations
 

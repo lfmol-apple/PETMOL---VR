@@ -218,10 +218,15 @@ async def test_awin_never_leaks_when_master_gate_off_even_as_sole_resolver(monke
 
 
 @pytest.mark.asyncio
-async def test_awin_catalog_fills_in_with_mais_utm_when_cobasi_provider_does_not_resolve(monkeypatch):
-    """MAIS não resolve nada (modo disabled, sem link cadastrado) mas a
-    Awin resolve identidade/preço (habilitada) — a Cobasi ainda aparece
-    com URL de produto MAIS-UTM, sem depender do clique Awin."""
+async def test_awin_catalog_never_fills_in_when_cobasi_provider_is_disabled(monkeypatch):
+    """Desde 29/08/2026, Awin não é mais um resolvedor de reserva pra
+    Cobasi: com CobasiProvider desligado (modo disabled) e uma linha de
+    catálogo Awin sincronizada pro mesmo GTIN, a Cobasi some da lista —
+    AwinFeedProvider nunca é registrado como vendável
+    (AWIN_SELLABLE_MERCHANTS vazio, ver awin_advertisers.py), então não
+    existe mais um segundo provider capaz de "preencher" a oferta. Ver
+    docstring de cobasi_provider.py: modo "disabled" agora significa
+    Cobasi sem NENHUMA oferta de compra, ponto final."""
     _enable_awin_globally(monkeypatch)
     monkeypatch.setenv("COBASI_AFFILIATE_MODE", "disabled")
     get_settings.cache_clear()
@@ -234,9 +239,7 @@ async def test_awin_catalog_fills_in_with_mais_utm_when_cobasi_provider_does_not
         db.close()
 
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
-    assert len(cobasi_offers) == 1
-    assert cobasi_offers[0].route == "mais"
-    assert cobasi_offers[0].url == "https://www.cobasi.com.br/produto-teste/p?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol"
+    assert cobasi_offers == [], "Awin nunca preenche a Cobasi — catálogo Awin não é mais uma rota de venda"
 
 
 @pytest.mark.asyncio

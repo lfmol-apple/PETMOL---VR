@@ -23,7 +23,7 @@ from typing import Optional
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .awin_advertisers import AWIN_PUBLIC_COMMERCE_MERCHANTS, AWIN_ADVERTISERS, is_awin_merchant_registrable
+from .awin_advertisers import AWIN_SELLABLE_MERCHANTS, AWIN_ADVERTISERS, is_awin_merchant_registrable
 from .awin_feed_provider import AwinFeedProvider
 from .cobasi_provider import CobasiProvider
 from .commerce_provider import CommerceEngine, CommerceProvider, MonetizedOffer, ProductContext
@@ -79,9 +79,13 @@ def build_default_engine(db: Session) -> CommerceEngine:
 
     Providers Awin (feed estruturado) são genéricos, mas só são
     registrados no engine público de compra quando o merchant também está
-    em AWIN_PUBLIC_COMMERCE_MERCHANTS. Zee Now/Zee Dog podem continuar
-    sincronizados/enriquecendo catálogo internamente, mas não viram opção
-    de venda no PETMOL.
+    em AWIN_SELLABLE_MERCHANTS — hoje sempre vazio: decisão de produto em
+    29/08/2026, PETMOL nunca monetiza via Awin, pra nenhum merchant (ver
+    docstring de AWIN_SELLABLE_MERCHANTS em awin_advertisers.py). O feed
+    Awin de qualquer merchant (Cobasi incluída) continua alimentando
+    busca por nome/foto/preço (AWIN_PUBLIC_COMMERCE_MERCHANTS, endpoint
+    /commerce/awin-search) e enriquecimento interno de catálogo/GTIN —
+    só não gera mais o link de "Comprar".
 
     Para merchants vendáveis, is_awin_merchant_registrable() combina o
     master gate global (config.awin_enabled/awin_shadow_mode) com o status
@@ -96,9 +100,12 @@ def build_default_engine(db: Session) -> CommerceEngine:
     em profundidade — ver awin_feed_provider.py). Sem nenhum dos dois
     (caso comum), NENHUM AwinFeedProvider é registrado.
 
-    merchant_routes.MERCHANT_ROUTE_POLICIES["cobasi"] decide qual rota
-    vence quando mais de um provider resolver a mesma oferta — trocar
-    isso exige validar comissão real antes (ver docs/AFFILIATES.md).
+    merchant_routes.MERCHANT_ROUTE_POLICIES["cobasi"] existe pra decidir
+    qual rota vence SE mais de um provider algum dia resolver a mesma
+    oferta pro mesmo merchant — hoje, com AWIN_SELLABLE_MERCHANTS vazio,
+    só CobasiProvider (rota "mais") produz oferta pra Cobasi, então não há
+    disputa de fato. Mantido como circuit breaker documentado, não como
+    lógica ativa.
 
     Providers de marketplace (Shopee hoje) seguem o mesmo padrão dos
     Awin: sempre registrados, gate real (config.shopee_affiliate_enabled)
@@ -114,13 +121,14 @@ def build_default_engine(db: Session) -> CommerceEngine:
     confirmado manualmente em admin/petz_router.py (ver
     docs/AFFILIATES.md §Petz). Sempre registrado; sem fonte de preço
     confirmada, nunca produz oferta pública hoje."""
-    # Awin primeiro, CobasiProvider (MAIS) depois: CobasiProvider.should_run()
-    # decide se vale a pena rodar com base em ofertas Awin já resolvidas
-    # nesta mesma chamada (ver cobasi_provider.py) — só funciona se Awin já
-    # tiver rodado antes dele na lista.
+    # AWIN_SELLABLE_MERCHANTS está vazio por decisão de produto (Awin nunca
+    # monetiza) — este loop fica registrado como o "circuit breaker" pra
+    # religar um merchant específico como vendável via Awin no futuro,
+    # sem precisar reescrever a lógica. CobasiProvider (rota "mais") é
+    # quem efetivamente monetiza Cobasi hoje.
     providers: list[CommerceProvider] = []
     for merchant in AWIN_ADVERTISERS:
-        if merchant not in AWIN_PUBLIC_COMMERCE_MERCHANTS:
+        if merchant not in AWIN_SELLABLE_MERCHANTS:
             continue
         if is_awin_merchant_registrable(merchant):
             providers.append(AwinFeedProvider(db, merchant))

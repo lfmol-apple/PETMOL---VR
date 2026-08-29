@@ -14,17 +14,18 @@ from src.merchant_routes import (
 )
 
 
-def test_cobasi_preferred_route_is_awin_since_20260814_decision():
-    """Decisão de produto em 14/08/2026: Awin (8,5% nominal) preferida
-    sobre MAIS (7%, confirmado) — ver docs/AFFILIATES.md e comentário em
-    merchant_routes.py. Isto sozinho não expõe nada: awin_enabled=False
-    no master gate global continua controlando se qualquer oferta Awin
-    de fato existe."""
-    assert preferred_route_for("cobasi") == "awin"
+def test_cobasi_preferred_route_is_mais_since_20260829_decision():
+    """Decisão de produto em 29/08/2026, revertendo a de 14/08/2026: Awin
+    nunca mais monetiza nenhum merchant (ver AWIN_SELLABLE_MERCHANTS em
+    awin_advertisers.py, sempre vazio) — "mais" (painel MAIS da própria
+    Cobasi) é a única rota real de venda agora."""
+    assert preferred_route_for("cobasi") == "mais"
 
 
-def test_cobasi_lists_mais_as_fallback():
-    assert fallback_routes_for("cobasi") == ("mais",)
+def test_cobasi_has_no_fallback_route():
+    """Sem rota Awin ativa, não há mais o que cair como fallback (ver
+    comentário em merchant_routes.py, decisão de 29/08/2026)."""
+    assert fallback_routes_for("cobasi") == ()
 
 
 def test_unknown_merchant_has_no_preference_or_fallback():
