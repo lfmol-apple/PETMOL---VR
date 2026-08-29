@@ -10,7 +10,7 @@ import {
   openHomeShoppingPartner,
   navigateToPartnerUrl,
   resolvePartnerUrl,
-  copyPetzCouponAndOpen,
+  openPetzPartnerStore,
   PETZ_COUPON_CODE,
   isPartnerVisibleForSearch,
   isPartnerVisibleInStoreArea,
@@ -98,7 +98,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
     });
     if (!url) return;
     if (partner.id === 'petz') {
-      void copyPetzCouponAndOpen();
+      void openPetzPartnerStore();
       return;
     }
     navigateToPartnerUrl(url);
@@ -184,7 +184,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                                 });
                               }}
                               onPetzBuy={() => {
-                                void copyPetzCouponAndOpen(card.label);
+                                void openPetzPartnerStore(card.label);
                                 void trackClick({
                                   source: 'home',
                                   cta_type: 'shop_reorder_buy_petz',

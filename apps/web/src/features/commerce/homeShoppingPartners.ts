@@ -333,11 +333,13 @@ export function isRealPetzUrl(url: string): boolean {
  *
  * 2. Monetização: a comissão do Parceiro Petz só é garantida quando o
  *    cliente ENTRA pela Loja Parceira `petz.com.br/parceiro/pettmol` —
- *    aí o desconto de 10% vem aplicado sozinho e a venda é atribuída
- *    (doc oficial Petz). Chegar direto na página do produto NÃO aplica
- *    nada. Por isso a ponte SEMPRE leva pra /parceiro/pettmol, passando
- *    só o NOME do produto (`q`) pra o cliente procurar dentro da loja.
- *    O cupom PETTMOL vai pro clipboard como reserva manual.
+ *    aí o desconto de 10% e o cupom PETTMOL vêm aplicados sozinhos e a
+ *    venda é atribuída (cookie `petzPartner`, ver
+ *    docs/PETZ_COMMISSION_VALIDATION.md). Não existe deep link oficial de
+ *    produto pela loja parceira — o cliente cai na home e busca. Por isso
+ *    a ponte SEMPRE leva pra /parceiro/pettmol e passa o NOME do produto
+ *    (`q`), que a ponte copia pro clipboard pra o cliente colar na busca
+ *    da Petz. (O cupom NÃO é copiado — já é automático na loja parceira.)
  */
 export function petzBridgeUrl(productName?: string): string {
   const origin =
@@ -350,20 +352,22 @@ export function petzBridgeUrl(productName?: string): string {
 }
 
 /**
- * Clique "Ver na Petz": copia o cupom PETTMOL de reserva e abre a Loja
- * Parceira pela ponte /go/petz (ver petzBridgeUrl para os dois motivos).
- * `productName` só serve de dica de busca dentro da loja da Petz.
+ * Clique "Ver na Petz": copia o NOME do produto pro clipboard (pra o
+ * cliente colar na busca da Petz) e abre a Loja Parceira pela ponte
+ * /go/petz. O cupom PETTMOL e os 10% já entram sozinhos na loja parceira
+ * (cookie `petzPartner`) — não precisa copiar o cupom.
  */
-export async function copyPetzCouponAndOpen(productName?: string): Promise<void> {
+export async function openPetzPartnerStore(productName?: string): Promise<void> {
+  const name = (productName ?? '').trim();
   // Cópia no tempo do gesto (onClick) — melhor chance no WebView do iOS.
-  const copied = await copyText(PETZ_COUPON_CODE).catch(() => false);
+  const copied = name ? await copyText(name).catch(() => false) : false;
   if (copied) {
-    showAppToast(`Loja Petz abrindo — desconto de 10% já aplicado. Cupom ${PETZ_COUPON_CODE} copiado como reserva.`, {
+    showAppToast(`"${name}" copiado — cole na busca da Petz. Seu desconto de 10% já está ativo.`, {
       tone: 'success',
       durationMs: 6000,
     });
   }
-  navigateToPartnerUrl(petzBridgeUrl(productName));
+  navigateToPartnerUrl(petzBridgeUrl(name || undefined));
 }
 
 /**
@@ -390,7 +394,7 @@ export function openHomeShoppingPartner(
   }
   if (partner.id === 'petz') {
     // Petz sempre pela ponte /go/petz → Loja Parceira (ver petzBridgeUrl).
-    void copyPetzCouponAndOpen();
+    void openPetzPartnerStore();
   } else {
     navigateToPartnerUrl(url);
   }

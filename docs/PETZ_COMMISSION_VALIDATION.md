@@ -48,12 +48,24 @@ quando o cookie do Caminho A expira.
 
 ## Consequência para o PETMOL
 
-"Ver na Petz" deve levar o cliente à **Loja Parceira**
-(`/parceiro/pettmol`) via a ponte `/go/petz` (ver `docs/AFFILIATES.md`
-§Petz e `homeShoppingPartners.ts::petzBridgeUrl`). Assim os 10% entram
-sozinhos e a venda é atribuída. Chegar direto na página do produto
-**não** grava o cookie → sem atribuição garantida. O cupom PETTMOL vai
-pro clipboard só como reserva.
+"Ver na Petz" leva o cliente à **Loja Parceira** (`/parceiro/pettmol`)
+via a ponte `/go/petz` (ver `docs/AFFILIATES.md` §Petz e
+`homeShoppingPartners.ts::openPetzPartnerStore`). Assim o cupom PETTMOL e
+os 10% entram sozinhos e a venda é atribuída. Chegar direto na página do
+produto **não** grava o cookie → sem atribuição garantida.
+
+**Não existe deep link oficial de produto pela loja parceira** — testado
+e negado: `/parceiro/pettmol/produto/<slug>` → 404;
+`?q` / `?query` / `?term` / `?keyword` / `?busca` / `#termo` → ignorados
+(abre a home); `/busca?q=X&parceiro=pettmol` / `&loja=pettmol` → não
+grava o cookie. O cookie `petzPartner` só é gravado por uma navegação
+top-level a `www.petz.com.br/parceiro/pettmol`, e a home da loja é o
+único destino. Um salto duplo automático (loja parceira → produto) é
+impossível: depois da nav 1 não há controle (é página da Petz).
+
+Mitigação (decisão de produto 29/08/2026): a ponte copia o **nome do
+produto** pro clipboard pra o cliente colar na busca da Petz. O cupom
+**não** é copiado — já é automático na loja parceira.
 
 ## Fontes
 
