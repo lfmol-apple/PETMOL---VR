@@ -98,7 +98,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
     });
     if (!url) return;
     if (partner.id === 'petz') {
-      void copyPetzCouponAndOpen(url);
+      void copyPetzCouponAndOpen();
       return;
     }
     navigateToPartnerUrl(url);
@@ -183,11 +183,8 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                                   metadata: { domain: card.domain, label: card.label, price: offer.price },
                                 });
                               }}
-                              onPetzBuy={(url) => {
-                                void copyPetzCouponAndOpen(url);
-                                // §7/§18 da auditoria de monetização — ver mesmo
-                                // comentário em MonetizedOffersList.tsx::handleVerNaPetz.
-                                const petzStorefrontUrl = HOME_SHOPPING_PARTNERS.find((p) => p.id === 'petz')?.storefrontAffiliateUrl;
+                              onPetzBuy={() => {
+                                void copyPetzCouponAndOpen(card.label);
                                 void trackClick({
                                   source: 'home',
                                   cta_type: 'shop_reorder_buy_petz',
@@ -198,7 +195,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                                     domain: card.domain,
                                     label: card.label,
                                     monetization_mode: 'coupon_attribution_verified',
-                                    destination_type: url === petzStorefrontUrl ? 'storefront' : 'product',
+                                    destination_type: 'partner_store',
                                     coupon: PETZ_COUPON_CODE,
                                     product_gtin: card.gtin ?? undefined,
                                   },
@@ -292,7 +289,7 @@ interface ReorderCardItemProps {
   onTogglePicker: () => void;
   onQuickBuy: (partnerId: HomeShoppingPartnerId) => void;
   onDirectBuy: (offer: CommerceOffer) => void;
-  onPetzBuy: (url: string) => void;
+  onPetzBuy: () => void;
 }
 
 // Busca a lista de ofertas monetizáveis (mesma fonte usada em toda tela de
@@ -359,7 +356,7 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
       return;
     }
     if (hasPetz && petzLink?.url) {
-      onPetzBuy(petzLink.url);
+      onPetzBuy();
       return;
     }
     onTogglePicker();
@@ -452,7 +449,7 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
           offers={offers}
           onPick={onDirectBuy}
           petzLink={hasPetz ? petzLink : null}
-          onPickPetz={() => petzLink?.url && onPetzBuy(petzLink.url)}
+          onPickPetz={() => petzLink?.url && onPetzBuy()}
         />
       )}
       {offers.some((item) => item.price_is_stale) && (

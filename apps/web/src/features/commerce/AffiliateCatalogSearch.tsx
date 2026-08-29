@@ -447,7 +447,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          void copyPetzCouponAndOpen(petzResolved.url as string);
+                          void copyPetzCouponAndOpen(item.title ?? undefined);
                           setStoreChoicesForGtin(null);
                           void trackClick({
                             source: 'home',
@@ -455,7 +455,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                             target: 'petz',
                             link_type: 'affiliate_store',
                             pet_id: petId,
-                            metadata: { gtin: item.gtin, coupon: PETZ_COUPON_CODE },
+                            metadata: { gtin: item.gtin, coupon: PETZ_COUPON_CODE, destination_type: 'partner_store' },
                           });
                         }}
                         className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-blue-300 px-3 py-2 transition-all active:scale-[0.98]"

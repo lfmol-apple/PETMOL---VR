@@ -1,14 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // copyPetzCouponAndOpen — clique "Ver na Petz":
-//  1. copia o cupom PETTMOL (mecanismo de atribuição do Parceiro Petz);
-//  2. abre a Petz pela ponte /go/petz (petmol.com.br), que evita o iOS/
-//     Android entregarem o link ao app da Petz instalado (Universal Link
-//     / App Link) — ver petzBridgeUrl / docs/AFFILIATES.md §Petz.
-// A URL real da Petz nunca é alterada, só embrulhada em ?to=.
+//  1. copia o cupom PETTMOL como RESERVA (a Loja Parceira já aplica os
+//     10% sozinha ao entrar — ver docs/PETZ_COMMISSION_VALIDATION.md);
+//  2. abre a Loja Parceira pela ponte /go/petz (petmol.com.br), que evita
+//     o iOS/Android entregarem o link ao app da Petz instalado.
+// Nunca abre petz.com.br direto; só passa o NOME do produto (?q=).
 describe('copyPetzCouponAndOpen', () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
-  const REAL = 'https://www.petz.com.br/produto/racao-royal-canin-100223';
 
   beforeEach(() => {
     writeText.mockClear();
@@ -24,23 +23,31 @@ describe('copyPetzCouponAndOpen', () => {
     vi.unstubAllGlobals();
   });
 
-  it('copia PETTMOL antes de navegar e abre a ponte /go/petz com a URL real embrulhada', async () => {
+  it('copia PETTMOL e abre a ponte /go/petz com o nome do produto em ?q=', async () => {
     const openSpy = vi.fn();
     vi.stubGlobal('open', openSpy);
 
     const { copyPetzCouponAndOpen, PETZ_COUPON_CODE } = await import('./homeShoppingPartners');
-    await copyPetzCouponAndOpen(REAL);
+    await copyPetzCouponAndOpen('Ração Golden Fórmula Adulto');
 
     expect(writeText).toHaveBeenCalledWith(PETZ_COUPON_CODE);
     expect(writeText).toHaveBeenCalledWith('PETTMOL');
 
     expect(openSpy).toHaveBeenCalledTimes(1);
-    const opened = openSpy.mock.calls[0][0] as string;
-    expect(opened).toContain('/go/petz?to=');
-    // a URL real da Petz vai inteira, só percent-encoded — nada é alterado
-    expect(decodeURIComponent(new URL(opened).searchParams.get('to')!)).toBe(REAL);
-    // nunca abre a URL da Petz direto (é isso que o app intercepta)
-    expect(opened.startsWith('https://www.petz.com.br')).toBe(false);
+    const opened = new URL(openSpy.mock.calls[0][0] as string);
+    expect(opened.pathname).toBe('/go/petz');
+    expect(opened.searchParams.get('q')).toBe('Ração Golden Fórmula Adulto');
+    // nunca abre a URL da Petz direto (é isso que o app da Petz intercepta)
+    expect(opened.href).not.toContain('petz.com.br');
+  });
+
+  it('sem nome de produto abre /go/petz sem query', async () => {
+    const openSpy = vi.fn();
+    vi.stubGlobal('open', openSpy);
+
+    const { copyPetzCouponAndOpen } = await import('./homeShoppingPartners');
+    await copyPetzCouponAndOpen();
+    expect(openSpy.mock.calls[0][0]).toMatch(/\/go\/petz$/);
   });
 
   it('ainda navega mesmo se o clipboard falhar (best-effort, nunca bloqueia)', async () => {
@@ -52,17 +59,19 @@ describe('copyPetzCouponAndOpen', () => {
     vi.stubGlobal('open', openSpy);
 
     const { copyPetzCouponAndOpen } = await import('./homeShoppingPartners');
-    await expect(copyPetzCouponAndOpen(REAL)).resolves.not.toThrow();
-    expect(openSpy).toHaveBeenCalledWith(expect.stringContaining('/go/petz?to='), '_blank', 'noopener');
+    await expect(copyPetzCouponAndOpen('X')).resolves.not.toThrow();
+    expect(openSpy).toHaveBeenCalledWith(expect.stringContaining('/go/petz'), '_blank', 'noopener');
   });
 
   it('nunca chama clipboard sem a API disponível (ex: contexto não seguro)', async () => {
     Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+    // @ts-expect-error execCommand ausente em jsdom
+    delete document.execCommand;
     const openSpy = vi.fn();
     vi.stubGlobal('open', openSpy);
 
     const { copyPetzCouponAndOpen } = await import('./homeShoppingPartners');
-    await expect(copyPetzCouponAndOpen(REAL)).resolves.not.toThrow();
-    expect(openSpy).toHaveBeenCalledWith(expect.stringContaining('/go/petz?to='), '_blank', 'noopener');
+    await expect(copyPetzCouponAndOpen('X')).resolves.not.toThrow();
+    expect(openSpy).toHaveBeenCalledWith(expect.stringContaining('/go/petz'), '_blank', 'noopener');
   });
 });
