@@ -901,16 +901,32 @@ O cliente vê o **produto exato** e a venda continua atribuída. A 2ª
 navegação é por JS (nunca `<a href>`) → `/produto/*` não é entregue ao
 app da Petz.
 
-**Só entra no two-hop** quando: há URL real de produto Petz
+**Só entra no two-hop web** quando: há URL real de produto Petz
 (`PetzProductMapping` confirmado, `isRealPetzUrl`); **não** é Capacitor
-(`window.open` não devolve handle no app; `@capacitor/browser` 8.0.4
-recusa a 2ª `Browser.open` — `prepare()` só cria se `safariVC == nil`);
-e `window.open` devolveu janela.
+(`window.open` não devolve handle no app); e `window.open` devolveu janela.
 
-**FALLBACK** (Capacitor / popup bloqueado / produto sem URL exata): ponte
-`/go/petz` → só `/parceiro/pettmol`, copiando o **nome do produto** pra
-busca. Comissão continua garantida; só o "produto exato" que não
-acontece. **Prioridade: comissão garantida > produto exato > 10%
+**TWO-HOP NATIVO (Capacitor — `openPetzNativeTwoHop`):** no app, com URL
+real de produto, encadeia dois `@capacitor/browser`:
+
+```
+gesto → Browser.open(/parceiro/pettmol)        (SFSafariVC / Custom Tabs;
+                                                 Petz grava petzPartner)
+      → aguarda 'browserPageLoaded' (teto PETZ_NATIVE_HOP_LOAD_TIMEOUT_MS=3500)
+      → Browser.close() → aguarda PETZ_NATIVE_REOPEN_GAP_MS=700
+        (SFSafariVC desmontar — `prepare()` só cria a 2ª com `safariVC == nil`)
+      → Browser.open(URL REAL do produto)        (mesma sessão do navegador
+                                                  do sistema → cookie persiste)
+```
+
+Comissão garantida quando o 1º hop carrega. 2ª `open` recusada → reabre
+`/parceiro/pettmol` (seguro). Usuário fecha antes do load → não força o
+produto. **Premissa a validar em device:** SFSafariViewController /
+Chrome Custom Tabs mantêm o cookie entre `open`s dentro do mesmo app.
+
+**FALLBACK** (nem o 1º hop nativo abriu / popup bloqueado / produto sem
+URL exata): ponte `/go/petz` → só `/parceiro/pettmol`, copiando o **nome
+do produto** pra busca. Comissão continua garantida; só o "produto exato"
+que não acontece. **Prioridade: comissão garantida > produto exato > 10%
 automático > conveniência** — o two-hop só é usado se a atribuição
 permanecer.
 
@@ -986,12 +1002,13 @@ O destino da ponte é uma constante fixa (`PETZ_PARTNER_STORE_URL`) — sem
 parâmetro de redirect, sem open-redirect. `AppShell` esconde
 header/footer em `/go/petz`.
 
-**Limites residuais:** (a) no fallback (Capacitor), o cliente busca o
-produto na loja parceira; (b) cookie `petzPartner` expira em ~30 min —
-compra precisa acontecer nessa janela; (c) se a *própria* página da Petz
-forçar abrir o app depois de carregada, é JS da Petz, fora do controle;
-(d) o two-hop web precisa de teste em iPhone/Android reais para o
-Capacitor.
+**Limites residuais:** (a) no fallback, o cliente busca o produto na loja
+parceira; (b) cookie `petzPartner` expira em ~30 min — compra precisa
+acontecer nessa janela; (c) se a *própria* página da Petz forçar abrir o
+app depois de carregada, é JS da Petz, fora do controle; (d) o two-hop
+nativo (Capacitor) depende de o navegador do sistema manter o cookie
+entre `Browser.open`s — **a validar em iPhone/Android reais**; se falhar,
+reverter pro fallback é trocar `hasExactProduct && isNative` por `false`.
 
 ### Petlove Produtos
 

@@ -63,14 +63,34 @@ gesto → window.open('about:blank')            (síncrono, no gesto)
 O cliente vê o **produto exato** e a venda continua atribuída. Todas as
 navegações são JS → `/produto/*` não é entregue ao app da Petz.
 
-**Só faz o two-hop** quando há URL real de produto (`PetzProductMapping`
-confirmado) **e não** é Capacitor (`window.open` não devolve handle no
-app; `@capacitor/browser` 8.0.4 recusa a 2ª `Browser.open`).
+**Só faz o two-hop web** quando há URL real de produto (`PetzProductMapping`
+confirmado) **e não** é Capacitor (`window.open` não devolve handle no app).
 
-**Fallback** (Capacitor / popup bloqueado / produto sem URL exata):
-ponte `/go/petz` → só a Loja Parceira, copiando o **nome do produto** pro
-clipboard pra busca. Comissão garantida; só o produto exato que não
-acontece.
+### TWO-HOP NATIVO (Capacitor — app PETMOL)
+
+No app, sem `window.open` utilizável, `openPetzNativeTwoHop` encadeia dois
+`@capacitor/browser`:
+
+```
+gesto → Browser.open(/parceiro/pettmol)     (SFSafariViewController / Custom Tabs;
+                                              Petz grava petzPartner no header)
+      → aguarda 'browserPageLoaded' (teto 3500ms)
+      → Browser.close()  →  aguarda 700ms  (SFSafariVC desmontar; 8.0.4 só
+                                             aceita a 2ª open com safariVC==nil)
+      → Browser.open(URL REAL do produto)   (mesma sessão do navegador do
+                                             sistema → cookie persiste)
+```
+
+A comissão já está garantida quando o 1º hop carrega. Se a 2ª `open` for
+recusada (view ainda montada) → reabre `/parceiro/pettmol` (destino seguro).
+Se o usuário fecha a loja antes do load → não força o produto.
+**Falta validar em iPhone/Android reais** que o cookie sobrevive ao
+fechar/reabrir o navegador do sistema.
+
+**Fallback** (nem o 1º hop nativo abriu / popup bloqueado / produto sem URL
+exata): ponte `/go/petz` → só a Loja Parceira, copiando o **nome do
+produto** pro clipboard pra busca. Comissão garantida; só o produto exato
+que não acontece.
 
 **Deep link oficial de produto pela loja parceira NÃO existe** —
 `/parceiro/pettmol/produto/<slug>` → 404; `?q` / `?query` / `?term` /
@@ -102,4 +122,5 @@ conveniência. O two-hop só é usado se a atribuição permanecer.
 | 29/08/2026 | Drontal Plus (30% OFF) | logado | idem | R$ 0 extra (não acumula com promo) | promoção do produto prevalece |
 | 29/08/2026 | produto direto, sem passar pela loja parceira | — | nenhuma | — | cookie `petzPartner` ausente |
 | 29/08/2026 | **two-hop**: `/parceiro/pettmol` → nav JS (`location.href`/`replace`) → `/produto/X` | **deslogado** | **"loja pettmol" — atribuição PRESERVADA** | não auto (deslogado); ao digitar PETTMOL → −R$ 10,00 | delays 800/1500/2500ms todos ok |
-| 29/08/2026 | **two-hop via `window.open('about:blank')` + `w.location`** | deslogado | **atribuição preservada, produto exato** | idem | comprovado no Chrome; falta teste iPhone/Android p/ Capacitor |
+| 29/08/2026 | **two-hop via `window.open('about:blank')` + `w.location`** | deslogado | **atribuição preservada, produto exato** | idem | comprovado no Chrome (web/PWA) |
+| 29/08/2026 | **two-hop nativo**: `Browser.open(/parceiro/pettmol)` → `close()` → `Browser.open(/produto/X)` | — | *a validar em device* | — | premissa: SFSafariVC/Custom Tabs mantêm o cookie entre `open`s no mesmo app |
