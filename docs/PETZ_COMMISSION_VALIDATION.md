@@ -46,63 +46,40 @@ Também atribui, mas: **não acumula com promoção maior do produto**
 (ex: produto com 30% OFF → PETTMOL adiciona R$ 0). Serve de reserva
 quando o cookie do Caminho A expira.
 
-## Consequência para o PETMOL — TWO-HOP WEB
+## Consequência para o PETMOL — PRODUTO NA TELA + CUPOM (a partir de 29/08/2026, PR #110)
 
-O cookie `petzPartner` tem `Path=/` e sobrevive a uma navegação na
-**mesma sessão** de `/parceiro/pettmol` → `/produto/...` (comprovado:
-carrinho continua "loja pettmol"). "Ver na Petz"
-(`homeShoppingPartners.ts::openPetzPartnerStore`):
+O caminho pela Loja Parceira (`/parceiro/pettmol` → cookie `petzPartner`
+→ atribuição automática) foi tentado em duas formas e **abandonado**:
 
-```
-gesto → window.open('about:blank')            (síncrono, no gesto)
-      → win.location.href = /parceiro/pettmol   (Petz grava petzPartner)
-      → aguarda 2000ms
-      → win.location.replace(URL REAL do produto)   (JS, mesma janela)
-```
+| Tentativa | PR | Por que caiu |
+|---|---|---|
+| two-hop web (`window.open` + `w.location`) | #106/#108 | só funciona em **aba real** de navegador; na PWA instalada e no **app Capacitor** o `window.open` não devolve handle utilizável |
+| two-hop nativo (`Browser.open` loja → `close()` → `Browser.open` produto) | #107 | **iOS suspende o JS do WebView** enquanto o navegador do sistema está por cima → o 2º hop nunca roda; o cliente ficava preso na home da Loja Parceira |
 
-O cliente vê o **produto exato** e a venda continua atribuída. Todas as
-navegações são JS → `/produto/*` não é entregue ao app da Petz.
+A Petz **não expõe deep link de produto** pela loja parceira — então não
+há como ter "produto na tela" **e** "cookie de atribuição" ao mesmo tempo.
 
-**2º hop**, na ordem de preferência (o cookie `petzPartner` tem `Path=/`,
-então vale nos dois):
-- `direct_product_url` (`/produto/...`) — só com `PetzProductMapping`
-  confirmado (7 produtos hoje) → cliente cai NA página exata;
-- `search_url` (`/busca?q=<marca + palavras-chave>`) — qualquer outro
-  produto → cliente cai na BUSCA da Petz já com o termo e escolhe da lista.
+**Comportamento atual** (`homeShoppingPartners.ts::openPetzPartnerStore`
+→ ponte `/go/petz?to=<url petz>&q=<nome>`):
 
-**Só faz o two-hop web** quando há um 2º hop utilizável **e não** é
-Capacitor.
+| Backend devolve | `?to=` | Cliente vê |
+|---|---|---|
+| `direct_product_url` (mapping confirmado, 7 hoje) | `/produto/<slug>` | a página exata do produto |
+| só `search_url` | `/busca?q=<marca+palavras>` | a busca da Petz com o resultado |
+| nenhum | `/parceiro/pettmol` | a Loja Parceira |
 
-### App (Capacitor) NÃO faz two-hop — por quê
+- ponte faz `window.location.replace(to)` (redirect JS, nunca `<a href>`)
+  → o app da Petz **não intercepta** no iPhone. Vale em web, PWA e app.
+- **cupom `PETTMOL` copiado pro clipboard** no gesto do clique — é o
+  mecanismo de atribuição deste caminho (Caminho B da FAQ). Chegar direto
+  na página do produto **não grava** `petzPartner`.
+- **10% / comissão dependem do cliente colar `PETTMOL` no carrinho.**
+  Não acumula com promoção maior do produto.
 
-Tentado (PR #107) e revertido (PR #109). `@capacitor/browser` abre um
-SFSafariViewController / Chrome Custom Tab **modal sobre** o WebView do
-PETMOL. Enquanto ele está por cima, o **iOS suspende o JS do WebView** —
-o código que fecharia e reabriria no 2º hop só volta a rodar quando o
-usuário fecha o navegador na mão. Comportamento observado em produção:
-abre a Loja Parceira e **trava ali**. A ponte `/go/petz` também não
-resolve (depois que ela navega pra `petz.com.br`, o controle acabou).
-
-**No app o fluxo é o fallback:** ponte `/go/petz` → Loja Parceira (cookie
-`petzPartner` → comissão garantida) + **nome do produto copiado** pro
-clipboard pra o cliente colar na busca da Petz. O two-hop (produto exato
-/ busca) só acontece no **navegador do celular** (Safari/Chrome), não no
-app.
-
-**Deep link oficial de produto pela loja parceira NÃO existe** —
-`/parceiro/pettmol/produto/<slug>` → 404; `?q` / `?query` / `?term` /
-`?keyword` / `?busca` / `#termo` → ignorados; `/busca?q=X&parceiro=pettmol`
-/ `&loja=pettmol` → não grava o cookie. E **`/parceiro/pettmol` não faz
-nenhuma chamada de backend de atribuição** — é 100% o `Set-Cookie`,
-**não** account-linked.
-
-**Desconto 10% visível:** logado na Petz → automático. Deslogado (a
-maioria) → atribuição fica, mas o cliente digita `PETTMOL` (aceito,
-aplica 10%). Por isso o two-hop copia `PETTMOL` pro clipboard como
-segurança.
-
-**Prioridade:** comissão garantida > produto exato > 10% automático >
-conveniência. O two-hop só é usado se a atribuição permanecer.
+**Trade-off aceito:** comissão passa a depender do cupom colado (vs.
+automático) em troca de o produto aparecer na tela em **todas** as
+plataformas, inclusive o app. Decisão do usuário (29/08/2026):
+"pelo menos conseguíamos colocar o produto na tela do usuário".
 
 ## Fontes
 
@@ -119,5 +96,7 @@ conveniência. O two-hop só é usado se a atribuição permanecer.
 | 29/08/2026 | Drontal Plus (30% OFF) | logado | idem | R$ 0 extra (não acumula com promo) | promoção do produto prevalece |
 | 29/08/2026 | produto direto, sem passar pela loja parceira | — | nenhuma | — | cookie `petzPartner` ausente |
 | 29/08/2026 | **two-hop**: `/parceiro/pettmol` → nav JS (`location.href`/`replace`) → `/produto/X` | **deslogado** | **"loja pettmol" — atribuição PRESERVADA** | não auto (deslogado); ao digitar PETTMOL → −R$ 10,00 | delays 800/1500/2500ms todos ok |
-| 29/08/2026 | **two-hop via `window.open('about:blank')` + `w.location`** | deslogado | **atribuição preservada, produto exato** | idem | comprovado no Chrome (web/PWA) |
-| 29/08/2026 | **two-hop nativo** (Capacitor): `Browser.open(loja)` → `close()` → `Browser.open(produto)` | app | — | — | **NÃO FUNCIONA**: iOS suspende o JS do WebView enquanto o SFSafariVC está aberto → o 2º hop nunca roda. Revertido (PR #109). App = fallback. |
+| 29/08/2026 | **two-hop via `window.open('about:blank')` + `w.location`** | deslogado | **atribuição preservada, produto exato** | idem | comprovado no Chrome (aba real); NÃO na PWA nem no app |
+| 29/08/2026 | **two-hop nativo** (Capacitor): `Browser.open(loja)` → `close()` → `Browser.open(produto)` | app | — | — | **NÃO FUNCIONA**: iOS suspende o JS do WebView enquanto o SFSafariVC está aberto → o 2º hop nunca roda |
+| 29/08/2026 | **ABANDONADO o caminho pela Loja Parceira** (PR #110) — "Ver na Petz" → `/go/petz?to=` → página do produto / busca; cupom `PETTMOL` copiado | todas | não (cliente cola o cupom) | ao colar PETTMOL | produto na tela em web/PWA/app; comissão via cupom |
+| 29/08/2026 | two-hop web direto: `/parceiro/pettmol` → `/produto/drontal-83755` → add ao carrinho | **deslogado** | **"Você está comprando na loja pettmol do Parceiro Petz"** | campo de cupom vazio (deslogado); Drontal tinha 30% OFF próprio | re-comprovado no Playwright — cookie `idPartner 41281` persiste em todos os hops |

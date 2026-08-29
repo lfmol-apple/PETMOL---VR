@@ -7,21 +7,37 @@ describe('petzBridgeUrl / isRealPetzUrl', () => {
     vi.resetModules();
   });
 
-  it('petzBridgeUrl sempre aponta pra /go/petz no domínio do PETMOL (nunca petz.com.br direto)', async () => {
+  it('petzBridgeUrl sempre aponta pra /go/petz no domínio do PETMOL (nunca petz.com.br direto no host)', async () => {
     const { petzBridgeUrl } = await import('./homeShoppingPartners');
-    const bridge = new URL(petzBridgeUrl('Sanol Shampoo Tonalizante'));
+    const bridge = new URL(
+      petzBridgeUrl('https://www.petz.com.br/produto/drontal-83755', 'Drontal Plus 10kg'),
+    );
 
     expect(bridge.origin).toBe(window.location.origin);
     expect(bridge.pathname).toBe('/go/petz');
-    // leva só o NOME do produto pra busca dentro da Loja Parceira
-    expect(bridge.searchParams.get('q')).toBe('Sanol Shampoo Tonalizante');
-    expect(bridge.href).not.toContain('petz.com.br');
+    // destino final vai no ?to= (a ponte valida e redireciona por JS)
+    expect(bridge.searchParams.get('to')).toBe('https://www.petz.com.br/produto/drontal-83755');
+    expect(bridge.searchParams.get('q')).toBe('Drontal Plus 10kg');
+    expect(bridge.host).not.toContain('petz.com.br');
   });
 
-  it('petzBridgeUrl sem nome de produto não leva query nenhuma', async () => {
+  it('petzBridgeUrl com URL de busca preserva o destino', async () => {
     const { petzBridgeUrl } = await import('./homeShoppingPartners');
-    expect(petzBridgeUrl()).toBe(`${window.location.origin}/go/petz`);
-    expect(petzBridgeUrl('   ')).toBe(`${window.location.origin}/go/petz`);
+    const bridge = new URL(petzBridgeUrl('https://www.petz.com.br/busca?q=Royal+Canin', 'Ração X'));
+    expect(bridge.searchParams.get('to')).toBe('https://www.petz.com.br/busca?q=Royal+Canin');
+  });
+
+  it('petzBridgeUrl NÃO coloca ?to= quando o alvo é a própria Loja Parceira ou uma URL inválida', async () => {
+    const { petzBridgeUrl, PETZ_PARTNER_STORE_URL } = await import('./homeShoppingPartners');
+    expect(new URL(petzBridgeUrl(PETZ_PARTNER_STORE_URL)).searchParams.get('to')).toBeNull();
+    expect(new URL(petzBridgeUrl('https://evil.com/x', 'X')).searchParams.get('to')).toBeNull();
+    expect(new URL(petzBridgeUrl('javascript:alert(1)', 'X')).searchParams.get('to')).toBeNull();
+  });
+
+  it('petzBridgeUrl sem alvo utilizável nem nome → só /go/petz', async () => {
+    const { petzBridgeUrl, PETZ_PARTNER_STORE_URL } = await import('./homeShoppingPartners');
+    expect(petzBridgeUrl(PETZ_PARTNER_STORE_URL)).toBe(`${window.location.origin}/go/petz`);
+    expect(petzBridgeUrl('')).toBe(`${window.location.origin}/go/petz`);
   });
 
   it('isRealPetzUrl aceita só https de petz.com.br e rejeita disfarces', async () => {

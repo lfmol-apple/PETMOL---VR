@@ -322,83 +322,46 @@ export function isRealPetzUrl(url: string): boolean {
 }
 
 /**
- * Ponte /go/petz — resolve DOIS problemas de uma vez:
+ * Ponte /go/petz — evita a interceptação pelo app da Petz (Universal Link
+ * / App Link): o SO só entrega o link ao app num TOQUE de <a>, nunca num
+ * redirect por JavaScript (Apple docs + relatos iOS 17/18 — ver
+ * docs/AFFILIATES.md §Petz). A página /go/petz fica em petmol.com.br (sem
+ * associação universal) e navega pra Petz só por JS (`location.replace`).
  *
- * 1. Interceptação pelo app da Petz (Universal Link / App Link): o SO só
- *    entrega o link ao app num TOQUE de <a>, nunca num redirect por
- *    JavaScript nem no load inicial do SFSafariViewController (Apple docs
- *    + relatos iOS 17/18 — ver docs/AFFILIATES.md §Petz). A página
- *    /go/petz fica em petmol.com.br (sem associação universal) e navega
- *    pra Petz só por JS.
- *
- * 2. Monetização: a comissão do Parceiro Petz só é garantida quando o
- *    cliente ENTRA pela Loja Parceira `petz.com.br/parceiro/pettmol` —
- *    aí o desconto de 10% e o cupom PETTMOL vêm aplicados sozinhos e a
- *    venda é atribuída (cookie `petzPartner`, ver
- *    docs/PETZ_COMMISSION_VALIDATION.md). Não existe deep link oficial de
- *    produto pela loja parceira — o cliente cai na home e busca. Por isso
- *    a ponte SEMPRE leva pra /parceiro/pettmol e passa o NOME do produto
- *    (`q`), que a ponte copia pro clipboard pra o cliente colar na busca
- *    da Petz. (O cupom NÃO é copiado — já é automático na loja parceira.)
+ * `to`  = destino final na Petz (página do produto ou busca), validado
+ *         como URL real de petz.com.br (sem open-redirect).
+ * `q`   = nome do produto — só exibição na ponte.
  */
-export function petzBridgeUrl(productName?: string): string {
+export function petzBridgeUrl(target: string, productName?: string): string {
   const origin =
     typeof window !== 'undefined' && window.location?.origin
       ? window.location.origin
       : 'https://www.petmol.com.br';
+  const params = new URLSearchParams();
+  if (target && isRealPetzUrl(target) && target !== PETZ_PARTNER_STORE_URL) {
+    params.set('to', target);
+  }
   const name = (productName ?? '').trim();
-  const suffix = name ? `?q=${encodeURIComponent(name.slice(0, 120))}` : '';
-  return `${origin}/go/petz${suffix}`;
+  if (name) params.set('q', name.slice(0, 120));
+  const qs = params.toString();
+  return `${origin}/go/petz${qs ? `?${qs}` : ''}`;
 }
 
-/** Margem antes do 2º hop (Petz grava petzPartner no header da resposta;
- *  800ms bastou nos testes, 2000ms é a margem de rede escolhida). */
-export const PETZ_TWO_HOP_DELAY_MS = 2000;
-
 /**
- * TWO-HOP NO APP (Capacitor) — POR QUE NÃO DÁ.
+ * Clique "Ver na Petz". Abre a página da Petz ONDE O PRODUTO APARECE:
+ *  - produto mapeado (`PetzProductMapping` confirmado) → `productUrl`
+ *    (`/produto/...`): a página exata do produto;
+ *  - qualquer outro produto → `searchUrl` (`/busca?q=...`): a busca da
+ *    Petz já com o termo — o cliente escolhe o item da lista;
+ *  - sem nenhum dos dois → a Loja Parceira `/parceiro/pettmol`.
  *
- * O two-hop precisa de um contexto que orquestre as duas navegações de
- * fora. No web isso é a janela do `window.open`. No app não existe:
- *  - `@capacitor/browser` abre um SFSafariViewController (iOS) / Chrome
- *    Custom Tab (Android) *modal sobre* o WebView do PETMOL;
- *  - enquanto ele está por cima, o iOS **suspende o JS do WebView** — o
- *    código que fecharia e reabriria no 2º hop só volta a rodar quando o
- *    usuário fecha o navegador na mão. Resultado observado (PR #107, prod):
- *    abre a Loja Parceira e trava ali;
- *  - a ponte `/go/petz` também não resolve: uma vez que ela navega pra
- *    `petz.com.br`, o controle acabou (é página da Petz).
- * E a Petz não expõe deep link de produto pela loja parceira (`?q`/`#`/
- * `/parceiro/pettmol/produto/...` = ignorados/404 — ver
- * docs/PETZ_COMMISSION_VALIDATION.md).
+ * Copia o cupom `PETTMOL` pro clipboard — é o que garante os 10% e a
+ * comissão do Parceiro Petz quando o cliente cola no carrinho (ver
+ * docs/AFFILIATES.md §Petz). Chegar direto na página do produto NÃO grava
+ * o cookie `petzPartner`, então a atribuição depende do cupom.
  *
- * Então no app "Ver na Petz" usa o FALLBACK: ponte `/go/petz` → Loja
- * Parceira (cookie `petzPartner` → comissão garantida) + nome do produto
- * copiado pra o cliente colar na busca da Petz. Two-hop (produto exato /
- * busca) só no navegador do celular.
- */
-
-/**
- * Clique "Ver na Petz".
- *
- * TWO-HOP WEB (comprovado no navegador — ver docs/PETZ_COMMISSION_VALIDATION.md):
- *   gesto → window.open('about:blank') → win.location.href = Loja Parceira
- *   (Petz grava o cookie) → aguarda PETZ_TWO_HOP_DELAY_MS →
- *   win.location.replace(2º hop) NA MESMA janela. Tudo por JS (nunca
- *   <a href>) → o link não é entregue ao app da Petz.
- *
- * O 2º hop tem duas formas, na ordem de preferência:
- *  - `productUrl` (`/produto/...`): produto mapeado (`PetzProductMapping`
- *    confirmado) — o cliente cai NA página exata do produto.
- *  - `searchUrl` (`/busca?q=...`): qualquer outro produto — o cliente cai
- *    na BUSCA da Petz já com o termo, escolhe o item certo da lista.
- * Nos dois casos o cookie `petzPartner` (Path=/) sobrevive à navegação →
- * a venda continua atribuída à loja pettmol.
- *
- * FALLBACK (Capacitor / popup bloqueado / sem 2º hop utilizável): ponte
- * /go/petz → só a Loja Parceira, copiando o NOME do produto pra busca
- * manual. Comissão garantida; só o destino do 2º hop que não acontece.
- * (Ver acima por que o app nunca faz two-hop.)
+ * Sempre via a ponte `/go/petz` (redirect JS) pra o app da Petz não
+ * interceptar no iPhone. Vale igual em web, PWA e Capacitor.
  */
 export async function openPetzPartnerStore(
   opts: {
@@ -411,51 +374,24 @@ export async function openPetzPartnerStore(
   const productName = (opts.productName ?? '').trim();
   const searchUrl = (opts.searchUrl ?? '').trim();
 
-  // 2º hop: página exata do produto > busca da Petz com o termo.
-  const secondHop =
+  // Onde o produto aparece: página do produto > busca da Petz > loja parceira.
+  const target =
     productUrl && isRealPetzUrl(productUrl)
       ? productUrl
       : searchUrl && isRealPetzUrl(searchUrl)
         ? searchUrl
-        : '';
-  const isNative = Capacitor.isNativePlatform();
-  const canTwoHop = !!secondHop && !isNative && typeof window !== 'undefined';
+        : PETZ_PARTNER_STORE_URL;
 
-  // window.open PRIMEIRO e SÍNCRONO, dentro do gesto — senão o popup blocker mata.
-  const win = canTwoHop ? window.open('about:blank', '_blank') : null;
-
-  if (win) {
-    // ── TWO-HOP WEB ──
-    try { win.opener = null; } catch { /* noop */ }
-    void copyText(PETZ_COUPON_CODE); // cupom como segurança (logado: auto; deslogado: cliente cola)
-    showAppToast('Desconto PETTMOL ativado pela Loja Parceira. Cupom PETTMOL também foi copiado caso a Petz solicite.', {
-      tone: 'success',
-      durationMs: 6000,
-    });
-    win.location.href = PETZ_PARTNER_STORE_URL; // 1º hop — Petz grava petzPartner
-    window.setTimeout(() => {
-      try {
-        win.location.replace(secondHop); // 2º hop — produto/busca, MESMA janela
-      } catch {
-        /* janela fechada pelo usuário — ignora */
-      }
-    }, PETZ_TWO_HOP_DELAY_MS);
-    return;
-  }
-
-  // App (Capacitor) nunca faz two-hop (o iOS suspende o JS do WebView
-  // enquanto o navegador do sistema está por cima — ver o bloco "TWO-HOP
-  // NO APP — POR QUE NÃO DÁ" acima). Cai direto no fallback.
-
-  // ── FALLBACK: Capacitor / popup bloqueado / sem 2º hop utilizável ──
-  const copied = productName ? await copyText(productName).catch(() => false) : false;
+  // Cupom no tempo do gesto (onClick) — melhor chance no WebView do iOS.
+  const copied = await copyText(PETZ_COUPON_CODE).catch(() => false);
   if (copied) {
-    showAppToast(`"${productName}" copiado — cole na busca da Petz. Seu cupom PETTMOL já está na Loja Parceira.`, {
+    showAppToast(`Cupom ${PETZ_COUPON_CODE} copiado — cole no carrinho da Petz pra 10% de desconto.`, {
       tone: 'success',
       durationMs: 6000,
     });
   }
-  navigateToPartnerUrl(petzBridgeUrl(productName || undefined));
+
+  navigateToPartnerUrl(petzBridgeUrl(target, productName || undefined));
 }
 
 /**
