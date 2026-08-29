@@ -855,125 +855,90 @@ Uma `product_url` confirmada **nunca** vira `affiliate_product_url` sozinha — 
 
 `PetzProvider` (`petz_provider.py`) está sempre registrado no `CommerceEngine`, gated por `PETZ_AFFILIATE_ENABLED` (default `false`). Mesmo com a flag ligada e um link afiliado real confirmado, `find_offer()` sempre retorna `price=None` — não existe fonte de preço Petz confirmada hoje, e nunca inventamos uma; o `CommerceEngine` descarta qualquer oferta sem preço antes de exibi-la, então "não mostrar preço Petz" é garantido estruturalmente, não por uma regra extra.
 
-#### "Ver na Petz" — storefront fixa + cupom PETTMOL (decisão de produto, 25/08/2026)
+#### "Ver na Petz" → Loja Parceira via ponte `/go/petz` (investigação no navegador, 29/08/2026)
 
-Mecanismo real confirmado pelo usuário: o programa "Loja Parceira" da
-Petz não tem parâmetro de URL pra aplicar o cupom automaticamente — o
-**cupom (PETTMOL, 10% off)** é digitado manualmente pelo tutor no
-checkout, sempre. Mas a página de CHEGADA pode (e deve) ser a do
-produto específico: `GET /commerce/petz-direct-link` usa
-`PetzProductMapping.product_url` (a página real confirmada, ex:
-`.../produto/racao-royal-canin-...-100223`) sempre que disponível — o
-tutor cai direto no produto certo, pronto pra adicionar ao carrinho, em
-vez de na home da loja tendo que buscar de novo (25/08/2026, correção
-sobre a decisão anterior que usava só a storefront genérica).
-`STOREFRONT_AFFILIATE_URLS["petz"]` (URL fixa da vitrine,
-`https://petz.com.br/parceiro/pettmol`) vira só o fallback defensivo
-quando um mapping não tiver `product_url` — não deveria acontecer,
-`confirm_petz_mapping` sempre exige essa URL — e continua sendo a
-resposta de `context="store"` em `GET /commerce/monetized-offer`
-(área geral "Lojas", sem produto específico).
+**Como o Parceiro Petz realmente atribui e aplica o desconto** (verificado
+no painel `parceiropetz.com.br/manager` e no checkout `www.petz.com.br`,
+teste real até o carrinho, sem finalizar — ver
+`docs/PETZ_COMMISSION_VALIDATION.md`):
 
-**Gate único (25/08/2026 — auditoria de monetização, corrige P0 real em
-produção):** "produto confirmado no catálogo Petz" e "comissão do
-cupom PETTMOL comprovada por uma compra real" são dois fatos
-DISTINTOS — nem `PetzProvider` nem `/commerce/petz-direct-link` nem
-`/commerce/monetized-offer?merchant=petz` servem nada a menos que
-`petz_provider.is_petz_publicly_servable()` retorne `True`, o que
-exige AMBOS `petz_affiliate_enabled` (rollout técnico) E
-`petz_coupon_attribution_verified` (prova comercial — ver
-`docs/PETZ_COMMISSION_VALIDATION.md`, ainda **NÃO COMPROVADO**: nenhum
-teste de compra real foi feito ainda, então esta flag é `false` em
-produção hoje e nenhuma URL Petz é servida publicamente). Antes desta
-correção, `/commerce/petz-direct-link` só checava
-`DIRECT_LINK_ELIGIBLE_STATUSES` (produto confirmado) e ignorava as
-duas flags — um produto meramente confirmado bastava pra gerar saída
-comercial, sem nenhuma prova de comissão.
+- Abrir **`https://www.petz.com.br/parceiro/pettmol`** (navegação
+  top-level) grava um cookie first-party **`petzPartner`** em
+  `www.petz.com.br` (path `/`, SameSite=Lax, ~30 min, renovado a cada
+  visita).
+- Com esse cookie, o carrinho mostra **"Você está comprando na loja
+  pettmol do Parceiro Petz"** (atribuição — vale mesmo sem login), o
+  campo de cupom vem **pré-preenchido com `PETTMOL`** e o **desconto de
+  10% é aplicado automaticamente** (testado: R$ 99,99 → −R$ 10,00). Não
+  acumula com promoção maior do produto.
+- **Não existe deep link oficial de produto.** Painel → Divulgação só dá
+  cupom `PETTMOL` + link fixo `petz.com.br/parceiro/pettmol`. Testado e
+  negado: `/parceiro/pettmol/produto/<slug>` → 404; `?redirectUrl=` /
+  `?url=` / `?q=` → ignorados. A loja parceira tem o catálogo completo e
+  busca própria.
 
-Arquitetura (revisada 29/08/2026 — cobertura universal):
-- A atribuição do Parceiro Petz é pelo **cupom `PETTMOL` no checkout**
-  ("7% em cima de todas as vendas no site/app utilizando o seu código" —
-  doc oficial Petz), **não** pela URL de chegada. Ver
-  `docs/PETZ_COMMISSION_VALIDATION.md`.
-- `GET /commerce/petz-direct-link?gtin=...&q=<nome>`: quando
-  `is_petz_publicly_servable()` é `True`, sempre devolve
-  `partner_program_active: true` e um destino utilizável:
-  - `direct_product_url` — página real do produto, quando há um
-    `PetzProductMapping` confirmado (`DIRECT_LINK_ELIGIBLE_STATUSES`).
-  - `search_url` — busca do site da Petz (`/busca?q=<nome>`, plataforma
-    VTEX) pelo nome do produto: **fallback universal** para produto sem
-    mapping confirmado.
-  - `partner_store_url` — vitrine da Loja Parceira, último fallback
-    (produto desconhecido e sem nome).
-  - `url` = melhor destino nessa ordem.
-- Com o master gate **desligado**, nada é servido (`available: false`,
-  `partner_program_active: false`).
-- `link_type: "affiliate_store"` — nunca aparece na comparação de preço
-  (`/commerce/offers`), não há fonte de preço Petz por produto.
-- Frontend: "Ver na Petz" aparece em **qualquer** busca de produto e nos
-  cards de "Comprar novamente" quando o programa está ativo —
-  `AffiliateCatalogSearch.tsx`, `HomeShoppingSheet.tsx` (`OfferPickerRow`),
-  `MonetizedOffersList.tsx` (`PetzStorefrontCard`). O cupom `PETTMOL` vai
-  pro clipboard automaticamente ao abrir (`copyPetzCouponAndOpen`), com
-  toast reforçado — não há como pré-aplicar o cupom por URL (Petz não
-  expõe esse mecanismo).
-- `STOREFRONT_AFFILIATE_URLS["petz"]` deve espelhar o mesmo valor de
-  `storefrontAffiliateUrl` na entrada `petz` de
-  `apps/web/src/features/commerce/homeShoppingPartners.ts`.
+**Decisão de produto:** "Ver na Petz" leva o cliente à **Loja Parceira**
+(`petz.com.br/parceiro/pettmol`), passando só o **nome do produto** pra
+ele procurar dentro da loja. Assim os 10% entram sozinhos e a venda é
+atribuída. Chegar direto na página do produto **não** grava o cookie →
+sem atribuição garantida — por isso a ponte nunca abre `/produto/...`
+nem `/busca?q=` diretamente.
 
-#### Interceptação por app instalado (Universal Links/App Links) — ponte `/go/petz` (29/08/2026)
+**Gate único:** nem a ponte nem `/commerce/petz-direct-link` servem nada
+a menos que `petz_provider.is_petz_publicly_servable()` seja `True`
+(exige `petz_affiliate_enabled` E `petz_coupon_attribution_verified` —
+`true` em produção desde 29/08/2026, ver
+`docs/PETZ_COMMISSION_VALIDATION.md`).
 
-**Sintoma (reproduzido em iPhone real):** ao tocar numa opção Petz, o
-PETMOL abre a URL da Petz, mas o iOS entrega o link ao **app** da Petz
-instalado, que cai numa rota "DETALHES" quebrada ("Não foi possível
-carregar").
+**Arquitetura:**
+- `GET /commerce/petz-direct-link?gtin=...&q=<nome>` continua indicando
+  se o programa está ativo (`partner_program_active`) e o nome do
+  produto pra dica de busca. `direct_product_url` / `search_url` viram
+  metadados — a ponte não os usa como destino.
+- Frontend: `petzBridgeUrl(productName)` → `/go/petz?q=<nome>`.
+  `copyPetzCouponAndOpen(productName)` copia `PETTMOL` (reserva) e abre a
+  ponte. Usado em `AffiliateCatalogSearch.tsx`, `HomeShoppingSheet.tsx`,
+  `MonetizedOffersList.tsx`. Cobasi/Shopee/Mercado Livre **não** passam
+  pela ponte.
+- `PETZ_PARTNER_STORE_URL` (`homeShoppingPartners.ts`) e
+  `STOREFRONT_AFFILIATE_URLS["petz"]` (`affiliate_links.py`) espelham
+  `https://www.petz.com.br/parceiro/pettmol`.
 
-**Causa raiz:** o app da Petz registra Universal Links (iOS) / App Links
-(Android) para `petz.com.br`. Quando o PETMOL abre uma URL da Petz
-diretamente — SFSafariViewController via `@capacitor/browser`, ou aba do
-navegador — o SO pode entregar essa URL ao app. A rota que o app deriva
-de uma URL `/busca?q=` ou `/produto/...` nem sempre existe → tela
-quebrada.
+#### Ponte `/go/petz` + interceptação por app instalado (Universal Links)
 
-**O que dá pra controlar (pesquisa técnica, não o comentário antigo):**
-o iOS **só** dispara Universal Link quando o usuário **toca num `<a>`**.
-Ele **não** dispara:
-- no carregamento inicial de uma página no SFSafariViewController
-  (`SFSafariViewController` não abre Universal Link on-load);
-- num redirect por JavaScript (`location.replace` / `location.href`) ou
-  `<meta refresh>` / 302 — e ficou mais restrito ainda no iOS 17/18
-  ("deep link via redirect parou de abrir o app").
-Fontes: Apple Developer Forums (threads 725403, 747131, 780496), openradar
-rdar://32840565, relatos consolidados em linkrunner.io / jessesquires TIL.
+**Sintoma (iPhone real):** ao abrir a Petz direto, o iOS entrega a URL
+ao **app** da Petz instalado → rota "DETALHES" quebrada.
 
-`SFSafariViewController` **não** aceita configuração pra desligar
-Universal Links (nem o `@capacitor/browser`). Plugins alternativos
-(`@capgo/capacitor-inappbrowser` tem `preventDeeplink`) exigiriam trocar
-o plugin nativo + rebuild + nova submissão — fora de escopo agora.
+**Causa:** o app da Petz registra Universal Links / App Links para
+`petz.com.br`. Abrir a URL direto (SFSafariViewController via
+`@capacitor/browser`, ou aba) → o SO entrega ao app.
 
-**Solução implementada — ponte no domínio do PETMOL:**
-`petzBridgeUrl()` (`homeShoppingPartners.ts`) troca a navegação direta
-`→ petz.com.br` por `→ petmol.com.br/go/petz?to=<URL real da Petz>`.
-`petmol.com.br` **não** tem `associated-domains` (sem AASA — conferido
-em `apps/web/ios/App/App/App.entitlements`), então essa página abre no
-navegador normalmente. A página `/go/petz` (`app/go/petz/page.tsx`):
-1. reafirma o cupom `PETTMOL` (o clique no app já copiou; re-tenta best-effort);
-2. faz `window.location.replace(<URL real da Petz>)` — **redirect JS, não
-   toque de link → o SO não entrega ao app** → o tutor cai na página
-   certa da Petz, no navegador;
-3. botão manual "Abrir a Petz agora" também navega por JS
-   (`location.replace`), nunca um `<a href>`, pelo mesmo motivo.
+**Fato técnico (pesquisa):** o iOS **só** dispara Universal Link num
+**toque de `<a>`**. NÃO dispara: no load inicial do
+SFSafariViewController; nem em redirect por JavaScript (`location.replace`)
+/ `<meta refresh>` / 302 (mais restrito ainda no iOS 17/18). Fontes:
+Apple Developer Forums (725403, 747131, 780496), openradar rdar://32840565,
+linkrunner.io, jessesquires TIL. `@capacitor/browser` /
+SFSafariViewController não têm opção pra desligar isso; trocar de plugin
+nativo = rebuild + submissão (fora de escopo).
 
-Segurança: `/go/petz` só redireciona pra `https://(www.)petz.com.br/...`
-(`isRealPetzUrl`); qualquer outro `to` cai na Loja Parceira PETTMOL
-(anti open-redirect). Cupom PETTMOL, URL real da Petz, gates e analytics
-preservados 1:1. Cobasi/Shopee/Mercado Livre não passam pela ponte.
+**Solução:** `petzBridgeUrl()` abre `petmol.com.br/go/petz?q=<nome>`.
+`petmol.com.br` **não** tem `associated-domains` (sem AASA — conferido em
+`apps/web/ios/App/App/App.entitlements`), então abre no navegador. A
+página `/go/petz` (`app/go/petz/page.tsx`):
+1. copia `PETTMOL` (reserva — o clique no app já copiou);
+2. `window.location.replace('https://www.petz.com.br/parceiro/pettmol')`
+   — redirect JS, não toque → o SO não entrega ao app;
+3. botão manual "Abrir minha loja Petz" também navega por JS, nunca `<a href>`.
 
-**Limite residual:** se a *própria página* da Petz, já carregada no
-navegador, forçar a abertura do app (smart app banner + auto-redirect
-`petzapp://`, ou "abrir no app" que o tutor toca), isso é JS da Petz,
-fora do controle do PETMOL. A ponte elimina a interceptação causada
-pelo PETMOL abrir a URL; não controla o que a Petz faz depois.
+O destino da ponte é uma constante fixa (`PETZ_PARTNER_STORE_URL`) — sem
+parâmetro de redirect, sem risco de open-redirect. `AppShell` esconde
+header/footer em `/go/petz`.
+
+**Limites residuais:** (a) o cliente precisa achar o produto na busca da
+loja parceira; (b) cookie `petzPartner` expira em ~30 min — a compra
+precisa acontecer nessa janela; (c) se a *própria* página da Petz forçar
+abrir o app depois de carregada, é JS da Petz, fora do nosso controle.
 
 ### Petlove Produtos
 

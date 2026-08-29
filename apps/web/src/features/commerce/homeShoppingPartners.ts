@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { trackClick } from '@/lib/analytics/click';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
+import { copyText } from '@/lib/clipboard';
 
 export type HomeShoppingPartnerId = 'cobasi' | 'petz' | 'mercadolivre' | 'shopee';
 
@@ -310,11 +311,7 @@ export const PETZ_COUPON_CODE = 'PETTMOL';
 export const PETZ_PARTNER_STORE_URL = 'https://www.petz.com.br/parceiro/pettmol';
 const PETZ_ALLOWED_HOSTS = ['petz.com.br', 'www.petz.com.br'];
 
-/**
- * true só para uma URL https de página real da Petz. Usada pra nunca
- * mandar a ponte /go/petz abrir um destino que não seja petz.com.br
- * (proteção contra open-redirect no parâmetro `to`).
- */
+/** true só para uma URL https de petz.com.br (higiene / testes). */
 export function isRealPetzUrl(url: string): boolean {
   try {
     const u = new URL(url);
@@ -325,52 +322,48 @@ export function isRealPetzUrl(url: string): boolean {
 }
 
 /**
- * Ponte no próprio domínio do PETMOL pra abrir a Petz sem que o iOS
- * (ou Android) entregue o link ao APP da Petz instalado.
+ * Ponte /go/petz — resolve DOIS problemas de uma vez:
  *
- * Causa raiz: o app da Petz registra Universal Links / App Links para
- * petz.com.br. Quando o PETMOL abre uma URL da Petz direto (SFSafari-
- * ViewController via @capacitor/browser, ou aba do navegador), em vários
- * iPhones o SO intercepta e abre o app da Petz numa rota "DETALHES" que
- * falha ("Não foi possível carregar").
+ * 1. Interceptação pelo app da Petz (Universal Link / App Link): o SO só
+ *    entrega o link ao app num TOQUE de <a>, nunca num redirect por
+ *    JavaScript nem no load inicial do SFSafariViewController (Apple docs
+ *    + relatos iOS 17/18 — ver docs/AFFILIATES.md §Petz). A página
+ *    /go/petz fica em petmol.com.br (sem associação universal) e navega
+ *    pra Petz só por JS.
  *
- * O SO só dispara Universal Link quando o usuário TOCA num <a> — nunca
- * no carregamento inicial de uma página nem num redirect feito por
- * JavaScript (confirmado: Apple docs + relatos iOS 17/18; ver
- * docs/AFFILIATES.md §Petz). Então abrimos /go/petz (petmol.com.br, que
- * não tem associação universal), essa página copia PETTMOL e faz
- * `location.replace()` pra URL REAL da Petz. Como o redirect não é toque
- * de link, o app não intercepta e o tutor cai na página certa, no
- * navegador. A URL final da Petz e o cupom são preservados 1:1.
+ * 2. Monetização: a comissão do Parceiro Petz só é garantida quando o
+ *    cliente ENTRA pela Loja Parceira `petz.com.br/parceiro/pettmol` —
+ *    aí o desconto de 10% vem aplicado sozinho e a venda é atribuída
+ *    (doc oficial Petz). Chegar direto na página do produto NÃO aplica
+ *    nada. Por isso a ponte SEMPRE leva pra /parceiro/pettmol, passando
+ *    só o NOME do produto (`q`) pra o cliente procurar dentro da loja.
+ *    O cupom PETTMOL vai pro clipboard como reserva manual.
  */
-export function petzBridgeUrl(realPetzUrl: string): string {
+export function petzBridgeUrl(productName?: string): string {
   const origin =
     typeof window !== 'undefined' && window.location?.origin
       ? window.location.origin
       : 'https://www.petmol.com.br';
-  const target = isRealPetzUrl(realPetzUrl) ? realPetzUrl : PETZ_PARTNER_STORE_URL;
-  return `${origin}/go/petz?to=${encodeURIComponent(target)}`;
+  const name = (productName ?? '').trim();
+  const suffix = name ? `?q=${encodeURIComponent(name.slice(0, 120))}` : '';
+  return `${origin}/go/petz${suffix}`;
 }
 
 /**
- * Clique "Ver na Petz": copia o cupom PETTMOL (mecanismo de atribuição
- * do Parceiro Petz — sem ele no checkout não há comissão) e abre a Petz
- * pela ponte /go/petz, que evita a interceptação pelo app instalado
- * (ver petzBridgeUrl). A URL real da Petz nunca é alterada.
+ * Clique "Ver na Petz": copia o cupom PETTMOL de reserva e abre a Loja
+ * Parceira pela ponte /go/petz (ver petzBridgeUrl para os dois motivos).
+ * `productName` só serve de dica de busca dentro da loja da Petz.
  */
-export async function copyPetzCouponAndOpen(url: string): Promise<void> {
-  try {
-    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(PETZ_COUPON_CODE);
-      showAppToast(`Cupom ${PETZ_COUPON_CODE} copiado — cole no carrinho da Petz antes de finalizar (10% de desconto)`, {
-        tone: 'success',
-        durationMs: 6000,
-      });
-    }
-  } catch {
-    // best-effort — nunca bloqueia a navegação, mesmo sem permissão de clipboard
+export async function copyPetzCouponAndOpen(productName?: string): Promise<void> {
+  // Cópia no tempo do gesto (onClick) — melhor chance no WebView do iOS.
+  const copied = await copyText(PETZ_COUPON_CODE).catch(() => false);
+  if (copied) {
+    showAppToast(`Loja Petz abrindo — desconto de 10% já aplicado. Cupom ${PETZ_COUPON_CODE} copiado como reserva.`, {
+      tone: 'success',
+      durationMs: 6000,
+    });
   }
-  navigateToPartnerUrl(petzBridgeUrl(url));
+  navigateToPartnerUrl(petzBridgeUrl(productName));
 }
 
 /**
@@ -396,8 +389,8 @@ export function openHomeShoppingPartner(
     return false;
   }
   if (partner.id === 'petz') {
-    // Petz sempre pela ponte + cupom (ver copyPetzCouponAndOpen / petzBridgeUrl).
-    void copyPetzCouponAndOpen(url);
+    // Petz sempre pela ponte /go/petz → Loja Parceira (ver petzBridgeUrl).
+    void copyPetzCouponAndOpen();
   } else {
     navigateToPartnerUrl(url);
   }
