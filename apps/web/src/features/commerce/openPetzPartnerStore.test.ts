@@ -1,79 +1,126 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// openPetzPartnerStore — clique "Ver na Petz":
-//  1. copia o NOME DO PRODUTO pro clipboard (pra o cliente colar na busca
-//     da Petz — a loja parceira não tem deep link de produto);
-//  2. abre a Loja Parceira pela ponte /go/petz (petmol.com.br), que evita
-//     o iOS/Android entregarem o link ao app da Petz instalado.
-// O cupom PETTMOL e os 10% entram sozinhos na loja parceira (cookie
-// petzPartner) — NÃO é copiado. Nunca abre petz.com.br direto.
+// openPetzPartnerStore — clique "Ver na Petz".
+//
+// TWO-HOP WEB (comprovado no navegador): gesto → window.open('about:blank')
+// → win.location.href = Loja Parceira (Petz grava petzPartner) → delay →
+// win.location.replace(URL REAL do produto). Cliente vê o produto exato,
+// carrinho continua atribuído à loja pettmol.
+//
+// FALLBACK (Capacitor / popup bloqueado / produto sem URL exata): ponte
+// /go/petz → só a Loja Parceira, copiando o NOME do produto pra busca.
+
+const PARTNER_STORE = 'https://www.petz.com.br/parceiro/pettmol';
+const REAL_PRODUCT = 'https://www.petz.com.br/produto/kit-enxoval-modernpet-201842';
+
+function fakeWindow() {
+  return {
+    opener: {} as unknown,
+    location: { href: '', replace: vi.fn() },
+  };
+}
+
 describe('openPetzPartnerStore', () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
 
   beforeEach(() => {
+    vi.useFakeTimers();
     writeText.mockClear();
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText },
-      configurable: true,
-    });
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
   });
 
   afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
     vi.resetModules();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
-  it('copia o NOME do produto (não o cupom) e abre a ponte /go/petz?q=', async () => {
-    const openSpy = vi.fn();
+  it('produto Petz mapeado (URL real) → two-hop: Loja Parceira ANTES, depois o produto exato', async () => {
+    const win = fakeWindow();
+    const openSpy = vi.fn(() => win);
     vi.stubGlobal('open', openSpy);
 
-    const { openPetzPartnerStore } = await import('./homeShoppingPartners');
-    await openPetzPartnerStore('Ração Golden Fórmula Adulto');
+    const { openPetzPartnerStore, PETZ_TWO_HOP_DELAY_MS } = await import('./homeShoppingPartners');
+    await openPetzPartnerStore({ productUrl: REAL_PRODUCT, productName: 'Kit Enxoval' });
 
-    expect(writeText).toHaveBeenCalledWith('Ração Golden Fórmula Adulto');
-    expect(writeText).not.toHaveBeenCalledWith('PETTMOL');
-
+    // janela em branco no gesto, opener neutralizado
+    expect(openSpy).toHaveBeenCalledWith('about:blank', '_blank');
+    expect(win.opener).toBeNull();
+    // 1º hop imediato: Loja Parceira
+    expect(win.location.href).toBe(PARTNER_STORE);
+    // 2º hop ainda NÃO aconteceu
+    expect(win.location.replace).not.toHaveBeenCalled();
+    // ...só depois do delay
+    vi.advanceTimersByTime(PETZ_TWO_HOP_DELAY_MS);
+    expect(win.location.replace).toHaveBeenCalledWith(REAL_PRODUCT);
+    // nunca abre a URL da Petz direto na janela original
     expect(openSpy).toHaveBeenCalledTimes(1);
-    const opened = new URL(openSpy.mock.calls[0][0] as string);
-    expect(opened.pathname).toBe('/go/petz');
-    expect(opened.searchParams.get('q')).toBe('Ração Golden Fórmula Adulto');
-    expect(opened.href).not.toContain('petz.com.br');
   });
 
-  it('sem nome de produto não copia nada e abre /go/petz sem query', async () => {
-    const openSpy = vi.fn();
+  it('two-hop copia o CUPOM PETTMOL (não o nome do produto)', async () => {
+    vi.stubGlobal('open', vi.fn((..._a: unknown[]) => fakeWindow()));
+    const { openPetzPartnerStore } = await import('./homeShoppingPartners');
+    await openPetzPartnerStore({ productUrl: REAL_PRODUCT, productName: 'Ração Golden Fórmula' });
+
+    expect(writeText).toHaveBeenCalledWith('PETTMOL');
+    expect(writeText).not.toHaveBeenCalledWith('Ração Golden Fórmula');
+  });
+
+  it('produto SEM URL exata → fallback: ponte /go/petz + copia o NOME do produto', async () => {
+    const openSpy = vi.fn((..._a: unknown[]) => fakeWindow());
     vi.stubGlobal('open', openSpy);
 
     const { openPetzPartnerStore } = await import('./homeShoppingPartners');
-    await openPetzPartnerStore();
+    await openPetzPartnerStore({ productName: 'Ração Golden Fórmula' });
 
+    expect(openSpy).toHaveBeenCalledTimes(1); // navigateToPartnerUrl → window.open(ponte)
+    const opened = new URL(openSpy.mock.calls[0][0] as string);
+    expect(opened.pathname).toBe('/go/petz');
+    expect(opened.searchParams.get('q')).toBe('Ração Golden Fórmula');
+    expect(opened.href).not.toContain('petz.com.br');
+    expect(writeText).toHaveBeenCalledWith('Ração Golden Fórmula');
+    expect(writeText).not.toHaveBeenCalledWith('PETTMOL');
+  });
+
+  it('URL de produto inválida / maliciosa → NÃO faz two-hop, cai no fallback', async () => {
+    const openSpy = vi.fn((..._a: unknown[]) => fakeWindow());
+    vi.stubGlobal('open', openSpy);
+
+    const { openPetzPartnerStore } = await import('./homeShoppingPartners');
+    for (const bad of ['https://evil.com/produto/x', 'http://www.petz.com.br/produto/x', 'https://petz.com.br.evil.com/x', 'javascript:alert(1)']) {
+      openSpy.mockClear();
+      await openPetzPartnerStore({ productUrl: bad, productName: 'X' });
+      const opened = openSpy.mock.calls[0][0] as string;
+      // abriu a ponte /go/petz, nunca 'about:blank' (two-hop) nem a URL ruim
+      expect(opened).toContain('/go/petz');
+      expect(opened).not.toBe('about:blank');
+      expect(opened).not.toContain('evil.com');
+    }
+  });
+
+  it('window.open retorna null (popup bloqueado) → fallback, sem lançar', async () => {
+    vi.stubGlobal('open', vi.fn((..._a: unknown[]) => null));
+    const { openPetzPartnerStore } = await import('./homeShoppingPartners');
+    await expect(openPetzPartnerStore({ productUrl: REAL_PRODUCT, productName: 'X' })).resolves.not.toThrow();
+  });
+
+  it('grade de lojas (sem produto) → só Loja Parceira, sem copiar nada', async () => {
+    const openSpy = vi.fn((..._a: unknown[]) => fakeWindow());
+    vi.stubGlobal('open', openSpy);
+    const { openPetzPartnerStore } = await import('./homeShoppingPartners');
+    await openPetzPartnerStore({});
     expect(writeText).not.toHaveBeenCalled();
     expect(openSpy.mock.calls[0][0]).toMatch(/\/go\/petz$/);
   });
 
-  it('ainda navega mesmo se o clipboard falhar (best-effort, nunca bloqueia)', async () => {
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
-      configurable: true,
-    });
-    const openSpy = vi.fn();
-    vi.stubGlobal('open', openSpy);
-
-    const { openPetzPartnerStore } = await import('./homeShoppingPartners');
-    await expect(openPetzPartnerStore('X')).resolves.not.toThrow();
-    expect(openSpy).toHaveBeenCalledWith(expect.stringContaining('/go/petz'), '_blank', 'noopener');
-  });
-
-  it('nunca lança sem clipboard nem execCommand disponíveis', async () => {
+  it('clipboard indisponível não bloqueia a navegação', async () => {
     Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
     // @ts-expect-error execCommand ausente em jsdom
     delete document.execCommand;
-    const openSpy = vi.fn();
-    vi.stubGlobal('open', openSpy);
-
+    vi.stubGlobal('open', vi.fn((..._a: unknown[]) => fakeWindow()));
     const { openPetzPartnerStore } = await import('./homeShoppingPartners');
-    await expect(openPetzPartnerStore('X')).resolves.not.toThrow();
-    expect(openSpy).toHaveBeenCalledWith(expect.stringContaining('/go/petz'), '_blank', 'noopener');
+    await expect(openPetzPartnerStore({ productUrl: REAL_PRODUCT })).resolves.not.toThrow();
   });
 });
