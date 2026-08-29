@@ -134,18 +134,20 @@ export async function searchAwinCatalog(query: string, merchant?: string): Promi
 export interface PetzDirectLink {
   available: boolean;
   url: string | null;
+  direct_product_url?: string | null;
+  partner_store_url?: string | null;
+  coupon_code?: string | null;
+  affiliate_program?: string | null;
   link_type?: 'affiliate_store';
 }
 
 /**
  * "Ver na Petz" — caminho DELIBERADAMENTE separado de fetchCommerceOffers.
  * Nunca entra na lista de comparação de preço (não existe fonte de preço
- * Petz por produto) — a URL retornada é a storefront FIXA da "Loja
- * Parceira" (cupom PETTMOL, 10% off aplicado manualmente no checkout),
- * só quando o produto já foi confirmado no catálogo Petz. Ver GET
- * /commerce/petz-direct-link no backend e docs/AFFILIATES.md. Sempre
- * falha em silêncio (available:false), igual às outras chamadas de
- * comércio deste arquivo.
+ * Petz por produto). A URL retornada é a página real do produto
+ * confirmado; o modelo comercial fica explícito nos campos separados
+ * partner_store_url/coupon_code/affiliate_program. Ver GET
+ * /commerce/petz-direct-link no backend e docs/AFFILIATES.md.
  */
 export async function fetchPetzDirectLink(gtin: string): Promise<PetzDirectLink> {
   const trimmed = gtin.trim();

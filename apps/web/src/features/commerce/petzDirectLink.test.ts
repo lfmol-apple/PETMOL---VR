@@ -9,13 +9,29 @@ describe('fetchPetzDirectLink — "Ver na Petz" (caminho separado do CommerceEng
   it('retorna a URL quando o backend confirma available:true', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ available: true, url: 'https://www.petz.com.br/produto/x-100223', link_type: 'direct' }),
+      json: async () => ({
+        available: true,
+        url: 'https://www.petz.com.br/produto/x-100223',
+        direct_product_url: 'https://www.petz.com.br/produto/x-100223',
+        partner_store_url: 'https://www.petz.com.br/parceiro/pettmol',
+        coupon_code: 'PETTMOL',
+        affiliate_program: 'petz_partner',
+        link_type: 'affiliate_store',
+      }),
     }));
 
     const { fetchPetzDirectLink } = await import('./productPricing');
     const result = await fetchPetzDirectLink('7896181298090');
 
-    expect(result).toEqual({ available: true, url: 'https://www.petz.com.br/produto/x-100223', link_type: 'direct' });
+    expect(result).toEqual({
+      available: true,
+      url: 'https://www.petz.com.br/produto/x-100223',
+      direct_product_url: 'https://www.petz.com.br/produto/x-100223',
+      partner_store_url: 'https://www.petz.com.br/parceiro/pettmol',
+      coupon_code: 'PETTMOL',
+      affiliate_program: 'petz_partner',
+      link_type: 'affiliate_store',
+    });
   });
 
   it('retorna available:false quando o backend responde available:false', async () => {

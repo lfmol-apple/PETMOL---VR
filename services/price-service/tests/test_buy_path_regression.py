@@ -5,7 +5,12 @@ from __future__ import annotations
 
 import pytest
 
-from src.affiliate_links import MarketplaceOffer
+from src.affiliate_links import (
+    MarketplaceOffer,
+    PETZ_AFFILIATE_PROGRAM,
+    PETZ_COUPON_CODE,
+    PETZ_PARTNER_STORE_URL,
+)
 from src.config import get_settings
 from src.db import SessionLocal
 from src.product_catalog_lookup import ProductCatalog
@@ -52,7 +57,14 @@ def test_no_unmonetized_public_buy_paths(client):
     assert r.json()["offers"] == []
 
     r = client.get("/commerce/petz-direct-link", params={"gtin": GTIN})
-    assert r.json() == {"available": False, "url": None}
+    assert r.json() == {
+        "available": False,
+        "url": None,
+        "direct_product_url": None,
+        "partner_store_url": PETZ_PARTNER_STORE_URL,
+        "coupon_code": PETZ_COUPON_CODE,
+        "affiliate_program": PETZ_AFFILIATE_PROGRAM,
+    }
 
     for merchant in ("petz", "cobasi", "petlove"):
         r = client.get("/commerce/monetized-offer", params={"merchant": merchant, "context": "store"})

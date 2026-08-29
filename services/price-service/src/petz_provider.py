@@ -4,14 +4,13 @@ PetzProvider — implementação de CommerceProvider pra Petz.
 Diferente de CobasiProvider (discovery dinâmico via API pública) e de
 MarketplaceOfferProvider (Shopee, oferta de vendedor com preço
 cacheado): a Petz não tem API/feed de preço confirmado hoje (ver
-docs/AFFILIATES.md §Petz), então este provider NUNCA inventa preço — só
-consulta um ProductAffiliateLink(merchant="petz") já confirmado (ver
-petz_mapping.py + admin/petz_router.py). Sem preço real, find_offer()
-sempre retorna price=None, e o CommerceEngine descarta a oferta antes
-de chamar monetize() (ver commerce_provider.py) — mesma regra "sem
-monetização real, não aparece" de todo o resto do CommerceEngine. Isso
-é intencional, não um bug: enquanto não existir uma fonte de preço
-Petz confiável, este provider nunca produz uma oferta pública.
+docs/AFFILIATES.md §Petz), então este provider NUNCA inventa preço.
+Ele reconhece um PetzProductMapping confirmado e retorna a página real
+do produto como direct_url, sempre com price=None; o CommerceEngine
+descarta essa oferta antes de chamar monetize() (ver
+commerce_provider.py). A superfície pública "Ver na Petz" fica no
+endpoint separado /commerce/petz-direct-link, que copia o cupom PETTMOL
+e não depende de affiliate_product_url individual.
 
 Registrado sempre em commerce_offers.build_default_engine() (mesmo
 padrão de MarketplaceOfferProvider) — is_petz_publicly_servable() é
@@ -26,10 +25,10 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .affiliate_links import get_active_link
 from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
 from .petz_link_validator import InvalidPetzAffiliateUrlError, validate_petz_affiliate_url
+from .petz_mapping import DIRECT_LINK_ELIGIBLE_STATUSES, get_mapping
 from .product_catalog_lookup import ProductCatalog, normalize_gtin
 
 MERCHANT = "petz"
@@ -83,8 +82,10 @@ class PetzProvider:
         if product_id is None:
             return None
 
-        link = get_active_link(self._db, product_id, self.merchant)
-        if link is None:
+        mapping = get_mapping(self._db, product_id)
+        if mapping is None or mapping.match_status not in DIRECT_LINK_ELIGIBLE_STATUSES:
+            return None
+        if not mapping.product_url:
             return None
 
         product = self._db.get(ProductCatalog, product_id)
@@ -94,7 +95,7 @@ class PetzProvider:
             # CommerceEngine descarta esta oferta automaticamente
             # (commerce_provider.py) sem precisar de gate extra aqui.
             price=None,
-            direct_url=link.direct_product_url,
+            direct_url=mapping.product_url,
             image_url=product.thumbnail_url if product else None,
         )
 
@@ -110,19 +111,20 @@ class PetzProvider:
         if product_id is None:
             return None
 
-        link = get_active_link(self._db, product_id, self.merchant)
-        if link is None:
+        mapping = get_mapping(self._db, product_id)
+        if mapping is None or mapping.match_status not in DIRECT_LINK_ELIGIBLE_STATUSES:
+            return None
+        if not offer.direct_url:
             return None
 
         # Revalida no momento do "clique" — defesa em profundidade,
-        # mesmo padrão de marketplace_offer_provider.py. Nunca reescreve
-        # a URL, só confirma que ainda é https + domínio oficial Petz.
+        # mesmo padrão de marketplace_offer_provider.py. Nunca reescreve,
+        # concatena nem adiciona parâmetros: só confirma domínio oficial.
         try:
-            validate_petz_affiliate_url(link.affiliate_product_url)
+            validate_petz_affiliate_url(offer.direct_url)
         except InvalidPetzAffiliateUrlError:
             return None
 
-        # is_manually_cached=True: link sempre cadastrado a partir de
-        # confirmação humana (ver petz_mapping.py), nunca gerado por
-        # template — mesma proteção que o link comprovado da Cobasi usa.
-        return link.affiliate_product_url, "affiliate_product", "petz_partner", True
+        # Petz Partner usa storefront + cupom; a URL específica de produto
+        # é direta e só deve aparecer em superfícies que copiam PETTMOL.
+        return offer.direct_url, "affiliate_store", "petz_partner", True

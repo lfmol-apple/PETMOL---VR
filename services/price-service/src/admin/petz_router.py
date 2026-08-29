@@ -9,14 +9,20 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..affiliate_links import ProductAffiliateLink
+from ..affiliate_links import (
+    PETZ_AFFILIATE_PROGRAM,
+    PETZ_COUPON_CODE,
+    PETZ_PARTNER_STORE_URL,
+    ProductAffiliateLink,
+)
 from ..db import get_db
-from ..petz_link_validator import InvalidPetzAffiliateUrlError, validate_petz_affiliate_url
+from ..petz_link_validator import InvalidPetzAffiliateUrlError, validate_petz_affiliate_url, validate_petz_product_url
 from ..petz_mapping import (
     PetzProductMapping,
     confirm_petz_mapping,
     coverage_stats,
     get_mapping,
+    DIRECT_LINK_ELIGIBLE_STATUSES,
     reject_petz_candidate,
     suggest_petz_candidate,
 )
@@ -34,8 +40,9 @@ from .schemas import (
 
 router = APIRouter(prefix="/v1/admin/petz", tags=["Admin Petz"])
 
-# match_status que já passaram por confirmação de PRODUTO — só a partir
-# daqui um link afiliado pode ser vinculado (ver set_affiliate_link).
+# Status que já passaram por confirmação de PRODUTO. Usado só pelo
+# endpoint legado/futuro de affiliate-link caso a Petz forneça deep-link
+# oficial por produto algum dia.
 _CONFIRMABLE_FOR_AFFILIATE = ("confirmed", "affiliate_pending", "affiliate_ready")
 
 
@@ -51,18 +58,32 @@ def _resolve_product(db: Session, gtin: str) -> ProductCatalog:
 
 def _to_out(mapping: Optional[PetzProductMapping], gtin: str) -> PetzMappingOut:
     if mapping is None:
-        return PetzMappingOut(gtin=gtin, match_status="unknown")
+        return PetzMappingOut(
+            gtin=gtin,
+            match_status="unknown",
+            partner_store_url=PETZ_PARTNER_STORE_URL,
+            coupon_code=PETZ_COUPON_CODE,
+            affiliate_program=PETZ_AFFILIATE_PROGRAM,
+            partner_ready=False,
+            requires_affiliate_product_url=False,
+        )
     return PetzMappingOut(
         id=mapping.id,
         product_id=mapping.product_id,
         gtin=gtin,
         petz_product_id=mapping.petz_product_id,
         product_url=mapping.product_url,
+        direct_product_url=mapping.product_url,
         search_query=mapping.search_query,
         match_status=mapping.match_status,
         match_confidence=mapping.match_confidence,
         variant_label=mapping.variant_label,
         variant_weight_kg=mapping.variant_weight_kg,
+        partner_store_url=PETZ_PARTNER_STORE_URL,
+        coupon_code=PETZ_COUPON_CODE,
+        affiliate_program=PETZ_AFFILIATE_PROGRAM,
+        partner_ready=mapping.match_status in DIRECT_LINK_ELIGIBLE_STATUSES,
+        requires_affiliate_product_url=False,
         rejection_reason=mapping.rejection_reason,
         last_verified_at=mapping.last_verified_at,
         created_at=mapping.created_at,
@@ -109,7 +130,7 @@ def confirm(
     variante) — não vincula link afiliado nem publica oferta sozinho."""
     product = _resolve_product(db, gtin)
     try:
-        validate_petz_affiliate_url(payload.product_url)
+        validate_petz_product_url(payload.product_url)
     except InvalidPetzAffiliateUrlError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -144,11 +165,10 @@ def set_affiliate_link(
     db: Session = Depends(get_db),
     current=Depends(get_current_admin),
 ):
-    """Promove um mapping já confirmado pra 'affiliate_ready' — cria/
-    atualiza o ProductAffiliateLink(merchant="petz") real. Único caminho
-    que faz a Petz de fato aparecer no CommerceEngine (ver
-    petz_provider.py). Exige match_status já confirmado — nunca vincula
-    link afiliado a um produto ainda não confirmado."""
+    """Endpoint legado/futuro para deep-link Petz oficial por produto.
+    O modelo atual de lançamento é Petz Partner storefront + cupom
+    PETTMOL; este endpoint não é necessário para produto confirmado
+    ficar pronto no caminho /commerce/petz-direct-link."""
     product = _resolve_product(db, gtin)
     mapping = get_mapping(db, product.id)
     if mapping is None or mapping.match_status not in _CONFIRMABLE_FOR_AFFILIATE:

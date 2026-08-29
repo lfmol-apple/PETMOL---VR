@@ -4,14 +4,12 @@ shopee_link_validator.py/mercadolivre_link_validator.py, nunca
 reaproveitado por herança (cada merchant tem suas próprias regras de
 compliance — ver docs/AFFILIATES.md).
 
-Diferente do validador do Mercado Livre: a Petz ainda não tem um
-mecanismo de afiliado comprovado (nenhum parâmetro de tracking
-conhecido — ver docs/AFFILIATES.md §Petz), então este validador hoje só
-garante host/esquema seguros (https + domínio oficial petz.com.br).
-Usado tanto para a URL direta do produto (sempre) quanto para a
-affiliate_product_url quando/se um formato real de link afiliado for
-comprovado — não inventar parâmetro obrigatório antes de existir um
-link real gerado pelo mecanismo oficial da Petz.
+Diferente do validador do Mercado Livre: a Petz Partner atual é
+storefront fixa + cupom, sem deep-link afiliado individual comprovado
+por produto. Por isso existem duas validações separadas:
+- URL oficial Petz genérica, para um eventual link oficial futuro.
+- URL direta de produto, obrigatoriamente /produto/..., para discovery.
+Nenhuma função aqui reescreve, concatena ou adiciona parâmetros.
 """
 from __future__ import annotations
 
@@ -51,3 +49,14 @@ def validate_petz_affiliate_url(url: str) -> str:
         raise InvalidPetzAffiliateUrlError(f"Host não permitido para Petz: {parsed.hostname}")
 
     return url.strip()
+
+
+def validate_petz_product_url(url: str) -> str:
+    """Valida a página real de produto Petz usada como direct_product_url."""
+    clean = validate_petz_affiliate_url(url)
+    parsed = urlsplit(clean)
+    if not parsed.path.startswith("/produto/"):
+        raise InvalidPetzAffiliateUrlError("URL de produto Petz deve começar com /produto/")
+    if parsed.query or parsed.fragment:
+        raise InvalidPetzAffiliateUrlError("URL de produto Petz não deve conter query string ou fragmento")
+    return clean

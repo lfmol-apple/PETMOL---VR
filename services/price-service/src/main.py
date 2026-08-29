@@ -1546,25 +1546,32 @@ async def commerce_petz_direct_link(
     pra servir qualquer URL, mesmo com o produto confirmado — o default
     no código segue False.
 
-    Prioriza a URL ESPECÍFICA do produto (`PetzProductMapping.product_url`
-    — a página real confirmada, ex: .../produto/racao-...-100223) sobre a
-    storefront genérica, quando a prova comercial já existir. Cai pra
-    `STOREFRONT_AFFILIATE_URLS["petz"]` só se o mapping não tiver
-    `product_url` por algum motivo (não deveria acontecer —
-    `confirm_petz_mapping` sempre exige essa URL).
+    Retorna a URL ESPECÍFICA do produto (`PetzProductMapping.product_url`
+    — a página real confirmada, ex: .../produto/racao-...-100223) como
+    `direct_product_url`/`url`, separada da storefront comercial fixa
+    (`partner_store_url`) e do cupom (`coupon_code`). Nunca concatena
+    /parceiro/pettmol com /produto nem cria query string.
 
     `link_type` vem "affiliate_store" — o mecanismo de comissão é o
     cupom aplicado no checkout, não a URL de chegada; nunca aparece na
     lista de comparação de preço (/commerce/offers), porque não existe
     fonte de preço Petz por produto.
     """
-    from .affiliate_links import STOREFRONT_AFFILIATE_URLS
+    from .affiliate_links import PETZ_AFFILIATE_PROGRAM, PETZ_COUPON_CODE, PETZ_PARTNER_STORE_URL
     from .petz_mapping import DIRECT_LINK_ELIGIBLE_STATUSES, get_mapping
     from .petz_provider import is_petz_publicly_servable
     from .product_catalog_lookup import ProductCatalog, normalize_gtin
 
+    unavailable = {
+        "available": False,
+        "url": None,
+        "direct_product_url": None,
+        "partner_store_url": PETZ_PARTNER_STORE_URL,
+        "coupon_code": PETZ_COUPON_CODE,
+        "affiliate_program": PETZ_AFFILIATE_PROGRAM,
+    }
     if not is_petz_publicly_servable():
-        return {"available": False, "url": None}
+        return unavailable
 
     gtin_normalized = normalize_gtin(gtin)
     if not gtin_normalized:
@@ -1572,17 +1579,25 @@ async def commerce_petz_direct_link(
 
     product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
     if not product:
-        return {"available": False, "url": None}
+        return unavailable
 
     mapping = get_mapping(db, product.id)
     if not mapping or mapping.match_status not in DIRECT_LINK_ELIGIBLE_STATUSES:
-        return {"available": False, "url": None}
+        return unavailable
 
-    url = mapping.product_url or STOREFRONT_AFFILIATE_URLS.get("petz")
+    url = mapping.product_url
     if not url:
-        return {"available": False, "url": None}
+        return unavailable
 
-    return {"available": True, "url": url, "link_type": "affiliate_store"}
+    return {
+        "available": True,
+        "url": url,
+        "direct_product_url": url,
+        "partner_store_url": PETZ_PARTNER_STORE_URL,
+        "coupon_code": PETZ_COUPON_CODE,
+        "affiliate_program": PETZ_AFFILIATE_PROGRAM,
+        "link_type": "affiliate_store",
+    }
 
 
 @app.get("/commerce/product-candidates", tags=["Catalog"])

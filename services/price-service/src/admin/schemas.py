@@ -200,11 +200,17 @@ class PetzMappingOut(BaseModel):
     gtin: str
     petz_product_id: Optional[str] = None
     product_url: Optional[str] = None
+    direct_product_url: Optional[str] = None
     search_query: Optional[str] = None
     match_status: str
     match_confidence: Optional[float] = None
     variant_label: Optional[str] = None
     variant_weight_kg: Optional[float] = None
+    partner_store_url: Optional[str] = None
+    coupon_code: Optional[str] = None
+    affiliate_program: Optional[str] = None
+    partner_ready: bool = False
+    requires_affiliate_product_url: bool = False
     rejection_reason: Optional[str] = None
     last_verified_at: OptionalUtcInstant = None
     created_at: OptionalUtcInstant = None

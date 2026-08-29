@@ -8,12 +8,11 @@ sempre — ver docs/AFFILIATES.md §Petz.
 
 PetzProductMapping é INTENCIONALMENTE separado de ProductAffiliateLink:
 guarda estado de DESCOBERTA (status, confiança, variante, query de busca)
-que a Petz ainda não tem API/feed pra gerar automaticamente. Quando um
-mapping confirmado ganha uma affiliate_product_url real (ver
-admin/petz_router.py, endpoint .../affiliate-link), uma
-ProductAffiliateLink(merchant="petz") é criada/atualizada separadamente —
-só essa linha entra no CommerceEngine via petz_provider.py.
-PetzProductMapping sozinho NUNCA gera oferta pro tutor.
+e a página real do produto na Petz. O modelo comercial Petz atual é
+Loja Parceira + cupom PETTMOL; não existe affiliate_product_url
+individual por produto. ProductAffiliateLink(merchant="petz") permanece
+apenas como extensão futura se a Petz fornecer um deep-link oficial por
+produto, mas não é pré-requisito para o caminho "Ver na Petz".
 
 Nenhuma função aqui faz scraping/crawler/chamada de rede à Petz —
 suggest_petz_candidate só gera uma QUERY de busca (texto), nunca busca
@@ -29,6 +28,7 @@ from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, Uniqu
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .db import Base
+from .petz_link_validator import validate_petz_product_url
 
 MATCH_STATUSES = (
     "unknown",
@@ -40,14 +40,14 @@ MATCH_STATUSES = (
     "rejected",
 )
 
-# Único status que pode gerar oferta pública MONETIZADA, com preço, na
-# lista de comparação do CommerceEngine (ver petz_provider.py).
+# Status legado reservado para uma futura oferta Petz com preço
+# comparável. Hoje o caminho real de produto confirmado usa
+# DIRECT_LINK_ELIGIBLE_STATUSES + /commerce/petz-direct-link.
 PUBLISHABLE_MATCH_STATUSES = frozenset({"affiliate_ready"})
 
-# Status que já provam PRODUTO correto (não necessariamente link
-# afiliado por produto) — suficiente pra oferecer "Ver na Petz" via
-# storefront + cupom PETTMOL (ver GET /commerce/petz-direct-link em
-# main.py, STOREFRONT_AFFILIATE_URLS["petz"] em affiliate_links.py).
+# Status que já provam PRODUTO correto — suficiente pra oferecer "Ver na
+# Petz" com direct_product_url + cupom PETTMOL (ver GET
+# /commerce/petz-direct-link em main.py).
 # "ambiguous"/"candidate"/"rejected"/"unknown" nunca entram aqui — produto
 # ainda não confirmado por um humano.
 DIRECT_LINK_ELIGIBLE_STATUSES = frozenset({"confirmed", "affiliate_pending", "affiliate_ready"})
@@ -150,18 +150,19 @@ def confirm_petz_mapping(
     variant_weight_kg: Optional[float] = None,
     match_confidence: Optional[float] = None,
 ) -> PetzProductMapping:
-    """Confirmação humana explícita do PRODUTO (não da monetização) —
-    único caminho que move um mapping pra 'confirmed'. NUNCA chamado
-    automaticamente por similaridade de texto. Não marca affiliate_ready
-    sozinho — essa transição exige uma affiliate_product_url validada,
-    feita separadamente (ver admin/petz_router.py .../affiliate-link)."""
+    """Confirmação humana explícita do PRODUTO — único caminho que move
+    um mapping pra 'confirmed'. NUNCA chamado automaticamente por
+    similaridade de texto e NUNCA cria affiliate_product_url individual:
+    o modelo comercial Petz Partner é tratado separadamente via
+    partner_store_url + coupon_code."""
+    clean_product_url = validate_petz_product_url(product_url)
     mapping = get_mapping(db, product_id)
     if mapping is None:
         mapping = PetzProductMapping(product_id=product_id)
         db.add(mapping)
 
     mapping.petz_product_id = petz_product_id.strip()
-    mapping.product_url = product_url.strip()
+    mapping.product_url = clean_product_url
     mapping.variant_label = variant_label
     mapping.variant_weight_kg = variant_weight_kg
     mapping.match_confidence = match_confidence
