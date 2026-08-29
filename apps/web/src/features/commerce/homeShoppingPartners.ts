@@ -351,23 +351,70 @@ export function petzBridgeUrl(productName?: string): string {
   return `${origin}/go/petz${suffix}`;
 }
 
+/** Margem antes do 2º hop (Petz grava petzPartner no header da resposta;
+ *  800ms bastou nos testes, 2000ms é a margem de rede escolhida). */
+export const PETZ_TWO_HOP_DELAY_MS = 2000;
+
 /**
- * Clique "Ver na Petz": copia o NOME do produto pro clipboard (pra o
- * cliente colar na busca da Petz) e abre a Loja Parceira pela ponte
- * /go/petz. O cupom PETTMOL e os 10% já entram sozinhos na loja parceira
- * (cookie `petzPartner`) — não precisa copiar o cupom.
+ * Clique "Ver na Petz".
+ *
+ * TWO-HOP WEB (comprovado no navegador — ver docs/PETZ_COMMISSION_VALIDATION.md):
+ *   gesto → window.open('about:blank') → win.location.href = Loja Parceira
+ *   (Petz grava o cookie `petzPartner`) → aguarda PETZ_TWO_HOP_DELAY_MS →
+ *   win.location.replace(URL REAL do produto) NA MESMA janela. O cliente
+ *   vê o produto exato e o carrinho continua atribuído à loja pettmol.
+ *   A 2ª navegação é por JS (nunca <a href>) → /produto/* não é entregue
+ *   ao app da Petz.
+ *
+ * Só entra no two-hop quando: há URL real de produto Petz
+ * (`isRealPetzUrl`); NÃO é Capacitor (`window.open` não devolve handle
+ * usável no app e `@capacitor/browser` 8.0.4 recusa a 2ª `Browser.open`);
+ * e `window.open` síncrono devolveu uma janela.
+ *
+ * FALLBACK (Capacitor / popup bloqueado / produto sem URL exata): ponte
+ * /go/petz → só Loja Parceira, copiando o NOME do produto pra busca. A
+ * comissão continua garantida (cookie da Loja Parceira); só o "produto
+ * exato" que não acontece nesse caminho.
  */
-export async function openPetzPartnerStore(productName?: string): Promise<void> {
-  const name = (productName ?? '').trim();
-  // Cópia no tempo do gesto (onClick) — melhor chance no WebView do iOS.
-  const copied = name ? await copyText(name).catch(() => false) : false;
+export async function openPetzPartnerStore(
+  opts: { productUrl?: string | null; productName?: string | null } = {},
+): Promise<void> {
+  const productUrl = (opts.productUrl ?? '').trim();
+  const productName = (opts.productName ?? '').trim();
+  const hasExactProduct = !!productUrl && isRealPetzUrl(productUrl);
+  const canTwoHop = hasExactProduct && !Capacitor.isNativePlatform() && typeof window !== 'undefined';
+
+  // window.open PRIMEIRO e SÍNCRONO, dentro do gesto — senão o popup blocker mata.
+  const win = canTwoHop ? window.open('about:blank', '_blank') : null;
+
+  if (win) {
+    // ── TWO-HOP WEB ──
+    try { win.opener = null; } catch { /* noop */ }
+    void copyText(PETZ_COUPON_CODE); // cupom como segurança (logado: auto; deslogado: cliente cola)
+    showAppToast('Desconto PETTMOL ativado pela Loja Parceira. Cupom PETTMOL também foi copiado caso a Petz solicite.', {
+      tone: 'success',
+      durationMs: 6000,
+    });
+    win.location.href = PETZ_PARTNER_STORE_URL; // 1º hop — Petz grava petzPartner
+    window.setTimeout(() => {
+      try {
+        win.location.replace(productUrl); // 2º hop — produto real, MESMA janela
+      } catch {
+        /* janela fechada pelo usuário — ignora */
+      }
+    }, PETZ_TWO_HOP_DELAY_MS);
+    return;
+  }
+
+  // ── FALLBACK: Capacitor / popup bloqueado / produto sem URL exata ──
+  const copied = productName ? await copyText(productName).catch(() => false) : false;
   if (copied) {
-    showAppToast(`"${name}" copiado — cole na busca da Petz. Seu desconto de 10% já está ativo.`, {
+    showAppToast(`"${productName}" copiado — cole na busca da Petz. Seu cupom PETTMOL já está na Loja Parceira.`, {
       tone: 'success',
       durationMs: 6000,
     });
   }
-  navigateToPartnerUrl(petzBridgeUrl(name || undefined));
+  navigateToPartnerUrl(petzBridgeUrl(productName || undefined));
 }
 
 /**
@@ -393,7 +440,7 @@ export function openHomeShoppingPartner(
     return false;
   }
   if (partner.id === 'petz') {
-    // Petz sempre pela ponte /go/petz → Loja Parceira (ver petzBridgeUrl).
+    // Grade de lojas: sem produto específico → só Loja Parceira.
     void openPetzPartnerStore();
   } else {
     navigateToPartnerUrl(url);

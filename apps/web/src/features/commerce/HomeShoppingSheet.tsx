@@ -98,7 +98,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
     });
     if (!url) return;
     if (partner.id === 'petz') {
-      void openPetzPartnerStore();
+      void openPetzPartnerStore({});
       return;
     }
     navigateToPartnerUrl(url);
@@ -183,8 +183,8 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                                   metadata: { domain: card.domain, label: card.label, price: offer.price },
                                 });
                               }}
-                              onPetzBuy={() => {
-                                void openPetzPartnerStore(card.label);
+                              onPetzBuy={(petzLink) => {
+                                void openPetzPartnerStore({ productUrl: petzLink.direct_product_url, productName: card.label });
                                 void trackClick({
                                   source: 'home',
                                   cta_type: 'shop_reorder_buy_petz',
@@ -289,7 +289,7 @@ interface ReorderCardItemProps {
   onTogglePicker: () => void;
   onQuickBuy: (partnerId: HomeShoppingPartnerId) => void;
   onDirectBuy: (offer: CommerceOffer) => void;
-  onPetzBuy: () => void;
+  onPetzBuy: (petzLink: PetzDirectLink) => void;
 }
 
 // Busca a lista de ofertas monetizáveis (mesma fonte usada em toda tela de
@@ -356,7 +356,7 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
       return;
     }
     if (hasPetz && petzLink?.url) {
-      onPetzBuy();
+      onPetzBuy(petzLink);
       return;
     }
     onTogglePicker();
@@ -449,7 +449,7 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
           offers={offers}
           onPick={onDirectBuy}
           petzLink={hasPetz ? petzLink : null}
-          onPickPetz={() => petzLink?.url && onPetzBuy()}
+          onPickPetz={() => petzLink?.url && onPetzBuy(petzLink)}
         />
       )}
       {offers.some((item) => item.price_is_stale) && (

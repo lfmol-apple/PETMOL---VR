@@ -447,7 +447,10 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          void openPetzPartnerStore(item.title ?? undefined);
+                          void openPetzPartnerStore({
+                            productUrl: typeof petzResolved === 'object' ? petzResolved.direct_product_url : undefined,
+                            productName: item.title ?? undefined,
+                          });
                           setStoreChoicesForGtin(null);
                           void trackClick({
                             source: 'home',

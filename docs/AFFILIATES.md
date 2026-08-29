@@ -871,42 +871,84 @@ teste real até o carrinho, sem finalizar — ver
   campo de cupom vem **pré-preenchido com `PETTMOL`** e o **desconto de
   10% é aplicado automaticamente** (testado: R$ 99,99 → −R$ 10,00). Não
   acumula com promoção maior do produto.
-- **Não existe deep link oficial de produto.** Painel → Divulgação só dá
-  cupom `PETTMOL` + link fixo `petz.com.br/parceiro/pettmol`. Testado e
-  negado: `/parceiro/pettmol/produto/<slug>` · `/busca` · `/c/<cat>` →
-  404; `?q` · `?query` · `?term` · `?keyword` · `?busca` · `#termo` →
-  ignorados (abre a home); `/busca?q=X&parceiro=pettmol` · `&loja=pettmol`
-  → não grava o cookie. A home da loja parceira é o único destino; depois
-  dela não há controle. Um salto duplo automático (loja parceira →
-  produto) é impossível.
+- **Não existe deep link oficial de produto pela loja parceira.** Painel →
+  Divulgação só dá cupom `PETTMOL` + link fixo `petz.com.br/parceiro/pettmol`.
+  Negado: `/parceiro/pettmol/produto/<slug>` · `/busca` · `/c/<cat>` → 404;
+  `?q` · `?query` · `?term` · `?keyword` · `?busca` · `#termo` → ignorados
+  (abre a home); `/busca?q=X&parceiro=pettmol` · `&loja=pettmol` → não
+  grava o cookie. **`/parceiro/pettmol` não faz NENHUMA chamada de backend
+  de atribuição** — é 100% o `Set-Cookie: petzPartner` no header da
+  resposta HTML, **não** account-linked (a mensagem "loja pettmol" aparece
+  até deslogado).
+- **O desconto de 10% visível depende de login na Petz.** Logado: cupom
+  pré-preenchido + 10% automático. **Deslogado (a maioria dos clientes):**
+  atribuição fica, mas o cliente precisa digitar `PETTMOL` no carrinho
+  (aceito, aplica 10%).
 
-**Decisão de produto (29/08/2026):** "Ver na Petz" leva o cliente à
-**Loja Parceira** (`petz.com.br/parceiro/pettmol`) e **copia o nome do
-produto pro clipboard** pra ele colar na busca da Petz. Assim o cupom
-PETTMOL e os 10% entram sozinhos e a venda é atribuída. O cupom **não** é
-copiado — já é automático na loja parceira. Chegar direto na página do
-produto **não** grava o cookie → sem atribuição garantida — por isso a
-ponte nunca abre `/produto/...` nem `/busca?q=` diretamente.
+**Decisão de produto (29/08/2026) — TWO-HOP WEB:** o cookie `petzPartner`
+tem `Path=/` → uma navegação na **mesma sessão** de `/parceiro/pettmol`
+para `/produto/...` **preserva a atribuição** (comprovado no navegador:
+carrinho continua "loja pettmol"). Então "Ver na Petz":
+
+```
+gesto → window.open('about:blank')                     (síncrono, no gesto)
+      → win.location.href = /parceiro/pettmol           (Petz grava petzPartner)
+      → aguarda PETZ_TWO_HOP_DELAY_MS (2000ms)
+      → win.location.replace(URL REAL do produto)        (JS, mesma janela)
+```
+
+O cliente vê o **produto exato** e a venda continua atribuída. A 2ª
+navegação é por JS (nunca `<a href>`) → `/produto/*` não é entregue ao
+app da Petz.
+
+**Só entra no two-hop** quando: há URL real de produto Petz
+(`PetzProductMapping` confirmado, `isRealPetzUrl`); **não** é Capacitor
+(`window.open` não devolve handle no app; `@capacitor/browser` 8.0.4
+recusa a 2ª `Browser.open` — `prepare()` só cria se `safariVC == nil`);
+e `window.open` devolveu janela.
+
+**FALLBACK** (Capacitor / popup bloqueado / produto sem URL exata): ponte
+`/go/petz` → só `/parceiro/pettmol`, copiando o **nome do produto** pra
+busca. Comissão continua garantida; só o "produto exato" que não
+acontece. **Prioridade: comissão garantida > produto exato > 10%
+automático > conveniência** — o two-hop só é usado se a atribuição
+permanecer.
 
 **Gate único:** nem a ponte nem `/commerce/petz-direct-link` servem nada
 a menos que `petz_provider.is_petz_publicly_servable()` seja `True`
-(exige `petz_affiliate_enabled` E `petz_coupon_attribution_verified` —
-`true` em produção desde 29/08/2026, ver
-`docs/PETZ_COMMISSION_VALIDATION.md`).
+(`petz_affiliate_enabled` E `petz_coupon_attribution_verified` — `true`
+em produção desde 29/08/2026).
 
 **Arquitetura:**
-- `GET /commerce/petz-direct-link?gtin=...&q=<nome>` continua indicando
-  se o programa está ativo (`partner_program_active`) e o nome do
-  produto pra dica de busca. `direct_product_url` / `search_url` viram
-  metadados — a ponte não os usa como destino.
-- Frontend: `petzBridgeUrl(productName)` → `/go/petz?q=<nome>`.
-  `openPetzPartnerStore(productName)` copia o **nome do produto** e abre a
-  ponte. Usado em `AffiliateCatalogSearch.tsx`, `HomeShoppingSheet.tsx`,
+- `GET /commerce/petz-direct-link?gtin=...&q=<nome>` devolve
+  `partner_program_active`, `direct_product_url` (só com mapping
+  confirmado) e o nome do produto.
+- Frontend: `openPetzPartnerStore({ productUrl, productName })`
+  (`homeShoppingPartners.ts`) faz o two-hop ou o fallback.
+  `petzBridgeUrl(productName)` → `/go/petz?q=<nome>` (só fallback).
+  Usado em `AffiliateCatalogSearch.tsx`, `HomeShoppingSheet.tsx`,
   `MonetizedOffersList.tsx`. Cobasi/Shopee/Mercado Livre **não** passam
   pela ponte.
 - `PETZ_PARTNER_STORE_URL` (`homeShoppingPartners.ts`) e
   `STOREFRONT_AFFILIATE_URLS["petz"]` (`affiliate_links.py`) espelham
   `https://www.petz.com.br/parceiro/pettmol`.
+
+**Abordagem 3 — app nativo da Petz (investigada 29/08/2026, NÃO adotada,
+guardada para retomar com aparelhos físicos):**
+- iOS AASA (`www.petz.com.br/.well-known/apple-app-site-association`,
+  verificado): app `5PN69BWKGT.br.com.petz.hanzo.Petz` abre em `/`,
+  `/produto/*`, `/colecao/*`, `/minhas-assinaturas/*`. **`/parceiro/*` NÃO
+  está** → sempre navegador. `/produto/*` abre o app só em toque de `<a>`,
+  não em redirect JS.
+- Android assetlinks: `package br.com.petz`,
+  `delegate_permission/common.handle_all_urls` (o manifesto do app decide
+  os paths — não obtido; provável espelhar o iOS).
+- Sem SDK de deeplink de terceiros (Branch/AppsFlyer) nas páginas.
+- **Cookie de navegador NÃO é compartilhado com o app nativo** (regra do
+  SO). Abrir o app = perder o cookie `petzPartner` → atribuição perdida.
+  No app a atribuição seria só digitar `PETTMOL` no checkout.
+- Falta teste físico completo iOS + Android (A–F) para descartar em
+  definitivo.
 
 #### Ponte `/go/petz` + interceptação por app instalado (Universal Links)
 
@@ -926,23 +968,30 @@ linkrunner.io, jessesquires TIL. `@capacitor/browser` /
 SFSafariViewController não têm opção pra desligar isso; trocar de plugin
 nativo = rebuild + submissão (fora de escopo).
 
-**Solução:** `petzBridgeUrl()` abre `petmol.com.br/go/petz?q=<nome>`.
-`petmol.com.br` **não** tem `associated-domains` (sem AASA — conferido em
-`apps/web/ios/App/App/App.entitlements`), então abre no navegador. A
-página `/go/petz` (`app/go/petz/page.tsx`):
+**Two-hop web (caminho principal, ver seção acima):** o `window.open` e as
+duas navegações (`win.location.href` → `win.location.replace`) são todas
+por JS → nunca disparam Universal Link/App Link. `/parceiro/pettmol` não
+está na AASA de qualquer forma.
+
+**Fallback via ponte `/go/petz`:** `petmol.com.br` **não** tem
+`associated-domains` (sem AASA — conferido em
+`apps/web/ios/App/App/App.entitlements`), então `/go/petz` abre no
+navegador. A página (`app/go/petz/page.tsx`):
 1. copia o **nome do produto** (`?q=`) pro clipboard;
 2. `window.location.replace('https://www.petz.com.br/parceiro/pettmol')`
    — redirect JS, não toque → o SO não entrega ao app;
-3. botão manual "Abrir minha loja Petz" também navega por JS, nunca `<a href>`.
+3. botão manual navega por JS, nunca `<a href>`.
 
 O destino da ponte é uma constante fixa (`PETZ_PARTNER_STORE_URL`) — sem
-parâmetro de redirect, sem risco de open-redirect. `AppShell` esconde
+parâmetro de redirect, sem open-redirect. `AppShell` esconde
 header/footer em `/go/petz`.
 
-**Limites residuais:** (a) o cliente precisa achar o produto na busca da
-loja parceira; (b) cookie `petzPartner` expira em ~30 min — a compra
-precisa acontecer nessa janela; (c) se a *própria* página da Petz forçar
-abrir o app depois de carregada, é JS da Petz, fora do nosso controle.
+**Limites residuais:** (a) no fallback (Capacitor), o cliente busca o
+produto na loja parceira; (b) cookie `petzPartner` expira em ~30 min —
+compra precisa acontecer nessa janela; (c) se a *própria* página da Petz
+forçar abrir o app depois de carregada, é JS da Petz, fora do controle;
+(d) o two-hop web precisa de teste em iPhone/Android reais para o
+Capacitor.
 
 ### Petlove Produtos
 

@@ -83,10 +83,10 @@ export function MonetizedOffersList({
 
   function handleVerNaPetz() {
     if (!petzLink?.url) return;
-    void openPetzPartnerStore(productLabel);
-    // Destino sempre a Loja Parceira (/parceiro/pettmol) via ponte /go/petz
-    // — é entrando por ela que a Petz aplica os 10% e atribui a venda
-    // (cookie petzPartner; ver docs/PETZ_COMMISSION_VALIDATION.md).
+    // Entra pela Loja Parceira (cookie petzPartner → atribuição garantida);
+    // no web, se há URL real de produto confirmado, faz o two-hop e o
+    // cliente cai no produto exato. Ver docs/PETZ_COMMISSION_VALIDATION.md.
+    void openPetzPartnerStore({ productUrl: petzLink.direct_product_url, productName: productLabel });
     void trackClick({
       source,
       cta_type: 'petz_direct_link_click',
