@@ -2,55 +2,58 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { PETZ_PARTNER_STORE_URL } from '@/features/commerce/homeShoppingPartners';
+import {
+  PETZ_PARTNER_STORE_URL,
+  PETZ_COUPON_CODE,
+  isRealPetzUrl,
+} from '@/features/commerce/homeShoppingPartners';
 import { copyText } from '@/lib/clipboard';
 
 // Ponte "Ver na Petz".
 //
-// 1. Interceptação pelo app da Petz (Universal Link / App Link): o SO só
-//    entrega o link ao app num TOQUE de <a>, nunca num redirect por
-//    JavaScript. Esta página (petmol.com.br, sem associação universal)
-//    navega pra Petz via location.replace / botão com onClick — nunca
-//    <a href> — então o app não intercepta.
+// Único objetivo: evitar que o app da Petz instalado intercepte o link
+// (iOS Universal Link / Android App Link). O SO só entrega o link ao app
+// num TOQUE de <a>, nunca num redirect por JavaScript. Esta página fica
+// em petmol.com.br (sem associação universal) e navega pra Petz via
+// location.replace / botão com onClick — nunca <a href>.
 //
-// 2. Monetização: a comissão do Parceiro Petz e o cupom PETTMOL (10%) só
-//    entram sozinhos quando o cliente ENTRA pela Loja Parceira
-//    (petz.com.br/parceiro/pettmol) — cookie `petzPartner`. Não existe
-//    deep link oficial de produto pela loja parceira (ver
-//    docs/PETZ_COMMISSION_VALIDATION.md). Então a ponte leva pra
-//    /parceiro/pettmol e COPIA O NOME DO PRODUTO pro clipboard, pra o
-//    cliente colar na busca da Petz. (O cupom não é copiado — já é
-//    automático na loja parceira.)
+// `to` = destino final na Petz (página do produto, ou busca com o termo).
+//        Validado como URL real de petz.com.br — sem open-redirect.
+// `q`  = nome do produto (só exibição).
+//
+// O cupom PETTMOL é copiado pro clipboard (garante os 10% + a comissão do
+// Parceiro Petz quando o cliente cola no carrinho — ver docs/AFFILIATES.md).
 
-const AUTO_REDIRECT_MS = 4000;
-const TARGET = PETZ_PARTNER_STORE_URL;
+const AUTO_REDIRECT_MS = 2500;
 
 function PetzBridge() {
   const params = useSearchParams();
   const productName = (params?.get('q') ?? '').trim();
-  const [copied, setCopied] = useState(false);
+  const rawTo = (params?.get('to') ?? '').trim();
+  const target = rawTo && isRealPetzUrl(rawTo) ? rawTo : PETZ_PARTNER_STORE_URL;
+  const goesToProduct = target.includes('/produto/');
+  const goesToSearch = target.includes('/busca');
+
   const [redirecting, setRedirecting] = useState(false);
 
   const go = () => {
     if (redirecting) return;
     setRedirecting(true);
-    if (typeof window !== 'undefined') window.location.replace(TARGET);
+    if (typeof window !== 'undefined') window.location.replace(target);
   };
 
   useEffect(() => {
-    let cancelled = false;
-    if (productName) {
-      void copyText(productName).then((ok) => {
-        if (!cancelled && ok) setCopied(true);
-      });
-    }
+    void copyText(PETZ_COUPON_CODE);
     const t = window.setTimeout(go, AUTO_REDIRECT_MS);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(t);
-    };
+    return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productName]);
+  }, [target]);
+
+  const heading = goesToProduct
+    ? 'Abrindo o produto na Petz'
+    : goesToSearch
+      ? 'Abrindo a busca na Petz'
+      : 'Abrindo sua loja Petz';
 
   return (
     <main
@@ -67,13 +70,14 @@ function PetzBridge() {
       <div style={{ maxWidth: 380, width: '100%', textAlign: 'center' }}>
         <div style={{ fontSize: 40, marginBottom: 8 }}>🐾</div>
         <p style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>
-          Abrindo sua loja Petz
+          {heading}
         </p>
         <p style={{ fontSize: 13, color: '#475569', margin: '0 0 16px' }}>
-          O <strong>cupom PETTMOL (10%)</strong> já entra sozinho por você acessar pela loja parceira.
+          Cupom <strong>{PETZ_COUPON_CODE}</strong> copiado — cole no carrinho da Petz pra
+          <strong> 10% de desconto</strong>.
         </p>
 
-        {productName && (
+        {productName && goesToSearch && (
           <div
             style={{
               border: '1px solid #e2e8f0',
@@ -84,7 +88,7 @@ function PetzBridge() {
             }}
           >
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, color: '#64748b' }}>
-              {copied ? 'NOME COPIADO — COLE NA BUSCA DA PETZ' : 'PROCURE NA PETZ POR'}
+              RESULTADO PARA
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
               {productName}
@@ -94,10 +98,7 @@ function PetzBridge() {
 
         <button
           type="button"
-          onClick={() => {
-            if (productName) void copyText(productName);
-            go();
-          }}
+          onClick={go}
           style={{
             width: '100%',
             padding: '13px 16px',
@@ -110,7 +111,7 @@ function PetzBridge() {
             cursor: 'pointer',
           }}
         >
-          Abrir minha loja Petz
+          {goesToProduct ? 'Abrir o produto na Petz' : 'Abrir a Petz'}
         </button>
         <p style={{ fontSize: 12, color: '#94a3b8', margin: '12px 0 0' }}>
           {redirecting ? 'Abrindo…' : 'Abre automaticamente em instantes…'}
