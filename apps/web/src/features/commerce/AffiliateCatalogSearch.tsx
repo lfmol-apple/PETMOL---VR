@@ -449,6 +449,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                           event.stopPropagation();
                           void openPetzPartnerStore({
                             productUrl: typeof petzResolved === 'object' ? petzResolved.direct_product_url : undefined,
+                            searchUrl: typeof petzResolved === 'object' ? petzResolved.search_url : undefined,
                             productName: item.title ?? undefined,
                           });
                           setStoreChoicesForGtin(null);

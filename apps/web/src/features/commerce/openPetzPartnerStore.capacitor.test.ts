@@ -125,7 +125,23 @@ describe('openPetzPartnerStore — Capacitor', () => {
     expect(browserOpen).toHaveBeenNthCalledWith(3, { url: PARTNER_STORE });
   });
 
-  it('sem URL real de produto: fallback ponte /go/petz (sem two-hop nativo)', async () => {
+  it('sem produto mapeado mas COM searchUrl: two-hop nativo pra BUSCA da Petz', async () => {
+    const SEARCH_URL = 'https://www.petz.com.br/busca?q=Royal+Canin';
+    const { openPetzPartnerStore } = await import('./homeShoppingPartners');
+    const done = openPetzPartnerStore({ searchUrl: SEARCH_URL, productName: 'Ração Golden' });
+
+    await settle();
+    expect(browserOpen).toHaveBeenNthCalledWith(1, { url: PARTNER_STORE });
+    emit('browserPageLoaded');
+    await settle(1000);
+    await done;
+
+    expect(browserClose).toHaveBeenCalledTimes(1);
+    expect(browserOpen).toHaveBeenNthCalledWith(2, { url: SEARCH_URL });
+    expect(writeText).toHaveBeenCalledWith('PETTMOL');
+  });
+
+  it('sem productUrl E sem searchUrl: fallback ponte /go/petz (sem two-hop nativo)', async () => {
     const { openPetzPartnerStore } = await import('./homeShoppingPartners');
     const done = openPetzPartnerStore({ productName: 'Ração Golden' });
     await settle();
@@ -135,6 +151,7 @@ describe('openPetzPartnerStore — Capacitor', () => {
     const url = browserOpen.mock.calls[0][0].url as string;
     expect(url).toContain('/go/petz');
     expect(url).not.toContain('petz.com.br/produto');
+    expect(url).not.toContain('petz.com.br/busca');
     expect(browserClose).not.toHaveBeenCalled();
   });
 });

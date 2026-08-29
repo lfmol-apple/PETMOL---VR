@@ -901,9 +901,15 @@ O cliente vê o **produto exato** e a venda continua atribuída. A 2ª
 navegação é por JS (nunca `<a href>`) → `/produto/*` não é entregue ao
 app da Petz.
 
-**Só entra no two-hop web** quando: há URL real de produto Petz
-(`PetzProductMapping` confirmado, `isRealPetzUrl`); **não** é Capacitor
-(`window.open` não devolve handle no app); e `window.open` devolveu janela.
+**2º hop**, na ordem de preferência (cookie `petzPartner` tem `Path=/` →
+vale nos dois): `direct_product_url` (`/produto/...`, só com
+`PetzProductMapping` confirmado — cliente cai na página exata) →
+`search_url` (`/busca?q=...`, qualquer outro produto — cliente cai na
+busca da Petz com o termo e escolhe da lista).
+
+**Só entra no two-hop web** quando: há um 2º hop utilizável (`isRealPetzUrl`);
+**não** é Capacitor (`window.open` não devolve handle no app); e
+`window.open` devolveu janela.
 
 **TWO-HOP NATIVO (Capacitor — `openPetzNativeTwoHop`):** no app, com URL
 real de produto, encadeia dois `@capacitor/browser`:

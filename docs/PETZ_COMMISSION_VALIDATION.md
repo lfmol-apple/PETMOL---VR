@@ -63,8 +63,15 @@ gesto → window.open('about:blank')            (síncrono, no gesto)
 O cliente vê o **produto exato** e a venda continua atribuída. Todas as
 navegações são JS → `/produto/*` não é entregue ao app da Petz.
 
-**Só faz o two-hop web** quando há URL real de produto (`PetzProductMapping`
-confirmado) **e não** é Capacitor (`window.open` não devolve handle no app).
+**2º hop**, na ordem de preferência (o cookie `petzPartner` tem `Path=/`,
+então vale nos dois):
+- `direct_product_url` (`/produto/...`) — só com `PetzProductMapping`
+  confirmado (7 produtos hoje) → cliente cai NA página exata;
+- `search_url` (`/busca?q=<marca + palavras-chave>`) — qualquer outro
+  produto → cliente cai na BUSCA da Petz já com o termo e escolhe da lista.
+
+**Só faz o two-hop web** quando há um 2º hop utilizável **e não** é
+Capacitor (`window.open` não devolve handle no app).
 
 ### TWO-HOP NATIVO (Capacitor — app PETMOL)
 
