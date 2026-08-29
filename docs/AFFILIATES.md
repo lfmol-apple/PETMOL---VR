@@ -897,28 +897,36 @@ foi tentado em duas formas — two-hop web (#106/#108) e two-hop nativo
 - a Petz **não expõe deep link de produto** pela loja parceira, então não
   dava pra combinar "produto na tela" + "cookie de atribuição".
 
-**Comportamento atual** — "Ver na Petz" leva o cliente pra ONDE O PRODUTO
-APARECE e copia o cupom:
+**Comportamento atual** — "Ver na Petz" leva o cliente pra a BUSCA da
+Petz (o produto aparece nos resultados) e copia o cupom:
 
 | Backend devolve | Destino (`?to=` da ponte) | Cliente vê |
 |---|---|---|
-| `direct_product_url` (mapping confirmado) | `/produto/<slug>` | a página exata do produto |
-| só `search_url` | `/busca?q=<marca+palavras>` | a busca da Petz com o resultado |
-| nenhum | `/parceiro/pettmol` | a Loja Parceira |
+| `search_url` (sempre, com `q`) | `/busca?q=<marca+palavras>` | a busca da Petz; produto mapeado = 1º resultado |
+| sem `search_url` utilizável | `/parceiro/pettmol` | a Loja Parceira |
+
+**Por que NUNCA `/produto/<slug>`** (mesmo com `direct_product_url`): a
+**AASA da Petz** (`www.petz.com.br/.well-known/apple-app-site-association`,
+verificada 29/08/2026) reivindica `/`, `/produto/*`, `/colecao/*`,
+`/minhas-assinaturas/*`. Redirecionar (mesmo por `location.replace` dentro
+do SFSafariViewController) pra qualquer um deles → o iOS entrega ao app da
+Petz → tela **"DETALHES" quebrada** (bug real reproduzido no iPhone,
+30/08). `/busca` e `/parceiro/*` **não** são reivindicados → seguros.
+`isPetzAppClaimedUrl()` barra os reivindicados no cliente e na ponte;
+`direct_product_url` fica na resposta do backend mas o frontend não usa.
 
 - **Sempre via a ponte `/go/petz?to=<url petz>&q=<nome>`** (`page.tsx`):
-  valida `to` com `isRealPetzUrl` (sem open-redirect) e faz
-  `window.location.replace(to)` — redirect JS, nunca `<a href>` → o app da
-  Petz **não intercepta** no iPhone. Vale igual em web, PWA e Capacitor
+  valida `to` com `isRealPetzUrl` **e** `!isPetzAppClaimedUrl` (sem
+  open-redirect, sem path da AASA) e faz `window.location.replace(to)` —
+  redirect JS, nunca `<a href>`. Vale igual em web, PWA e Capacitor
   (`@capacitor/browser` abre a ponte no navegador do sistema).
 - **Cupom `PETTMOL` copiado pro clipboard** no gesto do clique. É o
-  mecanismo de atribuição neste caminho: chegar direto na página do
-  produto **não grava** o cookie `petzPartner`, então a comissão (7%) e os
-  10% dependem do cliente **colar `PETTMOL` no carrinho**. A ponte reforça
-  isso na tela.
-- Trade-off aceito: comissão passa a depender do cliente colar o cupom (vs.
-  automático pela Loja Parceira), em troca de o produto aparecer na tela
-  em todas as plataformas — inclusive o app.
+  mecanismo de atribuição: a busca da Petz **não grava** o cookie
+  `petzPartner`, então a comissão (7%) e os 10% dependem do cliente
+  **colar `PETTMOL` no carrinho**. A ponte reforça isso na tela.
+- Trade-off aceito: (a) comissão depende do cupom colado; (b) produto
+  mapeado abre a busca (1º resultado), não a página exata — em troca de
+  funcionar em todas as plataformas sem cair no app quebrado.
 
 **Gate único:** nem a ponte nem `/commerce/petz-direct-link` servem nada
 a menos que `petz_provider.is_petz_publicly_servable()` seja `True`
@@ -981,20 +989,21 @@ nativo = rebuild + submissão (fora de escopo).
 `apps/web/ios/App/App/App.entitlements`), então `/go/petz` abre no
 navegador / navegador do sistema. A página (`app/go/petz/page.tsx`):
 1. copia o cupom **`PETTMOL`** pro clipboard;
-2. lê `?to=<url petz>`, **valida com `isRealPetzUrl`** (só https de
-   `[www.]petz.com.br` — sem open-redirect) e faz
-   `window.location.replace(to)` — redirect JS, não toque → o SO não
-   entrega ao app; `to` inválido/ausente → `/parceiro/pettmol`;
+2. lê `?to=<url petz>`, valida com `isRealPetzUrl` **e**
+   `!isPetzAppClaimedUrl` (só https de `[www.]petz.com.br`, e o path NÃO
+   pode estar na AASA da Petz — `/`, `/produto/*`, `/colecao/*`,
+   `/minhas-assinaturas/*`) e faz `window.location.replace(to)` — redirect
+   JS, não toque; `to` inválido/reivindicado/ausente → `/parceiro/pettmol`;
 3. botão manual navega por JS, nunca `<a href>`.
 
 `AppShell` esconde header/footer em `/go/petz`.
 
-**Limites residuais:** (a) chegar direto na página do produto **não grava**
-o cookie `petzPartner` → comissão depende do cliente colar `PETTMOL` no
-carrinho; (b) se a *própria* página da Petz forçar abrir o app depois de
-carregada, é JS da Petz, fora do controle; (c) produto sem
-`PetzProductMapping` confirmado → cai na busca da Petz (lista), não na
-página exata.
+**Limites residuais:** (a) a busca da Petz **não grava** o cookie
+`petzPartner` → comissão depende do cliente colar `PETTMOL` no carrinho;
+(b) se a *própria* página `/busca` da Petz mostrar um smart-banner que o
+cliente toque, aí o app abre — mas é toque do cliente, não interceptação
+automática; (c) produto mapeado abre a busca (1º resultado), não a página
+exata — `/produto/*` está na AASA e não pode ser usado.
 
 ### Petlove Produtos
 
