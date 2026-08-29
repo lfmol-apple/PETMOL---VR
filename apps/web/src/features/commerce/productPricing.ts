@@ -64,7 +64,7 @@ export interface CommerceOffer {
   /** True quando o backend sabe que o preço é antigo, mas manteve o link de compra. */
   price_is_stale?: boolean;
   /** Só populado quando a oferta veio do feed Awin (AwinFeedProvider) —
-   * Cobasi/Zee Now/Zee Dog têm; Shopee (busca por palavra-chave) e VTEX
+   * Cobasi tem; Shopee/ML (marketplace) e VTEX direto ainda não.
    * direto ainda não. Sem imagem, o card cai no placeholder neutro. */
   image_url?: string | null;
 }
@@ -79,7 +79,7 @@ function normalizeOfferUrl(url: string): string {
 /**
  * Lista de ofertas monetizáveis para um produto, menor preço primeiro —
  * ver commerce_offers.py/commerce_provider.py no backend. As superfícies
- * do app ficam restritas a Cobasi, Shopee, Zee Now e Zee Dog.
+ * do app ficam restritas a Cobasi, Petz, Mercado Livre e Shopee.
  *
  * `gtin`: opcional — quando o produto já foi escaneado e temos o GTIN,
  * enviar aqui é o caminho preferido para providers estruturados (ex:
@@ -107,8 +107,8 @@ export interface AwinSearchResult {
  * Busca textual no catálogo Awin já sincronizado (AffiliateFeedOffer, ver
  * awin_feed_sync.py) — GET /commerce/awin-search. Sem `merchant`, busca em
  * TODOS os merchants Awin habilitados de uma vez, agrupando por GTIN —
- * Cobasi já tem dado real; Zee Dog e Zee Now entram pelo mesmo caminho
- * quando sincronizadas. Cada
+ * Cobasi já tem dado real. Zee Dog e Zee Now podem existir no feed para
+ * enriquecimento interno, mas não entram como lojas de venda. Cada
  * resultado já vem com GTIN; passar esse GTIN pra fetchCommerceOffers() é
  * o único jeito hoje de o app exercitar AwinFeedProvider (busca textual
  * normal nunca envia GTIN).

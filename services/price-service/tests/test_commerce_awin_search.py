@@ -211,15 +211,15 @@ def test_search_explicit_merchant_filter(client, monkeypatch):
         # contornar isso, mesmo com awin_enabled=True.
         r2 = client.get("/commerce/awin-search", params={"q": "golden", "merchant": "petz"})
         assert r2.json()["results"] == []
+        r3 = client.get("/commerce/awin-search", params={"q": "golden", "merchant": "zeenow"})
+        assert r3.json()["results"] == []
     finally:
         _cleanup()
 
 
-def test_search_groups_same_gtin_across_merchants_keeping_cheapest(client, monkeypatch):
-    """O caso que importa pro grid de preços: mesmo produto físico
-    (mesmo GTIN) sincronizado em mais de um merchant Awin habilitado —
-    vira UM resultado, com o preço/loja mais barata em destaque e
-    offer_count contando quantas lojas têm aquele produto."""
+def test_search_hides_non_sellable_awin_merchants_from_public_catalog(client, monkeypatch):
+    """Zee Now/Zee Dog podem seguir no feed para enriquecimento interno,
+    mas não aparecem como loja/preço público de venda no PETMOL."""
     _enable_awin(monkeypatch)
     monkeypatch.setattr("src.awin_advertisers.is_awin_merchant_enabled", lambda m: m in ("cobasi", "zeenow"))
     _cleanup()
@@ -229,9 +229,9 @@ def test_search_groups_same_gtin_across_merchants_keeping_cheapest(client, monke
         r = client.get("/commerce/awin-search", params={"q": "golden"})
         results = r.json()["results"]
         assert len(results) == 1
-        assert results[0]["offer_count"] == 2
-        assert results[0]["price"] == 139.90
-        assert results[0]["merchant"] == "zeenow"
+        assert results[0]["offer_count"] == 1
+        assert results[0]["price"] == 150.0
+        assert results[0]["merchant"] == "cobasi"
     finally:
         _cleanup()
 

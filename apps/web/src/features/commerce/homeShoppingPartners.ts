@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { trackClick } from '@/lib/analytics/click';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
 
-export type HomeShoppingPartnerId = 'cobasi' | 'shopee' | 'zeenow' | 'zeedog' | 'petz';
+export type HomeShoppingPartnerId = 'cobasi' | 'petz' | 'mercadolivre' | 'shopee';
 
 /**
  * Estado real da integração de afiliado do merchant — não confundir com
@@ -91,36 +91,16 @@ export const AFFILIATE_ONLY_COMMERCE: boolean =
 // Configure em .env.local ou no VPS /etc/petmol/petmol.env:
 //   NEXT_PUBLIC_AFFILIATE_COBASI=https://www.lomadee.com/link/SEU_ID/_id_SEU_PROGRAMA/
 //   NEXT_PUBLIC_AFFILIATE_SHOPEE=https://s.shopee.com.br/SUA_URL_AFILIADA
-//   NEXT_PUBLIC_AFFILIATE_ZEENOW=https://www.awin1.com/cread.php?awinmid=127557&awinaffid=SEU_ID
-//   NEXT_PUBLIC_AFFILIATE_ZEEDOG=https://www.awin1.com/cread.php?awinmid=127555&awinaffid=SEU_ID
+//   NEXT_PUBLIC_AFFILIATE_MERCADOLIVRE=https://www.mercadolivre.com.br/social/SUA_TAG?...
 const DEFAULT_SHOPEE_AFFILIATE_URL = 'https://s.shopee.com.br/4AzW1leQcW';
-const DEFAULT_AWIN_PUBLISHER_ID = '3032803';
+const DEFAULT_MERCADOLIVRE_PROFILE_URL = 'https://meli.la/2ftAKx5';
 
 const AFF: Record<HomeShoppingPartnerId, string | undefined> = {
   cobasi:       process.env.NEXT_PUBLIC_AFFILIATE_COBASI,
-  shopee:       process.env.NEXT_PUBLIC_AFFILIATE_SHOPEE ?? DEFAULT_SHOPEE_AFFILIATE_URL,
-  zeenow:       process.env.NEXT_PUBLIC_AFFILIATE_ZEENOW ?? `https://www.awin1.com/cread.php?awinmid=127557&awinaffid=${DEFAULT_AWIN_PUBLISHER_ID}`,
-  zeedog:       process.env.NEXT_PUBLIC_AFFILIATE_ZEEDOG ?? `https://www.awin1.com/cread.php?awinmid=127555&awinaffid=${DEFAULT_AWIN_PUBLISHER_ID}`,
   petz:         undefined, // storefront fixa (storefrontAffiliateUrl abaixo), não usa este mecanismo
+  mercadolivre: process.env.NEXT_PUBLIC_AFFILIATE_MERCADOLIVRE,
+  shopee:       process.env.NEXT_PUBLIC_AFFILIATE_SHOPEE ?? DEFAULT_SHOPEE_AFFILIATE_URL,
 };
-
-function appendAffiliateParam(baseUrl: string, name: string, value: string): string {
-  const separator = baseUrl.includes('?') ? '&' : '?';
-  return `${baseUrl}${separator}${name}=${encodeURIComponent(value)}`;
-}
-
-function buildAwinDeepLink(baseUrl: string, destinationUrl: string): string {
-  if (baseUrl.includes('{ued}')) {
-    return baseUrl.replaceAll('{ued}', encodeURIComponent(destinationUrl));
-  }
-  if (baseUrl.includes('{url}')) {
-    return baseUrl.replaceAll('{url}', encodeURIComponent(destinationUrl));
-  }
-  if (/[?&]ued=/.test(baseUrl)) {
-    return baseUrl;
-  }
-  return appendAffiliateParam(baseUrl, 'ued', destinationUrl);
-}
 
 export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   {
@@ -156,6 +136,48 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
       `${base}&url=${encodeURIComponent(`https://www.cobasi.com.br/busca?q=${encodeURIComponent(query)}`)}`,
   },
   {
+    id: 'petz',
+    name: 'Petz',
+    description: 'Loja parceira PETMOL — cupom PETTMOL, 10% de desconto',
+    logoSrc: '/partner-logos/petz.png',
+    logoAlt: 'Petz',
+    // Programa próprio "Loja Parceira" (25/08/2026) — URL FIXA da vitrine,
+    // sem busca/deep-link por produto (confirmado: a Petz não expõe isso).
+    // Cupom PETTMOL (10% off) é aplicado manualmente pelo tutor no
+    // checkout — nunca embutido na URL. Deve espelhar o mesmo valor de
+    // STOREFRONT_AFFILIATE_URLS["petz"] em affiliate_links.py (backend).
+    //
+    // A Petz só aparece pra um produto específico quando GET
+    // /commerce/petz-direct-link confirma que aquele produto existe no
+    // catálogo da Petz (ver fetchPetzDirectLink em productPricing.ts).
+    affiliateStatus: 'active',
+    merchantType: 'retailer',
+    affiliateMode: 'fixed_store',
+    supportsProductDeepLink: false,
+    supportsStorefrontAffiliate: true,
+    storefrontAffiliateUrl: 'https://petz.com.br/parceiro/pettmol',
+  },
+  {
+    id: 'mercadolivre',
+    name: 'Mercado Livre',
+    description: 'Ofertas marketplace cadastradas com link oficial',
+    logoSrc: '/partner-logos/mercadolivre.png',
+    logoAlt: 'Mercado Livre',
+    directUrl: 'https://lista.mercadolivre.com.br/pet',
+    // Marketplace: ofertas por produto vivem no backend via
+    // MarketplaceOfferProvider("mercadolivre") e só aparecem com link
+    // oficial cadastrado no Gerador de produtos recomendados. A vitrine
+    // genérica abre o perfil/lista de recomendações informado no painel.
+    affiliateStatus: 'active',
+    merchantType: 'marketplace',
+    affiliateMode: 'product_deeplink',
+    supportsProductDeepLink: true,
+    supportsStorefrontAffiliate: true,
+    storefrontAffiliateUrl: DEFAULT_MERCADOLIVRE_PROFILE_URL,
+    buildAffiliateUrl: (query, base) =>
+      base.includes('{query}') ? base.replaceAll('{query}', encodeURIComponent(query)) : base,
+  },
+  {
     id: 'shopee',
     name: 'Shopee',
     description: 'Produtos pet com preços competitivos',
@@ -177,66 +199,6 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     buildAffiliateUrl: (query, base) =>
       base.includes('{query}') ? base.replaceAll('{query}', encodeURIComponent(query)) : base,
   },
-  {
-    id: 'zeenow',
-    name: 'Zee Now',
-    description: 'Entrega rápida de produtos pet',
-    logoSrc: '/partner-logos/zeenow.png',
-    logoAlt: 'Zee Now',
-    fallbackUrl: 'https://www.zeenow.com.br',
-    // Awin advertiser 127557 — approved, feed 116779 com 13.835 produtos.
-    // Ofertas por produto são resolvidas pelo AwinFeedProvider via GTIN.
-    affiliateStatus: 'active',
-    merchantType: 'retailer',
-    affiliateMode: 'product_deeplink',
-    supportsProductDeepLink: true,
-    supportsStorefrontAffiliate: false,
-    buildAffiliateUrl: (query, base) =>
-      buildAwinDeepLink(base, `https://www.zeenow.com.br/busca?q=${encodeURIComponent(query)}`),
-  },
-  {
-    id: 'zeedog',
-    name: 'Zee Dog',
-    description: 'Produtos e acessórios de design para pets',
-    logoSrc: '/partner-logos/zeedog.png',
-    logoAlt: 'Zee Dog',
-    fallbackUrl: 'https://www.zeedog.com.br',
-    // Awin advertiser 127555 — approved, feed 116649 com 1.799 produtos
-    // observados e GTINs válidos. Ofertas por produto são resolvidas pelo
-    // AwinFeedProvider via GTIN.
-    affiliateStatus: 'active',
-    merchantType: 'retailer',
-    affiliateMode: 'product_deeplink',
-    supportsProductDeepLink: true,
-    supportsStorefrontAffiliate: false,
-    buildAffiliateUrl: (query, base) =>
-      buildAwinDeepLink(base, `https://www.zeedog.com.br/busca?q=${encodeURIComponent(query)}`),
-  },
-  {
-    id: 'petz',
-    name: 'Petz',
-    description: 'Loja parceira PETMOL — cupom PETTMOL, 10% de desconto',
-    logoSrc: '/partner-logos/petz.png',
-    logoAlt: 'Petz',
-    // Programa próprio "Loja Parceira" (25/08/2026) — URL FIXA da vitrine,
-    // sem busca/deep-link por produto (confirmado: a Petz não expõe isso).
-    // Cupom PETTMOL (10% off) é aplicado manualmente pelo tutor no
-    // checkout — nunca embutido na URL. Deve espelhar o mesmo valor de
-    // STOREFRONT_AFFILIATE_URLS["petz"] em affiliate_links.py (backend).
-    //
-    // Diferente de Cobasi/Shopee/Zee Now/Zee Dog: NÃO entra em
-    // QUICK_BUY_PARTNERS (petStoreContent.ts) — a Petz só deve aparecer
-    // pra um produto específico quando GET /commerce/petz-direct-link
-    // confirma que aquele produto existe no catálogo da Petz (ver
-    // fetchPetzDirectLink em productPricing.ts), nunca como fallback
-    // genérico de busca.
-    affiliateStatus: 'active',
-    merchantType: 'retailer',
-    affiliateMode: 'fixed_store',
-    supportsProductDeepLink: false,
-    supportsStorefrontAffiliate: true,
-    storefrontAffiliateUrl: 'https://petz.com.br/parceiro/pettmol',
-  },
 ];
 
 // URLs diretas só podem ser usadas em desenvolvimento. Em produção
@@ -244,12 +206,11 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
 // vez de abrir uma busca que não remunera o PETMOL.
 const DIRECT_SEARCH_URLS: Record<HomeShoppingPartnerId, (q: string) => string> = {
   cobasi:       (q) => `https://www.cobasi.com.br/busca?q=${encodeURIComponent(q)}`,
-  shopee:       (q) => `https://shopee.com.br/search?keyword=${encodeURIComponent(q)}`,
-  zeenow:       (q) => `https://www.zeenow.com.br/busca?q=${encodeURIComponent(q)}`,
-  zeedog:       (q) => `https://www.zeedog.com.br/busca?q=${encodeURIComponent(q)}`,
   // Petz não tem busca por produto — resolvePartnerUrl() sempre resolve
   // pela storefrontAffiliateUrl antes de chegar aqui; nunca de fato usado.
   petz:         () => 'https://petz.com.br/parceiro/pettmol',
+  mercadolivre: (q) => `https://lista.mercadolivre.com.br/${encodeURIComponent(q)}`,
+  shopee:       (q) => `https://shopee.com.br/search?keyword=${encodeURIComponent(q)}`,
 };
 
 // Cobasi's "Minha Loja"/"Mais" storefront (minhaloja.cobasi.com.br/paco)
@@ -425,9 +386,10 @@ export function countActiveAffiliates(): number {
 }
 
 // ── Visibilidade comercial (affiliate-only) ────────────────────────────────
-// O catálogo atual do app é deliberadamente pequeno: Cobasi, Shopee, Zee Now
-// e Zee Dog. Remover um merchant daqui é suficiente para tirá-lo das áreas de
-// loja/compra sem depender de flags antigas.
+// O catálogo comercial atual do app é deliberadamente pequeno: Cobasi, Petz,
+// Mercado Livre e Shopee. Zee Now/Zee Dog podem continuar existindo como
+// fonte interna de feed/GTIN no backend, mas não entram nas áreas de
+// loja/compra.
 
 /**
  * Área geral "Lojas": qualquer merchant do catálogo atual aparece, salvo

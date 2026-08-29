@@ -1,19 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 
 describe('homeShoppingPartners — parceiros ativos no app', () => {
-  it('mantém somente Cobasi, Shopee, Zee Now, Zee Dog e Petz no cadastro exposto ao app', async () => {
+  it('mantém somente Cobasi, Petz, Mercado Livre e Shopee no cadastro exposto ao app', async () => {
     const { HOME_SHOPPING_PARTNERS } = await import('./homeShoppingPartners');
 
     expect(HOME_SHOPPING_PARTNERS.map((partner) => partner.id)).toEqual([
       'cobasi',
-      'shopee',
-      'zeenow',
-      'zeedog',
       'petz',
+      'mercadolivre',
+      'shopee',
     ]);
   });
 
-  it('mostra as cinco lojas nos cards e no comprar novamente', async () => {
+  it('mostra as quatro lojas atuais nos cards e no comprar novamente', async () => {
     const {
       HOME_SHOPPING_PARTNERS,
       isPartnerVisibleForSearch,
@@ -25,24 +24,18 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       'active',
       'active',
       'active',
-      'active',
     ]);
     expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
       'cobasi',
-      'shopee',
-      'zeenow',
-      'zeedog',
       'petz',
+      'mercadolivre',
+      'shopee',
     ]);
-    // Petz não entra em isPartnerVisibleForSearch por afinidade de busca —
-    // entra porque tem storefrontAffiliateUrl (mesmo caminho da Cobasi),
-    // não porque suporta busca por produto (supportsProductDeepLink: false).
     expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
       'cobasi',
-      'shopee',
-      'zeenow',
-      'zeedog',
       'petz',
+      'mercadolivre',
+      'shopee',
     ]);
   });
 
@@ -60,6 +53,8 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       const partnerIds = HOME_SHOPPING_PARTNERS.map((partner) => String(partner.id));
       expect(partnerIds).not.toContain('amazon');
       expect(partnerIds).not.toContain('araujo');
+      expect(partnerIds).not.toContain('zeenow');
+      expect(partnerIds).not.toContain('zeedog');
 
       for (const partner of HOME_SHOPPING_PARTNERS) {
         const url = resolvePartnerUrl(partner, 'ração pet', '');
@@ -109,28 +104,24 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
 
       const cobasi = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'cobasi');
       const shopee = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'shopee');
-      const zeenow = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'zeenow');
-      const zeedog = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'zeedog');
+      const mercadoLivre = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'mercadolivre');
       const petz = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'petz');
 
       expect(cobasi && resolvePartnerUrl(cobasi, 'ração pet', '')).toContain('minhaloja.cobasi.com.br');
       expect(shopee && resolvePartnerUrl(shopee, 'ração pet', '')).toBe('https://s.shopee.com.br/4AzW1leQcW');
-      expect(zeenow && resolvePartnerUrl(zeenow, 'ração pet', '')).toContain('https://www.awin1.com/cread.php?awinmid=127557&awinaffid=3032803&ued=');
-      expect(zeedog && resolvePartnerUrl(zeedog, 'ração pet', '')).toContain('https://www.awin1.com/cread.php?awinmid=127555&awinaffid=3032803&ued=');
+      expect(mercadoLivre && resolvePartnerUrl(mercadoLivre, 'ração pet', '')).toBe('https://meli.la/2ftAKx5');
       expect(petz && resolvePartnerUrl(petz, 'ração pet', '')).toContain('petz.com.br/parceiro/pettmol');
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
         'cobasi',
-        'shopee',
-        'zeenow',
-        'zeedog',
         'petz',
+        'mercadolivre',
+        'shopee',
       ]);
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
         'cobasi',
-        'shopee',
-        'zeenow',
-        'zeedog',
         'petz',
+        'mercadolivre',
+        'shopee',
       ]);
     } finally {
       if (previous === undefined) {
@@ -162,10 +153,9 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(partnerGenericLinkType('shopee')).toBe('affiliate_search');
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
         'cobasi',
-        'shopee',
-        'zeenow',
-        'zeedog',
         'petz',
+        'mercadolivre',
+        'shopee',
       ]);
     } finally {
       if (previousOnly === undefined) {
@@ -182,7 +172,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
     }
   });
 
-  it('monta deep link Awin com ued para Zee Now e Zee Dog quando as URLs afiliadas estão configuradas', async () => {
+  it('NEXT_PUBLIC_AFFILIATE_ZEENOW/ZEEDOG não recoloca Zee Now e Zee Dog na loja', async () => {
     const previousOnly = process.env.NEXT_PUBLIC_AFFILIATE_ONLY_COMMERCE;
     const previousZeeNow = process.env.NEXT_PUBLIC_AFFILIATE_ZEENOW;
     const previousZeeDog = process.env.NEXT_PUBLIC_AFFILIATE_ZEEDOG;
@@ -194,27 +184,16 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
     try {
       const {
         HOME_SHOPPING_PARTNERS,
-        resolvePartnerUrl,
         isPartnerVisibleInStoreArea,
       } = await import('./homeShoppingPartners');
 
-      const zeenow = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'zeenow');
-      const zeedog = HOME_SHOPPING_PARTNERS.find((partner) => partner.id === 'zeedog');
-      const zeenowUrl = zeenow && resolvePartnerUrl(zeenow, 'ração baby', '');
-      const zeedogUrl = zeedog && resolvePartnerUrl(zeedog, 'ração baby', '');
-
-      expect(zeenowUrl).toContain('https://www.awin1.com/cread.php?awinmid=127557&awinaffid=123456&ued=');
-      expect(zeenowUrl).toContain(encodeURIComponent('https://www.zeenow.com.br/busca?q=ra%C3%A7%C3%A3o%20baby'));
-      expect(zeenowUrl).not.toContain('&url=');
-      expect(zeedogUrl).toContain('https://www.awin1.com/cread.php?awinmid=127555&awinaffid=123456&ued=');
-      expect(zeedogUrl).toContain(encodeURIComponent('https://www.zeedog.com.br/busca?q=ra%C3%A7%C3%A3o%20baby'));
-      expect(zeedogUrl).not.toContain('&url=');
+      expect(HOME_SHOPPING_PARTNERS.map((partner) => partner.id)).not.toContain('zeenow');
+      expect(HOME_SHOPPING_PARTNERS.map((partner) => partner.id)).not.toContain('zeedog');
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
         'cobasi',
-        'shopee',
-        'zeenow',
-        'zeedog',
         'petz',
+        'mercadolivre',
+        'shopee',
       ]);
     } finally {
       if (previousOnly === undefined) {

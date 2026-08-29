@@ -34,7 +34,7 @@ type SheetMode = 'view' | 'edit' | 'buy';
 // Internal submodes within view — no router.push, no sheet close
 type FoodSubMode = 'main' | 'adjustDuration' | 'finished' | 'channel' | 'restockConfirm';
 
-type PurchaseChannel = 'cobasi' | 'shopee' | 'zeenow' | 'zeedog' | 'loja_fisica' | 'outro';
+type PurchaseChannel = 'cobasi' | 'petz' | 'mercadolivre' | 'shopee' | 'loja_fisica' | 'outro';
 
 type FeedingPlanApiItem = {
   id?: string | null;
@@ -1665,9 +1665,9 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             {(
                               [
                                 ['cobasi', 'Cobasi'],
+                                ['petz', 'Petz'],
+                                ['mercadolivre', 'Mercado Livre'],
                                 ['shopee', 'Shopee'],
-                                ['zeenow', 'Zee Now'],
-                                ['zeedog', 'Zee Dog'],
                                 ['loja_fisica', 'Loja física'],
                                 ['outro', 'Outro'],
                               ] as [PurchaseChannel, string][]

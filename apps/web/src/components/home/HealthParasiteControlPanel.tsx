@@ -311,11 +311,11 @@ export function HealthParasiteControlPanel({
                   autoComplete="off"
                   value={parasiteFormData.purchase_location || ''}
                   onChange={(e) => setParasiteFormData((prev) => ({ ...prev, purchase_location: e.target.value.toUpperCase() }))}
-                  placeholder="Cobasi, Shopee…"
+                  placeholder="Cobasi, Petz…"
                   className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
                 />
                 <datalist id="purchase-locations">
-                  <option value="Cobasi" /><option value="Shopee" /><option value="Zee Now" /><option value="Zee Dog" /><option value="Loja física" /><option value="Clínica veterinária" /><option value="Outro" />
+                  <option value="Cobasi" /><option value="Petz" /><option value="Mercado Livre" /><option value="Shopee" /><option value="Loja física" /><option value="Clínica veterinária" /><option value="Outro" />
                 </datalist>
               </div>
             </div>
