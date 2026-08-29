@@ -222,7 +222,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
               {/* 🐾 Buscar produtos — catálogo Awin sincronizado, no lugar
                   do ícone estático que só levava pro site sem contexto.
                   Multi-loja por natureza (ver AffiliateCatalogSearch.tsx) —
-                  copy neutra para Cobasi, Zee Dog e próximas lojas. Só a
+                  copy neutra para as lojas ativas. Só a
                   busca (texto + escanear/digitar código de barras) — a
                   grade "Explorar categorias" foi removida a pedido. */}
               <div>

@@ -139,7 +139,7 @@ export default function AdminDashboardPage() {
                 {shopeeProgressLoading
                   ? 'Carregando progresso...'
                   : shopeeProgress?.running
-                    ? 'Rodando agora com Cobasi, Zee Now e Zee Dog'
+                    ? 'Rodando agora com feeds internos'
                     : shopeeProgress?.finished_at
                       ? 'Última execução finalizada'
                       : 'Nenhuma execução ativa'}

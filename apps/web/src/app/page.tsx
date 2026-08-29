@@ -73,7 +73,7 @@ export default function LandingPage() {
           iconBg="bg-blue-500"
           tag="Comprar"
           title="Compare preços, sem esforço"
-          body="Remédio, ração ou antiparasitário: comparamos Cobasi, Shopee, Zee Now e Zee Dog automaticamente e mostramos onde sai mais barato."
+          body="Remédio, ração ou antiparasitário: comparamos Cobasi, Petz, Mercado Livre e Shopee automaticamente e mostramos onde há opção de compra."
         />
       </section>
 

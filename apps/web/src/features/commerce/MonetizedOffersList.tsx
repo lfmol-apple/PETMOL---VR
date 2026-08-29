@@ -7,7 +7,7 @@
  * fonte de verdade (useCommerceOffers/fetchCommerceOffers): nunca mostra
  * loja sem link afiliado ativo (Regra 1 — ver docs/AFFILIATES.md).
  *
- * Cobasi, Shopee, Zee Now e Zee Dog são as lojas mantidas por enquanto.
+ * Cobasi, Petz, Mercado Livre e Shopee são as lojas mantidas por enquanto.
  * Petz entra por um caminho paralelo e visualmente distinto (ver
  * PetzStorefrontCard abaixo) — storefront fixa + cupom, sem preço por
  * produto, nunca misturada na comparação de preço acima.

@@ -25,7 +25,7 @@ const BUYABLE_DOMAINS: CareReminderDomain[] = ['food', 'parasite', 'medication']
 
 // Lojas permitidas no app por enquanto. A recompra prioriza ofertas
 // monetizadas do CommerceEngine; este fallback só mostra lojas desta lista.
-export const QUICK_BUY_PARTNERS: HomeShoppingPartnerId[] = ['cobasi', 'shopee', 'zeenow', 'zeedog'];
+export const QUICK_BUY_PARTNERS: HomeShoppingPartnerId[] = ['cobasi', 'petz', 'mercadolivre', 'shopee'];
 
 export interface ReorderCard {
   id: string;

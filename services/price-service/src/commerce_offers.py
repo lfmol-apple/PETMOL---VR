@@ -23,7 +23,7 @@ from typing import Optional
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .awin_advertisers import AWIN_ADVERTISERS, is_awin_merchant_registrable
+from .awin_advertisers import AWIN_PUBLIC_COMMERCE_MERCHANTS, AWIN_ADVERTISERS, is_awin_merchant_registrable
 from .awin_feed_provider import AwinFeedProvider
 from .cobasi_provider import CobasiProvider
 from .commerce_provider import CommerceEngine, CommerceProvider, MonetizedOffer, ProductContext
@@ -77,9 +77,14 @@ def build_default_engine(db: Session) -> CommerceEngine:
     MANUAL (Shopee/ML/Petz direto, quando aprovados — sem feed
     estruturado) = uma linha aqui.
 
-    Providers Awin (feed estruturado) são genéricos — um AwinFeedProvider
-    por merchant em is_awin_merchant_registrable(), que combina o master
-    gate global (config.awin_enabled/awin_shadow_mode) com o status
+    Providers Awin (feed estruturado) são genéricos, mas só são
+    registrados no engine público de compra quando o merchant também está
+    em AWIN_PUBLIC_COMMERCE_MERCHANTS. Zee Now/Zee Dog podem continuar
+    sincronizados/enriquecendo catálogo internamente, mas não viram opção
+    de venda no PETMOL.
+
+    Para merchants vendáveis, is_awin_merchant_registrable() combina o
+    master gate global (config.awin_enabled/awin_shadow_mode) com o status
     técnico de cada merchant (awin_advertisers.py) E o mecanismo de teste
     por GTIN único (config.awin_test_gtin — ver docs/AFFILIATES.md §7).
     "Registrável" é mais permissivo que "publicamente liberado" de
@@ -89,10 +94,7 @@ def build_default_engine(db: Session) -> CommerceEngine:
     find_offer()/monetize() revalida por conta própria se é o GTIN de
     teste ou se o merchant está publicamente liberado de verdade (defesa
     em profundidade — ver awin_feed_provider.py). Sem nenhum dos dois
-    (caso comum), NENHUM AwinFeedProvider é registrado. Zee Dog já entra
-    por esse caminho genérico; Zee Now também. Quando Petz for aprovada e
-    sincronizada, entra sem editar este arquivo (só awin_advertisers.py
-    muda).
+    (caso comum), NENHUM AwinFeedProvider é registrado.
 
     merchant_routes.MERCHANT_ROUTE_POLICIES["cobasi"] decide qual rota
     vence quando mais de um provider resolver a mesma oferta — trocar
@@ -118,6 +120,8 @@ def build_default_engine(db: Session) -> CommerceEngine:
     # tiver rodado antes dele na lista.
     providers: list[CommerceProvider] = []
     for merchant in AWIN_ADVERTISERS:
+        if merchant not in AWIN_PUBLIC_COMMERCE_MERCHANTS:
+            continue
         if is_awin_merchant_registrable(merchant):
             providers.append(AwinFeedProvider(db, merchant))
     providers.append(CobasiProvider(db))

@@ -148,6 +148,12 @@ AWIN_ADVERTISERS: dict[str, AwinAdvertiser] = {
     ),
 }
 
+# Merchants Awin cujo feed pode alimentar endpoints públicos de compra/busca
+# comercial do PETMOL. Zee Now e Zee Dog permanecem cadastrados acima para
+# sync/enriquecimento interno de catálogo/GTIN, mas não são mais lojas de
+# venda expostas ao tutor.
+AWIN_PUBLIC_COMMERCE_MERCHANTS = frozenset({"cobasi"})
+
 
 def get_awin_advertiser(merchant: str) -> Optional[AwinAdvertiser]:
     return AWIN_ADVERTISERS.get(merchant)
@@ -202,6 +208,16 @@ def awin_merchants_publicly_servable() -> list[str]:
     sempre que awin_enabled=False ou awin_shadow_mode=True, mesmo que
     algum merchant esteja enabled=True individualmente."""
     return [m for m in AWIN_ADVERTISERS if is_awin_merchant_publicly_servable(m)]
+
+
+def awin_merchants_publicly_sellable() -> list[str]:
+    """Subset de merchants Awin que podem aparecer como loja/opção de
+    compra no PETMOL. Não altera sync/feed interno."""
+    return [
+        merchant
+        for merchant in AWIN_PUBLIC_COMMERCE_MERCHANTS
+        if is_awin_merchant_publicly_servable(merchant)
+    ]
 
 
 def is_awin_merchant_registrable(merchant: str) -> bool:

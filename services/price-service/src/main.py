@@ -1609,11 +1609,10 @@ async def commerce_awin_search(
     """
     Busca textual dentro do catálogo já sincronizado da Awin
     (AffiliateFeedOffer — ver awin_feed_sync.py), agrupada por GTIN — um
-    mesmo produto pode estar no feed de mais de um merchant (ex: Cobasi e
-    futuramente Petz/Zee Now/Zee Dog, quando aprovados e sincronizados),
-    e o resultado já vem com o "a partir de" e quantas outras lojas têm
-    aquele GTIN, pronto pra virar um grid de preços — sem precisar mudar
-    este endpoint quando um novo merchant Awin for habilitado.
+    mesmo produto pode estar no feed de mais de um merchant, mas este
+    endpoint público só retorna merchants Awin liberados para compra no
+    PETMOL. Zee Now/Zee Dog podem seguir como fonte interna de catálogo/
+    GTIN, mas não aparecem como loja/opção de venda.
 
     Existe pra dar ao tutor um jeito de encontrar um produto real com GTIN
     conhecido dentro do app — sem GTIN, nenhuma tela hoje consegue
@@ -1625,12 +1624,12 @@ async def commerce_awin_search(
     Mercado Livre/Shopee NÃO entram aqui — não têm feed/catálogo
     estruturado. Amazon está desativada desde 22/08/2026.
 
-    Master gate: só busca merchants em awin_merchants_publicly_servable()
-    (awin_enabled=True, awin_shadow_mode=False, merchant individualmente
-    enabled=True — ver awin_advertisers.py). Um `merchant=` explícito
-    NUNCA contorna isto — se o merchant pedido não estiver na lista
-    liberada (pending/disabled/master gate desligado), retorna lista
-    vazia sem consultar nenhuma linha daquele merchant.
+    Master gate: só busca merchants em awin_merchants_publicly_sellable()
+    (subset comercial público + awin_enabled=True, awin_shadow_mode=False,
+    merchant individualmente enabled=True — ver awin_advertisers.py). Um
+    `merchant=` explícito NUNCA contorna isto — se o merchant pedido não
+    estiver na lista liberada para venda, retorna lista vazia sem consultar
+    nenhuma linha daquele merchant.
 
     Agrupamento por GTIN e "menor preço" são calculados no PRÓPRIO SQL
     (window functions ROW_NUMBER/COUNT, Postgres e SQLite — nunca
@@ -1641,9 +1640,9 @@ async def commerce_awin_search(
     AwinFeedProvider: sync em lote, leitura local rápida.
     """
     from .affiliate_feed import AffiliateFeedOffer
-    from .awin_advertisers import awin_merchants_publicly_servable
+    from .awin_advertisers import awin_merchants_publicly_sellable
 
-    allowed = set(awin_merchants_publicly_servable())
+    allowed = set(awin_merchants_publicly_sellable())
     if merchant:
         merchants = [merchant] if merchant in allowed else []
     else:
