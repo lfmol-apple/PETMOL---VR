@@ -178,12 +178,13 @@ def get_monetized_offer(
 
     Petz (25/08/2026): gate único extra — is_petz_publicly_servable()
     exige tanto petz_affiliate_enabled quanto
-    petz_coupon_attribution_verified (prova comercial ainda não validada
-    com compra real, ver docs/PETZ_COMMISSION_VALIDATION.md). Nenhum dos
-    três contextos retorna nada pra merchant="petz" sem isso — mesmo que
-    STOREFRONT_AFFILIATE_URLS/ProductAffiliateLink já tenham dado real
-    cadastrado. Import local pra evitar ciclo (petz_provider importa
-    deste módulo).
+    petz_coupon_attribution_verified (prova comercial validada com
+    compra real em 29/08/2026, ver docs/PETZ_COMMISSION_VALIDATION.md —
+    ambas ligadas explicitamente em produção via env, default no código
+    continua False). Nenhum dos três contextos retorna nada pra
+    merchant="petz" sem isso — mesmo que STOREFRONT_AFFILIATE_URLS/
+    ProductAffiliateLink já tenham dado real cadastrado. Import local
+    pra evitar ciclo (petz_provider importa deste módulo).
 
     Cobasi/Shopee/Mercado Livre (25/08/2026): esta função só verificava
     se a LINHA existia (ProductAffiliateLink/MarketplaceOffer), nunca se

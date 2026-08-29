@@ -44,10 +44,14 @@ def is_petz_publicly_servable() -> bool:
 
     petz_affiliate_enabled = rollout/kill-switch técnico.
     petz_coupon_attribution_verified = prova comercial separada — "o
-    cupom PETTMOL realmente gera comissão" nunca foi validado com uma
-    compra real (ver docs/PETZ_COMMISSION_VALIDATION.md). Produto
+    cupom PETTMOL realmente gera comissão" foi validado com uma compra
+    real em 29/08/2026 (ver docs/PETZ_COMMISSION_VALIDATION.md), então
+    esta flag passou a ser ligada explicitamente em produção. Produto
     confirmado no catálogo (petz_mapping.match_status) NUNCA é, sozinho,
-    prova de monetização — são conceitos distintos por design."""
+    prova de monetização — continuam sendo conceitos distintos por
+    design; o default no código continua False (defesa em profundidade,
+    mesmo padrão de petz_affiliate_enabled) — produção ativa as duas
+    explicitamente via env."""
     settings = get_settings()
     return settings.petz_affiliate_enabled and settings.petz_coupon_attribution_verified
 
