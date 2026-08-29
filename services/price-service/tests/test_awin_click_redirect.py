@@ -17,6 +17,31 @@ AWIN_URL = "https://www.awin1.com/pclick.php?p=31117188249&a=3032803&m=17870&cli
 COBASI_MERCHANT_URL = "https://www.cobasi.com.br/produto-teste/p?idsku=123"
 ZEENOW_AWIN_URL = "https://www.awin1.com/pclick.php?p=45390676945&a=3032803&m=127557"
 ZEEDOG_AWIN_URL = "https://www.awin1.com/pclick.php?p=45390600000&a=3032803&m=127555"
+COBASI_AWC_TARGET = "https://www.cobasi.com.br/produto-teste/p?idsku=123&awc=abc"
+
+
+def _patch_awin_resolution(monkeypatch, expected_url: str, target: str = COBASI_AWC_TARGET) -> None:
+    class FakeResponse:
+        status_code = 200
+        headers = {}
+        url = target
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            assert kwargs.get("follow_redirects") is True
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, url, headers=None):
+            assert url == expected_url
+            assert headers and "Safari" in headers["User-Agent"]
+            return FakeResponse()
+
+    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", FakeClient)
 
 
 def test_supported_awin_pclick_becomes_petmol_redirect():
@@ -48,8 +73,8 @@ def test_cobasi_awin_deep_link_uses_cread_with_product_destination():
     assert query["ued"] == [COBASI_MERCHANT_URL]
 
 
-def test_awin_merchants_that_need_attribution_use_browser_side_strategy():
-    assert should_redirect_awin_in_browser(AWIN_URL) is True
+def test_awin_merchants_that_need_browser_side_tracking_use_browser_side_strategy():
+    assert should_redirect_awin_in_browser(AWIN_URL) is False
     assert should_redirect_awin_in_browser(ZEENOW_AWIN_URL) is True
     assert should_redirect_awin_in_browser(ZEEDOG_AWIN_URL) is True
 
@@ -67,50 +92,36 @@ def test_decode_rejects_non_awin_url():
         decode_awin_click_url(encoded)
 
 
-def test_cobasi_awin_click_redirects_browser_to_original_awin_url(client, monkeypatch):
-    class ForbiddenClient:
-        def __init__(self, *args, **kwargs):
-            raise AssertionError("Cobasi must use Awin browser-side attribution, not server-side resolution")
-
-    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", ForbiddenClient)
+def test_cobasi_awin_click_redirects_to_web_product_url(client, monkeypatch):
+    _patch_awin_resolution(monkeypatch, AWIN_URL)
     redirect_url = build_awin_click_redirect_url(AWIN_URL)
 
     response = client.get(redirect_url, follow_redirects=False)
 
     assert response.status_code == 302
-    assert response.headers["location"] == AWIN_URL
+    assert response.headers["location"] == COBASI_AWC_TARGET
     assert decode_awin_click_url(redirect_url.split("u=", 1)[1]) == AWIN_URL
     assert advertiser_id_from_awin_url(AWIN_URL) == "17870"
 
 
 def test_cobasi_awin_click_preserves_existing_awin_parameters(client, monkeypatch):
     awin_url = "https://www.awin1.com/pclick.php?p=1&a=3032803&m=17870&clickref=PETMOL-26%2F08&ued=https%3A%2F%2Fwww.cobasi.com.br%2Fproduto%2Fp"
-
-    class ForbiddenClient:
-        def __init__(self, *args, **kwargs):
-            raise AssertionError("Cobasi must use Awin browser-side attribution, not server-side resolution")
-
-    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", ForbiddenClient)
+    _patch_awin_resolution(monkeypatch, awin_url)
 
     response = client.get(build_awin_click_redirect_url(awin_url), follow_redirects=False)
 
     assert response.status_code == 302
-    assert response.headers["location"] == awin_url
+    assert response.headers["location"] == COBASI_AWC_TARGET
 
 
-def test_cobasi_awin_click_redirects_cread_to_awin_browser_side(client, monkeypatch):
+def test_cobasi_awin_click_resolves_cread_to_web_product_url(client, monkeypatch):
     awin_url = build_cobasi_awin_deep_link(AWIN_URL, COBASI_MERCHANT_URL)
-
-    class ForbiddenClient:
-        def __init__(self, *args, **kwargs):
-            raise AssertionError("Cobasi must use Awin browser-side attribution, not server-side resolution")
-
-    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", ForbiddenClient)
+    _patch_awin_resolution(monkeypatch, awin_url)
 
     response = client.get(build_awin_click_redirect_url(awin_url), follow_redirects=False)
 
     assert response.status_code == 302
-    assert response.headers["location"] == awin_url
+    assert response.headers["location"] == COBASI_AWC_TARGET
     assert advertiser_id_from_awin_url(awin_url) == "17870"
 
 
@@ -149,11 +160,7 @@ def test_zeedog_awin_click_redirects_browser_to_original_awin_url(client, monkey
     ],
 )
 def test_cobasi_awin_click_is_platform_neutral(client, monkeypatch, user_agent):
-    class ForbiddenClient:
-        def __init__(self, *args, **kwargs):
-            raise AssertionError("Cobasi must use Awin browser-side attribution, not server-side resolution")
-
-    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", ForbiddenClient)
+    _patch_awin_resolution(monkeypatch, AWIN_URL)
 
     response = client.get(
         build_awin_click_redirect_url(AWIN_URL),
@@ -162,7 +169,7 @@ def test_cobasi_awin_click_is_platform_neutral(client, monkeypatch, user_agent):
     )
 
     assert response.status_code == 302
-    assert response.headers["location"] == AWIN_URL
+    assert response.headers["location"] == COBASI_AWC_TARGET
 
 
 @pytest.mark.asyncio

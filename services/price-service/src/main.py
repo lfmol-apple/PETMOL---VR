@@ -1472,9 +1472,8 @@ async def commerce_awin_click(
 
     O parâmetro `u` só aceita URLs Awin geradas por AwinFeedProvider.
     Advertisers que exigem atribuição/cookie no navegador seguem browser-side.
-    Cobasi também fica browser-side: resolver o clique Awin no servidor pode
-    abrir o produto, mas não garante a sessão de conversão no navegador do
-    tutor.
+    Cobasi é resolvida server-side para a URL web final do produto com `awc`,
+    evitando o OneLink abrir a home/app da Cobasi em vez do produto.
     """
     from fastapi.responses import RedirectResponse
     from .awin_click_redirect import decode_awin_click_url, resolve_awin_click_target, should_redirect_awin_in_browser

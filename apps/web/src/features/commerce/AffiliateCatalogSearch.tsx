@@ -50,9 +50,9 @@ type BarcodeLookupState = 'idle' | 'loading' | 'done' | 'not_found' | 'error';
 // <a href target="_blank"> real (nunca window.open()/location.href via
 // JS) — a navegação mais parecida possível com "tocar num link", que é
 // o que as restrições do iOS pra apps instalados esperam. Para Cobasi via
-// Awin, o backend entrega /commerce/awin-click e esse endpoint redireciona
-// o navegador do tutor para a URL Awin/deep-link original; isso preserva o
-// contato browser-side necessário para cookie/sessão de comissão.
+// Awin, o backend entrega /commerce/awin-click e resolve o clique para a
+// URL web final do produto com `awc`; isso evita o OneLink abrir a home/app
+// da Cobasi em vez do produto.
 
 export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilter }: AffiliateCatalogSearchProps) {
   const [query, setQuery] = useState(initialQuery);
