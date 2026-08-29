@@ -32,6 +32,9 @@ AWIN_BROWSER_SIDE_ADVERTISERS = {
     # Nesse caso, deixar Awin/Zee Now decidirem web/app no dispositivo é
     # mais fiel ao modelo last-click/app tracking do que resolver server-side.
     "127557",
+    # Zee Dog BR: mesmo sem app tracking declarado, manter o clique no
+    # navegador do tutor reduz risco de perder cookie/sessão de comissão.
+    "127555",
 }
 
 

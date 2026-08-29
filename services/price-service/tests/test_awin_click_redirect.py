@@ -48,10 +48,10 @@ def test_cobasi_awin_deep_link_uses_cread_with_product_destination():
     assert query["ued"] == [COBASI_MERCHANT_URL]
 
 
-def test_cobasi_and_zeenow_use_browser_side_awin_strategy():
+def test_awin_merchants_that_need_attribution_use_browser_side_strategy():
     assert should_redirect_awin_in_browser(AWIN_URL) is True
     assert should_redirect_awin_in_browser(ZEENOW_AWIN_URL) is True
-    assert should_redirect_awin_in_browser(ZEEDOG_AWIN_URL) is False
+    assert should_redirect_awin_in_browser(ZEEDOG_AWIN_URL) is True
 
 
 def test_unsupported_awin_url_is_left_untouched():
@@ -125,6 +125,19 @@ def test_zeenow_awin_click_redirects_browser_to_original_awin_url(client, monkey
 
     assert response.status_code == 302
     assert response.headers["location"] == ZEENOW_AWIN_URL
+
+
+def test_zeedog_awin_click_redirects_browser_to_original_awin_url(client, monkeypatch):
+    class ForbiddenClient:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("Zee Dog must use Awin browser-side attribution, not server-side resolution")
+
+    monkeypatch.setattr("src.awin_click_redirect.httpx.AsyncClient", ForbiddenClient)
+
+    response = client.get(build_awin_click_redirect_url(ZEEDOG_AWIN_URL), follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == ZEEDOG_AWIN_URL
 
 
 @pytest.mark.parametrize(
