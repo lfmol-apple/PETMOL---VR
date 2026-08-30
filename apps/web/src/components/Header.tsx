@@ -58,7 +58,19 @@ export function Header() {
           <div className={`flex-1 hidden md:flex items-center justify-end gap-4 transition-all duration-500 ${
             showLogo ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
           }`} style={{ transitionDelay: '200ms' }}>
-            
+
+            {/* Conteúdo público */}
+            <Link
+              href="/guias"
+              className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-sm font-black transition-all active:scale-95 ${
+                pathname.startsWith('/guias')
+                  ? 'text-[#0056D2] bg-blue-100 border border-[#0056D2]/25'
+                  : 'text-[#0056D2] bg-blue-50 border border-[#0056D2]/15 hover:bg-blue-100'
+              }`}
+            >
+              <span aria-hidden>📖</span> Guias
+            </Link>
+
             {/* User Auth */}
             {userLabel ? (
               <div className="flex items-center gap-3">
@@ -104,7 +116,18 @@ export function Header() {
           <div className={`flex-1 flex md:hidden items-center justify-end gap-2 transition-all duration-500 ${
             showLogo ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
           }`} style={{ transitionDelay: '200ms' }}>
-            
+
+            <Link
+              href="/guias"
+              className={`inline-flex items-center gap-1 h-9 px-3 rounded-xl text-[13px] font-black transition-all active:scale-95 ${
+                pathname.startsWith('/guias')
+                  ? 'text-[#0056D2] bg-blue-100 border border-[#0056D2]/25'
+                  : 'text-[#0056D2] bg-blue-50 border border-[#0056D2]/15'
+              }`}
+            >
+              <span aria-hidden>📖</span> Guias
+            </Link>
+
             {/* Mobile User Auth */}
             {userLabel ? (
               <div className="flex items-center gap-2">

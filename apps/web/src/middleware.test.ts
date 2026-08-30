@@ -9,6 +9,12 @@ describe('middleware — /loja e /guias chegam à página para retornar 404', ()
     expect(isPublic('/guias/conforto-pets-idosos')).toBe(true);
   });
 
+  it('páginas institucionais da área editorial são públicas', () => {
+    expect(isPublic('/sobre')).toBe(true);
+    expect(isPublic('/politica-editorial')).toBe(true);
+    expect(isPublic('/transparencia')).toBe(true);
+  });
+
   it('rotas autenticadas de verdade continuam exigindo sessão (não viraram públicas por engano)', () => {
     expect(isPublic('/home')).toBe(false);
     expect(isPublic('/profile')).toBe(false);

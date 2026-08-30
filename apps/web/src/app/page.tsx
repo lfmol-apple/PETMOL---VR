@@ -6,6 +6,14 @@ import Link from 'next/link';
 import { getToken } from '@/lib/auth-token';
 import { PetmolTextLogo } from '@/components/ui/BrandBackground';
 
+// Links estáticos para a área editorial — sem importar a base de conteúdo
+// no bundle da landing (a lista completa e dinâmica vive em /guias).
+const HOME_GUIDES = [
+  { slug: 'como-escolher-racao-ideal-cachorro', title: 'Como escolher a ração ideal para o seu cachorro' },
+  { slug: 'quanto-custa-alimentar-cachorro-por-mes', title: 'Quanto custa alimentar um cachorro por mês?' },
+  { slug: 'coleira-ou-peitoral-qual-escolher', title: 'Coleira ou peitoral: qual escolher?' },
+] as const;
+
 export default function LandingPage() {
   const router = useRouter();
 
@@ -19,7 +27,11 @@ export default function LandingPage() {
       {/* Nav */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-5 py-3 flex items-center justify-between">
         <PetmolTextLogo className="text-3xl" color="#0056D2" />
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <Link href="/guias"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-black text-[#0056D2] bg-blue-50 border border-[#0056D2]/15 hover:bg-blue-100 active:scale-[0.97] transition-all">
+            <span aria-hidden>📖</span> Guias
+          </Link>
           <Link href="/login"
             className="px-4 py-2 rounded-xl text-sm font-bold text-[#0056D2] border border-[#0056D2]/30 active:bg-blue-50">
             Entrar
@@ -73,8 +85,38 @@ export default function LandingPage() {
           iconBg="bg-blue-500"
           tag="Comprar"
           title="Compare preços, sem esforço"
-          body="Remédio, ração ou antiparasitário: comparamos Cobasi, Petz, Mercado Livre e Shopee automaticamente e mostramos onde há opção de compra."
+          body="Remédio, ração ou antiparasitário: comparamos as lojas parceiras automaticamente e mostramos onde há opção de compra."
         />
+      </section>
+
+      {/* Guias PETMOL — conteúdo público, sem login */}
+      <section className="px-5 pb-10">
+        <div className="rounded-3xl border border-slate-100 bg-slate-50 p-6">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="text-[17px] font-black text-slate-900">Guias PETMOL</h2>
+            <Link href="/guias" className="text-[12px] font-bold text-[#0056D2]">
+              Ver todos →
+            </Link>
+          </div>
+          <p className="mt-1 text-[13px] text-slate-500">
+            Decisões práticas para tutores de cães — sem precisar criar conta.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {HOME_GUIDES.map((g) => (
+              <li key={g.slug}>
+                <Link
+                  href={`/guias/${g.slug}`}
+                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-[13.5px] font-semibold text-slate-800 active:bg-blue-50"
+                >
+                  {g.title}
+                  <span aria-hidden className="text-slate-300">
+                    →
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       </section>
 
       {/* Social proof */}
@@ -100,11 +142,15 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="mt-auto border-t border-slate-100 px-5 py-5 text-center">
-        <p className="text-xs text-slate-400">© 2026 PETMOL</p>
-        <div className="mt-1 flex justify-center gap-4 text-xs text-slate-400">
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-400">
+          <Link href="/guias" className="hover:text-slate-600">Guias</Link>
+          <Link href="/sobre" className="hover:text-slate-600">Sobre</Link>
+          <Link href="/politica-editorial" className="hover:text-slate-600">Política editorial</Link>
+          <Link href="/transparencia" className="hover:text-slate-600">Transparência</Link>
           <Link href="/legal/privacy" className="hover:text-slate-600">Privacidade</Link>
           <Link href="/legal/terms" className="hover:text-slate-600">Termos de Uso</Link>
         </div>
+        <p className="mt-2 text-xs text-slate-400">© 2026 PETMOL</p>
       </footer>
 
     </div>
