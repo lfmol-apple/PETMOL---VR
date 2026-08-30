@@ -295,7 +295,18 @@ class Settings(BaseSettings):
     # produção sem alguém rodar scripts/sync_shopee_offers.py <gtin> pros
     # produtos desejados (ou cadastrar manualmente via admin) — isso
     # continua sendo uma decisão separada e deliberada.
-    shopee_affiliate_enabled: bool = True
+    #
+    # DEFAULT False no LANÇAMENTO (2026-08-30): a Shopee entra só como
+    # VITRINE (shortlink afiliado no frontend, `homeShoppingPartners.ts`).
+    # As ofertas por PRODUTO (`/commerce/offers`) ficam desligadas até o
+    # projeto de precisão da Shopee: a API de afiliado da Shopee não tem
+    # lookup por GTIN (só busca textual — ver shopee_affiliate_client.py),
+    # o job de sync está acoplado à Awin (que está off) e as ofertas
+    # atuais estão defasadas/podem casar variante errada (ex: coleira de
+    # tamanho errado). Reativar = flip pra True + sync curado + fresco.
+    # `sync_shopee_offer_for_gtin` continua seguro rodar com isto False
+    # (só grava Postgres, não expõe nada).
+    shopee_affiliate_enabled: bool = False
     # Documentação de pendência externa, não uma flag de gate — setar isto
     # não aprova nada sozinho; é só pra não perder de vista qual mídia
     # estamos tentando confirmar no Portal do Afiliado.
