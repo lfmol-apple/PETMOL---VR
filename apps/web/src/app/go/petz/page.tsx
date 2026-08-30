@@ -112,30 +112,35 @@ function PetzBridge() {
           </span>
         </button>
 
+        {goesToSearch && productName && (
+          <div style={{ marginBottom: 10, textAlign: 'left' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, color: '#64748b' }}>
+              PROCURANDO NA PETZ
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
+              {productName}
+            </div>
+          </div>
+        )}
+
         {goesToSearch && (
           <div
             style={{
-              border: '1px solid #e2e8f0',
+              border: '1px solid #fde68a',
               borderRadius: 12,
-              padding: '10px 12px',
-              background: '#fff',
+              padding: '12px 14px',
+              background: '#fffbeb',
               marginBottom: 14,
               textAlign: 'left',
+              display: 'flex',
+              gap: 10,
             }}
           >
-            {productName && (
-              <>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, color: '#64748b' }}>
-                  PROCURANDO NA PETZ
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '2px 0 8px' }}>
-                  {productName}
-                </div>
-              </>
-            )}
-            <div style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.45 }}>
-              Na lista da Petz, toque no <strong>➕</strong> do produto pra adicionar ao
-              carrinho. Tocar na foto abre o app da Petz.
+            <span style={{ fontSize: 20, lineHeight: 1 }}>👆</span>
+            <div style={{ fontSize: 13, color: '#713f12', lineHeight: 1.5 }}>
+              Na lista da Petz, toque no botão <strong>➕ preto</strong> do produto pra jogar
+              no carrinho.<br />
+              <strong>Não toque na foto</strong> — ela leva pra outro produto / abre o app da Petz.
             </div>
           </div>
         )}
