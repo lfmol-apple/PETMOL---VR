@@ -11,6 +11,7 @@ import { localTodayISO } from '@/lib/localDate';
 import { scheduleFoodReminder, cancelFoodRemindersForPet, buildRemindAt } from '@/features/notifications/pushService';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { petDo } from '@/lib/petGender';
+import { CoachMark } from '@/components/CoachMark';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import { guessFoodKind, type ScannedProduct } from '@/lib/productScanner';
 import { resolveFoodCommerceSnapshot } from '@/features/commerce/homeContextualCommerce';
@@ -1275,6 +1276,12 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
               {/* Scrollable body */}
               <div ref={scrollBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <div className="px-4 pb-8 space-y-4">
+                  {(!hasFood || showFreshChoice) && (
+                    <CoachMark id="food-intro">
+                      Cadastrando o que {pet.pet_name} come, o PETMOL estima quando a ração vai acabar
+                      e facilita a próxima compra — sem você precisar ficar de olho no saco.
+                    </CoachMark>
+                  )}
                   {/* ── SEM RAÇÃO ──────────────────────────────────────────── */}
                   {(!hasFood || showFreshChoice) && (
                     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 space-y-4">

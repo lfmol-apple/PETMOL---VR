@@ -687,12 +687,16 @@ export function MedicationItemSheet({
                 </div>
               )}
 
-              {/* Empty state */}
+              {/* Empty state — o que é, por que preencher, o que fazer */}
               {medications.length === 0 && (
-                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-8 text-center">
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-6 text-center">
                   <p className="text-4xl mb-3">💊</p>
-                  <p className="text-sm font-semibold text-gray-600">Nenhuma medicação registrada</p>
-                  <p className="text-xs text-gray-400 mt-1">Registre uma prescrição acima</p>
+                  <p className="text-sm font-semibold text-gray-700">Nenhum remédio em andamento</p>
+                  <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                    Se {petName || 'seu pet'} está tomando algum medicamento, registre aqui: o PETMOL
+                    lembra a hora de cada dose e avisa quando a caixa estiver acabando.
+                  </p>
+                  <p className="text-[11px] font-semibold text-gray-400 mt-3">Registre a prescrição acima.</p>
                 </div>
               )}
 

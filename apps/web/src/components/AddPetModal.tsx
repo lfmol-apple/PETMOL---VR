@@ -60,6 +60,8 @@ const CAT_BREEDS = [
 
 // ── Primitives ────────────────────────────────────────────────────────────────
 
+const SRD_BREED = 'SRD (Sem Raça Definida)';
+
 const label = 'block text-[11px] font-bold text-slate-500 uppercase tracking-wide';
 
 const segBtn = (active: boolean) =>
@@ -332,6 +334,18 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
         </span>
       </button>
 
+      {/* Atalho de um toque para quem não sabe a raça — não obriga o tutor
+          leigo a abrir a lista e procurar. */}
+      {value !== SRD_BREED && (
+        <button
+          type="button"
+          onClick={() => onChange(SRD_BREED)}
+          className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-600 active:bg-slate-50"
+        >
+          Não sei / vira-lata (SRD)
+        </button>
+      )}
+
       {open && (
         <div
           ref={wrapperRef}
@@ -468,6 +482,9 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
           });
         } catch { /* non-fatal */ }
       }
+
+      // Marco de ativação (North Star petmol_activated_v1 — lido em PushActionSheet).
+      try { localStorage.setItem('petmol_activation_pet_created_v1', '1'); } catch { /* noop */ }
 
       trackV1Metric('pet_created', { pet_id: savedPet.id, species, has_photo: Boolean(petPhotoDataUrl), source: 'add_pet_modal' });
       onComplete();

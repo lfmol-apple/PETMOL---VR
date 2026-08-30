@@ -9,6 +9,7 @@ import { trackV1Metric } from '@/lib/v1Metrics';
 export default function WelcomePage() {
   const router = useRouter();
   const [visible, setVisible] = useState(false);
+  const [showVideoSoon, setShowVideoSoon] = useState(false);
 
   useEffect(() => {
     if (!getToken()) { router.push('/login'); return; }
@@ -52,13 +53,23 @@ export default function WelcomePage() {
 
             {/* Headline */}
             <h1 className="text-[28px] font-black text-slate-900 leading-tight tracking-tight">
-              Nós te ajudamos a cuidar de quem ama você
+              Vamos preparar o PETMOL para o seu pet 🐾
             </h1>
 
             {/* Subtext */}
             <p className="mt-3 text-sm text-slate-500 leading-relaxed font-medium">
-              O PETMOL organiza vacinas, remédios, ração e tudo mais — para você nunca esquecer nada do que importa.
+              Leva cerca de 2 minutos. Você pode completar o restante depois.
             </p>
+
+            {/* Vídeo — espaço opcional, ajuda complementar (ainda sem vídeo hospedado) */}
+            <button
+              type="button"
+              onClick={() => setShowVideoSoon(true)}
+              className="mt-5 flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left active:bg-slate-100 transition-colors"
+            >
+              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#0056D2] text-white text-sm">▶</span>
+              <span className="text-[13px] font-bold text-slate-700">Como funciona o PETMOL — 45 segundos</span>
+            </button>
 
             {/* Divider */}
             <div className="my-6 h-px bg-slate-100" />
@@ -66,10 +77,10 @@ export default function WelcomePage() {
             {/* CTA */}
             <button
               type="button"
-              onClick={() => { trackV1Metric('welcome_register_pet_clicked', {}); router.push('/register-pet'); }}
+              onClick={() => { trackV1Metric('welcome_register_pet_clicked', {}); router.push('/home?addPet=1'); }}
               className="w-full rounded-2xl bg-[#0056D2] px-5 py-4 text-base font-black text-white shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform"
             >
-              Cadastrar meu pet
+              Adicionar meu pet
             </button>
             <button
               type="button"
@@ -82,6 +93,32 @@ export default function WelcomePage() {
         </div>
 
       </div>
+
+      {showVideoSoon && (
+        <div
+          className="fixed inset-0 z-[200] flex items-end justify-center sm:items-center p-4"
+          onClick={() => setShowVideoSoon(false)}
+        >
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-xl text-[#0056D2]">▶</div>
+            <p className="text-base font-black text-slate-900">Vídeo em breve</p>
+            <p className="mt-1.5 text-sm text-slate-500 leading-relaxed">
+              Estamos preparando um resumo de 45 segundos. Por enquanto, o próprio app te guia — é só adicionar seu pet.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowVideoSoon(false)}
+              className="mt-4 w-full rounded-2xl bg-[#0056D2] py-3 text-sm font-black text-white active:scale-[0.98] transition-transform"
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
     </BrandBackground>
   );
 }

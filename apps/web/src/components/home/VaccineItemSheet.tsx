@@ -7,6 +7,7 @@ import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
 import { ModalPortal } from '@/components/ModalPortal';
 import { localTodayISO } from '@/lib/localDate';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
+import { CoachMark } from '@/components/CoachMark';
 import { AffiliateCatalogSearch } from '@/features/commerce/AffiliateCatalogSearch';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -357,6 +358,13 @@ export function VaccineItemSheet({
           <p className="mx-4 mt-3 mb-1 text-[10px] text-gray-400 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
           {mode === 'view' && (
             <div className="p-5 space-y-3 pb-8">
+
+            {vaccines.length === 0 && (
+              <CoachMark id="vaccines-intro" className="mb-1">
+                Aqui fica o histórico de vacinas {petName ? `de ${petName}` : 'do seu pet'}. Registre a última
+                vacina para o PETMOL organizar os próximos cuidados.
+              </CoachMark>
+            )}
 
             {/* ── REGISTRO RÁPIDO (colapsável) ──────────────────────────── */}
             <div className="rounded-2xl border border-gray-200 overflow-hidden">
