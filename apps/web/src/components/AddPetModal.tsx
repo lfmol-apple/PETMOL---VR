@@ -411,7 +411,10 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
   // Raça é obrigatória para cão/gato (a lista inclui "SRD" para quem não sabe).
   // Para "Outro" não há seletor de raça, então não bloqueia.
   const breedRequired = speciesSeg !== 'other';
-  const canSubmit = name.trim().length > 0 && (!breedRequired || breed.trim().length > 0);
+  const canSubmit =
+    name.trim().length > 0 &&
+    petPhoto.trim().length > 0 &&
+    (!breedRequired || breed.trim().length > 0);
 
   const handlePhotoPickerConfirm = useCallback((dataUrl: string) => {
     setShowPhotoPicker(false);
@@ -422,6 +425,7 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
   const handleSubmit = async () => {
     setError('');
     if (!name.trim()) { setError('Preencha o nome do pet.'); return; }
+    if (!petPhoto.trim()) { setError('Adicione uma foto do pet.'); return; }
     if (breedRequired && !breed.trim()) { setError('Selecione a raça do pet (use "SRD" se não souber).'); return; }
 
     const token = getToken();
@@ -506,7 +510,7 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
               {/* Foto */}
               <div className="flex flex-col items-center gap-2">
                 <button type="button" onClick={() => setShowPhotoPicker(true)}
-                  className="relative w-28 h-28 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center active:scale-[0.97] transition-transform">
+                  className={`relative w-28 h-28 rounded-full bg-slate-50 border-2 border-dashed flex items-center justify-center active:scale-[0.97] transition-transform ${petPhoto ? 'border-slate-300' : 'border-rose-300'}`}>
                   {petPhoto ? (
                     <img src={petPhoto} alt="Pet" className="w-full h-full object-cover rounded-full" />
                   ) : (
@@ -518,9 +522,9 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
                 </button>
                 <button type="button" onClick={() => setShowPhotoPicker(true)}
                   className="text-[13px] font-bold text-[#0056D2] active:opacity-70 transition-opacity">
-                  {petPhoto ? 'Trocar foto' : 'Adicionar foto do pet'}
+                  {petPhoto ? 'Trocar foto' : 'Adicionar foto do pet *'}
                 </button>
-                <span className="text-[11px] text-slate-400 font-medium -mt-1">Opcional</span>
+                {!petPhoto && <span className="text-[11px] text-rose-500 font-semibold -mt-1">Obrigatória</span>}
               </div>
 
               {/* Nome */}
