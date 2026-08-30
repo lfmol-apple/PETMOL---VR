@@ -287,9 +287,9 @@ export function VaccineItemSheet({
         )}
 
         {/* Header */}
-        <div className="px-5 pt-4 pb-3 bg-white border-b border-sky-100 flex-shrink-0">
+        <div className="px-5 pt-3 pb-2.5 bg-white border-b border-sky-100 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-3xl flex-shrink-0">
+            <div className="w-11 h-11 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-2xl flex-shrink-0">
               {petPhotoSrc ? (
                 <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
               ) : (
@@ -297,16 +297,14 @@ export function VaccineItemSheet({
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-wrap">
                 <h2 className="text-[16px] font-bold text-gray-900 leading-tight whitespace-nowrap">Vacinas</h2>
-              </div>
-              {petName && (
-                <p className="mt-1">
-                  <span className="inline-flex max-w-full items-center px-2.5 py-1 rounded-full bg-white text-sky-800 text-xs font-black tracking-[0.04em] shadow-sm border border-sky-100 whitespace-normal break-all leading-tight">
+                {petName && (
+                  <span className="inline-flex max-w-full items-center px-2 py-0.5 rounded-full bg-white text-sky-800 text-[11px] font-black tracking-[0.04em] shadow-sm border border-sky-100 whitespace-normal break-all leading-tight">
                     {petName}
                   </span>
-                </p>
-              )}
+                )}
+              </div>
               <div className="flex items-center gap-2 mt-0.5">
                 {status.dot === 'bg-rose-500' ? (
                   <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-sm border border-white/50 flex-shrink-0">
