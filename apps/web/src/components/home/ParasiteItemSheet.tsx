@@ -448,6 +448,8 @@ export function ParasiteItemSheet({
       });
       if (res.ok) {
         showToast('🗑️ Registro removido');
+        setMode('view');
+        setEditRecord(null);
         await onRefresh();
       } else {
         const errorText = await res.text().catch(() => '');
@@ -887,6 +889,15 @@ export function ParasiteItemSheet({
                 className={`w-full py-4 rounded-2xl text-[15px] font-bold shadow-sm disabled:opacity-50 ${cfg.colorBtn}`}
               >
                 {saving ? 'Salvando...' : '✅ Salvar alterações'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(editRecord.id)}
+                disabled={saving}
+                className="w-full py-3 rounded-2xl text-[14px] font-bold text-red-600 bg-red-50 border border-red-100 active:scale-[0.98] transition-transform disabled:opacity-50"
+              >
+                🗑 Excluir este registro
               </button>
             </div>
           )}

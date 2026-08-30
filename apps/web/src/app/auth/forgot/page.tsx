@@ -20,6 +20,7 @@ export default function ForgotPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const [showPw, setShowPw] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -148,12 +149,21 @@ export default function ForgotPage() {
           ) : (
             <form onSubmit={confirmReset} className="mt-6 space-y-4">
               <div>
-                <label htmlFor="password" className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                  Nova senha
-                </label>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="password" className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    Nova senha
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowPw((v) => !v)}
+                    className="text-[12px] font-bold text-blue-600 active:text-blue-800"
+                  >
+                    {showPw ? 'Ocultar' : 'Ver senha'}
+                  </button>
+                </div>
                 <input
                   id="password"
-                  type="password"
+                  type={showPw ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Mínimo 6 caracteres"
@@ -168,13 +178,16 @@ export default function ForgotPage() {
                 </label>
                 <input
                   id="confirmPassword"
-                  type="password"
+                  type={showPw ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Repita a nova senha"
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[15px] outline-none transition-all focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
                   required
                 />
+                {confirmPassword.length > 0 && password !== confirmPassword && (
+                  <p className="mt-1 text-[12px] font-semibold text-rose-600">As senhas não coincidem.</p>
+                )}
               </div>
 
               <button

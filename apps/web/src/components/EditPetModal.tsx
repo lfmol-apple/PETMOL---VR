@@ -10,6 +10,7 @@ import { PetPhotoPicker } from './PetPhotoPicker';
 import { ModalPortal } from '@/components/ModalPortal';
 import { resolveBackendPetPhoto } from '@/lib/backendPetProfile';
 import { localTodayISO } from '@/lib/localDate';
+import { sanitizePetName } from '@/lib/petName';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
 
 // ── Breed data (sincronizado com register-pet) ────────────────────────────────
@@ -589,7 +590,7 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
               <ZoomedField
                 labelText="Nome do pet *"
                 value={formData.name}
-                onChange={v => set('name', v)}
+                onChange={v => set('name', sanitizePetName(v))}
                 placeholder="Ex: Mel"
               />
 

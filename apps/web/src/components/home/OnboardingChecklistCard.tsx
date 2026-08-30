@@ -235,7 +235,9 @@ export function OnboardingChecklistCard({
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-widest text-blue-500">Configuração inicial</p>
           <p className="mt-1 text-[16px] font-black leading-tight text-slate-900">
-            {progress.doneCount > 1 ? `Continue preparando ${artigo} ${name}` : `Vamos deixar ${artigo} ${name} pronto`}
+            {progress.doneCount > 1
+              ? `Continue registrando cuidados ${artigo} ${name}`
+              : `Vamos preparar os cuidados ${artigo} ${name}`}
           </p>
         </div>
         <button
