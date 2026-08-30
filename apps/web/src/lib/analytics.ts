@@ -62,6 +62,13 @@ type EventName =
   | 'welcome_register_pet_clicked'
   | 'welcome_skipped'
   | 'signup_started'
+  | 'onboarding_started'
+  | 'first_pet_created'
+  | 'onboarding_food_completed'
+  | 'onboarding_vaccine_completed'
+  | 'onboarding_parasite_completed'
+  | 'onboarding_dewormer_completed'
+  | 'onboarding_skipped'
   | 'onboarding_completed'
   | 'account_deleted'
   | 'feedback_submitted';

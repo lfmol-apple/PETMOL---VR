@@ -20,6 +20,7 @@ const CONFIG = {
   dewormer: {
     title: 'Vermífugo',
     icon: '🪱',
+    why: 'Vermes são comuns e nem sempre dão sintoma. Com a data da última dose, o PETMOL lembra da próxima na hora certa.',
     ctaLabel: 'Aplicar agora',
     buyLabel: 'Comprar Vermífugo',
     defaultFrequency: 90,
@@ -34,6 +35,7 @@ const CONFIG = {
   flea_tick: {
     title: 'Antipulgas / Carrapatos',
     icon: '🛡️',
+    why: 'Pulgas e carrapatos transmitem doenças. Registrando a proteção atual, o PETMOL avisa quando estiver na hora de reaplicar.',
     ctaLabel: 'Aplicar agora',
     buyLabel: 'Comprar Antipulgas',
     defaultFrequency: 30,
@@ -48,6 +50,7 @@ const CONFIG = {
   collar: {
     title: 'Coleira Antiparasitária',
     icon: '📿',
+    why: 'A coleira protege por meses contra pulgas, carrapatos e o mosquito da leishmaniose. Com a data de troca, o PETMOL avisa antes de vencer.',
     ctaLabel: 'Troquei hoje',
     buyLabel: 'Comprar Coleira',
     defaultFrequency: 120,
@@ -599,12 +602,16 @@ export function ParasiteItemSheet({
                 );
               })()}
 
-              {/* Empty state */}
+              {/* Empty state — responde o que é, por que preencher e o que fazer */}
               {!current && (
-                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-8 text-center">
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-6 text-center">
                   <p className="text-4xl mb-3">{cfg.icon}</p>
-                  <p className="text-sm font-semibold text-gray-600">Nenhum registro encontrado</p>
-                  <p className="text-xs text-gray-400 mt-1">Registre a primeira aplicação abaixo</p>
+                  <p className="text-sm font-semibold text-gray-700">
+                    {petName ? `${petName} usa proteção contra ` : 'Proteção contra '}
+                    {type === 'dewormer' ? 'vermes?' : type === 'collar' ? 'parasitas com coleira?' : 'pulgas e carrapatos?'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2 leading-relaxed">{cfg.why}</p>
+                  <p className="text-[11px] font-semibold text-gray-400 mt-3">Registre a última aplicação abaixo.</p>
                 </div>
               )}
 

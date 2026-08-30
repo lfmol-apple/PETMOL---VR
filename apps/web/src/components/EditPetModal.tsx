@@ -2,7 +2,7 @@
 import { getToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Camera, X, Save } from 'lucide-react';
+import { Camera, Plus, X, Save } from 'lucide-react';
 import { PetSpecies } from '@/lib/petTaxonomy';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { isPetProfileCompleted, trackV1Metric } from '@/lib/v1Metrics';
@@ -68,11 +68,11 @@ const OWN_PHOTO_HOSTS = ['petmol.app', 'petmol.com.br', 'www.petmol.com.br', 'lo
 const lbl = 'block text-[11px] font-bold text-slate-500 uppercase tracking-wide';
 
 const segBtn = (active: boolean) =>
-  `flex-1 py-3 rounded-xl border text-sm font-semibold transition-all ${
-    active ? 'border-[#0056D2] bg-blue-50 text-[#0047ad]' : 'border-slate-200 bg-white text-slate-600'
+  `flex-1 py-3 rounded-xl border-2 text-sm font-semibold transition-all ${
+    active ? 'border-[#0056D2] bg-blue-50 text-[#0047ad]' : 'border-slate-300 bg-white text-slate-600'
   }`;
 
-const inputCls = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base outline-none transition-all duration-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10 focus:py-4 focus:px-5 focus:shadow-lg focus:shadow-blue-500/10';
+const inputCls = 'w-full rounded-2xl border-2 border-slate-300 bg-white px-4 py-3.5 text-base outline-none transition-all duration-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:shadow-lg focus:shadow-blue-500/10';
 
 // Toggle visual — div sem estilos padrão de browser (button no Safari quebra backgroundColor)
 function Toggle({ on }: { on: boolean }) {
@@ -133,7 +133,7 @@ function ZoomedField({
       <button
         type="button"
         onClick={openPanel}
-        className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base text-left transition-all duration-200 active:scale-[0.99] active:bg-slate-50"
+        className="w-full rounded-2xl border-2 border-slate-300 bg-white px-5 py-4 text-base text-left transition-all duration-200 active:scale-[0.99] active:bg-slate-50"
       >
         <span className={value ? 'text-slate-900 font-semibold' : 'text-slate-400'}>
           {value || placeholder}
@@ -222,7 +222,7 @@ function ZoomedWeightField({
       <button
         type="button"
         onClick={openPanel}
-        className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base text-left transition-all duration-200 active:scale-[0.99] active:bg-slate-50"
+        className="w-full rounded-2xl border-2 border-slate-300 bg-white px-5 py-4 text-base text-left transition-all duration-200 active:scale-[0.99] active:bg-slate-50"
       >
         <span className={value ? 'text-slate-900 font-semibold' : 'text-slate-400'}>
           {value ? `${value} ${unit}` : 'Ex: 8.5 kg'}
@@ -330,7 +330,7 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
       <button
         type="button"
         onClick={openSheet}
-        className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base text-left outline-none transition-all duration-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10 focus:shadow-lg focus:shadow-blue-500/10 active:scale-[0.99]"
+        className="w-full rounded-2xl border-2 border-slate-300 bg-white px-5 py-4 text-base text-left outline-none transition-all duration-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:shadow-lg focus:shadow-blue-500/10 active:scale-[0.99]"
       >
         <span className={value ? 'text-slate-900 font-medium' : 'text-slate-400'}>
           {value || 'Selecionar raça…'}
@@ -566,18 +566,22 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
             <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-5 py-5 space-y-5">
 
               {/* Foto */}
-              <div className="flex justify-center">
+              <div className="flex flex-col items-center gap-2">
                 <button type="button" onClick={() => setShowPhotoPicker(true)}
-                  className="relative w-24 h-24 rounded-full overflow-hidden bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center active:opacity-80 transition-opacity">
+                  className="relative w-28 h-28 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center active:scale-[0.97] transition-transform">
                   {petPhotoUrl ? (
-                    <img src={petPhotoUrl} alt={formData.name || 'Pet'} className="w-full h-full object-cover"
+                    <img src={petPhotoUrl} alt={formData.name || 'Pet'} className="w-full h-full object-cover rounded-full"
                       onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                   ) : (
-                    <div className="flex flex-col items-center gap-1">
-                      <Camera className="w-6 h-6 text-slate-400" />
-                      <span className="text-[10px] font-semibold text-slate-400">Foto</span>
-                    </div>
+                    <Camera className="w-8 h-8 text-slate-400" />
                   )}
+                  <span className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-[#0056D2] border-[3px] border-white flex items-center justify-center shadow-md">
+                    <Plus className="w-4 h-4 text-white" strokeWidth={3} />
+                  </span>
+                </button>
+                <button type="button" onClick={() => setShowPhotoPicker(true)}
+                  className="text-[13px] font-bold text-[#0056D2] active:opacity-70 transition-opacity">
+                  {petPhotoUrl ? 'Trocar foto' : 'Adicionar foto do pet'}
                 </button>
               </div>
 

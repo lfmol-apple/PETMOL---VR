@@ -6,6 +6,7 @@ import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { normalizeBackendPetProfiles } from '@/lib/backendPetProfile';
+import { trackV1Metric } from '@/lib/v1Metrics';
 import { navigateToPetHealthTab } from '@/features/interactions/homeHealthNavigation';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import type { EventFormState } from '@/hooks/usePetEventManagement';
@@ -199,6 +200,10 @@ export function useHomeModalUtilityActions({
     setPets(convertedPets);
     if (convertedPets.length > 0) {
       const newPetId = convertedPets[convertedPets.length - 1].pet_id;
+      // Primeiro pet da conta — marco de ativação do funil de onboarding.
+      if (convertedPets.length === 1) {
+        trackV1Metric('first_pet_created', { pet_id: newPetId });
+      }
       setSelectedPetId(newPetId);
       console.log('[AddPet] Forcando reload da foto do pet:', newPetId);
       setPhotoTimestamps((prev) => ({

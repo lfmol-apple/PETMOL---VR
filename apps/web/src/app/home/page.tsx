@@ -33,6 +33,7 @@ const VaccineItemSheet = dynamic(() => import('@/components/home/VaccineItemShee
 const MedicationItemSheet = dynamic(() => import('@/components/home/MedicationItemSheet').then(m => ({ default: m.MedicationItemSheet })), { ssr: false });
 const FoodItemSheet = dynamic(() => import('@/components/home/FoodItemSheet').then(m => ({ default: m.FoodItemSheet })), { ssr: false });
 const GroomingItemSheet = dynamic(() => import('@/components/home/GroomingItemSheet').then(m => ({ default: m.GroomingItemSheet })), { ssr: false });
+const OnboardingChecklistCard = dynamic(() => import('@/components/home/OnboardingChecklistCard').then(m => ({ default: m.OnboardingChecklistCard })), { ssr: false });
 const PetSumidoSheet = dynamic(() => import('@/components/home/PetSumidoSheet').then(m => ({ default: m.PetSumidoSheet })), { ssr: false });
 const UpcomingEventsSheet = dynamic(() => import('@/components/home/UpcomingEventsSheet').then(m => ({ default: m.UpcomingEventsSheet })), { ssr: false });
 import type { PetCareReminder } from '@/lib/petCareDomain';
@@ -380,9 +381,6 @@ function HomePageInner() {
     })();
   }, []);
 
-  // Check-up inicial banner
-  const [checkupBanner, setCheckupBanner] = useState<{ petName: string; pendingCount: number } | null>(null);
-
   // Files received via PWA Web Share Target (WhatsApp → PETMOL)
   const [sharedFiles, setSharedFiles] = useState<File[] | undefined>(undefined);
 
@@ -419,18 +417,6 @@ function HomePageInner() {
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (localStorage.getItem('petmol_checkup_dismissed')) return;
-    const raw = localStorage.getItem('petmol_checkup_v1');
-    if (!raw) return;
-    try {
-      const s = JSON.parse(raw) as Record<string, string>;
-      const pending = ['vaccines', 'vermifugo', 'antipulgas', 'food'].filter((k) => s[k] !== 'done' && s[k] !== 'skipped' && s[k] !== 'none').length;
-      if (pending > 0) setCheckupBanner({ petName: s.petName || 'seu pet', pendingCount: pending });
-    } catch {}
   }, []);
 
   // Pull-to-refresh
@@ -470,9 +456,6 @@ function HomePageInner() {
   const [editPetInitialSection, setEditPetInitialSection] = useState<'food' | 'grooming' | undefined>(undefined);
   const [pushActionSheet, setPushActionSheet] = useState<{ type: ActionSheetType; petId: string; itemName?: string; eventId?: string } | null>(null);
   const [healthQuickAction, setHealthQuickAction] = useState<QuickActionContext | null>(null);
-  const pushActionSheetWasOpenRef = useRef(false);
-  const editModalWasOpenRef = useRef(false);
-  const vaccineSheetWasOpenRef = useRef(false);
   const handledPushFoodActionRef = useRef<string | null>(null);
   const [showAddPetModal, setShowAddPetModal] = useState(false);
   const [showHealthModal, setShowHealthModal] = useState(false);
@@ -1560,6 +1543,19 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     setDocFolderModal,
   });
 
+  // ?addPet=1 — vindo do /welcome ("Adicionar meu pet") e do /register-pet
+  // (que agora só redireciona pra cá). Abre o AddPetModal real, sem
+  // formulário paralelo.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('addPet') === '1') {
+      openAddPetModal();
+      params.delete('addPet');
+      const qs = params.toString();
+      router.replace(qs ? `/home?${qs}` : '/home', { scroll: false });
+    }
+  }, [openAddPetModal, router]);
+
   const handlePushActionCommerceOpen = useCallback(() => {
     if (!pushActionSheet) return;
     if (selectedPetId !== pushActionSheet.petId) {
@@ -1640,49 +1636,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   const alertVaccinesValue = selectedPetCardAlerts.vacinas;
   const alertParasitesValue = selectedPetCardAlerts.vermifugo || selectedPetCardAlerts.antipulgas || selectedPetCardAlerts.coleira;
   const alertMedicationValue = medicationCardStatus.alert;
-
-  // Retorno automático ao check-up quando o modal fecha
-  useEffect(() => {
-    if (pushActionSheet !== null) {
-      pushActionSheetWasOpenRef.current = true;
-    } else if (pushActionSheetWasOpenRef.current) {
-      pushActionSheetWasOpenRef.current = false;
-      if (typeof window !== 'undefined' && sessionStorage.getItem('petmol_checkup_return') === '1') {
-        sessionStorage.removeItem('petmol_checkup_return');
-        router.push('/check-up');
-      }
-    }
-  }, [pushActionSheet, router]);
-
-  // Retorno automático ao check-up quando toda a jornada de vacina termina
-  // (sheet → form → quick-add; só redireciona quando TUDO fecha)
-  useEffect(() => {
-    if (showVaccineSheet) {
-      vaccineSheetWasOpenRef.current = true;
-    }
-
-    const allVaccineClosed = !showVaccineSheet && !showVaccineForm && !showQuickAddVaccine;
-    if (vaccineSheetWasOpenRef.current && allVaccineClosed) {
-      vaccineSheetWasOpenRef.current = false;
-      if (typeof window !== 'undefined' && sessionStorage.getItem('petmol_checkup_return') === '1') {
-        sessionStorage.removeItem('petmol_checkup_return');
-        router.push('/check-up');
-      }
-    }
-  }, [showVaccineSheet, showVaccineForm, showQuickAddVaccine, router]);
-
-  // Retorno automático ao check-up quando EditPetModal fecha
-  useEffect(() => {
-    if (showEditModal) {
-      editModalWasOpenRef.current = true;
-    } else if (editModalWasOpenRef.current) {
-      editModalWasOpenRef.current = false;
-      if (typeof window !== 'undefined' && sessionStorage.getItem('petmol_checkup_return') === '1') {
-        sessionStorage.removeItem('petmol_checkup_return');
-        router.push('/check-up');
-      }
-    }
-  }, [showEditModal, router]);
 
   const applyFoodPushAction = useCallback(async (petId: string, action: string) => {
     const normalizedAction = action.trim().toLowerCase();
@@ -2319,6 +2272,24 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       </div>
                     );
                   })()}
+
+                  {/* Camada de orientação do novato — some sozinha quando os
+                      dados reais do pet resolvem os 5 itens, ou quando o tutor
+                      fecha o card. Deriva progresso de vaccines/parasiteControls/
+                      feedingPlan já carregados. */}
+                  <OnboardingChecklistCard
+                    petId={currentPet.pet_id}
+                    petName={currentPet.pet_name}
+                    petSex={currentPet.sex}
+                    hasPet={pets.length > 0}
+                    vaccinesCount={vaccines.length}
+                    parasiteControls={parasiteControls}
+                    feedingPlan={feedingPlan[currentPet.pet_id] ?? null}
+                    onOpenFood={handleOpenFood}
+                    onOpenVaccines={handleOpenVaccines}
+                    onOpenFlea={handleOpenAntipulgas}
+                    onOpenDewormer={handleOpenVermifugo}
+                  />
 
                   <PetTabs
                     pets={pets.map(p => ({
