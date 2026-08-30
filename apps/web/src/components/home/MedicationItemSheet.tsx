@@ -643,17 +643,29 @@ export function MedicationItemSheet({
               )}
             </div>
             {mode !== 'view' ? (
-              <button
-                type="button"
-                onClick={() => setMode('view')}
-                onTouchEnd={() => setMode('view')}
-                className="relative z-10 pointer-events-auto w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
-                aria-label="Voltar"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
-                  <path d="M15 18l-6-6 6-6" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {mode === 'edit' && editingId && (
+                  <button
+                    type="button"
+                    onClick={confirmDeleteCurrent}
+                    disabled={saving}
+                    className="text-[13px] font-bold text-red-600 active:opacity-60 disabled:opacity-50"
+                  >
+                    🗑 Excluir
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setMode('view')}
+                  onTouchEnd={() => setMode('view')}
+                  className="relative z-10 pointer-events-auto w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
+                  aria-label="Voltar"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
+                    <path d="M15 18l-6-6 6-6" />
+                  </svg>
+                </button>
+              </div>
             ) : (
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
@@ -1002,9 +1014,9 @@ export function MedicationItemSheet({
 
           {/* ── ADD / EDIT FORM ───────────────────────────────────────────── */}
           {(mode === 'add' || mode === 'edit') && (
-            <div className="p-5 pb-8 space-y-4">
+            <div className="px-4 pt-2 pb-4 space-y-3">
               {!showManualForm && mode === 'add' && (
-                <div className="rounded-2xl border border-purple-200 bg-purple-50 p-5 space-y-4">
+                <div className="rounded-2xl border border-purple-200 bg-purple-50 p-4 space-y-3">
                   <div>
                     <h3 className="text-[18px] font-black text-gray-900 leading-tight">Identifique o medicamento</h3>
                     <p className="text-[13px] text-gray-600 mt-1">Busque pelo nome ou marca — código de barras também funciona, se preferir.</p>
@@ -1293,21 +1305,10 @@ export function MedicationItemSheet({
               <button
                 onClick={handleSave}
                 disabled={saving || !form.title.trim()}
-                className="w-full py-4 rounded-2xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-[15px] font-bold shadow-md disabled:opacity-50 transition-colors"
+                className="w-full py-3.5 rounded-2xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-[15px] font-bold shadow-md disabled:opacity-50 transition-colors"
               >
                 {saving ? 'Salvando...' : '✅ Confirmar registro'}
               </button>
-
-              {mode === 'edit' && editingId && (
-                <button
-                  type="button"
-                  onClick={confirmDeleteCurrent}
-                  disabled={saving}
-                  className="w-full py-4 rounded-2xl border border-red-200 bg-red-50 text-red-700 text-[15px] font-bold shadow-sm disabled:opacity-50 transition-colors hover:bg-red-100"
-                >
-                  {saving ? 'Excluindo...' : '🗑 Excluir medicação'}
-                </button>
-              )}
               </>
               )}
             </div>

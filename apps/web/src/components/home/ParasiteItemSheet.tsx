@@ -557,7 +557,9 @@ export function ParasiteItemSheet({
 
         {/* Scrollable body */}
         <div className="overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
-          <p className="mx-4 mt-2 mb-0 text-[10px] text-gray-400 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
+          {mode === 'view' && (
+            <p className="mx-4 mt-2 mb-0 text-[10px] text-gray-400 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
+          )}
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
           {mode === 'view' && (
@@ -713,7 +715,7 @@ export function ParasiteItemSheet({
 
           {/* ── APPLY FORM ────────────────────────────────────────────────── */}
           {mode === 'apply' && (
-            <div className="p-5 pb-8 space-y-4">
+            <div className="px-4 pt-2 pb-4 space-y-3">
               <button
                 type="button"
                 onClick={() => setMode('view')}
@@ -725,7 +727,7 @@ export function ParasiteItemSheet({
               <h3 className="text-[16px] font-bold text-gray-900">{cfg.ctaLabel}</h3>
 
               {!showManualForm && (
-                <div className={`rounded-2xl border p-5 space-y-4 ${cfg.colorBorder} ${cfg.colorLight}`}>
+                <div className={`rounded-2xl border p-4 space-y-3 ${cfg.colorBorder} ${cfg.colorLight}`}>
                   <div>
                     <h3 className="text-[18px] font-black text-gray-900 leading-tight">Identifique o produto</h3>
                     <p className="text-[13px] text-gray-600 mt-1">Busque pelo nome ou marca — código de barras também funciona, se preferir.</p>
@@ -819,25 +821,48 @@ export function ParasiteItemSheet({
 
           {/* ── EDIT FORM ─────────────────────────────────────────────────── */}
           {mode === 'edit' && editRecord && (
-            <div className="p-5 pb-8 space-y-4">
-              <button
-                type="button"
-                onClick={() => { setMode('view'); setEditRecord(null); }}
-                onTouchEnd={() => { setMode('view'); setEditRecord(null); }}
-                className="flex items-center gap-2 text-gray-500 hover:text-gray-800 text-sm font-medium mb-1"
-              >
-                ‹ Voltar
-              </button>
+            <div className="px-4 pt-2 pb-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => { setMode('view'); setEditRecord(null); }}
+                  onTouchEnd={() => { setMode('view'); setEditRecord(null); }}
+                  className="flex items-center gap-1.5 text-gray-500 hover:text-gray-800 text-sm font-semibold"
+                >
+                  ‹ Voltar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteId(editRecord.id)}
+                  disabled={saving}
+                  className="flex items-center gap-1 text-[13px] font-bold text-red-600 active:opacity-60 disabled:opacity-50"
+                >
+                  🗑 Excluir
+                </button>
+              </div>
               <h3 className="text-[16px] font-bold text-gray-900">Editar registro</h3>
 
-              <div>
-                <label className={labelCls}>Data de aplicação</label>
-                <input
-                  type="date"
-                  className={inputCls}
-                  value={editForm.date_applied}
-                  onChange={e => setEditForm(f => ({ ...f, date_applied: e.target.value }))}
-                />
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className={labelCls}>Data</label>
+                  <input
+                    type="date"
+                    className={inputCls}
+                    value={editForm.date_applied}
+                    onChange={e => setEditForm(f => ({ ...f, date_applied: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Repetir a cada (dias)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    className={inputCls}
+                    value={editForm.frequency_days}
+                    onChange={e => setEditForm(f => ({ ...f, frequency_days: e.target.value }))}
+                  />
+                </div>
               </div>
 
               <div>
@@ -847,18 +872,6 @@ export function ParasiteItemSheet({
                   className={inputCls}
                   value={editForm.product_name}
                   onChange={e => setEditForm(f => ({ ...f, product_name: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <label className={labelCls}>Repetir a cada (dias)</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="365"
-                  className={inputCls}
-                  value={editForm.frequency_days}
-                  onChange={e => setEditForm(f => ({ ...f, frequency_days: e.target.value }))}
                 />
               </div>
 
@@ -884,25 +897,16 @@ export function ParasiteItemSheet({
               <button
                 onClick={handleSaveEdit}
                 disabled={saving}
-                className={`w-full py-4 rounded-2xl text-[15px] font-bold shadow-sm disabled:opacity-50 ${cfg.colorBtn}`}
+                className={`w-full py-3.5 rounded-2xl text-[15px] font-bold shadow-sm disabled:opacity-50 ${cfg.colorBtn}`}
               >
                 {saving ? 'Salvando...' : '✅ Salvar alterações'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setConfirmDeleteId(editRecord.id)}
-                disabled={saving}
-                className="w-full py-3 rounded-2xl text-[14px] font-bold text-red-600 bg-red-50 border border-red-100 active:scale-[0.98] transition-transform disabled:opacity-50"
-              >
-                🗑 Excluir este registro
               </button>
             </div>
           )}
 
           {/* ── BUY MODE ──────────────────────────────────────────────────── */}
           {mode === 'buy' && (
-            <div className="p-5 pb-8 space-y-4">
+            <div className="px-4 pt-2 pb-4 space-y-3">
               <button
                 type="button"
                 onClick={() => setMode('view')}
