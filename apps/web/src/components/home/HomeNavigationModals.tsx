@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useI18n } from '@/lib/I18nContext';
 import { showBlockingNotice } from '@/features/interactions/userPromptChannel';
 import { ModalPortal } from '@/components/ModalPortal';
+import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import type { PetHealthProfile } from '@/lib/petHealth';
 
 type ControlTone = 'neutral' | 'ok' | 'warning' | 'critical';
@@ -106,6 +107,7 @@ export function HomeNavigationModals({
   onOpenEmergency,
 }: HomeNavigationModalsProps) {
   const { t } = useI18n();
+  const petPhotoSrc = resolvePetPhotoUrl(currentPet?.photo);
 
   return (
     <ModalPortal>
@@ -156,8 +158,13 @@ export function HomeNavigationModals({
             {/* Header Mini-Home */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200/60 bg-white/80 backdrop-blur-md">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                  <span className="text-xl">🏥</span>
+                <div className="w-10 h-10 rounded-full overflow-hidden bg-white shadow-sm ring-1 ring-black/5 flex items-center justify-center">
+                  {petPhotoSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={petPhotoSrc} alt={currentPet?.pet_name || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
+                  ) : (
+                    <span className="text-xl">{currentPet?.species === 'cat' ? '🐱' : '🐶'}</span>
+                  )}
                 </div>
                 <div>
                   <h3 className="text-lg font-black text-slate-900 leading-tight">Cuidados</h3>

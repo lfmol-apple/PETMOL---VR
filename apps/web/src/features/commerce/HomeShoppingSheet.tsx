@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { petDo } from '@/lib/petGender';
+import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { trackClick } from '@/lib/analytics/click';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import type { PetCareReminder } from '@/lib/petCareDomain';
@@ -67,6 +68,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   if (!open) return null;
 
   const petName = currentPet.pet_name;
+  const petPhotoSrc = resolvePetPhotoUrl(currentPet.photo);
   const title = buildPetStoreTitle(currentPet);
 
   function handleQuickBuy(partnerId: HomeShoppingPartnerId, searchQuery: string, ctaType: string, metadata: Record<string, unknown>) {
@@ -120,7 +122,14 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
         {/* Header */}
         <div className="flex items-center gap-3 px-5 pt-3 pb-4 flex-shrink-0">
-          <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-xl flex-shrink-0">🛒</div>
+          <div className="w-10 h-10 rounded-full overflow-hidden bg-white shadow-sm ring-1 ring-black/5 flex items-center justify-center text-xl flex-shrink-0">
+            {petPhotoSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
+            ) : (
+              <span>{currentPet.species === 'cat' ? '🐱' : '🐶'}</span>
+            )}
+          </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-[17px] font-black text-gray-900 truncate">{title}</h2>
             <p className="text-[12px] text-gray-400">Tudo que {petName || 'seu pet'} usa</p>
