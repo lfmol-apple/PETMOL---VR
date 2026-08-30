@@ -142,15 +142,20 @@ class MarketplaceOfferProvider:
                     return None
                 checked_at = _effective_checked_at(offer)
 
+        fresh = _is_offer_fresh(checked_at)
         return DiscoveredOffer(
             merchant=self.merchant,
-            price=offer.price,
+            # Preço de marketplace defasado NÃO vira número na tela — o
+            # anúncio de terceiro pode ter mudado de preço/estoque desde o
+            # último sync. Sem preço fresco, o frontend mostra "Conferir
+            # preço na <loja>" e a oferta desce pro fim do ranking.
+            price=offer.price if fresh else None,
             is_available=offer.is_available,
             direct_url=offer.direct_url,
             external_id=str(offer.id),
             image_url=product.thumbnail_url if product else None,
             price_checked_at=checked_at,
-            price_is_stale=not _is_offer_fresh(checked_at),
+            price_is_stale=not fresh,
         )
 
     def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str, str, bool]]:

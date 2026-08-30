@@ -34,7 +34,13 @@ from .affiliate_links import MarketplaceOffer
 from .product_catalog_lookup import ProductCatalog, normalize_gtin
 from .shopee_affiliate_client import ShopeeAffiliateError, search_product_offers
 from .shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
-from .shopee_offer_matcher import _parse_price, extract_volume_ml, extract_weight_kg, score_candidate
+from .shopee_offer_matcher import (
+    _parse_price,
+    extract_length_cm,
+    extract_volume_ml,
+    extract_weight_kg,
+    score_candidate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -189,6 +195,7 @@ def _confident_matches(
     expected_weight_kg: Optional[float],
     expected_volume_ml: Optional[float],
     min_confidence: float,
+    expected_length_cm: Optional[float] = None,
 ) -> list[dict]:
     scored: list[tuple[float, float, dict]] = []
     seen_listing_ids: set[str] = set()
@@ -204,6 +211,7 @@ def _confident_matches(
             expected_brand=expected_brand,
             expected_weight_kg=expected_weight_kg,
             expected_volume_ml=expected_volume_ml,
+            expected_length_cm=expected_length_cm,
         )
         if score is None or score < min_confidence:
             continue
@@ -281,7 +289,11 @@ def sync_shopee_offer_for_gtin(
     match_brand = expected_brand if expected_brand is not None else (feed_brand or product.brand)
     keyword_product = ProductCatalog(name=match_name, brand=match_brand)
     expected_weight_kg = expected_weight_kg if expected_weight_kg is not None else extract_weight_kg(match_name)
-    keywords = _build_keyword_variants(keyword_product, expected_weight_kg)
+    # GTIN literal como 1ª busca: vendedor sério de pet (antiparasitário
+    # sobretudo) põe o EAN no título → match exato, o mais perto que a
+    # Shopee chega de um lookup por GTIN. Se não retornar nada, as
+    # variantes por nome assumem. O matcher valida tudo de qualquer forma.
+    keywords = [gtin_normalized, *_build_keyword_variants(keyword_product, expected_weight_kg)]
     nodes_by_id: dict[str, dict] = {}
     try:
         for keyword in keywords:
@@ -293,6 +305,7 @@ def sync_shopee_offer_for_gtin(
         return ShopeeSyncResult(gtin=gtin_normalized, matched=False, reason=f"erro na API Shopee: {exc}")
 
     expected_volume_ml = extract_volume_ml(match_name)
+    expected_length_cm = extract_length_cm(match_name)
     if expected_weight_kg is not None and extract_weight_kg(match_name) is None:
         match_name = f"{match_name} {_format_weight_kg(expected_weight_kg)}"
     matches = _confident_matches(
@@ -301,6 +314,7 @@ def sync_shopee_offer_for_gtin(
         expected_brand=match_brand,
         expected_volume_ml=expected_volume_ml,
         expected_weight_kg=expected_weight_kg,
+        expected_length_cm=expected_length_cm,
         min_confidence=min_confidence,
     )
     if not matches:

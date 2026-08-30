@@ -1,9 +1,9 @@
 [Unit]
-Description=Daily PETMOL Shopee sync (Cobasi/Zee Now/Zee Dog feed)
+Description=Daily PETMOL Shopee sync (categorias pet do catálogo, por GTIN)
 
 [Timer]
-# 05:00 UTC ~= 02:00 America/Sao_Paulo — after petmol-awin-sync.timer.
-# If the Awin feed did not refresh, the API trigger refuses this run.
+# 05:00 UTC ~= 02:00 America/Sao_Paulo. source=categories → não depende
+# do feed Awin (ver o trigger script e docs/LAUNCH.md §7).
 OnCalendar=*-*-* 05:00:00 UTC
 RandomizedDelaySec=600
 Persistent=true

@@ -49,6 +49,11 @@ _WEIGHT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(kg|g)\b")
 _WEIGHT_RANGE_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*a\s*(\d+(?:[.,]\d+)?)\s*(kg|g)\b")
 _VOLUME_TOKEN_RE = re.compile(r"^\d+(?:[.,]\d+)?(ml|l|litro|litros)$")
 _VOLUME_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(ml|l|litro|litros)\b")
+# Comprimento em cm — discriminante definitivo de coleira antiparasitária
+# (Scalibor 48cm P/M vs 65cm G, Seresto 38/70cm). "cm" nunca é peso nem
+# volume, então uma checagem própria; muitos anúncios trazem o cm no título.
+_LENGTH_CM_TOKEN_RE = re.compile(r"^\d+(?:[.,]\d+)?cm$")
+_LENGTH_CM_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*cm\b")
 _PACK_COUNT_RE = re.compile(
     r"\b(\d+)\s*"
     r"(comprimidos?|tabletes?|tabs?|pipetas?|doses?|unidades?|unds?)\b"
@@ -117,6 +122,14 @@ def extract_volume_ml(text: str) -> Optional[float]:
     return value if match.group(2) == "ml" else value * 1000
 
 
+def extract_length_cm(text: str) -> Optional[float]:
+    """Primeiro comprimento em cm no texto (coleira), ou None."""
+    match = _LENGTH_CM_RE.search(_normalize(text))
+    if not match:
+        return None
+    return float(match.group(1).replace(",", "."))
+
+
 def extract_pack_count(text: str) -> Optional[int]:
     """Quantidade explícita de unidades terapêuticas/embalagem.
 
@@ -147,7 +160,7 @@ def _tokenize(text: str) -> set[str]:
     for token in normalized.split():
         if not token or token in _STOPWORDS:
             continue
-        if _WEIGHT_TOKEN_RE.match(token) or _VOLUME_TOKEN_RE.match(token):
+        if _WEIGHT_TOKEN_RE.match(token) or _VOLUME_TOKEN_RE.match(token) or _LENGTH_CM_TOKEN_RE.match(token):
             continue
         tokens.add(token)
     return tokens
@@ -188,6 +201,7 @@ def score_candidate(
     expected_brand: Optional[str] = None,
     expected_weight_kg: Optional[float] = None,
     expected_volume_ml: Optional[float] = None,
+    expected_length_cm: Optional[float] = None,
     weight_tolerance_ratio: float = 0.05,
     volume_tolerance_ratio: float = 0.05,
 ) -> Optional[float]:
@@ -235,6 +249,15 @@ def score_candidate(
         if abs(candidate_volume - expected_volume_ml) > tolerance:
             return None
 
+    if expected_length_cm is not None:
+        candidate_length = extract_length_cm(candidate_name)
+        # Só desqualifica quando o anúncio TEM um cm divergente — um
+        # anúncio de coleira sem cm no título não é necessariamente o
+        # tamanho errado (a checagem de porte pequeno/médio/grande já
+        # cobre o caso comum). Tolerância de 2 cm cobre arredondamento.
+        if candidate_length is not None and abs(candidate_length - expected_length_cm) > 2.0:
+            return None
+
     expected_pack_count = extract_pack_count(expected_name)
     if expected_pack_count is not None:
         candidate_pack_count = extract_pack_count(candidate_name)
@@ -254,6 +277,7 @@ def find_best_match(
     expected_brand: Optional[str] = None,
     expected_weight_kg: Optional[float] = None,
     expected_volume_ml: Optional[float] = None,
+    expected_length_cm: Optional[float] = None,
     min_confidence: float = 0.5,
 ) -> Optional[dict]:
     """Melhor nó de productOfferV2 (dict cru, como veio da API) pro
@@ -276,6 +300,7 @@ def find_best_match(
             expected_brand=expected_brand,
             expected_weight_kg=expected_weight_kg,
             expected_volume_ml=expected_volume_ml,
+            expected_length_cm=expected_length_cm,
         )
         if score is None or score < min_confidence:
             continue
