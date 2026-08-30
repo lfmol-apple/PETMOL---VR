@@ -204,7 +204,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
         </div>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto overscroll-contain flex-1 px-5 pb-8 space-y-5">
+        <div className="overflow-y-auto overscroll-contain flex-1 px-5 pb-8 space-y-4">
               <div>
                 {/* Mesmo botão "Comprar" dos ItemSheets (emerald cheio,
                     centrado, shadow-lg), adaptado pra abrir a lista de
@@ -309,7 +309,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                   busca (texto + escanear/digitar código de barras) — a
                   grade "Explorar categorias" foi removida a pedido. */}
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">🐾 Buscar produtos</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2.5">Buscar outro produto</p>
                 <AffiliateCatalogSearch petId={currentPet.pet_id} />
               </div>
 
@@ -336,7 +336,7 @@ function PartnerStoreGrid({
 
   return (
     <div>
-      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Lojas parceiras</p>
+      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2.5">Ou visite uma loja parceira</p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {partners.map((partner) => (
           <button
@@ -462,10 +462,10 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
       tabIndex={canAct ? 0 : undefined}
       onClick={handlePrimaryAction}
       onKeyDown={handleKeyDown}
-      className={`p-3.5 bg-white border rounded-2xl shadow-sm transition-all ${canAct ? 'cursor-pointer active:scale-[0.99] hover:border-emerald-200' : ''} ${hasDiscount ? 'border-orange-300' : 'border-gray-200'}`}
+      className={`p-3 bg-white border rounded-2xl shadow-sm transition-all ${canAct ? 'cursor-pointer active:scale-[0.99] hover:border-emerald-200' : ''} ${hasDiscount ? 'border-orange-300' : 'border-gray-200'}`}
     >
       <div className="flex items-center gap-3">
-        <div className="w-11 h-11 rounded-xl bg-gray-50 border border-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center">
+        <div className="w-12 h-12 rounded-xl bg-gray-50 border border-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center">
           {imageUrl && !imageFailed ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -476,48 +476,46 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
               onError={() => setImageFailed(true)}
             />
           ) : (
-            <div className="w-5 h-5 rounded-md bg-gray-200" />
+            <span aria-hidden className="text-lg opacity-60">{card.icon}</span>
           )}
         </div>
+
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <p className="text-[13px] font-bold text-gray-900 leading-tight truncate">{card.label}</p>
+            <p className="flex-1 text-[13.5px] font-bold text-gray-900 leading-tight truncate">{card.label}</p>
             {hasDiscount && (
               <span className="flex-shrink-0 rounded-full bg-orange-100 text-orange-700 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5">
                 🔥 Oferta
               </span>
             )}
           </div>
-          <p className={`text-[11px] mt-0.5 font-semibold ${card.urgencyTone === 'overdue' ? 'text-rose-600' : card.urgencyTone === 'today' ? 'text-amber-600' : 'text-gray-400'}`}>
+          <p className={`text-[11.5px] mt-0.5 font-semibold ${card.urgencyTone === 'overdue' ? 'text-rose-600' : card.urgencyTone === 'today' ? 'text-amber-600' : 'text-gray-500'}`}>
             {card.urgencyText}
           </p>
-          {loading && <p className="text-[10px] mt-1 text-gray-300">Buscando oferta...</p>}
+          {loading && <p className="text-[11px] mt-0.5 font-medium text-gray-400">Buscando melhor preço…</p>}
           {!loading && hasMonetizedOffer && offer && (
-            <p className="text-[12px] mt-1 font-bold text-emerald-700 flex items-center flex-wrap gap-x-1">
-              <span>
-                {priceReliable
-                  ? `${hasMultipleOffers ? 'A partir de ' : ''}${formatBRLPrice(offer.price as number)} na ${merchantLabel(offer.merchant)}`
-                  : offerPriceLabel(offer)}
-              </span>
+            <p className="text-[12px] mt-0.5 font-bold text-emerald-700">
+              {priceReliable
+                ? `${hasMultipleOffers ? 'A partir de ' : ''}${formatBRLPrice(offer.price as number)} · ${merchantLabel(offer.merchant)}`
+                : offerPriceLabel(offer)}
               {hasDiscount && (
                 <span className="ml-1.5 text-[10px] font-semibold text-gray-400 line-through">{formatBRLPrice(offer.list_price as number)}</span>
               )}
               {hasMultipleOffers && (
-                <span className="block mt-0.5 text-[9px] font-black uppercase tracking-wide text-blue-600">
+                <span className="ml-1.5 text-[10px] font-black uppercase tracking-wide text-blue-600">
                   +{totalBuyOptions - 1} loja{totalBuyOptions - 1 > 1 ? 's' : ''}
                 </span>
               )}
             </p>
           )}
           {!loading && !hasMonetizedOffer && hasPetz && (
-            <p className="text-[12px] mt-1 font-bold text-blue-700">
-              Disponível na Petz · cupom PETTMOL -10%
-            </p>
+            <p className="text-[12px] mt-0.5 font-bold text-blue-700">Disponível na Petz · cupom {PETZ_COUPON_CODE} -10%</p>
           )}
           {!loading && noBuyOptionAtAll && (
-            <p className="text-[11px] mt-1 text-gray-400">Estamos buscando opções de compra para este produto.</p>
+            <p className="text-[11px] mt-0.5 text-gray-400">Buscando opções de compra…</p>
           )}
         </div>
+
         {!noBuyOptionAtAll && (
           <button
             type="button"
@@ -526,9 +524,9 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
               event.stopPropagation();
               handlePrimaryAction();
             }}
-            className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[12px] font-bold px-3 py-1.5 active:scale-95 transition-all disabled:opacity-50"
+            className="flex-shrink-0 grid min-h-[40px] place-items-center rounded-xl bg-emerald-500 text-white text-[12.5px] font-black px-4 active:scale-95 transition-transform disabled:opacity-50"
           >
-            🛒 Comprar
+            Comprar
           </button>
         )}
       </div>
@@ -566,7 +564,7 @@ function OfferPickerRow({ offers, onPick, petzLink, onPickPetz }: {
             key={offer.merchant}
             type="button"
             onClick={() => onPick(offer)}
-            className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-emerald-300 px-3 py-2 transition-all active:scale-[0.98]"
+            className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-emerald-300 px-3 min-h-[44px] transition-all active:scale-[0.98]"
           >
             <span className="flex items-center gap-1.5 min-w-0">
               {logoSrc && (
@@ -583,7 +581,7 @@ function OfferPickerRow({ offers, onPick, petzLink, onPickPetz }: {
         <button
           type="button"
           onClick={onPickPetz}
-          className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-blue-300 px-3 py-2 transition-all active:scale-[0.98]"
+          className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-blue-300 px-3 min-h-[44px] transition-all active:scale-[0.98]"
         >
           <span className="flex items-center gap-1.5 min-w-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -605,7 +603,7 @@ function QuickBuyRow({ partners, onPick }: { partners: HomeShoppingPartner[]; on
           key={partner.id}
           type="button"
           onClick={() => onPick(partner.id)}
-          className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 py-2 text-[12px] font-bold text-gray-700 hover:bg-white hover:border-emerald-300 active:scale-95 transition-all"
+          className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 min-h-[44px] text-[12px] font-bold text-gray-700 hover:bg-white hover:border-emerald-300 active:scale-95 transition-all"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={partner.logoSrc} alt="" className="w-4 h-4 rounded object-contain bg-white border border-gray-200 flex-shrink-0" />
