@@ -40,10 +40,9 @@ def _force_env(monkeypatch):
     independente de qual é o padrão vigente."""
     monkeypatch.setenv("ENV", "dev")
     monkeypatch.setenv("COBASI_AFFILIATE_MODE", "cached")
-    # Shopee entrou só como vitrine no lançamento (shopee_affiliate_enabled
-    # default False desde 30/08/2026 — ver config.py / docs/LAUNCH.md §7),
-    # mas este arquivo testa a lógica de resolução de MarketplaceOffer da
-    # Shopee, então precisa do gate ligado independente do padrão vigente.
+    # Explícito porque este arquivo testa a resolução de MarketplaceOffer
+    # da Shopee — não depende de qual é o default vigente de
+    # shopee_affiliate_enabled (já foi False no lançamento, voltou a True).
     monkeypatch.setenv("SHOPEE_AFFILIATE_ENABLED", "true")
     monkeypatch.delenv("AFFILIATE_ONLY_COMMERCE", raising=False)
     get_settings.cache_clear()

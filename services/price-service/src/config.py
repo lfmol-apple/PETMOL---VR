@@ -296,17 +296,19 @@ class Settings(BaseSettings):
     # produtos desejados (ou cadastrar manualmente via admin) — isso
     # continua sendo uma decisão separada e deliberada.
     #
-    # DEFAULT False no LANÇAMENTO (2026-08-30): a Shopee entra só como
-    # VITRINE (shortlink afiliado no frontend, `homeShoppingPartners.ts`).
-    # As ofertas por PRODUTO (`/commerce/offers`) ficam desligadas até o
-    # projeto de precisão da Shopee: a API de afiliado da Shopee não tem
-    # lookup por GTIN (só busca textual — ver shopee_affiliate_client.py),
-    # o job de sync está acoplado à Awin (que está off) e as ofertas
-    # atuais estão defasadas/podem casar variante errada (ex: coleira de
-    # tamanho errado). Reativar = flip pra True + sync curado + fresco.
-    # `sync_shopee_offer_for_gtin` continua seguro rodar com isto False
-    # (só grava Postgres, não expõe nada).
-    shopee_affiliate_enabled: bool = False
+    # LIGADO de novo (30/08/2026, decisão de produto) depois do projeto de
+    # precisão (#120): GTIN como 1ª palavra-chave da busca, hard-fail de cm
+    # pra coleira, sync noturno `source=categories` (re-casa+re-preço toda
+    # noite, sem depender da Awin), e — a rede de segurança principal —
+    # oferta de marketplace com +36h NÃO mostra mais preço-número
+    # (marketplace_offer_provider → price=None → "Conferir preço na loja").
+    # Então mesmo antes do próximo sync noturno, nenhuma oferta Shopee
+    # exibe um número velho/errado. Gap residual: match de variante errada
+    # (coleira "M" vs "Pequenos e Médios") — mitigado por
+    # `scripts/audit_shopee_offers.py --deactivate-invalid` + revisão à
+    # mão (docs/LAUNCH.md §7). Pra desligar de novo: flip pra False (ou
+    # SHOPEE_AFFILIATE_ENABLED=false no env).
+    shopee_affiliate_enabled: bool = True
     # Documentação de pendência externa, não uma flag de gate — setar isto
     # não aprova nada sozinho; é só pra não perder de vista qual mídia
     # estamos tentando confirmar no Portal do Afiliado.
