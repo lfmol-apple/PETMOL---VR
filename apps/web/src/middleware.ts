@@ -25,6 +25,9 @@ const PUBLIC_PATHS = [
   '/cuidar/',
   '/loja',
   '/guias',
+  '/sobre',
+  '/politica-editorial',
+  '/transparencia',
 ];
 
 // Exportado só pra teste (middleware.test.ts) — comportamento idêntico,
