@@ -475,7 +475,7 @@ export function ParasiteItemSheet({
 
       {/* Sheet */}
       <div
-        className="relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-[28px] shadow-2xl border-t border-x sm:border border-gray-200/70 flex flex-col overflow-hidden animate-slideUp sm:animate-scaleIn max-h-[90vh] sm:max-h-[90dvh]"
+        className="relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-[28px] shadow-2xl border-t border-x sm:border border-gray-200/70 flex flex-col overflow-hidden animate-slideUp sm:animate-scaleIn max-h-[92dvh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Success overlay */}
@@ -502,12 +502,12 @@ export function ParasiteItemSheet({
         )}
 
         {/* Prime Handle Bar (Desktop/Mobile) */}
-        <div className="sheet-handle my-3 opacity-40" />
+        <div className="sheet-handle mt-2 mb-1 opacity-40" />
 
         {/* Header */}
-        <div className={`px-5 pt-2 pb-4 ${cfg.colorLight} border-b border-gray-100 flex-shrink-0 relative overflow-hidden`}>
-          <div className="flex items-center gap-4 relative z-10">
-            <div className="w-12 h-12 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-2xl flex-shrink-0 ring-1 ring-black/5">
+        <div className={`px-5 pt-1.5 pb-3 ${cfg.colorLight} border-b border-gray-100 flex-shrink-0 relative overflow-hidden`}>
+          <div className="flex items-center gap-3 relative z-10">
+            <div className="w-11 h-11 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-2xl flex-shrink-0 ring-1 ring-black/5">
               {petPhotoSrc ? (
                 <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
               ) : (
@@ -515,17 +515,15 @@ export function ParasiteItemSheet({
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-wrap">
                 <h2 className="text-[17px] font-black text-gray-900 leading-tight tracking-tight">{cfg.title}</h2>
-              </div>
-              {petName && (
-                <p className="mt-1.5">
-                <span className="inline-flex max-w-full items-center px-2.5 py-1 rounded-full bg-white text-gray-800 text-xs font-bold shadow-sm border border-white/90 whitespace-normal break-all leading-tight">
+                {petName && (
+                  <span className="inline-flex max-w-full items-center px-2 py-0.5 rounded-full bg-white text-gray-700 text-[11px] font-bold shadow-sm border border-white/90 whitespace-normal break-all leading-tight">
                     {petName}
                   </span>
-                </p>
-              )}
-              <div className="flex items-center gap-2 mt-1 min-w-0">
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-0.5 min-w-0">
                 <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${status.dot} ring-2 ring-white`} />
                 <span className={`text-[13px] font-semibold ${status.text} truncate`}>{status.label}</span>
               </div>
@@ -559,11 +557,11 @@ export function ParasiteItemSheet({
 
         {/* Scrollable body */}
         <div className="overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
-          <p className="mx-4 mt-3 mb-1 text-[10px] text-gray-400 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
+          <p className="mx-4 mt-2 mb-0 text-[10px] text-gray-400 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
           {mode === 'view' && (
-            <div className="p-5 space-y-3 pb-8">
+            <div className="px-5 pt-3 pb-5 space-y-2.5">
 
               {/* Active product card */}
               {current && (() => {
@@ -963,10 +961,10 @@ export function ParasiteItemSheet({
 
         {/* ── Pinned action footer (view mode only) ─────────────────────────── */}
         {mode === 'view' && (
-          <div className="flex-shrink-0 px-5 pt-3 pb-5 border-t border-gray-100 space-y-2 bg-white">
+          <div className="flex-shrink-0 px-5 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-gray-100 bg-white">
             <button
               onClick={() => setMode('buy')}
-              className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-[16px] font-black shadow-lg shadow-emerald-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5"
+              className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-[15px] font-black shadow-lg shadow-emerald-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5"
             >
               <span>🛒</span>
               {cfg.buyLabel}

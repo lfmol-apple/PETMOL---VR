@@ -421,9 +421,9 @@ export function GroomingItemSheet({
         )}
 
         {/* Header */}
-        <div className="px-5 pt-5 pb-4 bg-[#F2F2F7] flex-shrink-0">
+        <div className="px-5 pt-3 pb-3 bg-[#F2F2F7] flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full overflow-hidden bg-[#E5E5EA] flex items-center justify-center text-2xl flex-shrink-0">
+            <div className="w-11 h-11 rounded-full overflow-hidden bg-[#E5E5EA] flex items-center justify-center text-2xl flex-shrink-0">
               {petPhotoSrc ? (
                 <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
               ) : (
@@ -463,7 +463,7 @@ export function GroomingItemSheet({
           </div>
 
           {/* Status badge */}
-          <div className={`mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[13px] font-medium ${status.bg} ${status.text}`}>
+          <div className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[12px] font-medium ${status.bg} ${status.text}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
             {nextDate ? status.label : 'Sem agendamento'}
           </div>
@@ -474,34 +474,34 @@ export function GroomingItemSheet({
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
           {mode === 'view' && (
-            <div className="px-4 pt-2 pb-8 space-y-3">
+            <div className="px-4 pt-3 pb-5 space-y-2.5">
 
               {/* Last service card — iOS grouped table */}
               {last ? (
                 <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
                   <div className="px-4 pt-3 pb-2">
                     <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider">Último serviço</p>
-                    <p className="text-[17px] font-semibold text-[#1C1C1E] mt-0.5">{TYPE_LABELS[last.type]}</p>
+                    <p className="text-[16px] font-semibold text-[#1C1C1E] mt-0.5">{TYPE_LABELS[last.type]}</p>
                   </div>
                   <div className="divide-y divide-[#F2F2F7]">
-                    <div className="flex items-center justify-between px-4 py-3">
+                    <div className="flex items-center justify-between px-4 py-2.5">
                       <span className="text-[14px] text-[#8E8E93]">Data</span>
                       <span className="text-[14px] font-medium text-[#1C1C1E]">{fmtDate(last.date)}</span>
                     </div>
                     {nextDate && (
-                      <div className="flex items-center justify-between px-4 py-3">
+                      <div className="flex items-center justify-between px-4 py-2.5">
                         <span className="text-[14px] text-[#8E8E93]">Próximo</span>
                         <span className={`text-[14px] font-semibold ${status.text}`}>{fmtDate(nextDate)}</span>
                       </div>
                     )}
                     {last.location && (
-                      <div className="flex items-center justify-between px-4 py-3">
+                      <div className="flex items-center justify-between px-4 py-2.5">
                         <span className="text-[14px] text-[#8E8E93]">Local</span>
                         <span className="text-[14px] font-medium text-[#1C1C1E] truncate max-w-[55%] text-right">{last.location}</span>
                       </div>
                     )}
                     {last.cost != null && (
-                      <div className="flex items-center justify-between px-4 py-3">
+                      <div className="flex items-center justify-between px-4 py-2.5">
                         <span className="text-[14px] text-[#8E8E93]">Valor</span>
                         <span className="text-[14px] font-medium text-[#1C1C1E]">R$ {last.cost.toFixed(2).replace('.', ',')}</span>
                       </div>
