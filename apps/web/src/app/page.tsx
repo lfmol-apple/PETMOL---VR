@@ -27,7 +27,11 @@ export default function LandingPage() {
       {/* Nav */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-5 py-3 flex items-center justify-between">
         <PetmolTextLogo className="text-3xl" color="#0056D2" />
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <Link href="/guias"
+            className="hidden sm:inline-block px-3 py-2 rounded-xl text-sm font-bold text-slate-600 hover:text-[#0056D2] active:bg-blue-50">
+            Guias
+          </Link>
           <Link href="/login"
             className="px-4 py-2 rounded-xl text-sm font-bold text-[#0056D2] border border-[#0056D2]/30 active:bg-blue-50">
             Entrar
@@ -138,11 +142,15 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="mt-auto border-t border-slate-100 px-5 py-5 text-center">
-        <p className="text-xs text-slate-400">© 2026 PETMOL</p>
-        <div className="mt-1 flex justify-center gap-4 text-xs text-slate-400">
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-400">
+          <Link href="/guias" className="hover:text-slate-600">Guias</Link>
+          <Link href="/sobre" className="hover:text-slate-600">Sobre</Link>
+          <Link href="/politica-editorial" className="hover:text-slate-600">Política editorial</Link>
+          <Link href="/transparencia" className="hover:text-slate-600">Transparência</Link>
           <Link href="/legal/privacy" className="hover:text-slate-600">Privacidade</Link>
           <Link href="/legal/terms" className="hover:text-slate-600">Termos de Uso</Link>
         </div>
+        <p className="mt-2 text-xs text-slate-400">© 2026 PETMOL</p>
       </footer>
 
     </div>
