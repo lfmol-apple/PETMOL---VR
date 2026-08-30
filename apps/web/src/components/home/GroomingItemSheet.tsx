@@ -762,26 +762,49 @@ export function GroomingItemSheet({
 
           {/* ── EDIT FORM ─────────────────────────────────────────────────── */}
           {mode === 'edit' && editRecord && (
-            <div className="px-4 pb-8 space-y-4 pt-2">
-              <button
-                type="button"
-                onClick={() => { setMode('view'); setEditRecord(null); }}
-                onTouchEnd={() => { setMode('view'); setEditRecord(null); }}
-                className="flex items-center gap-1 text-[#5856D6] text-[15px] font-medium mb-1"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4"><path d="M15 18l-6-6 6-6"/></svg>
-                Voltar
-              </button>
+            <div className="px-4 pb-4 space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => { setMode('view'); setEditRecord(null); }}
+                  onTouchEnd={() => { setMode('view'); setEditRecord(null); }}
+                  className="flex items-center gap-1 text-[#5856D6] text-[15px] font-semibold"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4"><path d="M15 18l-6-6 6-6"/></svg>
+                  Voltar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteId(editRecord.id)}
+                  disabled={saving}
+                  className="flex items-center gap-1 text-[13px] font-bold text-[#FF3B30] active:opacity-60 disabled:opacity-50"
+                >
+                  🗑 Excluir
+                </button>
+              </div>
               <h3 className="text-[17px] font-bold text-[#1C1C1E]">Editar registro</h3>
 
-              <div>
-                <label className={labelCls}>Data *</label>
-                <input
-                  type="date"
-                  className={inputCls}
-                  value={editForm.date}
-                  onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
-                />
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className={labelCls}>Data *</label>
+                  <input
+                    type="date"
+                    className={inputCls}
+                    value={editForm.date}
+                    onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Repetir a cada (dias)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    className={inputCls}
+                    value={editForm.frequency_days}
+                    onChange={e => setEditForm(f => ({ ...f, frequency_days: e.target.value }))}
+                  />
+                </div>
               </div>
 
               <div>
@@ -795,18 +818,6 @@ export function GroomingItemSheet({
                   <option value="grooming">✂️ Somente Tosa</option>
                   <option value="bath_grooming">🛁 Banho + Tosa</option>
                 </select>
-              </div>
-
-              <div>
-                <label className={labelCls}>Repetir a cada (dias)</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="365"
-                  className={inputCls}
-                  value={editForm.frequency_days}
-                  onChange={e => setEditForm(f => ({ ...f, frequency_days: e.target.value }))}
-                />
               </div>
 
               <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
@@ -868,18 +879,9 @@ export function GroomingItemSheet({
               <button
                 onClick={handleSaveEdit}
                 disabled={saving}
-                className="w-full py-[14px] rounded-[14px] bg-[#5856D6] text-white text-[16px] font-semibold shadow-sm disabled:opacity-40 active:opacity-80 transition-opacity"
+                className="w-full py-3.5 rounded-[14px] bg-[#5856D6] text-white text-[15px] font-semibold shadow-sm disabled:opacity-40 active:opacity-80 transition-opacity"
               >
                 {saving ? 'Salvando...' : 'Salvar alterações'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setConfirmDeleteId(editRecord.id)}
-                disabled={saving}
-                className="w-full py-3 rounded-[14px] text-[15px] font-semibold text-[#FF3B30] bg-red-50 border border-red-100 active:opacity-70 transition-opacity disabled:opacity-40"
-              >
-                🗑 Excluir este registro
               </button>
             </div>
           )}
