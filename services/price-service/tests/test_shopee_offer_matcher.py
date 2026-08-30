@@ -5,6 +5,7 @@ GTIN exato). Marca e peso divergentes têm que desqualificar SEMPRE, não
 importa quão parecido o nome pareça.
 """
 from src.shopee_offer_matcher import (
+    extract_length_cm,
     extract_pack_count,
     extract_volume_ml,
     extract_weight_kg,
@@ -243,6 +244,43 @@ class TestScoreCandidate:
         )
         assert score is not None
         assert score >= 0.7
+
+    def test_coleira_com_cm_divergente_no_anuncio_desqualifica(self):
+        score = score_candidate(
+            "Coleira Antiparasitária Scalibor 48cm",
+            "Coleira Scalibor Antiparasitária para Cães 65cm",
+            expected_brand="Scalibor",
+            expected_length_cm=48.0,
+        )
+        assert score is None
+
+    def test_coleira_com_cm_igual_casa(self):
+        score = score_candidate(
+            "Coleira Antiparasitária Scalibor 48cm",
+            "Coleira Scalibor Antiparasitária Cães 48 cm",
+            expected_brand="Scalibor",
+            expected_length_cm=48.0,
+        )
+        assert score is not None
+
+    def test_anuncio_de_coleira_sem_cm_no_titulo_nao_e_desqualificado_so_por_isso(self):
+        score = score_candidate(
+            "Coleira Antiparasitária Scalibor 48cm",
+            "Coleira Scalibor Antiparasitária para Cães Pequenos e Médios",
+            expected_brand="Scalibor",
+            expected_length_cm=48.0,
+        )
+        assert score is not None
+
+
+class TestExtractLengthCm:
+    def test_extrai_cm_com_e_sem_espaco(self):
+        assert extract_length_cm("Coleira 48cm") == 48.0
+        assert extract_length_cm("Coleira 70 cm para cães") == 70.0
+
+    def test_none_quando_nao_ha_cm(self):
+        assert extract_length_cm("Coleira Scalibor para cães") is None
+        assert extract_length_cm("Ração 15kg") is None
 
 
 class TestFindBestMatch:

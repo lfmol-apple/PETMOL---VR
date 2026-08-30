@@ -157,6 +157,24 @@ def test_match_confiavel_cria_marketplace_offer(monkeypatch):
         db.close()
 
 
+def test_gtin_e_a_primeira_palavra_chave_da_busca(monkeypatch):
+    """Vendedor sério de pet costuma pôr o EAN no título — buscar o GTIN
+    literal primeiro é o mais perto de um lookup por GTIN que a Shopee
+    permite."""
+    _register_product()
+    keywords_seen = []
+
+    def _fake_search(keyword, limit=10):
+        keywords_seen.append(keyword)
+        return []
+
+    monkeypatch.setattr(sync_module, "search_product_offers", _fake_search)
+    sync_shopee_offer_for_gtin(SessionLocal(), GTIN)
+
+    assert keywords_seen
+    assert keywords_seen[0] == GTIN
+
+
 def test_match_confiavel_grava_multiplas_ofertas_e_remove_outlier(monkeypatch):
     _register_product()
     monkeypatch.setattr(

@@ -139,28 +139,47 @@ No app (feche/reabra):
 
 ---
 
-## 7. Shopee por produto (projeto pós-lançamento)
+## 7. Shopee por produto — status e passos pra religar
 
-Objetivo: ofertas Shopee por GTIN com a mesma confiança da Cobasi, pra
-religar `shopee_affiliate_enabled=True`.
+Objetivo: ofertas Shopee por GTIN confiáveis, pra religar
+`shopee_affiliate_enabled=True`.
 
-Por que não deu pro lançamento: a API de afiliado da Shopee **não tem
-lookup por GTIN** (só busca textual — `shopee_affiliate_client.py`);
-o job diário (`petmol-shopee-sync.timer`) está acoplado ao feed Awin,
-que está off → não roda; as 6 ofertas atuais estão ~6 dias defasadas e
-uma casou variante errada (Coleira Scalibor "Porte Grande" no lugar de
-"Pequenos e Médios").
+### Já feito (neste PR)
 
-Escopo:
-1. **Matcher** (`shopee_offer_matcher.py`): (a) tentar o GTIN literal como
-   1ª palavra-chave da busca — vendedor sério põe o EAN no título;
-   (b) hard-fail de tamanho em cm / porte pra coleiras (hoje só checa
-   peso/volume/quantidade).
-2. **Sync desacoplado da Awin** (`admin/shopee_sync_router.py`): um
-   `source: "strategic"` que sincroniza uma lista curada de GTINs
-   (os produtos mais recomprados) sem `_assert_awin_source_fresh`.
-3. **Agendar** esse sync estratégico (systemd timer no VPS, diário) e
-   **frescor**: não exibir preço de marketplace com mais de N horas como
-   número (hoje mostra com `*`).
-4. Rodar `scripts/audit_shopee_offers.py --deactivate-invalid` e limpar
-   as 6 ofertas atuais antes de religar.
+1. **GTIN literal como 1ª palavra-chave** da busca Shopee
+   (`shopee_offer_sync.py`) — vendedor sério de pet põe o EAN no título;
+   é o mais perto de um lookup por GTIN que a API da Shopee permite.
+2. **Hard-fail de comprimento em cm** pra coleiras
+   (`shopee_offer_matcher.py::extract_length_cm`) — Scalibor 48cm nunca
+   casa com um anúncio "65 cm".
+3. **Sync desacoplado da Awin**: o timer diário
+   (`petmol-shopee-sync.timer`) agora usa `source=categories`
+   (`skip_existing_shopee=false`) — re-casa e re-precifica TODA oferta
+   ativa das categorias pet (`food/antiparasite/medication/hygiene/
+   dewormer/collar`) toda noite às 05:00 UTC, sem depender do feed Awin.
+   O `activate.sh` do deploy instala o trigger script novo sozinho.
+4. **Frescor**: oferta de marketplace defasada
+   (`marketplace_offer_stale_after_hours`, default 36h) não vira mais
+   número na tela — `price=None`, o app mostra "Conferir preço na Shopee"
+   e a oferta desce pro fim do ranking.
+
+### Falta antes de religar
+
+- [ ] Deploy (o trigger script novo entra sozinho) e **rodar 1 sync
+      manual** pra popular já: `curl -X POST .../v1/admin/shopee-sync/run
+      -H "X-Sync-Token: $TOKEN" -d '{"source":"categories","skip_existing_shopee":false}'`
+      e acompanhar `GET .../v1/admin/shopee-sync/status`.
+- [ ] `scripts/audit_shopee_offers.py --deactivate-invalid` — desliga as
+      6 ofertas atuais que não recasarem no matcher novo.
+- [ ] Revisar à mão uma amostra do que sobrou (10-15 ofertas): a URL
+      abre o produto certo? preço bate?
+- [ ] Só então: `SHOPEE_AFFILIATE_ENABLED=true` (ou flip o default em
+      `config.py`).
+
+### Gap conhecido do matcher
+
+Tamanho de coleira abreviado (anúncio "Scalibor **M**") vs escrito
+("Cães Pequenos e Médios") — o matcher não equipara os dois de forma
+confiável sem quebrar o casamento de porte de ração (Mini Adult ≠ Adult).
+Mitigação: o GTIN-first pega o anúncio certo quando o vendedor lista o
+EAN; a revisão à mão acima pega o resto.

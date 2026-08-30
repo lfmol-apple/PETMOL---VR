@@ -127,7 +127,10 @@ async def test_shopee_offer_uses_catalog_thumbnail_when_marketplace_has_no_image
 
 
 @pytest.mark.asyncio
-async def test_stale_offer_is_served_with_stale_marker(monkeypatch):
+async def test_stale_offer_is_served_without_a_price_number(monkeypatch):
+    """Oferta de marketplace defasada continua aparecendo (o link ainda
+    vale), mas SEM preço — o número velho de um anúncio de terceiro pode
+    estar errado. O frontend mostra "Conferir preço na <loja>"."""
     _enable_shopee(monkeypatch)
     monkeypatch.setenv("MARKETPLACE_OFFER_STALE_AFTER_HOURS", "36")
     monkeypatch.setenv("MARKETPLACE_OFFER_REFRESH_AFTER_MINUTES", "0")
@@ -141,7 +144,7 @@ async def test_stale_offer_is_served_with_stale_marker(monkeypatch):
         provider = MarketplaceOfferProvider(db, "shopee")
         offer = await provider.find_offer(ProductContext(gtin=GTIN))
         assert offer is not None
-        assert offer.price == 59.9
+        assert offer.price is None
         assert offer.price_is_stale is True
     finally:
         db.close()
