@@ -62,11 +62,13 @@ export function Header() {
             {/* Conteúdo público */}
             <Link
               href="/guias"
-              className={`text-sm font-bold transition-colors ${
-                pathname.startsWith('/guias') ? 'text-[#0056D2]' : 'text-slate-500 hover:text-[#0056D2]'
+              className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-sm font-black transition-all active:scale-95 ${
+                pathname.startsWith('/guias')
+                  ? 'text-[#0056D2] bg-blue-100 border border-[#0056D2]/25'
+                  : 'text-[#0056D2] bg-blue-50 border border-[#0056D2]/15 hover:bg-blue-100'
               }`}
             >
-              Guias
+              <span aria-hidden>📖</span> Guias
             </Link>
 
             {/* User Auth */}
@@ -117,11 +119,13 @@ export function Header() {
 
             <Link
               href="/guias"
-              className={`inline-flex items-center h-9 px-2.5 rounded-xl text-[13px] font-bold transition-colors ${
-                pathname.startsWith('/guias') ? 'text-[#0056D2] bg-blue-50' : 'text-slate-500 hover:text-[#0056D2]'
+              className={`inline-flex items-center gap-1 h-9 px-3 rounded-xl text-[13px] font-black transition-all active:scale-95 ${
+                pathname.startsWith('/guias')
+                  ? 'text-[#0056D2] bg-blue-100 border border-[#0056D2]/25'
+                  : 'text-[#0056D2] bg-blue-50 border border-[#0056D2]/15'
               }`}
             >
-              Guias
+              <span aria-hidden>📖</span> Guias
             </Link>
 
             {/* Mobile User Auth */}

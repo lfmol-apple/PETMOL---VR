@@ -29,8 +29,8 @@ export default function LandingPage() {
         <PetmolTextLogo className="text-3xl" color="#0056D2" />
         <div className="flex items-center gap-2">
           <Link href="/guias"
-            className="hidden sm:inline-block px-3 py-2 rounded-xl text-sm font-bold text-slate-600 hover:text-[#0056D2] active:bg-blue-50">
-            Guias
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-black text-[#0056D2] bg-blue-50 border border-[#0056D2]/15 hover:bg-blue-100 active:scale-[0.97] transition-all">
+            <span aria-hidden>📖</span> Guias
           </Link>
           <Link href="/login"
             className="px-4 py-2 rounded-xl text-sm font-bold text-[#0056D2] border border-[#0056D2]/30 active:bg-blue-50">
