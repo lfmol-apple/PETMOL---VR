@@ -12,7 +12,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
     ]);
   });
 
-  it('mostra as quatro lojas atuais nos cards e no comprar novamente', async () => {
+  it('Cobasi/ML/Shopee visíveis; Petz DESATIVADA (2026-08-30) some da grade e da busca', async () => {
     const {
       HOME_SHOPPING_PARTNERS,
       isPartnerVisibleForSearch,
@@ -21,19 +21,17 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
 
     expect(HOME_SHOPPING_PARTNERS.map((partner) => partner.affiliateStatus)).toEqual([
       'active',
-      'active',
+      'disabled', // petz
       'active',
       'active',
     ]);
     expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
       'cobasi',
-      'petz',
       'mercadolivre',
       'shopee',
     ]);
     expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
       'cobasi',
-      'petz',
       'mercadolivre',
       'shopee',
     ]);
@@ -137,13 +135,11 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(petz && resolvePartnerUrl(petz, 'ração pet', '')).toContain('petz.com.br/parceiro/pettmol');
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
         'cobasi',
-        'petz',
         'mercadolivre',
         'shopee',
       ]);
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
         'cobasi',
-        'petz',
         'mercadolivre',
         'shopee',
       ]);
@@ -177,7 +173,6 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(partnerGenericLinkType('shopee')).toBe('affiliate_search');
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
         'cobasi',
-        'petz',
         'mercadolivre',
         'shopee',
       ]);
@@ -215,7 +210,6 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(HOME_SHOPPING_PARTNERS.map((partner) => partner.id)).not.toContain('zeedog');
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
         'cobasi',
-        'petz',
         'mercadolivre',
         'shopee',
       ]);

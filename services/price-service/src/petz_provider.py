@@ -49,9 +49,26 @@ def is_petz_publicly_servable() -> bool:
     confirmado no catálogo (petz_mapping.match_status) NUNCA é, sozinho,
     prova de monetização — continuam sendo conceitos distintos por
     design; o default no código continua False (defesa em profundidade,
-    mesmo padrão de petz_affiliate_enabled) — produção ativa as duas
-    explicitamente via env."""
+    mesmo padrão de petz_affiliate_enabled) — produção ativava as duas
+    explicitamente via env.
+
+    mesmo padrão de petz_affiliate_enabled) — produção ativava as duas
+    explicitamente via env.
+
+    DESATIVADO 2026-08-30 (decisão de produto): a Petz não oferece deep
+    link de produto pra parceiros, então "Ver na Petz" só levava o cliente
+    à busca do site — e a própria página de busca da Petz tem bugs fora do
+    nosso controle (o link da foto abre outro produto / o app). Sem
+    cooperação da Petz não dá pra fazer melhor.
+
+    Kill-switch: `petz_publicly_disabled` (default True) desliga tudo sem
+    mexer no env do VPS. Pra REATIVAR: flip o default pra False em
+    config.py (ou PETZ_PUBLICLY_DISABLED=false no env). Todo o resto do
+    caminho Petz (ponte /go/petz, openPetzPartnerStore, busca curada,
+    PETZ_CURATED_SEARCH) continua no lugar, dormente."""
     settings = get_settings()
+    if settings.petz_publicly_disabled:
+        return False
     return settings.petz_affiliate_enabled and settings.petz_coupon_attribution_verified
 
 

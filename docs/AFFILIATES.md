@@ -857,6 +857,16 @@ Uma `product_url` confirmada **nunca** vira `affiliate_product_url` sozinha — 
 
 #### "Ver na Petz" → página do produto / busca via ponte `/go/petz` (investigação no navegador, 29/08/2026)
 
+> **DESATIVADO 2026-08-30.** `is_petz_publicly_servable()` retorna `False`
+> (kill-switch `petz_publicly_disabled`, default `True`) e a Petz está
+> `affiliateStatus: 'disabled'` no catálogo do frontend. Motivo: a Petz
+> não oferece deep link de produto pra parceiros e a página de busca do
+> site tem bugs fora do nosso controle (o link da foto abre outro
+> produto / o app). Sem cooperação da Petz não dava pra fazer melhor.
+> Todo o código abaixo continua no lugar, dormente — pra reativar,
+> flip `petz_publicly_disabled` e `affiliateStatus`. O restante desta
+> seção fica como registro do que foi investigado/construído.
+
 **Como o Parceiro Petz realmente atribui e aplica o desconto** (verificado
 no painel `parceiropetz.com.br/manager` e no checkout `www.petz.com.br`,
 teste real até o carrinho, sem finalizar — ver

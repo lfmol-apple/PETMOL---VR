@@ -53,6 +53,9 @@ def test_handoff_shop_petz_ignores_dest_open_redirect(client):
 def test_handoff_shop_petz_works_once_gate_verified(client, monkeypatch):
     monkeypatch.setenv("PETZ_AFFILIATE_ENABLED", "true")
     monkeypatch.setenv("PETZ_COUPON_ATTRIBUTION_VERIFIED", "true")
+    # Petz desligada em prod pelo kill-switch petz_publicly_disabled
+    # (default True, 2026-08-30) — este teste cobre o caminho ligado.
+    monkeypatch.setenv("PETZ_PUBLICLY_DISABLED", "false")
     get_settings.cache_clear()
 
     resp = client.get("/handoff/shop", params={"partner": "petz"}, follow_redirects=False)

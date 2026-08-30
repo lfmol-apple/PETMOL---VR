@@ -148,10 +148,16 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     // checkout — nunca embutido na URL. Deve espelhar o mesmo valor de
     // STOREFRONT_AFFILIATE_URLS["petz"] em affiliate_links.py (backend).
     //
-    // A Petz só aparece pra um produto específico quando GET
-    // /commerce/petz-direct-link confirma que aquele produto existe no
-    // catálogo da Petz (ver fetchPetzDirectLink em productPricing.ts).
-    affiliateStatus: 'active',
+    // DESATIVADA 2026-08-30 (decisão de produto): a Petz não oferece deep
+    // link de produto pra parceiros e a página de busca do site tem bugs
+    // fora do nosso controle — "Ver na Petz" não tinha como ficar bom sem
+    // cooperação da Petz. Backend: kill-switch petz_publicly_disabled
+    // (petz_provider.py) já derruba /commerce/petz-direct-link e o
+    // handoff. Aqui: 'disabled' tira a Petz da grade de lojas e da busca.
+    // Pra REATIVAR: 'disabled' → 'active' aqui E flip petz_publicly_disabled
+    // no backend. Todo o resto (ponte /go/petz, openPetzPartnerStore,
+    // busca curada) continua no lugar.
+    affiliateStatus: 'disabled',
     merchantType: 'retailer',
     affiliateMode: 'fixed_store',
     supportsProductDeepLink: false,

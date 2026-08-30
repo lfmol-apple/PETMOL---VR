@@ -342,6 +342,14 @@ class Settings(BaseSettings):
     # depois de um teste de compra real documentado confirmar a
     # atribuição — nunca "porque parece razoável que funcione assim".
     petz_coupon_attribution_verified: bool = False
+    # Kill-switch de produto (2026-08-30): desliga TODO caminho público
+    # Petz (is_petz_publicly_servable → False), independente das flags
+    # acima. Motivo: a Petz não oferece deep link de produto pra
+    # parceiros e a página de busca do site tem bugs fora do nosso
+    # controle — "Ver na Petz" não tinha como ficar bom sem cooperação da
+    # Petz. O código do caminho Petz continua todo no lugar; pra reativar,
+    # flip pra False aqui (ou PETZ_PUBLICLY_DISABLED=false no env).
+    petz_publicly_disabled: bool = True
 
     @field_validator("debug", mode="before")
     @classmethod
