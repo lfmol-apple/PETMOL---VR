@@ -23,9 +23,12 @@ export function buildPetStoreTitle(pet: { sex?: 'male' | 'female' | null; pet_na
 // inventado. Só os domínios que correspondem a algo que se compra de novo.
 const BUYABLE_DOMAINS: CareReminderDomain[] = ['food', 'parasite', 'medication'];
 
-// Lojas permitidas no app por enquanto. A recompra prioriza ofertas
-// monetizadas do CommerceEngine; este fallback só mostra lojas desta lista.
-export const QUICK_BUY_PARTNERS: HomeShoppingPartnerId[] = ['cobasi', 'petz', 'mercadolivre', 'shopee'];
+// Lojas permitidas no app no lançamento (2026-08-30): só Cobasi e Shopee.
+// Petz foi desativada e Mercado Livre / Amazon entram depois — ver
+// affiliateStatus em homeShoppingPartners.ts. A recompra prioriza ofertas
+// monetizadas do CommerceEngine; este fallback só mostra lojas desta
+// lista, e ainda passa por isPartnerVisibleForSearch (defesa em profundidade).
+export const QUICK_BUY_PARTNERS: HomeShoppingPartnerId[] = ['cobasi', 'shopee'];
 
 export interface ReorderCard {
   id: string;

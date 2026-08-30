@@ -21,22 +21,39 @@ Essas quatro coisas nunca são confundidas no código: ASIN/listing_id de
 marketplace é referência externa, nunca substitui o GTIN; um anúncio
 Shopee/ML nunca se torna a identidade do produto.
 
+## Lançamento (2026-08-30): **Cobasi + Shopee**
+
+O app lança com **Cobasi** e **Shopee** como lojas ativas. **Petz** foi
+desativada (Petz não expõe deep link de produto pra parceiros — ver §Petz).
+**Mercado Livre** e **Amazon** entram *depois*, quando os respectivos
+afiliados forem ligados. Ver `docs/LAUNCH.md` para o checklist de go-live
+(flags de produção, sync de ofertas, smoke tests, rollback).
+
+| Loja | No lançamento | Gate |
+|---|---|---|
+| Cobasi | **ativa** — discovery de preço + storefront MAIS/UTM (7%, confirmado) | `cobasi_affiliate_mode="utm"` (default); frontend `affiliateStatus: 'active'` |
+| Shopee | **ativa** — storefront afiliada (+ ofertas por GTIN se sincronizadas) | `shopee_affiliate_enabled=True` (default); frontend `affiliateStatus: 'active'` |
+| Petz | **desativada** | `petz_publicly_disabled=True` + frontend `affiliateStatus: 'disabled'` |
+| Mercado Livre | **desativado** (entra depois) | `mercadolivre_affiliate_enabled=False` + `mercadolivre_public_offers_enabled=False` + frontend `affiliateStatus: 'disabled'` |
+| Amazon | **desativado** (entra depois) | sem `amazon_associate_tag`; nunca reintroduzido nas superfícies |
+
 ## Status por merchant (visão executiva)
 
-Atualizado em 22/08/2026. "Discovery" = como o preço/produto é encontrado;
-"Monetização" = qual link é de fato exibido ao tutor hoje (não confundir
-com feed disponível ou aprovação comercial — nenhuma das duas por si só
-libera exposição, ver seção Awin abaixo).
+Atualizado em 22/08/2026 (lançamento em 30/08 — ver acima). "Discovery" =
+como o preço/produto é encontrado; "Monetização" = qual link é de fato
+exibido ao tutor hoje (não confundir com feed disponível ou aprovação
+comercial — nenhuma das duas por si só libera exposição, ver seção Awin
+abaixo).
 
 | Merchant | Rede/programa | Discovery | Monetização real hoje | Feed Awin | Estado |
 |---|---|---|---|---|---|
 | Cobasi | MAIS/UTM (7%, confirmado) + Awin (advertiser 17870, approved, 8,5% nominal) | API pública VTEX (dinâmico) + Awin feed (GTIN exato) | `route=awin` preferida desde 14/08/2026 (decisão de produto, comissão Awin ainda não validada por venda real); `route=mais` é o fallback e **sempre** vence quando há link cadastrado manualmente (`is_manually_cached`), independente de preferência | sim, 8.398 produtos sincronizados | monetização real ligada; exposição ainda depende de `AWIN_ENABLED=true` em produção |
 | Zee Now | Awin (advertiser 127557, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116779, 13.835 produtos observados; 13.605 GTINs válidos diretos, 152 UPC-11 corrigíveis, 78 inválidos e 9 grupos duplicados em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeenow`, exposição depende dos gates Awin |
 | Zee Dog | Awin (advertiser 127555, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116649, 1.799 produtos observados, 100% GTIN válido/único em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeedog`, exposição depende dos gates Awin |
-| Petz | Awin (advertiser 127553, pending) + programa próprio "Loja Parceira" (ativo) | `PetzProductMapping` — aprendizado por produto, confirmação humana (ver §Petz) | storefront fixa + cupom PETTMOL (10% off), sem preço por produto (`link_type: affiliate_store`, ver "Ver na Petz") | não | Awin pending; Loja Parceira ativa e ligada |
+| Petz | Awin (advertiser 127553, pending) + programa próprio "Loja Parceira" | `PetzProductMapping` — aprendizado por produto, confirmação humana (ver §Petz) | **nenhuma — DESATIVADA 2026-08-30** (`petz_publicly_disabled=True` + frontend `disabled`); Petz não expõe deep link de produto pra parceiros | não | desativada; código dormente, reativação = 2 flags |
 | Araújo | Awin (advertiser 17919, pending/not_joined) | nenhum | nenhuma | **não** (0 produtos no ShopWindow) | nunca pode virar `AwinFeedProvider` — exigiria outra fonte de discovery |
-| Shopee | Shopee Affiliates | nenhum | nenhuma (`MarketplaceOffer`/`MarketplaceOfferProvider` prontos, gated por `SHOPEE_AFFILIATE_ENABLED=false`) | n/a | PJ, fiscal/bancário em avaliação, mídia aprovada e primeiro link oficial ainda pendentes |
-| Mercado Livre | ML Afiliados | `MarketplaceOffer`/`mercadolivre_link_validator.py` — ponte manual controlada (candidato via WebSearch → revisão humana → link real gerado no Gerador de Links do ML → `affiliate_url`) | nenhuma exposta ao tutor — gated por `MERCADOLIVRE_PUBLIC_OFFERS_ENABLED=false` e `MERCADOLIVRE_AFFILIATE_ENABLED=false` | n/a | shadow mode — bridge manual pronta e testada (`export_ml_link_candidates.py`/`import_ml_offers.py`), scraping/automação do site proibidos após bloqueio de IP; ver PR #56 |
+| Shopee | Shopee Affiliates | `MarketplaceOffer`/`MarketplaceOfferProvider` (ofertas por GTIN sincronizadas) | **ATIVA no lançamento** — storefront afiliada (`NEXT_PUBLIC_AFFILIATE_SHOPEE`) + ofertas por produto quando sincronizadas via `scripts/sync_shopee_offers.py`; `shopee_affiliate_enabled=True` | n/a | pré-requisitos fiscais/mídia/API cumpridos 21/08; confirmar shortlink oficial e decidir sync de ofertas no go-live |
+| Mercado Livre | ML Afiliados | `MarketplaceOffer`/`mercadolivre_link_validator.py` — ponte manual controlada | **nenhuma — FORA DO LANÇAMENTO** (`mercadolivre_affiliate_enabled=false`, `mercadolivre_public_offers_enabled=false`, frontend `disabled`); entra depois | n/a | shadow mode; bridge manual pronta (`export_ml_link_candidates.py`/`import_ml_offers.py`); ver PR #56 |
 | Amazon | Amazon Associates encerrado em 22/08/2026 (`petmol-20`) | nenhum | nenhum; integração temporariamente removida das superfícies públicas | n/a | disabled — reativação proibida até nova aprovação e nova tag válida |
 | Petlove Produtos | — | nenhum | nenhuma | n/a | disabled deliberadamente |
 | Petlove Plano de Saúde | — | n/a (service, não produto) | nenhuma | n/a | pending — possível duplicata de DogLife, não confirmado |

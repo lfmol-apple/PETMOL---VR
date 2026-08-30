@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 describe('homeShoppingPartners — parceiros ativos no app', () => {
-  it('mantém somente Cobasi, Petz, Mercado Livre e Shopee no cadastro exposto ao app', async () => {
+  it('mantém Cobasi, Petz, Mercado Livre e Shopee no cadastro (Petz/ML desativados, mas continuam no array)', async () => {
     const { HOME_SHOPPING_PARTNERS } = await import('./homeShoppingPartners');
 
     expect(HOME_SHOPPING_PARTNERS.map((partner) => partner.id)).toEqual([
@@ -12,7 +12,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
     ]);
   });
 
-  it('Cobasi/ML/Shopee visíveis; Petz DESATIVADA (2026-08-30) some da grade e da busca', async () => {
+  it('LANÇAMENTO (2026-08-30): só Cobasi e Shopee visíveis; Petz e Mercado Livre desativados', async () => {
     const {
       HOME_SHOPPING_PARTNERS,
       isPartnerVisibleForSearch,
@@ -20,19 +20,17 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
     } = await import('./homeShoppingPartners');
 
     expect(HOME_SHOPPING_PARTNERS.map((partner) => partner.affiliateStatus)).toEqual([
-      'active',
-      'disabled', // petz
-      'active',
-      'active',
+      'active',    // cobasi
+      'disabled',  // petz — desativada
+      'disabled',  // mercadolivre — fora do lançamento, entra depois
+      'active',    // shopee
     ]);
     expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
       'cobasi',
-      'mercadolivre',
       'shopee',
     ]);
     expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
       'cobasi',
-      'mercadolivre',
       'shopee',
     ]);
   });
@@ -135,12 +133,10 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(petz && resolvePartnerUrl(petz, 'ração pet', '')).toContain('petz.com.br/parceiro/pettmol');
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
         'cobasi',
-        'mercadolivre',
         'shopee',
       ]);
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
         'cobasi',
-        'mercadolivre',
         'shopee',
       ]);
     } finally {
@@ -173,7 +169,6 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(partnerGenericLinkType('shopee')).toBe('affiliate_search');
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
         'cobasi',
-        'mercadolivre',
         'shopee',
       ]);
     } finally {
@@ -210,7 +205,6 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(HOME_SHOPPING_PARTNERS.map((partner) => partner.id)).not.toContain('zeedog');
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
         'cobasi',
-        'mercadolivre',
         'shopee',
       ]);
     } finally {

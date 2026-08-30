@@ -171,11 +171,18 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/mercadolivre.png',
     logoAlt: 'Mercado Livre',
     directUrl: 'https://lista.mercadolivre.com.br/pet',
+    // FORA DO LANÇAMENTO (2026-08-30, decisão de produto): o app lança só
+    // com Cobasi e Shopee; Mercado Livre e Amazon entram depois. O
+    // afiliado ML já está desligado no backend (mercadolivre_affiliate_enabled
+    // /mercadolivre_public_offers_enabled = False). Aqui: 'disabled' tira
+    // o ML da grade de lojas, da busca e do "comprar novamente". Pra
+    // REATIVAR: 'disabled' → 'active' aqui E ligar os flags no backend.
+    //
     // Marketplace: ofertas por produto vivem no backend via
     // MarketplaceOfferProvider("mercadolivre") e só aparecem com link
     // oficial cadastrado no Gerador de produtos recomendados. A vitrine
     // genérica abre o perfil/lista de recomendações informado no painel.
-    affiliateStatus: 'active',
+    affiliateStatus: 'disabled',
     merchantType: 'marketplace',
     affiliateMode: 'product_deeplink',
     supportsProductDeepLink: true,
