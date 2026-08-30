@@ -191,7 +191,7 @@ export function HomeNavigationModals({
                     ? [{ icon: '📿', image: '/cuidados-coleira.webp', label: 'Coleira', gradient: 'from-teal-100 to-cyan-200 border-teal-300', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
                     : []),
                   { icon: '🛁', image: '/cuidados-pets-banho.webp', label: 'Banho e Tosa', gradient: 'from-sky-100 to-blue-200 border-sky-300', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
-                  { icon: '💊', label: 'Medicação', gradient: 'from-purple-100 to-violet-200 border-purple-300', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
+                  { icon: '💊', image: '/cuidados-medicacao.webp', label: 'Medicação', gradient: 'from-purple-100 to-violet-200 border-purple-300', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
                 ].map(({ icon, image, label, gradient, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 
@@ -237,7 +237,7 @@ export function HomeNavigationModals({
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
                     {image ? (
-                      <span className={`absolute opacity-95 transition-transform duration-300 group-hover:scale-110 ${tab === 'flea_tick' ? 'top-6 right-4' : 'top-1 right-1'}`}>
+                      <span className={`absolute opacity-95 transition-transform duration-300 group-hover:scale-110 ${tab === 'flea_tick' ? 'top-6 right-4' : tab === 'medication' ? 'top-2 right-1' : 'top-1 right-1'}`}>
                         <img
                           src={image}
                           alt=""
@@ -246,7 +246,9 @@ export function HomeNavigationModals({
                               ? 'h-[92px] w-[92px] object-contain'
                               : tab === 'flea_tick'
                                 ? 'h-[38px] w-[38px] object-contain'
-                                : 'h-[76px] w-[76px] object-contain'
+                                : tab === 'medication'
+                                  ? 'h-[74px] w-[104px] object-contain'
+                                  : 'h-[76px] w-[76px] object-contain'
                           }
                         />
                       </span>
