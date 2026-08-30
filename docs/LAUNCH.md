@@ -2,11 +2,13 @@
 
 Lançamento **2026-08-30**. Lojas ativas:
 - **Cobasi** — completa (comparação de preço por produto + vitrine, UTM/MAIS 7%)
-- **Shopee** — **só vitrine** (shortlink afiliado). As ofertas por produto
-  estão **desligadas** (`shopee_affiliate_enabled=False`) até o projeto de
-  precisão da Shopee — a API de afiliado da Shopee não casa por GTIN, o
-  sync está acoplado à Awin (off) e as ofertas atuais estão defasadas /
-  podem casar variante errada. Ver §"Shopee por produto (pós-lançamento)".
+- **Shopee** — vitrine (shortlink afiliado) **+ ofertas por produto**
+  (`shopee_affiliate_enabled=True`). Ficou `False` por ~1 dia no
+  lançamento e voltou depois do projeto de precisão (#120): GTIN na
+  busca, hard-fail de cm p/ coleira, sync noturno sem Awin, e — a rede de
+  segurança — oferta com +36h não mostra mais preço-número. Gap residual
+  (variante de coleira abreviada) mitigado por `audit_shopee_offers.py` +
+  revisão. Ver §7.
 
 Mercado Livre e Amazon entram depois. Petz foi desativada.
 
@@ -42,7 +44,7 @@ presumir.**
 | `PETZ_PUBLICLY_DISABLED` | ausente ou `true` (default no código já é `True`) | se `false`, "Ver na Petz" volta |
 | `PETZ_AFFILIATE_ENABLED` | pode ficar como está — o kill-switch acima vence | — |
 | `COBASI_AFFILIATE_MODE` | `utm` (ou ausente — default é `utm`) | `disabled` → Cobasi não monetiza nem busca preço |
-| `SHOPEE_AFFILIATE_ENABLED` | **ausente ou `false`** (default no código agora é `False` — Shopee só vitrine no lançamento) | `true` → religa as ofertas por produto ANTES do projeto de precisão (defasadas / variante errada) |
+| `SHOPEE_AFFILIATE_ENABLED` | ausente ou `true` (default no código voltou a `True` após o projeto de precisão #120) | `false` → Shopee vira só vitrine (ofertas por produto somem) |
 | `MERCADOLIVRE_AFFILIATE_ENABLED` | **ausente ou `false`** | `true` → ML pode vazar em superfícies |
 | `MERCADOLIVRE_PUBLIC_OFFERS_ENABLED` | **ausente ou `false`** | `true` (com afiliado on) → ofertas ML públicas |
 | `AMAZON_ASSOCIATE_TAG` | **ausente** | qualquer valor tenta reativar Amazon |
@@ -65,9 +67,9 @@ grep -E 'PETZ|COBASI|SHOPEE|MERCADOLIVRE|AMAZON|AWIN' /etc/petmol/petmol.env
 
 ## 3. Decisões de conteúdo antes do go-live
 
-- [x] **Shopee — só vitrine no lançamento** (decidido 2026-08-30). As
-      ofertas por produto (`shopee_affiliate_enabled=False`) só voltam
-      depois do projeto de precisão (§7). A vitrine (shortlink) fica.
+- [x] **Shopee** — ficou só vitrine por ~1 dia (30/08); **voltou com
+      ofertas por produto** (`shopee_affiliate_enabled=True`) depois do
+      projeto de precisão (§7). Ainda vale rodar o audit + revisão de §7.
 - [ ] **Confirmar o shortlink oficial da Shopee** — o default no código é
       `s.shopee.com.br/4AzW1leQcW` (`DEFAULT_SHOPEE_AFFILIATE_URL` em
       `homeShoppingPartners.ts`). Resolve pra `shopee.com.br/search?keyword=pet`
@@ -97,19 +99,19 @@ curl -s 'https://www.petmol.com.br/api/commerce/offers?q=racao%20golden' | head 
 #   → ofertas com merchant "cobasi" e url com utm_source=mais
 ```
 
-# 4. Shopee só vitrine — nenhuma oferta por produto
-curl -s 'https://www.petmol.com.br/api/commerce/offers?gtin=7896181298090' | grep -o '"merchant":"[a-z]*"' | sort -u
-#   → só "cobasi" (nenhum "shopee")
+# 4. Shopee de volta — oferta por produto aparece (preço fresco OU
+#    "price":null se ainda não re-sincronizada — nunca número velho)
 curl -s 'https://www.petmol.com.br/api/commerce/monetized-offer?merchant=shopee&context=marketplace&gtin=7896181298090'
-#   → {"offer":null}
+#   → {"offer":{"merchant":"shopee",...}}
 ```
 
 No app (feche/reabra):
 - [ ] "Loja do Pet" mostra **só** ícones Cobasi e Shopee.
 - [ ] Nenhum "Ver na Petz" em nenhum produto.
 - [ ] Nenhuma menção a Mercado Livre em lojas / busca / comprar novamente.
-- [ ] "Comprar novamente" de uma ração → oferta Cobasi com preço. **Nenhum
-      card de preço Shopee** (Shopee só via o ícone da vitrine).
+- [ ] "Comprar novamente" de uma ração → oferta Cobasi com preço; oferta
+      Shopee quando houver (preço fresco ou "Conferir preço na Shopee" —
+      nunca um número defasado).
 - [ ] Ícone Shopee na "Loja do Pet" abre o shortlink oficial.
 
 ---
@@ -139,12 +141,13 @@ No app (feche/reabra):
 
 ---
 
-## 7. Shopee por produto — status e passos pra religar
+## 7. Shopee por produto — status
 
-Objetivo: ofertas Shopee por GTIN confiáveis, pra religar
-`shopee_affiliate_enabled=True`.
+`shopee_affiliate_enabled=True` (voltou 30/08 após #120). Ofertas Shopee
+por produto aparecem de novo. Esta seção lista o que já protege a
+qualidade e o que ainda vale rodar.
 
-### Já feito (neste PR)
+### Já feito (#120)
 
 1. **GTIN literal como 1ª palavra-chave** da busca Shopee
    (`shopee_offer_sync.py`) — vendedor sério de pet põe o EAN no título;
@@ -163,18 +166,20 @@ Objetivo: ofertas Shopee por GTIN confiáveis, pra religar
    número na tela — `price=None`, o app mostra "Conferir preço na Shopee"
    e a oferta desce pro fim do ranking.
 
-### Falta antes de religar
+### Ainda vale rodar (higiene, não bloqueia)
 
-- [ ] Deploy (o trigger script novo entra sozinho) e **rodar 1 sync
-      manual** pra popular já: `curl -X POST .../v1/admin/shopee-sync/run
+- [ ] **Rodar 1 sync manual** pra refrescar já (senão só no próximo
+      05:00 UTC): `curl -X POST .../v1/admin/shopee-sync/run
       -H "X-Sync-Token: $TOKEN" -d '{"source":"categories","skip_existing_shopee":false}'`
       e acompanhar `GET .../v1/admin/shopee-sync/status`.
 - [ ] `scripts/audit_shopee_offers.py --deactivate-invalid` — desliga as
-      6 ofertas atuais que não recasarem no matcher novo.
-- [ ] Revisar à mão uma amostra do que sobrou (10-15 ofertas): a URL
-      abre o produto certo? preço bate?
-- [ ] Só então: `SHOPEE_AFFILIATE_ENABLED=true` (ou flip o default em
-      `config.py`).
+      ofertas antigas que não recasarem no matcher novo.
+- [ ] Revisar à mão uma amostra (10-15 ofertas): a URL abre o produto
+      certo? preço bate?
+
+Enquanto isso não roda, a rede de segurança do §7.4 (oferta >36h sem
+preço-número) garante que nada de errado aparece como número — só o
+link, com "Conferir preço na Shopee".
 
 ### Gap conhecido do matcher
 
