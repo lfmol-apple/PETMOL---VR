@@ -205,78 +205,43 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
         {/* Scrollable content */}
         <div className="overflow-y-auto overscroll-contain flex-1 px-5 pb-8 space-y-5">
-              <div
-                className={`rounded-2xl border bg-white shadow-sm transition-colors ${
-                  reorderUrgentTone === 'critical'
-                    ? 'border-rose-200'
-                    : reorderUrgentTone === 'warning'
-                      ? 'border-amber-200'
-                      : 'border-gray-200'
-                }`}
-              >
+              <div>
+                {/* Mesmo botão "Comprar" dos ItemSheets (emerald cheio,
+                    centrado, shadow-lg), adaptado pra abrir a lista de
+                    recompra da Loja do pet. É a fonte de comissão — fica
+                    acima de tudo e grita "toque aqui". */}
                 <button
                   type="button"
                   onClick={toggleReorder}
-                  className="flex w-full flex-col gap-2 rounded-2xl p-3.5 text-left active:scale-[0.99] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0056D2] focus-visible:ring-offset-2"
+                  className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 px-4 py-4 text-white text-[15px] min-[380px]:text-[16px] font-black shadow-lg shadow-emerald-500/25 active:scale-[0.98] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
                   aria-expanded={reorderOpen}
                   aria-controls="reorder-panel"
                   aria-label={`Comprar de novo, ${reorderCards.length} produto${reorderCards.length === 1 ? '' : 's'}, ${reorderOpen ? 'expandido' : 'recolhido'}`}
                 >
-                  <div className="flex w-full items-center gap-2.5">
-                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl bg-emerald-50 text-lg">🛒</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[15px] font-black text-gray-900 leading-tight">Comprar de novo</p>
-                      <p className="text-[12px] font-medium text-gray-500 truncate">
-                        O que {petName || 'seu pet'} usa sempre
-                      </p>
-                    </div>
-                    {reorderCards.length > 0 && (
-                      <span
-                        className={`grid min-w-[24px] h-6 flex-shrink-0 place-items-center rounded-full px-1.5 text-[12px] font-black ${
-                          reorderUrgentTone === 'critical'
-                            ? 'bg-rose-500 text-white'
-                            : reorderUrgentTone === 'warning'
-                              ? 'bg-amber-400 text-amber-950'
-                              : 'bg-gray-900 text-white'
-                        }`}
-                      >
-                        {reorderCards.length}
-                      </span>
-                    )}
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      aria-hidden
-                      className={`h-5 w-5 flex-shrink-0 text-gray-400 transition-transform duration-200 ${reorderOpen ? 'rotate-180' : ''}`}
-                    >
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
-                  </div>
-
-                  {!reorderOpen && reorderScentLine && (
-                    <p className="text-[11.5px] font-semibold leading-snug pl-[46px]">
-                      <span className={reorderUrgentTone === 'critical' ? 'text-rose-600' : reorderUrgentTone === 'warning' ? 'text-amber-700' : 'text-gray-500'}>
-                        {reorderScentLine}
-                      </span>
-                    </p>
-                  )}
-
+                  <span aria-hidden className="text-[18px] leading-none">🛒</span>
+                  <span className="truncate">Comprar de novo</span>
                   {reorderCards.length > 0 && (
-                    <span
-                      className={`mt-0.5 flex items-center justify-center gap-1 rounded-xl py-2.5 text-[13px] font-black ${
-                        reorderOpen ? 'bg-gray-100 text-gray-500' : 'bg-blue-50 text-[#0056D2]'
-                      }`}
-                    >
-                      {reorderOpen ? 'Esconder produtos' : `Ver produtos (${reorderCards.length}) ›`}
+                    <span className="grid min-w-[24px] h-6 flex-shrink-0 place-items-center rounded-full bg-white/25 px-1.5 text-[13px] font-black">
+                      {reorderCards.length}
                     </span>
                   )}
+                  <svg
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden
+                    className={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${reorderOpen ? 'rotate-180' : ''}`}
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
                 </button>
 
+                {/* Linha de contexto sob o botão — só quando fechado e há urgência */}
+                {!reorderOpen && reorderScentLine && (
+                  <p className={`mt-1.5 text-center text-[12px] font-semibold ${reorderUrgentTone === 'critical' ? 'text-rose-600' : reorderUrgentTone === 'warning' ? 'text-amber-700' : 'text-gray-500'}`}>
+                    {reorderScentLine}
+                  </p>
+                )}
+
                 {reorderOpen && (
-                  <div id="reorder-panel" role="region" aria-label="Produtos para comprar de novo" className="px-3 pb-3 pt-1">
+                  <div id="reorder-panel" role="region" aria-label="Produtos para comprar de novo" className="mt-3">
                     {reorderCards.length > 0 ? (
                       <div className="space-y-2">
                         {reorderCards.map((card) => {
