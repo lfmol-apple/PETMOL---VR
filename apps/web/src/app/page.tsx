@@ -6,6 +6,14 @@ import Link from 'next/link';
 import { getToken } from '@/lib/auth-token';
 import { PetmolTextLogo } from '@/components/ui/BrandBackground';
 
+// Links estáticos para a área editorial — sem importar a base de conteúdo
+// no bundle da landing (a lista completa e dinâmica vive em /guias).
+const HOME_GUIDES = [
+  { slug: 'como-escolher-racao-ideal-cachorro', title: 'Como escolher a ração ideal para o seu cachorro' },
+  { slug: 'quanto-custa-alimentar-cachorro-por-mes', title: 'Quanto custa alimentar um cachorro por mês?' },
+  { slug: 'coleira-ou-peitoral-qual-escolher', title: 'Coleira ou peitoral: qual escolher?' },
+] as const;
+
 export default function LandingPage() {
   const router = useRouter();
 
@@ -73,8 +81,38 @@ export default function LandingPage() {
           iconBg="bg-blue-500"
           tag="Comprar"
           title="Compare preços, sem esforço"
-          body="Remédio, ração ou antiparasitário: comparamos Cobasi, Petz, Mercado Livre e Shopee automaticamente e mostramos onde há opção de compra."
+          body="Remédio, ração ou antiparasitário: comparamos as lojas parceiras automaticamente e mostramos onde há opção de compra."
         />
+      </section>
+
+      {/* Guias PETMOL — conteúdo público, sem login */}
+      <section className="px-5 pb-10">
+        <div className="rounded-3xl border border-slate-100 bg-slate-50 p-6">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="text-[17px] font-black text-slate-900">Guias PETMOL</h2>
+            <Link href="/guias" className="text-[12px] font-bold text-[#0056D2]">
+              Ver todos →
+            </Link>
+          </div>
+          <p className="mt-1 text-[13px] text-slate-500">
+            Decisões práticas para tutores de cães — sem precisar criar conta.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {HOME_GUIDES.map((g) => (
+              <li key={g.slug}>
+                <Link
+                  href={`/guias/${g.slug}`}
+                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-[13.5px] font-semibold text-slate-800 active:bg-blue-50"
+                >
+                  {g.title}
+                  <span aria-hidden className="text-slate-300">
+                    →
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       </section>
 
       {/* Social proof */}

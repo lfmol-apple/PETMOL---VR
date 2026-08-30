@@ -58,7 +58,17 @@ export function Header() {
           <div className={`flex-1 hidden md:flex items-center justify-end gap-4 transition-all duration-500 ${
             showLogo ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
           }`} style={{ transitionDelay: '200ms' }}>
-            
+
+            {/* Conteúdo público */}
+            <Link
+              href="/guias"
+              className={`text-sm font-bold transition-colors ${
+                pathname.startsWith('/guias') ? 'text-[#0056D2]' : 'text-slate-500 hover:text-[#0056D2]'
+              }`}
+            >
+              Guias
+            </Link>
+
             {/* User Auth */}
             {userLabel ? (
               <div className="flex items-center gap-3">
@@ -104,7 +114,16 @@ export function Header() {
           <div className={`flex-1 flex md:hidden items-center justify-end gap-2 transition-all duration-500 ${
             showLogo ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
           }`} style={{ transitionDelay: '200ms' }}>
-            
+
+            <Link
+              href="/guias"
+              className={`inline-flex items-center h-9 px-2.5 rounded-xl text-[13px] font-bold transition-colors ${
+                pathname.startsWith('/guias') ? 'text-[#0056D2] bg-blue-50' : 'text-slate-500 hover:text-[#0056D2]'
+              }`}
+            >
+              Guias
+            </Link>
+
             {/* Mobile User Auth */}
             {userLabel ? (
               <div className="flex items-center gap-2">
