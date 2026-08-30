@@ -112,7 +112,7 @@ function PetzBridge() {
           </span>
         </button>
 
-        {productName && goesToSearch && (
+        {goesToSearch && (
           <div
             style={{
               border: '1px solid #e2e8f0',
@@ -120,13 +120,22 @@ function PetzBridge() {
               padding: '10px 12px',
               background: '#fff',
               marginBottom: 14,
+              textAlign: 'left',
             }}
           >
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, color: '#64748b' }}>
-              PROCURANDO NA PETZ
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
-              {productName}
+            {productName && (
+              <>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, color: '#64748b' }}>
+                  PROCURANDO NA PETZ
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '2px 0 8px' }}>
+                  {productName}
+                </div>
+              </>
+            )}
+            <div style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.45 }}>
+              Na lista da Petz, toque no <strong>➕</strong> do produto pra adicionar ao
+              carrinho. Tocar na foto abre o app da Petz.
             </div>
           </div>
         )}
