@@ -46,6 +46,9 @@ export interface ReorderCard {
 }
 
 function formatUrgencyText(domain: CareReminderDomain, diff: number): string {
+  // Petisco / item avulso (diff sentinela 9999): compra recorrente sem
+  // prazo — não faz sentido "Acaba em 9999 dias".
+  if (diff >= 9000) return 'Comprar quando quiser';
   const verb = domain === 'food' ? 'Acaba' : 'Vence';
   if (diff < 0) return domain === 'food' ? 'Pode ter acabado' : `${verb} há ${Math.abs(diff)} dia${Math.abs(diff) === 1 ? '' : 's'}`;
   if (diff === 0) return `${verb} hoje`;

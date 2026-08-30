@@ -20,7 +20,13 @@ interface Props {
 // conversion at any horizon ("Em 11 meses" became "Em 335 dias"). "Hoje"/
 // "Amanhã" stay as words since they're clearer than "0 dias"/"1 dia", not
 // because they're an exception to the day-based rule.
-function diffLabel(diff: number): string {
+function diffLabel(r: PetCareReminder): string {
+  const diff = r.diff;
+  // Lembrete sintético "sem histórico" (diff sentinela -9999): não é um
+  // atraso de N dias, é ausência de registro.
+  if (r.is_derived && diff <= -9000) {
+    return r.domain === 'vaccine' ? 'Sem vacina' : 'Sem registro';
+  }
   if (diff < 0) {
     const days = Math.abs(diff);
     if (days === 1) return 'Atrasado 1 dia';
@@ -135,7 +141,7 @@ export function UpcomingEventsSheet({ open, onClose, reminders, petName, onSelec
                           ? 'bg-blue-100 text-blue-700'
                           : 'bg-slate-100 text-slate-500'
                       }`}>
-                        {diffLabel(r.diff)}
+                        {diffLabel(r)}
                       </span>
                     </button>
                   ))}

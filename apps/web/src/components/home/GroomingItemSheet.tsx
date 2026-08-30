@@ -351,6 +351,8 @@ export function GroomingItemSheet({
     });
     if (res.ok) {
       showToast('🗑️ Registro removido');
+      setMode('view');
+      setEditRecord(null);
       await onRefresh();
     } else {
       const errorText = await res.text().catch(() => '');
@@ -869,6 +871,15 @@ export function GroomingItemSheet({
                 className="w-full py-[14px] rounded-[14px] bg-[#5856D6] text-white text-[16px] font-semibold shadow-sm disabled:opacity-40 active:opacity-80 transition-opacity"
               >
                 {saving ? 'Salvando...' : 'Salvar alterações'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(editRecord.id)}
+                disabled={saving}
+                className="w-full py-3 rounded-[14px] text-[15px] font-semibold text-[#FF3B30] bg-red-50 border border-red-100 active:opacity-70 transition-opacity disabled:opacity-40"
+              >
+                🗑 Excluir este registro
               </button>
             </div>
           )}

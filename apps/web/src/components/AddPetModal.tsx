@@ -8,6 +8,7 @@ import { trackV1Metric } from '@/lib/v1Metrics';
 import { PetPhotoPicker } from './PetPhotoPicker';
 import { ModalPortal } from '@/components/ModalPortal';
 import { localTodayISO } from '@/lib/localDate';
+import { sanitizePetName } from '@/lib/petName';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
 
 // ── Breed data (sincronizado com register-pet) ────────────────────────────────
@@ -544,7 +545,7 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
               <ZoomedField
                 labelText="Nome do pet *"
                 value={name}
-                onChange={setName}
+                onChange={(v) => setName(sanitizePetName(v))}
                 placeholder="Ex: Mel"
               />
 

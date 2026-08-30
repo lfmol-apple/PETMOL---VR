@@ -181,7 +181,7 @@ function processVaccines(p: PetCareDomainParams): PetCareReminder[] {
       pet_id: p.pet_id,
       pet_name: p.pet_name,
       domain: 'vaccine',
-      label: 'Nenhuma vacina registrada',
+      label: 'Sem vacina registrada',
       icon: '💉',
       due_date: dateToLocalISO(todayMidnight()),
       diff: -9999,
@@ -416,14 +416,14 @@ function processFood(p: PetCareDomainParams): PetCareReminder[] {
   // Itens secundários (petiscos/outros alimentos, ver "ração principal vs
   // petisco" no scan) não entram no ciclo de dias-restantes/alerta de
   // reposição — não faz sentido rastrear consumo de um item comprado
-  // avulso — só precisam existir aqui pra ganhar um card de "comprar
-  // novamente" na Loja do Pet quando têm GTIN conhecido. Independente do
-  // item primário ter ou não uma data de lembrete computável (early
-  // returns abaixo), então calculado antes deles.
+  // avulso. Mas SEMPRE aparecem na Loja do Pet como card de "comprar
+  // novamente" (o tutor recompra petisco quando quiser, sem prazo — ver
+  // diff: 9999 → formatUrgencyText). Basta ter uma marca/nome pra buscar
+  // na loja; GTIN é opcional (melhora o match de preço quando existe).
   const secondaryReminders: PetCareReminder[] = items
-    .filter((item) => !item?.is_primary && (item?.barcode || '').trim())
+    .filter((item) => !item?.is_primary && ((item?.food_brand || '').trim() || (item?.label || '').trim()))
     .map((item) => {
-      const itemBrand = (item.food_brand || '').trim() || 'Outro alimento';
+      const itemBrand = (item.food_brand || '').trim() || (item.label || '').trim() || 'Outro alimento';
       return {
         key: makeKey(p.pet_id, 'food', 'secondary', String(item.id ?? itemBrand), 'none'),
         pet_id: p.pet_id,
