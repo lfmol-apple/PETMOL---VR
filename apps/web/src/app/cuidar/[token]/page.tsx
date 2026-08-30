@@ -31,20 +31,25 @@ export async function generateMetadata(
   const title = `${pet.owner_name} te convidou para cuidar de ${pet.pet_name} 🐾`;
   const description = `Clique para confirmar que você vai cuidar de ${pet.pet_name} e receber alertas se ele sumir.`;
 
+  // Preview do link: card de marca 1200×630 (sempre proporção certa no
+  // WhatsApp). Não usamos a foto do pet crua como og:image porque ela tem
+  // proporção qualquer e o WhatsApp esticava/cortava de forma feia.
+  const shareImage = { url: '/og-image.png', width: 1200, height: 630, alt: 'PETMOL' };
+
   return {
     title,
     description,
     openGraph: {
       title,
       description,
-      images: pet.photo_url ? [{ url: pet.photo_url, width: 800, height: 800, alt: pet.pet_name }] : [],
+      images: [shareImage],
       type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      images: pet.photo_url ? [pet.photo_url] : [],
+      images: [shareImage.url],
     },
   };
 }

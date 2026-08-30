@@ -312,12 +312,12 @@ export function OnboardingChecklistCard({
 
               {!done && !isProfile && (
                 <div className="pl-11 pr-2.5 pb-1.5">
-                  <p className="text-[12px] leading-snug text-slate-400">{row.why}</p>
+                  <p className="text-[12.5px] leading-snug text-slate-600">{row.why}</p>
                   {!expanded ? (
                     <button
                       type="button"
                       onClick={() => setExpandedSkip(actionKey)}
-                      className="mt-1 text-[12px] font-bold text-slate-400 active:text-slate-600"
+                      className="mt-1 text-[12px] font-bold text-slate-500 underline decoration-slate-300 underline-offset-2 active:text-slate-700"
                     >
                       Agora não
                     </button>
@@ -336,7 +336,7 @@ export function OnboardingChecklistCard({
                       <button
                         type="button"
                         onClick={() => setExpandedSkip(null)}
-                        className="rounded-full px-2 py-1 text-[12px] font-semibold text-slate-400"
+                        className="rounded-full px-2 py-1 text-[12px] font-semibold text-slate-500"
                       >
                         Voltar
                       </button>
@@ -349,7 +349,7 @@ export function OnboardingChecklistCard({
         })}
       </ul>
 
-      <p className="mt-2 px-2.5 text-[11px] text-slate-400">
+      <p className="mt-2 px-2.5 text-[11.5px] text-slate-500">
         {remaining === 1 ? 'Falta 1 item — dá pra fazer depois na Home.' : `Faltam ${remaining} itens — você pode completar depois na Home.`}
       </p>
     </div>
