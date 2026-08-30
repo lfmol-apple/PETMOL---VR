@@ -247,7 +247,7 @@ export function HomeNavigationModals({
                               : tab === 'flea_tick'
                                 ? 'h-[38px] w-[38px] object-contain'
                                 : tab === 'medication'
-                                  ? 'h-[74px] w-[104px] object-contain'
+                                  ? 'h-[61px] w-[86px] object-contain'
                                   : 'h-[76px] w-[76px] object-contain'
                           }
                         />

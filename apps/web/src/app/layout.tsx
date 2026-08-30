@@ -65,6 +65,15 @@ export const metadata: Metadata = {
     siteName: 'PETMOL',
     locale: 'pt_BR',
     type: 'website',
+    // Card 1200×630 dedicado — sem isto o WhatsApp puxava o ícone quadrado
+    // do PWA e esticava, deixando o "P" distorcido no preview do link.
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'PETMOL' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'PETMOL — Cuidado completo do seu pet',
+    description: 'Ração, vacinas e saúde do seu pet, com alerta de pet perdido. Tudo em um só app.',
+    images: ['/og-image.png'],
   },
   metadataBase: new URL(siteUrl),
 };
