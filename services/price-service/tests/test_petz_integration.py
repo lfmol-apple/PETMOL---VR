@@ -65,6 +65,10 @@ def _enable_petz(monkeypatch) -> None:
     confirmado" com "comissão comprovada", ver petz_provider.py)."""
     monkeypatch.setenv("PETZ_AFFILIATE_ENABLED", "true")
     monkeypatch.setenv("PETZ_COUPON_ATTRIBUTION_VERIFIED", "true")
+    # Petz está desligada em produção pelo kill-switch petz_publicly_disabled
+    # (default True desde 2026-08-30); estes testes cobrem o comportamento
+    # QUANDO ligada.
+    monkeypatch.setenv("PETZ_PUBLICLY_DISABLED", "false")
     get_settings.cache_clear()
 
 

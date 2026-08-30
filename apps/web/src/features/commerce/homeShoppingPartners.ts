@@ -148,10 +148,16 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     // checkout — nunca embutido na URL. Deve espelhar o mesmo valor de
     // STOREFRONT_AFFILIATE_URLS["petz"] em affiliate_links.py (backend).
     //
-    // A Petz só aparece pra um produto específico quando GET
-    // /commerce/petz-direct-link confirma que aquele produto existe no
-    // catálogo da Petz (ver fetchPetzDirectLink em productPricing.ts).
-    affiliateStatus: 'active',
+    // DESATIVADA 2026-08-30 (decisão de produto): a Petz não oferece deep
+    // link de produto pra parceiros e a página de busca do site tem bugs
+    // fora do nosso controle — "Ver na Petz" não tinha como ficar bom sem
+    // cooperação da Petz. Backend: kill-switch petz_publicly_disabled
+    // (petz_provider.py) já derruba /commerce/petz-direct-link e o
+    // handoff. Aqui: 'disabled' tira a Petz da grade de lojas e da busca.
+    // Pra REATIVAR: 'disabled' → 'active' aqui E flip petz_publicly_disabled
+    // no backend. Todo o resto (ponte /go/petz, openPetzPartnerStore,
+    // busca curada) continua no lugar.
+    affiliateStatus: 'disabled',
     merchantType: 'retailer',
     affiliateMode: 'fixed_store',
     supportsProductDeepLink: false,
@@ -165,11 +171,18 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     logoSrc: '/partner-logos/mercadolivre.png',
     logoAlt: 'Mercado Livre',
     directUrl: 'https://lista.mercadolivre.com.br/pet',
+    // FORA DO LANÇAMENTO (2026-08-30, decisão de produto): o app lança só
+    // com Cobasi e Shopee; Mercado Livre e Amazon entram depois. O
+    // afiliado ML já está desligado no backend (mercadolivre_affiliate_enabled
+    // /mercadolivre_public_offers_enabled = False). Aqui: 'disabled' tira
+    // o ML da grade de lojas, da busca e do "comprar novamente". Pra
+    // REATIVAR: 'disabled' → 'active' aqui E ligar os flags no backend.
+    //
     // Marketplace: ofertas por produto vivem no backend via
     // MarketplaceOfferProvider("mercadolivre") e só aparecem com link
     // oficial cadastrado no Gerador de produtos recomendados. A vitrine
     // genérica abre o perfil/lista de recomendações informado no painel.
-    affiliateStatus: 'active',
+    affiliateStatus: 'disabled',
     merchantType: 'marketplace',
     affiliateMode: 'product_deeplink',
     supportsProductDeepLink: true,

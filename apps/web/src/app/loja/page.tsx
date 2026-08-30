@@ -2,12 +2,16 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { GUIDES } from '@/features/content/guides';
-import { HOME_SHOPPING_PARTNERS } from '@/features/commerce/homeShoppingPartners';
+import {
+  HOME_SHOPPING_PARTNERS,
+  isPartnerVisibleInStoreArea,
+} from '@/features/commerce/homeShoppingPartners';
 import { PUBLIC_STORE_PAGE_ENABLED } from '../publicCommercePages';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-const STORE_IDS = new Set(['cobasi', 'petz', 'mercadolivre', 'shopee']);
-const STORES = HOME_SHOPPING_PARTNERS.filter((partner) => STORE_IDS.has(partner.id));
+// Deriva das lojas ativas (não hardcoded) — no lançamento: Cobasi e Shopee.
+const STORES = HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea);
+const STORE_NAMES = STORES.map((s) => s.name).join(' e ');
 
 export const metadata: Metadata = {
   title: 'Lojas PETMOL',
@@ -16,7 +20,7 @@ export const metadata: Metadata = {
   alternates: { canonical: `${SITE_URL}/loja` },
   openGraph: {
     title: 'Lojas PETMOL',
-    description: 'Cobasi, Petz, Mercado Livre e Shopee no fluxo de compras do PETMOL.',
+    description: `${STORE_NAMES} no fluxo de compras do PETMOL.`,
     url: `${SITE_URL}/loja`,
   },
 };
@@ -41,9 +45,9 @@ export default function LojaPublicaPage() {
             Compre com as lojas conectadas ao PETMOL
           </h1>
           <p className="text-[15px] text-slate-500 max-w-xl mx-auto leading-relaxed">
-            O PETMOL não vende nem entrega produtos. A experiência de compra fica concentrada em
-            Cobasi, Petz, Mercado Livre e Shopee, priorizando ofertas por produto conhecido, código
-            de barras ou catálogo sincronizado.
+            O PETMOL não vende nem entrega produtos. A experiência de compra fica concentrada nas
+            lojas parceiras, priorizando ofertas por produto conhecido, código de barras ou catálogo
+            sincronizado.
           </p>
         </div>
 

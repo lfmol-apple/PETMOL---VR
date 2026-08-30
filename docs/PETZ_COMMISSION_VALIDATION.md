@@ -1,7 +1,16 @@
 # Validação de comissão — Parceiro Petz (cupom PETTMOL)
 
-Status: **COMPROVADO** — `PETZ_COUPON_ATTRIBUTION_VERIFIED=true` em
-produção desde 29/08/2026.
+Status: **DESATIVADA em produção 2026-08-30** (kill-switch
+`petz_publicly_disabled=True` em `config.py` + `affiliateStatus: 'disabled'`
+no frontend). A comissão via cupom foi comprovada (abaixo), mas a Petz
+não oferece deep link de produto pra parceiros e a página de busca do
+site tem bugs fora do nosso controle (link da foto abre outro produto /
+o app) — "Ver na Petz" não tinha como ficar bom sem cooperação da Petz.
+Todo o código do caminho Petz (ponte `/go/petz`, `openPetzPartnerStore`,
+`PETZ_CURATED_SEARCH`) continua no lugar, dormente. Pra reativar: ver
+`petz_provider.is_petz_publicly_servable`.
+
+Histórico (`PETZ_COUPON_ATTRIBUTION_VERIFIED=true` em produção 29–30/08/2026):
 
 ## Mecanismo real (investigação no navegador do painel + checkout, 29/08/2026)
 
