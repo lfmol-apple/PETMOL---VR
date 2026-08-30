@@ -42,6 +42,51 @@ interface HomeShoppingSheetProps {
 // antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
 export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
+
+  const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
+
+  // Preview de urgência no estado fechado — deriva dos lembretes já calculados
+  // (têm `diff`), lidera pelo mais urgente. Ignora a sentinela de petisco.
+  const { reorderUrgentTone, reorderScentLine } = useMemo(() => {
+    const urgent = buyableReminders
+      .filter((r) => ['food', 'parasite', 'medication'].includes(r.domain) && r.diff < 9000)
+      .sort((a, b) => a.diff - b.diff);
+    const lead = urgent[0];
+    const tone: 'critical' | 'warning' | 'neutral' =
+      !lead ? 'neutral' : lead.diff <= 0 ? 'critical' : lead.diff <= 7 ? 'warning' : 'neutral';
+
+    let line: string | null = null;
+    if (lead && lead.diff <= 14) {
+      const name =
+        lead.action_target === 'health/food'
+          ? 'Ração'
+          : lead.action_target === 'health/parasites/dewormer'
+            ? 'Vermífugo'
+            : lead.action_target === 'health/parasites/flea_tick'
+              ? 'Antipulgas'
+              : lead.action_target === 'health/parasites/collar'
+                ? 'Coleira'
+                : lead.action_target === 'health/medication'
+                  ? 'Remédio'
+                  : (lead.label || 'Item').slice(0, 18);
+      const verb = lead.action_target === 'health/food' ? 'acaba' : 'vence';
+      const when =
+        lead.diff < 0
+          ? lead.action_target === 'health/food' ? 'pode ter acabado' : `venceu há ${Math.abs(lead.diff)} dia${Math.abs(lead.diff) === 1 ? '' : 's'}`
+          : lead.diff === 0
+            ? `${verb} hoje`
+            : `${verb} em ${lead.diff} dia${lead.diff === 1 ? '' : 's'}`;
+      const extra = urgent.length > 1 ? ` · +${urgent.length - 1} item${urgent.length - 1 === 1 ? '' : 's'}` : '';
+      line = `${name} ${when}${extra}`;
+    }
+    return { reorderUrgentTone: tone, reorderScentLine: line };
+  }, [buyableReminders]);
+
+  // Abre por padrão quando há produtos pra reabastecer — essa lista é o motivo
+  // da tela existir e a fonte de comissão; esconder atrás de um toque era
+  // justamente a fricção reclamada. Só fica fechada quando está vazia (aí o
+  // texto de "cadastre a ração" não domina) ou quando o tutor recolheu na mão
+  // (memória só da sessão — reabre no próximo acesso pra reancorar o hábito).
   const [reorderOpen, setReorderOpen] = useState(false);
 
   useEffect(() => {
@@ -50,11 +95,23 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
       setReorderOpen(false);
       return;
     }
+    setReorderOpen(reorderCards.length > 0);
     void trackClick({ source: 'home', cta_type: 'shop_sheet_view', pet_id: currentPet.pet_id });
     void trackClick({ source: 'home', cta_type: 'store_opened', pet_id: currentPet.pet_id });
-  }, [open, currentPet.pet_id]);
+  }, [open, currentPet.pet_id, reorderCards.length]);
 
-  const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
+  const toggleReorder = () => {
+    setReorderOpen((value) => {
+      const next = !value;
+      void trackClick({
+        source: 'home',
+        cta_type: 'shop_reorder_toggle',
+        pet_id: currentPet.pet_id,
+        metadata: { open: next, card_count: reorderCards.length, urgency: reorderUrgentTone },
+      });
+      return next;
+    });
+  };
   const visibleStorePartners = useMemo(() => HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea), []);
 
   const visibleQuickBuyPartners = useMemo(
@@ -148,27 +205,78 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
         {/* Scrollable content */}
         <div className="overflow-y-auto overscroll-contain flex-1 px-5 pb-8 space-y-5">
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
+              <div
+                className={`rounded-2xl border bg-white shadow-sm transition-colors ${
+                  reorderUrgentTone === 'critical'
+                    ? 'border-rose-200'
+                    : reorderUrgentTone === 'warning'
+                      ? 'border-amber-200'
+                      : 'border-gray-200'
+                }`}
+              >
                 <button
                   type="button"
-                  onClick={() => setReorderOpen((value) => !value)}
-                  className="flex w-full items-center gap-3 rounded-2xl bg-white p-3 text-left shadow-sm transition-all hover:border-emerald-200 active:scale-[0.99]"
+                  onClick={toggleReorder}
+                  className="flex w-full flex-col gap-2 rounded-2xl p-3.5 text-left active:scale-[0.99] transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0056D2] focus-visible:ring-offset-2"
                   aria-expanded={reorderOpen}
+                  aria-controls="reorder-panel"
+                  aria-label={`Comprar de novo, ${reorderCards.length} produto${reorderCards.length === 1 ? '' : 's'}, ${reorderOpen ? 'expandido' : 'recolhido'}`}
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                      Produtos {petDo(currentPet)} {petName || 'pet'}
-                    </p>
-                    <p className="text-[12px] font-semibold text-gray-500 truncate">Comprar novamente</p>
+                  <div className="flex w-full items-center gap-2.5">
+                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl bg-emerald-50 text-lg">🛒</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[15px] font-black text-gray-900 leading-tight">Comprar de novo</p>
+                      <p className="text-[12px] font-medium text-gray-500 truncate">
+                        O que {petName || 'seu pet'} usa sempre
+                      </p>
+                    </div>
+                    {reorderCards.length > 0 && (
+                      <span
+                        className={`grid min-w-[24px] h-6 flex-shrink-0 place-items-center rounded-full px-1.5 text-[12px] font-black ${
+                          reorderUrgentTone === 'critical'
+                            ? 'bg-rose-500 text-white'
+                            : reorderUrgentTone === 'warning'
+                              ? 'bg-amber-400 text-amber-950'
+                              : 'bg-gray-900 text-white'
+                        }`}
+                      >
+                        {reorderCards.length}
+                      </span>
+                    )}
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      aria-hidden
+                      className={`h-5 w-5 flex-shrink-0 text-gray-400 transition-transform duration-200 ${reorderOpen ? 'rotate-180' : ''}`}
+                    >
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
                   </div>
-                  <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-black text-gray-500">{reorderCards.length}</span>
-                  <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-emerald-500 text-sm font-black text-white">
-                    {reorderOpen ? '−' : '+'}
-                  </span>
+
+                  {!reorderOpen && reorderScentLine && (
+                    <p className="text-[11.5px] font-semibold leading-snug pl-[46px]">
+                      <span className={reorderUrgentTone === 'critical' ? 'text-rose-600' : reorderUrgentTone === 'warning' ? 'text-amber-700' : 'text-gray-500'}>
+                        {reorderScentLine}
+                      </span>
+                    </p>
+                  )}
+
+                  {reorderCards.length > 0 && (
+                    <span
+                      className={`mt-0.5 flex items-center justify-center gap-1 rounded-xl py-2.5 text-[13px] font-black ${
+                        reorderOpen ? 'bg-gray-100 text-gray-500' : 'bg-blue-50 text-[#0056D2]'
+                      }`}
+                    >
+                      {reorderOpen ? 'Esconder produtos' : `Ver produtos (${reorderCards.length}) ›`}
+                    </span>
+                  )}
                 </button>
 
                 {reorderOpen && (
-                  <div className="mt-3">
+                  <div id="reorder-panel" role="region" aria-label="Produtos para comprar de novo" className="px-3 pb-3 pt-1">
                     {reorderCards.length > 0 ? (
                       <div className="space-y-2">
                         {reorderCards.map((card) => {
@@ -219,9 +327,9 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                         })}
                       </div>
                     ) : (
-                      <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-4 text-center">
-                        <p className="text-[13px] text-gray-500">
-                          Cadastre a ração ou o antiparasitário {petDo(currentPet)} {petName || 'pet'} para ver as recompras aqui.
+                      <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4 text-center">
+                        <p className="text-[13px] text-gray-600 leading-snug">
+                          Cadastre a ração e o antipulgas {petDo(currentPet)} {petName || 'seu pet'} — a gente avisa quando estiver acabando, já com o preço do dia.
                         </p>
                       </div>
                     )}
