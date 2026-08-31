@@ -27,7 +27,36 @@ CHECKSUM_PATH="${BACKUP_DIR}/${BACKUP_NAME}.sha256"
 # backing up everything except the database.
 PG_DUMP_REL_PATH="services/price-service/_backup_db.dump"
 PG_DUMP_ABS_PATH="${ROOT_DIR}/${PG_DUMP_REL_PATH}"
-BACKEND_ENV_FILE="${ROOT_DIR}/services/price-service/.env"
+
+# The env file that actually carries DATABASE_URL. The old default —
+# ${ROOT_DIR}/services/price-service/.env — is the *price-service* partial
+# env and, outside a release dir where it's a symlink to the shared file,
+# it has no DATABASE_URL. Resolve it robustly instead:
+#   1. PETMOL_API_ENV_FILE, if explicitly set;
+#   2. /opt/petmol/shared/env/api.env (production layout — systemd
+#      EnvironmentFile; also the symlink target inside a release dir);
+#   3. ${ROOT_DIR}/services/price-service/.env (local/dev).
+# Never `source` the file (other values aren't valid bash) — only the
+# DATABASE_URL line is read, with grep. DATABASE_URL is never echoed.
+PROD_API_ENV_FILE="/opt/petmol/shared/env/api.env"
+BACKEND_ENV_FILE=""
+for _candidate in \
+  "${PETMOL_API_ENV_FILE:-}" \
+  "${PROD_API_ENV_FILE}" \
+  "${ROOT_DIR}/services/price-service/.env"
+do
+  if [[ -n "${_candidate}" && -f "${_candidate}" ]] && grep -qE '^DATABASE_URL=.+' "${_candidate}"; then
+    BACKEND_ENV_FILE="${_candidate}"
+    break
+  fi
+done
+
+# "Production context": running on the VPS layout, or told so explicitly.
+IS_PROD=0
+if [[ -d "/opt/petmol/shared/env" || -f "${PROD_API_ENV_FILE}" \
+      || "${PETMOL_ENV:-${ENV:-}}" == prod* || "${PETMOL_ENV:-${ENV:-}}" == production ]]; then
+  IS_PROD=1
+fi
 
 cleanup_pg_dump() {
   rm -f "${PG_DUMP_ABS_PATH}"
@@ -35,11 +64,7 @@ cleanup_pg_dump() {
 trap cleanup_pg_dump EXIT
 
 DID_DUMP_DB=0
-if [[ -f "${BACKEND_ENV_FILE}" ]]; then
-  # Extract just DATABASE_URL rather than `source`-ing the whole file: other
-  # values in .env (e.g. a User-Agent string with spaces/parens) aren't
-  # valid bash and previously crashed the backup here with a syntax error
-  # before pg_dump ever ran — found while setting up a restore-test run.
+if [[ -n "${BACKEND_ENV_FILE}" ]]; then
   DATABASE_URL="$(grep -m1 '^DATABASE_URL=' "${BACKEND_ENV_FILE}" | cut -d= -f2-)"
 
   if [[ "${DATABASE_URL:-}" == postgresql* ]]; then
@@ -59,6 +84,16 @@ if [[ -f "${BACKEND_ENV_FILE}" ]]; then
     fi
     DID_DUMP_DB=1
   fi
+fi
+
+# Em produção, um backup só de arquivos (sem o dump do Postgres) parece OK,
+# termina com exit 0 e NÃO restaura o banco. Falhar alto em vez de aceitar
+# sucesso silencioso quando o dump esperado não aconteceu.
+if [[ "${IS_PROD}" -eq 1 && "${DID_DUMP_DB}" -ne 1 ]]; then
+  echo "ERRO: contexto de producao, mas nao foi possivel resolver um DATABASE_URL" >&2
+  echo "      Postgres para o dump (defina PETMOL_API_ENV_FILE ou confira" >&2
+  echo "      ${PROD_API_ENV_FILE}). Backup abortado — nao gerar backup sem banco." >&2
+  exit 1
 fi
 
 # Secrets (.env files) are intentionally NOT in the main data archive —
