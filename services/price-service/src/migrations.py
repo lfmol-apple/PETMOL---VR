@@ -333,6 +333,37 @@ def run_pg_migrations(engine: Engine) -> None:
         # analytics_events: distinguish monetized vs unmonetized clicks (Aug 2026)
         _pg_add_column_if_missing(conn, "analytics_events", "link_type", "VARCHAR(32)")
 
+        # Mission Control phase 1: first-party product analytics, additive and
+        # pseudonymous. No raw IP, GPS, email, phone, names or sensitive payloads.
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS analytics_product_events (
+                id              TEXT PRIMARY KEY,
+                event_id        TEXT UNIQUE NOT NULL,
+                event_name      TEXT NOT NULL,
+                user_id         TEXT REFERENCES users(id) ON DELETE SET NULL,
+                anonymous_id    TEXT,
+                session_id      TEXT,
+                screen          TEXT,
+                route           TEXT,
+                occurred_at     TIMESTAMPTZ,
+                received_at     TIMESTAMPTZ DEFAULT NOW(),
+                platform        TEXT,
+                app_version     TEXT,
+                os              TEXT,
+                browser         TEXT,
+                device_class    TEXT,
+                locale          TEXT,
+                timezone        TEXT,
+                properties_json TEXT
+            )
+        """))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_ape_event_id ON analytics_product_events (event_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ape_event_received ON analytics_product_events (event_name, received_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ape_user_received ON analytics_product_events (user_id, received_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ape_anon_received ON analytics_product_events (anonymous_id, received_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ape_session_received ON analytics_product_events (session_id, received_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ape_app_version ON analytics_product_events (app_version)"))
+
         # GET /commerce/awin-search: busca de produto ignorando acento
         # ("racao" precisa achar "Ração" — teclado de celular raramente
         # acentua). unaccent() é extensão contrib nativa do Postgres, não
@@ -824,6 +855,37 @@ def run_sqlite_migrations(engine: Engine) -> None:
 
         # analytics_events: distinguish monetized vs unmonetized clicks (Aug 2026)
         changed |= _sqlite_add_column_if_missing(conn, "analytics_events", "link_type", "TEXT")
+
+        # Mission Control phase 1: first-party product analytics, additive and
+        # pseudonymous. No raw IP, GPS, email, phone, names or sensitive payloads.
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS analytics_product_events (
+                id              TEXT PRIMARY KEY,
+                event_id        TEXT UNIQUE NOT NULL,
+                event_name      TEXT NOT NULL,
+                user_id         TEXT REFERENCES users(id) ON DELETE SET NULL,
+                anonymous_id    TEXT,
+                session_id      TEXT,
+                screen          TEXT,
+                route           TEXT,
+                occurred_at     DATETIME,
+                received_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+                platform        TEXT,
+                app_version     TEXT,
+                os              TEXT,
+                browser         TEXT,
+                device_class    TEXT,
+                locale          TEXT,
+                timezone        TEXT,
+                properties_json TEXT
+            )
+        """))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_ape_event_id ON analytics_product_events (event_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ape_event_received ON analytics_product_events (event_name, received_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ape_user_received ON analytics_product_events (user_id, received_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ape_anon_received ON analytics_product_events (anonymous_id, received_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ape_session_received ON analytics_product_events (session_id, received_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ape_app_version ON analytics_product_events (app_version)"))
 
         # parasite_control_records: GTIN/EAN escaneado (Ago 2026) — ver
         # comentário equivalente em run_pg_migrations.

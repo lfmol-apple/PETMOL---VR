@@ -5,8 +5,13 @@
  * This file remains a thin storage/transport layer.
  */
 import { API_BASE_URL } from '@/lib/api';
+import { getToken } from '@/lib/auth-token';
+import { getAnalyticsContext } from '@/lib/analytics/session';
 
 type EventName =
+  | 'app_open'
+  | 'session_start'
+  | 'screen_view'
   | 'view_emergency'
   | 'search_emergency'
   | 'click_call'
@@ -81,13 +86,95 @@ interface TrackEvent {
 
 const EVENTS_KEY = 'petmol_events';
 const MAX_EVENTS = 1000;
+const SENSITIVE_PROPERTY_KEYS = new Set([
+  'address',
+  'cpf',
+  'document',
+  'documents',
+  'email',
+  'health_data',
+  'medication',
+  'medicine',
+  'name',
+  'nome',
+  'notes',
+  'observation',
+  'phone',
+  'photo',
+  'postal_code',
+  'prescription',
+  'remedy',
+  'street',
+  'telefone',
+  'title',
+  'url',
+  'whatsapp',
+]);
+
+function sanitizeAnalyticsProperties(properties: Record<string, unknown>): Record<string, unknown> {
+  const safe: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(properties)) {
+    if (SENSITIVE_PROPERTY_KEYS.has(key.toLowerCase())) continue;
+    if (typeof value === 'string') {
+      safe[key] = value.slice(0, 160);
+    } else if (typeof value === 'number' || typeof value === 'boolean' || value === null) {
+      safe[key] = value;
+    } else if (Array.isArray(value)) {
+      safe[key] = value.slice(0, 20);
+    } else if (typeof value === 'object' && value) {
+      safe[key] = sanitizeAnalyticsProperties(value as Record<string, unknown>);
+    }
+  }
+  return safe;
+}
+
+function sendProductEvent(name: EventName | string, properties: Record<string, unknown> = {}): void {
+  try {
+    const context = getAnalyticsContext();
+    const token = getToken();
+    const payload = {
+      event_id: context.event_id,
+      event_name: name,
+      anonymous_id: context.anonymous_id,
+      session_id: context.session_id,
+      screen: typeof properties.screen === 'string' ? properties.screen : undefined,
+      route: typeof properties.route === 'string' ? properties.route : window.location.pathname,
+      occurred_at: new Date().toISOString(),
+      platform: context.platform,
+      app_version: context.app_version,
+      os: context.os,
+      browser: context.browser,
+      device_class: context.device_class,
+      locale: context.locale,
+      timezone: context.timezone,
+      properties: sanitizeAnalyticsProperties(properties),
+    };
+    void fetch(`${API_BASE_URL}/analytics/event`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    }).catch(() => undefined);
+  } catch {
+    // analytics must never break UX
+  }
+}
+
+export function trackProductEvent(name: EventName | string, properties: Record<string, unknown> = {}): void {
+  sendProductEvent(name, properties);
+}
 
 // Track event
 export function track(name: EventName, properties: Record<string, unknown> = {}): void {
   try {
+    const context = getAnalyticsContext();
+    const safeProperties = sanitizeAnalyticsProperties(properties);
     const event: TrackEvent = {
       name,
-      properties,
+      properties: safeProperties,
       timestamp: Date.now(),
     };
 
@@ -105,8 +192,10 @@ export function track(name: EventName, properties: Record<string, unknown> = {})
 
     // Console log in development
     if (process.env.NODE_ENV === 'development') {
-      console.log('[Track]', name, properties);
+      console.log('[Track]', name, safeProperties);
     }
+
+    sendProductEvent(name, safeProperties);
 
     // Best-effort server-side ingestion for product analytics metrics.
     // Keeps existing localStorage tracking as source of truth on the client.
@@ -122,7 +211,18 @@ export function track(name: EventName, properties: Record<string, unknown> = {})
         target,
         pet_id: typeof properties.pet_id === 'string' ? properties.pet_id : undefined,
         metadata: {
-          ...properties,
+          ...safeProperties,
+          anonymous_id: context.anonymous_id,
+          session_id: context.session_id,
+          platform: context.platform,
+          app_version: context.app_version,
+          os: context.os,
+          browser: context.browser,
+          device_class: context.device_class,
+          locale: context.locale,
+          timezone: context.timezone,
+          route: window.location.pathname,
+          v2_sent: true,
           client_timestamp: event.timestamp,
         },
       };

@@ -71,7 +71,25 @@ export function MonetizedOffersList({
 
   useEffect(() => {
     if (loading || offers.length === 0) return;
-    void trackClick({ source, cta_type: 'offer_viewed', target: offers[0]?.merchant, pet_id: petId, metadata: { offers_count: offers.length } });
+    offers.forEach((offer, index) => {
+      void trackClick({
+        source,
+        cta_type: 'offer_viewed',
+        target: offer.merchant,
+        link_type: offer.link_type,
+        pet_id: petId,
+        metadata: {
+          merchant: offer.merchant,
+          gtin: gtin ?? undefined,
+          price_shown: typeof offer.price === 'number' && !offer.price_is_stale ? offer.price : null,
+          position: index + 1,
+          link_type: offer.link_type,
+          screen: source,
+          price_is_stale: Boolean(offer.price_is_stale),
+          offers_count: offers.length,
+        },
+      });
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, offers]);
 
@@ -136,6 +154,15 @@ export function MonetizedOffersList({
       target: offer.merchant,
       link_type: offer.link_type,
       pet_id: petId,
+      metadata: {
+        merchant: offer.merchant,
+        gtin: gtin ?? undefined,
+        price_shown: typeof offer.price === 'number' && !offer.price_is_stale ? offer.price : null,
+        position: offers.findIndex((candidate) => candidate === offer) + 1,
+        link_type: offer.link_type,
+        screen: source,
+        price_is_stale: Boolean(offer.price_is_stale),
+      },
     });
     trackPartnerClicked({ source, partner: offer.merchant, pet_id: petId, control_type: controlType ?? null, product_name: productLabel });
   }
