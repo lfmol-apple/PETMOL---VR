@@ -192,6 +192,75 @@ def _save_subscriptions(subs: dict) -> None:
         db.close()
 
 
+# ── Multi-device ────────────────────────────────────────────────────────────
+# `_load_subscriptions()` acima colapsa para 1 dispositivo por usuário (herança
+# do JSON single-device). Estas funções carregam TODAS as subscriptions ativas,
+# uma por dispositivo, e desativam só o dispositivo com subscription inválida —
+# sem afetar os outros aparelhos do mesmo usuário.
+
+def _load_subscriptions_by_user() -> dict:
+    """{user_id: [ {id, endpoint, keys, lat?, lng?}, ... ]} — todos os
+    dispositivos ativos, agrupados por usuário, mais recente primeiro."""
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(PushSubscription)
+            .filter(PushSubscription.disabled_at.is_(None))
+            .order_by(PushSubscription.last_seen_at.desc())
+            .all()
+        )
+        result: dict = {}
+        for r in rows:
+            entry = {"id": r.id, "endpoint": r.endpoint, "keys": {"p256dh": r.p256dh, "auth": r.auth}}
+            if r.lat is not None:
+                entry["lat"] = r.lat
+            if r.lng is not None:
+                entry["lng"] = r.lng
+            result.setdefault(r.user_id, []).append(entry)
+        return result
+    finally:
+        db.close()
+
+
+def _disable_subscriptions_by_id(sub_ids: list) -> None:
+    ids = [s for s in (sub_ids or []) if s]
+    if not ids:
+        return
+    db = SessionLocal()
+    try:
+        db.query(PushSubscription).filter(PushSubscription.id.in_(ids)).update(
+            {PushSubscription.disabled_at: datetime.now(timezone.utc)},
+            synchronize_session=False,
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+def _send_push_devices(devices: list, payload: dict) -> tuple:
+    """Envia para todos os dispositivos de UM usuário. A falha de um não
+    impede os outros. Retorna (dispositivos_ok, [ids_de_subscription_invalida])."""
+    ok_count = 0
+    invalid_ids: list = []
+    for dev in devices or []:
+        ok, invalid = _send_push(dev, payload)
+        if ok:
+            ok_count += 1
+        if invalid and dev.get("id"):
+            invalid_ids.append(dev["id"])
+    return ok_count, invalid_ids
+
+
+def push_to_user(user_id, payload: dict, _subs_by_user: dict | None = None) -> int:
+    """Push para TODOS os dispositivos ativos de um usuário. Desativa apenas
+    as subscriptions inválidas. Retorna quantos dispositivos receberam."""
+    by_user = _subs_by_user if _subs_by_user is not None else _load_subscriptions_by_user()
+    devices = by_user.get(str(user_id)) or []
+    ok_count, invalid_ids = _send_push_devices(devices, payload)
+    _disable_subscriptions_by_id(invalid_ids)
+    return ok_count
+
+
 # ── Deep link builder ────────────────────────────────────────────────────────
 
 _TYPE_TO_MODAL = {

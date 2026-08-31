@@ -236,7 +236,7 @@ export default function PrivacyPage() {
 
           <div className="mt-12 p-6 bg-green-50 rounded-lg border border-green-200">
             <p className="text-sm text-green-900">
-              <strong>✓ Compromisso PETMOL:</strong> Seus dados são tratados com máxima segurança e transparência. Você tem total controle sobre suas informações.
+              <strong>✓ Compromisso PETMOL:</strong> Adotamos medidas técnicas e organizacionais para proteger seus dados e buscamos ser transparentes sobre como eles são usados. Você pode acessar, corrigir e excluir suas informações a qualquer momento.
             </p>
           </div>
 
