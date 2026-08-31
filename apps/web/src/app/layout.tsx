@@ -4,7 +4,6 @@ import './globals.css';
 import './theme-prime.css';
 import { I18nProvider } from '@/lib/I18nContext';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { LocationProvider } from '@/contexts/LocationContext';
 import { AppShell } from '@/components/AppShell';
 import { StorageMigrator } from '@/components/StorageMigrator';
 import { HorizontalSwipeGuard } from '@/components/HorizontalSwipeGuard';
@@ -91,7 +90,9 @@ export default function RootLayout({
       <body className={`${inter.className} ${outfit.variable} ${fredoka.variable} antialiased bg-slate-50 theme-prime`}>
         <I18nProvider>
           <AuthProvider>
-            <LocationProvider>
+            {/* Sem LocationProvider global: geolocalização é solicitada só em
+                contexto (Pet Sumido, "achei um pet", push geolocalizado),
+                nunca no cold start. */}
             <OfflineIndicator />
             <ConnectivityStatus />
             <StorageMigrator />
@@ -103,7 +104,6 @@ export default function RootLayout({
             {/* <SmartSuggestionsWidget /> */}
             {isEventNudgeEnabled() && <EventNudge />}
             <AppShell>{children}</AppShell>
-            </LocationProvider>
           </AuthProvider>
         </I18nProvider>
       </body>

@@ -39,4 +39,10 @@
          @capacitor/push-notifications registration silently never surfaces
          a system prompt on those devices. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Localização aproximada, apenas em primeiro plano: usada em contexto
+         (Pet Sumido, "achei um pet", alerta geolocalizado de pet perdido).
+         Sem ACCESS_FINE_LOCATION e sem localização em background — o
+         `navigator.geolocation` do WebView só recebe permissão se ela
+         estiver declarada aqui. A região também pode ser preenchida à mão. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 </manifest>
