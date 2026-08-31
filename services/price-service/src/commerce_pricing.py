@@ -18,6 +18,7 @@ o link de busca normal, sem quebrar a experiência.
 import logging
 import re
 import urllib.parse
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import httpx
@@ -25,6 +26,15 @@ from cachetools import TTLCache
 from pydantic import BaseModel
 
 from .config import get_settings
+from .shopee_offer_matcher import (
+    _normalize as _norm_text,
+    _tokenize as _tokenize_text,
+    extract_length_cm,
+    extract_pack_count,
+    extract_volume_ml,
+    extract_weight_kg,
+    score_candidate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +59,10 @@ class ProductPriceResult(BaseModel):
     # achar um link afiliado por produto, sem precisar de GTIN vindo do
     # frontend. Ver affiliate_links.py / commerce_offers.py.
     ean: Optional[str] = None
+    # Motivo curto e não sensível do resultado — só para observabilidade
+    # (CobasiProvider loga isto). Valores: "ok" | "empty_query" | "disabled"
+    # | "http_error" | "no_results" | "no_price" | "timeout" | "error".
+    reason: str = "ok"
 
 
 def _cache_key(query: str, target_weight_kg: Optional[float] = None) -> str:
@@ -59,7 +73,7 @@ def _cache_key(query: str, target_weight_kg: Optional[float] = None) -> str:
 async def fetch_cobasi_price(query: str, target_weight_kg: Optional[float] = None) -> ProductPriceResult:
     query = (query or "").strip()
     if not query:
-        return ProductPriceResult(found=False)
+        return ProductPriceResult(found=False, reason="empty_query")
 
     key = _cache_key(query, target_weight_kg)
     cached = _cache.get(key)
@@ -152,19 +166,23 @@ async def _search_cobasi_once(
     quando `query` (o que de fato vai pra busca) é um fallback encurtado
     que já perdeu a palavra de porte (ver _shorten_query_variants)."""
     url = _COBASI_SEARCH_URL.format(query=urllib.parse.quote(query))
-    async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
-        response = await client.get(
-            url,
-            params={"_from": 0, "_to": 4, "sc": 1},
-            headers={"Accept": "application/json"},
-        )
+    try:
+        async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
+            response = await client.get(
+                url,
+                params={"_from": 0, "_to": 4, "sc": 1},
+                headers={"Accept": "application/json"},
+            )
+    except (httpx.TimeoutException, httpx.ConnectError) as exc:
+        logger.info("[commerce_pricing] cobasi timeout/connect query=%r error=%s", query, type(exc).__name__)
+        return ProductPriceResult(found=False, reason="timeout")
     if response.status_code not in (200, 206):
         logger.info("[commerce_pricing] cobasi status=%s query=%r", response.status_code, query)
-        return ProductPriceResult(found=False)
+        return ProductPriceResult(found=False, reason="http_error")
 
     products = response.json()
     if not isinstance(products, list) or not products:
-        return ProductPriceResult(found=False)
+        return ProductPriceResult(found=False, reason="no_results")
 
     product = _select_product_by_port(products, port_reference_text or query)
     items = product.get("items") or []
@@ -193,13 +211,256 @@ async def _search_cobasi_once(
         is_available=offer.get("IsAvailable"),
         url=product_url,
         ean=ean,
+        reason="ok" if price else "no_price",
     )
+
+
+# ── Identidade estrutural: aceitar uma oferta Cobasi só quando dá pra
+#    PROVAR que é a mesma apresentação do produto do tutor ────────────────────
+#
+# Sem isto, `_search_cobasi_once` pegava products[0] / items[0] e devolvia o
+# preço — mesmo quando era ração de gato 1 kg no lugar de ração de cão 15 kg
+# (falso positivo confirmado em produção). Filosofia: melhor não mostrar
+# preço do que mostrar preço de produto errado.
+#
+# Não usa PREÇO como prova de identidade — só atributos objetivos do produto.
+
+def _digits(value: Optional[str]) -> str:
+    return re.sub(r"\D", "", value or "")
+
+
+@dataclass
+class CobasiIdentitySpec:
+    """O que sabemos do produto do tutor, para cruzar com cada candidato VTEX."""
+    reference_name: Optional[str] = None
+    brand: Optional[str] = None
+    species: Optional[str] = None          # "dog" | "cat"
+    gtin: Optional[str] = None
+    weight_kg: Optional[float] = None
+    volume_ml: Optional[float] = None
+    length_cm: Optional[float] = None
+    pack_count: Optional[int] = None
+
+    @classmethod
+    def build(
+        cls,
+        *,
+        reference_name: Optional[str],
+        brand: Optional[str] = None,
+        species: Optional[str] = None,
+        gtin: Optional[str] = None,
+        weight_kg: Optional[float] = None,
+    ) -> "CobasiIdentitySpec":
+        ref = (reference_name or "").strip() or None
+        return cls(
+            reference_name=ref,
+            brand=(brand or "").strip() or None,
+            species=(species or _infer_species(ref or "")) or None,
+            gtin=(gtin or "").strip() or None,
+            weight_kg=weight_kg if weight_kg is not None else (extract_weight_kg(ref) if ref else None),
+            volume_ml=extract_volume_ml(ref) if ref else None,
+            length_cm=extract_length_cm(ref) if ref else None,
+            pack_count=extract_pack_count(ref) if ref else None,
+        )
+
+    def fingerprint(self) -> str:
+        return "|".join(
+            str(x) for x in (
+                (self.reference_name or "").lower(), (self.brand or "").lower(), self.species,
+                self.gtin, self.weight_kg, self.volume_ml, self.length_cm, self.pack_count,
+            )
+        )
+
+
+def _candidate_identity_verdict(
+    spec: CobasiIdentitySpec, product_name: str, sku_name: str, sku_ean: Optional[str]
+) -> tuple[bool, str]:
+    """(aceita?, motivo). Hard reject em qualquer contradição objetiva de
+    espécie / peso / volume / cm / contagem de unidades / linha-variante
+    (via score_candidate). Aceita só com evidência positiva de identidade —
+    caso contrário, fail closed ("insufficient_identity_evidence")."""
+    cand = f"{product_name or ''} {sku_name or ''}".strip()
+
+    exp_gtin, act_gtin = _digits(spec.gtin), _digits(sku_ean)
+    if exp_gtin and act_gtin:
+        return (act_gtin == exp_gtin, "ean_equal" if act_gtin == exp_gtin else "ean_mismatch")
+
+    # ── contradições objetivas ────────────────────────────────────────────
+    if spec.species:
+        cand_species = _infer_species(cand)
+        if cand_species and cand_species != spec.species:
+            return (False, "species_mismatch")
+
+    hard_checked = 0
+    if spec.weight_kg is not None:
+        cw = extract_weight_kg(cand)
+        if cw is None:
+            return (False, "weight_unverifiable")
+        if abs(cw - spec.weight_kg) > max(0.05, spec.weight_kg * 0.06):
+            return (False, "weight_mismatch")
+        hard_checked += 1
+    if spec.volume_ml is not None:
+        cv = extract_volume_ml(cand)
+        if cv is None:
+            return (False, "volume_unverifiable")
+        if abs(cv - spec.volume_ml) > max(20.0, spec.volume_ml * 0.06):
+            return (False, "volume_mismatch")
+        hard_checked += 1
+    if spec.length_cm is not None:
+        cl = extract_length_cm(cand)
+        if cl is None:
+            return (False, "length_unverifiable")
+        if abs(cl - spec.length_cm) > 2.0:
+            return (False, "length_mismatch")
+        hard_checked += 1
+    if spec.pack_count is not None:
+        cp = extract_pack_count(cand)
+        if cp is None or cp != spec.pack_count:
+            return (False, "pack_count_mismatch")
+        hard_checked += 1
+
+    # ── camada marca + tokens + grupos distintivos (idade/porte/linha) ────
+    score: Optional[float] = None
+    if spec.reference_name:
+        score = score_candidate(
+            spec.reference_name, cand,
+            expected_brand=spec.brand,
+            expected_weight_kg=spec.weight_kg,
+            expected_volume_ml=spec.volume_ml,
+            expected_length_cm=spec.length_cm,
+        )
+        if score is None:
+            return (False, "structural_mismatch")
+
+    brand_in_text = bool(spec.brand) and _norm_text(spec.brand) in _norm_text(cand)
+    ref_token_count = len(_tokenize_text(spec.reference_name)) if spec.reference_name else 0
+
+    # ── evidência positiva exigida (fail closed) ─────────────────────────
+    if score is not None and score >= 0.55 and hard_checked >= 1:
+        return (True, "structural_match")          # marca + discriminador de tamanho/qtd
+    if brand_in_text and hard_checked >= 1:
+        return (True, "brand_plus_attr_match")     # sem nome de referência, mas marca + discriminador
+    if score is not None and score >= 0.80 and ref_token_count >= 4:
+        return (True, "strong_name_match")         # nome de produto rico e específico, marca confirmada
+    return (False, "insufficient_identity_evidence")
+
+
+def _summarize_reject_reasons(reasons: list[str]) -> str:
+    for tag in ("ean_mismatch", "species_mismatch", "weight_mismatch", "length_mismatch",
+                "volume_mismatch", "pack_count_mismatch", "structural_mismatch"):
+        if tag in reasons:
+            return tag if tag in ("ean_mismatch", "species_mismatch") else "variant_mismatch"
+    if "insufficient_identity_evidence" in reasons:
+        return "insufficient_identity_evidence"
+    if "no_price" in reasons:
+        return "no_price"
+    return "no_results"
+
+
+def _iter_vtex_sku_candidates(products: list) -> "list[tuple[dict, dict, dict, Optional[str]]]":
+    """(product, item, commertialOffer, ean) para TODOS os SKUs de TODOS os
+    produtos retornados — em vez de só products[0]/items[0]."""
+    out: list[tuple[dict, dict, dict, Optional[str]]] = []
+    for product in products:
+        if not isinstance(product, dict):
+            continue
+        for item in product.get("items") or []:
+            sellers = item.get("sellers") or []
+            offer = (sellers[0].get("commertialOffer") if sellers else None) or {}
+            raw_ean = item.get("ean")
+            ean = raw_ean.strip() if isinstance(raw_ean, str) and raw_ean.strip().isdigit() else None
+            out.append((product, item, offer, ean))
+    return out
+
+
+async def _search_cobasi_matched_once(query: str, spec: CobasiIdentitySpec) -> ProductPriceResult:
+    url = _COBASI_SEARCH_URL.format(query=urllib.parse.quote(query))
+    try:
+        async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
+            response = await client.get(
+                url, params={"_from": 0, "_to": 9, "sc": 1}, headers={"Accept": "application/json"}
+            )
+    except (httpx.TimeoutException, httpx.ConnectError) as exc:
+        logger.info("[commerce_pricing] cobasi matched timeout query=%r err=%s", query, type(exc).__name__)
+        return ProductPriceResult(found=False, reason="timeout")
+    if response.status_code not in (200, 206):
+        return ProductPriceResult(found=False, reason="http_error")
+    products = response.json()
+    if not isinstance(products, list) or not products:
+        return ProductPriceResult(found=False, reason="no_results")
+
+    reject_reasons: list[str] = []
+    best: Optional[ProductPriceResult] = None
+    for product, item, offer, ean in _iter_vtex_sku_candidates(products):
+        p_name = product.get("productName") or ""
+        sku_name = item.get("nameComplete") or item.get("name") or ""
+        ok, reason = _candidate_identity_verdict(spec, p_name, sku_name, ean)
+        if not ok:
+            reject_reasons.append(reason)
+            continue
+        price = offer.get("Price")
+        if not isinstance(price, (int, float)) or not price:
+            reject_reasons.append("no_price")
+            continue
+        link_text = product.get("linkText")
+        result = ProductPriceResult(
+            found=True, store="cobasi",
+            product_name=sku_name or p_name,
+            brand=product.get("brand"),
+            price=float(price),
+            list_price=float(offer["ListPrice"]) if isinstance(offer.get("ListPrice"), (int, float)) else None,
+            is_available=offer.get("IsAvailable"),
+            url=f"https://www.cobasi.com.br/{link_text}/p" if link_text else None,
+            ean=ean,
+            reason=reason,
+        )
+        if reason == "ean_equal":          # prova mais forte — para aqui
+            return result
+        if best is None:
+            best = result                   # 1º candidato estruturalmente válido (ordem VTEX = determinística)
+
+    if best is not None:
+        return best
+    return ProductPriceResult(found=False, reason=_summarize_reject_reasons(reject_reasons))
+
+
+async def fetch_cobasi_price_matched(
+    query: str, spec: CobasiIdentitySpec, *, target_weight_kg: Optional[float] = None
+) -> ProductPriceResult:
+    """Como fetch_cobasi_price, mas só devolve uma oferta quando a
+    identidade do produto pode ser PROVADA contra `spec`. Examina todos os
+    SKUs de todos os resultados VTEX, não só o primeiro."""
+    query = (query or "").strip()
+    if not query:
+        return ProductPriceResult(found=False, reason="empty_query")
+    if not get_settings().commerce_pricing_enabled:
+        return ProductPriceResult(found=False, reason="disabled")
+
+    key = f"m:{spec.fingerprint()}::{_cache_key(query, target_weight_kg)}"
+    cached = _cache.get(key)
+    if cached is not None:
+        return cached
+    try:
+        result = await _search_cobasi_matched_once(query, spec)
+        if not result.found:
+            for fq in _shorten_query_variants(query):
+                fb = await _search_cobasi_matched_once(fq, spec)
+                if fb.found:
+                    result = fb
+                    break
+                if fb.reason in ("timeout", "http_error"):
+                    result = fb
+    except Exception as exc:
+        logger.info("[commerce_pricing] cobasi matched failed query=%r err=%s", query, type(exc).__name__)
+        result = ProductPriceResult(found=False, reason="error")
+    _cache[key] = result
+    return result
 
 
 async def _fetch_cobasi_price_uncached(query: str, target_weight_kg: Optional[float] = None) -> ProductPriceResult:
     settings = get_settings()
     if not settings.commerce_pricing_enabled:
-        return ProductPriceResult(found=False)
+        return ProductPriceResult(found=False, reason="disabled")
 
     try:
         result = await _search_cobasi_once(query, target_weight_kg)
@@ -207,15 +468,19 @@ async def _fetch_cobasi_price_uncached(query: str, target_weight_kg: Optional[fl
             return result
 
         for fallback_query in _shorten_query_variants(query):
-            result = await _search_cobasi_once(fallback_query, target_weight_kg, port_reference_text=query)
-            if result.found:
+            fb = await _search_cobasi_once(fallback_query, target_weight_kg, port_reference_text=query)
+            if fb.found:
                 logger.info("[commerce_pricing] cobasi fallback query matched: %r -> %r", query, fallback_query)
-                return result
+                return fb
+            # Um fallback que deu timeout/erro é mais informativo que o
+            # "no_results" da busca principal — propaga esse motivo.
+            if fb.reason in ("timeout", "http_error"):
+                result = fb
 
         return result
     except Exception as exc:
-        logger.info("[commerce_pricing] cobasi lookup failed query=%r error=%s", query, exc)
-        return ProductPriceResult(found=False)
+        logger.info("[commerce_pricing] cobasi lookup failed query=%r error=%s", query, type(exc).__name__)
+        return ProductPriceResult(found=False, reason="error")
 
 
 # ── Múltiplos candidatos (reconhecimento por foto) ─────────────────────────

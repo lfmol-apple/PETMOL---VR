@@ -938,6 +938,8 @@ export function ParasiteItemSheet({
                           : 'antipulgas cão'
                   }
                   gtin={current?.barcode}
+                  productName={current?.product_name || undefined}
+                  species={petSpecies ?? undefined}
                   petId={petId}
                   productLabel={current?.product_name || cfg.title}
                   icon={cfg.icon}

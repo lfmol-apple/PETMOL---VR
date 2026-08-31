@@ -236,3 +236,58 @@ async def test_manually_cached_offer_survives_regardless_of_registration_order()
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
     assert len(cobasi_offers) == 1
     assert cobasi_offers[0].route == "mais"
+
+
+class _SlowProvider:
+    """find_offer que trava — para exercitar o timeout por provider."""
+
+    merchant = "cobasi"
+
+    def __init__(self, delay: float):
+        self._delay = delay
+
+    async def find_offer(self, context: ProductContext):
+        import asyncio
+
+        await asyncio.sleep(self._delay)
+        return DiscoveredOffer(merchant=self.merchant, price=10.0, product_name="Lento")
+
+    def monetize(self, offer, context):
+        return ("https://cobasi.example/x", "affiliate_product", "mais", False)
+
+
+@pytest.mark.asyncio
+async def test_slow_provider_is_skipped_without_dropping_the_others(monkeypatch):
+    """Uma Cobasi lenta (find_offer travado) não pode impedir a Shopee de
+    aparecer — o engine aplica timeout por provider e segue."""
+    from src.config import get_settings
+
+    monkeypatch.setenv("COMMERCE_OFFERS_PROVIDER_TIMEOUT_SECONDS", "0.2")
+    get_settings.cache_clear()
+    try:
+        engine = CommerceEngine([
+            _SlowProvider(delay=5.0),
+            _FakeProvider("shopee", 150.0),
+        ])
+        offers = await engine.get_offers(ProductContext(gtin="123"))
+        merchants = [o.merchant for o in offers]
+        assert merchants == ["shopee"]
+    finally:
+        get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_fast_providers_are_not_affected_by_the_timeout(monkeypatch):
+    from src.config import get_settings
+
+    monkeypatch.setenv("COMMERCE_OFFERS_PROVIDER_TIMEOUT_SECONDS", "5")
+    get_settings.cache_clear()
+    try:
+        engine = CommerceEngine([
+            _FakeProvider("cobasi", 190.0),
+            _FakeProvider("shopee", 180.0),
+        ])
+        offers = await engine.get_offers(ProductContext(gtin="123"))
+        assert [o.merchant for o in offers] == ["shopee", "cobasi"]
+    finally:
+        get_settings.cache_clear()

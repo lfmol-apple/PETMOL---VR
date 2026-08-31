@@ -71,6 +71,17 @@ class CommerceOfferOut(BaseModel):
 _NOT_FOUND = ProductOfferResult(found=False)
 
 
+def _normalize_species(value: Optional[str]) -> Optional[str]:
+    """Normaliza pt-BR/en para o vocabulário interno ("dog"|"cat"). Qualquer
+    outra coisa vira None (sem gate de espécie, não um gate errado)."""
+    v = (value or "").strip().lower()
+    if v in ("dog", "cão", "cao", "cachorro", "caes", "cães", "canino"):
+        return "dog"
+    if v in ("cat", "gato", "felino", "gata"):
+        return "cat"
+    return None
+
+
 def build_default_engine(db: Session) -> CommerceEngine:
     """Lista central de providers ativos — usada por TODO endpoint
     público (/commerce/offers, /commerce/awin-search). Novo provider
@@ -183,6 +194,7 @@ async def get_commerce_offers(
     product_id: Optional[int] = None,
     name: Optional[str] = None,
     brand: Optional[str] = None,
+    species: Optional[str] = None,
 ) -> list[MonetizedOffer]:
     """`query`/`target_weight_kg` continuam funcionando exatamente como
     antes (compatibilidade). `gtin`/`product_id`/`name`/`brand` são novos
@@ -199,5 +211,6 @@ async def get_commerce_offers(
         product_id=product_id,
         name=name,
         brand=brand,
+        species=_normalize_species(species),
     )
     return await engine.get_offers(context)

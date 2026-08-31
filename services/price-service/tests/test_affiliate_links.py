@@ -159,10 +159,10 @@ def _fake_price(ean: str | None, price: float = 16.9, url: str = "https://www.co
 
 
 def test_product_offer_dev_fallback_when_no_link_registered(client, monkeypatch):
-    async def fake_fetch(query: str, target_weight_kg=None) -> ProductPriceResult:
+    async def fake_fetch(query: str, spec=None, *, target_weight_kg=None) -> ProductPriceResult:
         return _fake_price(ean=None)
 
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_matched", fake_fetch)
 
     r = client.get("/commerce/product-offer", params={"q": "royal canin urinary"})
     assert r.status_code == 200
@@ -172,10 +172,10 @@ def test_product_offer_dev_fallback_when_no_link_registered(client, monkeypatch)
 
 
 def test_product_offer_prod_hides_when_no_link_registered(client, monkeypatch):
-    async def fake_fetch(query: str, target_weight_kg=None) -> ProductPriceResult:
+    async def fake_fetch(query: str, spec=None, *, target_weight_kg=None) -> ProductPriceResult:
         return _fake_price(ean=None)
 
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_matched", fake_fetch)
     _force_prod(monkeypatch)
 
     r = client.get("/commerce/product-offer", params={"q": "royal canin urinary"})
@@ -192,10 +192,10 @@ def test_product_offer_prefers_registered_affiliate_link_over_raw_url(client, mo
     finally:
         db.close()
 
-    async def fake_fetch(query: str, target_weight_kg=None) -> ProductPriceResult:
+    async def fake_fetch(query: str, spec=None, *, target_weight_kg=None) -> ProductPriceResult:
         return _fake_price(ean=GTIN)
 
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_matched", fake_fetch)
 
     r = client.get("/commerce/product-offer", params={"q": "royal canin urinary"})
     data = r.json()
@@ -213,10 +213,10 @@ def test_product_offer_prod_with_registered_link_still_works(client, monkeypatch
     finally:
         db.close()
 
-    async def fake_fetch(query: str, target_weight_kg=None) -> ProductPriceResult:
+    async def fake_fetch(query: str, spec=None, *, target_weight_kg=None) -> ProductPriceResult:
         return _fake_price(ean=GTIN)
 
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_matched", fake_fetch)
     _force_prod(monkeypatch)
 
     r = client.get("/commerce/product-offer", params={"q": "royal canin urinary"})
@@ -239,10 +239,10 @@ def test_deactivating_link_hides_offer_immediately(client, monkeypatch):
     finally:
         db.close()
 
-    async def fake_fetch(query: str, target_weight_kg=None) -> ProductPriceResult:
+    async def fake_fetch(query: str, spec=None, *, target_weight_kg=None) -> ProductPriceResult:
         return _fake_price(ean=GTIN)
 
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_matched", fake_fetch)
 
     before = client.get("/commerce/product-offer", params={"q": "royal canin urinary"}).json()
     assert before["found"] is True
