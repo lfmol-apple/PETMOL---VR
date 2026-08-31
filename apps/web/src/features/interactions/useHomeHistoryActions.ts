@@ -10,7 +10,6 @@ interface UseHomeHistoryActionsInput {
   router: AppRouterInstance;
   selectedPetId: string | null;
   setShowVetHistoryModal: (value: boolean) => void;
-  setShowDocUploadInHistorico: (value: boolean) => void;
   setShowHealthOptionsModal: (value: boolean) => void;
   setShowHealthModal: (value: boolean) => void;
   setHealthModalMode: (value: 'full' | 'health' | 'grooming' | 'food') => void;
@@ -22,7 +21,6 @@ export function useHomeHistoryActions({
   router,
   selectedPetId,
   setShowVetHistoryModal,
-  setShowDocUploadInHistorico,
   setShowHealthOptionsModal,
   setShowHealthModal,
   setHealthModalMode,
@@ -31,8 +29,7 @@ export function useHomeHistoryActions({
 }: UseHomeHistoryActionsInput) {
   const closeVetHistoryModal = useCallback(() => {
     setShowVetHistoryModal(false);
-    setShowDocUploadInHistorico(false);
-  }, [setShowDocUploadInHistorico, setShowVetHistoryModal]);
+  }, [setShowVetHistoryModal]);
 
   const openHealthOptionsFromVetHistory = useCallback(() => {
     setShowVetHistoryModal(false);

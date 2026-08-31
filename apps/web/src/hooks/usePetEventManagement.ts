@@ -50,10 +50,6 @@ interface UsePetEventManagementResult {
   setEventSaving: (value: boolean) => void;
   createdEventId: string | null;
   setCreatedEventId: (value: string | null) => void;
-  showAttachDoc: boolean;
-  setShowAttachDoc: (value: boolean) => void;
-  attachDocFiles: File[];
-  setAttachDocFiles: (files: File[]) => void;
   editingEventId: string | null;
   setEditingEventId: (value: string | null) => void;
   fetchPetEvents: (petId: string) => Promise<void>;
@@ -98,8 +94,6 @@ export function usePetEventManagement({
   const [eventFormData, setEventFormData] = useState<EventFormState>(createDefaultEventFormData());
   const [eventSaving, setEventSaving] = useState(false);
   const [createdEventId, setCreatedEventId] = useState<string | null>(null);
-  const [showAttachDoc, setShowAttachDoc] = useState(false);
-  const [attachDocFiles, setAttachDocFiles] = useState<File[]>([]);
 
   const fetchPetEvents = useCallback(async (petId: string) => {
     const token = getToken();
@@ -286,10 +280,6 @@ export function usePetEventManagement({
     setEventSaving,
     createdEventId,
     setCreatedEventId,
-    showAttachDoc,
-    setShowAttachDoc,
-    attachDocFiles,
-    setAttachDocFiles,
     editingEventId,
     setEditingEventId,
     fetchPetEvents,

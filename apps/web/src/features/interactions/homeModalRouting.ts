@@ -60,9 +60,6 @@ export type HomeSurfaceResolution =
   | {
       kind: 'edit-pet';
       initialSection: 'food';
-    }
-  | {
-      kind: 'documents';
     };
 
 export function resolveHomeDeepLinkDestination(
@@ -148,10 +145,6 @@ export function resolveHomeDeepLinkDestination(
 
   if (modal === 'food') {
     return { kind: 'sheet', sheet: 'food' };
-  }
-
-  if (modal === 'documents') {
-    return { kind: 'documents' } as HomeSurfaceResolution;
   }
 
   return null;

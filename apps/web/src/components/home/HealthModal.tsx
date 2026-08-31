@@ -125,7 +125,6 @@ interface HealthModalProps {
   eventFormData: EventFormState; setEventFormData: Dispatch<SetStateAction<EventFormState>>; eventSaving: boolean; setEventSaving: (v: boolean) => void;
   // Props legadas do HealthEventPanel (desativado) — remover junto com HealthEventPanel em page.tsx quando feature for oficialmente descontinuada
   setCreatedEventId: (id: string | null) => void;
-  attachDocFiles: File[]; setAttachDocFiles: (files: File[]) => void; setShowAttachDoc: (v: boolean) => void;
   docFolderModal: DocFolderModalState; setDocFolderModal: Dispatch<SetStateAction<DocFolderModalState>>; handleDeleteEvent: (eventId: string) => void;
   fetchPetEvents: (petId: string) => void; openEditEvent: (event: PetEventRecord) => void; vetHistoryDocs: VetHistoryDocument[];
 }
@@ -140,7 +139,7 @@ export function HealthModal({
   groomingDueAlerts, setGroomingDueAlerts, handleDeleteGrooming, handleEditGrooming, handleSaveGrooming, handleCancelEditGrooming,
   showPlaceSuggestions, setShowPlaceSuggestions, searchingPlaces, placeSuggestions, searchPlaces, selectPlace, fetchFeedingPlan,
   petEvents, eventsLoading, editingEventId, setEditingEventId, eventFormData, setEventFormData,
-  eventSaving, setEventSaving, attachDocFiles, setAttachDocFiles,
+  eventSaving, setEventSaving,
   docFolderModal: _docFolderModal, setDocFolderModal: _setDocFolderModal,
   handleDeleteEvent, fetchPetEvents, openEditEvent, vetHistoryDocs,
 }: HealthModalProps) {
@@ -179,8 +178,6 @@ export function HealthModal({
     eventFormData,
     setEventFormData,
     setEventSaving,
-    attachDocFiles,
-    setAttachDocFiles,
     editingEventId,
     setEditingEventId,
     fetchPetEvents,
@@ -602,8 +599,6 @@ export function HealthModal({
                     setEventFormData={setEventFormData}
                     editingEventId={editingEventId}
                     eventSaving={eventSaving}
-                    attachDocFiles={attachDocFiles}
-                    setAttachDocFiles={setAttachDocFiles}
                     petEvents={petEvents}
                     eventsLoading={eventsLoading}
                     saveMedication={saveMedicationWithClear}
@@ -615,7 +610,8 @@ export function HealthModal({
               )}
 
               {/* appointments e exams removidos — não implementados, risco de rejeição nas lojas */}
-              {/* HealthEventPanel desativado — remover useHomeEventActions e props docFolderModal/setDocFolderModal quando feature for descontinuada oficialmente */}
+              {/* HealthEventPanel + useHomeEventActions removidos junto com o Cofre de Documentos.
+                  docFolderModal/setDocFolderModal seguem apenas para a visualização do acervo legado. */}
             </div>
 
             {/* Guard: confirmação antes de fechar com formulário em andamento */}

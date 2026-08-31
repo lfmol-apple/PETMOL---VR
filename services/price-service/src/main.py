@@ -253,7 +253,8 @@ app.include_router(product_lookup_router, prefix="/api")
 app.include_router(gtin_router)
 app.include_router(gtin_router, prefix="/api")
 
-# Pet Documents (cofre documental)
+# Pet Documents — acervo legado, SOMENTE leitura/exclusão (sem upload/import).
+# O PETMOL não é repositório de documentos; ver pets/document_router.py.
 from .pets.document_router import router as pet_documents_router
 app.include_router(pet_documents_router)
 

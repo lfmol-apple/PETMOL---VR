@@ -1,12 +1,17 @@
 """Regression test for the SVG/script inline-serving fix.
 
-mime_type on a document is whatever Content-Type the uploader declared —
-never verified against file bytes. serve_document_file() used to serve
-anything starting with "image/" inline, including image/svg+xml (SVG can
-carry a <script> that executes when the browser opens it inline). It must
-now only serve a fixed allowlist of genuinely safe types inline; everything
-else is forced to download (Content-Disposition: attachment).
+Uploading documents was removed from the product, but serve_document_file()
+still serves the legacy acervo. mime_type on a legacy document is whatever
+Content-Type the uploader once declared — never verified against file bytes.
+serve_document_file() must only serve a fixed allowlist of genuinely safe
+types inline (image/svg+xml is NOT on it, since SVG can carry a <script>
+that executes when opened inline); everything else is forced to download.
 """
+import uuid
+
+from src.db import SessionLocal
+from src.pets.document_models import PetDocument
+from src.pets.document_router import DOCS_UPLOAD_DIR
 
 
 def _headers(cid: str, token: str | None = None) -> dict:
@@ -28,20 +33,29 @@ def _signup_login_and_pet(client, cid: str, email: str) -> tuple[str, str]:
     return token, pet.json()["id"]
 
 
-def test_svg_upload_is_not_served_inline(client):
+def _seed_legacy_document(pet_id: str, filename: str, content: bytes, mime: str) -> str:
+    DOCS_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    storage_key = f"{uuid.uuid4().hex}_{filename}"
+    (DOCS_UPLOAD_DIR / storage_key).write_bytes(content)
+    db = SessionLocal()
+    try:
+        doc = PetDocument(
+            pet_id=pet_id, kind="file", title=filename, source="upload",
+            storage_key=storage_key, mime_type=mime, size_bytes=len(content),
+        )
+        db.add(doc)
+        db.commit()
+        db.refresh(doc)
+        return doc.id
+    finally:
+        db.close()
+
+
+def test_svg_legacy_document_is_not_served_inline(client):
     token, pet_id = _signup_login_and_pet(client, "cid-doc-svg", "tutor.docsvg@example.com")
-    headers = _headers("cid-doc-svg", token)
 
     malicious_svg = b"<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"
-    upload = client.post(
-        f"/pets/{pet_id}/documents/upload",
-        files={"files": ("exame.svg", malicious_svg, "image/svg+xml")},
-        headers=headers,
-    )
-    assert upload.status_code == 201, upload.text
-    created = upload.json()["created"]
-    assert len(created) == 1
-    doc_id = created[0]["id"]
+    doc_id = _seed_legacy_document(pet_id, "exame.svg", malicious_svg, "image/svg+xml")
 
     served = client.get(
         f"/pets/{pet_id}/documents/{doc_id}/file",
@@ -56,21 +70,12 @@ def test_svg_upload_is_not_served_inline(client):
     assert "attachment" in disposition
 
 
-def test_real_jpeg_upload_is_still_served_inline(client):
+def test_real_jpeg_legacy_document_is_still_served_inline(client):
     """The hardening must not break legitimate photo viewing."""
     token, pet_id = _signup_login_and_pet(client, "cid-doc-jpeg", "tutor.docjpeg@example.com")
-    headers = _headers("cid-doc-jpeg", token)
 
-    # Minimal valid-enough JPEG header bytes — the endpoint doesn't validate
-    # magic bytes, only the declared content_type, which is what this test targets.
     fake_jpeg = b"\xff\xd8\xff\xe0" + b"\x00" * 32
-    upload = client.post(
-        f"/pets/{pet_id}/documents/upload",
-        files={"files": ("foto.jpg", fake_jpeg, "image/jpeg")},
-        headers=headers,
-    )
-    assert upload.status_code == 201, upload.text
-    doc_id = upload.json()["created"][0]["id"]
+    doc_id = _seed_legacy_document(pet_id, "foto.jpg", fake_jpeg, "image/jpeg")
 
     served = client.get(
         f"/pets/{pet_id}/documents/{doc_id}/file",

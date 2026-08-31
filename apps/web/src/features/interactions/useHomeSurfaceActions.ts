@@ -9,7 +9,6 @@ interface UseHomeSurfaceActionsInput {
   setShowVermifugoSheet: (value: boolean) => void;
   setShowAntipulgasSheet: (value: boolean) => void;
   setShowColeiraSheet: (value: boolean) => void;
-  setShowMedicalVault: (value: boolean) => void;
   setShowBanhoTosaSheet: (value: boolean) => void;
   setShowMedicationSheet: (value: boolean) => void;
   setShowFoodSheet: (value: boolean) => void;
@@ -27,7 +26,6 @@ export function useHomeSurfaceActions({
   setShowVermifugoSheet,
   setShowAntipulgasSheet,
   setShowColeiraSheet,
-  setShowMedicalVault,
   setShowBanhoTosaSheet,
   setShowMedicationSheet,
   setShowFoodSheet,
@@ -53,10 +51,6 @@ export function useHomeSurfaceActions({
   const openColeira = useCallback(() => {
     setShowColeiraSheet(true);
   }, [setShowColeiraSheet]);
-
-  const openDocuments = useCallback(() => {
-    setShowMedicalVault(true);
-  }, [setShowMedicalVault]);
 
   const openGrooming = useCallback(() => {
     setShowBanhoTosaSheet(true);
@@ -114,10 +108,6 @@ export function useHomeSurfaceActions({
       setEditPetInitialSection(resolution.initialSection);
       setShowEditModal(true);
     }
-
-    if (resolution.kind === 'documents') {
-      setShowMedicalVault(true);
-    }
   }, [
     setEditPetInitialSection,
     setHealthActiveTab,
@@ -129,7 +119,6 @@ export function useHomeSurfaceActions({
     setShowFoodSheet,
     setShowHealthModal,
     setShowHealthOptionsModal,
-    setShowMedicalVault,
     setShowMedicationSheet,
     setShowQuickAddVaccine,
     setShowVaccineSheet,
@@ -146,7 +135,6 @@ export function useHomeSurfaceActions({
     openVermifugo,
     openAntipulgas,
     openColeira,
-    openDocuments,
     openGrooming,
     openMedication,
     openFood,

@@ -23,7 +23,6 @@ const FeedbackModal = dynamic(() => import('@/components/home/FeedbackModal').th
 const QuickAddVaccineModal = dynamic(() => import('@/components/home/QuickAddVaccineModal').then(m => ({ default: m.QuickAddVaccineModal })), { ssr: false });
 const VetHistoryModal = dynamic(() => import('@/components/home/VetHistoryModal').then(m => ({ default: m.VetHistoryModal })), { ssr: false });
 const HistoryDocumentsOverlay = dynamic(() => import('@/components/home/HistoryDocumentsOverlay').then(m => ({ default: m.HistoryDocumentsOverlay })), { ssr: false });
-const MedicalVaultModal = dynamic(() => import('@/components/home/MedicalVaultModal').then(m => ({ default: m.MedicalVaultModal })), { ssr: false });
 const HomeNavigationModals = dynamic(() => import('@/components/home/HomeNavigationModals').then(m => ({ default: m.HomeNavigationModals })), { ssr: false });
 const HomeEmergencySheet = dynamic(() => import('@/components/home/HomeEmergencySheet').then(m => ({ default: m.HomeEmergencySheet })), { ssr: false });
 const PushActionSheet = dynamic(() => import('@/components/PushActionSheet').then(m => ({ default: m.PushActionSheet })), { ssr: false });
@@ -381,38 +380,20 @@ function HomePageInner() {
     })();
   }, []);
 
-  // Files received via PWA Web Share Target (WhatsApp → PETMOL)
-  const [sharedFiles, setSharedFiles] = useState<File[] | undefined>(undefined);
-
-  // Detect share target redirect and read files from Cache Storage
+  // PWA Web Share Target: o PETMOL não armazena mais documentos/anexos, então
+  // arquivos compartilhados são apenas descartados do cache (o SW ainda pode
+  // gravá-los no redirect). Mantido só para limpar o cache e a URL.
   useEffect(() => {
     if (!searchParams.get('petmol_share')) return;
-    // Limpa a URL DEPOIS de ler o cache para evitar race condition
     (async () => {
       try {
         const cache = await caches.open('petmol-shared-files-v1');
-        const metaResp = await cache.match('/petmol-share/meta');
-        // URL limpa só aqui — SW já escreveu no cache antes de redirecionar
-        router.replace('/home', { scroll: false });
-        if (!metaResp) return;
-        const { count } = await metaResp.json() as { count: number };
-        const files: File[] = [];
-        for (let i = 0; i < count; i++) {
-          const resp = await cache.match(`/petmol-share/file-${i}`);
-          if (!resp) continue;
-          const buf = await resp.arrayBuffer();
-          const mime = resp.headers.get('Content-Type') || 'application/octet-stream';
-          const name = decodeURIComponent(resp.headers.get('X-File-Name') || `arquivo-${i}`);
-          files.push(new File([buf], name, { type: mime }));
-          await cache.delete(`/petmol-share/file-${i}`);
-        }
         await cache.delete('/petmol-share/meta');
-        if (files.length > 0) {
-          setSharedFiles(files);
-          setShowMedicalVault(true);
-        }
+        const keys = await cache.keys();
+        await Promise.all(keys.map((k) => cache.delete(k)));
       } catch {
-        // silently ignore — user can still open Histórico manually
+        // ignore
+      } finally {
         router.replace('/home', { scroll: false });
       }
     })();
@@ -473,8 +454,7 @@ function HomePageInner() {
     quickMarkToast, setQuickMarkToast,
   } = useQuickMark();
   const [showVetHistoryModal, setShowVetHistoryModal] = useState(false);
-  const [historicoTab, setHistoricoTab] = useState<'resumo' | 'detalhado' | 'documentos'>('detalhado');
-  const [showDocUploadInHistorico, setShowDocUploadInHistorico] = useState(false);
+  const [historicoTab, setHistoricoTab] = useState<'resumo' | 'detalhado'>('detalhado');
   const [vetHistoryDocs, setVetHistoryDocs] = useState<VetHistoryDocument[]>([]);
   const [docFolderModal, setDocFolderModal] = useState<DocFolderModalState>(null);
   const [showVetOptionsModal, setShowVetOptionsModal] = useState(false);
@@ -511,10 +491,6 @@ function HomePageInner() {
     setEventSaving,
     createdEventId,
     setCreatedEventId,
-    showAttachDoc,
-    setShowAttachDoc,
-    attachDocFiles,
-    setAttachDocFiles,
     editingEventId,
     setEditingEventId,
     fetchPetEvents,
@@ -583,8 +559,6 @@ function HomePageInner() {
     showAllVaccinesGuide, setShowAllVaccinesGuide,
     showAIUpload, setShowAIUpload,
     editingVaccine, setEditingVaccine,
-    showMedicalVault, setShowMedicalVault,
-    vaccineFiles, setVaccineFiles,
     showFeedbackModal, setShowFeedbackModal,
     feedbackVaccine, setFeedbackVaccine,
     feedbackFormData, setFeedbackFormData,
@@ -1379,7 +1353,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     setShowVermifugoSheet,
     setShowAntipulgasSheet,
     setShowColeiraSheet,
-    setShowMedicalVault,
     setShowBanhoTosaSheet,
     setShowMedicationSheet,
     setShowFoodSheet,
@@ -1535,7 +1508,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     router,
     selectedPetId,
     setShowVetHistoryModal,
-    setShowDocUploadInHistorico,
     setShowHealthOptionsModal,
     setShowHealthModal,
     setHealthModalMode,
@@ -2457,9 +2429,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           eventSaving={eventSaving}
           setEventSaving={setEventSaving}
           setCreatedEventId={setCreatedEventId}
-          attachDocFiles={attachDocFiles}
-          setAttachDocFiles={setAttachDocFiles}
-          setShowAttachDoc={setShowAttachDoc}
           docFolderModal={docFolderModal}
           setDocFolderModal={setDocFolderModal}
           handleDeleteEvent={handleDeleteEvent}
@@ -2491,8 +2460,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           onCloseAIUpload={closeVaccineCardReader}
           onOpenVaccineFormFromAIUpload={openVaccineFormFromCardReader}
           currentPet={currentPet}
-          vaccineFiles={vaccineFiles}
-          setVaccineFiles={setVaccineFiles}
           selectedPetId={selectedPetId}
           handleSaveVaccine={handleSaveVaccine}
           vaccineFormSaving={vaccineFormSaving}
@@ -2509,22 +2476,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           reviewConfirmed={reviewConfirmed}
           onGoHome={() => { closeCardAnalysis(); closeVaccineSheet(); }}
           onAfterSave={() => setVaccineFormJustSaved(true)}
-        />
-      )}
-
-      {/* Modal Cofre de Documentos */}
-      {showMedicalVault && (
-        <MedicalVaultModal
-          currentPet={currentPet}
-          setShowMedicalVault={setShowMedicalVault}
-          setVetHistoryDocs={setVetHistoryDocs}
-          vaccines={vaccines}
-          parasiteControls={parasiteControls}
-          groomingRecords={groomingRecords}
-          petEvents={petEvents}
-          vetHistoryDocs={vetHistoryDocs}
-          pendingFiles={sharedFiles}
-          onFilesConsumed={() => setSharedFiles(undefined)}
         />
       )}
 
@@ -2558,16 +2509,12 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           onOpenHealthTab={openHealthTabFromVetHistory}
           onOpenDocumentFolder={openVetHistoryDocumentFolder}
           onNavigateToSaude={navigateToSaudeFromVetHistory}
-          onOpenUpload={() => setShowDocUploadInHistorico(true)}
         />
       )}
 
-      {/* Modal de pasta de documentos */}
+      {/* Acervo legado de documentos — somente leitura/exclusão */}
       <HistoryDocumentsOverlay
         currentPet={currentPet}
-        setHistoricoTab={setHistoricoTab}
-        showDocUploadInHistorico={showDocUploadInHistorico}
-        setShowDocUploadInHistorico={setShowDocUploadInHistorico}
         setVetHistoryDocs={setVetHistoryDocs}
         docFolderModal={docFolderModal}
         onCloseDocFolder={closeVetHistoryDocumentFolder}

@@ -13,8 +13,6 @@ interface UseHomeMedicationActionsParams {
   eventFormData: EventFormState;
   setEventFormData: Dispatch<SetStateAction<EventFormState>>;
   setEventSaving: (value: boolean) => void;
-  attachDocFiles: File[];
-  setAttachDocFiles: (files: File[]) => void;
   editingEventId: string | null;
   setEditingEventId: (value: string | null) => void;
   fetchPetEvents: (petId: string) => void;
@@ -48,8 +46,6 @@ export function useHomeMedicationActions({
   eventFormData,
   setEventFormData,
   setEventSaving,
-  attachDocFiles,
-  setAttachDocFiles,
   editingEventId,
   setEditingEventId,
   fetchPetEvents,
@@ -58,9 +54,8 @@ export function useHomeMedicationActions({
     (reminderEnabled: boolean) => {
       setEventFormData(buildMedicationDefaults(reminderEnabled));
       setEditingEventId(null);
-      setAttachDocFiles([]);
     },
-    [setAttachDocFiles, setEditingEventId, setEventFormData],
+    [setEditingEventId, setEventFormData],
   );
 
   const cancelMedicationForm = useCallback(() => {
@@ -171,27 +166,6 @@ export function useHomeMedicationActions({
             reminder_times: eventFormData.reminder_times?.length ?? 0,
           });
         }
-        // Upload documents for new events only
-        if (!evEditId && attachDocFiles.length > 0) {
-          const form = new FormData();
-          attachDocFiles.forEach(f => form.append('files', f));
-          form.append('event_id', saved.id);
-          const uploadResponse = await fetch(
-            `${API_BASE_URL}/pets/${selectedPetId}/documents/upload`,
-            {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${token}` },
-              body: form,
-            },
-          ).catch(() => null);
-          if (uploadResponse?.ok) {
-            trackV1Metric('document_uploaded', {
-              pet_id: selectedPetId,
-              file_count: attachDocFiles.length,
-              source: 'health_modal_medication',
-            });
-          }
-        }
         _resetForm(true);
         fetchPetEvents(selectedPetId);
       } else {
@@ -205,7 +179,6 @@ export function useHomeMedicationActions({
     }
   }, [
     _resetForm,
-    attachDocFiles,
     editingEventId,
     eventFormData,
     fetchPetEvents,

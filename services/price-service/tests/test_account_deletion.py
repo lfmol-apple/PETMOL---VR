@@ -3,9 +3,15 @@
 Deleting only the DB row while leaving the uploaded file behind means the
 document technically still exists on the server after the user asked to be
 forgotten (LGPD's "direito ao apagamento" wouldn't hold up).
-"""
-from pathlib import Path
 
+Uploading new documents was removed from the product (the PETMOL is not a
+document repository), so this test seeds a legacy `pet_documents` row + file
+directly to exercise the retained on-disk cleanup in delete_account().
+"""
+import uuid
+
+from src.db import SessionLocal
+from src.pets.document_models import PetDocument
 from src.pets.document_router import DOCS_UPLOAD_DIR
 
 
@@ -16,7 +22,30 @@ def _headers(cid: str, token: str | None = None) -> dict:
     return h
 
 
-def test_deleting_account_removes_uploaded_document_from_disk(client):
+def _seed_legacy_document(pet_id: str) -> str:
+    """Write a file to the upload dir and insert a matching legacy row."""
+    DOCS_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    storage_key = f"{uuid.uuid4().hex}_exame.jpg"
+    (DOCS_UPLOAD_DIR / storage_key).write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 32)
+    db = SessionLocal()
+    try:
+        doc = PetDocument(
+            pet_id=pet_id,
+            kind="file",
+            title="Exame (legado)",
+            source="upload",
+            storage_key=storage_key,
+            mime_type="image/jpeg",
+            size_bytes=36,
+        )
+        db.add(doc)
+        db.commit()
+        return storage_key
+    finally:
+        db.close()
+
+
+def test_deleting_account_removes_legacy_document_from_disk(client):
     cid = "cid-delete-account"
     email = "tutor.delecao@example.com"
     password = "senha123"
@@ -33,27 +62,16 @@ def test_deleting_account_removes_uploaded_document_from_disk(client):
     pet = client.post("/pets", json={"name": "Mia", "species": "cat"}, headers=headers)
     pet_id = pet.json()["id"]
 
-    upload = client.post(
-        f"/pets/{pet_id}/documents/upload",
-        files={"files": ("exame.jpg", b"\xff\xd8\xff\xe0" + b"\x00" * 32, "image/jpeg")},
-        headers=headers,
-    )
-    assert upload.status_code == 201, upload.text
-    doc = upload.json()["created"][0]
-
-    stored_files_before = list(DOCS_UPLOAD_DIR.glob("*"))
-    assert any(doc["id"] in f.name or f.stat().st_size > 0 for f in stored_files_before) or stored_files_before, (
-        "upload didn't actually write a file — test setup is wrong, not the fix"
-    )
+    storage_key = _seed_legacy_document(pet_id)
+    assert (DOCS_UPLOAD_DIR / storage_key).is_file(), "test setup failed to write the file"
 
     delete = client.request(
         "DELETE", "/auth/me", json={"password": password}, headers=headers
     )
     assert delete.status_code == 200, delete.text
 
-    stored_files_after = list(DOCS_UPLOAD_DIR.glob("*"))
-    assert len(stored_files_after) < len(stored_files_before) or len(stored_files_after) == 0, (
-        f"file still on disk after account deletion: {stored_files_after}"
+    assert not (DOCS_UPLOAD_DIR / storage_key).exists(), (
+        "legacy document file still on disk after account deletion"
     )
 
     # DB side: the account is really gone, not just deactivated.
