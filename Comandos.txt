@@ -2,7 +2,7 @@ COMANDOS PARA MANTER LOCAL, GITHUB E PRODUCAO SINCRONIZADOS
 
 Use este comando para pedir ao ChatGPT/Codex ou ao Claude:
 
-Sincronize local, GitHub e producao: confira o status, rode os testes/build, faca commit das alteracoes, de push para origin/main, rode bash deploy/sync/publish.sh e confirme com bash deploy/sync/check_sync.sh.
+Sincronize local, GitHub e producao: confira o status, rode os testes/build, faca commit das alteracoes, de push para origin/main, dispare o workflow deploy.yml no GitHub Actions, acompanhe ate sucesso e confirme /api/health + /version.json em producao.
 
 
 Versao curta:
@@ -33,11 +33,19 @@ git commit -m "descricao da alteracao"
 5. Enviar para GitHub:
 git push origin HEAD:main
 
-6. Publicar em producao:
-bash deploy/sync/publish.sh
+6. Publicar em producao pelo GitHub Actions:
+gh workflow run deploy.yml --repo lfmol-apple/PETMOL---VR --ref main
+gh run watch <RUN_ID> --repo lfmol-apple/PETMOL---VR --exit-status
 
-7. Confirmar alinhamento final:
+7. Confirmar alinhamento final por HTTP:
+curl -sS https://www.petmol.com.br/api/health
+curl -sS https://www.petmol.com.br/version.json
+
+8. Se o SSH local estiver saudavel, conferir tambem por comparacao de arquivos:
 bash deploy/sync/check_sync.sh
+
+Fallback manual, se o GitHub Actions estiver indisponivel mas o SSH local estiver funcionando:
+bash deploy/sync/publish.sh
 
 
 Regra principal:
