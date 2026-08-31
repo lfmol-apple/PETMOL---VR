@@ -7,6 +7,11 @@ name: Set VPS env var
 # src/config.py, so a code change alone (e.g. changing a Settings default)
 # is not enough if this file already pins the old value. Use this workflow
 # to bring the two back in sync, or to flip a flag without a code deploy.
+#
+# The assigned value is treated as a secret: it is masked in the logs, never
+# echoed, and never interpolated into a shell command line (it travels
+# base64-encoded via an env var and is decoded on the VPS). The logs show
+# only the variable NAME and a before/after "set / not set" status.
 
 on:
   workflow_dispatch:
@@ -15,7 +20,7 @@ on:
         description: "Env var name (ex: COBASI_AFFILIATE_MODE)"
         required: true
       var_value:
-        description: "Value to set (ex: disabled)"
+        description: "Value to set (ex: disabled). Masked in logs, never printed."
         required: true
 
 jobs:
@@ -29,33 +34,69 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Opcional: chave de host da VPS pinada (known_hosts confiável).
+          # Sem ela, cai no accept-new (TOFU) — mesmo padrão do deploy atômico.
+          VPS_HOST_KEY: ${{ secrets.VPS_HOST_KEY }}
           VAR_NAME: ${{ github.event.inputs.var_name }}
           VAR_VALUE: ${{ github.event.inputs.var_value }}
         run: |
+          set -euo pipefail
+
+          # Mask the value everywhere before anything else can print it.
+          echo "::add-mask::${VAR_VALUE}"
+
+          # Basic sanity on the key name — only a plain env identifier, so it
+          # can be interpolated into the remote script safely.
+          if ! printf '%s' "${VAR_NAME}" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$'; then
+            echo "var_name inválido: use apenas [A-Za-z0-9_], começando por letra ou _." >&2
+            exit 1
+          fi
+
+          # The value never appears on a command line: base64 on the runner,
+          # passed as an env var to the remote shell, decoded there.
+          VAR_VALUE_B64="$(printf '%s' "${VAR_VALUE}" | base64 | tr -d '\n')"
+
           VPS_PORT="${VPS_PORT:-22}"
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "$VPS_PORT" -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
-          SSH="ssh -i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o BatchMode=yes $VPS_USER@$VPS_IP"
+          if [ -n "${VPS_HOST_KEY:-}" ]; then
+            printf '%s\n' "${VPS_HOST_KEY}" >> ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "${VPS_PORT}" -H "${VPS_IP}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          fi
+          SSH="ssh -i ~/.ssh/deploy_key -o Port=${VPS_PORT} -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes ${VPS_USER}@${VPS_IP}"
 
-          $SSH "
-            set -e
-            ENV_FILE=/opt/petmol/shared/env/api.env
-            touch \"\$ENV_FILE\"
-            echo '=== BEFORE ==='
-            grep -E '^${VAR_NAME}=' \"\$ENV_FILE\" || echo '(not set — code default from src/config.py applies)'
+          $SSH "VAR_NAME='${VAR_NAME}' VAR_VALUE_B64='${VAR_VALUE_B64}' bash -s" <<'REMOTE'
+          set -euo pipefail
+          ENV_FILE=/opt/petmol/shared/env/api.env
+          touch "$ENV_FILE"
 
-            if grep -qE '^${VAR_NAME}=' \"\$ENV_FILE\"; then
-              sed -i 's|^${VAR_NAME}=.*|${VAR_NAME}=${VAR_VALUE}|' \"\$ENV_FILE\"
-            else
-              echo '${VAR_NAME}=${VAR_VALUE}' >> \"\$ENV_FILE\"
-            fi
+          if grep -qE "^${VAR_NAME}=" "$ENV_FILE"; then
+            echo "${VAR_NAME}: já presente — será atualizado."
+          else
+            echo "${VAR_NAME}: ausente — será adicionado (antes: default do src/config.py)."
+          fi
 
-            echo '=== AFTER ==='
-            grep -E '^${VAR_NAME}=' \"\$ENV_FILE\"
+          value="$(printf '%s' "$VAR_VALUE_B64" | base64 -d)"
 
-            systemctl restart petmol-api
-            sleep 3
-            systemctl is-active petmol-api
-          "
+          tmp="$(mktemp)"
+          # Remove qualquer linha existente da chave e regrava com o novo valor.
+          grep -vE "^${VAR_NAME}=" "$ENV_FILE" > "$tmp" || true
+          # printf trata o valor como dado literal — sem expansão/execução.
+          printf '%s=%s\n' "$VAR_NAME" "$value" >> "$tmp"
+          chmod --reference="$ENV_FILE" "$tmp" 2>/dev/null || chmod 600 "$tmp"
+          mv "$tmp" "$ENV_FILE"
+          unset value
+
+          if grep -qE "^${VAR_NAME}=" "$ENV_FILE"; then
+            echo "${VAR_NAME}: gravado com sucesso (valor omitido do log)."
+          else
+            echo "${VAR_NAME}: FALHA ao gravar." >&2
+            exit 1
+          fi
+
+          systemctl restart petmol-api
+          sleep 3
+          systemctl is-active petmol-api
+          REMOTE

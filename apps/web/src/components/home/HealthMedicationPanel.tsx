@@ -16,8 +16,6 @@ interface HealthMedicationPanelProps {
   setEventFormData: Dispatch<SetStateAction<EventFormState>>;
   editingEventId: string | null;
   eventSaving: boolean;
-  attachDocFiles: File[];
-  setAttachDocFiles: (files: File[]) => void;
   petEvents: PetEventRecord[];
   eventsLoading: boolean;
   saveMedication: () => Promise<void>;
@@ -33,8 +31,6 @@ export function HealthMedicationPanel({
   setEventFormData,
   editingEventId,
   eventSaving,
-  attachDocFiles,
-  setAttachDocFiles,
   petEvents,
   eventsLoading,
   saveMedication,
@@ -415,25 +411,6 @@ export function HealthMedicationPanel({
             )}
           </div>
 
-          {/* Anexar documentos */}
-          <div>
-            <label className="text-xs text-gray-500 font-medium block mb-1">
-              📎 Documentos / Laudos (opcional)
-            </label>
-            <input
-              type="file"
-              multiple
-              accept="image/*,.pdf"
-              onChange={e => setAttachDocFiles(Array.from(e.target.files || []))}
-              className="w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100"
-            />
-            {attachDocFiles.length > 0 && (
-              <p className="text-xs text-pink-600 mt-1">
-                ✓ {attachDocFiles.length} arquivo(s) pronto(s) para enviar com o registro
-              </p>
-            )}
-          </div>
-
           {/* Botões */}
           <div className="flex gap-2 pt-1">
             <button
@@ -447,11 +424,7 @@ export function HealthMedicationPanel({
               onClick={saveMedication}
               className="flex-1 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-sm font-bold py-2 rounded-xl hover:from-pink-600 hover:to-rose-600 disabled:opacity-50 active:scale-95 transition-all"
             >
-              {eventSaving
-                ? 'Salvando...'
-                : attachDocFiles.length > 0
-                  ? `Salvar + enviar ${attachDocFiles.length} doc(s)`
-                  : 'Salvar'}
+              {eventSaving ? 'Salvando...' : 'Salvar'}
             </button>
           </div>
         </div>

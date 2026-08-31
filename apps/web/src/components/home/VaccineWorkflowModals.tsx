@@ -5,9 +5,6 @@ import type { Dispatch, SetStateAction } from 'react';
 import { ModalPortal } from '@/components/ModalPortal';
 import { VaccineCardUpload } from '@/components/VaccineCardUpload';
 import { useI18n } from '@/lib/I18nContext';
-import { API_BASE_URL } from '@/lib/api';
-import { getToken } from '@/lib/auth-token';
-import { trackV1Metric } from '@/lib/v1Metrics';
 import type { VaccineCardOcrRecord, VaccineCardOcrResponse } from '@/lib/vaccineOcr';
 import type { PetHealthProfile, VaccineRecord, VaccineType } from '@/lib/petHealth';
 import type { VaccineFormData } from '@/lib/types/homeForms';
@@ -27,8 +24,6 @@ interface VaccineWorkflowModalsProps {
   onCloseAIUpload: () => void;
   onOpenVaccineFormFromAIUpload: () => void;
   currentPet: Pick<PetHealthProfile, 'pet_id' | 'pet_name' | 'species'> | null;
-  vaccineFiles: File[];
-  setVaccineFiles: Dispatch<SetStateAction<File[]>>;
   selectedPetId: string | null;
   handleSaveVaccine: () => Promise<void>;
   vaccineFormSaving: boolean;
@@ -59,8 +54,6 @@ export function VaccineWorkflowModals({
   onCloseAIUpload,
   onOpenVaccineFormFromAIUpload,
   currentPet,
-  vaccineFiles,
-  setVaccineFiles,
   selectedPetId,
   handleSaveVaccine,
   vaccineFormSaving,
@@ -280,20 +273,6 @@ export function VaccineWorkflowModals({
                   : 'Aplicação registrada'}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">📎 Carteirinha / Comprovante (opcional)</label>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*,.pdf"
-                  onChange={(e) => setVaccineFiles(Array.from(e.target.files || []))}
-                  className="w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
-                />
-                {vaccineFiles.length > 0 && (
-                  <p className="text-xs text-green-600 mt-1">✓ {vaccineFiles.length} arquivo(s) pronto(s) para enviar junto</p>
-                )}
-              </div>
-
               <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-800">
                 Lembrete ativo
               </div>
@@ -308,31 +287,8 @@ export function VaccineWorkflowModals({
               <div className="sticky bottom-0 bg-white z-10 pt-3 pb-3 -mx-4 px-4 border-t border-gray-100 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] flex gap-3">
                 <button
                   onClick={async () => {
-                    const petId = selectedPetId;
-                    const files = vaccineFiles;
                     await handleSaveVaccine();
                     onAfterSave?.();
-                    if (files.length > 0 && petId) {
-                      const token = getToken();
-                      if (token) {
-                        const form = new FormData();
-                        files.forEach((file) => form.append('files', file));
-                        await fetch(`${API_BASE_URL}/pets/${petId}/documents/upload`, {
-                          method: 'POST',
-                          headers: { Authorization: `Bearer ${token}` },
-                          body: form,
-                        }).then((response) => {
-                          if (response.ok) {
-                            trackV1Metric('document_uploaded', {
-                              pet_id: petId,
-                              file_count: files.length,
-                              source: 'vaccine_workflow',
-                            });
-                          }
-                        }).catch(() => null);
-                        setVaccineFiles([]);
-                      }
-                    }
                   }}
                   disabled={vaccineFormSaving}
                   className={`flex-1 bg-green-600 text-white px-4 py-3 rounded-xl font-semibold transition-colors text-base ${vaccineFormSaving ? 'opacity-60 cursor-not-allowed' : 'hover:bg-green-700'}`}

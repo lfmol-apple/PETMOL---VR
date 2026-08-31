@@ -119,8 +119,6 @@ export function useVaccineManagement({
   const [showAllVaccinesGuide, setShowAllVaccinesGuide] = useState(false);
   const [showAIUpload, setShowAIUpload] = useState(false);
   const [editingVaccine, setEditingVaccine] = useState<VaccineRecord | null>(null);
-  const [showMedicalVault, setShowMedicalVault] = useState(false);
-  const [vaccineFiles, setVaccineFiles] = useState<File[]>([]);
 
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackVaccine, setFeedbackVaccine] = useState<VaccineRecord | null>(null);
@@ -230,7 +228,6 @@ export function useVaccineManagement({
     setVaccineFormData(DEFAULT_VACCINE_FORM);
     setEditingVaccine(null);
     setShowVaccineForm(false);
-    setVaccineFiles([]);
   };
 
   // ── handleSaveVaccine ─────────────────────────────────────────────────────
@@ -1052,10 +1049,6 @@ export function useVaccineManagement({
     setShowAIUpload,
     editingVaccine,
     setEditingVaccine,
-    showMedicalVault,
-    setShowMedicalVault,
-    vaccineFiles,
-    setVaccineFiles,
     showFeedbackModal,
     setShowFeedbackModal,
     feedbackVaccine,

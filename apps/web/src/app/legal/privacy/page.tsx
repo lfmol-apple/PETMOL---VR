@@ -31,7 +31,7 @@ export default function PrivacyPage() {
             <li>Sexo, peso, informações de castração</li>
             <li>Fotos do pet (opcional)</li>
             <li><strong>Dados de saúde</strong> (vacinas, vermífugos, consultas, medicamentos, controles antiparasitários) — tratados com nível de proteção equivalente a dados sensíveis nos termos da LGPD, utilizados exclusivamente para as funcionalidades do app e nunca compartilhados com terceiros para fins comerciais</li>
-            <li>Documentos enviados (fotos de carteirinha de vacinação, receitas, laudos) podem ser processados por inteligência artificial (Google Gemini) para extração automática de informações como nome da vacina e data — sempre com seu consentimento explícito antes do envio da foto (você pode optar por preencher manualmente, sem usar IA). O PETMOL armazena o arquivo original somente quando ele vira um registro do app; o tratamento pelo provedor de IA segue os termos, configurações e controles do serviço Google Gemini contratado</li>
+            <li>Fotos de carteirinha de vacinação que você escolher escanear podem ser processadas por inteligência artificial (Google Gemini) para extração automática de informações como nome da vacina e data — sempre com seu consentimento explícito antes do envio da foto (você pode optar por preencher manualmente, sem usar IA). O PETMOL <strong>não é um repositório de documentos</strong>: não armazenamos permanentemente PDFs, exames, receitas, laudos, cartões ou anexos genéricos. A imagem escaneada é usada apenas para a leitura e não fica guardada como um arquivo; o tratamento pelo provedor de IA segue os termos, configurações e controles do serviço Google Gemini contratado</li>
           </ul>
 
           <h3>2.3. Dados de Uso</h3>
@@ -102,7 +102,7 @@ export default function PrivacyPage() {
           <p>Podemos compartilhar seus dados apenas com:</p>
           <ul>
             <li><strong>Provedores de serviço:</strong> Hospedagem, e-mail, notificações push (sob contrato de confidencialidade)</li>
-            <li><strong>APIs externas:</strong> Google Maps/Places (busca de estabelecimentos), Google Gemini (leitura automática de documentos e identificação de produtos por foto, sempre com consentimento prévio por usuário), Cosmos Bluesoft e GTIN (consulta de código de barras de produtos)</li>
+            <li><strong>APIs externas:</strong> Google Maps/Places (busca de estabelecimentos), Google Gemini (leitura automática de carteirinha de vacinação e identificação de produtos por foto, sempre com consentimento prévio por usuário), Cosmos Bluesoft e GTIN (consulta de código de barras de produtos)</li>
             <li><strong>Autoridades:</strong> Quando exigido por lei ou ordem judicial</li>
             <li><strong>Estabelecimentos:</strong> Apenas se você optar por compartilhar informações específicas (ex: carteirinha digital)</li>
           </ul>
