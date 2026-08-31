@@ -31,7 +31,12 @@ from sqlalchemy.orm import Session
 from ..db import Base, get_db, SessionLocal
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
-from ..notifications import _load_subscriptions, _save_subscriptions, _send_push
+from ..notifications import (
+    _load_subscriptions_by_user,
+    _disable_subscriptions_by_id,
+    _send_push_devices,
+    push_to_user,
+)
 from ..family.models import FamilyGroup, FamilyMember
 from ..pets.access import accessible_pets_query, get_accessible_pet_or_404
 
@@ -477,14 +482,15 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
     - Sem localização: notifica todos (máx 50).
     """
     try:
-        subs = _load_subscriptions()
+        subs_by_user = _load_subscriptions_by_user()
         excluded = _get_excluded_user_ids(mp.id, mp.user_id)
         radius = mp.current_radius_km or 2.0
         has_location = mp.lat is not None and mp.lng is not None
 
         print(
             f"[broadcast] pet={mp.id} owner={mp.user_id or 'public'} raio={radius}km "
-            f"has_location={has_location} total_subs={len(subs)} excluded={len(excluded)}",
+            f"has_location={has_location} users={len(subs_by_user)} "
+            f"devices={sum(len(d) for d in subs_by_user.values())} excluded={len(excluded)}",
             flush=True,
         )
 
@@ -502,50 +508,50 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
         }
 
         newly_notified: list = []
-        removed: list = []
-        sent = 0
+        invalid_sub_ids: list = []
+        sent = 0                    # USUÁRIOS notificados (>= 1 dispositivo cada)
+        devices_sent = 0
         skipped = 0
         no_coord_sent = 0
         MAX_NO_LOCATION = 50        # alertas sem localização
         MAX_NO_COORD_SUB = 15       # assinantes sem coordenadas quando alerta TEM localização
 
-        for user_id, subscription in subs.items():
+        for user_id, devices in subs_by_user.items():
             if user_id in excluded or (mp.user_id and user_id == str(mp.user_id)):
                 continue
             if not has_location and sent >= MAX_NO_LOCATION:
                 skipped += 1
                 continue
 
-            # Geo filter
+            # Geo filter — decisão POR USUÁRIO: se qualquer aparelho dele
+            # está no raio, notifica todos os aparelhos dele.
             if has_location:
-                sub_lat = subscription.get("lat") if isinstance(subscription, dict) else None
-                sub_lng = subscription.get("lng") if isinstance(subscription, dict) else None
-                if sub_lat is None or sub_lng is None:
-                    # Assinante sem coordenadas — localização desconhecida
-                    # Permite até MAX_NO_COORD_SUB para não cortar alcance completamente
+                coords = [
+                    (d["lat"], d["lng"])
+                    for d in devices
+                    if d.get("lat") is not None and d.get("lng") is not None
+                ]
+                if not coords:
                     if no_coord_sent >= MAX_NO_COORD_SUB:
                         skipped += 1
                         continue
                     no_coord_sent += 1
                 else:
-                    dist = _haversine_km(mp.lat, mp.lng, sub_lat, sub_lng)
-                    if dist > radius:
-                        print(f"[broadcast]   skip {user_id[:8]} dist={dist:.1f}km > {radius}km", flush=True)
+                    nearest = min(_haversine_km(mp.lat, mp.lng, la, ln) for la, ln in coords)
+                    if nearest > radius:
+                        print(f"[broadcast]   skip {user_id[:8]} dist={nearest:.1f}km > {radius}km", flush=True)
                         skipped += 1
                         continue
 
-            ok, invalid = _send_push(subscription, payload)
-            print(f"[broadcast]   user={user_id[:8]} ok={ok} invalid={invalid}", flush=True)
-            if invalid:
-                removed.append(user_id)
-            elif ok:
+            ok_count, bad_ids = _send_push_devices(devices, payload)
+            invalid_sub_ids.extend(bad_ids)
+            print(f"[broadcast]   user={user_id[:8]} devices_ok={ok_count}/{len(devices)} invalid={len(bad_ids)}", flush=True)
+            if ok_count > 0:
                 sent += 1
+                devices_sent += ok_count
                 newly_notified.append(user_id)
 
-        if removed:
-            for uid in removed:
-                subs.pop(uid, None)
-            _save_subscriptions(subs)
+        _disable_subscriptions_by_id(invalid_sub_ids)
 
         # Notifica cuidadores e familiares do pet sempre (sem filtro de geo)
         caretaker_sent = 0
@@ -571,11 +577,12 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
                     for c_id in target_user_ids:
                         if c_id in excluded or (mp.user_id and c_id == str(mp.user_id)) or c_id in newly_notified:
                             continue
-                        c_sub = subs.get(c_id)
-                        if not c_sub:
+                        c_devices = subs_by_user.get(c_id)
+                        if not c_devices:
                             continue
-                        ok, _ = _send_push(c_sub, payload)
-                        if ok:
+                        ok_count, bad_ids = _send_push_devices(c_devices, payload)
+                        _disable_subscriptions_by_id(bad_ids)
+                        if ok_count > 0:
                             caretaker_sent += 1
                             if c_id not in newly_notified:
                                 newly_notified.append(c_id)
@@ -586,8 +593,8 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
             _mark_notified(mp.id, newly_notified)
 
         print(
-            f"[broadcast] DONE: {sent} geo + {caretaker_sent} cuidadores, {skipped} fora do raio, "
-            f"{len(removed)} removidos (pet={mp.id})",
+            f"[broadcast] DONE: {sent} usuários ({devices_sent} dispositivos) + {caretaker_sent} cuidadores, "
+            f"{skipped} fora do raio, {len(set(invalid_sub_ids))} subscriptions removidas (pet={mp.id})",
             flush=True,
         )
         return sent + caretaker_sent
@@ -1190,18 +1197,15 @@ def dismiss_found_report(
     # Push para o finder: avisa que o report foi descartado e o pet ainda está desaparecido
     if report.finder_user_id:
         try:
-            subs = _load_subscriptions()
-            finder_sub = subs.get(str(report.finder_user_id))
-            if finder_sub:
-                _send_push(finder_sub, {
-                    "title": f"🔍 {mp.pet_name} ainda está desaparecido",
-                    "body": "O tutor não reconheceu as fotos. Talvez seja outro animal — mas o pet ainda precisa de ajuda!",
-                    "tag": f"dismissed-{report.id}",
-                    "renotify": False,
-                    "requireInteraction": False,
-                    "icon": "/icons/icon-192x192.png",
-                    "data": {"url": f"/achei-um-pet?id={mp.id}&retry=1"},
-                })
+            push_to_user(report.finder_user_id, {
+                "title": f"🔍 {mp.pet_name} ainda está desaparecido",
+                "body": "O tutor não reconheceu as fotos. Talvez seja outro animal — mas o pet ainda precisa de ajuda!",
+                "tag": f"dismissed-{report.id}",
+                "renotify": False,
+                "requireInteraction": False,
+                "icon": "/icons/icon-192x192.png",
+                "data": {"url": f"/achei-um-pet?id={mp.id}&retry=1"},
+            })
         except Exception as e:
             logger.error(f"Push dismiss falhou: {e}")
 
@@ -1421,10 +1425,7 @@ def mark_found(
             .first()
         )
         if report and report.finder_user_id:
-            subs = _load_subscriptions()
-            finder_sub = subs.get(str(report.finder_user_id))
-            if finder_sub:
-                _send_push(finder_sub, {
+            push_to_user(report.finder_user_id, {
                     "title": f"🎉 Você fez a diferença!",
                     "body": f"O tutor de {mp.pet_name} confirmou que você encontrou o pet. Muito obrigado!",
                     "tag": f"thanks-{mp_id}",
@@ -1453,25 +1454,27 @@ def alert_reach(
     mp = db.query(MissingPet).filter(MissingPet.id == mp_id).first()
     _ensure_missing_pet_access(db, str(current_user.id), mp)
 
-    subs = _load_subscriptions()
+    subs_by_user = _load_subscriptions_by_user()
     notified_data = _load_mp_notified()
     already_notified_ids = set(notified_data.get(mp_id, {}).get("notified", []))
     radius = mp.current_radius_km or 2.0
     has_location = mp.lat is not None and mp.lng is not None
 
-    notified_active = 0   # já receberam E ainda têm subscrição válida
-    new_in_radius = 0     # novos no raio que ainda não receberam
+    notified_active = 0   # PESSOAS que já receberam E ainda têm push ativo
+    new_in_radius = 0     # PESSOAS novas no raio que ainda não receberam
 
-    for user_id, sub in subs.items():
+    for user_id, devices in subs_by_user.items():
         if mp.user_id and user_id == str(mp.user_id):
             continue
         if has_location:
-            sub_lat = sub.get("lat") if isinstance(sub, dict) else None
-            sub_lng = sub.get("lng") if isinstance(sub, dict) else None
-            if sub_lat is None or sub_lng is None:
+            coords = [
+                (d["lat"], d["lng"])
+                for d in devices
+                if d.get("lat") is not None and d.get("lng") is not None
+            ]
+            if not coords:
                 continue
-            dist = _haversine_km(mp.lat, mp.lng, sub_lat, sub_lng)
-            if dist > radius:
+            if min(_haversine_km(mp.lat, mp.lng, la, ln) for la, ln in coords) > radius:
                 continue
         if user_id in already_notified_ids:
             notified_active += 1
@@ -2323,13 +2326,9 @@ def _push_compat_score(score: int, analysis: str, owner_user_id, pet_name: str, 
     try:
         if not owner_user_id:
             return
-        subs = _load_subscriptions()
-        owner_sub = subs.get(str(owner_user_id))
-        if not owner_sub:
-            return
         emoji = "🔎" if score >= 90 else "⚠️" if score >= 75 else "❓"
         label = _compatibility_label(score)
-        _send_push(owner_sub, {
+        push_to_user(owner_user_id, {
             "title": f"{emoji} Possível match para {pet_name}",
             "body": f"{score}% - {label}. Confira as fotos antes de confirmar.",
             "tag": f"compat-{report_id}",
@@ -2347,12 +2346,8 @@ def _push_owner_found(mp: MissingPet, finder_contact: str, finder_location: str 
     try:
         if not mp.user_id:
             return
-        subs = _load_subscriptions()
-        owner_sub = subs.get(str(mp.user_id))
-        if not owner_sub:
-            return
         loc = f" em {finder_location}" if finder_location else ""
-        _send_push(owner_sub, {
+        push_to_user(mp.user_id, {
             "title": f"🔎 Possível localização de {mp.pet_name}",
             "body": f"Alguém enviou um pet parecido{loc}. Contato: {finder_contact}. Confira antes de confirmar.",
             "tag": f"found-report-{mp_id}",
@@ -2384,12 +2379,10 @@ def _analyze_and_save(report_id: str, mp_photo_url: str, finder_photos: list, ow
             db.close()
         # Segundo push com a triagem de compatibilidade
         try:
-            subs = _load_subscriptions()
-            owner_sub = subs.get(str(owner_user_id)) if owner_user_id else None
-            if owner_sub:
+            if owner_user_id:
                 emoji = "🔎" if score >= 90 else "⚠️" if score >= 75 else "❓"
                 label = _compatibility_label(score)
-                _send_push(owner_sub, {
+                push_to_user(owner_user_id, {
                     "title": f"{emoji} Possível match para {pet_name}",
                     "body": f"{score}% - {label}. Confira as fotos antes de confirmar.",
                     "tag": f"compat-{report_id}",
