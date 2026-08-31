@@ -47,6 +47,10 @@ class ProductContext:
     name: Optional[str] = None
     brand: Optional[str] = None
     weight_kg: Optional[float] = None
+    # Espécie do pet/produto ("dog" | "cat"), quando o chamador sabe — usada
+    # como hard fail de identidade na Cobasi (ração de gato nunca pode ser
+    # apresentada como preço de ração de cão e vice-versa).
+    species: Optional[str] = None
     product_id: Optional[int] = None  # products_catalog.id, quando já resolvido
     # Texto de busca já montado pelo chamador (ex: "Royal Canin ração"),
     # quando o provider usa busca textual (Cobasi hoje). Providers com API

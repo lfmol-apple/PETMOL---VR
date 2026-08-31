@@ -989,6 +989,7 @@ export function MedicationItemSheet({
                           query={ev.title?.trim() || 'medicamento pet'}
                           gtin={extractMedicationBarcode(ev.notes)}
                           productName={ev.title?.trim() || undefined}
+                          species={petSpecies ?? undefined}
                           petId={petId}
                           productLabel={ev.title}
                           icon="💊"

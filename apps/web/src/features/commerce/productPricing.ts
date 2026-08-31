@@ -191,6 +191,11 @@ export interface CommerceOffersLookup {
   name?: string;
   /** Marca do produto. */
   brand?: string;
+  /**
+   * Espécie do pet ("dog"|"cat" ou "cachorro"|"gato") — hard fail de
+   * identidade na Cobasi: ração de gato nunca vira preço de ração de cão.
+   */
+  species?: string;
 }
 
 export async function fetchCommerceOffers(
@@ -204,6 +209,7 @@ export async function fetchCommerceOffers(
   const trimmed = (opts.query || '').trim();
   const name = (opts.name || '').trim();
   const brand = (opts.brand || '').trim();
+  const species = (opts.species || '').trim();
   if (!trimmed && !opts.gtin && !name) return [];
   try {
     const params = new URLSearchParams();
@@ -214,6 +220,7 @@ export async function fetchCommerceOffers(
     if (opts.gtin) params.set('gtin', opts.gtin);
     if (name) params.set('name', name);
     if (brand) params.set('brand', brand);
+    if (species) params.set('species', species);
     const res = await fetch(`${API_BASE_URL}/commerce/offers?${params.toString()}`, {
       cache: 'no-store',
       // Cobasi é busca ao vivo na VTEX (até ~7s no backend por provider);

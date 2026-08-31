@@ -24,12 +24,13 @@ export function useCommerceOffers(
   packageSizeKg?: number | null,
   gtin?: string | null,
   enabled = true,
-  extra?: { name?: string | null; brand?: string | null },
+  extra?: { name?: string | null; brand?: string | null; species?: string | null },
 ) {
   const [offers, setOffers] = useState<CommerceOffer[]>([]);
   const [loading, setLoading] = useState(enabled);
   const name = extra?.name ?? undefined;
   const brand = extra?.brand ?? undefined;
+  const species = extra?.species ?? undefined;
 
   useEffect(() => {
     if (!enabled) {
@@ -48,6 +49,7 @@ export function useCommerceOffers(
       gtin: gtin ?? undefined,
       name: name ?? undefined,
       brand: brand ?? undefined,
+      species: species ?? undefined,
     };
 
     fetchCommerceOffers(lookup).then((result) => {
@@ -73,7 +75,7 @@ export function useCommerceOffers(
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [query, packageSizeKg, gtin, enabled, name, brand]);
+  }, [query, packageSizeKg, gtin, enabled, name, brand, species]);
 
   return { offers, loading };
 }

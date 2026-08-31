@@ -1446,6 +1446,7 @@ async def commerce_offers(
     gtin: Optional[str] = Query(default=None, description="GTIN do produto, quando já conhecido (ex: escaneado) — preferido para providers estruturados"),
     name: Optional[str] = Query(default=None, max_length=200, description="Nome/título do produto, quando disponível — melhora a busca da Cobasi quando `q` vem pobre"),
     brand: Optional[str] = Query(default=None, max_length=100, description="Marca do produto, quando disponível"),
+    species: Optional[str] = Query(default=None, max_length=20, description="Espécie do pet (dog|cat / cachorro|gato) — hard fail de identidade: ração de gato nunca vira preço de ração de cão"),
     db: Session = Depends(get_db),
 ):
     """
@@ -1466,7 +1467,7 @@ async def commerce_offers(
         raise HTTPException(status_code=400, detail="informe ao menos q, gtin ou name")
     from .commerce_offers import CommerceOfferOut, get_commerce_offers
     offers = await get_commerce_offers(
-        db, q, target_weight_kg=weight_kg, gtin=gtin, name=_name, brand=_brand
+        db, q, target_weight_kg=weight_kg, gtin=gtin, name=_name, brand=_brand, species=species
     )
     return {"offers": [CommerceOfferOut(**vars(o)) for o in offers]}
 

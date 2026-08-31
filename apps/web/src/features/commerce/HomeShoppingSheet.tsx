@@ -43,7 +43,10 @@ interface HomeShoppingSheetProps {
 export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
 
-  const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
+  const reorderCards = useMemo(
+    () => buildReorderCards(buyableReminders, currentPet.species),
+    [buyableReminders, currentPet.species],
+  );
 
   // Preview de urgência no estado fechado — deriva dos lembretes já calculados
   // (têm `diff`), lidera pelo mais urgente. Ignora a sentinela de petisco.
@@ -388,7 +391,11 @@ interface ReorderCardItemProps {
 export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy, onPetzBuy }: ReorderCardItemProps) {
   const { offers, loading } = useCommerceOffers(
     card.searchQuery, card.packageSizeKg, card.gtin, card.priceLookupAllowed,
-    { brand: card.sublabel, name: card.label && card.label !== 'Compra de ração' ? card.label : undefined },
+    {
+      brand: card.sublabel,
+      name: card.label && card.label !== 'Compra de ração' ? card.label : undefined,
+      species: card.species,
+    },
   );
   const offer = offers[0] ?? null;
   const [imageFailed, setImageFailed] = useState(false);

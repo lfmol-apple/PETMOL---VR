@@ -1172,6 +1172,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                       gtin={buyTargetItem ? buyTargetItem.gtin : foodState.gtin}
                       brand={buyTargetItem ? undefined : foodBrand}
                       productName={buyTargetItem ? buyTargetItem.label : undefined}
+                      species={pet.species ?? undefined}
                       petId={pet.pet_id}
                       productLabel={buyTargetItem ? buyTargetItem.label : (foodBrand || 'Ração')}
                       icon={buyTargetItem ? '🦴' : '🥣'}

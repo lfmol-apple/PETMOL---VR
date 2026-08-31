@@ -38,6 +38,10 @@ export interface MonetizedOffersListProps {
   /** Nome/título real do produto (quando existir — não o rótulo genérico
    * da UI), para a busca da Cobasi resolver mesmo com `query` pobre. */
   productName?: string | null;
+  /** Espécie do pet ("dog"|"cat" / "cachorro"|"gato"), quando conhecida —
+   * hard fail de identidade na Cobasi: ração de gato nunca vira preço de
+   * ração de cão e vice-versa. */
+  species?: string | null;
   petId: string;
   /** Nome exibido no card. */
   productLabel: string;
@@ -57,12 +61,12 @@ export interface MonetizedOffersListProps {
 }
 
 export function MonetizedOffersList({
-  query, packageSizeKg, gtin, brand, productName, petId, productLabel, icon = '🛒', source, ctaType, controlType, requireGtinForOffers = false,
+  query, packageSizeKg, gtin, brand, productName, species, petId, productLabel, icon = '🛒', source, ctaType, controlType, requireGtinForOffers = false,
   emptyStateTitle = 'Produto indisponível no momento',
   emptyStateSubtitle = 'Ainda não encontramos uma oferta ativa para este produto.',
 }: MonetizedOffersListProps) {
   const offersEnabled = !requireGtinForOffers || Boolean((gtin || '').trim());
-  const { offers, loading } = useCommerceOffers(query, packageSizeKg, gtin, offersEnabled, { name: productName, brand });
+  const { offers, loading } = useCommerceOffers(query, packageSizeKg, gtin, offersEnabled, { name: productName, brand, species });
   const [petzLink, setPetzLink] = useState<PetzDirectLink | null>(null);
 
   useEffect(() => {

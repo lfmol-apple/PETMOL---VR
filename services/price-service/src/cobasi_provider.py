@@ -51,26 +51,13 @@ from sqlalchemy.orm import Session
 
 from .affiliate_links import get_active_link
 from .cobasi_utm import InvalidCobasiUrlError, build_cobasi_affiliate_url
-from .commerce_pricing import ProductPriceResult, fetch_cobasi_price
+from .commerce_pricing import CobasiIdentitySpec, fetch_cobasi_price_matched
 from .commerce_provider import DiscoveredOffer, MonetizedOffer, ProductContext
 from .config import Settings, get_settings
 from .merchant_routes import preferred_route_for
 from .product_catalog_lookup import ProductCatalog, normalize_gtin
-from .shopee_offer_matcher import (
-    extract_length_cm,
-    extract_volume_ml,
-    extract_weight_kg,
-    score_candidate,
-)
 
 logger = logging.getLogger(__name__)
-
-# Confiança textual mínima aceita como substituta de um EAN idêntico, SÓ
-# quando a VTEX não devolve EAN nenhum no SKU. Acima do piso da Shopee (0.5)
-# de propósito — aqui o EAN não está confirmando a identidade. As checagens
-# de marca/peso/volume/cm dentro de score_candidate continuam sendo hard
-# fail (produto claramente diferente já retorna None antes deste piso).
-_COBASI_TEXT_FALLBACK_MIN_CONFIDENCE = 0.6
 
 
 def _query_candidates(context: ProductContext) -> list[tuple[str, str]]:
@@ -100,47 +87,6 @@ def _query_candidates(context: ProductContext) -> list[tuple[str, str]]:
             seen.add(q)
             out.append((kind, q))
     return out
-
-
-def _expected_reference_name(context: ProductContext) -> str:
-    """Nome de referência pro matcher textual (só usado quando falta EAN)."""
-    return (context.name or context.query or "").strip()
-
-
-def _cobasi_identity_ok(context: ProductContext, price: ProductPriceResult) -> tuple[bool, str]:
-    """Decide se o produto que a VTEX devolveu é o mesmo que o tutor tem.
-
-      - GTIN esperado + EAN devolvido IGUAL  → aceita  ("ean_equal")
-      - GTIN esperado + EAN devolvido DIFERENTE → rejeita ("ean_mismatch")
-      - GTIN esperado + VTEX sem EAN → matcher textual/estrutural estrito
-          (marca/peso/volume/cm são hard fail em score_candidate)
-      - sem GTIN esperado → sem gate (comportamento atual)
-    """
-    expected = normalize_gtin(context.gtin or "")
-    actual = normalize_gtin(price.ean or "")
-
-    if not expected:
-        return True, "no_expected_gtin"
-    if actual:
-        return (actual == expected, "ean_equal" if actual == expected else "ean_mismatch")
-
-    # VTEX não trouxe EAN — cai pro casamento textual estrito.
-    reference = _expected_reference_name(context)
-    if not reference:
-        return False, "ean_absent_no_reference"
-
-    expected_weight = context.weight_kg or extract_weight_kg(reference)
-    score = score_candidate(
-        reference,
-        price.product_name or "",
-        expected_brand=context.brand,
-        expected_weight_kg=expected_weight,
-        expected_volume_ml=extract_volume_ml(reference),
-        expected_length_cm=extract_length_cm(reference),
-    )
-    if score is None or score < _COBASI_TEXT_FALLBACK_MIN_CONFIDENCE:
-        return False, "ean_absent_fallback_rejected"
-    return True, "ean_absent_fallback_accepted"
 
 
 class CobasiProvider:
@@ -178,32 +124,31 @@ class CobasiProvider:
             logger.info("[cobasi] find_offer: sem termo de busca utilizável")
             return None
 
+        # Identidade do produto do tutor — a oferta Cobasi só é aceita se
+        # puder ser PROVADA contra isto (espécie/peso/volume/cm/qtd/linha).
+        # Sem evidência suficiente → não mostra preço (fail closed).
+        spec = CobasiIdentitySpec.build(
+            reference_name=context.name or context.query,
+            brand=context.brand,
+            species=context.species,
+            gtin=context.gtin,
+            weight_kg=context.weight_kg,
+        )
+
         last_reason = "no_results"
         for kind, query in candidates:
-            price = await fetch_cobasi_price(query, target_weight_kg=context.weight_kg)
+            price = await fetch_cobasi_price_matched(query, spec, target_weight_kg=context.weight_kg)
 
             if not price.found or price.price is None:
-                # timeout/http_error de um candidato não deve mascarar um
-                # match possível no próximo — mas guarda o motivo.
                 last_reason = price.reason if price.reason != "ok" else "no_price"
+                logger.info("[cobasi] descartado: %s (query_kind=%s)", last_reason, kind)
                 continue
 
-            identity_ok, identity_reason = _cobasi_identity_ok(context, price)
-            if not identity_ok:
-                last_reason = identity_reason
-                logger.info(
-                    "[cobasi] descartado: %s (query_kind=%s, vtex=%r)",
-                    identity_reason, kind, price.product_name,
-                )
-                continue
-
-            # Estoque NÃO é filtrado aqui de propósito — trocar de candidato
-            # ao ver OOS poderia trazer uma variante diferente que está em
-            # estoque. O CommerceEngine já descarta is_available is False
-            # (regra atual, inalterada).
+            # Estoque NÃO é filtrado aqui de propósito — o CommerceEngine já
+            # descarta is_available is False (regra atual, inalterada).
             logger.info(
                 "[cobasi] oferta resolvida: %s (query_kind=%s, em_estoque=%s)",
-                identity_reason, kind, price.is_available,
+                price.reason, kind, price.is_available,
             )
             return DiscoveredOffer(
                 merchant=self.merchant,
