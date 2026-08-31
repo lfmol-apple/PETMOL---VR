@@ -1,9 +1,10 @@
 [Unit]
-Description=Daily PETMOL Shopee sync (categorias pet do catálogo, por GTIN)
+Description=Daily PETMOL Shopee sync (fila noturna em prioridades, por GTIN)
 
 [Timer]
-# 05:00 UTC ~= 02:00 America/Sao_Paulo. source=categories → não depende
-# do feed Awin (ver o trigger script e docs/LAUNCH.md §7).
+# 05:00 UTC ~= 02:00 America/Sao_Paulo. source=active_products → fila
+# determinística em prioridades, com teto por execução (ver o trigger
+# script e docs/LAUNCH.md §7).
 OnCalendar=*-*-* 05:00:00 UTC
 RandomizedDelaySec=600
 Persistent=true

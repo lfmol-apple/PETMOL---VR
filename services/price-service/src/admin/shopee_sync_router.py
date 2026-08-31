@@ -33,12 +33,15 @@ from ..config import get_settings
 from ..db import SessionLocal
 from ..product_catalog_lookup import ProductCatalog
 from ..shopee_offer_sync import (
+    has_active_shopee_offer_for_gtin,
     iter_awin_feed_products,
+    iter_launch_coverage_queue,
     iter_unified_awin_feed_products,
     sync_shopee_offer_for_gtin,
     sync_shopee_offer_from_feed_row,
 )
 from ..shopee_offer_audit import audit_active_shopee_offers
+from ..shopee_discovery_attempt import record_attempt, should_attempt_discovery
 from .deps import get_current_admin_or_readonly_key
 from .shopee_sync_state import STATE
 
@@ -47,7 +50,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/admin/shopee-sync", tags=["Admin Shopee Sync"])
 
 DEFAULT_CATEGORIES = ["food", "antiparasite", "medication", "hygiene", "dewormer", "collar"]
-ALLOWED_SOURCES = {"categories", "awin_feed", "awin_feed_all"}
+# "active_products": fila noturna em prioridades (ofertas Shopee ativas →
+# GTINs usados pelos tutores → catálogo Awin fresco), deduplicada por GTIN,
+# com teto por execução. É o source do job da madrugada a partir do RC 1.0.
+ALLOWED_SOURCES = {"categories", "awin_feed", "awin_feed_all", "active_products"}
 DEFAULT_AUDIT_MAX_ROWS = 500
 
 
@@ -171,6 +177,8 @@ def _run_sync(
         with STATE.lock:
             STATE.phase = "building_queue"
 
+        settings = get_settings()
+        remaining_after_cap = 0
         if source == "awin_feed_all":
             items: list[tuple[str, Optional[str], Optional[str]]] = iter_unified_awin_feed_products(
                 db,
@@ -183,6 +191,16 @@ def _run_sync(
                 merchant=feed_merchant,
                 skip_existing_shopee=skip_existing_shopee,
             )
+        elif source == "active_products":
+            # Fila noturna determinística em prioridades (A: ofertas Shopee
+            # ativas → B: GTINs usados pelos tutores → C: catálogo Awin
+            # fresco), deduplicada por GTIN, cortada no teto por execução.
+            items, total_available = iter_launch_coverage_queue(
+                db,
+                max_products=max(settings.shopee_sync_max_products_per_run, 1),
+                feed_merchants=source_merchants,
+            )
+            remaining_after_cap = max(total_available - len(items), 0)
         else:
             rows = db.query(ProductCatalog.barcode_normalized).filter(
                 ProductCatalog.category.in_(categories),
@@ -195,9 +213,79 @@ def _run_sync(
             STATE.total = len(items)
             STATE.processed = 0
             STATE.matched = 0
+            STATE.refreshed_existing = 0
+            STATE.new_matches = 0
+            STATE.misses = 0
+            STATE.errors = 0
+            STATE.skipped_cooldown = 0
+            STATE.remaining_after_cap = remaining_after_cap
+            STATE.duration_seconds = 0.0
             STATE.error = None
             STATE.finished_at = None
             STATE.phase = "syncing"
+
+        if source == "active_products":
+            started_monotonic = time.monotonic()
+            delay_seconds = max(settings.shopee_sync_request_delay_seconds, 0.0)
+            for gtin, _name, _brand in items:
+                had_offer = has_active_shopee_offer_for_gtin(db, gtin)
+                # Cooldown por GTIN só vale pra descoberta nova (miss
+                # recente); oferta ativa é sempre revalidada.
+                if not had_offer and not should_attempt_discovery(db, gtin):
+                    with STATE.lock:
+                        STATE.processed += 1
+                        STATE.skipped_cooldown += 1
+                    continue
+                try:
+                    result = sync_shopee_offer_for_gtin(db, gtin)
+                    reason = (result.reason or "").lower()
+                    if "erro na api" in reason:
+                        outcome = "error"
+                    elif result.matched:
+                        outcome = "refresh" if had_offer else "new"
+                    else:
+                        outcome = "miss"
+                except Exception as exc:  # noqa: BLE001 — um GTIN ruim nunca derruba o lote
+                    logger.warning("shopee sync (active_products): erro em gtin=%s: %s", gtin, exc)
+                    db.rollback()
+                    outcome = "error"
+
+                if not had_offer:
+                    # Persiste o cooldown só pra descoberta nova; refresh de
+                    # oferta existente não entra na tabela de tentativas.
+                    _result_map = {"new": "matched", "miss": "no_match", "error": "api_error"}
+                    try:
+                        record_attempt(db, gtin, _result_map[outcome])
+                    except Exception:  # noqa: BLE001 — cooldown é best-effort
+                        db.rollback()
+
+                with STATE.lock:
+                    STATE.processed += 1
+                    if outcome == "refresh":
+                        STATE.refreshed_existing += 1
+                        STATE.matched += 1
+                    elif outcome == "new":
+                        STATE.new_matches += 1
+                        STATE.matched += 1
+                    elif outcome == "miss":
+                        STATE.misses += 1
+                    else:
+                        STATE.errors += 1
+                if delay_seconds:
+                    time.sleep(delay_seconds)
+
+            duration = round(time.monotonic() - started_monotonic, 1)
+            with STATE.lock:
+                STATE.duration_seconds = duration
+                summary = (
+                    f"existing_refreshed={STATE.refreshed_existing} "
+                    f"new_matches={STATE.new_matches} misses={STATE.misses} "
+                    f"errors={STATE.errors} skipped_cooldown={STATE.skipped_cooldown} "
+                    f"processed={STATE.processed} remaining={STATE.remaining_after_cap} "
+                    f"duration_seconds={duration}"
+                )
+            logger.info("shopee sync (active_products) concluído: %s", summary)
+            return
 
         sync_from_feed_source = source in {"awin_feed", "awin_feed_all"}
         for gtin, name, brand in items:
@@ -313,6 +401,14 @@ def _status_payload():
             "percent": percent,
             "remaining": max(total - processed, 0),
             "match_rate": match_rate,
+            # Fila noturna em prioridades (source=active_products)
+            "refreshed_existing": STATE.refreshed_existing,
+            "new_matches": STATE.new_matches,
+            "misses": STATE.misses,
+            "errors": STATE.errors,
+            "skipped_cooldown": STATE.skipped_cooldown,
+            "remaining_after_cap": STATE.remaining_after_cap,
+            "duration_seconds": STATE.duration_seconds,
             "started_at": STATE.started_at,
             "finished_at": STATE.finished_at,
             "error": STATE.error,

@@ -51,8 +51,7 @@ abaixo).
 | Zee Now | Awin (advertiser 127557, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116779, 13.835 produtos observados; 13.605 GTINs válidos diretos, 152 UPC-11 corrigíveis, 78 inválidos e 9 grupos duplicados em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeenow`, exposição depende dos gates Awin |
 | Zee Dog | Awin (advertiser 127555, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116649, 1.799 produtos observados, 100% GTIN válido/único em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeedog`, exposição depende dos gates Awin |
 | Petz | Awin (advertiser 127553, pending) + programa próprio "Loja Parceira" | `PetzProductMapping` — aprendizado por produto, confirmação humana (ver §Petz) | **nenhuma — DESATIVADA 2026-08-30** (`petz_publicly_disabled=True` + frontend `disabled`); Petz não expõe deep link de produto pra parceiros | não | desativada; código dormente, reativação = 2 flags |
-| Araújo | Awin (advertiser 17919, pending/not_joined) | nenhum | nenhuma | **não** (0 produtos no ShopWindow) | nunca pode virar `AwinFeedProvider` — exigiria outra fonte de discovery |
-| Shopee | Shopee Affiliates | `MarketplaceOffer`/`MarketplaceOfferProvider` (busca textual + GTIN como 1ª keyword — API não tem lookup por GTIN) | **ATIVA** — vitrine (shortlink) + ofertas por produto. `shopee_affiliate_enabled=True`. Rede de segurança: oferta >36h → sem preço-número ("Conferir preço na loja"). Sync noturno `source=categories` (sem Awin). Ver `docs/LAUNCH.md` §7 | n/a | precisão em #120; gap residual = variante de coleira abreviada (mitigado por audit + revisão) |
+| Shopee | Shopee Affiliates | `MarketplaceOffer`/`MarketplaceOfferProvider` (busca textual + GTIN como 1ª keyword — API não tem lookup por GTIN) + discovery on-demand por GTIN quando o tutor abre a Loja (background, cooldown por GTIN) | **ATIVA** — vitrine (shortlink) + ofertas por produto. `shopee_affiliate_enabled=True`. Rede de segurança: oferta >36h → sem preço-número ("Conferir preço na loja"), link afiliado preservado. Sync noturno `source=active_products` (fila em prioridades: ofertas ativas → GTINs usados pelos tutores → catálogo Awin fresco). Ver `docs/LAUNCH.md` §7 | n/a | precisão em #120; gap residual = variante de coleira abreviada (mitigado por audit + revisão) |
 | Mercado Livre | ML Afiliados | `MarketplaceOffer`/`mercadolivre_link_validator.py` — ponte manual controlada | **nenhuma — FORA DO LANÇAMENTO** (`mercadolivre_affiliate_enabled=false`, `mercadolivre_public_offers_enabled=false`, frontend `disabled`); entra depois | n/a | shadow mode; bridge manual pronta (`export_ml_link_candidates.py`/`import_ml_offers.py`); ver PR #56 |
 | Amazon | Amazon Associates encerrado em 22/08/2026 (`petmol-20`) | nenhum | nenhum; integração temporariamente removida das superfícies públicas | n/a | disabled — reativação proibida até nova aprovação e nova tag válida |
 | Petlove Produtos | — | nenhum | nenhuma | n/a | disabled deliberadamente |
@@ -409,7 +408,7 @@ por estarem na mesma rede.
 
 Situação real das contas em 22/08/2026 — **Cobasi, Zee Dog e Zee Now aprovadas**
 (confirmado no painel Awin: Anunciantes → Meus Programas → "Seus
-Anunciantes"); Petz/Araújo seguem `commercial_status=pending`:
+Anunciantes"); Petz segue `commercial_status=pending`:
 
 | Merchant | advertiser_id | feed disponível | fid | comissão | cookie | status comercial |
 |---|---|---|---|---|---|---|
@@ -417,7 +416,6 @@ Anunciantes"); Petz/Araújo seguem `commercial_status=pending`:
 | Petz | 127553 | não | — | 3% | 14 dias | pending |
 | Zee Now | 127557 | sim (13.835 observados, pronto para sync; `in_stock=1`, `stock_status` vazio, `product_type` como categoria) | 116779 | 3% | 1 dia | **approved** |
 | Zee Dog | 127555 | sim (1.799 observados, 100% GTIN válido/único, pronto para sync) | 116649 | 3% | 14 dias | **approved** |
-| Araújo | 17919 | **não** (0 produtos no ShopWindow) | — | 3,1% | 1 dia | pending/not_joined |
 
 ### O gate real: `publicly_servable` vs `registrable`
 
@@ -479,8 +477,8 @@ sem deploy de código.
 
 - `services/price-service/src/awin_advertisers.py` —
   `AWIN_ADVERTISERS: dict[str, AwinAdvertiser]` (chave: `"cobasi"`,
-  `"petz"`, `"zeenow"`, `"zeedog"`, `"araujo"`) com os dados da tabela
-  acima, `enabled=True` só para Cobasi.
+  `"petz"`, `"zeenow"`, `"zeedog"`) com os dados da tabela acima,
+  `enabled=True` só para Cobasi.
 - `services/price-service/src/affiliate_feed.py` — `AffiliateFeedOffer`
   (tabela `affiliate_feed_offers`, Postgres via `Base.metadata.create_all`
   como todo o resto — **sem** segundo banco/SQLite). Uma linha = uma
@@ -727,7 +725,6 @@ só tem publisher ID e token de API.
 | Petz | 127553 | pending | não | — | 3% | 14 dias |
 | Zee Now | 127557 | **approved** | sim | 116779 | 3% | 1 dia |
 | Zee Dog | 127555 | **approved** | sim | 116649 | 3% | 14 dias |
-| Araújo | 17919 | pending/not_joined | **não** | — | 3,1% | 1 dia |
 
 ### Cobasi
 
@@ -1097,27 +1094,6 @@ exata — `/produto/*` está na AASA e não pode ser usado.
 | scraping | forbidden |
 | last_terms_review | 2026-08-11 |
 | notes | **pendência de esclarecimento**: no backend, este ID resolve para `settings.petlove_dog_life_url`/`handoff_doglife` ("plano PetLove Dog Life"), o que sugere ser o MESMO relacionamento comercial listado acima como "Petlove Plano de Saúde" — não confirmado. Não assumir integração automática por associação com Petlove Produtos (linha separada acima, é outra relação). Confirmar com o responsável comercial antes de tratar como merchant distinto. |
-
-### Drogaria Araújo
-
-| Campo | Valor |
-|---|---|
-| program_name | unknown |
-| merchant_type | retailer |
-| status | pending |
-| affiliate_mode | none |
-| storefront_available | não |
-| product_deeplink_available | não |
-| api_available | unknown |
-| api_confirmed | não |
-| manual_generation | unknown |
-| attribution_window | unknown |
-| attribution_model | unknown |
-| invoice_requirements | unknown |
-| paid_media_restrictions | unknown |
-| scraping | forbidden |
-| last_terms_review | 2026-08-14 |
-| notes | também listada na Awin (advertiser 17919, pending/not_joined, **sem Product Feed** — 0 produtos no ShopWindow); não permite pessoa física, sem rastreamento de app, sem otimização mobile; mesmo se aprovada, nunca pode virar `AwinFeedProvider` genérico — exigiria uma fonte de discovery/preço separada, não implementada — ver seção Awin |
 
 ## Ativar a próxima loja
 

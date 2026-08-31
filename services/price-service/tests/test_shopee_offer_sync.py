@@ -643,3 +643,82 @@ def test_sync_from_feed_row_nao_reaproveita_entre_lojas_diferentes(monkeypatch):
     offer_b = db.scalar(select(MarketplaceOffer).where(MarketplaceOffer.product_id == product_b.id))
     assert offer_b.external_listing_id == str(MAXXI_FALLBACK_OFFER["itemId"])
     db.close()
+
+
+# ── fila noturna em prioridades (iter_launch_coverage_queue) ────────────
+
+def test_launch_coverage_queue_prioridades_dedup_e_teto():
+    """A (oferta Shopee ativa) → B (GTIN escaneado pelo tutor) → C
+    (catálogo Awin fresco). Deduplicado por GTIN, ordem preservada, e o
+    teto corta sem mexer no total_available."""
+    from src.product_catalog_lookup import ProductScanEvent
+    from src.shopee_offer_sync import iter_launch_coverage_queue
+
+    gtin_a = "7891111111118"
+    gtin_b = "7892222222225"
+    gtin_c = "7893333333332"
+
+    db = SessionLocal()
+    try:
+        pa = ProductCatalog(barcode=gtin_a, barcode_normalized=gtin_a, name="Ração A 10kg", brand="Marca A", category="food")
+        pb = ProductCatalog(barcode=gtin_b, barcode_normalized=gtin_b, name="Vermífugo B", brand="Marca B", category="dewormer")
+        pc = ProductCatalog(barcode=gtin_c, barcode_normalized=gtin_c, name="Antipulgas C", brand="Marca C", category="antiparasite")
+        db.add_all([pa, pb, pc])
+        db.commit()
+        db.refresh(pa)
+
+        # A: oferta Shopee ativa + (também escaneado, pra provar o dedup)
+        db.add(MarketplaceOffer(
+            product_id=pa.id, merchant="shopee", affiliate_url="https://s.shopee.com.br/aaa",
+            price=99.9, is_available=True, active=True,
+        ))
+        db.add(ProductScanEvent(barcode=gtin_a, barcode_normalized=gtin_a, product_id=pa.id, context="scan"))
+        # B: só escaneado
+        db.add(ProductScanEvent(barcode=gtin_b, barcode_normalized=gtin_b, product_id=None, context="scan"))
+        # C: só no feed Awin
+        db.add(AffiliateFeedOffer(
+            network="awin", merchant="cobasi", advertiser_id="17870", external_product_id="cobasi-c",
+            gtin=gtin_c, title="Antipulgas C Feed", brand="Marca C", price=45.0, active=True, in_stock=True,
+        ))
+        db.commit()
+
+        queue, total_available = iter_launch_coverage_queue(db, max_products=10)
+        gtins = [g for g, _n, _b in queue]
+        assert gtins == [gtin_a, gtin_b, gtin_c]
+        assert total_available == 3
+
+        capped, total_available = iter_launch_coverage_queue(db, max_products=2)
+        assert [g for g, _n, _b in capped] == [gtin_a, gtin_b]
+        assert total_available == 3
+    finally:
+        db.close()
+
+
+def test_launch_coverage_queue_prioridade_a_ordena_pela_oferta_mais_antiga():
+    from src.shopee_offer_sync import iter_active_shopee_offer_gtins
+    from datetime import datetime, timedelta, timezone
+
+    older = "7894444444449"
+    newer = "7895555555556"
+    db = SessionLocal()
+    try:
+        p_old = ProductCatalog(barcode=older, barcode_normalized=older, name="Ração Velha", brand="M", category="food")
+        p_new = ProductCatalog(barcode=newer, barcode_normalized=newer, name="Ração Nova", brand="M", category="food")
+        db.add_all([p_old, p_new])
+        db.commit()
+        db.refresh(p_old)
+        db.refresh(p_new)
+        now = datetime.now(timezone.utc)
+        db.add(MarketplaceOffer(
+            product_id=p_new.id, merchant="shopee", affiliate_url="https://s.shopee.com.br/new",
+            price=10.0, is_available=True, active=True, last_checked_at=now - timedelta(hours=1),
+        ))
+        db.add(MarketplaceOffer(
+            product_id=p_old.id, merchant="shopee", affiliate_url="https://s.shopee.com.br/old",
+            price=10.0, is_available=True, active=True, last_checked_at=now - timedelta(hours=48),
+        ))
+        db.commit()
+
+        assert iter_active_shopee_offer_gtins(db) == [older, newer]
+    finally:
+        db.close()

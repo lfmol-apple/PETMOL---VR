@@ -125,28 +125,6 @@ AWIN_ADVERTISERS: dict[str, AwinAdvertiser] = {
             "otimizar preferência comercial."
         ),
     ),
-    "araujo": AwinAdvertiser(
-        merchant="araujo",
-        advertiser_id="17919",
-        commercial_status="pending",
-        # SEM Product Feed (ShopWindow: 0 produtos observados) — nunca
-        # deve entrar em awin_merchants_with_feed()/receber um
-        # AwinFeedProvider (checado explicitamente em
-        # is_awin_merchant_publicly_servable). Uma futura integração
-        # exigiria uma fonte de discovery/preço separada da rota de
-        # monetização Awin — não inventar catálogo, não fazer scraping.
-        feed_available=False,
-        enabled=False,
-        cookie_days=1,
-        cpa_percent=3.1,
-        notes=(
-            "Não permite pessoa física. Rastreamento de app: não. "
-            "Otimização para celular: não. Sem Product Feed — "
-            "discovery de produto/preço precisaria vir de outra fonte "
-            "autorizada; monetization_route continuaria awin (link "
-            "afiliado), mas nunca via AwinFeedProvider genérico."
-        ),
-    ),
 }
 
 # Merchants Awin cujo feed pode alimentar a BUSCA pública por nome/marca

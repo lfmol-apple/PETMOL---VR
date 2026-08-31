@@ -15,7 +15,6 @@ Ver `docs/AFFILIATES.md` pro mecanismo técnico de cada um;
 | Mercado Livre | Programa de Afiliados e Criadores (Gerador de Links) — sem API própria | `MarketplaceOffer` via CSV manual | Mecanismo comprovado por link; visibilidade pública desligada por decisão de rollout (`mercadolivre_affiliate_enabled=false`) | `docs/AFFILIATES.md` §ML |
 | Zee Now | Awin advertiser 127557 | Feed Awin | Autorização confirmada (`commercial_status=approved`) | `awin_advertisers.py` |
 | Zee Dog | Awin advertiser 127555 | Feed Awin | Autorização confirmada (`commercial_status=approved`) | `awin_advertisers.py` |
-| Araújo | Awin advertiser 17919 | Feed Awin | `commercial_status=pending` — excluído de todos os paths públicos | `awin_advertisers.py` |
 | Amazon | — | — | Integração encerrada em 22/08/2026 — `/handoff/shop?partner=amazon` sempre 503 | `docs/AFFILIATES.md` |
 | PetLove (Dog Life) | **Não documentado neste repositório** | `handoff_partner.py` — `PETLOVE_AFFILIATE_ENABLED` + `PETLOVE_DOG_LIFE_URL` | Bloqueado por padrão (`PETLOVE_AFFILIATE_ENABLED=false`); URL sozinha não libera redirect | Nenhuma — status comercial pendente |
 

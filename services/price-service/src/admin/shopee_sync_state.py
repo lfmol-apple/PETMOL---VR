@@ -23,6 +23,14 @@ class ShopeeSyncState:
     audit_processed: int = 0
     audit_invalid: int = 0
     audit_deactivated: int = 0
+    # source=active_products (fila noturna em prioridades)
+    refreshed_existing: int = 0
+    new_matches: int = 0
+    misses: int = 0
+    errors: int = 0
+    skipped_cooldown: int = 0
+    remaining_after_cap: int = 0
+    duration_seconds: float = 0.0
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     error: Optional[str] = None

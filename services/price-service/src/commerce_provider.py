@@ -67,6 +67,14 @@ class DiscoveredOffer:
     image_url: Optional[str] = None
     price_checked_at: Optional[datetime] = None
     price_is_stale: bool = False
+    # Contrato explícito: normalmente uma oferta sem preço é descartada
+    # (sem preço real = "sem monetização comprovável"). Providers de
+    # marketplace (Shopee) podem ter uma oferta afiliada VÁLIDA cujo último
+    # preço confirmado expirou — nesse caso o preço vira None de propósito
+    # ("Conferir preço na loja") mas a oferta ainda é monetizável e deve
+    # passar pelo engine. Só esses casos setam allow_without_price=True.
+    # Cobasi/Awin nunca setam — continuam exigindo preço.
+    allow_without_price: bool = False
 
 
 @dataclass
@@ -139,7 +147,12 @@ class CommerceEngine:
                 continue
 
             discovered = await provider.find_offer(context)
-            if discovered is None or discovered.price is None:
+            if discovered is None:
+                continue
+            # Sem preço só passa quando o provider declarou explicitamente
+            # que suporta oferta monetizada sem preço atual (marketplace
+            # stale). Sem esse contrato, a regra de sempre: sem preço, fora.
+            if discovered.price is None and not discovered.allow_without_price:
                 continue
             if discovered.is_available is False:
                 continue
