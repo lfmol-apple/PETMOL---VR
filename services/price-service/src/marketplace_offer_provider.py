@@ -43,6 +43,41 @@ _LINK_VALIDATORS = {
     "mercadolivre": validate_mercadolivre_affiliate_url,
 }
 
+_FOOD_TEXT_FALLBACK_TERMS = (
+    "racao",
+    "alimento",
+    "petisco",
+    "biscoito",
+    "sache",
+    "snack",
+)
+
+_NON_FOOD_TEXT_FALLBACK_BLOCKLIST = (
+    "coleira",
+    "collar",
+    "scalibor",
+    "seresto",
+    "foresto",
+    "antipulgas",
+    "carrapato",
+    "vermifugo",
+    "nexgard",
+    "bravecto",
+    "simparic",
+    "frontline",
+    "drontal",
+    "advocate",
+    "revolution",
+)
+
+
+def _normalize_text(value: str) -> str:
+    import unicodedata
+
+    text = unicodedata.normalize("NFKD", value or "")
+    text = text.encode("ascii", "ignore").decode("ascii")
+    return text.lower()
+
 
 def is_marketplace_merchant_publicly_servable(merchant: str) -> bool:
     """Único ponto de decisão pra 'este marketplace pode gerar uma oferta
@@ -97,9 +132,19 @@ class MarketplaceOfferProvider:
         itens de alimentação antigos só guardam nome + tamanho do pacote.
         Quando já existe oferta Shopee para um produto identificável por
         texto, essa falta de GTIN no plano não deve esconder a oferta.
+
+        Este fallback é deliberadamente só para alimentação. Antiparasitário,
+        coleira e medicação sem GTIN têm variações pequenas com preços muito
+        diferentes; um match textual frouxo ali mistura produtos distintos na
+        comparação Cobasi/Shopee.
         """
         query = (context.name or context.query or "").strip()
         if not query:
+            return None
+        query_key = _normalize_text(query)
+        if any(term in query_key for term in _NON_FOOD_TEXT_FALLBACK_BLOCKLIST):
+            return None
+        if context.weight_kg is None and not any(term in query_key for term in _FOOD_TEXT_FALLBACK_TERMS):
             return None
 
         best: Optional[tuple[float, ProductCatalog]] = None

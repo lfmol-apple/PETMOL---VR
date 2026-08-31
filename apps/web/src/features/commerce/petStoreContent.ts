@@ -43,6 +43,13 @@ export interface ReorderCard {
   packageSizeKg?: number;
   /** GTIN/EAN conhecido, quando domain='food' — ver PetCareReminder.gtin. */
   gtin?: string;
+  /**
+   * false quando o card não tem identidade comercial suficiente para
+   * comparar preço entre lojas. Antiparasitário/coleira sem GTIN pode
+   * variar por tamanho/faixa de peso; nesses casos a UI mantém compra por
+   * busca, mas não mostra "menor preço" como se fosse o mesmo produto.
+   */
+  priceLookupAllowed: boolean;
 }
 
 function formatUrgencyText(domain: CareReminderDomain, diff: number): string {
@@ -83,18 +90,22 @@ export function buildReorderCards(reminders: PetCareReminder[]): ReorderCard[] {
     // múltiplas apresentações. Mantém no cuidado do pet, mas não transforma
     // em card de compra/preço sem GTIN.
     .filter((r) => r.domain !== 'medication' || Boolean((r.gtin || '').trim()))
-    .map((r) => ({
-      id: r.key,
-      icon: r.icon,
-      label: r.label,
-      sublabel: r.sublabel,
-      urgencyText: formatUrgencyText(r.domain, r.diff),
-      urgencyTone: r.status,
-      searchQuery: buildReminderSearchQuery(r),
-      domain: r.domain,
-      packageSizeKg: r.packageSizeKg,
-      gtin: r.gtin,
-    }));
+    .map((r) => {
+      const gtin = (r.gtin || '').trim() || undefined;
+      return {
+        id: r.key,
+        icon: r.icon,
+        label: r.label,
+        sublabel: r.sublabel,
+        urgencyText: formatUrgencyText(r.domain, r.diff),
+        urgencyTone: r.status,
+        searchQuery: buildReminderSearchQuery(r),
+        domain: r.domain,
+        packageSizeKg: r.packageSizeKg,
+        gtin,
+        priceLookupAllowed: r.domain !== 'parasite' || Boolean(gtin),
+      };
+    });
 }
 
 function speciesQueryLabel(species: PetSpecies): string {

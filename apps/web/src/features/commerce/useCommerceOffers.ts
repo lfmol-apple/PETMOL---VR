@@ -13,11 +13,16 @@ import { fetchCommerceOffers, type CommerceOffer } from './productPricing';
  * processFood/processParasite e MonetizedOffersListProps.gtin); nem toda
  * tela tem um GTIN real disponível, então segue opcional.
  */
-export function useCommerceOffers(query: string, packageSizeKg?: number | null, gtin?: string | null) {
+export function useCommerceOffers(query: string, packageSizeKg?: number | null, gtin?: string | null, enabled = true) {
   const [offers, setOffers] = useState<CommerceOffer[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
 
   useEffect(() => {
+    if (!enabled) {
+      setOffers([]);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setOffers([]);
@@ -28,7 +33,7 @@ export function useCommerceOffers(query: string, packageSizeKg?: number | null, 
       }
     });
     return () => { cancelled = true; };
-  }, [query, packageSizeKg, gtin]);
+  }, [query, packageSizeKg, gtin, enabled]);
 
   return { offers, loading };
 }
