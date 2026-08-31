@@ -88,6 +88,71 @@ async def test_provider_with_no_discovery_is_skipped():
     assert offers[0].merchant == "shopee"
 
 
+class _NoPriceProvider:
+    """Provider que resolve uma oferta afiliada VÁLIDA mas sem preço
+    fresco (Shopee defasada): price=None + allow_without_price=True."""
+
+    merchant = "shopee"
+
+    def __init__(self, *, allow_without_price: bool, is_available=True, monetizable=True):
+        self._allow = allow_without_price
+        self._is_available = is_available
+        self._monetizable = monetizable
+
+    async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
+        return DiscoveredOffer(
+            merchant=self.merchant,
+            price=None,
+            is_available=self._is_available,
+            price_is_stale=True,
+            allow_without_price=self._allow,
+        )
+
+    def monetize(self, offer: DiscoveredOffer, context: ProductContext):
+        if not self._monetizable:
+            return None
+        return ("https://s.shopee.com.br/abc", "affiliate_marketplace_offer", "shopee", True)
+
+
+@pytest.mark.asyncio
+async def test_offer_without_price_passes_only_with_allow_without_price():
+    """Contrato explícito: oferta sem preço só sobrevive ao engine quando
+    o provider marca allow_without_price=True (Shopee defasada). Sem a
+    flag, a regra 'sem preço, não aparece' continua valendo."""
+    kept = CommerceEngine([_NoPriceProvider(allow_without_price=True)])
+    offers = await kept.get_offers(ProductContext(gtin="123"))
+    assert len(offers) == 1
+    assert offers[0].merchant == "shopee"
+    assert offers[0].price is None
+    assert offers[0].price_is_stale is True
+
+    dropped = CommerceEngine([_NoPriceProvider(allow_without_price=False)])
+    assert await dropped.get_offers(ProductContext(gtin="123")) == []
+
+
+@pytest.mark.asyncio
+async def test_no_price_offer_still_needs_monetization():
+    engine = CommerceEngine([_NoPriceProvider(allow_without_price=True, monetizable=False)])
+    assert await engine.get_offers(ProductContext(gtin="123")) == []
+
+
+@pytest.mark.asyncio
+async def test_no_price_offer_discarded_when_unavailable():
+    engine = CommerceEngine([_NoPriceProvider(allow_without_price=True, is_available=False)])
+    assert await engine.get_offers(ProductContext(gtin="123")) == []
+
+
+@pytest.mark.asyncio
+async def test_no_price_offer_sorts_after_priced_offers():
+    engine = CommerceEngine([
+        _NoPriceProvider(allow_without_price=True),
+        _FakeProvider("cobasi", 120.0),
+    ])
+    offers = await engine.get_offers(ProductContext(gtin="123"))
+    assert [o.merchant for o in offers] == ["cobasi", "shopee"]
+    assert offers[-1].price is None
+
+
 @pytest.mark.asyncio
 async def test_no_providers_monetizable_returns_empty_list():
     engine = CommerceEngine([

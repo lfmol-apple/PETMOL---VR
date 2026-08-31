@@ -587,6 +587,11 @@ def _has_active_shopee_offer_for_gtin(db: Session, gtin: str) -> bool:
     return offer is not None
 
 
+# Alias público — usado pelo job noturno (admin/shopee_sync_router.py) pra
+# distinguir "refresh de oferta ativa" de "descoberta nova".
+has_active_shopee_offer_for_gtin = _has_active_shopee_offer_for_gtin
+
+
 def _feed_row_quality(title: str, brand: Optional[str], merchant: str) -> tuple[int, int, int, int]:
     merchant_priority = {"cobasi": 3, "zeenow": 2, "zeedog": 1}.get(merchant, 0)
     has_measure = 1 if extract_weight_kg(title) is not None or extract_volume_ml(title) is not None else 0
@@ -702,6 +707,92 @@ def iter_unified_awin_feed_products_by_gtin(
         skip_existing_shopee=skip_existing_shopee,
     )
     return sorted(items, key=lambda item: item[0] or "")
+
+
+def iter_active_shopee_offer_gtins(db: Session) -> list[str]:
+    """PRIORIDADE A do job noturno — toda oferta Shopee ativa hoje, do
+    preço confirmado mais antigo pro mais novo, pra revalidar/reprecificar
+    primeiro o que está mais defasado."""
+    rows = db.execute(
+        select(ProductCatalog.barcode_normalized)
+        .join(MarketplaceOffer, MarketplaceOffer.product_id == ProductCatalog.id)
+        .where(
+            MarketplaceOffer.merchant == "shopee",
+            MarketplaceOffer.active.is_(True),
+            ProductCatalog.barcode_normalized.isnot(None),
+        )
+        .order_by(MarketplaceOffer.last_checked_at.is_(None).desc(), MarketplaceOffer.last_checked_at.asc())
+    ).all()
+    seen: set[str] = set()
+    out: list[str] = []
+    for (gtin,) in rows:
+        g = normalize_gtin(gtin)
+        if g and g not in seen:
+            seen.add(g)
+            out.append(g)
+    return out
+
+
+def iter_active_product_gtins(db: Session) -> list[str]:
+    """PRIORIDADE B do job noturno — GTINs de produtos que os tutores de
+    fato usam: tudo que já foi escaneado (product_scan_events) e que
+    resolveu num produto de catálogo com nome. Cobre ração,
+    antiparasitário, vermífugo, higiene, medicação — sem parse de JSON."""
+    from .product_catalog_lookup import ProductScanEvent
+
+    rows = db.execute(
+        select(ProductScanEvent.barcode_normalized)
+        .join(ProductCatalog, ProductCatalog.barcode_normalized == ProductScanEvent.barcode_normalized)
+        .where(
+            ProductScanEvent.barcode_normalized.isnot(None),
+            ProductCatalog.name.isnot(None),
+        )
+        .distinct()
+    ).all()
+    seen: set[str] = set()
+    out: list[str] = []
+    for (gtin,) in rows:
+        g = normalize_gtin(gtin)
+        if g and g not in seen:
+            seen.add(g)
+            out.append(g)
+    return out
+
+
+def iter_launch_coverage_queue(
+    db: Session,
+    *,
+    max_products: int,
+    feed_merchants: tuple[str, ...] = _DEFAULT_AWIN_SHOPEE_SOURCE_MERCHANTS,
+) -> tuple[list[tuple[str, Optional[str], Optional[str]]], int]:
+    """Fila noturna determinística em prioridades:
+      A — todas as ofertas Shopee ativas (refresh, mais antigas primeiro);
+      B — GTINs realmente usados pelos tutores (scan events);
+      C — catálogo Awin fresco (Cobasi + Zee Now + Zee Dog), só o que
+          ainda não tem oferta Shopee.
+    Deduplicado por GTIN normalizado, preservando a ordem (A antes de B
+    antes de C). Corta em `max_products`; retorna (fila, total_disponível)
+    pra o STATE registrar `remaining`.
+    """
+    seen: set[str] = set()
+    queue: list[tuple[str, Optional[str], Optional[str]]] = []
+
+    def _add(gtin: str, name: Optional[str] = None, brand: Optional[str] = None) -> None:
+        g = normalize_gtin(gtin)
+        if not g or g in seen:
+            return
+        seen.add(g)
+        queue.append((g, name, brand))
+
+    for g in iter_active_shopee_offer_gtins(db):
+        _add(g)
+    for g in iter_active_product_gtins(db):
+        _add(g)
+    for gtin, name, brand in iter_unified_awin_feed_products(db, merchants=feed_merchants, skip_existing_shopee=True):
+        _add(gtin, name, brand)
+
+    total_available = len(queue)
+    return queue[:max_products], total_available
 
 
 def sync_shopee_offers_for_gtins(

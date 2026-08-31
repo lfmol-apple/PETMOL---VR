@@ -31,7 +31,7 @@ def test_metrics_endpoint_lists_all_configured_merchants_even_empty(client, _adm
     response = client.get("/v1/admin/affiliate-feed/metrics")
     assert response.status_code == 200
     merchants = {row["merchant"] for row in response.json()["data"]}
-    assert merchants == {"cobasi", "petz", "zeenow", "zeedog", "araujo"}
+    assert merchants == {"cobasi", "petz", "zeenow", "zeedog"}
     cobasi_row = next(row for row in response.json()["data"] if row["merchant"] == "cobasi")
     assert cobasi_row["rows_active"] == 0
     assert cobasi_row["coverage_gtin_rate"] is None

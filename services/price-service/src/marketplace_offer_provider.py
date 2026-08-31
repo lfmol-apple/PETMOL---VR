@@ -130,6 +130,11 @@ class MarketplaceOfferProvider:
         product = self._db.get(ProductCatalog, product_id)
         offer = get_active_marketplace_offer(self._db, product_id, self.merchant)
         if offer is None:
+            # Produto conhecido, GTIN confiável, mas ainda sem oferta Shopee
+            # cadastrada — tenta descobrir UMA vez, em background (nunca
+            # inline: o cliente tem timeout de 5s). Cooldown por GTIN
+            # persistido. A próxima abertura da Loja encontra a oferta.
+            self._maybe_schedule_discovery(context, product)
             return None
         checked_at = _effective_checked_at(offer)
         if _should_live_refresh(self.merchant, checked_at):
@@ -156,7 +161,29 @@ class MarketplaceOfferProvider:
             image_url=product.thumbnail_url if product else None,
             price_checked_at=checked_at,
             price_is_stale=not fresh,
+            # Oferta afiliada válida cujo preço expirou — passa pelo engine
+            # mesmo com price=None (ver commerce_provider.CommerceEngine).
+            allow_without_price=not fresh,
         )
+
+    def _maybe_schedule_discovery(self, context: ProductContext, product: Optional[ProductCatalog]) -> None:
+        if self.merchant != "shopee":
+            return
+        gtin = context.gtin or (product.barcode_normalized if product else None)
+        gtin = normalize_gtin(gtin) if gtin else None
+        if not gtin:
+            return  # sem GTIN confiável, nunca chama a API da Shopee
+        # products_catalog precisa ter nome pra o matcher ter o que casar
+        # (sync_shopee_offer_for_gtin já rejeita, mas evita agendar à toa).
+        if product is not None and not product.name:
+            return
+        try:
+            from .shopee_discovery_attempt import schedule_shopee_discovery, should_attempt_discovery
+
+            if should_attempt_discovery(self._db, gtin):
+                schedule_shopee_discovery(gtin)
+        except Exception:  # noqa: BLE001 — cobertura é best-effort, nunca quebra a request
+            pass
 
     def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str, str, bool]]:
         if not is_marketplace_merchant_publicly_servable(self.merchant):

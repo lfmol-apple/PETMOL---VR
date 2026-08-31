@@ -41,6 +41,13 @@ def _reset_state_and_settings(monkeypatch):
         sync_router.STATE.audit_processed = 0
         sync_router.STATE.audit_invalid = 0
         sync_router.STATE.audit_deactivated = 0
+        sync_router.STATE.refreshed_existing = 0
+        sync_router.STATE.new_matches = 0
+        sync_router.STATE.misses = 0
+        sync_router.STATE.errors = 0
+        sync_router.STATE.skipped_cooldown = 0
+        sync_router.STATE.remaining_after_cap = 0
+        sync_router.STATE.duration_seconds = 0.0
         sync_router.STATE.started_at = None
         sync_router.STATE.finished_at = None
         sync_router.STATE.error = None
@@ -300,6 +307,118 @@ def test_run_enquanto_ja_esta_rodando_nao_dispara_outro(monkeypatch, client):
     assert second.json() == {"started": False, "reason": "already_running"}
 
     _wait_until_finished(client, headers)
+
+
+def _fake_result(g, matched, reason=""):
+    from src.shopee_offer_sync import ShopeeSyncResult
+    return ShopeeSyncResult(gtin=g, matched=matched, reason=reason)
+
+
+def test_active_products_classifica_refresh_new_miss_e_respeita_o_teto(monkeypatch, client):
+    _enable_token(monkeypatch)
+    queue = [("111", None, None), ("222", None, None), ("333", None, None)]
+    monkeypatch.setattr(
+        sync_router, "iter_launch_coverage_queue",
+        lambda db, *, max_products, feed_merchants: (queue, 10),
+    )
+    monkeypatch.setattr(sync_router, "has_active_shopee_offer_for_gtin", lambda db, g: g == "111")
+    monkeypatch.setattr(sync_router, "should_attempt_discovery", lambda db, g: True)
+    monkeypatch.setattr(sync_router, "record_attempt", lambda db, g, r: None)
+
+    def _fake_sync(db, g, limit=10, min_confidence=0.5):
+        if g == "111":
+            return _fake_result(g, True)  # tinha oferta -> refresh
+        if g == "222":
+            return _fake_result(g, True)  # não tinha -> match novo
+        return _fake_result(g, False, reason="nenhum candidato confiável")  # miss
+
+    monkeypatch.setattr(sync_router, "sync_shopee_offer_for_gtin", _fake_sync)
+    monkeypatch.setattr(sync_router.time, "sleep", lambda _s: None)
+
+    headers = {"X-Sync-Token": TOKEN}
+    r = client.post("/v1/admin/shopee-sync/run", json={"source": "active_products"}, headers=headers)
+    assert r.json()["started"] is True
+    final = _wait_until_finished(client, headers)
+
+    assert final["total"] == 3
+    assert final["processed"] == 3
+    assert final["refreshed_existing"] == 1
+    assert final["new_matches"] == 1
+    assert final["misses"] == 1
+    assert final["errors"] == 0
+    assert final["skipped_cooldown"] == 0
+    assert final["remaining_after_cap"] == 7
+    assert final["matched"] == 2
+    assert final["error"] is None
+
+
+def test_active_products_pula_gtin_em_cooldown_sem_chamar_a_api(monkeypatch, client):
+    _enable_token(monkeypatch)
+    queue = [("111", None, None), ("222", None, None), ("333", None, None)]
+    monkeypatch.setattr(
+        sync_router, "iter_launch_coverage_queue",
+        lambda db, *, max_products, feed_merchants: (queue, 3),
+    )
+    monkeypatch.setattr(sync_router, "has_active_shopee_offer_for_gtin", lambda db, g: False)
+    # 222 ainda está no cooldown de um miss recente.
+    monkeypatch.setattr(sync_router, "should_attempt_discovery", lambda db, g: g != "222")
+    monkeypatch.setattr(sync_router, "record_attempt", lambda db, g, r: None)
+
+    calls = []
+
+    def _fake_sync(db, g, limit=10, min_confidence=0.5):
+        calls.append(g)
+        return _fake_result(g, False, reason="nenhum candidato")
+
+    monkeypatch.setattr(sync_router, "sync_shopee_offer_for_gtin", _fake_sync)
+    monkeypatch.setattr(sync_router.time, "sleep", lambda _s: None)
+
+    headers = {"X-Sync-Token": TOKEN}
+    client.post("/v1/admin/shopee-sync/run", json={"source": "active_products"}, headers=headers)
+    final = _wait_until_finished(client, headers)
+
+    assert "222" not in calls
+    assert calls == ["111", "333"]
+    assert final["skipped_cooldown"] == 1
+    assert final["misses"] == 2
+    assert final["processed"] == 3
+
+
+def test_active_products_erro_num_gtin_nao_derruba_o_lote_e_registra_api_error(monkeypatch, client):
+    _enable_token(monkeypatch)
+    queue = [("111", None, None), ("222", None, None), ("333", None, None)]
+    monkeypatch.setattr(
+        sync_router, "iter_launch_coverage_queue",
+        lambda db, *, max_products, feed_merchants: (queue, 3),
+    )
+    # 111 já tem oferta ativa: erro na API NÃO pode virar record_attempt nem apagar nada.
+    monkeypatch.setattr(sync_router, "has_active_shopee_offer_for_gtin", lambda db, g: g == "111")
+    monkeypatch.setattr(sync_router, "should_attempt_discovery", lambda db, g: True)
+
+    recorded = []
+    monkeypatch.setattr(sync_router, "record_attempt", lambda db, g, r: recorded.append((g, r)))
+
+    def _fake_sync(db, g, limit=10, min_confidence=0.5):
+        if g == "111":
+            raise RuntimeError("boom")
+        if g == "222":
+            return _fake_result(g, False, reason="erro na api: timeout")
+        return _fake_result(g, True)
+
+    monkeypatch.setattr(sync_router, "sync_shopee_offer_for_gtin", _fake_sync)
+    monkeypatch.setattr(sync_router.time, "sleep", lambda _s: None)
+
+    headers = {"X-Sync-Token": TOKEN}
+    client.post("/v1/admin/shopee-sync/run", json={"source": "active_products"}, headers=headers)
+    final = _wait_until_finished(client, headers)
+
+    assert final["processed"] == 3
+    assert final["errors"] == 2
+    assert final["new_matches"] == 1
+    assert final["error"] is None
+    # 111 tinha oferta -> nunca entra na tabela de tentativas; 222 sim (api_error).
+    assert ("222", "api_error") in recorded
+    assert all(g != "111" for g, _ in recorded)
 
 
 def test_um_erro_inesperado_num_gtin_nao_derruba_o_lote(monkeypatch, client):

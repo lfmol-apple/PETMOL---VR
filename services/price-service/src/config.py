@@ -324,6 +324,21 @@ class Settings(BaseSettings):
     # job/API do marketplace. Se ficar mais velho que isso, não deve ser
     # exibido como opção de compra atual.
     marketplace_offer_stale_after_hours: int = 36
+
+    # ── Cobertura Shopee: discovery on-demand + job noturno ─────────────
+    # Quando o tutor abre um produto com GTIN confiável e ainda não há
+    # MarketplaceOffer Shopee, agendamos UM sync em background. Este é o
+    # cooldown por GTIN (persistido em shopee_discovery_attempts) pra não
+    # repetir a cada request/restart. 12h: o job noturno cobre o resto e
+    # o tutor costuma voltar no dia seguinte; erro de API tem retry curto
+    # (1h, ver shopee_discovery_attempt.py).
+    shopee_miss_retry_hours: int = 12
+    # Job noturno (source=active_products): teto de produtos por execução
+    # e pausa entre chamadas à API. Se bater o teto, para limpo e a
+    # próxima madrugada continua pelos mais antigos.
+    shopee_sync_max_products_per_run: int = 400
+    shopee_sync_request_delay_seconds: float = 0.4
+
     # Token dedicado pra disparar/acompanhar o lote de sync via HTTPS
     # (admin/shopee_sync_router.py) — deliberadamente separado de
     # ADMIN_OPS_API_KEY (aquele é só leitura, nunca em rota de escrita;

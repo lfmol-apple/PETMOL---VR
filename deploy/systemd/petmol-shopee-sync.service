@@ -1,5 +1,5 @@
 [Unit]
-Description=PETMOL Shopee sync trigger (categorias pet, por GTIN)
+Description=PETMOL Shopee sync trigger (fila noturna em prioridades)
 After=network.target petmol-api.service
 Requires=petmol-api.service
 
@@ -9,9 +9,11 @@ User=petmol
 Group=petmol
 # Only fires the HTTP trigger — the sync itself runs in a background thread
 # inside petmol-api (see admin/shopee_sync_router.py) and outlives this
-# oneshot. source=categories + skip_existing_shopee=false: re-casa e
-# re-precifica toda oferta ativa das categorias pet toda noite, sem
-# depender do feed Awin. Ver o trigger script e docs/LAUNCH.md §7.
+# oneshot. source=active_products: fila determinística em prioridades
+# (A: ofertas Shopee ativas → B: GTINs usados pelos tutores → C: catálogo
+# Awin fresco), deduplicada por GTIN, com teto por execução. Se a API
+# externa falhar num GTIN, a oferta antiga é preservada (nunca apagada).
+# Ver o trigger script e docs/LAUNCH.md §7.
 #
 # Inlining the curl call here (rather than calling a script) was tried
 # first and failed: systemd's own ExecStart= line parser mangles

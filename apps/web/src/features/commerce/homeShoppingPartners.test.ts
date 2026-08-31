@@ -48,7 +48,6 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
 
       const partnerIds = HOME_SHOPPING_PARTNERS.map((partner) => String(partner.id));
       expect(partnerIds).not.toContain('amazon');
-      expect(partnerIds).not.toContain('araujo');
       expect(partnerIds).not.toContain('zeenow');
       expect(partnerIds).not.toContain('zeedog');
 

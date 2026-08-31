@@ -8,7 +8,6 @@ from src.awin_advertisers import (
     awin_merchants_with_feed,
     get_awin_advertiser,
     is_awin_merchant_enabled,
-    is_awin_merchant_publicly_servable,
 )
 from src.config import get_settings
 
@@ -35,16 +34,15 @@ def test_publisher_id_matches_real_account():
 
 
 def test_all_known_merchants_configured():
-    assert set(AWIN_ADVERTISERS.keys()) == {"cobasi", "petz", "zeenow", "zeedog", "araujo"}
+    assert set(AWIN_ADVERTISERS.keys()) == {"cobasi", "petz", "zeenow", "zeedog"}
 
 
 def test_get_awin_advertiser_returns_none_for_unknown_merchant():
     assert get_awin_advertiser("amazon") is None
 
 
-def test_petz_and_araujo_have_no_feed_others_do():
+def test_petz_has_no_feed_others_do():
     assert get_awin_advertiser("petz").feed_available is False
-    assert get_awin_advertiser("araujo").feed_available is False
     assert get_awin_advertiser("cobasi").feed_available is True
     assert get_awin_advertiser("zeenow").feed_available is True
     assert get_awin_advertiser("zeedog").feed_available is True
@@ -101,38 +99,6 @@ def test_zeenow_approved_with_feed_id():
 
 def test_merchants_without_feed_have_no_feed_id():
     assert get_awin_advertiser("petz").feed_id is None
-    assert get_awin_advertiser("araujo").feed_id is None
-
-
-def test_araujo_registered_pending_no_feed_disabled():
-    """Araújo (advertiser 17919): not_joined/pending, sem Product Feed —
-    nunca deve virar AwinFeedProvider (ver awin_advertisers.py e
-    is_awin_merchant_publicly_servable). Uma futura integração precisaria
-    de fonte de discovery separada; não implementada nesta tarefa."""
-    araujo = get_awin_advertiser("araujo")
-    assert araujo is not None
-    assert araujo.advertiser_id == "17919"
-    assert araujo.commercial_status == "pending"
-    assert araujo.feed_available is False
-    assert araujo.enabled is False
-    assert araujo.cookie_days == 1
-    assert araujo.cpa_percent == 3.1
-    assert araujo.feed_id is None
-    assert "araujo" not in awin_merchants_with_feed()
-
-
-def test_araujo_never_publicly_servable_even_if_enabled_and_master_gate_on(monkeypatch):
-    """Defesa em profundidade: mesmo com o master gate ligado E
-    araujo.enabled forçado True por engano, feed_available=False barra."""
-    monkeypatch.setenv("AWIN_ENABLED", "true")
-    monkeypatch.setenv("AWIN_SHADOW_MODE", "false")
-    get_settings.cache_clear()
-    monkeypatch.setattr("src.awin_advertisers.is_awin_merchant_enabled", lambda m: m == "araujo")
-    try:
-        assert is_awin_merchant_publicly_servable("araujo") is False
-        assert "araujo" not in awin_merchants_publicly_servable()
-    finally:
-        get_settings.cache_clear()
 
 
 def test_publicly_servable_empty_by_default():

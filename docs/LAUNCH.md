@@ -155,23 +155,37 @@ qualidade e o que ainda vale rodar.
 2. **Hard-fail de comprimento em cm** pra coleiras
    (`shopee_offer_matcher.py::extract_length_cm`) — Scalibor 48cm nunca
    casa com um anúncio "65 cm".
-3. **Sync desacoplado da Awin**: o timer diário
-   (`petmol-shopee-sync.timer`) agora usa `source=categories`
-   (`skip_existing_shopee=false`) — re-casa e re-precifica TODA oferta
-   ativa das categorias pet (`food/antiparasite/medication/hygiene/
-   dewormer/collar`) toda noite às 05:00 UTC, sem depender do feed Awin.
-   O `activate.sh` do deploy instala o trigger script novo sozinho.
-4. **Frescor**: oferta de marketplace defasada
+3. **Sync noturno em prioridades** (RC 1.0): o timer diário
+   (`petmol-shopee-sync.timer`) usa `source=active_products` — fila
+   determinística deduplicada por GTIN, na ordem: **A** toda oferta
+   Shopee ativa (revalida/reprecifica, da mais antiga pra mais nova;
+   nunca apaga a oferta se a API falhar) → **B** GTINs que os tutores de
+   fato usam (`product_scan_events` resolvidos num produto de catálogo
+   com nome) → **C** catálogo Awin fresco (Cobasi/Zee Now/Zee Dog), só o
+   que ainda não tem oferta Shopee. Teto por execução
+   (`SHOPEE_SYNC_MAX_PRODUCTS_PER_RUN`, default 400); ao bater o teto,
+   para limpo e a próxima noite continua. Sem depender do feed Awin pras
+   prioridades A/B. O `activate.sh` do deploy instala o trigger script
+   novo sozinho.
+4. **Frescor + descoberta on-demand**: oferta de marketplace defasada
    (`marketplace_offer_stale_after_hours`, default 36h) não vira mais
    número na tela — `price=None`, o app mostra "Conferir preço na Shopee"
-   e a oferta desce pro fim do ranking.
+   e a oferta desce pro fim do ranking, mas o **link afiliado é
+   preservado**. Quando o tutor abre a Loja de um produto com GTIN
+   confiável e ainda não existe oferta Shopee, o backend agenda **uma**
+   tentativa de descoberta por GTIN em background (nunca inline — o
+   cliente tem timeout de 5s), com cooldown persistido por GTIN
+   (`SHOPEE_MISS_RETRY_HOURS`, default 12h); a próxima abertura encontra
+   a oferta.
 
 ### Ainda vale rodar (higiene, não bloqueia)
 
 - [ ] **Rodar 1 sync manual** pra refrescar já (senão só no próximo
       05:00 UTC): `curl -X POST .../v1/admin/shopee-sync/run
-      -H "X-Sync-Token: $TOKEN" -d '{"source":"categories","skip_existing_shopee":false}'`
-      e acompanhar `GET .../v1/admin/shopee-sync/status`.
+      -H "X-Sync-Token: $TOKEN" -d '{"source":"active_products"}'`
+      e acompanhar `GET .../v1/admin/shopee-sync/status` (campos
+      `refreshed_existing / new_matches / misses / errors /
+      skipped_cooldown / remaining_after_cap / duration_seconds`).
 - [ ] `scripts/audit_shopee_offers.py --deactivate-invalid` — desliga as
       ofertas antigas que não recasarem no matcher novo.
 - [ ] Revisar à mão uma amostra (10-15 ofertas): a URL abre o produto
