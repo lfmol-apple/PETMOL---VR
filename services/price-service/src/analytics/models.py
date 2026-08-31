@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Index, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..db import Base
@@ -65,4 +65,43 @@ class AnalyticsEvent(Base):
         Index("idx_ae_source_cta", "source", "cta_type"),
         Index("idx_ae_cta_date", "cta_type", "created_at"),
         Index("idx_ae_lead", "lead_id"),
+    )
+
+
+class AnalyticsProductEvent(Base):
+    """First-party product analytics for Mission Control phase 1.
+
+    Pseudonymous by design: no email, phone, names, raw IP, GPS or sensitive
+    health payloads. `user_id` is derived from an authenticated JWT when
+    available; anonymous/session identifiers come from the client.
+    """
+
+    __tablename__ = "analytics_product_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    event_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    event_name: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    user_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    anonymous_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    session_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    screen: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    route: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    occurred_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    platform: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    app_version: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    os: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    browser: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    device_class: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    locale: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    timezone: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    properties_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("idx_ape_event_received", "event_name", "received_at"),
+        Index("idx_ape_user_received", "user_id", "received_at"),
+        Index("idx_ape_anon_received", "anonymous_id", "received_at"),
+        Index("idx_ape_session_received", "session_id", "received_at"),
     )

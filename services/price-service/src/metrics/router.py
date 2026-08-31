@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from ..analytics.models import AnalyticsEvent
+from ..admin.deps import get_current_admin_or_readonly_key
 from ..db import get_db
 
 router = APIRouter(prefix="/metrics", tags=["Metrics"])
@@ -73,7 +74,7 @@ def _parse_days_left(metadata: dict[str, Any]) -> int | None:
 
 
 @router.get("/food")
-def get_food_metrics(db: Session = Depends(get_db)):
+def get_food_metrics(db: Session = Depends(get_db), current=Depends(get_current_admin_or_readonly_key)):
     now = datetime.now(_BRT)
     today = now.date()
     dates = [today - timedelta(days=i) for i in range(6, -1, -1)]

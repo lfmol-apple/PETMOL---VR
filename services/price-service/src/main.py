@@ -205,6 +205,13 @@ async def structured_request_logging(request: Request, call_next):
     else:
         logger.info(json.dumps(log_entry))
 
+    try:
+        from .runtime_metrics import record_request_metric
+
+        record_request_metric(request.method, request.url.path, status_code, duration_ms)
+    except Exception:
+        pass
+
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Process-Time"] = f"{duration_ms / 1000:.3f}"
     return response

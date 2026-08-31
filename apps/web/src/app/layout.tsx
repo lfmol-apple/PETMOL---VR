@@ -15,6 +15,7 @@ import { EventNudge } from '@/components/EventNudge';
 import { TravelDetectionNotification } from '@/components/TravelDetectionNotification';
 import { OfflineIndicator, ConnectivityStatus } from '@/components/OfflineIndicator';
 import { PushAutoRefresh } from '@/components/PushAutoRefresh';
+import { AnalyticsBootstrap } from '@/components/AnalyticsBootstrap';
 import { 
   isEventNudgeEnabled
 } from '@/lib/featureFlags';
@@ -96,6 +97,7 @@ export default function RootLayout({
             <OfflineIndicator />
             <ConnectivityStatus />
             <StorageMigrator />
+            <AnalyticsBootstrap />
             <HorizontalSwipeGuard />
             <PushAutoRefresh />
             <TravelDetectionNotification />

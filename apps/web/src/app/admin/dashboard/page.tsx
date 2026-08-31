@@ -1,19 +1,59 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PremiumScreenShell } from '@/components/premium';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdmin } from '@/hooks/useAdmin';
 
-interface GlobalStats {
-  total_users: number;
-  total_owners: number;
-  total_pets: number;
-  total_vaccines: number;
-  total_appointments: number;
-  countries_count: number;
-  cities_count: number;
+interface MissionControl {
+  api: {
+    requests: number;
+    errors_5xx: number;
+    p95_ms: number | null;
+    status: 'normal' | 'attention' | 'critical' | 'unknown';
+  };
+  growth: {
+    total_users: number;
+    total_pets: number;
+    new_users_today: number;
+    new_users_7d: number;
+    new_pets_today: number;
+    new_pets_7d: number;
+    active_users_24h: number;
+    active_users_7d: number;
+    active_users_30d: number;
+    active_users_partial: boolean;
+  };
+  funnel: {
+    steps: Array<{ event_name: string; label: string; count: number; pct_from_previous: number | null }>;
+    biggest_drop: { from: string; to: string; drop_count: number } | null;
+  };
+  commerce: {
+    store_opened: number;
+    offer_viewed: number;
+    commerce_click: number;
+    ctr: number | null;
+    by_merchant: Record<string, { offer_viewed: number; commerce_click: number }>;
+    sales_confirmed_note: string;
+    cobasi: { availability: string; latency_ms: number | null };
+    shopee: { active_offers: number; stale_offers: number; stale_click_events: number; stale_after_hours: number };
+  };
+  platforms: {
+    platforms: Array<{ platform: string; events: number }>;
+    versions: Array<{ version: string; events: number }>;
+  };
+  instrumentation: {
+    events_total: number;
+    anonymous_id_storage: string;
+    session_rule: string;
+    gps_analytics: boolean;
+    ip_geo_phase_1: boolean;
+  };
+  attention: {
+    state: 'normal' | 'attention' | 'critical';
+    alerts: Array<{ severity: 'normal' | 'attention' | 'critical'; message: string }>;
+  };
 }
 
 interface ShopeeSyncProgress {
@@ -29,14 +69,46 @@ interface ShopeeSyncProgress {
   error: string | null;
 }
 
+function fmt(value: number | null | undefined): string {
+  return typeof value === 'number' ? value.toLocaleString('pt-BR') : 'Indisponível';
+}
+
+function pct(value: number | null | undefined): string {
+  return typeof value === 'number' ? `${(value * 100).toFixed(1)}%` : 'Indisponível';
+}
+
+function statusLabel(value: string): string {
+  if (value === 'critical') return 'Crítico';
+  if (value === 'attention') return 'Atenção';
+  if (value === 'normal') return 'Normal';
+  return 'Indisponível';
+}
+
+function statusClass(value: string): string {
+  if (value === 'critical') return 'border-red-200 bg-red-50 text-red-700';
+  if (value === 'attention') return 'border-amber-200 bg-amber-50 text-amber-700';
+  if (value === 'normal') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  return 'border-slate-200 bg-slate-50 text-slate-500';
+}
+
+function MetricCard({ label, value, note }: { label: string; value: string; note?: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="text-[12px] font-semibold text-slate-500">{label}</div>
+      <div className="mt-1 text-2xl font-black text-slate-900">{value}</div>
+      {note && <div className="mt-1 text-[11px] font-medium text-slate-400">{note}</div>}
+    </div>
+  );
+}
+
 export default function AdminDashboardPage() {
   const router = useRouter();
   const { token, logout } = useAuth();
   const { isAdmin, adminData, isLoading: adminLoading } = useAdmin();
-  const [stats, setStats] = useState<GlobalStats | null>(null);
+  const [mission, setMission] = useState<MissionControl | null>(null);
+  const [missionLoading, setMissionLoading] = useState(true);
   const [shopeeProgress, setShopeeProgress] = useState<ShopeeSyncProgress | null>(null);
   const [shopeeProgressLoading, setShopeeProgressLoading] = useState(true);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (adminLoading) return;
@@ -44,38 +116,33 @@ export default function AdminDashboardPage() {
       router.push('/home');
       return;
     }
-    loadStats();
-    loadShopeeProgress();
+    void loadMissionControl();
+    void loadShopeeProgress();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminLoading, isAdmin]);
 
   useEffect(() => {
     if (!isAdmin) return;
     const timer = window.setInterval(() => {
+      void loadMissionControl();
       void loadShopeeProgress();
     }, 15000);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, token]);
 
-  const loadStats = async () => {
+  const loadMissionControl = async () => {
     try {
       if (!token) return;
-
-      const response = await fetch('/api/v1/admin/stats', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const response = await fetch('/api/v1/admin/mission-control', {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
       });
-
-      const data = await response.json();
-      if (data.success) {
-        setStats(data.data);
-      }
+      if (response.ok) setMission(await response.json());
     } catch (error) {
-      console.error('Failed to load stats:', error);
+      console.error('Failed to load Mission Control:', error);
     } finally {
-      setLoading(false);
+      setMissionLoading(false);
     }
   };
 
@@ -83,17 +150,11 @@ export default function AdminDashboardPage() {
     try {
       if (!token) return;
       setShopeeProgressLoading((prev) => prev && !shopeeProgress);
-
       const response = await fetch('/handoff/shopee-sync-progress', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
       });
-
-      if (response.ok) {
-        setShopeeProgress(await response.json());
-      }
+      if (response.ok) setShopeeProgress(await response.json());
     } catch (error) {
       console.error('Failed to load Shopee sync progress:', error);
     } finally {
@@ -107,192 +168,169 @@ export default function AdminDashboardPage() {
   };
 
   const progressPercent = Math.min(Math.max(shopeeProgress?.percent ?? 0, 0), 100);
+  const merchants = mission ? Object.entries(mission.commerce.by_merchant) : [];
 
   if (adminLoading || !isAdmin || !adminData) {
     return (
       <PremiumScreenShell title="PETMOL Admin" hideBack>
-        <p className="text-center text-slate-500 py-16">Verificando autenticação...</p>
+        <p className="py-16 text-center text-slate-500">Verificando autenticação...</p>
       </PremiumScreenShell>
     );
   }
 
   return (
     <PremiumScreenShell
-      title="Administração"
+      title="Mission Control"
       subtitle={`${adminData.email} • ${adminData.role}`}
       hideBack
       rightAction={
         <button
           onClick={handleLogout}
-          className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
+          className="rounded-lg bg-red-100 px-3 py-1.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-200"
         >
           Sair
         </button>
       }
     >
-      <div className="px-4 py-4">
-        <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm ring-1 ring-slate-100/50">
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">Sync Shopee</h2>
-              <p className="text-sm text-slate-500">
-                {shopeeProgressLoading
-                  ? 'Carregando progresso...'
-                  : shopeeProgress?.running
-                    ? 'Rodando agora com feeds internos'
-                    : shopeeProgress?.finished_at
-                      ? 'Última execução finalizada'
-                      : 'Nenhuma execução ativa'}
-              </p>
-            </div>
-            <button
-              onClick={() => void loadShopeeProgress()}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              Atualizar
-            </button>
-          </div>
-
-          {shopeeProgress?.error ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-              Erro: {shopeeProgress.error}
-            </div>
-          ) : (
-            <>
-              <div className="mb-3 h-4 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full rounded-full bg-[#0066ff] transition-all duration-500"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <div className="text-slate-500">Progresso</div>
-                  <div className="text-lg font-bold text-slate-900">{progressPercent.toFixed(2)}%</div>
-                </div>
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <div className="text-slate-500">Processados</div>
-                  <div className="text-lg font-bold text-slate-900">{(shopeeProgress?.processed ?? 0).toLocaleString()}</div>
-                </div>
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <div className="text-slate-500">Total</div>
-                  <div className="text-lg font-bold text-slate-900">{(shopeeProgress?.total ?? 0).toLocaleString()}</div>
-                </div>
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <div className="text-slate-500">Casados</div>
-                  <div className="text-lg font-bold text-emerald-700">{(shopeeProgress?.matched ?? 0).toLocaleString()}</div>
-                </div>
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <div className="text-slate-500">Índice</div>
-                  <div className="text-lg font-bold text-slate-900">{(shopeeProgress?.match_rate ?? 0).toFixed(2)}%</div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Stats Grid */}
-        {loading ? (
-          <div className="text-center py-12 text-gray-500">Carregando estatísticas...</div>
-        ) : stats ? (
+      <div className="space-y-5 px-4 py-4">
+        {missionLoading && !mission ? (
+          <div className="py-12 text-center text-slate-500">Carregando Mission Control...</div>
+        ) : mission ? (
           <>
-            <div className="grid md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-gradient-to-br from-[#0066ff] to-[#0056D2] rounded-2xl p-6 text-white shadow-lg">
-                <div className="text-3xl mb-2">👥</div>
-                <div className="text-3xl font-bold mb-1">{stats.total_users.toLocaleString()}</div>
-                <div className="text-blue-100">Usuários Ativos</div>
+            <div className={`rounded-lg border px-4 py-3 ${statusClass(mission.attention.state)}`}>
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm font-black">{statusLabel(mission.attention.state)}</div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void loadMissionControl();
+                    void loadShopeeProgress();
+                  }}
+                  className="w-fit rounded-md border border-current/20 px-3 py-1 text-xs font-bold"
+                >
+                  Atualizar
+                </button>
               </div>
-
-              <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-lg">
-                <div className="text-3xl mb-2">👨‍👩‍👧</div>
-                <div className="text-3xl font-bold mb-1">{stats.total_owners.toLocaleString()}</div>
-                <div className="text-green-100">Tutores</div>
-              </div>
-
-              <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
-                <div className="text-3xl mb-2">🐾</div>
-                <div className="text-3xl font-bold mb-1">{stats.total_pets.toLocaleString()}</div>
-                <div className="text-purple-100">Pets Cadastrados</div>
-              </div>
-
-              <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg">
-                <div className="text-3xl mb-2">🌍</div>
-                <div className="text-3xl font-bold mb-1">{stats.countries_count}</div>
-                <div className="text-orange-100">Países</div>
+              <div className="mt-1 text-xs font-medium">
+                {mission.attention.alerts[0]?.message ?? 'Nenhum alerta crítico na janela atual.'}
               </div>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-6 mb-8">
-              <div className="p-6 border border-slate-200 bg-white rounded-[20px] shadow-sm ring-1 ring-slate-100/50 overflow-hidden">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="text-2xl">💉</div>
-                  <div className="text-2xl font-bold text-slate-900">{stats.total_vaccines.toLocaleString()}</div>
+            <div className="grid gap-3 md:grid-cols-4">
+              <MetricCard label="API" value={statusLabel(mission.api.status)} note={`5xx: ${fmt(mission.api.errors_5xx)} · p95: ${mission.api.p95_ms ? `${mission.api.p95_ms}ms` : 'indisponível'}`} />
+              <MetricCard label="Usuários cadastrados" value={fmt(mission.growth.total_users)} />
+              <MetricCard label="Pets cadastrados" value={fmt(mission.growth.total_pets)} />
+              <MetricCard label="Eventos v2" value={fmt(mission.instrumentation.events_total)} note="coleta incremental" />
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-4">
+              <MetricCard label="Novos usuários hoje" value={fmt(mission.growth.new_users_today)} />
+              <MetricCard label="Novos usuários 7d" value={fmt(mission.growth.new_users_7d)} />
+              <MetricCard label="Novos pets hoje" value={fmt(mission.growth.new_pets_today)} />
+              <MetricCard label="Novos pets 7d" value={fmt(mission.growth.new_pets_7d)} />
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <MetricCard label="Ativos 24h" value={fmt(mission.growth.active_users_24h)} note={mission.growth.active_users_partial ? 'parcial' : undefined} />
+              <MetricCard label="Ativos 7d" value={fmt(mission.growth.active_users_7d)} note={mission.growth.active_users_partial ? 'parcial' : undefined} />
+              <MetricCard label="Ativos 30d" value={fmt(mission.growth.active_users_30d)} note={mission.growth.active_users_partial ? 'parcial' : undefined} />
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="text-base font-black text-slate-900">Funil 7d</h2>
+                <span className="text-xs font-semibold text-slate-400">
+                  maior queda: {mission.funnel.biggest_drop ? `${mission.funnel.biggest_drop.from} -> ${mission.funnel.biggest_drop.to}` : 'indisponível'}
+                </span>
+              </div>
+              <div className="grid gap-2 md:grid-cols-7">
+                {mission.funnel.steps.map((step) => (
+                  <div key={step.event_name} className="rounded-lg bg-slate-50 p-3">
+                    <div className="text-[11px] font-bold text-slate-500">{step.label}</div>
+                    <div className="mt-1 text-xl font-black text-slate-900">{fmt(step.count)}</div>
+                    <div className="text-[11px] font-semibold text-slate-400">{pct(step.pct_from_previous)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <h2 className="text-base font-black text-slate-900">Commerce 7d</h2>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <MetricCard label="Loja aberta" value={fmt(mission.commerce.store_opened)} />
+                  <MetricCard label="Ofertas vistas" value={fmt(mission.commerce.offer_viewed)} />
+                  <MetricCard label="Comprar clicado" value={fmt(mission.commerce.commerce_click)} note="não é venda" />
+                  <MetricCard label="CTR" value={pct(mission.commerce.ctr)} />
                 </div>
-                <div className="text-sm text-slate-600">Vacinas Registradas</div>
+                <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs font-medium text-slate-500">
+                  {mission.commerce.sales_confirmed_note}
+                </div>
+                <div className="mt-3 grid gap-2">
+                  {merchants.length === 0 ? (
+                    <div className="text-sm text-slate-400">Sem eventos por loja ainda.</div>
+                  ) : merchants.map(([merchant, data]) => (
+                    <div key={merchant} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
+                      <span className="font-bold capitalize text-slate-700">{merchant}</span>
+                      <span className="text-slate-500">vistas {fmt(data.offer_viewed)} · cliques {fmt(data.commerce_click)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div className="p-6 border border-slate-200 bg-white rounded-[20px] shadow-sm ring-1 ring-slate-100/50 overflow-hidden">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="text-2xl">📅</div>
-                  <div className="text-2xl font-bold text-slate-900">{stats.total_appointments.toLocaleString()}</div>
+              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <h2 className="text-base font-black text-slate-900">Lojas e Sync</h2>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <MetricCard label="Cobasi" value={mission.commerce.cobasi.availability === 'not_instrumented' ? 'Parcial' : 'Normal'} note="latência não instrumentada" />
+                  <MetricCard label="Shopee ofertas" value={fmt(mission.commerce.shopee.active_offers)} note={`${fmt(mission.commerce.shopee.stale_offers)} stale`} />
+                  <MetricCard label="Sync Shopee" value={shopeeProgressLoading ? 'Carregando' : shopeeProgress?.running ? 'Rodando' : shopeeProgress?.error ? 'Erro' : 'Parado'} note={`${progressPercent.toFixed(1)}% · ${fmt(shopeeProgress?.matched)} casados`} />
+                  <MetricCard label="Índice Shopee" value={shopeeProgress?.match_rate !== undefined ? `${shopeeProgress.match_rate.toFixed(1)}%` : 'Indisponível'} />
                 </div>
-                <div className="text-sm text-slate-600">Consultas Agendadas</div>
+                {shopeeProgress?.error && (
+                  <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                    {shopeeProgress.error}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <h2 className="text-base font-black text-slate-900">Plataformas 7d</h2>
+                <div className="mt-3 grid gap-2">
+                  {mission.platforms.platforms.length === 0 ? (
+                    <div className="text-sm text-slate-400">Sem eventos de plataforma ainda.</div>
+                  ) : mission.platforms.platforms.map((row) => (
+                    <div key={row.platform} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                      <span className="font-bold text-slate-700">{row.platform}</span>
+                      <span className="text-slate-500">{fmt(row.events)} eventos</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div className="p-6 border border-slate-200 bg-white rounded-[20px] shadow-sm ring-1 ring-slate-100/50 overflow-hidden">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="text-2xl">🏙️</div>
-                  <div className="text-2xl font-bold text-slate-900">{stats.cities_count}</div>
+              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <h2 className="text-base font-black text-slate-900">Versões 7d</h2>
+                <div className="mt-3 grid gap-2">
+                  {mission.platforms.versions.length === 0 ? (
+                    <div className="text-sm text-slate-400">Sem versão coletada ainda.</div>
+                  ) : mission.platforms.versions.map((row) => (
+                    <div key={row.version} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                      <span className="font-bold text-slate-700">{row.version}</span>
+                      <span className="text-slate-500">{fmt(row.events)} eventos</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="text-sm text-slate-600">Cidades Ativas</div>
               </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-4 text-xs font-medium text-slate-500 shadow-sm">
+              Ativos: usuários autenticados distintos com eventos v2 na janela. Sessão: {mission.instrumentation.session_rule}. Anonymous ID: {mission.instrumentation.anonymous_id_storage}. GPS analytics: desligado. IP geo Fase 1: desligado.
             </div>
           </>
         ) : (
-          <div className="text-center py-12 text-gray-500">Erro ao carregar estatísticas</div>
+          <div className="py-12 text-center text-slate-500">Erro ao carregar Mission Control</div>
         )}
-
-        {/* Quick Actions */}
-        <div className="bg-white rounded-[20px] shadow-sm ring-1 ring-slate-100/50 border border-slate-200 p-6 overflow-hidden">
-          <h2 className="text-xl font-bold text-slate-900 mb-4">Ações Rápidas</h2>
-          <div className="grid md:grid-cols-4 gap-4">
-            <a
-              href="/admin/accounts"
-              className="flex flex-col items-center gap-2 p-6 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-            >
-              <div className="text-3xl">📋</div>
-              <div className="font-semibold text-blue-900">Ver Todas as Contas</div>
-              <div className="text-sm text-[#0047ad]">Usuários, tutores e pets</div>
-            </a>
-
-            <a
-              href="/admin/users"
-              className="flex flex-col items-center gap-2 p-6 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
-            >
-              <div className="text-3xl">👤</div>
-              <div className="font-semibold text-purple-900">Gerenciar Usuários</div>
-              <div className="text-sm text-purple-700">CRUD de usuários</div>
-            </a>
-
-            <a
-              href="/admin/pets"
-              className="flex flex-col items-center gap-2 p-6 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
-            >
-              <div className="text-3xl">🐾</div>
-              <div className="font-semibold text-green-900">Gerenciar Pets</div>
-              <div className="text-sm text-green-700">CRUD de pets</div>
-            </a>
-
-            <button
-              onClick={handleLogout}
-              className="flex flex-col items-center gap-2 p-6 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-            >
-              <div className="text-3xl">🚪</div>
-              <div className="font-semibold text-red-900">Logout</div>
-              <div className="text-sm text-red-700">Sair do sistema</div>
-            </button>
-          </div>
-        </div>
       </div>
     </PremiumScreenShell>
   );

@@ -7,6 +7,9 @@
  * Never throws — analytics must NEVER block UX.
  */
 
+import { getToken } from '@/lib/auth-token';
+import { getAnalyticsContext } from '@/lib/analytics/session';
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
@@ -40,10 +43,31 @@ export interface ClickPayload {
  */
 export async function trackClick(payload: ClickPayload): Promise<string> {
   try {
+    const context = getAnalyticsContext();
+    const token = getToken();
     const res = await fetch(`${API_BASE_URL}/analytics/click`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        ...payload,
+        metadata: {
+          ...(payload.metadata ?? {}),
+          anonymous_id: context.anonymous_id,
+          session_id: context.session_id,
+          platform: context.platform,
+          app_version: context.app_version,
+          os: context.os,
+          browser: context.browser,
+          device_class: context.device_class,
+          locale: context.locale,
+          timezone: context.timezone,
+          route: window.location.pathname,
+          client_timestamp: Date.now(),
+        },
+      }),
     });
 
     if (res.ok) {
