@@ -253,7 +253,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                               isPickerOpen={quickBuyFor === pickerKey}
                               visibleQuickBuyPartners={visibleQuickBuyPartners}
                               onTogglePicker={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
-                              onQuickBuy={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, label: card.label })}
+                              onQuickBuy={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, gtin: card.gtin ?? undefined })}
                               onDirectBuy={(offer) => {
                                 if (offer.url) navigateToPartnerUrl(offer.url);
                                 void trackClick({
@@ -262,7 +262,15 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                                   target: offer.merchant,
                                   link_type: offer.link_type,
                                   pet_id: currentPet.pet_id,
-                                  metadata: { domain: card.domain, label: card.label, price: offer.price },
+                                  metadata: {
+                                    domain: card.domain,
+                                    merchant: offer.merchant,
+                                    gtin: card.gtin ?? undefined,
+                                    price_shown: typeof offer.price === 'number' && !offer.price_is_stale ? offer.price : null,
+                                    link_type: offer.link_type,
+                                    screen: 'loja',
+                                    price_is_stale: Boolean(offer.price_is_stale),
+                                  },
                                 });
                               }}
                               onPetzBuy={(petzLink) => {
@@ -279,11 +287,13 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                                   pet_id: currentPet.pet_id,
                                   metadata: {
                                     domain: card.domain,
-                                    label: card.label,
+                                    merchant: 'petz',
                                     monetization_mode: 'coupon_attribution_verified',
                                     destination_type: 'partner_store',
                                     coupon: PETZ_COUPON_CODE,
-                                    product_gtin: card.gtin ?? undefined,
+                                    gtin: card.gtin ?? undefined,
+                                    link_type: 'affiliate_store',
+                                    screen: 'loja',
                                   },
                                 });
                               }}

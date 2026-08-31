@@ -205,6 +205,13 @@ async def structured_request_logging(request: Request, call_next):
     else:
         logger.info(json.dumps(log_entry))
 
+    try:
+        from .runtime_metrics import record_request_metric
+
+        record_request_metric(request.method, request.url.path, status_code, duration_ms)
+    except Exception:
+        pass
+
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Process-Time"] = f"{duration_ms / 1000:.3f}"
     return response
@@ -1446,6 +1453,7 @@ async def commerce_offers(
     gtin: Optional[str] = Query(default=None, description="GTIN do produto, quando já conhecido (ex: escaneado) — preferido para providers estruturados"),
     name: Optional[str] = Query(default=None, max_length=200, description="Nome/título do produto, quando disponível — melhora a busca da Cobasi quando `q` vem pobre"),
     brand: Optional[str] = Query(default=None, max_length=100, description="Marca do produto, quando disponível"),
+    species: Optional[str] = Query(default=None, max_length=20, description="Espécie do pet (dog|cat / cachorro|gato) — hard fail de identidade: ração de gato nunca vira preço de ração de cão"),
     db: Session = Depends(get_db),
 ):
     """

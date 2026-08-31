@@ -5,7 +5,9 @@ NOTE on URLs in production:
 - Therefore frontend should call `/api/v1/admin/...` and backend must expose `/v1/admin/...`.
 """
 
-from datetime import date
+import json
+from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
@@ -14,6 +16,9 @@ from sqlalchemy.orm import Session
 
 from ..config import get_settings
 from ..db import get_db
+from ..affiliate_links import MarketplaceOffer
+from ..analytics.models import AnalyticsProductEvent
+from ..runtime_metrics import request_metrics_summary
 from ..user_auth.models import User
 from ..user_auth.security import hash_password
 from ..user_auth.router import COOKIE_NAME
@@ -46,6 +51,200 @@ from .schemas import (
 router = APIRouter(prefix="/v1/admin", tags=["Admin"])
 
 settings = get_settings()
+
+_BRT = ZoneInfo("America/Sao_Paulo")
+_FUNNEL_EVENTS = [
+    ("signup_started", "Cadastro iniciado"),
+    ("register_completed", "Cadastro completo"),
+    ("pet_created", "Pet criado"),
+    ("pet_profile_completed", "Perfil completo"),
+    ("store_opened", "Loja aberta"),
+    ("offer_viewed", "Oferta vista"),
+    ("commerce_click", "Comprar clicado"),
+]
+
+
+def _brt_day_start_utc(days_back: int = 0) -> datetime:
+    today_brt = datetime.now(_BRT).date() - timedelta(days=days_back)
+    return datetime.combine(today_brt, time.min, tzinfo=_BRT).astimezone(timezone.utc)
+
+
+def _count_created_since(db: Session, model, since: datetime) -> int:
+    return int(db.query(func.count(model.id)).filter(model.created_at >= since).scalar() or 0)
+
+
+def _event_identity_expr():
+    return func.coalesce(
+        AnalyticsProductEvent.user_id,
+        AnalyticsProductEvent.anonymous_id,
+        AnalyticsProductEvent.session_id,
+        AnalyticsProductEvent.event_id,
+    )
+
+
+def _distinct_event_identities(db: Session, event_name: str, since: datetime) -> int:
+    return int(
+        db.query(func.count(func.distinct(_event_identity_expr())))
+        .filter(AnalyticsProductEvent.event_name == event_name)
+        .filter(AnalyticsProductEvent.received_at >= since)
+        .scalar()
+        or 0
+    )
+
+
+def _active_users_since(db: Session, since: datetime) -> int:
+    return int(
+        db.query(func.count(func.distinct(AnalyticsProductEvent.user_id)))
+        .filter(AnalyticsProductEvent.user_id.isnot(None))
+        .filter(AnalyticsProductEvent.received_at >= since)
+        .scalar()
+        or 0
+    )
+
+
+def _safe_props(raw: str | None) -> dict:
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
+def _funnel_summary(db: Session, since: datetime) -> dict:
+    steps = []
+    previous = None
+    biggest_drop = None
+    for event_name, label in _FUNNEL_EVENTS:
+        count = _distinct_event_identities(db, event_name, since)
+        pct_from_previous = None if previous in (None, 0) else round(count / previous, 4)
+        drop = None if previous in (None, 0) else max(previous - count, 0)
+        if drop is not None and (biggest_drop is None or drop > biggest_drop["drop_count"]):
+            biggest_drop = {"from": steps[-1]["event_name"], "to": event_name, "drop_count": drop}
+        steps.append({
+            "event_name": event_name,
+            "label": label,
+            "count": count,
+            "pct_from_previous": pct_from_previous,
+        })
+        previous = count
+    return {"window_days": 7, "steps": steps, "biggest_drop": biggest_drop}
+
+
+def _commerce_summary(db: Session, since: datetime) -> dict:
+    rows = (
+        db.query(AnalyticsProductEvent.event_name, AnalyticsProductEvent.properties_json)
+        .filter(AnalyticsProductEvent.received_at >= since)
+        .filter(AnalyticsProductEvent.event_name.in_(["offer_viewed", "commerce_click"]))
+        .all()
+    )
+    views = 0
+    clicks = 0
+    by_merchant: dict[str, dict[str, int]] = {}
+    stale_shopee_events = 0
+    for event_name, properties_json in rows:
+        props = _safe_props(properties_json)
+        merchant = str(props.get("merchant") or "unknown").lower()
+        bucket = by_merchant.setdefault(merchant, {"offer_viewed": 0, "commerce_click": 0})
+        if event_name == "offer_viewed":
+            views += 1
+            bucket["offer_viewed"] += 1
+        elif event_name == "commerce_click":
+            clicks += 1
+            bucket["commerce_click"] += 1
+        if merchant == "shopee" and props.get("price_is_stale") is True:
+            stale_shopee_events += 1
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=settings.marketplace_offer_stale_after_hours)
+    checked_at = func.coalesce(
+        MarketplaceOffer.last_checked_at,
+        MarketplaceOffer.verified_at,
+        MarketplaceOffer.updated_at,
+        MarketplaceOffer.created_at,
+    )
+    shopee_active = int(
+        db.query(func.count(MarketplaceOffer.id))
+        .filter(MarketplaceOffer.merchant == "shopee")
+        .filter(MarketplaceOffer.active.is_(True))
+        .filter(MarketplaceOffer.is_available.is_(True))
+        .scalar()
+        or 0
+    )
+    shopee_stale = int(
+        db.query(func.count(MarketplaceOffer.id))
+        .filter(MarketplaceOffer.merchant == "shopee")
+        .filter(MarketplaceOffer.active.is_(True))
+        .filter(MarketplaceOffer.is_available.is_(True))
+        .filter((checked_at.is_(None)) | (checked_at < cutoff))
+        .scalar()
+        or 0
+    )
+
+    return {
+        "window_days": 7,
+        "store_opened": _distinct_event_identities(db, "store_opened", since),
+        "offer_viewed": views,
+        "commerce_click": clicks,
+        "ctr": round(clicks / views, 4) if views else None,
+        "by_merchant": by_merchant,
+        "sales_confirmed": None,
+        "sales_confirmed_note": "commerce_click é clique de saída, não venda confirmada.",
+        "cobasi": {
+            "availability": "not_instrumented",
+            "latency_ms": None,
+        },
+        "shopee": {
+            "active_offers": shopee_active,
+            "stale_offers": shopee_stale,
+            "stale_click_events": stale_shopee_events,
+            "stale_after_hours": settings.marketplace_offer_stale_after_hours,
+        },
+    }
+
+
+def _platform_summary(db: Session, since: datetime) -> dict:
+    platforms = (
+        db.query(AnalyticsProductEvent.platform, func.count(AnalyticsProductEvent.id))
+        .filter(AnalyticsProductEvent.received_at >= since)
+        .group_by(AnalyticsProductEvent.platform)
+        .all()
+    )
+    versions = (
+        db.query(AnalyticsProductEvent.app_version, func.count(AnalyticsProductEvent.id))
+        .filter(AnalyticsProductEvent.received_at >= since)
+        .group_by(AnalyticsProductEvent.app_version)
+        .order_by(func.count(AnalyticsProductEvent.id).desc())
+        .limit(10)
+        .all()
+    )
+    return {
+        "window_days": 7,
+        "platforms": [{"platform": key or "unknown", "events": int(count)} for key, count in platforms],
+        "versions": [{"version": key or "unknown", "events": int(count)} for key, count in versions],
+    }
+
+
+def _attention_state(api: dict, commerce: dict, funnel: dict) -> dict:
+    alerts = []
+    if api.get("errors_5xx", 0) > 0:
+        alerts.append({"severity": "attention", "message": "Há respostas 5xx na janela recente."})
+    if api.get("p95_ms") is not None and api["p95_ms"] > 3000:
+        alerts.append({"severity": "critical", "message": "p95 da API acima de 3000ms."})
+    elif api.get("p95_ms") is not None and api["p95_ms"] > 1000:
+        alerts.append({"severity": "attention", "message": "p95 da API acima de 1000ms."})
+    if commerce["shopee"]["stale_offers"] > 0:
+        alerts.append({"severity": "attention", "message": "Existem ofertas Shopee ativas com preço stale."})
+    drop = funnel.get("biggest_drop")
+    if drop and drop["drop_count"] > 0:
+        alerts.append({"severity": "attention", "message": f"Maior queda no funil: {drop['from']} -> {drop['to']}."})
+
+    severity = "normal"
+    if any(item["severity"] == "critical" for item in alerts):
+        severity = "critical"
+    elif alerts:
+        severity = "attention"
+    return {"state": severity, "alerts": alerts}
 
 
 @router.post("/bootstrap/promote", response_model=AdminMeOut)
@@ -142,6 +341,63 @@ def admin_stats(db: Session = Depends(get_db), current=Depends(get_current_admin
             cities_count=int(cities_count),
         ),
     )
+
+
+@router.get("/mission-control")
+def mission_control_phase_1(db: Session = Depends(get_db), current=Depends(get_current_admin_or_readonly_key)):
+    """Aggregated launch cockpit.
+
+    Phase 1 stays first-party and small: no GPS analytics, no user drill-down,
+    no external analytics suite and no sale attribution. Active users are
+    counted only from authenticated v2 analytics events, so early history is
+    explicitly partial.
+    """
+    start_today = _brt_day_start_utc(0)
+    start_7d = datetime.now(timezone.utc) - timedelta(days=7)
+    start_24h = datetime.now(timezone.utc) - timedelta(hours=24)
+    start_30d = datetime.now(timezone.utc) - timedelta(days=30)
+
+    total_users = int(db.query(func.count(User.id)).scalar() or 0)
+    total_pets = int(db.query(func.count(Pet.id)).scalar() or 0)
+    events_total = int(db.query(func.count(AnalyticsProductEvent.id)).scalar() or 0)
+
+    funnel = _funnel_summary(db, start_7d)
+    commerce = _commerce_summary(db, start_7d)
+    api = request_metrics_summary(window_minutes=60)
+
+    payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "api": api,
+        "growth": {
+            "total_users": total_users,
+            "total_pets": total_pets,
+            "new_users_today": _count_created_since(db, User, start_today),
+            "new_users_7d": _count_created_since(db, User, start_7d),
+            "new_pets_today": _count_created_since(db, Pet, start_today),
+            "new_pets_7d": _count_created_since(db, Pet, start_7d),
+            "active_users_24h": _active_users_since(db, start_24h),
+            "active_users_7d": _active_users_since(db, start_7d),
+            "active_users_30d": _active_users_since(db, start_30d),
+            "active_users_definition": "distinct authenticated user_id with analytics_product_events in the window",
+            "active_users_partial": True,
+            "active_users_note": (
+                "Histórico anterior à coleta v2 não tem user_id analítico estável; "
+                "não use como DAU/WAU/MAU definitivo até acumular dados novos."
+            ),
+        },
+        "funnel": funnel,
+        "commerce": commerce,
+        "platforms": _platform_summary(db, start_7d),
+        "instrumentation": {
+            "events_total": events_total,
+            "anonymous_id_storage": "localStorage:petmol_analytics_anonymous_id",
+            "session_rule": "nova sessão na primeira abertura ou após 30 minutos de inatividade",
+            "gps_analytics": False,
+            "ip_geo_phase_1": False,
+        },
+    }
+    payload["attention"] = _attention_state(api, commerce, funnel)
+    return payload
 
 
 @router.get("/all-accounts", response_model=AccountsListOut)
@@ -488,4 +744,3 @@ def admin_delete_pet(
     db.commit()
 
     return DeletedOut(success=True, message=f"Pet {pet.name} excluído com sucesso")
-
