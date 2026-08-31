@@ -334,3 +334,167 @@ def test_prod_env_default_mode_is_still_utm(monkeypatch):
     finally:
         monkeypatch.setenv("ENV", "dev")
         get_settings.cache_clear()
+
+
+# ── find_offer() — EAN ausente na VTEX + estratégia de busca por nome/marca ──
+
+def _price(**kw) -> ProductPriceResult:
+    base = dict(found=True, store="cobasi", price=79.9, url="https://www.cobasi.com.br/x/p", is_available=True)
+    base.update(kw)
+    return ProductPriceResult(**base)
+
+
+@pytest.mark.asyncio
+async def test_ean_absent_accepts_clearly_correct_product(monkeypatch):
+    """VTEX não devolveu EAN, mas o produto é claramente o mesmo (marca +
+    peso + tokens batem) → aceita via matcher textual estrito."""
+    async def fake_fetch(query, target_weight_kg=None):
+        return _price(
+            product_name="Ração Golden Fórmula Cães Adultos Frango e Arroz 15kg",
+            brand="Golden", ean=None,
+        )
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+    db = SessionLocal()
+    try:
+        provider = CobasiProvider(db)
+        ctx = ProductContext(
+            gtin="7896181208112",
+            name="Golden Fórmula Cães Adultos Frango e Arroz 15kg",
+            brand="Golden",
+        )
+        offer = await provider.find_offer(ctx)
+        assert offer is not None
+        assert offer.price == 79.9
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_ean_absent_rejects_ambiguous_or_different_product(monkeypatch):
+    """VTEX sem EAN e o produto devolvido é de OUTRA marca → matcher
+    estrito (marca é hard fail em score_candidate) rejeita, não vira
+    oferta só pra aumentar cobertura."""
+    async def fake_fetch(query, target_weight_kg=None):
+        return _price(product_name="Ração Premier Golden Retriever Adulto 12kg", brand="Premier", ean=None)
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+    db = SessionLocal()
+    try:
+        provider = CobasiProvider(db)
+        ctx = ProductContext(gtin="7896181208112", name="Golden Fórmula Frango e Arroz 15kg", brand="Golden")
+        offer = await provider.find_offer(ctx)
+        assert offer is None
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_ean_absent_without_reference_name_rejects(monkeypatch):
+    """GTIN conhecido, VTEX sem EAN, e sem nome/q de referência pro
+    matcher → rejeita (não há como confirmar identidade)."""
+    async def fake_fetch(query, target_weight_kg=None):
+        return _price(product_name="Algum Produto", brand=None, ean=None)
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+    db = SessionLocal()
+    try:
+        provider = CobasiProvider(db)
+        # só gtin, nenhum texto — _query_candidates gera só a busca por gtin
+        offer = await provider.find_offer(ProductContext(gtin="7896181208112"))
+        assert offer is None
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_find_offer_rejects_when_found_but_no_price(monkeypatch):
+    async def fake_fetch(query, target_weight_kg=None):
+        return ProductPriceResult(found=True, price=None, is_available=True, product_name="X", reason="no_price")
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+    db = SessionLocal()
+    try:
+        provider = CobasiProvider(db)
+        offer = await provider.find_offer(ProductContext(query="ração golden"))
+        assert offer is None
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_find_offer_returns_offer_out_of_stock_engine_filters_it(monkeypatch):
+    """Regra de estoque inalterada: o provider devolve a oferta com
+    is_available=False (não troca de candidato); quem descarta é o
+    CommerceEngine."""
+    from src.commerce_provider import CommerceEngine
+
+    async def fake_fetch(query, target_weight_kg=None):
+        return _price(product_name="Ração Golden Frango 15kg", brand="Golden", ean=None, is_available=False)
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+    monkeypatch.setenv("COBASI_AFFILIATE_MODE", "utm")
+    get_settings.cache_clear()
+    db = SessionLocal()
+    try:
+        provider = CobasiProvider(db)
+        ctx = ProductContext(name="Golden Frango 15kg", brand="Golden", gtin="7896181208112")
+        discovered = await provider.find_offer(ctx)
+        assert discovered is not None and discovered.is_available is False
+        engine = CommerceEngine([provider])
+        assert await engine.get_offers(ctx) == []
+    finally:
+        db.close()
+        get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_find_offer_uses_name_and_brand_when_query_is_poor(monkeypatch):
+    """`q` genérico ("ração pet") não resolve, mas a tentativa marca+nome
+    resolve — produto conhecido não fica sem Cobasi."""
+    calls: list[str] = []
+
+    async def fake_fetch(query, target_weight_kg=None):
+        calls.append(query)
+        if query == "ração pet":
+            return ProductPriceResult(found=False, reason="no_results")
+        if query == "Golden Ração Golden Fórmula Frango 15kg" or "Golden" in query:
+            return _price(product_name="Ração Golden Fórmula Frango 15kg", brand="Golden", ean=None)
+        return ProductPriceResult(found=False, reason="no_results")
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+    db = SessionLocal()
+    try:
+        provider = CobasiProvider(db)
+        ctx = ProductContext(
+            query="ração pet",
+            name="Ração Golden Fórmula Frango 15kg",
+            brand="Golden",
+        )
+        offer = await provider.find_offer(ctx)
+        assert offer is not None, f"tentativas: {calls}"
+        assert "ração pet" in calls  # tentou o q pobre primeiro
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_find_offer_gtin_query_candidate_is_tried_first(monkeypatch):
+    calls: list[str] = []
+
+    async def fake_fetch(query, target_weight_kg=None):
+        calls.append(query)
+        if query == "7896181208112":
+            return _price(product_name="Ração Golden Fórmula Frango 15kg", brand="Golden", ean="7896181208112")
+        return ProductPriceResult(found=False)
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+    db = SessionLocal()
+    try:
+        provider = CobasiProvider(db)
+        ctx = ProductContext(query="ração pet", gtin="7896181208112", brand="Golden", name="Golden Frango 15kg")
+        offer = await provider.find_offer(ctx)
+        assert offer is not None
+        assert calls[0] == "7896181208112"
+    finally:
+        db.close()

@@ -33,6 +33,11 @@ export interface MonetizedOffersListProps {
    * identidade exata (ex: AwinFeedProvider, que só resolve por GTIN, nunca
    * por texto) em vez de só a busca textual da Cobasi. */
   gtin?: string | null;
+  /** Marca do produto, quando conhecida — melhora a busca da Cobasi. */
+  brand?: string | null;
+  /** Nome/título real do produto (quando existir — não o rótulo genérico
+   * da UI), para a busca da Cobasi resolver mesmo com `query` pobre. */
+  productName?: string | null;
   petId: string;
   /** Nome exibido no card. */
   productLabel: string;
@@ -52,12 +57,12 @@ export interface MonetizedOffersListProps {
 }
 
 export function MonetizedOffersList({
-  query, packageSizeKg, gtin, petId, productLabel, icon = '🛒', source, ctaType, controlType, requireGtinForOffers = false,
+  query, packageSizeKg, gtin, brand, productName, petId, productLabel, icon = '🛒', source, ctaType, controlType, requireGtinForOffers = false,
   emptyStateTitle = 'Produto indisponível no momento',
   emptyStateSubtitle = 'Ainda não encontramos uma oferta ativa para este produto.',
 }: MonetizedOffersListProps) {
   const offersEnabled = !requireGtinForOffers || Boolean((gtin || '').trim());
-  const { offers, loading } = useCommerceOffers(query, packageSizeKg, gtin, offersEnabled);
+  const { offers, loading } = useCommerceOffers(query, packageSizeKg, gtin, offersEnabled, { name: productName, brand });
   const [petzLink, setPetzLink] = useState<PetzDirectLink | null>(null);
 
   useEffect(() => {

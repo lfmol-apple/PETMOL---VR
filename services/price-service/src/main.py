@@ -1444,6 +1444,8 @@ async def commerce_offers(
     q: Optional[str] = Query(default=None, min_length=2, max_length=150, description="Product search query"),
     weight_kg: Optional[float] = Query(default=None, description="Peso real do pacote, quando aplicável"),
     gtin: Optional[str] = Query(default=None, description="GTIN do produto, quando já conhecido (ex: escaneado) — preferido para providers estruturados"),
+    name: Optional[str] = Query(default=None, max_length=200, description="Nome/título do produto, quando disponível — melhora a busca da Cobasi quando `q` vem pobre"),
+    brand: Optional[str] = Query(default=None, max_length=100, description="Marca do produto, quando disponível"),
     db: Session = Depends(get_db),
 ):
     """
@@ -1458,10 +1460,14 @@ async def commerce_offers(
     frontend deve enviar quando souber (ex: produto já escaneado);
     providers de busca textual (Cobasi/VTEX) continuam usando `q`.
     """
-    if not q and not gtin:
-        raise HTTPException(status_code=400, detail="informe ao menos q ou gtin")
+    _name = (name or "").strip() or None
+    _brand = (brand or "").strip() or None
+    if not q and not gtin and not _name:
+        raise HTTPException(status_code=400, detail="informe ao menos q, gtin ou name")
     from .commerce_offers import CommerceOfferOut, get_commerce_offers
-    offers = await get_commerce_offers(db, q, target_weight_kg=weight_kg, gtin=gtin)
+    offers = await get_commerce_offers(
+        db, q, target_weight_kg=weight_kg, gtin=gtin, name=_name, brand=_brand
+    )
     return {"offers": [CommerceOfferOut(**vars(o)) for o in offers]}
 
 

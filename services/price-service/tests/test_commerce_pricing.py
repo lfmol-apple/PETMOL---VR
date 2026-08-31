@@ -95,3 +95,30 @@ def test_shorten_query_variants_preserves_last_word():
     for variant in variants:
         assert variant.endswith("ração")
         assert len(variant.split()) <= 7
+
+
+# ── reason (observabilidade, PARTE A4) ──────────────────────────────────────
+
+import pytest  # noqa: E402
+
+from src.commerce_pricing import fetch_cobasi_price  # noqa: E402
+from src.config import get_settings  # noqa: E402
+
+
+@pytest.mark.asyncio
+async def test_reason_empty_query():
+    r = await fetch_cobasi_price("   ")
+    assert r.found is False
+    assert r.reason == "empty_query"
+
+
+@pytest.mark.asyncio
+async def test_reason_disabled(monkeypatch):
+    monkeypatch.setenv("COMMERCE_PRICING_ENABLED", "false")
+    get_settings.cache_clear()
+    try:
+        r = await fetch_cobasi_price("ração golden 15kg qualquer coisa nova")
+        assert r.found is False
+        assert r.reason == "disabled"
+    finally:
+        get_settings.cache_clear()

@@ -28,11 +28,15 @@ resto.
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Protocol
 
 from .merchant_routes import preferred_route_for
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -140,13 +144,30 @@ class CommerceEngine:
         self._providers = providers
 
     async def get_offers(self, context: ProductContext) -> list[MonetizedOffer]:
+        from .config import get_settings
+
+        per_provider_timeout = get_settings().commerce_offers_provider_timeout_seconds
         offers: list[MonetizedOffer] = []
         for provider in self._providers:
             should_run = getattr(provider, "should_run", None)
             if should_run is not None and not should_run(context, offers):
                 continue
 
-            discovered = await provider.find_offer(context)
+            # Um provider lento (ex: Cobasi numa janela ruim da VTEX) não
+            # pode consumir todo o orçamento e impedir os demais de
+            # aparecerem. Timeout brando por provider: estoura → pula, não
+            # derruba a lista. Não altera ranking nem monetização.
+            try:
+                discovered = await asyncio.wait_for(
+                    provider.find_offer(context), timeout=per_provider_timeout
+                )
+            except asyncio.TimeoutError:
+                logger.info(
+                    "[commerce] provider %s excedeu %.1fs — pulado",
+                    getattr(provider, "merchant", type(provider).__name__),
+                    per_provider_timeout,
+                )
+                continue
             if discovered is None:
                 continue
             # Sem preço só passa quando o provider declarou explicitamente

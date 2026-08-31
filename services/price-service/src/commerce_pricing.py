@@ -49,6 +49,10 @@ class ProductPriceResult(BaseModel):
     # achar um link afiliado por produto, sem precisar de GTIN vindo do
     # frontend. Ver affiliate_links.py / commerce_offers.py.
     ean: Optional[str] = None
+    # Motivo curto e não sensível do resultado — só para observabilidade
+    # (CobasiProvider loga isto). Valores: "ok" | "empty_query" | "disabled"
+    # | "http_error" | "no_results" | "no_price" | "timeout" | "error".
+    reason: str = "ok"
 
 
 def _cache_key(query: str, target_weight_kg: Optional[float] = None) -> str:
@@ -59,7 +63,7 @@ def _cache_key(query: str, target_weight_kg: Optional[float] = None) -> str:
 async def fetch_cobasi_price(query: str, target_weight_kg: Optional[float] = None) -> ProductPriceResult:
     query = (query or "").strip()
     if not query:
-        return ProductPriceResult(found=False)
+        return ProductPriceResult(found=False, reason="empty_query")
 
     key = _cache_key(query, target_weight_kg)
     cached = _cache.get(key)
@@ -152,19 +156,23 @@ async def _search_cobasi_once(
     quando `query` (o que de fato vai pra busca) é um fallback encurtado
     que já perdeu a palavra de porte (ver _shorten_query_variants)."""
     url = _COBASI_SEARCH_URL.format(query=urllib.parse.quote(query))
-    async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
-        response = await client.get(
-            url,
-            params={"_from": 0, "_to": 4, "sc": 1},
-            headers={"Accept": "application/json"},
-        )
+    try:
+        async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
+            response = await client.get(
+                url,
+                params={"_from": 0, "_to": 4, "sc": 1},
+                headers={"Accept": "application/json"},
+            )
+    except (httpx.TimeoutException, httpx.ConnectError) as exc:
+        logger.info("[commerce_pricing] cobasi timeout/connect query=%r error=%s", query, type(exc).__name__)
+        return ProductPriceResult(found=False, reason="timeout")
     if response.status_code not in (200, 206):
         logger.info("[commerce_pricing] cobasi status=%s query=%r", response.status_code, query)
-        return ProductPriceResult(found=False)
+        return ProductPriceResult(found=False, reason="http_error")
 
     products = response.json()
     if not isinstance(products, list) or not products:
-        return ProductPriceResult(found=False)
+        return ProductPriceResult(found=False, reason="no_results")
 
     product = _select_product_by_port(products, port_reference_text or query)
     items = product.get("items") or []
@@ -193,13 +201,14 @@ async def _search_cobasi_once(
         is_available=offer.get("IsAvailable"),
         url=product_url,
         ean=ean,
+        reason="ok" if price else "no_price",
     )
 
 
 async def _fetch_cobasi_price_uncached(query: str, target_weight_kg: Optional[float] = None) -> ProductPriceResult:
     settings = get_settings()
     if not settings.commerce_pricing_enabled:
-        return ProductPriceResult(found=False)
+        return ProductPriceResult(found=False, reason="disabled")
 
     try:
         result = await _search_cobasi_once(query, target_weight_kg)
@@ -207,15 +216,19 @@ async def _fetch_cobasi_price_uncached(query: str, target_weight_kg: Optional[fl
             return result
 
         for fallback_query in _shorten_query_variants(query):
-            result = await _search_cobasi_once(fallback_query, target_weight_kg, port_reference_text=query)
-            if result.found:
+            fb = await _search_cobasi_once(fallback_query, target_weight_kg, port_reference_text=query)
+            if fb.found:
                 logger.info("[commerce_pricing] cobasi fallback query matched: %r -> %r", query, fallback_query)
-                return result
+                return fb
+            # Um fallback que deu timeout/erro é mais informativo que o
+            # "no_results" da busca principal — propaga esse motivo.
+            if fb.reason in ("timeout", "http_error"):
+                result = fb
 
         return result
     except Exception as exc:
-        logger.info("[commerce_pricing] cobasi lookup failed query=%r error=%s", query, exc)
-        return ProductPriceResult(found=False)
+        logger.info("[commerce_pricing] cobasi lookup failed query=%r error=%s", query, type(exc).__name__)
+        return ProductPriceResult(found=False, reason="error")
 
 
 # ── Múltiplos candidatos (reconhecimento por foto) ─────────────────────────
