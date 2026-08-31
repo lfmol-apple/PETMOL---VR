@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 from ..db import Base, get_db, SessionLocal
 from ..user_auth.deps import get_current_user
 from ..user_auth.models import User
-from ..notifications import _load_subscriptions, _save_subscriptions, _send_push
+from ..notifications import _disable_push_subscription_ids, _load_subscriptions, _load_subscriptions_by_user, _send_push
 from ..family.models import FamilyGroup, FamilyMember
 from ..pets.access import accessible_pets_query, get_accessible_pet_or_404
 
@@ -477,14 +477,15 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
     - Sem localização: notifica todos (máx 50).
     """
     try:
-        subs = _load_subscriptions()
+        subs_by_user = _load_subscriptions_by_user()
         excluded = _get_excluded_user_ids(mp.id, mp.user_id)
         radius = mp.current_radius_km or 2.0
         has_location = mp.lat is not None and mp.lng is not None
 
         print(
             f"[broadcast] pet={mp.id} owner={mp.user_id or 'public'} raio={radius}km "
-            f"has_location={has_location} total_subs={len(subs)} excluded={len(excluded)}",
+            f"has_location={has_location} total_users={len(subs_by_user)} "
+            f"total_devices={sum(len(v) for v in subs_by_user.values())} excluded={len(excluded)}",
             flush=True,
         )
 
@@ -502,50 +503,57 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
         }
 
         newly_notified: list = []
-        removed: list = []
+        removed_subscription_ids: set[str] = set()
         sent = 0
+        sent_devices = 0
         skipped = 0
         no_coord_sent = 0
         MAX_NO_LOCATION = 50        # alertas sem localização
         MAX_NO_COORD_SUB = 15       # assinantes sem coordenadas quando alerta TEM localização
 
-        for user_id, subscription in subs.items():
+        def subscription_is_in_scope(subscription: dict) -> bool:
+            nonlocal no_coord_sent, skipped
+            if not has_location:
+                return True
+            sub_lat = subscription.get("lat") if isinstance(subscription, dict) else None
+            sub_lng = subscription.get("lng") if isinstance(subscription, dict) else None
+            if sub_lat is None or sub_lng is None:
+                if no_coord_sent >= MAX_NO_COORD_SUB:
+                    skipped += 1
+                    return False
+                no_coord_sent += 1
+                return True
+            dist = _haversine_km(mp.lat, mp.lng, sub_lat, sub_lng)
+            if dist > radius:
+                return False
+            return True
+
+        for user_id, subscriptions in subs_by_user.items():
             if user_id in excluded or (mp.user_id and user_id == str(mp.user_id)):
                 continue
             if not has_location and sent >= MAX_NO_LOCATION:
                 skipped += 1
                 continue
 
-            # Geo filter
-            if has_location:
-                sub_lat = subscription.get("lat") if isinstance(subscription, dict) else None
-                sub_lng = subscription.get("lng") if isinstance(subscription, dict) else None
-                if sub_lat is None or sub_lng is None:
-                    # Assinante sem coordenadas — localização desconhecida
-                    # Permite até MAX_NO_COORD_SUB para não cortar alcance completamente
-                    if no_coord_sent >= MAX_NO_COORD_SUB:
-                        skipped += 1
-                        continue
-                    no_coord_sent += 1
-                else:
-                    dist = _haversine_km(mp.lat, mp.lng, sub_lat, sub_lng)
-                    if dist > radius:
-                        print(f"[broadcast]   skip {user_id[:8]} dist={dist:.1f}km > {radius}km", flush=True)
-                        skipped += 1
-                        continue
+            scoped_subscriptions = [sub for sub in subscriptions if subscription_is_in_scope(sub)]
+            if not scoped_subscriptions:
+                skipped += 1
+                print(f"[broadcast]   skip {user_id[:8]} fora do raio ou sem coord elegível", flush=True)
+                continue
 
-            ok, invalid = _send_push(subscription, payload)
-            print(f"[broadcast]   user={user_id[:8]} ok={ok} invalid={invalid}", flush=True)
-            if invalid:
-                removed.append(user_id)
-            elif ok:
+            user_ok = False
+            for subscription in scoped_subscriptions:
+                subscription_id = subscription.get("id")
+                ok, invalid = _send_push(subscription, payload)
+                print(f"[broadcast]   user={user_id[:8]} device={str(subscription_id or '')[:8]} ok={ok} invalid={invalid}", flush=True)
+                if invalid and subscription_id:
+                    removed_subscription_ids.add(subscription_id)
+                elif ok:
+                    user_ok = True
+                    sent_devices += 1
+            if user_ok:
                 sent += 1
                 newly_notified.append(user_id)
-
-        if removed:
-            for uid in removed:
-                subs.pop(uid, None)
-            _save_subscriptions(subs)
 
         # Notifica cuidadores e familiares do pet sempre (sem filtro de geo)
         caretaker_sent = 0
@@ -571,23 +579,35 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
                     for c_id in target_user_ids:
                         if c_id in excluded or (mp.user_id and c_id == str(mp.user_id)) or c_id in newly_notified:
                             continue
-                        c_sub = subs.get(c_id)
-                        if not c_sub:
+                        c_subscriptions = subs_by_user.get(c_id) or []
+                        if not c_subscriptions:
                             continue
-                        ok, _ = _send_push(c_sub, payload)
-                        if ok:
+                        user_ok = False
+                        for c_sub in c_subscriptions:
+                            c_subscription_id = c_sub.get("id")
+                            ok, invalid = _send_push(c_sub, payload)
+                            if invalid and c_subscription_id:
+                                removed_subscription_ids.add(c_subscription_id)
+                            elif ok:
+                                user_ok = True
+                                sent_devices += 1
+                        if user_ok:
                             caretaker_sent += 1
                             if c_id not in newly_notified:
                                 newly_notified.append(c_id)
             except Exception as ce:
                 print(f"[broadcast] caretaker push error: {ce}", flush=True)
 
+        if removed_subscription_ids:
+            _disable_push_subscription_ids(removed_subscription_ids)
+
         if newly_notified:
             _mark_notified(mp.id, newly_notified)
 
         print(
-            f"[broadcast] DONE: {sent} geo + {caretaker_sent} cuidadores, {skipped} fora do raio, "
-            f"{len(removed)} removidos (pet={mp.id})",
+            f"[broadcast] DONE: {sent} usuários geo + {caretaker_sent} cuidadores, "
+            f"{sent_devices} dispositivos, {skipped} fora do raio, "
+            f"{len(removed_subscription_ids)} subscriptions removidas (pet={mp.id})",
             flush=True,
         )
         return sent + caretaker_sent
@@ -1453,7 +1473,7 @@ def alert_reach(
     mp = db.query(MissingPet).filter(MissingPet.id == mp_id).first()
     _ensure_missing_pet_access(db, str(current_user.id), mp)
 
-    subs = _load_subscriptions()
+    subs_by_user = _load_subscriptions_by_user()
     notified_data = _load_mp_notified()
     already_notified_ids = set(notified_data.get(mp_id, {}).get("notified", []))
     radius = mp.current_radius_km or 2.0
@@ -1462,16 +1482,21 @@ def alert_reach(
     notified_active = 0   # já receberam E ainda têm subscrição válida
     new_in_radius = 0     # novos no raio que ainda não receberam
 
-    for user_id, sub in subs.items():
+    for user_id, subscriptions in subs_by_user.items():
         if mp.user_id and user_id == str(mp.user_id):
             continue
         if has_location:
-            sub_lat = sub.get("lat") if isinstance(sub, dict) else None
-            sub_lng = sub.get("lng") if isinstance(sub, dict) else None
-            if sub_lat is None or sub_lng is None:
-                continue
-            dist = _haversine_km(mp.lat, mp.lng, sub_lat, sub_lng)
-            if dist > radius:
+            has_device_in_radius = False
+            for sub in subscriptions:
+                sub_lat = sub.get("lat") if isinstance(sub, dict) else None
+                sub_lng = sub.get("lng") if isinstance(sub, dict) else None
+                if sub_lat is None or sub_lng is None:
+                    continue
+                dist = _haversine_km(mp.lat, mp.lng, sub_lat, sub_lng)
+                if dist <= radius:
+                    has_device_in_radius = True
+                    break
+            if not has_device_in_radius:
                 continue
         if user_id in already_notified_ids:
             notified_active += 1
