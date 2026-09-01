@@ -256,7 +256,7 @@ async def audit_gtin(
     http_client: Optional[httpx.Client] = None,
     check_live_cobasi: bool = True,
 ) -> GtinAuditResult:
-    from .commerce_pricing import fetch_cobasi_price
+    from .commerce_pricing import fetch_cobasi_price_by_gtin
 
     gtin_n = normalize_gtin(gtin) or gtin
     product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_n))
@@ -286,33 +286,22 @@ async def audit_gtin(
             mv = MerchantVerdict("cobasi", verdict, score, f"link→{dest} | {detail}")
         result.merchants.append(mv)
     elif check_live_cobasi:
-        # Passa o peso do título de verdade pra dar à busca a mesma chance
-        # que o clique real tem de acertar o SKU (find_offer passa
-        # context.weight_kg). Sem isso a auditoria seria mais estrita que a
-        # realidade e marcaria falso mismatch.
+        # Sem link cadastrado, o clique resolve pelo EAN EXATO
+        # (fetch_cobasi_price_by_gtin) — o SKU do código de barras, nunca
+        # uma variante. Não dá pra ser "produto errado"; a auditoria só
+        # confirma se o GTIN existe no catálogo da Cobasi.
         try:
-            from .shopee_offer_matcher import extract_weight_kg
-
-            weight = extract_weight_kg(truth_title)
-        except Exception:  # noqa: BLE001
-            weight = None
-        try:
-            price = await fetch_cobasi_price(truth_title, target_weight_kg=weight)
+            price = await fetch_cobasi_price_by_gtin(gtin_n)
         except Exception as exc:  # noqa: BLE001 — auditoria nunca derruba
             price = None
-            result.merchants.append(MerchantVerdict("cobasi", VERDICT_UNVERIFIABLE, 0.0, f"busca falhou: {exc}"))
+            result.merchants.append(MerchantVerdict("cobasi", VERDICT_UNVERIFIABLE, 0.0, f"lookup falhou: {exc}"))
         if price is not None:
-            if not price.found:
-                result.merchants.append(MerchantVerdict("cobasi", VERDICT_NO_OFFER, 0.0, "busca ao vivo não achou"))
-            elif price.ean and normalize_gtin(price.ean) and normalize_gtin(price.ean) != gtin_n:
+            if price.found and price.price is not None:
                 result.merchants.append(MerchantVerdict(
-                    "cobasi", VERDICT_HARD, 0.0,
-                    f"EAN divergente: busca devolveu {normalize_gtin(price.ean)} != {gtin_n} ({price.product_name!r})",
+                    "cobasi", VERDICT_OK, 1.0, f"EAN exato→{price.product_name!r} R${price.price}",
                 ))
             else:
-                words = _tokens(price.product_name) | _tokens(price.brand)
-                verdict, score, detail = score_identity(truth_title, truth_brand, words)
-                result.merchants.append(MerchantVerdict("cobasi", verdict, score, f"busca→{price.product_name!r} | {detail}"))
+                result.merchants.append(MerchantVerdict("cobasi", VERDICT_NO_OFFER, 0.0, "GTIN não está no catálogo da Cobasi"))
     else:
         result.merchants.append(MerchantVerdict("cobasi", VERDICT_NO_OFFER, 0.0, "sem link cadastrado"))
 

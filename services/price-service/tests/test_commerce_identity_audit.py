@@ -175,29 +175,54 @@ async def test_registered_link_wrong_product_is_hard_and_deactivated():
 
 
 @pytest.mark.asyncio
-async def test_live_search_wrong_ean_is_hard(monkeypatch):
+async def test_no_link_ean_resolves_is_ok(monkeypatch):
+    """Sem link cadastrado, o clique resolve pelo EAN exato — a auditoria
+    só confirma que o GTIN existe no catálogo da Cobasi (OK)."""
     _mk_product()
     _mk_awin_identity()
 
     from src.commerce_pricing import ProductPriceResult
 
-    async def fake_fetch(query, target_weight_kg=None):
-        return ProductPriceResult(found=True, price=32.9, is_available=True,
-                                  product_name="Ração Gato Filhote 1kg", brand="Golden",
-                                  url="https://www.cobasi.com.br/racao-gato-1kg-999/p", ean="7890000000001")
+    async def fake(gtin):
+        return ProductPriceResult(found=True, price=457.81, is_available=True,
+                                  product_name="Ração Royal Canin Urinary Small Dog 7,5kg", ean=gtin)
 
-    monkeypatch.setattr("src.commerce_pricing.fetch_cobasi_price", fake_fetch)
+    monkeypatch.setattr("src.commerce_identity_audit.fetch_cobasi_price_by_gtin", fake, raising=False)
+    monkeypatch.setattr("src.commerce_pricing.fetch_cobasi_price_by_gtin", fake)
 
     db = SessionLocal()
     try:
-        report = await audit_commerce_identity(db, [GTIN], deactivate_hard_links=True)
+        await audit_commerce_identity(db, [GTIN], deactivate_hard_links=True)
         row = db.scalar(
             __import__("sqlalchemy").select(CommerceIdentityCheck).where(
                 CommerceIdentityCheck.gtin == GTIN, CommerceIdentityCheck.merchant == "cobasi"
             )
         )
-        assert row.verdict == VERDICT_HARD
-        assert "EAN" in (row.detail or "")
+        assert row.verdict == VERDICT_OK
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_no_link_gtin_not_on_cobasi_is_no_offer(monkeypatch):
+    _mk_product()
+    _mk_awin_identity()
+    from src.commerce_pricing import ProductPriceResult
+
+    async def fake(gtin):
+        return ProductPriceResult(found=False)
+
+    monkeypatch.setattr("src.commerce_pricing.fetch_cobasi_price_by_gtin", fake)
+
+    db = SessionLocal()
+    try:
+        await audit_commerce_identity(db, [GTIN], deactivate_hard_links=True)
+        row = db.scalar(
+            __import__("sqlalchemy").select(CommerceIdentityCheck).where(
+                CommerceIdentityCheck.gtin == GTIN, CommerceIdentityCheck.merchant == "cobasi"
+            )
+        )
+        assert row.verdict == "no_offer"
     finally:
         db.close()
 
@@ -237,11 +262,11 @@ async def test_cobasi_provider_suppresses_live_offer_on_hard_mismatch(monkeypatc
 
     _mk_product()
 
-    async def fake_fetch(query, target_weight_kg=None):
+    async def fake_fetch(gtin):
         return ProductPriceResult(found=True, price=10.0, is_available=True,
                                   url="https://www.cobasi.com.br/x/p", product_name="X")
 
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_by_gtin", fake_fetch)
 
     db = SessionLocal()
     try:

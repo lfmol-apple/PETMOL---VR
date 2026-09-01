@@ -72,9 +72,10 @@ def _register_cobasi_link(gtin: str = GTIN) -> None:
 
 
 def _counting_fetch(monkeypatch):
+    """Monkeypatcha a resolução Cobasi por EAN e conta as chamadas."""
     calls = {"count": 0}
 
-    async def _fake_fetch(query, target_weight_kg=None):
+    async def _fake(gtin):
         calls["count"] += 1
         return ProductPriceResult(
             found=True, price=100.0, is_available=True, ean=GTIN,
@@ -82,17 +83,15 @@ def _counting_fetch(monkeypatch):
             url="https://www.cobasi.com.br/produto-teste/p",
         )
 
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", _fake_fetch)
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_by_gtin", _fake)
     return calls
 
 
 @pytest.mark.asyncio
-async def test_mais_still_called_even_when_awin_catalog_has_matching_gtin(monkeypatch):
-    """Mesmo com uma linha de catálogo Awin sincronizada pra esse GTIN
-    exato, MAIS sempre roda: AwinFeedProvider nunca é registrado como
-    vendável (AWIN_SELLABLE_MERCHANTS vazio), então essa linha de
-    catálogo nunca vira uma oferta concorrente — só alimenta busca por
-    nome/foto/preço (ver commerce_offers.py)."""
+async def test_mais_resolves_by_ean_even_when_awin_catalog_has_matching_gtin(monkeypatch):
+    """Mesmo com uma linha de catálogo Awin sincronizada pra esse GTIN,
+    MAIS resolve a Cobasi pelo EAN exato: AwinFeedProvider nunca é
+    registrado como vendável (AWIN_SELLABLE_MERCHANTS vazio)."""
     calls = _counting_fetch(monkeypatch)
     _register_awin_offer()
 
@@ -102,19 +101,16 @@ async def test_mais_still_called_even_when_awin_catalog_has_matching_gtin(monkey
     finally:
         db.close()
 
-    assert calls["count"] == 1, "MAIS deve rodar sempre — catálogo Awin nunca produz oferta vendável"
+    assert calls["count"] == 1
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
     assert len(cobasi_offers) == 1
     assert cobasi_offers[0].route == "mais"
 
 
 @pytest.mark.asyncio
-async def test_mais_still_called_when_awin_does_not_resolve(monkeypatch):
-    """Sem oferta Awin sincronizada pra esse GTIN (produto fora do
-    catálogo Awin) — MAIS continua sendo o fallback real, chamada de rede
-    incluída."""
+async def test_mais_resolves_by_ean_when_awin_does_not_resolve(monkeypatch):
+    """Sem oferta Awin pra esse GTIN — MAIS resolve pelo EAN exato."""
     calls = _counting_fetch(monkeypatch)
-    # Nenhuma _register_awin_offer() — Awin não tem nada pra este GTIN.
 
     db = SessionLocal()
     try:
@@ -122,18 +118,33 @@ async def test_mais_still_called_when_awin_does_not_resolve(monkeypatch):
     finally:
         db.close()
 
-    assert calls["count"] == 1, "MAIS precisa continuar sendo o fallback quando Awin não resolve"
+    assert calls["count"] == 1
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
     assert len(cobasi_offers) == 1
     assert cobasi_offers[0].route == "mais"
 
 
 @pytest.mark.asyncio
-async def test_manual_link_served_without_live_search_even_with_awin_resolving(monkeypatch):
+async def test_no_cobasi_offer_without_gtin(monkeypatch):
+    """SEM código de barras não há oferta Cobasi — nunca busca por texto."""
+    calls = _counting_fetch(monkeypatch)
+
+    db = SessionLocal()
+    try:
+        offers = await get_commerce_offers(db, query="Marca Teste ração")
+    finally:
+        db.close()
+
+    assert calls["count"] == 0
+    assert [o for o in offers if o.merchant == "cobasi"] == []
+
+
+@pytest.mark.asyncio
+async def test_manual_link_wins_with_ean_price_even_with_awin_resolving(monkeypatch):
     """Awin resolve o GTIN, mas este produto tem link cadastrado — a
-    oferta is_manually_cached (que sempre vence o dedupe) é servida
-    DIRETO pela identidade do catálogo, SEM busca ao vivo na VTEX (que
-    podia devolver a variante errada). Ver CobasiProvider.find_offer."""
+    oferta is_manually_cached vence o dedupe. URL = link comprovado;
+    preço vem do EAN EXATO (não de busca por texto). Ver
+    CobasiProvider.find_offer."""
     calls = _counting_fetch(monkeypatch)
     _register_awin_offer()
     _register_cobasi_link()
@@ -144,9 +155,9 @@ async def test_manual_link_served_without_live_search_even_with_awin_resolving(m
     finally:
         db.close()
 
-    assert calls["count"] == 0, "produto pré-cadastrado não precisa de busca ao vivo"
+    assert calls["count"] == 1  # EAN exato (não texto)
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
     assert len(cobasi_offers) == 1
     assert cobasi_offers[0].route == "mais"
     assert cobasi_offers[0].url == "https://mais.app/link-comprovado"
-    assert cobasi_offers[0].product_name == "Produto Teste"
+    assert cobasi_offers[0].price == 100.0

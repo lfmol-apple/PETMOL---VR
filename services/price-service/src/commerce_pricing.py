@@ -29,10 +29,18 @@ from .config import get_settings
 logger = logging.getLogger(__name__)
 
 _COBASI_SEARCH_URL = "https://www.cobasi.com.br/api/catalog_system/pub/products/search/{query}"
+# Busca por EAN exato (código de barras) — o SKU certo, sem depender de
+# desambiguação por texto. É o caminho principal quando o PETMOL sabe o GTIN.
+_COBASI_EAN_SEARCH_URL = "https://www.cobasi.com.br/api/catalog_system/pub/products/search"
 _COBASI_TIMEOUT = 6.0
 
 _cache: TTLCache = TTLCache(maxsize=500, ttl=get_settings().commerce_pricing_cache_ttl)
+_gtin_cache: TTLCache = TTLCache(maxsize=500, ttl=get_settings().commerce_pricing_cache_ttl)
 _candidates_cache: TTLCache = TTLCache(maxsize=500, ttl=get_settings().commerce_pricing_cache_ttl)
+
+
+def _digits(value: Optional[str]) -> str:
+    return "".join(ch for ch in (value or "") if ch.isdigit())
 
 
 class ProductPriceResult(BaseModel):
@@ -69,6 +77,82 @@ async def fetch_cobasi_price(query: str, target_weight_kg: Optional[float] = Non
     result = await _fetch_cobasi_price_uncached(query, target_weight_kg)
     _cache[key] = result
     return result
+
+
+async def fetch_cobasi_price_by_gtin(gtin: str) -> ProductPriceResult:
+    """Resolve o produto Cobasi pelo EAN exato (código de barras) via a API
+    VTEX (`fq=alternateIds_Ean:`). Devolve o SKU cujo `ean` bate com o GTIN
+    — nunca uma variante vizinha. `found=False` quando o GTIN não existe no
+    catálogo da Cobasi (aí o chamador NÃO deve cair pra busca por texto —
+    ver CobasiProvider.find_offer)."""
+    gtin_n = _digits(gtin)
+    if not gtin_n:
+        return ProductPriceResult(found=False)
+
+    cached = _gtin_cache.get(gtin_n)
+    if cached is not None:
+        return cached
+
+    settings = get_settings()
+    if not settings.commerce_pricing_enabled:
+        return ProductPriceResult(found=False)
+
+    try:
+        result = await _fetch_cobasi_by_gtin_uncached(gtin_n)
+    except Exception as exc:  # noqa: BLE001 — nunca propaga (ver docstring do módulo)
+        logger.info("[commerce_pricing] cobasi EAN lookup failed gtin=%s error=%s", gtin_n, exc)
+        result = ProductPriceResult(found=False)
+
+    _gtin_cache[gtin_n] = result
+    return result
+
+
+async def _fetch_cobasi_by_gtin_uncached(gtin_n: str) -> ProductPriceResult:
+    async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
+        response = await client.get(
+            _COBASI_EAN_SEARCH_URL,
+            params={"fq": f"alternateIds_Ean:{gtin_n}", "_from": 0, "_to": 3, "sc": 1},
+            headers={"Accept": "application/json"},
+        )
+    if response.status_code not in (200, 206):
+        logger.info("[commerce_pricing] cobasi EAN status=%s gtin=%s", response.status_code, gtin_n)
+        return ProductPriceResult(found=False)
+
+    products = response.json()
+    if not isinstance(products, list) or not products:
+        return ProductPriceResult(found=False)
+
+    product = products[0]
+    items = product.get("items") or []
+    # o SKU EXATO é o item cujo ean bate com o GTIN pedido
+    exact = next((it for it in items if _digits(it.get("ean")) == gtin_n), None)
+    if exact is None:
+        # o fq casou o produto mas nenhum item expõe esse ean diretamente
+        # (raro) — sem SKU exato, não arrisca; melhor não ofertar.
+        return ProductPriceResult(found=False)
+
+    sellers = exact.get("sellers") or []
+    offer = (sellers[0].get("commertialOffer") or {}) if sellers else {}
+    price = offer.get("Price")
+
+    link = product.get("link") or (
+        f"https://www.cobasi.com.br/{product['linkText']}/p" if product.get("linkText") else None
+    )
+    if link and exact.get("itemId"):
+        sep = "&" if "?" in link else "?"
+        link = f"{link}{sep}skuId={exact['itemId']}"
+
+    return ProductPriceResult(
+        found=bool(price),
+        store="cobasi",
+        product_name=product.get("productName"),
+        brand=product.get("brand"),
+        price=float(price) if isinstance(price, (int, float)) else None,
+        list_price=float(offer["ListPrice"]) if isinstance(offer.get("ListPrice"), (int, float)) else None,
+        is_available=offer.get("IsAvailable"),
+        url=link,
+        ean=gtin_n,
+    )
 
 
 def _select_item_by_weight(items: list[dict], target_weight_kg: Optional[float]) -> dict:
