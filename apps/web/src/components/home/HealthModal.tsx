@@ -446,7 +446,7 @@ export function HealthModal({
 
             {/* Conteúdo do Modal - Área de scroll otimizada */}
             <div className="p-3 sm:p-5 overflow-y-auto flex-1 bg-gray-50">
-              <p className="text-[10px] text-gray-400 text-center mb-3">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
+              <p className="text-[11.5px] font-medium text-slate-500 text-center mb-3">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
               {/* Painel de Compartilhamento — acessível pelo botão ↗ no header */}
               {showShareOverlay && currentPet && (
                 <div className="mb-4">

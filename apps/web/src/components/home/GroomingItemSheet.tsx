@@ -605,15 +605,6 @@ export function GroomingItemSheet({
           {/* ── ADD FORM ──────────────────────────────────────────────────── */}
           {mode === 'add' && (
             <div className="px-4 pb-8 space-y-4 pt-2">
-              <button
-                type="button"
-                onClick={() => setMode('view')}
-                onTouchEnd={() => setMode('view')}
-                className="flex items-center gap-1 text-[#5856D6] text-[15px] font-medium mb-1"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4"><path d="M15 18l-6-6 6-6"/></svg>
-                Voltar
-              </button>
               <h3 className="text-[17px] font-bold text-[#1C1C1E]">Registrar serviço</h3>
 
               <div>
@@ -730,23 +721,24 @@ export function GroomingItemSheet({
             <div className="space-y-3 px-5 pb-4 pt-3">
               <h3 className="text-[17px] font-bold text-[#1C1C1E]">Editar registro</h3>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="min-w-0">
+              <div className="flex items-start gap-2.5">
+                <div className="min-w-0 flex-1">
                   <label className={labelCls}>Data *</label>
                   <input
                     type="date"
-                    className={`${inputCls} min-w-0`}
+                    className={inputCls}
                     value={editForm.date}
                     onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
                   />
                 </div>
-                <div className="min-w-0">
-                  <label className={labelCls}>Repetir a cada (dias)</label>
+                <div className="w-[92px] flex-shrink-0">
+                  <label className={labelCls}>A cada (dias)</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     min="1"
                     max="365"
-                    className={`${inputCls} min-w-0`}
+                    className={`${inputCls} text-center`}
                     value={editForm.frequency_days}
                     onChange={e => setEditForm(f => ({ ...f, frequency_days: e.target.value }))}
                   />

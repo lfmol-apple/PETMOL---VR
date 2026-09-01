@@ -98,7 +98,7 @@ export function SheetShell({
     <ModalPortal>
       <div className={`fixed inset-0 flex ${wrapPos}`} style={{ zIndex: z }} role="dialog" aria-modal="true">
         <div
-          className="absolute inset-0 bg-slate-950/55 backdrop-blur-md"
+          className="absolute inset-0 bg-slate-950/60 backdrop-blur-xl"
           onClick={dismissOnBackdrop ? onClose : undefined}
         />
         <div
