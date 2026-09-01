@@ -396,7 +396,7 @@ interface ReorderCardItemProps {
 // MedicationItemSheet.tsx "onde comprar") — mesma lógica de preço/picker já
 // validada aqui, sem duplicar useCommerceOffers numa segunda cópia.
 export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy, onPetzBuy }: ReorderCardItemProps) {
-  const { offers, loading } = useCommerceOffers(card.searchQuery, card.packageSizeKg, card.gtin, card.priceLookupAllowed);
+  const { offers, loading } = useCommerceOffers(card.searchQuery, card.packageSizeKg, card.gtin);
   const offer = offers[0] ?? null;
   const [imageFailed, setImageFailed] = useState(false);
   const [petzLink, setPetzLink] = useState<PetzDirectLink | null>(null);

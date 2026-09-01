@@ -944,7 +944,6 @@ export function ParasiteItemSheet({
                   source="parasite_sheet"
                   ctaType="parasite_buy_direct"
                   controlType={type}
-                  requireGtinForOffers
                 />
               ) : (
                 <AffiliateCatalogSearch

@@ -270,58 +270,6 @@ async def test_find_offer_passes_through_weight_for_sku_selection(monkeypatch):
         db.close()
 
 
-@pytest.mark.asyncio
-async def test_find_offer_rejects_cobasi_result_with_different_ean_when_gtin_known(monkeypatch):
-    """Se o tutor escaneou um GTIN, preço textual da Cobasi só entra se o
-    EAN do SKU retornado for o mesmo. Isso evita comparar uma coleira da
-    Cobasi com uma oferta Shopee de outra variação."""
-    async def fake_fetch(query, target_weight_kg=None):
-        return ProductPriceResult(
-            found=True,
-            store="cobasi",
-            product_name="Coleira Antiparasitária Scalibor Cães Grandes 65 cm",
-            brand="Scalibor",
-            price=129.9,
-            url="https://www.cobasi.com.br/scalibor-g/p",
-            ean="7896185957016",
-        )
-
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
-
-    db = SessionLocal()
-    try:
-        provider = CobasiProvider(db)
-        offer = await provider.find_offer(ProductContext(query="Coleira Scalibor 48cm", gtin="7896185957009"))
-        assert offer is None
-    finally:
-        db.close()
-
-
-@pytest.mark.asyncio
-async def test_find_offer_accepts_cobasi_result_with_same_ean_when_gtin_known(monkeypatch):
-    async def fake_fetch(query, target_weight_kg=None):
-        return ProductPriceResult(
-            found=True,
-            store="cobasi",
-            product_name="Coleira Antiparasitária Scalibor Cães Pequenos e Médios 48 cm",
-            brand="Scalibor",
-            price=99.9,
-            url="https://www.cobasi.com.br/scalibor-m/p",
-            ean="7896185957009",
-        )
-
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
-
-    db = SessionLocal()
-    try:
-        provider = CobasiProvider(db)
-        offer = await provider.find_offer(ProductContext(query="Coleira Scalibor 48cm", gtin="7896185957009"))
-        assert offer is not None
-        assert offer.price == 99.9
-    finally:
-        db.close()
-
-
 def test_prod_env_default_mode_is_still_utm(monkeypatch):
     """Mesmo com ENV=prod, sem COBASI_AFFILIATE_MODE explícito o padrão
     continua 'utm' (desde 29/08/2026) — não depende do ENV pra decidir,

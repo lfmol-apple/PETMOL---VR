@@ -42,8 +42,6 @@ export interface MonetizedOffersListProps {
   /** Analytics: tipo de CTA do clique de compra (ex: 'food_buy_direct'). */
   ctaType: string;
   controlType?: string | null;
-  /** Exige GTIN para evitar comparar ofertas textuais ambíguas. */
-  requireGtinForOffers?: boolean;
   /** Texto do estado vazio (nenhuma oferta encontrada) — default cobre o
    * caso genérico; telas com várias listas lado a lado (ex: medicações)
    * preferem algo mais curto como "Preço indisponível". */
@@ -52,12 +50,11 @@ export interface MonetizedOffersListProps {
 }
 
 export function MonetizedOffersList({
-  query, packageSizeKg, gtin, petId, productLabel, icon = '🛒', source, ctaType, controlType, requireGtinForOffers = false,
+  query, packageSizeKg, gtin, petId, productLabel, icon = '🛒', source, ctaType, controlType,
   emptyStateTitle = 'Produto indisponível no momento',
   emptyStateSubtitle = 'Ainda não encontramos uma oferta ativa para este produto.',
 }: MonetizedOffersListProps) {
-  const offersEnabled = !requireGtinForOffers || Boolean((gtin || '').trim());
-  const { offers, loading } = useCommerceOffers(query, packageSizeKg, gtin, offersEnabled);
+  const { offers, loading } = useCommerceOffers(query, packageSizeKg, gtin);
   const [petzLink, setPetzLink] = useState<PetzDirectLink | null>(null);
 
   useEffect(() => {

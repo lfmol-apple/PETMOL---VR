@@ -63,14 +63,6 @@ def _build_query(context: ProductContext) -> str:
     return " ".join(p for p in (context.brand, context.name) if p).strip()
 
 
-def _gtin_matches(expected: Optional[str], actual: Optional[str]) -> bool:
-    expected_normalized = normalize_gtin(expected or "")
-    actual_normalized = normalize_gtin(actual or "")
-    if not expected_normalized:
-        return True
-    return bool(actual_normalized) and actual_normalized == expected_normalized
-
-
 class CobasiProvider:
     merchant = "cobasi"
 
@@ -107,8 +99,6 @@ class CobasiProvider:
 
         price = await fetch_cobasi_price(query, target_weight_kg=context.weight_kg)
         if not price.found or price.price is None:
-            return None
-        if not _gtin_matches(context.gtin, price.ean):
             return None
 
         return DiscoveredOffer(

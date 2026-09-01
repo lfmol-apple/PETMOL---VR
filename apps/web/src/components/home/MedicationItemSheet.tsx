@@ -994,7 +994,6 @@ export function MedicationItemSheet({
                           source="medication_sheet"
                           ctaType="medication_buy_direct"
                           controlType="medication"
-                          requireGtinForOffers
                           emptyStateTitle="Preço indisponível"
                           emptyStateSubtitle="Ainda não encontramos uma oferta ativa para esta medicação."
                         />

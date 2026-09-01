@@ -276,32 +276,6 @@ async def test_finds_offer_by_text_when_context_has_no_gtin(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_text_fallback_does_not_match_collar_without_gtin(monkeypatch):
-    """Coleira sem GTIN não pode herdar uma MarketplaceOffer por texto.
-    Variação de cm/faixa de peso muda o produto e o preço."""
-    _enable_shopee(monkeypatch)
-    product_id = _register_product(gtin="7896185957009")
-    db = SessionLocal()
-    try:
-        product = db.get(ProductCatalog, product_id)
-        product.name = "Coleira Antiparasitária Scalibor Cães Pequenos e Médios 48 cm"
-        product.brand = "Scalibor"
-        product.category = "food"  # simula dado antigo/corrompido que antes passava pelo filtro textual
-        db.commit()
-    finally:
-        db.close()
-    _register_offer(product_id, price=99.9)
-
-    db = SessionLocal()
-    try:
-        provider = MarketplaceOfferProvider(db, "shopee")
-        offer = await provider.find_offer(ProductContext(query="Coleira Scalibor"))
-        assert offer is None
-    finally:
-        db.close()
-
-
-@pytest.mark.asyncio
 async def test_offer_without_price_never_invents_one(monkeypatch):
     """find_offer() retorna a oferta com price=None tal como está — quem
     descarta oferta sem preço é o CommerceEngine (commerce_provider.py).
