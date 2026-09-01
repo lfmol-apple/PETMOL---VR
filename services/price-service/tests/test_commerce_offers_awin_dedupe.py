@@ -7,16 +7,16 @@ mantém a rota "mais" (merchant_routes.PREFERRED_ROUTE_BY_MERCHANT) — a
 Awin só entraria se essa preferência for trocada explicitamente, o que
 não faz parte desta tarefa.
 
-fetch_cobasi_price é sempre monkeypatchado (nunca chama a API real da
-Cobasi); a linha AffiliateFeedOffer é inserida diretamente (nunca chama a
-Awin) — mesma convenção do resto da suíte.
+A Cobasi resolve por GTIN pré-cadastrado ou pela busca da vitrine "Minha
+Loja" (nunca busca ao vivo na VTEX no clique); a linha AffiliateFeedOffer
+é inserida diretamente (nunca chama a Awin) — mesma convenção do resto da
+suíte.
 """
 import pytest
 
 from src.affiliate_feed import AffiliateFeedOffer
 from src.affiliate_links import ProductAffiliateLink
 from src.commerce_offers import get_commerce_offers
-from src.commerce_pricing import ProductPriceResult
 from src.config import get_settings
 from src.db import SessionLocal
 from src.product_catalog_lookup import ProductCatalog
@@ -96,15 +96,6 @@ async def test_registering_awin_provider_does_not_change_link_shown_to_tutor(mon
     _register_cobasi_link()
     _register_awin_offer()
 
-    async def _fake_fetch(query, target_weight_kg=None):
-        return ProductPriceResult(
-            found=True, price=100.0, is_available=True, ean=GTIN,
-            product_name="Produto Teste", brand="Marca Teste",
-            url="https://www.cobasi.com.br/produto-teste/p",
-        )
-
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", _fake_fetch)
-
     db = SessionLocal()
     try:
         offers = await get_commerce_offers(db, name="Produto Teste", brand="Marca Teste", gtin=GTIN)
@@ -136,15 +127,6 @@ async def test_manually_cached_link_survives_even_with_awin_preferred(monkeypatc
     _register_awin_offer()
     monkeypatch.setattr("src.merchant_routes.PREFERRED_ROUTE_BY_MERCHANT", {"cobasi": "awin"})
 
-    async def _fake_fetch(query, target_weight_kg=None):
-        return ProductPriceResult(
-            found=True, price=100.0, is_available=True, ean=GTIN,
-            product_name="Produto Teste", brand="Marca Teste",
-            url="https://www.cobasi.com.br/produto-teste/p",
-        )
-
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", _fake_fetch)
-
     db = SessionLocal()
     try:
         offers = await get_commerce_offers(db, name="Produto Teste", brand="Marca Teste", gtin=GTIN)
@@ -160,22 +142,13 @@ async def test_manually_cached_link_survives_even_with_awin_preferred(monkeypatc
 @pytest.mark.asyncio
 async def test_awin_catalog_uses_mais_utm_when_no_manual_link(monkeypatch):
     """Controle do teste acima: SEM link cadastrado (o caso comum — o
-    resto do catálogo, hoje via UTM), o feed Awin resolve identidade/preço
-    e a URL exibida ao tutor é o produto Cobasi com UTM MAIS."""
+    resto do catálogo, hoje via UTM), a Cobasi resolve pela busca da
+    vitrine "Minha Loja" daquele produto, com UTM MAIS."""
     _enable_awin_globally(monkeypatch)
     _register_awin_offer()
     monkeypatch.setattr("src.merchant_routes.PREFERRED_ROUTE_BY_MERCHANT", {"cobasi": "awin"})
     monkeypatch.setenv("COBASI_AFFILIATE_MODE", "utm")
     get_settings.cache_clear()
-
-    async def _fake_fetch(query, target_weight_kg=None):
-        return ProductPriceResult(
-            found=True, price=100.0, is_available=True, ean=GTIN,
-            product_name="Produto Teste", brand="Marca Teste",
-            url="https://www.cobasi.com.br/produto-teste/p",
-        )
-
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", _fake_fetch)
 
     db = SessionLocal()
     try:
@@ -186,7 +159,9 @@ async def test_awin_catalog_uses_mais_utm_when_no_manual_link(monkeypatch):
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
     assert len(cobasi_offers) == 1
     assert cobasi_offers[0].route == "mais"
-    assert cobasi_offers[0].url == "https://minhaloja.cobasi.com.br/produto-teste/p?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol"
+    url = cobasi_offers[0].url
+    assert url.startswith("https://minhaloja.cobasi.com.br/busca?")
+    assert "utm_source=mais" in url and "utm_medium=maisplataforma" in url and "utm_campaign=lojapetmol" in url
 
 
 @pytest.mark.asyncio
@@ -254,15 +229,6 @@ async def test_mais_fills_in_as_fallback_when_awin_does_not_resolve(monkeypatch)
     _enable_awin_globally(monkeypatch)
     _register_cobasi_link()
     # Nenhuma _register_awin_offer() — Awin não tem nada pra este GTIN.
-
-    async def _fake_fetch(query, target_weight_kg=None):
-        return ProductPriceResult(
-            found=True, price=100.0, is_available=True, ean=GTIN,
-            product_name="Produto Teste", brand="Marca Teste",
-            url="https://www.cobasi.com.br/produto-teste/p",
-        )
-
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", _fake_fetch)
 
     db = SessionLocal()
     try:

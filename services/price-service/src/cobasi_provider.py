@@ -1,10 +1,20 @@
 """
 CobasiProvider — implementação de CommerceProvider para a Cobasi.
 
-find_offer(): busca dinâmica via commerce_pricing.fetch_cobasi_price — a
-API pública VTEX da Cobasi, ao vivo. Roda para QUALQUER produto, sem
-depender de link afiliado cadastrado previamente (ver commerce_provider.py
-para o princípio geral).
+find_offer(): caminho rápido e confiável, SEM busca ao vivo na VTEX no
+clique (era lenta e instável — abria devagar ou nem abria). Dois casos,
+ambos instantâneos e sem preço da Cobasi ("Conferir preço na Cobasi"):
+  1. GTIN com link MAIS já cadastrado (ProductAffiliateLink) → serve esse
+     produto exato — o caminho comprovado da ração do Baby, agora para
+     QUALQUER produto pré-cadastrado.
+  2. Sem pré-cadastro → manda para a busca daquele produto na vitrine
+     afiliada "Minha Loja" (minhaloja.cobasi.com.br/busca?q=...), com a
+     UTM MAIS anexada em monetize(). Sempre resolve, atribuição MAIS.
+Roda para QUALQUER produto, sem depender de link afiliado cadastrado
+previamente (ver commerce_provider.py para o princípio geral). O preço ao
+vivo da VTEX segue disponível fora do caminho do clique (commerce_pricing
+.fetch_cobasi_price, usado por /commerce/product-price e /commerce/product
+-candidates).
 
 monetize(): um link cadastrado manualmente (ProductAffiliateLink) SEMPRE
 tem prioridade, em qualquer modo != "disabled" — nunca abandona um link
@@ -34,8 +44,8 @@ UTM/dev fallback) — blinda essa oferta específica contra qualquer troca
 de PREFERRED_ROUTE_BY_MERCHANT no dedupe do CommerceEngine (ver
 _dedupe_by_merchant).
 
-should_run(): motivo pra pular find_offer() (nem a busca ao vivo na VTEX
-roda): cobasi_affiliate_mode == "disabled" — curto-circuito incondicional.
+should_run(): motivo pra pular find_offer() por completo:
+cobasi_affiliate_mode == "disabled" — curto-circuito incondicional.
 Fora isso, o provider sempre roda: com AWIN_SELLABLE_MERCHANTS vazio não
 existe mais uma oferta Awin concorrente pra evitar redundância contra
 (ver preferred_route_for()/merchant_routes.py — preferred_route="mais"
@@ -44,23 +54,31 @@ faz should_run() retornar True direto, sem checar offers_so_far).
 from __future__ import annotations
 
 from typing import Optional
+from urllib.parse import quote
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .affiliate_links import get_active_link
 from .cobasi_utm import InvalidCobasiUrlError, build_cobasi_affiliate_url, to_minha_loja_url
-from .commerce_pricing import fetch_cobasi_price
 from .commerce_provider import DiscoveredOffer, MonetizedOffer, ProductContext
 from .config import Settings, get_settings
 from .merchant_routes import preferred_route_for
 from .product_catalog_lookup import ProductCatalog, normalize_gtin
+
+_MINHA_LOJA_SEARCH_BASE = "https://minhaloja.cobasi.com.br/busca"
 
 
 def _build_query(context: ProductContext) -> str:
     if context.query:
         return context.query
     return " ".join(p for p in (context.brand, context.name) if p).strip()
+
+
+def _minha_loja_search_url(query: str) -> str:
+    """URL de busca daquele produto na vitrine afiliada "Minha Loja". A UTM
+    MAIS é anexada depois, em monetize() (build_cobasi_affiliate_url)."""
+    return f"{_MINHA_LOJA_SEARCH_BASE}?q={quote(query, safe='')}"
 
 
 class CobasiProvider:
@@ -93,23 +111,39 @@ class CobasiProvider:
         return get_active_link(self._db, product.id, self.merchant) is not None
 
     async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
+        # Caminho rápido — nunca uma busca ao vivo na VTEX no clique (ver
+        # docstring do módulo). Oferta sem preço de propósito
+        # (allow_without_price=True): "Conferir preço na Cobasi".
+        gtin_normalized = normalize_gtin(context.gtin) if context.gtin else None
+        catalog = self._resolve_catalog_by_gtin(gtin_normalized)
+
+        # 1) Produto pré-cadastrado com link MAIS → serve esse produto exato
+        #    (monetize()/_lookup_cached_link resolve o link pelo GTIN).
+        if catalog is not None and get_active_link(self._db, catalog.id, self.merchant) is not None:
+            return DiscoveredOffer(
+                merchant=self.merchant,
+                product_name=catalog.name,
+                brand=catalog.brand,
+                price=None,
+                is_available=True,
+                direct_url=None,
+                ean=gtin_normalized,
+                allow_without_price=True,
+            )
+
+        # 2) Sem pré-cadastro → busca daquele produto na vitrine "Minha Loja".
         query = _build_query(context)
         if not query:
             return None
-
-        price = await fetch_cobasi_price(query, target_weight_kg=context.weight_kg)
-        if not price.found or price.price is None:
-            return None
-
         return DiscoveredOffer(
             merchant=self.merchant,
-            product_name=price.product_name,
-            brand=price.brand,
-            price=price.price,
-            list_price=price.list_price,
-            is_available=price.is_available,
-            direct_url=price.url,
-            ean=price.ean,
+            product_name=catalog.name if catalog is not None else None,
+            brand=catalog.brand if catalog is not None else None,
+            price=None,
+            is_available=True,
+            direct_url=_minha_loja_search_url(query),
+            ean=gtin_normalized,
+            allow_without_price=True,
         )
 
     def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str, str, bool]]:
@@ -145,15 +179,20 @@ class CobasiProvider:
         # "api" reservado — sem implementação oficial ainda.
         return None
 
+    def _resolve_catalog_by_gtin(self, gtin_normalized: Optional[str]) -> Optional[ProductCatalog]:
+        if not gtin_normalized:
+            return None
+        return self._db.scalar(
+            select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized)
+        )
+
     def _resolve_product_id(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[int]:
         if context.product_id is not None:
             return context.product_id
-        if not offer.ean:
+        gtin = offer.ean or context.gtin
+        if not gtin:
             return None
-        gtin_normalized = normalize_gtin(offer.ean)
-        product = self._db.scalar(
-            select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized)
-        )
+        product = self._resolve_catalog_by_gtin(normalize_gtin(gtin))
         return product.id if product else None
 
     def _lookup_cached_link(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str]]:

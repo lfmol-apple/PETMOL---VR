@@ -1,26 +1,21 @@
-"""CobasiProvider.should_run() (cobasi_provider.py) — desde 29/08/2026,
-Awin nunca monetiza nenhum merchant (AWIN_SELLABLE_MERCHANTS sempre
-vazio, ver awin_advertisers.py), então AwinFeedProvider nunca é
-registrado em build_default_engine() e nunca produz uma oferta
-"cobasi" concorrente, mesmo com o GTIN presente no catálogo Awin. A
-rota preferida da Cobasi é "mais" (merchant_routes.py), o que faz
-should_run() curto-circuitar pra True incondicionalmente — MAIS
-(fetch_cobasi_price, busca ao vivo na VTEX) SEMPRE roda agora,
-catálogo Awin tendo ou não uma linha pra esse GTIN.
+"""CobasiProvider.should_run() / find_offer() (cobasi_provider.py) — desde
+29/08/2026, Awin nunca monetiza nenhum merchant (AWIN_SELLABLE_MERCHANTS
+sempre vazio, ver awin_advertisers.py), então AwinFeedProvider nunca é
+registrado em build_default_engine() e nunca produz uma oferta "cobasi"
+concorrente, mesmo com o GTIN presente no catálogo Awin. A rota preferida
+da Cobasi é "mais" (merchant_routes.py) e MAIS SEMPRE resolve a Cobasi —
+por link MAIS pré-cadastrado (GTIN) ou pela busca da vitrine "Minha Loja"
+daquele produto. Nunca há busca ao vivo na VTEX no caminho do clique
+(removida em 31/08/2026 — era lenta e instável).
 
-Estes testes provam isso contando chamadas reais a fetch_cobasi_price
-(não só o resultado final da lista de ofertas, que os testes de
-test_commerce_offers_awin_dedupe.py já cobrem). Até 14/08/2026 existia
-um cenário onde Awin resolvia primeiro e MAIS era pulado — revertido em
-29/08/2026 junto com a decisão de nunca monetizar via Awin (ver
-merchant_routes.py e cobasi_provider.py).
+Estes testes provam que a oferta "cobasi" via "mais" aparece em cada
+cenário — catálogo Awin tendo ou não uma linha pra esse GTIN.
 """
 import pytest
 
 from src.affiliate_feed import AffiliateFeedOffer
 from src.affiliate_links import ProductAffiliateLink
 from src.commerce_offers import get_commerce_offers
-from src.commerce_pricing import ProductPriceResult
 from src.config import get_settings
 from src.db import SessionLocal
 from src.product_catalog_lookup import ProductCatalog
@@ -71,29 +66,11 @@ def _register_cobasi_link(gtin: str = GTIN) -> None:
         db.close()
 
 
-def _counting_fetch(monkeypatch):
-    calls = {"count": 0}
-
-    async def _fake_fetch(query, target_weight_kg=None):
-        calls["count"] += 1
-        return ProductPriceResult(
-            found=True, price=100.0, is_available=True, ean=GTIN,
-            product_name="Produto Teste", brand="Marca Teste",
-            url="https://www.cobasi.com.br/produto-teste/p",
-        )
-
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", _fake_fetch)
-    return calls
-
-
 @pytest.mark.asyncio
-async def test_mais_still_called_even_when_awin_catalog_has_matching_gtin(monkeypatch):
+async def test_mais_resolves_even_when_awin_catalog_has_matching_gtin(monkeypatch):
     """Mesmo com uma linha de catálogo Awin sincronizada pra esse GTIN
-    exato, MAIS sempre roda: AwinFeedProvider nunca é registrado como
-    vendável (AWIN_SELLABLE_MERCHANTS vazio), então essa linha de
-    catálogo nunca vira uma oferta concorrente — só alimenta busca por
-    nome/foto/preço (ver commerce_offers.py)."""
-    calls = _counting_fetch(monkeypatch)
+    exato, MAIS sempre resolve a Cobasi: AwinFeedProvider nunca é
+    registrado como vendável, então nunca vira uma oferta concorrente."""
     _register_awin_offer()
 
     db = SessionLocal()
@@ -102,39 +79,32 @@ async def test_mais_still_called_even_when_awin_catalog_has_matching_gtin(monkey
     finally:
         db.close()
 
-    assert calls["count"] == 1, "MAIS deve rodar sempre — catálogo Awin nunca produz oferta vendável"
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
     assert len(cobasi_offers) == 1
     assert cobasi_offers[0].route == "mais"
+    assert cobasi_offers[0].url.startswith("https://minhaloja.cobasi.com.br/busca?")
 
 
 @pytest.mark.asyncio
-async def test_mais_still_called_when_awin_does_not_resolve(monkeypatch):
-    """Sem oferta Awin sincronizada pra esse GTIN (produto fora do
-    catálogo Awin) — MAIS continua sendo o fallback real, chamada de rede
-    incluída."""
-    calls = _counting_fetch(monkeypatch)
-    # Nenhuma _register_awin_offer() — Awin não tem nada pra este GTIN.
-
+async def test_mais_resolves_when_awin_does_not_resolve(monkeypatch):
+    """Sem oferta Awin sincronizada pra esse GTIN — MAIS continua
+    resolvendo pela busca da vitrine "Minha Loja"."""
     db = SessionLocal()
     try:
         offers = await get_commerce_offers(db, query="Marca Teste ração", gtin=GTIN)
     finally:
         db.close()
 
-    assert calls["count"] == 1, "MAIS precisa continuar sendo o fallback quando Awin não resolve"
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
     assert len(cobasi_offers) == 1
     assert cobasi_offers[0].route == "mais"
 
 
 @pytest.mark.asyncio
-async def test_mais_still_called_when_manual_link_exists_despite_awin_resolving(monkeypatch):
-    """Awin resolve o GTIN, mas este produto específico tem link
-    cadastrado manualmente — MAIS precisa rodar mesmo assim, porque só
-    ele consegue produzir a oferta is_manually_cached que sempre vence o
-    dedupe (ver commerce_provider.py::_dedupe_by_merchant)."""
-    calls = _counting_fetch(monkeypatch)
+async def test_mais_serves_manual_link_despite_awin_resolving(monkeypatch):
+    """Awin resolve o GTIN, mas este produto tem link MAIS pré-cadastrado —
+    a oferta is_manually_cached sempre vence o dedupe (ver
+    commerce_provider.py::_dedupe_by_merchant)."""
     _register_awin_offer()
     _register_cobasi_link()
 
@@ -144,7 +114,6 @@ async def test_mais_still_called_when_manual_link_exists_despite_awin_resolving(
     finally:
         db.close()
 
-    assert calls["count"] == 1, "link cadastrado manualmente precisa da chance de rodar mesmo com Awin resolvendo"
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
     assert len(cobasi_offers) == 1
     assert cobasi_offers[0].route == "mais"

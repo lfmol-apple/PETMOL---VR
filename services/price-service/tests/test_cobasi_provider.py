@@ -1,19 +1,15 @@
 """
-CobasiProvider.monetize() por modo (cobasi_affiliate_mode). O padrão
-desde 15/08/2026 é "disabled" (MAIS totalmente desativado, decisão de
-produto — só Awin resolve a Cobasi enquanto isso não é revisitado); UTM
-NÃO é ativada em produção sem confirmação formal (ver docs/AFFILIATES.md
-e cobasi_utm.py). Os testes abaixo que exercitam "cached"/"utm" ligam o
-modo explicitamente via COBASI_AFFILIATE_MODE — não dependem do padrão
-atual, só provam que a lógica de cada modo continua correta quando
-alguém o reativar. fetch_cobasi_price é sempre monkeypatchado; nunca
-chama a API real da Cobasi.
+CobasiProvider.monetize()/find_offer() por modo (cobasi_affiliate_mode).
+O padrão de produção desde 29/08/2026 é "utm". Os testes abaixo que
+exercitam "cached"/"utm"/"disabled" ligam o modo explicitamente via
+COBASI_AFFILIATE_MODE. find_offer() nunca faz busca ao vivo na VTEX no
+clique (removida em 31/08/2026): resolve por GTIN pré-cadastrado ou pela
+busca da vitrine "Minha Loja" daquele produto.
 """
 import pytest
 
 from src.affiliate_links import ProductAffiliateLink
 from src.cobasi_provider import CobasiProvider
-from src.commerce_pricing import ProductPriceResult
 from src.commerce_provider import DiscoveredOffer, ProductContext
 from src.config import get_settings
 from src.db import SessionLocal
@@ -208,64 +204,96 @@ def test_invalid_mode_rejected_by_settings(monkeypatch):
         get_settings()
 
 
-# ── find_offer() — descoberta dinâmica, sem qualquer cadastro prévio ──────
+# ── find_offer() — caminho rápido, sem VTEX ao vivo no clique ────────────
 
 @pytest.mark.asyncio
-async def test_find_offer_works_with_no_product_catalog_row_at_all(monkeypatch):
-    """§13: ProductAffiliateLink não é mais condição de discovery — nem
-    products_catalog precisa ter o produto pra find_offer() funcionar.
-    Nenhum ProductCatalog, nenhum ProductAffiliateLink, banco vazio."""
-    async def fake_fetch(query, target_weight_kg=None):
-        return ProductPriceResult(
-            found=True, store="cobasi", product_name="Produto Nunca Visto",
-            brand="Marca X", price=59.9, list_price=None, is_available=True,
-            url="https://www.cobasi.com.br/produto-x/p", ean="9999999999999",
-        )
-
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
-
+async def test_find_offer_without_pre_registration_builds_minha_loja_search(monkeypatch):
+    """Sem GTIN pré-cadastrado: monta a busca daquele produto na vitrine
+    afiliada "Minha Loja" — instantâneo, sem chamada de rede, sem preço."""
     db = SessionLocal()
     try:
         provider = CobasiProvider(db)
-        offer = await provider.find_offer(ProductContext(query="produto nunca visto"))
+        offer = await provider.find_offer(ProductContext(query="Royal Canin ração"))
         assert offer is not None
-        assert offer.price == 59.9
-        assert offer.ean == "9999999999999"
+        assert offer.price is None
+        assert offer.allow_without_price is True
+        assert offer.is_available is True
+        assert offer.direct_url == "https://minhaloja.cobasi.com.br/busca?q=Royal%20Canin%20ra%C3%A7%C3%A3o"
     finally:
         db.close()
 
 
 @pytest.mark.asyncio
-async def test_find_offer_returns_none_when_not_found(monkeypatch):
-    async def fake_fetch(query, target_weight_kg=None):
-        return ProductPriceResult(found=False)
-
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
-
+async def test_find_offer_returns_none_without_query_or_gtin():
     db = SessionLocal()
     try:
         provider = CobasiProvider(db)
-        offer = await provider.find_offer(ProductContext(query="produto qualquer"))
+        offer = await provider.find_offer(ProductContext())
         assert offer is None
     finally:
         db.close()
 
 
 @pytest.mark.asyncio
-async def test_find_offer_passes_through_weight_for_sku_selection(monkeypatch):
-    captured = {}
+async def test_find_offer_gtin_with_registered_link_serves_that_exact_product():
+    """GTIN pré-cadastrado com link MAIS (o caminho da ração do Baby):
+    serve o produto exato, sem preço, e monetize() resolve o link pelo GTIN."""
+    product_id = _register_product()
+    db = SessionLocal()
+    try:
+        db.add(ProductAffiliateLink(
+            product_id=product_id, merchant="cobasi",
+            affiliate_product_url="https://mais.app/IvUCAG", active=True,
+        ))
+        db.commit()
 
-    async def fake_fetch(query, target_weight_kg=None):
-        captured["weight"] = target_weight_kg
-        return ProductPriceResult(found=True, price=10.0, url="https://www.cobasi.com.br/p")
+        provider = CobasiProvider(db)
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is not None
+        assert offer.price is None
+        assert offer.allow_without_price is True
+        assert offer.direct_url is None
+        assert offer.ean == GTIN
+        assert offer.product_name == "Produto Teste"
 
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+        result = provider.monetize(offer, ProductContext(gtin=GTIN))
+        assert result == ("https://mais.app/IvUCAG", "affiliate_product", "mais", True)
+    finally:
+        db.close()
 
+
+@pytest.mark.asyncio
+async def test_find_offer_gtin_without_link_falls_back_to_minha_loja_search():
+    """GTIN conhecido no catálogo mas sem link cadastrado: cai na busca da
+    "Minha Loja", já com marca/nome do catálogo pra exibição."""
+    _register_product()
     db = SessionLocal()
     try:
         provider = CobasiProvider(db)
-        await provider.find_offer(ProductContext(query="ração", weight_kg=7.5))
-        assert captured["weight"] == 7.5
+        offer = await provider.find_offer(ProductContext(gtin=GTIN, query="produto teste"))
+        assert offer is not None
+        assert offer.price is None
+        assert offer.brand == "Marca Teste"
+        assert offer.direct_url.startswith("https://minhaloja.cobasi.com.br/busca?q=")
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_find_offer_utm_monetization_keeps_minha_loja_host():
+    """A oferta de busca (caso 2) monetizada em modo utm continua no host
+    minhaloja e ganha a UTM MAIS."""
+    db = SessionLocal()
+    try:
+        provider = CobasiProvider(db)
+        offer = await provider.find_offer(ProductContext(query="ração gato"))
+        result = provider.monetize(offer, ProductContext(query="ração gato"))
+        assert result is not None
+        url = result[0]
+        assert url.startswith("https://minhaloja.cobasi.com.br/busca?")
+        assert "utm_source=mais" in url
+        assert "utm_medium=maisplataforma" in url
+        assert "utm_campaign=lojapetmol" in url
     finally:
         db.close()
 
