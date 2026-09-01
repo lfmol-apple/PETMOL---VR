@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { ChevronDown, ChevronRight, ShoppingCart, X } from 'lucide-react';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
-import { petDo } from '@/lib/petGender';
+import { petDo, petO } from '@/lib/petGender';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { trackClick } from '@/lib/analytics/click';
 import type { PetHealthProfile } from '@/lib/petHealth';
@@ -175,21 +175,21 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
       style={{ height: '100dvh' }}
       onClick={onClose}
     >
-      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-xl" />
+      <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-2xl" />
 
       <div
-        className="relative isolate flex w-full max-w-md flex-col overflow-hidden rounded-t-[26px] bg-[#fbfaf7] shadow-[0_-8px_50px_-8px_rgba(15,23,42,0.35)] ring-1 ring-black/5 sm:mb-4 sm:rounded-[26px]"
+        className="relative isolate flex w-full max-w-md flex-col overflow-hidden rounded-t-[28px] bg-[#f5f6f8]/82 shadow-[0_-8px_60px_-6px_rgba(15,23,42,0.45)] ring-1 ring-white/40 backdrop-blur-2xl sm:mb-4 sm:rounded-[28px]"
         style={{ maxHeight: '88dvh' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Cabeçalho — camada opaca própria, nunca deixa o fundo vazar */}
-        <div className="relative z-10 flex-shrink-0 bg-[#fbfaf7]">
+        {/* Cabeçalho — bloco azul PETMOL, texto branco, bem evidente. */}
+        <div className="relative z-10 flex-shrink-0 bg-[#0056D2] text-white shadow-[0_6px_20px_-8px_rgba(0,86,210,0.6)]">
           <div className="flex justify-center pt-2.5 pb-1 sm:hidden">
-            <div className="h-1 w-9 rounded-full bg-slate-300/80" />
+            <div className="h-1 w-9 rounded-full bg-white/40" />
           </div>
 
           <div className="flex items-center gap-3 px-5 pb-4 pt-1.5 sm:pt-4">
-            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-xl shadow-[0_2px_10px_rgba(15,23,42,0.12)] ring-2 ring-white">
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-xl shadow-[0_2px_10px_rgba(0,0,0,0.25)] ring-2 ring-white/60">
               {petPhotoSrc ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={petPhotoSrc} alt={petName || 'Pet'} className="h-full w-full object-cover" loading="lazy" />
@@ -198,19 +198,20 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-[17px] font-bold leading-[1.15] tracking-[-0.01em] text-slate-900">{title}</h2>
-              <p className="truncate text-[13px] font-semibold leading-tight text-slate-600">Tudo que {petName || 'seu pet'} usa</p>
+              <h2 className="truncate text-[18px] font-black leading-[1.15] tracking-[-0.01em] text-white">{title}</h2>
+              <p className="truncate text-[11px] font-bold uppercase leading-tight tracking-[0.13em] text-white/75">
+                Tudo que {petO(currentPet)} {petName || 'seu pet'} precisa
+              </p>
             </div>
             <button
               type="button"
               onClick={onClose}
               aria-label="Fechar"
-              className="-mr-1 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-900/[0.06] text-slate-500 transition-colors duration-150 hover:bg-slate-900/[0.1] hover:text-slate-800 active:scale-90 motion-reduce:transition-none motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbfaf7]"
+              className="-mr-1 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition-colors duration-150 hover:bg-white/25 active:scale-90 motion-reduce:transition-none motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0056D2]"
             >
               <X className="h-[15px] w-[15px]" strokeWidth={2.5} />
             </button>
           </div>
-          <div className="mx-5 h-px bg-gradient-to-r from-transparent via-slate-900/[0.07] to-transparent" />
         </div>
 
         {/* Scrollable content */}
@@ -314,7 +315,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                     })}
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 p-4 text-center">
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-center shadow-sm">
                     <p className="text-[13px] text-slate-600 leading-snug">
                       Cadastre a ração e o antipulgas {petDo(currentPet)} {petName || 'seu pet'} — a gente avisa quando estiver acabando, já com o preço do dia.
                     </p>
@@ -365,7 +366,7 @@ function PartnerStoreGrid({
             key={partner.id}
             type="button"
             onClick={() => onOpen(partner)}
-            className="flex min-h-[96px] flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200/70 bg-white p-3 text-center shadow-[0_4px_16px_rgba(15,23,42,0.05)] transition-all duration-200 hover:border-emerald-200 hover:shadow-[0_8px_20px_rgba(15,23,42,0.07)] active:scale-[0.98] motion-reduce:transition-none motion-reduce:transform-none"
+            className="flex min-h-[96px] flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-center shadow-[0_6px_22px_-8px_rgba(15,23,42,0.16)] transition-all duration-200 hover:border-emerald-200 hover:shadow-[0_10px_28px_-8px_rgba(15,23,42,0.22)] active:scale-[0.98] motion-reduce:transition-none motion-reduce:transform-none"
           >
             <span className="flex h-[54px] w-[74px] items-center justify-center rounded-xl border border-slate-100 bg-slate-50/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_4px_12px_rgba(15,23,42,0.05)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -485,7 +486,7 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
       tabIndex={canAct ? 0 : undefined}
       onClick={handlePrimaryAction}
       onKeyDown={handleKeyDown}
-      className={`rounded-2xl border bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,0.05)] transition-all duration-200 motion-reduce:transition-none motion-reduce:transform-none ${canAct ? 'cursor-pointer hover:border-emerald-200 hover:shadow-[0_8px_20px_rgba(15,23,42,0.07)] active:scale-[0.99]' : ''} ${hasDiscount ? 'border-orange-200/90' : 'border-slate-200/70'}`}
+      className={`rounded-2xl border bg-white p-3 shadow-[0_6px_22px_-8px_rgba(15,23,42,0.18)] transition-all duration-200 motion-reduce:transition-none motion-reduce:transform-none ${canAct ? 'cursor-pointer hover:border-emerald-200 hover:shadow-[0_10px_28px_-8px_rgba(15,23,42,0.24)] active:scale-[0.99]' : ''} ${hasDiscount ? 'border-orange-200/90' : 'border-slate-200'}`}
     >
       <div className="flex items-center gap-3">
         <div className="grid h-12 w-12 flex-shrink-0 place-items-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50/80 p-1">

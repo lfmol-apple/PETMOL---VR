@@ -275,7 +275,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
       {/* Campo de busca — fica SEMPRE no topo (sticky) e por cima dos
           resultados enquanto o tutor digita: -mx-5/px-5 sangra até as bordas
           da sheet, blur + hairline dão a separação premium. */}
-      <div className="sticky top-0 z-30 -mx-5 border-b border-black/[0.06] bg-[#fbfaf7]/92 px-5 pb-2.5 pt-2 backdrop-blur-md">
+      <div className="sticky top-0 z-30 -mx-5 border-b border-black/[0.06] bg-[#fbfaf7]/90 px-5 pb-2.5 pt-2 backdrop-blur-2xl">
         <div className="relative">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" strokeWidth={2.2} />
           <input
@@ -291,7 +291,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
               window.setTimeout(() => e.target.scrollIntoView({ block: 'start', behavior: 'smooth' }), 200);
             }}
             placeholder="Buscar produto..."
-            className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-[16px] font-medium text-slate-900 shadow-[0_2px_10px_-4px_rgba(15,23,42,0.12)] outline-none transition-all duration-150 placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10"
+            className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-[16px] font-medium text-slate-900 shadow-[0_4px_16px_-6px_rgba(15,23,42,0.18)] outline-none transition-all duration-150 placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10"
           />
         </div>
       </div>
@@ -355,7 +355,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                 tabIndex={canOpen ? 0 : undefined}
                 onClick={canOpen ? handleResultTap : undefined}
                 onKeyDown={canOpen ? handleResultKeyDown : undefined}
-                className={`p-3 bg-white border border-gray-200 rounded-2xl shadow-sm transition-all ${canOpen ? 'cursor-pointer hover:border-emerald-200 active:scale-[0.99]' : ''}`}
+                className={`p-3 bg-white rounded-2xl ring-1 ring-black/5 shadow-[0_4px_16px_-8px_rgba(15,23,42,0.18)] transition-all ${canOpen ? 'cursor-pointer hover:ring-emerald-200 active:scale-[0.99]' : ''}`}
               >
                 <div className="flex items-center gap-3.5">
                   <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-50 border border-gray-100 flex-shrink-0 flex items-center justify-center">
