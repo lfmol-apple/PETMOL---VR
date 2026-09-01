@@ -79,6 +79,58 @@ def _register_awin_offer(gtin: str = GTIN) -> None:
         db.close()
 
 
+def _register_catalog_product(
+    *,
+    gtin: str = GTIN,
+    name: str = "Produto Teste",
+    brand: str = "Marca Teste",
+    thumbnail_url: str | None = None,
+) -> None:
+    db = SessionLocal()
+    try:
+        db.add(ProductCatalog(
+            barcode=gtin,
+            barcode_normalized=gtin,
+            name=name,
+            brand=brand,
+            thumbnail_url=thumbnail_url,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+
+def _register_feed_offer_with_image(
+    *,
+    gtin: str,
+    title: str,
+    brand: str,
+    image_url: str,
+    merchant: str = "cobasi",
+    external_product_id: str = "img-1",
+    price: float = 90.0,
+) -> None:
+    db = SessionLocal()
+    try:
+        db.add(AffiliateFeedOffer(
+            network="awin",
+            merchant=merchant,
+            advertiser_id="17870" if merchant == "cobasi" else "127557",
+            external_product_id=external_product_id,
+            gtin=gtin,
+            title=title,
+            brand=brand,
+            price=price,
+            in_stock=True,
+            active=True,
+            image_url=image_url,
+            merchant_url="https://www.cobasi.com.br/produto-teste/p",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+
 @pytest.mark.asyncio
 async def test_registering_awin_provider_does_not_change_link_shown_to_tutor(monkeypatch):
     """O teste que importa: mesmo com os dois providers reais resolvendo
@@ -294,3 +346,82 @@ async def test_awin_shadow_mode_blocks_even_with_master_gate_on(monkeypatch):
 
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
     assert cobasi_offers == []
+
+
+@pytest.mark.asyncio
+async def test_commerce_offers_fill_missing_catalog_image_from_exact_feed_gtin(monkeypatch):
+    image = "https://img.example/royal-canin-mini-indoor-75kg.jpg"
+    gtin = "7896181212454"
+    _register_catalog_product(
+        gtin=gtin,
+        name="Ração Royal Canin Mini Indoor Adult para Cães Adultos de Porte Pequeno 7,5kg",
+        brand="Royal Canin",
+    )
+    _register_feed_offer_with_image(
+        gtin=gtin,
+        title="Ração Royal Canin Mini Indoor Adult para Cães Adultos de Porte Pequeno 7,5kg",
+        brand="Royal Canin",
+        image_url=image,
+    )
+
+    async def _fake_fetch(gtin_arg):
+        return ProductPriceResult(
+            found=True,
+            price=302.99,
+            is_available=True,
+            ean=gtin,
+            product_name="Ração Royal Canin Mini Indoor Adult para Cães Adultos de Porte Pequeno 7,5kg",
+            brand="Royal Canin",
+            url="https://www.cobasi.com.br/royal-canin-mini-indoor-adult/p",
+        )
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_by_gtin", _fake_fetch)
+
+    db = SessionLocal()
+    try:
+        offers = await get_commerce_offers(db, gtin=gtin)
+    finally:
+        db.close()
+
+    assert offers
+    assert offers[0].canonical_image_url == image
+    assert offers[0].image_url == image
+
+
+@pytest.mark.asyncio
+async def test_commerce_offers_fill_missing_catalog_image_from_identity_feed_match(monkeypatch):
+    image = "https://img.example/scalibor-48cm.jpg"
+    _register_catalog_product(
+        gtin="7896185907004",
+        name="Coleira Antiparasitária Scalibor M",
+        brand="Scalibor",
+    )
+    _register_feed_offer_with_image(
+        gtin="7896185957009",
+        title="Coleira Antiparasitária Scalibor Cães Pequenos e Médios - 48 cm",
+        brand="Scalibor",
+        image_url=image,
+    )
+
+    async def _fake_fetch(gtin_arg):
+        return ProductPriceResult(
+            found=True,
+            price=84.79,
+            is_available=True,
+            ean="7896185907004",
+            product_name="Coleira Antiparasitária Scalibor M",
+            brand="Scalibor",
+            url="https://www.cobasi.com.br/scalibor-m/p",
+        )
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_by_gtin", _fake_fetch)
+
+    db = SessionLocal()
+    try:
+        offers = await get_commerce_offers(db, gtin="7896185907004")
+    finally:
+        db.close()
+
+    assert offers
+    assert offers[0].canonical_image_url == image
+    assert offers[0].image_url == image

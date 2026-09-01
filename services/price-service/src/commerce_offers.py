@@ -24,6 +24,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .affiliate_feed import AffiliateFeedOffer
 from .awin_advertisers import AWIN_SELLABLE_MERCHANTS, AWIN_ADVERTISERS, is_awin_merchant_registrable
 from .awin_feed_provider import AwinFeedProvider
 from .cobasi_provider import CobasiProvider
@@ -31,6 +32,7 @@ from .commerce_provider import CommerceEngine, CommerceProvider, MonetizedOffer,
 from .marketplace_offer_provider import MarketplaceOfferProvider
 from .mercadolivre_commerce_provider import MercadoLivreCommerceProvider, is_mercadolivre_commerce_publicly_servable
 from .petz_provider import PetzProvider
+from .product_identity import MerchantCandidate, ProductIdentity, evaluate_identity
 from .product_catalog_lookup import ProductCatalog, normalize_gtin
 
 # Merchants marketplace conhecidos (Shopee, Mercado Livre) — sempre
@@ -215,7 +217,7 @@ async def get_commerce_offers(
     canonical_gtin = normalize_gtin(product.barcode_normalized) if product else normalize_gtin(gtin or "")
     canonical_name = (product.canonical_name or product.name) if product else (name or query)
     canonical_brand = (product.canonical_brand or product.brand) if product else brand
-    canonical_image_url = product.thumbnail_url if product else None
+    canonical_image_url = _resolve_canonical_image_url(db, product=product, gtin=canonical_gtin or gtin)
     engine = build_default_engine(db)
     context = ProductContext(
         query=query,
@@ -242,3 +244,100 @@ def _resolve_catalog_product(db: Session, *, gtin: Optional[str], product_id: Op
     if not gtin_normalized:
         return None
     return db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
+
+
+def _resolve_canonical_image_url(
+    db: Session,
+    *,
+    product: Optional[ProductCatalog],
+    gtin: Optional[str],
+) -> Optional[str]:
+    if product and product.thumbnail_url:
+        return product.thumbnail_url
+
+    gtin_normalized = normalize_gtin((product.barcode_normalized if product else None) or gtin or "")
+    if gtin_normalized:
+        exact = _feed_image_for_gtin(db, gtin_normalized)
+        if exact:
+            return exact
+
+    if product is None:
+        return None
+    return _feed_image_for_identity(
+        db,
+        ProductIdentity.build(
+            gtin=None,
+            canonical_name=product.canonical_name or product.name,
+            brand=product.canonical_brand or product.brand,
+            species=product.species,
+            category=product.category,
+            weight_kg=product.weight_kg,
+            volume_ml=product.volume_ml,
+            length_cm=product.length_cm,
+            pack_count=product.pack_count,
+            animal_weight_range=(
+                (product.animal_weight_min_kg, product.animal_weight_max_kg)
+                if product.animal_weight_min_kg is not None and product.animal_weight_max_kg is not None
+                else None
+            ),
+            breed_size=product.breed_size,
+            breed=product.breed,
+            image_url=None,
+            evidence=("PRODUCT_CATALOG_IMAGE_FALLBACK",),
+        ),
+    )
+
+
+def _feed_image_for_gtin(db: Session, gtin: str) -> Optional[str]:
+    rows = list(db.scalars(
+        select(AffiliateFeedOffer).where(
+            AffiliateFeedOffer.network == "awin",
+            AffiliateFeedOffer.gtin == gtin,
+            AffiliateFeedOffer.active.is_(True),
+            AffiliateFeedOffer.image_url.is_not(None),
+        )
+    ))
+    if not rows:
+        return None
+    rows.sort(key=_feed_image_preference)
+    return rows[0].image_url
+
+
+def _feed_image_for_identity(db: Session, identity: ProductIdentity) -> Optional[str]:
+    if not identity.canonical_name or not identity.brand:
+        return None
+    candidates = list(db.scalars(
+        select(AffiliateFeedOffer).where(
+            AffiliateFeedOffer.network == "awin",
+            AffiliateFeedOffer.active.is_(True),
+            AffiliateFeedOffer.image_url.is_not(None),
+            AffiliateFeedOffer.title.ilike(f"%{identity.brand}%"),
+        ).limit(80)
+    ))
+    matches = []
+    for row in candidates:
+        result = evaluate_identity(
+            identity,
+            MerchantCandidate.build(
+                merchant=row.merchant,
+                title=row.title or "",
+                gtin=row.gtin,
+                brand=row.brand,
+                category=row.category,
+                price=row.price,
+                external_id=row.external_product_id,
+            ),
+        )
+        if result.accepted:
+            matches.append(row)
+    if not matches:
+        return None
+    matches.sort(key=_feed_image_preference)
+    return matches[0].image_url
+
+
+def _feed_image_preference(row: AffiliateFeedOffer) -> tuple[int, int, float]:
+    merchant_rank = {"cobasi": 0, "zeenow": 1, "zeedog": 2}.get(row.merchant, 9)
+    stock_rank = 0 if row.in_stock else 1
+    price_rank = row.price if row.price is not None else float("inf")
+    return merchant_rank, stock_rank, price_rank
