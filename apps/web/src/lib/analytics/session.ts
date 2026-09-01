@@ -36,6 +36,43 @@ function safeSet(key: string, value: string): void {
   try { localStorage.setItem(key, value); } catch {}
 }
 
+// ── Build version ─────────────────────────────────────────────────────────
+// NEXT_PUBLIC_APP_VERSION nunca é definido no build de produção (o deploy só
+// baka NEXT_PUBLIC_API_BASE_URL) — por isso todo evento saía com
+// app_version="unknown". O deploy JÁ escreve /version.json com o SHA e o
+// cliente já o lê pra auto-reload (sessionStorage['petmol_build_v']).
+// Reaproveitamos esse valor; se ainda não estiver em cache, disparamos um
+// fetch único. Correção só pra frente — não altera dados antigos.
+const BUILD_V_KEY = 'petmol_build_v';
+let _versionFetchStarted = false;
+
+function ensureBuildVersionCached(): void {
+  if (_versionFetchStarted || typeof window === 'undefined') return;
+  _versionFetchStarted = true;
+  try {
+    if (sessionStorage.getItem(BUILD_V_KEY)) return;
+  } catch { /* sessionStorage bloqueado */ }
+  fetch('/version.json', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data: { v?: string } | null) => {
+      if (data?.v) {
+        try { sessionStorage.setItem(BUILD_V_KEY, data.v); } catch { /* noop */ }
+      }
+    })
+    .catch(() => { /* offline — segue com 'unknown' até a próxima */ });
+}
+
+function readBuildVersion(): string {
+  const baked = process.env.NEXT_PUBLIC_APP_VERSION || process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA;
+  if (baked) return baked;
+  try {
+    const stored = sessionStorage.getItem(BUILD_V_KEY);
+    if (stored) return stored;
+  } catch { /* noop */ }
+  ensureBuildVersionCached();
+  return 'unknown';
+}
+
 export function getAnalyticsAnonymousId(): string {
   const existing = safeGet(ANONYMOUS_ID_KEY);
   if (existing) return existing;
@@ -109,7 +146,7 @@ export function getAnalyticsContext(): AnalyticsContext {
     session_id: session.sessionId,
     session_started: session.started,
     platform: detectPlatform(),
-    app_version: process.env.NEXT_PUBLIC_APP_VERSION || process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || 'unknown',
+    app_version: readBuildVersion(),
     os: detectOs(),
     browser: detectBrowser(),
     device_class: detectDeviceClass(),
