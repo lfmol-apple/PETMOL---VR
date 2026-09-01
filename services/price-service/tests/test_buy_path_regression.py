@@ -97,6 +97,7 @@ def test_affiliate_only_never_returns_direct_link(client, monkeypatch):
             merchant="shopee",
             affiliate_url="https://s.shopee.com.br/real-affiliate-link",
             direct_url="https://shopee.com.br/produto/sem-comissao",
+            merchant_title="Marca Teste Produto Teste",
             price=59.9,
             active=True,
         ))
@@ -105,6 +106,7 @@ def test_affiliate_only_never_returns_direct_link(client, monkeypatch):
             merchant="mercadolivre",
             affiliate_url="https://www.mercadolivre.com.br/social/petmol?matt_word=x&matt_tool=1",
             direct_url="https://www.mercadolivre.com.br/produto/sem-comissao",
+            merchant_title="Marca Teste Produto Teste",
             price=79.9,
             active=True,
         ))
