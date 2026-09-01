@@ -272,7 +272,10 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
     <div>
       {/* Escanear código / código de barras manual: ocultos por enquanto
           (feedback do tutor) — só a busca por texto, maior e direta. */}
-      <div className="sticky top-0 z-20 bg-[#fbfaf7] pb-2">
+      {/* Campo de busca — fica SEMPRE no topo (sticky) e por cima dos
+          resultados enquanto o tutor digita: -mx-5/px-5 sangra até as bordas
+          da sheet, blur + hairline dão a separação premium. */}
+      <div className="sticky top-0 z-30 -mx-5 border-b border-black/[0.06] bg-[#fbfaf7]/92 px-5 pb-2.5 pt-2 backdrop-blur-md">
         <div className="relative">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" strokeWidth={2.2} />
           <input
@@ -280,15 +283,15 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            enterKeyHint="search"
             onFocus={(e) => {
-              // font-size >= 16px evita o zoom automático do Safari iOS ao
-              // focar um input (o que empurrava o campo pra fora da área
-              // visível); scrollIntoView garante que ele fique acima do
-              // teclado mesmo dentro de uma sheet/modal rolável.
-              window.setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300);
+              // font-size >= 16px evita o zoom automático do Safari iOS. O
+              // campo é sticky, então basta trazer o topo dele pra vista —
+              // block:'start' (não 'center') mantém o que se digita no alto.
+              window.setTimeout(() => e.target.scrollIntoView({ block: 'start', behavior: 'smooth' }), 200);
             }}
             placeholder="Buscar produto..."
-            className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-[16px] font-medium text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none transition-all duration-150 placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10"
+            className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-[16px] font-medium text-slate-900 shadow-[0_2px_10px_-4px_rgba(15,23,42,0.12)] outline-none transition-all duration-150 placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10"
           />
         </div>
       </div>

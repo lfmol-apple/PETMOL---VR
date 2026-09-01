@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { ChevronDown, ChevronRight, ShoppingCart, X } from 'lucide-react';
+import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
 import { petDo } from '@/lib/petGender';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { trackClick } from '@/lib/analytics/click';
@@ -43,6 +44,9 @@ interface HomeShoppingSheetProps {
 // antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
 export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
+  // Mantém a sheet colada ao viewport visível quando o teclado abre (busca) —
+  // sem isso o campo de busca fica atrás do teclado no iOS.
+  const kbViewportRef = useKeyboardSheetViewport(open);
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
 
@@ -165,7 +169,12 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:px-4" onClick={onClose}>
+    <div
+      ref={kbViewportRef}
+      className="fixed inset-x-0 top-0 z-50 flex items-end justify-center sm:px-4"
+      style={{ height: '100dvh' }}
+      onClick={onClose}
+    >
       <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-xl" />
 
       <div
