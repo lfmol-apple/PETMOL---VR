@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Check, Home } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import type { ParasiteControl } from '@/lib/types/home';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { MonetizedOffersList } from '@/features/commerce/MonetizedOffersList';
 import { AffiliateCatalogSearch } from '@/features/commerce/AffiliateCatalogSearch';
-import { ModalPortal } from '@/components/ModalPortal';
+import { SheetAvatar, SheetHeader, SheetShell } from '@/components/ui/sheet';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { scheduleUniqueReminder, buildRemindAt } from '@/features/notifications/pushService';
@@ -468,95 +469,45 @@ export function ParasiteItemSheet({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <ModalPortal>
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[3px] transition-opacity duration-300" onClick={onClose} />
-
-      {/* Sheet */}
-      <div
-        className="relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-[28px] shadow-2xl border-t border-x sm:border border-gray-200/70 flex flex-col overflow-hidden animate-slideUp sm:animate-scaleIn max-h-[92dvh]"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Success overlay */}
-        {justSaved && (
-          <div className="absolute inset-0 bg-white z-20 flex flex-col items-center justify-center gap-6 text-center p-8">
-            <div className="text-6xl">✅</div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-900 mb-1">{cfg.title} registrado!</h3>
-              <p className="text-sm text-gray-500">O prontuário do pet foi atualizado.</p>
-            </div>
-            <button
-              onClick={() => onGoHome?.()}
-              className="w-full rounded-2xl bg-blue-600 py-3.5 text-[15px] font-black text-white shadow-md shadow-blue-500/20 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
-              Ir para a home
-            </button>
-            <button onClick={() => setJustSaved(false)} className="text-sm text-gray-400 underline">
-              Ver prontuário
-            </button>
+    <SheetShell open onClose={onClose} tone="cream" z={50}>
+      {/* Success overlay */}
+      {justSaved && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-[#fbfaf7] p-8 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+            <Check className="h-8 w-8" strokeWidth={2.5} />
           </div>
-        )}
-
-        {/* Prime Handle Bar (Desktop/Mobile) */}
-        <div className="sheet-handle mt-2 mb-1 opacity-40" />
-
-        {/* Header */}
-        <div className={`px-5 pt-1.5 pb-3 ${cfg.colorLight} border-b border-gray-100 flex-shrink-0 relative overflow-hidden`}>
-          <div className="flex items-center gap-3 relative z-10">
-            <div className="w-11 h-11 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-2xl flex-shrink-0 ring-1 ring-black/5">
-              {petPhotoSrc ? (
-                <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
-              ) : (
-                <span>{petSpecies === 'cat' ? '🐱' : '🐶'}</span>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                <h2 className="text-[17px] font-black text-gray-900 leading-tight tracking-tight">{cfg.title}</h2>
-                {petName && (
-                  <span className="inline-flex max-w-full items-center px-2 py-0.5 rounded-full bg-white text-gray-700 text-[11px] font-bold shadow-sm border border-white/90 whitespace-normal break-all leading-tight">
-                    {petName}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2 mt-0.5 min-w-0">
-                <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${status.dot} ring-2 ring-white`} />
-                <span className={`text-[13px] font-semibold ${status.text} truncate`}>{status.label}</span>
-              </div>
-            </div>
-            {mode !== 'view' ? (
-              <button
-                type="button"
-                onClick={() => { setMode('view'); setEditRecord(null); }}
-                onTouchEnd={() => { setMode('view'); setEditRecord(null); }}
-                className="relative z-10 pointer-events-auto w-10 h-10 rounded-full bg-white/60 backdrop-blur-md flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-white shadow-sm flex-shrink-0 transition-all active:scale-90"
-                aria-label="Voltar"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-5 h-5">
-                  <path d="M15 18l-6-6 6-6" />
-                </svg>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onClose}
-                className="relative z-10 pointer-events-auto w-10 h-10 rounded-full bg-white/60 backdrop-blur-md flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-white shadow-sm flex-shrink-0 transition-all active:scale-90"
-                aria-label="Fechar"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
+          <div>
+            <h3 className="mb-1 text-xl font-bold text-slate-900">{cfg.title} registrado!</h3>
+            <p className="text-sm text-slate-400">O prontuário do pet foi atualizado.</p>
           </div>
+          <button
+            onClick={() => onGoHome?.()}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3.5 text-[15px] font-bold text-white shadow-[0_8px_20px_-6px_rgba(16,185,129,0.4)] transition-transform active:scale-[0.97]"
+          >
+            <Home className="h-[18px] w-[18px]" strokeWidth={2.3} />
+            Ir para a home
+          </button>
+          <button onClick={() => setJustSaved(false)} className="text-sm text-slate-400 underline">
+            Ver prontuário
+          </button>
         </div>
+      )}
 
-        {/* Scrollable body */}
-        <div className="overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
+      <SheetHeader
+        tone="cream"
+        title={cfg.title}
+        subtitle={petName || undefined}
+        status={{
+          label: status.label.charAt(0) + status.label.slice(1).toLowerCase(),
+          tone: status.dot === 'bg-rose-500' ? 'danger' : status.dot === 'bg-amber-500' ? 'warn' : status.dot === 'bg-emerald-500' ? 'good' : 'neutral',
+        }}
+        media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpecies === 'cat' ? '🐱' : '🐶'} />}
+        onClose={onClose}
+        onBack={mode !== 'view' ? () => { setMode('view'); setEditRecord(null); } : undefined}
+      />
+
+      {/* Scrollable body */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
           {mode === 'view' && (
             <p className="mx-4 mt-2 mb-0 text-[10px] text-gray-400 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
           )}
@@ -1000,14 +951,12 @@ export function ParasiteItemSheet({
           </div>
         )}
 
-        {/* ── Toast ─────────────────────────────────────────────────────────── */}
-        {toast && (
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl z-20 whitespace-nowrap pointer-events-none">
-            {toast}
-          </div>
-        )}
-      </div>
-    </div>
-    </ModalPortal>
+      {/* ── Toast ─────────────────────────────────────────────────────────── */}
+      {toast && (
+        <div className="pointer-events-none absolute bottom-8 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white shadow-xl">
+          {toast}
+        </div>
+      )}
+    </SheetShell>
   );
 }
