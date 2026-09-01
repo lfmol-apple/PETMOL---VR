@@ -4,8 +4,8 @@ import React, { useEffect, useRef, useState, type ChangeEvent, type Dispatch, ty
 import type { VaccineRecord, VaccineType } from '@/lib/petHealth';
 import type { VaccineFormData } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
-import { Check, Home, Syringe } from 'lucide-react';
-import { SheetAvatar, SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { Check, Home } from 'lucide-react';
+import { SheetAvatar, SheetHeader, SheetShell } from '@/components/ui/sheet';
 import { localTodayISO } from '@/lib/localDate';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { CoachMark } from '@/components/CoachMark';

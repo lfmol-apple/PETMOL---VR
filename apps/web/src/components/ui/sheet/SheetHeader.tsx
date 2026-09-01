@@ -27,6 +27,8 @@ interface SheetHeaderProps {
   media?: ReactNode;
   onClose?: () => void;
   onBack?: () => void;
+  /** ação extra à esquerda do botão fechar (ex.: "Excluir") */
+  action?: ReactNode;
   tone?: Tone;
   /** esconde a hairline inferior */
   flush?: boolean;
@@ -39,6 +41,7 @@ export function SheetHeader({
   media,
   onClose,
   onBack,
+  action,
   tone = 'white',
   flush = false,
 }: SheetHeaderProps) {
@@ -69,6 +72,7 @@ export function SheetHeader({
             </div>
           )}
         </div>
+        {action && <div className="flex-shrink-0">{action}</div>}
         {onClose && (
           <button type="button" onClick={onClose} aria-label="Fechar" className={btn}>
             <X className="h-[15px] w-[15px]" strokeWidth={2.5} />

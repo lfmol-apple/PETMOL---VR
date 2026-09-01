@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { BrowserCodeReader, BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
+import { ChevronLeft, X } from 'lucide-react';
 import { ModalPortal } from '@/components/ModalPortal';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE_URL } from '@/lib/api';
@@ -2990,15 +2991,15 @@ export function ProductDetectionSheetGold({
                 <button
                   type="button"
                   onClick={goBack}
-                  className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-xl font-bold text-gray-700 transition-all active:scale-95"
                   aria-label="Voltar"
+                  className="-ml-1 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-900/[0.06] text-slate-500 transition-colors hover:bg-slate-900/[0.1] hover:text-slate-800 active:scale-90"
                 >
-                  ‹
+                  <ChevronLeft className="h-[17px] w-[17px]" strokeWidth={2.5} />
                 </button>
               )}
               <div className="min-w-0 flex-1">
-                <h2 className="text-[16px] font-bold leading-tight text-gray-900">{STEP_TITLE[step]}</h2>
-                {petName && <p className="truncate text-xs text-gray-400">{petName}</p>}
+                <h2 className="text-[16px] font-bold leading-tight text-slate-900">{STEP_TITLE[step]}</h2>
+                {petName && <p className="truncate text-xs text-slate-400">{petName}</p>}
               </div>
               <button
                 type="button"
@@ -3006,10 +3007,10 @@ export function ProductDetectionSheetGold({
                   clearPendingScannedProduct();
                   onClose();
                 }}
-                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-all hover:bg-gray-200 active:scale-95"
                 aria-label="Fechar"
+                className="-mr-1 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-900/[0.06] text-slate-500 transition-colors hover:bg-slate-900/[0.1] hover:text-slate-800 active:scale-90"
               >
-                ✕
+                <X className="h-[15px] w-[15px]" strokeWidth={2.5} />
               </button>
             </div>
           )}
