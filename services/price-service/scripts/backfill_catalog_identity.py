@@ -41,6 +41,8 @@ def main() -> int:
     ap.add_argument("--gtin", action="append", default=[], help="só estes GTINs")
     ap.add_argument("--limit", type=int, default=1000)
     ap.add_argument("--all", action="store_true", help="processa todos, não só os stale/nunca-enriquecidos")
+    ap.add_argument("--force-refresh", action="store_true",
+                    help="reprocessa após correção de extrator: revisa/retrata valores que ESTE pipeline gravou (nunca fontes MANUAL/ADMIN/PETMOL_VALIDATED)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--json", action="store_true")
@@ -51,7 +53,7 @@ def main() -> int:
         if args.gtin:
             results = []
             for g in args.gtin:
-                r = merge_product_catalog_identity(db, g, dry_run=dry)
+                r = merge_product_catalog_identity(db, g, dry_run=dry, force_awin_refresh=args.force_refresh)
                 if not dry:
                     db.commit()
                 results.append(vars(r))
@@ -64,7 +66,10 @@ def main() -> int:
             print(json.dumps(summary, ensure_ascii=False, indent=2))
             return 0
 
-        batch = enrich_feed_catalog_batch(db, max_products=args.limit, only_stale=not args.all)
+        batch = enrich_feed_catalog_batch(
+            db, max_products=args.limit, only_stale=not args.all,
+            force_awin_refresh=args.force_refresh,
+        )
 
     payload = vars(batch)
     if args.json:

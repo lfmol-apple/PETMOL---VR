@@ -233,7 +233,9 @@ def _load_evidence_log(product: ProductCatalog) -> dict:
         return {}
 
 
-def _may_write(product: ProductCatalog, field_name: str, log: dict, new_confidence: float) -> bool:
+def _may_write(
+    product: ProductCatalog, field_name: str, log: dict, new_confidence: float, *, force: bool = False
+) -> bool:
     current = getattr(product, field_name, None)
     if current in (None, "", "[]"):
         return True
@@ -245,11 +247,16 @@ def _may_write(product: ProductCatalog, field_name: str, log: dict, new_confiden
         return False
     if entry.get("source") != "AWIN_FEED":
         return False
+    # `force`: reprocessamento após correção de extrator — este pipeline pode
+    # revisar o que ELE MESMO gravou (nunca fontes protegidas), ignorando o
+    # piso de confiança. Usado só pelo backfill de re-enriquecimento.
+    if force:
+        return True
     return float(new_confidence) >= float(entry.get("confidence", 0.0))
 
 
 def merge_product_catalog_identity(
-    db: Session, gtin: str, *, dry_run: bool = False
+    db: Session, gtin: str, *, dry_run: bool = False, force_awin_refresh: bool = False
 ) -> CatalogMergeResult:
     gtin_n = normalize_gtin(gtin or "")
     if not gtin_n:
@@ -286,8 +293,16 @@ def merge_product_catalog_identity(
                                "at": now.isoformat()}
             return
         if value in (None, "", []):
+            # retratação: se este pipeline gravou algo antes e o extrator
+            # corrigido não sustenta mais o valor, limpa (só sob force).
+            if force_awin_refresh and log.get(field_name, {}).get("source") == "AWIN_FEED" \
+                    and getattr(product, field_name, None) not in (None, "", "[]"):
+                if not dry_run:
+                    setattr(product, field_name, None)
+                log.pop(field_name, None)
+                result.updated_fields.append(field_name)
             return
-        if not _may_write(product, field_name, log, confidence):
+        if not _may_write(product, field_name, log, confidence, force=force_awin_refresh):
             return
         stored = json.dumps(value, ensure_ascii=False) if field_name in _JSON_FIELDS else value
         if getattr(product, field_name, None) == stored:
@@ -397,6 +412,7 @@ def enrich_feed_catalog_batch(
     max_products: int = 500,
     only_stale: bool = True,
     gtins: Optional[list[str]] = None,
+    force_awin_refresh: bool = False,
 ) -> CatalogEnrichBatchSummary:
     """Roda merge_product_catalog_identity para uma leva de GTINs do feed.
     Prioridade: GTINs que os tutores escaneiam → nunca enriquecidos →
@@ -447,7 +463,7 @@ def enrich_feed_catalog_batch(
     for g in queue[:cap]:
         summary.processed += 1
         try:
-            r = merge_product_catalog_identity(db, g)
+            r = merge_product_catalog_identity(db, g, force_awin_refresh=force_awin_refresh)
             db.commit()
             if r.created:
                 summary.created += 1

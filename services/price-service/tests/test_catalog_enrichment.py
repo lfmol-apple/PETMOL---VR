@@ -112,6 +112,64 @@ def test_incomplete_later_feed_does_not_erase_known_weight():
     assert _catalog(g).length_cm == 65.0
 
 
+def test_force_refresh_retracts_stale_awin_value_after_extractor_fix():
+    """Após corrigir um extrator, o re-enriquecimento com force revisa e
+    RETRATA o que este mesmo pipeline gravou errado — nunca toca fontes
+    protegidas."""
+    g = "7893333344441"
+    # 1ª passada: título ambíguo faz o extrator (à época) gravar weight_kg
+    _feed(g, "Antipulgas NexGard Cães de 4,1 a 10 kg", merchant="zeenow", brand="NexGard", category="Cachorro")
+    db = SessionLocal()
+    try:
+        r = merge_product_catalog_identity(db, g)
+        db.commit()
+    finally:
+        db.close()
+    # simula o dado ruim da leva pré-correção
+    db = SessionLocal()
+    try:
+        p = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == g))
+        p.weight_kg = 10.0
+        ev = json.loads(p.identity_evidence_json)
+        ev["weight_kg"] = {"value": 10.0, "source": "AWIN_FEED", "confidence": 0.75}
+        p.identity_evidence_json = json.dumps(ev)
+        db.commit()
+    finally:
+        db.close()
+    # re-enriquecimento com force: o extrator corrigido não sustenta mais o valor
+    db = SessionLocal()
+    try:
+        r = merge_product_catalog_identity(db, g, force_awin_refresh=True)
+        db.commit()
+    finally:
+        db.close()
+    assert "weight_kg" in r.updated_fields
+    assert _catalog(g).weight_kg is None
+    assert _catalog(g).animal_weight_min_kg == 4.1
+
+
+def test_force_refresh_never_touches_protected_source():
+    g = "7893333355551"
+    db = SessionLocal()
+    try:
+        db.add(ProductCatalog(
+            barcode=g, barcode_normalized=g, name="Bom", canonical_name="Bom", weight_kg=2.5,
+            identity_evidence_json=json.dumps({"weight_kg": {"value": 2.5, "source": "MANUAL", "confidence": 1.0}}),
+        ))
+        db.commit()
+    finally:
+        db.close()
+    _feed(g, "Ração X Cães 15kg", brand="X", category="Cachorro")
+    db = SessionLocal()
+    try:
+        r = merge_product_catalog_identity(db, g, force_awin_refresh=True)
+        db.commit()
+    finally:
+        db.close()
+    assert "weight_kg" not in r.updated_fields
+    assert _catalog(g).weight_kg == 2.5
+
+
 def test_rerun_is_idempotent():
     g = "7894444444441"
     _feed(g, "Ração Premier Golden Cães Adultos Frango 15kg", brand="Premier", category="Cachorro")
