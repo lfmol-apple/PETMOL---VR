@@ -40,6 +40,7 @@ class PriceRefreshSummary:
     api_error: int = 0
     timeout: int = 0
     remaining: int = 0
+    time_limited: bool = False
     duration_seconds: float = 0.0
     errors: list[str] = field(default_factory=list)
 
@@ -51,6 +52,8 @@ def refresh_marketplace_prices(
     max_offers: int = 200,
     delay_seconds: float = 0.4,
     search_limit: int = 20,
+    max_duration_seconds: Optional[float] = None,
+    max_searches_per_offer: int = 3,
 ) -> PriceRefreshSummary:
     """Refresh prices for existing validated marketplace offers.
 
@@ -64,13 +67,23 @@ def refresh_marketplace_prices(
     summary.remaining = max(total_active - len(offers), 0)
 
     for index, offer in enumerate(offers):
+        if max_duration_seconds is not None and (time.monotonic() - started) >= max_duration_seconds:
+            summary.time_limited = True
+            summary.remaining += len(offers) - index
+            break
         summary.processed += 1
         try:
             if merchant != "shopee":
                 _mark_error(offer, "unsupported_merchant", "sem adaptador de refresh")
                 summary.api_error += 1
                 continue
-            _refresh_one_shopee_offer(db, offer, summary, search_limit=search_limit)
+            _refresh_one_shopee_offer(
+                db,
+                offer,
+                summary,
+                search_limit=search_limit,
+                max_searches_per_offer=max_searches_per_offer,
+            )
             db.commit()
         except httpx.TimeoutException as exc:
             db.rollback()
@@ -100,6 +113,7 @@ def _refresh_one_shopee_offer(
     summary: PriceRefreshSummary,
     *,
     search_limit: int,
+    max_searches_per_offer: int,
 ) -> None:
     product = db.get(ProductCatalog, offer.product_id)
     if product is None:
@@ -114,7 +128,11 @@ def _refresh_one_shopee_offer(
         summary.unavailable += 1
         return
 
-    nodes = _search_existing_offer_candidates(identity, search_limit=search_limit)
+    nodes = _search_existing_offer_candidates(
+        identity,
+        search_limit=search_limit,
+        max_searches=max_searches_per_offer,
+    )
     current = _find_current_listing(nodes, offer.external_listing_id)
     accepted_other = _has_accepted_other_listing(identity, nodes, offer.external_listing_id)
     if current is None:
@@ -189,15 +207,24 @@ def _active_offer_count(db: Session, merchant: str) -> int:
     ).count())
 
 
-def _search_existing_offer_candidates(identity: ProductIdentity, *, search_limit: int) -> list[dict]:
+def _search_existing_offer_candidates(
+    identity: ProductIdentity,
+    *,
+    search_limit: int,
+    max_searches: int,
+) -> list[dict]:
     product = ProductCatalog(name=identity.canonical_name, brand=identity.brand)
     keywords = [identity.gtin, *_build_keyword_variants(product, identity.weight_kg)]
     seen_keywords: set[str] = set()
     nodes_by_id: dict[str, dict] = {}
+    searches = 0
     for keyword in keywords:
         if not keyword or keyword in seen_keywords:
             continue
+        if searches >= max(max_searches, 1):
+            break
         seen_keywords.add(keyword)
+        searches += 1
         for node in search_product_offers(keyword, limit=search_limit):
             key = str(node.get("itemId")) if node.get("itemId") is not None else f"{node.get('productName')}:{node.get('price')}"
             nodes_by_id.setdefault(key, node)

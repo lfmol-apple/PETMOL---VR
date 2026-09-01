@@ -164,3 +164,23 @@ def test_refresh_does_not_swap_to_other_accepted_listing(monkeypatch):
         assert row.price_refresh_status == "identity_conflict"
     finally:
         db.close()
+
+
+def test_refresh_stops_gracefully_when_time_limit_is_reached(monkeypatch):
+    product_id = _register_product()
+    _register_offer(product_id)
+    monkeypatch.setattr(refresh_module, "search_product_offers", lambda keyword, limit=20: [])
+
+    db = SessionLocal()
+    try:
+        summary = refresh_marketplace_prices(
+            db,
+            max_offers=10,
+            delay_seconds=0,
+            max_duration_seconds=0,
+        )
+        assert summary.processed == 0
+        assert summary.time_limited is True
+        assert summary.remaining >= 1
+    finally:
+        db.close()

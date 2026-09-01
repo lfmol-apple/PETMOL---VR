@@ -21,6 +21,8 @@ def main() -> int:
     parser.add_argument("--max-offers", type=int, default=200)
     parser.add_argument("--delay-seconds", type=float, default=0.4)
     parser.add_argument("--search-limit", type=int, default=20)
+    parser.add_argument("--max-duration-seconds", type=float, default=600.0)
+    parser.add_argument("--max-searches-per-offer", type=int, default=3)
     args = parser.parse_args()
 
     db = SessionLocal()
@@ -31,6 +33,8 @@ def main() -> int:
             max_offers=args.max_offers,
             delay_seconds=args.delay_seconds,
             search_limit=args.search_limit,
+            max_duration_seconds=args.max_duration_seconds,
+            max_searches_per_offer=args.max_searches_per_offer,
         )
     finally:
         db.close()
@@ -38,9 +42,11 @@ def main() -> int:
     print(
         "merchant={merchant} processed={processed} refreshed={refreshed} "
         "unchanged={unchanged} unavailable={unavailable} identity_conflict={identity_conflict} "
-        "api_error={api_error} timeout={timeout} remaining={remaining} duration_seconds={duration_seconds}".format(
+        "api_error={api_error} timeout={timeout} remaining={remaining} "
+        "time_limited={time_limited} duration_seconds={duration_seconds}".format(
             **result.__dict__
-        )
+        ),
+        flush=True,
     )
     # The job is item-isolated. A transient API error is observable in the
     # summary but should not make systemd mark the whole night as failed.
