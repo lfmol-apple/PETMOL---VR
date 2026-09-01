@@ -114,7 +114,7 @@ class ProductIdentity:
             life_stage=_normalize_life_stage(life_stage) or _infer_life_stage(text),
             breed_size=_normalize_breed_size(breed_size) or _infer_breed_size(text),
             breed=_clean(breed),
-            flavor=_clean(flavor),
+            flavor=_normalize_flavor(flavor) or _infer_flavor(text),
             therapeutic_attributes=tuple(sorted(set(therapeutic_attributes) | _infer_therapeutics(text))),
             aliases=tuple(alias for alias in aliases if alias),
             image_url=_clean(image_url),
@@ -230,6 +230,7 @@ def evaluate_identity(
         _compare_range("animal_weight_range", expected.animal_weight_range, extract_animal_weight_range_kg(candidate_text)),
         _compare_exact("life_stage", expected.life_stage, _infer_life_stage(candidate_text)),
         _compare_exact("breed_size", expected.breed_size, _infer_breed_size(candidate_text)),
+        _compare_exact("flavor", expected.flavor, _infer_flavor(candidate_text)),
         _compare_set("therapeutic_attributes", set(expected.therapeutic_attributes), _infer_therapeutics(candidate_text)),
     ]
 
@@ -250,20 +251,22 @@ def evaluate_identity(
 
     text_score = _text_identity_score(expected, candidate_text)
     family_match = _family_matches(expected, candidate_text)
-    sku_matches = [item for item in matched if item.attribute in _SKU_ATTRIBUTES]
+    sku_matches = [item for item in matched if item.attribute in _SKU_SCORE_ATTRIBUTES]
+    flavor_matches = [item for item in matched if item.attribute == "flavor"]
     identity_reasons: list[str] = []
     if _comparison("brand", comparisons).status == AttributeStatus.MATCH:
         identity_reasons.append("BRAND_MATCH")
     if family_match:
         identity_reasons.append("FAMILY_MATCH")
     identity_reasons.extend(_reason_for_match(item) for item in sku_matches)
+    identity_reasons.extend(_reason_for_match(item) for item in flavor_matches)
     if text_score >= 0.82:
         identity_reasons.append("TEXT_STRONG_MATCH")
 
     has_identity_base = "BRAND_MATCH" in identity_reasons and (
         family_match or text_score >= 0.70 or len(sku_matches) >= 2 or (sku_matches and text_score >= 0.60)
     )
-    has_sku_evidence = bool(sku_matches) or not _expected_has_structured_sku(expected)
+    has_sku_evidence = bool(sku_matches or flavor_matches) or not _expected_has_structured_sku(expected)
     confidence = min(0.98, round((text_score * 0.55) + (0.15 if "BRAND_MATCH" in identity_reasons else 0) + (0.15 if family_match else 0) + (0.08 * len(sku_matches)), 4))
 
     if has_identity_base and has_sku_evidence and confidence >= min_confidence:
@@ -320,7 +323,18 @@ def reason_counts(results: list[IdentityMatchResult]) -> dict[str, int]:
     return counts
 
 
-_SKU_ATTRIBUTES = {"weight_kg", "volume_ml", "length_cm", "pack_count", "animal_weight_range", "life_stage", "breed_size", "therapeutic_attributes"}
+_SKU_ATTRIBUTES = {
+    "weight_kg",
+    "volume_ml",
+    "length_cm",
+    "pack_count",
+    "animal_weight_range",
+    "life_stage",
+    "breed_size",
+    "flavor",
+    "therapeutic_attributes",
+}
+_SKU_SCORE_ATTRIBUTES = _SKU_ATTRIBUTES - {"flavor"}
 
 _THERAPEUTIC_GROUPS = {
     "urinary": {"urinary", "urinario", "urinaria", "urinarias", "s/o", "so"},
@@ -543,6 +557,40 @@ def _infer_therapeutics(text: str) -> set[str]:
         if tokens & aliases or any(alias in normalized for alias in aliases if "/" in alias):
             out.add(label)
     return out
+
+
+_FLAVOR_GROUPS = {
+    "multi": {"multi", "multisabor", "sabores"},
+    "beef": {"carne", "bovino", "beef"},
+    "chicken": {"frango", "galinha", "chicken"},
+    "lamb": {"cordeiro", "lamb"},
+    "salmon": {"salmao", "salmon"},
+    "fish": {"peixe", "fish"},
+    "tuna": {"atum", "tuna"},
+    "turkey": {"peru", "turkey"},
+    "pork": {"porco", "suino", "pork"},
+}
+
+
+def _infer_flavor(text: str) -> Optional[str]:
+    normalized = _normalize_text(text)
+    if re.search(r"\bmulti\s*sabor(?:es)?\b", normalized):
+        return "multi"
+    tokens = _tokenize_text(text)
+    found = {
+        flavor
+        for flavor, aliases in _FLAVOR_GROUPS.items()
+        if tokens & aliases or any(alias in normalized for alias in aliases if " " in alias)
+    }
+    if not found:
+        return None
+    if "multi" in found:
+        return "multi"
+    return "+".join(sorted(found))
+
+
+def _normalize_flavor(value: Optional[str]) -> Optional[str]:
+    return _infer_flavor(value or "") or _clean(value)
 
 
 def _infer_product_line(text: str) -> Optional[str]:

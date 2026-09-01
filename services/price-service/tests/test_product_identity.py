@@ -151,6 +151,21 @@ def test_pack_count_variation_is_conflict():
     assert "PACK_COUNT_CONFLICT" in result.reasons
 
 
+def test_flavor_variation_is_conflict():
+    expected = ProductIdentity.build(canonical_name="Biscoito Pedigree Biscrok Carne 500g", brand="Pedigree")
+    result = evaluate_identity(
+        expected,
+        MerchantCandidate.build(
+            merchant="shopee",
+            title="Biscoito Pedigree Biscrok Multisabor 500g",
+            brand="Pedigree",
+        ),
+    )
+
+    assert result.decision == IdentityDecision.CONFLICT
+    assert "FLAVOR_CONFLICT" in result.reasons
+
+
 def test_same_product_with_different_merchant_title_is_high_confidence():
     expected = ProductIdentity.build(
         canonical_name="Royal Canin Veterinary Diet Urinary S/O Small Dog 7,5kg",

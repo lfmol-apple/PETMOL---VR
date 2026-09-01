@@ -40,10 +40,15 @@ def _disable_shopee(monkeypatch) -> None:
     get_settings.cache_clear()
 
 
-def _register_product(gtin: str = GTIN) -> int:
+def _register_product(
+    gtin: str = GTIN,
+    *,
+    name: str = "Produto Teste",
+    brand: str = "Marca Teste",
+) -> int:
     db = SessionLocal()
     try:
-        product = ProductCatalog(barcode=gtin, barcode_normalized=gtin, name="Produto Teste", brand="Marca Teste")
+        product = ProductCatalog(barcode=gtin, barcode_normalized=gtin, name=name, brand=brand)
         db.add(product)
         db.commit()
         db.refresh(product)
@@ -122,6 +127,62 @@ async def test_shopee_offer_uses_catalog_thumbnail_when_marketplace_has_no_image
         offer = await provider.find_offer(ProductContext(gtin=GTIN))
         assert offer is not None
         assert offer.image_url == "https://img.example/racao-nine.jpg"
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_prevalidated_marketplace_offer_with_wrong_variant_is_not_displayed(monkeypatch):
+    _enable_shopee(monkeypatch)
+    product_id = _register_product(
+        name="Biscoito Pedigree Biscrok Carne 500g",
+        brand="Pedigree",
+    )
+    _register_offer(
+        product_id,
+        price=20.20,
+        merchant_title="Biscoito Pedigree Biscrok Multisabor 150g",
+        match_decision="HIGH_CONFIDENCE",
+    )
+
+    db = SessionLocal()
+    try:
+        provider = MarketplaceOfferProvider(db, "shopee")
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is None
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_prevalidated_marketplace_offer_skips_wrong_variant_and_uses_valid_one(monkeypatch):
+    _enable_shopee(monkeypatch)
+    product_id = _register_product(
+        name="Biscoito Pedigree Biscrok Carne 500g",
+        brand="Pedigree",
+    )
+    _register_offer(
+        product_id,
+        price=20.20,
+        merchant_title="Biscoito Pedigree Biscrok Multisabor 150g",
+        match_decision="HIGH_CONFIDENCE",
+    )
+    _register_offer(
+        product_id,
+        price=27.99,
+        merchant_title="Biscoito Pedigree Biscrok Carne 500g",
+        match_decision="HIGH_CONFIDENCE",
+    )
+
+    db = SessionLocal()
+    try:
+        provider = MarketplaceOfferProvider(db, "shopee")
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is not None
+        assert offer.price == 27.99
+        assert offer.merchant_product_name == "Biscoito Pedigree Biscrok Carne 500g"
+        assert "WEIGHT_KG_MATCH" in (offer.match_reasons or [])
+        assert "FLAVOR_MATCH" in (offer.match_reasons or [])
     finally:
         db.close()
 

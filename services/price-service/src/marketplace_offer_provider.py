@@ -30,7 +30,7 @@ from .affiliate_links import MarketplaceOffer, get_active_marketplace_offer
 from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
 from .db import SessionLocal
-from .product_identity import MerchantCandidate, ProductIdentity, evaluate_identity
+from .product_identity import IdentityMatchResult, MerchantCandidate, ProductIdentity, evaluate_identity
 from .product_catalog_lookup import ProductCatalog, normalize_gtin, search_catalog_by_text
 from .mercadolivre_link_validator import InvalidMercadoLivreAffiliateUrlError, validate_mercadolivre_affiliate_url
 from .shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
@@ -127,7 +127,8 @@ class MarketplaceOfferProvider:
             return None
 
         product = self._db.get(ProductCatalog, product_id)
-        offer = get_active_marketplace_offer(self._db, product_id, self.merchant)
+        identity = ProductIdentity.from_catalog(product) if product is not None else ProductIdentity.build(gtin=context.gtin, canonical_name=context.name or context.query, brand=context.brand)
+        offer, live_match_result = _select_valid_marketplace_offer(self._db, product_id, self.merchant, identity)
         if offer is None:
             # Produto conhecido, GTIN confiável, mas ainda sem oferta Shopee
             # cadastrada — tenta descobrir UMA vez, em background (nunca
@@ -148,19 +149,22 @@ class MarketplaceOfferProvider:
                 _refresh_marketplace_offer(self.merchant, product.barcode_normalized)
                 self._db.expire_all()
                 product = self._db.get(ProductCatalog, product_id)
-                offer = get_active_marketplace_offer(self._db, product_id, self.merchant)
+                identity = ProductIdentity.from_catalog(product) if product is not None else identity
+                offer, live_match_result = _select_valid_marketplace_offer(self._db, product_id, self.merchant, identity)
                 if offer is None:
                     return None
                 checked_at = _effective_checked_at(offer)
 
         fresh = _is_offer_fresh(checked_at)
-        identity = ProductIdentity.from_catalog(product) if product is not None else ProductIdentity.build(gtin=context.gtin, canonical_name=context.name or context.query, brand=context.brand)
         match_reasons = None
         match_attributes = None
         if offer.match_reasons_json:
             match_reasons = _json_list(offer.match_reasons_json)
         if offer.match_attributes_json:
             match_attributes = _json_dict_list(offer.match_attributes_json)
+        if live_match_result is not None:
+            match_reasons = list(live_match_result.reasons)
+            match_attributes = _attributes_to_dicts(live_match_result)
         return DiscoveredOffer(
             merchant=self.merchant,
             canonical_product_id=product.id if product else product_id,
@@ -185,8 +189,8 @@ class MarketplaceOfferProvider:
             # mesmo com price=None (ver commerce_provider.CommerceEngine).
             allow_without_price=not fresh,
             merchant_product_name=offer.merchant_title,
-            match_decision=offer.match_decision or "HIGH_CONFIDENCE",
-            match_confidence=offer.match_confidence if offer.match_confidence is not None else 0.75,
+            match_decision=(live_match_result.decision.value if live_match_result is not None else offer.match_decision) or "HIGH_CONFIDENCE",
+            match_confidence=live_match_result.confidence if live_match_result is not None else (offer.match_confidence if offer.match_confidence is not None else 0.75),
             match_reasons=match_reasons or ["PREVALIDATED_MARKETPLACE_OFFER"],
             match_attributes=match_attributes,
         )
@@ -248,6 +252,57 @@ def _effective_checked_at(offer: MarketplaceOffer) -> Optional[datetime]:
     if checked_at is not None and checked_at.tzinfo is None:
         checked_at = checked_at.replace(tzinfo=timezone.utc)
     return checked_at
+
+
+def _select_valid_marketplace_offer(
+    db: Session,
+    product_id: int,
+    merchant: str,
+    identity: ProductIdentity,
+) -> tuple[Optional[MarketplaceOffer], Optional[IdentityMatchResult]]:
+    rows = list(db.scalars(
+        select(MarketplaceOffer)
+        .where(
+            MarketplaceOffer.product_id == product_id,
+            MarketplaceOffer.merchant == merchant,
+            MarketplaceOffer.active.is_(True),
+        )
+        .order_by(MarketplaceOffer.price.is_(None), MarketplaceOffer.price.asc(), MarketplaceOffer.verified_at.desc())
+    ))
+    for row in rows:
+        result = _validate_marketplace_offer_identity(identity, row)
+        if result is None or result.accepted:
+            return row, result
+    return None, None
+
+
+def _validate_marketplace_offer_identity(identity: ProductIdentity, offer: MarketplaceOffer) -> Optional[IdentityMatchResult]:
+    if not offer.merchant_title and not offer.merchant_gtin:
+        return None
+    return evaluate_identity(
+        identity,
+        MerchantCandidate.build(
+            merchant=offer.merchant,
+            title=offer.merchant_title or "",
+            gtin=offer.merchant_gtin,
+            brand=None,
+            price=offer.price,
+            external_id=offer.external_listing_id,
+        ),
+    )
+
+
+def _attributes_to_dicts(result: IdentityMatchResult) -> list[dict]:
+    return [
+        {
+            "attribute": item.attribute,
+            "expected": item.expected,
+            "observed": item.observed,
+            "status": item.status.value,
+            "reason": item.reason,
+        }
+        for item in result.attributes
+    ]
 
 
 def _is_offer_fresh(checked_at: Optional[datetime]) -> bool:
