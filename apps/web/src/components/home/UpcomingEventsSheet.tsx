@@ -1,6 +1,7 @@
 'use client';
 
-import { ModalPortal } from '@/components/ModalPortal';
+import { CalendarClock } from 'lucide-react';
+import { SheetHeader, SheetIcon, SheetSectionLabel, SheetShell } from '@/components/ui/sheet';
 import type { PetCareReminder } from '@/lib/petCareDomain';
 
 interface Props {
@@ -70,49 +71,25 @@ export function UpcomingEventsSheet({ open, onClose, reminders, petName, onSelec
   groups.sort((a, b) => groupOrder(a.items[0].diff) - groupOrder(b.items[0].diff));
 
   return (
-    <ModalPortal>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
+    <SheetShell open={open} onClose={onClose} size="md" z={70}>
+      <SheetHeader
+        title="Próximos eventos"
+        subtitle={`${petName} · ${reminders.length} ${reminders.length === 1 ? 'evento' : 'eventos'}`}
+        media={<SheetIcon tone="blue"><CalendarClock className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+        onClose={onClose}
       />
 
-      {/* Sheet */}
-      <div className="fixed bottom-0 left-0 right-0 z-[71] flex flex-col max-h-[85dvh] rounded-t-[28px] bg-white shadow-2xl">
-
-        {/* Handle + header */}
-        <div className="flex-shrink-0 pt-3 px-5 pb-4 border-b border-slate-100">
-          <div className="w-10 h-1 rounded-full bg-slate-300 mx-auto mb-4" />
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-black text-slate-900 text-lg leading-tight">Próximos eventos</p>
-              <p className="text-xs text-slate-400 mt-0.5">{petName} · {reminders.length} {reminders.length === 1 ? 'evento' : 'eventos'}</p>
-            </div>
-            <button
-              onClick={onClose}
-              className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
+      <div className="flex-1 overflow-y-auto overscroll-contain py-2 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+        {reminders.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-8 py-16 text-center">
+            <p className="mb-3 text-4xl">🎉</p>
+            <p className="font-bold text-slate-700">Tudo em dia!</p>
+            <p className="mt-1 text-sm text-slate-400">Nenhum evento pendente para {petName}.</p>
           </div>
-        </div>
-
-        {/* List */}
-        <div className="flex-1 overflow-y-auto overscroll-contain py-2">
-          {reminders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center px-8">
-              <p className="text-4xl mb-3">🎉</p>
-              <p className="font-bold text-slate-700">Tudo em dia!</p>
-              <p className="text-sm text-slate-400 mt-1">Nenhum evento pendente para {petName}.</p>
-            </div>
-          ) : (
+        ) : (
             groups.map((group) => (
               <div key={group.label}>
-                <p className="px-5 py-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  {group.label}
-                </p>
+                <SheetSectionLabel className="px-5 py-2">{group.label}</SheetSectionLabel>
                 <div className="px-3">
                   {group.items.map((r) => (
                     <button
@@ -148,10 +125,8 @@ export function UpcomingEventsSheet({ open, onClose, reminders, petName, onSelec
                 </div>
               </div>
             ))
-          )}
-          <div className="h-6" />
-        </div>
+        )}
       </div>
-    </ModalPortal>
+    </SheetShell>
   );
 }

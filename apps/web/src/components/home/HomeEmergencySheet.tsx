@@ -1,6 +1,7 @@
 'use client';
 
-import { ModalPortal } from '@/components/ModalPortal';
+import { ChevronRight, Hospital, Siren, Stethoscope } from 'lucide-react';
+import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
 
 interface HomeEmergencySheetProps {
   open: boolean;
@@ -11,79 +12,50 @@ export function HomeEmergencySheet({ open, onClose }: HomeEmergencySheetProps) {
   if (!open) return null;
 
   return (
-    <ModalPortal>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-md"
-        onClick={onClose}
+    <SheetShell open={open} onClose={onClose} variant="center" size="sm" z={90}>
+      <SheetHeader
+        title="Emergência Veterinária"
+        subtitle="Atendimento mais próximo de você"
+        media={<SheetIcon tone="rose"><Siren className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+        onClose={onClose}
       />
-
-      {/* Centered modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 w-full max-w-sm pointer-events-auto overflow-hidden">
-          <div className="px-5 pt-5 pb-6">
-            {/* Header */}
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-xl">🚨</span>
-              </div>
-              <div className="flex-1">
-                <h2 className="text-base font-bold text-gray-900 leading-tight">Emergência Veterinária</h2>
-                <p className="text-xs text-gray-500">Abra as opções de atendimento mais próximas</p>
-              </div>
-              <button
-                onClick={onClose}
-                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 active:scale-95 transition-all"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Links */}
-            <div className="space-y-3">
-              <a
-                href="https://www.google.com/maps/search/clinica+veterinaria+24+horas+perto+de+mim"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-4 p-4 bg-red-500 hover:bg-red-600 rounded-2xl active:scale-[0.98] transition-all shadow-md shadow-red-500/25"
-              >
-                <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-                  <span className="text-2xl">🏥</span>
-                </div>
-                <div className="flex-1">
-                  <div className="font-bold text-white text-sm">Clínicas Veterinárias</div>
-                  <div className="text-xs text-red-100 mt-0.5">
-                    Atendimento 24h · Consultas e urgências
-                  </div>
-                </div>
-                <span className="text-white/70 text-lg">›</span>
-              </a>
-
-              <a
-                href="https://www.google.com/maps/search/hospital+veterinario+24+horas+perto+de+mim"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-4 p-4 bg-orange-500 hover:bg-orange-600 rounded-2xl active:scale-[0.98] transition-all shadow-md shadow-orange-500/25"
-              >
-                <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-                  <span className="text-2xl">🏨</span>
-                </div>
-                <div className="flex-1">
-                  <div className="font-bold text-white text-sm">Hospitais Veterinários</div>
-                  <div className="text-xs text-orange-100 mt-0.5">
-                    Internação e cirurgia 24h
-                  </div>
-                </div>
-                <span className="text-white/70 text-lg">›</span>
-              </a>
-            </div>
-
-            <p className="text-center text-[10px] text-gray-400 mt-4">
-              Abre Google Maps com estabelecimentos próximos a você
-            </p>
+      <SheetShell.Body className="space-y-3">
+        <a
+          href="https://www.google.com/maps/search/clinica+veterinaria+24+horas+perto+de+mim"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3.5 rounded-2xl bg-rose-500 p-4 shadow-[0_8px_20px_-6px_rgba(244,63,94,0.45)] transition-transform active:scale-[0.98]"
+        >
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/20">
+            <Stethoscope className="h-5 w-5 text-white" strokeWidth={2.2} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[14px] font-bold text-white">Clínicas Veterinárias</div>
+            <div className="mt-0.5 text-[12px] text-rose-100">Atendimento 24h · consultas e urgências</div>
           </div>
-        </div>
-      </div>
-    </ModalPortal>
+          <ChevronRight className="h-4 w-4 flex-shrink-0 text-white/70" strokeWidth={2.5} />
+        </a>
+
+        <a
+          href="https://www.google.com/maps/search/hospital+veterinario+24+horas+perto+de+mim"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3.5 rounded-2xl bg-orange-500 p-4 shadow-[0_8px_20px_-6px_rgba(249,115,22,0.45)] transition-transform active:scale-[0.98]"
+        >
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/20">
+            <Hospital className="h-5 w-5 text-white" strokeWidth={2.2} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[14px] font-bold text-white">Hospitais Veterinários</div>
+            <div className="mt-0.5 text-[12px] text-orange-100">Internação e cirurgia 24h</div>
+          </div>
+          <ChevronRight className="h-4 w-4 flex-shrink-0 text-white/70" strokeWidth={2.5} />
+        </a>
+
+        <p className="pt-1 text-center text-[11px] leading-relaxed text-slate-400">
+          Abre o Google Maps com estabelecimentos próximos a você.
+        </p>
+      </SheetShell.Body>
+    </SheetShell>
   );
 }

@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Bath, Check, ChevronRight, Loader2, Pill, ShieldCheck, ShoppingCart, Syringe, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api';
+import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
 import { getToken as getAuthToken } from '@/lib/auth-token';
 import { trackReminderActionCompleted, trackV1Metric } from '@/lib/v1Metrics';
 import { localTodayISO } from '@/lib/localDate';
@@ -40,20 +42,20 @@ interface PushActionSheetProps {
 
 // ── Helpers ──
 
-const sheetAccent: Record<ActionSheetType, string> = {
-  vaccines:   'border-sky-200 bg-sky-50 text-sky-800',
-  medication: 'border-purple-200 bg-purple-50 text-purple-800',
-  parasites:  'border-orange-200 bg-orange-50 text-orange-800',
-  food:       'border-amber-200 bg-amber-50 text-amber-900',
-  grooming:   'border-emerald-200 bg-emerald-50 text-emerald-800',
+const sheetTone: Record<ActionSheetType, 'blue' | 'slate' | 'amber' | 'emerald' | 'rose'> = {
+  vaccines:   'blue',
+  medication: 'slate',
+  parasites:  'amber',
+  food:       'amber',
+  grooming:   'emerald',
 };
 
-const sheetIcon: Record<ActionSheetType, string> = {
-  vaccines:   '💉',
-  medication: '💊',
-  parasites:  '🛡️',
-  food:       '🥣',
-  grooming:   '🛁',
+const sheetIcon: Record<ActionSheetType, LucideIcon> = {
+  vaccines:   Syringe,
+  medication: Pill,
+  parasites:  ShieldCheck,
+  food:       UtensilsCrossed,
+  grooming:   Bath,
 };
 
 const sheetTitle: Record<ActionSheetType, string> = {
@@ -79,53 +81,22 @@ export function PushActionSheet({
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState<string | null>(null);
 
-  const icon = sheetIcon[type];
+  const Icon = sheetIcon[type];
   const title = sheetTitle[type];
-  const accent = sheetAccent[type];
   const primaryAction = (() => {
     if (type === 'medication') {
-      return {
-        emoji: '✓',
-        label: 'Registrar dose',
-        desc: 'Confirmar o cuidado de hoje',
-        color: 'green' as const,
-        onClick: () => confirmAction('confirm'),
-      };
+      return { Icon: Check, label: 'Registrar dose', desc: 'Confirmar o cuidado de hoje', color: 'green' as const, onClick: () => confirmAction('confirm') };
     }
     if (type === 'food') {
-      return {
-        emoji: '🛒',
-        label: 'Comprar novamente',
-        desc: 'Abrir ração e parceiros',
-        color: 'blue' as const,
-        onClick: () => { if (onOpenCommerce) onOpenCommerce(); else onOpenFull(); },
-      };
+      return { Icon: ShoppingCart, label: 'Comprar novamente', desc: 'Abrir ração e parceiros', color: 'blue' as const, onClick: () => { if (onOpenCommerce) onOpenCommerce(); else onOpenFull(); } };
     }
     if (type === 'parasites') {
-      return {
-        emoji: '🛒',
-        label: 'Comprar novamente',
-        desc: 'Abrir produto antiparasitário',
-        color: 'blue' as const,
-        onClick: () => { if (onOpenCommerce) onOpenCommerce(); else onOpenFull(); },
-      };
+      return { Icon: ShoppingCart, label: 'Comprar novamente', desc: 'Abrir produto antiparasitário', color: 'blue' as const, onClick: () => { if (onOpenCommerce) onOpenCommerce(); else onOpenFull(); } };
     }
     if (type === 'grooming') {
-      return {
-        emoji: '🛁',
-        label: 'Registrar banho/tosa',
-        desc: 'Abrir cuidado de higiene',
-        color: 'green' as const,
-        onClick: onOpenFull,
-      };
+      return { Icon: Bath, label: 'Registrar banho/tosa', desc: 'Abrir cuidado de higiene', color: 'green' as const, onClick: onOpenFull };
     }
-    return {
-      emoji: '💉',
-      label: 'Registrar vacina',
-      desc: 'Abrir detalhes da vacina',
-      color: 'blue' as const,
-      onClick: onOpenFull,
-    };
+    return { Icon: Syringe, label: 'Registrar vacina', desc: 'Abrir detalhes da vacina', color: 'blue' as const, onClick: onOpenFull };
   })();
 
   useEffect(() => {
@@ -186,7 +157,7 @@ export function PushActionSheet({
             pet_id: petId,
             item_name: itemName ?? null,
           });
-          setDone('✅ Registrado com sucesso!');
+          setDone('Registrado com sucesso');
           setTimeout(onClose, 1500);
           return;
         }
@@ -200,85 +171,60 @@ export function PushActionSheet({
     }
   };
 
-  // If action completed, show success toast
   if (done) {
     return (
-      <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" onClick={onClose}>
-        <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-md" />
-        <div className="relative w-full max-w-sm bg-white rounded-[28px] shadow-2xl border border-gray-200 p-6 text-center overflow-hidden">
-          <p className="text-lg font-bold text-gray-900">{done}</p>
-          <p className="text-sm text-gray-500 mt-1">{petName}</p>
+      <SheetShell open onClose={onClose} variant="center" size="sm" z={100}>
+        <div className="px-6 py-8 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+            <Check className="h-6 w-6" strokeWidth={2.5} />
+          </div>
+          <p className="text-[16px] font-bold text-slate-900">{done}</p>
+          <p className="mt-1 text-[13px] text-slate-400">{petName}</p>
         </div>
-      </div>
+      </SheetShell>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-md" />
-      <div
-        className="relative w-full max-w-sm bg-white rounded-[28px] border border-gray-200 shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-5 pt-5 pb-3">
-          <div className="flex items-center gap-3">
-            <span className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border text-2xl ${accent}`}>{icon}</span>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-bold text-gray-900 truncate">
-                {title} — {petName}
-              </h3>
-              {itemName && (
-                <p className="text-sm text-gray-600 truncate">{itemName}</p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 flex-shrink-0"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="px-5 pb-5 space-y-2">
-
-          <ActionButton
-            emoji={primaryAction.emoji}
-            label={primaryAction.label}
-            desc={primaryAction.desc}
-            color={primaryAction.color}
-            loading={loading}
-            onClick={primaryAction.onClick}
-          />
-
-          {/* Ver detalhes link */}
-          <button
-            type="button"
-            onClick={onOpenFull}
-            className="w-full text-center text-xs font-semibold text-gray-500 py-2 hover:text-gray-700 transition-colors"
-          >
-            Ver detalhes
-          </button>
-        </div>
-      </div>
-    </div>
+    <SheetShell open onClose={onClose} variant="center" size="sm" z={100}>
+      <SheetHeader
+        title={`${title} — ${petName}`}
+        subtitle={itemName}
+        media={<SheetIcon tone={sheetTone[type]}><Icon className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+        onClose={onClose}
+      />
+      <SheetShell.Body className="space-y-2">
+        <ActionButton
+          Icon={loading ? Loader2 : primaryAction.Icon}
+          label={primaryAction.label}
+          desc={primaryAction.desc}
+          color={primaryAction.color}
+          loading={loading}
+          onClick={primaryAction.onClick}
+        />
+        <button
+          type="button"
+          onClick={onOpenFull}
+          className="w-full py-2 text-center text-[12px] font-semibold text-slate-400 transition-colors hover:text-slate-600"
+        >
+          Ver detalhes
+        </button>
+      </SheetShell.Body>
+    </SheetShell>
   );
 }
 
 // ── Sub-components ──
 
 function ActionButton({
-  emoji,
+  Icon,
   label,
   desc,
   color,
   loading,
   onClick,
 }: {
-  emoji: string;
+  Icon: LucideIcon;
   label: string;
   desc?: string;
   color: 'green' | 'blue' | 'amber' | 'gray';
@@ -286,10 +232,10 @@ function ActionButton({
   onClick: () => void;
 }) {
   const colorMap = {
-    green: 'bg-green-50 border-green-200 text-green-800 hover:bg-green-100 active:bg-green-200',
-    blue:  'bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100 active:bg-blue-200',
-    amber: 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 active:bg-amber-200',
-    gray:  'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 active:bg-gray-200',
+    green: 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100',
+    blue:  'bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100',
+    amber: 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100',
+    gray:  'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100',
   };
 
   return (
@@ -297,14 +243,16 @@ function ActionButton({
       type="button"
       onClick={onClick}
       disabled={loading}
-      className={`w-full flex items-start gap-3 px-4 py-3 rounded-xl border transition-all active:scale-[0.98] ${colorMap[color]} ${loading ? 'opacity-60' : ''}`}
+      className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all active:scale-[0.98] ${colorMap[color]} ${loading ? 'opacity-60' : ''}`}
     >
-      <span className={`text-xl flex-shrink-0 mt-0.5 ${color === 'blue' ? 'inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white ring-1 ring-blue-200/80 shadow-sm' : ''}`}>{loading ? '⏳' : emoji}</span>
-      <div className="flex-1 text-left pt-1">
-        <p className="text-sm font-semibold leading-5">{label}</p>
-        {desc && <p className="text-xs opacity-70 mt-1 leading-4">{desc}</p>}
+      <span className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white/70 ring-1 ring-black/5">
+        <Icon className={`h-[18px] w-[18px] ${loading ? 'animate-spin' : ''}`} strokeWidth={2.3} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[14px] font-semibold leading-tight">{label}</p>
+        {desc && <p className="mt-0.5 text-[12px] leading-tight opacity-70">{desc}</p>}
       </div>
-      <span className={`text-lg mt-1 ${color === 'blue' ? 'text-white/80' : 'text-gray-300'}`}>›</span>
+      <ChevronRight className="h-4 w-4 flex-shrink-0 opacity-40" strokeWidth={2.5} />
     </button>
   );
 }
