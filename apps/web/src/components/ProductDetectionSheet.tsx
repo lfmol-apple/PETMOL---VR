@@ -2972,7 +2972,7 @@ export function ProductDetectionSheetGold({
       />
 
       <div className="fixed inset-0 z-[200] flex flex-col items-end justify-end sm:items-center sm:justify-center">
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => {
+        <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-md" onClick={() => {
           clearPendingScannedProduct();
           onClose();
         }} />
@@ -2980,7 +2980,7 @@ export function ProductDetectionSheetGold({
         <div
           className={immersiveMode
             ? 'relative h-full w-full overflow-hidden bg-black'
-            : 'relative flex w-full max-w-lg flex-col overflow-hidden rounded-t-[28px] bg-white shadow-2xl animate-slideUp sm:rounded-[28px] sm:animate-scaleIn'}
+            : 'relative isolate flex w-full max-w-lg flex-col overflow-hidden rounded-t-[26px] bg-white shadow-[0_-8px_50px_-8px_rgba(15,23,42,0.35)] ring-1 ring-black/5 animate-slideUp sm:rounded-[26px] sm:animate-scaleIn'}
           style={immersiveMode ? undefined : { maxHeight: '92dvh' }}
           onClick={event => event.stopPropagation()}
         >

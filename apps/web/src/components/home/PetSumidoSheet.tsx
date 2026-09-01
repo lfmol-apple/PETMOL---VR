@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { Siren } from 'lucide-react';
+import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { getToken } from '@/lib/auth-token';
 
@@ -468,40 +470,16 @@ export function PetSumidoSheet({
   const missingParts = [!hasPhoto && 'foto', !hasContact && 'WhatsApp'].filter(Boolean) as string[];
 
   return (
-    <>
-      <div className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
+    <SheetShell open onClose={onClose} z={70}>
+      <SheetHeader
+        title="Pet Sumido"
+        subtitle={step === 'form' ? 'Fluxo independente de emergência' : 'Card gerado · compartilhe agora'}
+        media={<SheetIcon tone="rose"><Siren className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+        onClose={onClose}
+      />
 
-      <div className="fixed inset-x-0 bottom-0 z-[71] flex flex-col bg-white rounded-t-[28px] shadow-2xl max-h-[96dvh] overflow-hidden animate-slideUp">
-
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
-          <div className="w-9 h-1 rounded-full bg-gray-300" />
-        </div>
-
-        {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-100 flex-shrink-0">
-          <div className="w-10 h-10 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center flex-shrink-0">
-            <span className="text-xl">🚨</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-[17px] font-bold text-gray-900 leading-tight">Pet Sumido</h2>
-            <p className="text-[12px] text-slate-400 truncate">
-              {step === 'form' ? 'Fluxo independente de emergência' : 'Card gerado · compartilhe agora'}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 flex-shrink-0"
-            aria-label="Fechar"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto">
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto">
 
           {step === 'form' && (
             <div className="px-5 py-5 space-y-5 pb-10">
@@ -835,7 +813,6 @@ export function PetSumidoSheet({
         )}
 
         <canvas ref={canvasRef} className="hidden" />
-      </div>
-    </>
+    </SheetShell>
   );
 }
