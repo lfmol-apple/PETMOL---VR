@@ -317,7 +317,14 @@ class CobasiProvider:
         if not references:
             return None
 
-        candidates = list(self._db.scalars(
+        # Bloqueia por MARCA no SQL — sem isso a varredura pega ~8k linhas de
+        # feed Cobasi e roda o Identity Engine (regex) em cada uma, no event
+        # loop, a cada request (incidente 2026-09-01). A marca vem da
+        # referência do próprio GTIN do tutor.
+        ref_brands = {(r.brand or "").strip() for r in references if (r.brand or "").strip()}
+        if identity.brand:
+            ref_brands.add(identity.brand.strip())  # marca de prateleira normalizada
+        cand_q = (
             select(AffiliateFeedOffer)
             .where(
                 AffiliateFeedOffer.network == "awin",
@@ -327,7 +334,15 @@ class CobasiProvider:
                 AffiliateFeedOffer.in_stock.is_(True),
             )
             .order_by(AffiliateFeedOffer.price.asc())
-        ))
+            .limit(120)
+        )
+        if ref_brands:
+            from sqlalchemy import or_ as _or
+
+            cand_q = cand_q.where(_or(*[AffiliateFeedOffer.brand.ilike(b) for b in ref_brands]))
+        candidates = list(self._db.scalars(cand_q))
+        if not candidates:
+            return None
         matches = [
             row for row in candidates
             if _looks_like_same_product(row, references, context)

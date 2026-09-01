@@ -333,8 +333,10 @@ class Settings(BaseSettings):
     # "confirme na loja"; acima disso, sem número.
     marketplace_offer_show_stale_after_hours: int = 240
     # Fase 1-A/B: expande o produto do tutor pros EANs irmãos do grupo de
-    # SKU e busca preço em cada um. Aditivo — nunca remove oferta.
-    sku_grouping_enabled: bool = True
+    # SKU e busca preço em cada um. Aditivo — nunca remove oferta. DESLIGADO
+    # por padrão até o passo de irmãos ficar 100% fora do event loop (as
+    # queries síncronas dos providers travavam o worker sob carga real).
+    sku_grouping_enabled: bool = False
     sku_grouping_max_siblings: int = 2
 
     # ── Cobertura Shopee: discovery on-demand + job noturno ─────────────
