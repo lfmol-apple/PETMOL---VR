@@ -1,0 +1,13 @@
+[Unit]
+Description=Daily PETMOL commerce identity audit (Cobasi x Shopee = mesmo produto)
+
+[Timer]
+# 07:15 UTC ~= 04:15 America/Sao_Paulo — depois do shopee-sync (05:00) e
+# do commerce-quality (06:30), pra auditar contra o catálogo já
+# revalidado da noite.
+OnCalendar=*-*-* 07:15:00 UTC
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,20 @@
+[Unit]
+Description=PETMOL commerce identity audit trigger (Cobasi x Shopee = mesmo produto)
+After=network.target petmol-api.service
+Requires=petmol-api.service
+
+[Service]
+Type=oneshot
+User=petmol
+Group=petmol
+# Só dispara o gatilho HTTP — a auditoria roda numa thread dentro do
+# petmol-api (admin/commerce_identity_router.py) e sobrevive a este
+# oneshot. Resolve o destino real de cada link Cobasi cadastrado (shortlink
+# mais.app via api-encurtador, ou URL direta) e compara com a identidade
+# de verdade (feed Awin por GTIN). Link com produto claramente diferente
+# (mismatch_hard) é desativado; o resto vai pro relatório
+# (GET /v1/admin/commerce-identity/report). Ver docs/AFFILIATES.md.
+#
+# Script standalone (não inline) pelo mesmo motivo do shopee-sync trigger:
+# o parser de ExecStart= do systemd corrompe aspas escapadas antes do bash.
+ExecStart=/opt/petmol/shared/bin/petmol-commerce-identity-trigger.sh
