@@ -9,11 +9,12 @@ API_ENV=/opt/petmol/shared/env/api.env
 TOKEN="$(grep '^SHOPEE_SYNC_TRIGGER_TOKEN=' "$API_ENV" | cut -d= -f2-)"
 
 # source=active_products: fila noturna determinística em prioridades —
-#   A) TODA oferta Shopee ativa (revalida/reprecifica, da mais antiga
-#      pra mais nova; nunca apaga a oferta se a API falhar);
-#   B) GTINs que os tutores de fato usam (product_scan_events resolvidos
+#   A) GTINs que os tutores de fato usam (product_scan_events resolvidos
 #      num produto de catálogo com nome — ração/antipulgas/vermífugo/
-#      higiene/medicação/coleira), só com GTIN confiável;
+#      higiene/medicação/coleira), só com GTIN confiável. É o que aparece
+#      na tela; conjunto pequeno; revalidado toda noite;
+#   B) o resto das ofertas Shopee ativas (backlog, da mais antiga pra mais
+#      nova; nunca apaga a oferta se a API falhar) — esquenta sob demanda;
 #   C) catálogo comercial Awin fresco (Cobasi/Zee Now/Zee Dog), só o que
 #      ainda não tem oferta Shopee.
 # Deduplicado por GTIN, com teto por execução (SHOPEE_SYNC_MAX_PRODUCTS_

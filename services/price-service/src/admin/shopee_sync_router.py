@@ -192,9 +192,11 @@ def _run_sync(
                 skip_existing_shopee=skip_existing_shopee,
             )
         elif source == "active_products":
-            # Fila noturna determinística em prioridades (A: ofertas Shopee
-            # ativas → B: GTINs usados pelos tutores → C: catálogo Awin
-            # fresco), deduplicada por GTIN, cortada no teto por execução.
+            # Fila noturna determinística em prioridades (A: GTINs usados
+            # pelos tutores → B: backlog de ofertas Shopee ativas → C:
+            # catálogo Awin fresco), deduplicada por GTIN, cortada no teto
+            # por execução. Tutores primeiro: o conjunto que aparece na
+            # tela é pequeno e fica sempre fresco (ver iter_launch_coverage_queue).
             items, total_available = iter_launch_coverage_queue(
                 db,
                 max_products=max(settings.shopee_sync_max_products_per_run, 1),
