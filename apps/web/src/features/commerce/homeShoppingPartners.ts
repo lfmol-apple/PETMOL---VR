@@ -110,10 +110,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     description: 'Compare preço e entrega para ração e cuidados',
     logoSrc: '/partner-logos/cobasi.png',
     logoAlt: 'Cobasi',
-    // TODA URL Cobasi que o PETMOL abre passa pela vitrine afiliada
-    // "Minha Loja" (minhaloja.cobasi.com.br) — o site principal com só
-    // UTM não credita a comissão MAIS.
-    fallbackUrl: 'https://minhaloja.cobasi.com.br?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol',
+    fallbackUrl: 'https://www.cobasi.com.br',
     // Programa real: Minha Loja Cobasi / Empreendedor MAIS — storefront fixa
     // confirmada e ligada (usada só pela área geral "Lojas", abaixo em
     // storefrontAffiliateUrl). O buildAffiliateUrl desta entrada é legado,
@@ -137,7 +134,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     supportsStorefrontAffiliate: true,
     storefrontAffiliateUrl: 'https://minhaloja.cobasi.com.br?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol',
     buildAffiliateUrl: (query, base) =>
-      `${base}&url=${encodeURIComponent(`https://minhaloja.cobasi.com.br/busca?q=${encodeURIComponent(query)}`)}`,
+      `${base}&url=${encodeURIComponent(`https://www.cobasi.com.br/busca?q=${encodeURIComponent(query)}`)}`,
   },
   {
     id: 'petz',
@@ -222,9 +219,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
 // affiliate-only, ausência de link afiliado confirmado vira "sem URL" em
 // vez de abrir uma busca que não remunera o PETMOL.
 const DIRECT_SEARCH_URLS: Record<HomeShoppingPartnerId, (q: string) => string> = {
-  // Cobasi: sempre pela vitrine afiliada "Minha Loja" (minhaloja.cobasi.com.br)
-  // + UTM MAIS — nunca o site principal, que não credita a comissão.
-  cobasi:       (q) => `https://minhaloja.cobasi.com.br/busca?q=${encodeURIComponent(q)}&utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol`,
+  cobasi:       (q) => `https://www.cobasi.com.br/busca?q=${encodeURIComponent(q)}`,
   // Petz não tem busca por produto — resolvePartnerUrl() sempre resolve
   // pela storefrontAffiliateUrl antes de chegar aqui; nunca de fato usado.
   petz:         () => 'https://www.petz.com.br/parceiro/pettmol',
@@ -310,9 +305,44 @@ export function isStandaloneInstalledApp(): boolean {
  * opens the partner in the system browser (SFSafariViewController / Chrome
  * Custom Tabs) instead, preserving the affiliate URL/UTM/SubIDs untouched.
  */
+/** Hosts Cobasi/MAIS cujo link afiliado o app da Cobasi reivindica no
+ *  Android (assetlinks.json de www.cobasi.com.br e minhaloja.cobasi.com.br
+ *  = `com.root.cobasi.Activities`, `/*` — verificado 01/09/2026). Abrir um
+ *  desses num Chrome Custom Tab PODE saltar pro app da Cobasi e a compra
+ *  lá dentro não carrega o cookie da UTM MAIS → comissão perdida. */
+const COBASI_AFFILIATE_HOSTS = ['www.cobasi.com.br', 'cobasi.com.br', 'minhaloja.cobasi.com.br', 'mais.app'];
+
+export function isCobasiAffiliateUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && COBASI_AFFILIATE_HOSTS.includes(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ponte `/go/loja` — só no Android nativo. A página fica em petmol.com.br
+ * e navega pra Cobasi por JS (`location.replace`); uma navegação-redirect
+ * dentro de um browsing context não é elegível a App Link no Chrome, então
+ * o Custom Tab não salta pro app da Cobasi e o tutor termina a compra no
+ * navegador, onde o cookie da UTM MAIS vale. iOS não precisa
+ * (SFSafariViewController nunca abre Universal Link); web/PWA não têm app
+ * pra saltar. Ver docs/AFFILIATES.md.
+ */
+export function cobasiBridgeUrl(target: string): string {
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://www.petmol.com.br';
+  return `${origin}/go/loja?to=${encodeURIComponent(target)}`;
+}
+
 export function navigateToPartnerUrl(url: string): void {
   if (Capacitor.isNativePlatform()) {
-    void import('@capacitor/browser').then(({ Browser }) => Browser.open({ url }));
+    const finalUrl =
+      Capacitor.getPlatform?.() === 'android' && isCobasiAffiliateUrl(url) ? cobasiBridgeUrl(url) : url;
+    void import('@capacitor/browser').then(({ Browser }) => Browser.open({ url: finalUrl }));
     return;
   }
   if (isStandaloneInstalledApp()) {

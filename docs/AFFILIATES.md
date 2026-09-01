@@ -51,7 +51,7 @@ abaixo).
 | Zee Now | Awin (advertiser 127557, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116779, 13.835 produtos observados; 13.605 GTINs válidos diretos, 152 UPC-11 corrigíveis, 78 inválidos e 9 grupos duplicados em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeenow`, exposição depende dos gates Awin |
 | Zee Dog | Awin (advertiser 127555, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116649, 1.799 produtos observados, 100% GTIN válido/único em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeedog`, exposição depende dos gates Awin |
 | Petz | Awin (advertiser 127553, pending) + programa próprio "Loja Parceira" | `PetzProductMapping` — aprendizado por produto, confirmação humana (ver §Petz) | **nenhuma — DESATIVADA 2026-08-30** (`petz_publicly_disabled=True` + frontend `disabled`); Petz não expõe deep link de produto pra parceiros | não | desativada; código dormente, reativação = 2 flags |
-| Shopee | Shopee Affiliates | `MarketplaceOffer`/`MarketplaceOfferProvider` (busca textual + GTIN como 1ª keyword — API não tem lookup por GTIN) + discovery on-demand por GTIN quando o tutor abre a Loja (background, cooldown por GTIN) | **ATIVA** — vitrine (shortlink) + ofertas por produto. `shopee_affiliate_enabled=True`. Rede de segurança: oferta >36h → sem preço-número ("Conferir preço na loja"), link afiliado preservado. Sync noturno `source=active_products` (fila em prioridades: ofertas ativas → GTINs usados pelos tutores → catálogo Awin fresco). Ver `docs/LAUNCH.md` §7 | n/a | precisão em #120; gap residual = variante de coleira abreviada (mitigado por audit + revisão) |
+| Shopee | Shopee Affiliates | `MarketplaceOffer`/`MarketplaceOfferProvider` (busca textual + GTIN como 1ª keyword — API não tem lookup por GTIN) + discovery on-demand por GTIN quando o tutor abre a Loja (background, cooldown por GTIN) | **ATIVA** — vitrine (shortlink) + ofertas por produto. `shopee_affiliate_enabled=True`. Rede de segurança: oferta >36h → sem preço-número ("Conferir preço na loja"), link afiliado preservado. Sync noturno `source=active_products` (fila em prioridades: **GTINs usados pelos tutores** → backlog de ofertas ativas → catálogo Awin fresco — tutores primeiro desde 01/09/2026, senão o backlog de 10k+ estourava o teto de 400/noite e o preço ficava sempre defasado). Abertura de oferta defasada agenda reprecificação em background (mesmo cooldown da descoberta). Ver `docs/LAUNCH.md` §7 | n/a | precisão em #120; gap residual = variante de coleira abreviada (mitigado por audit + revisão) |
 | Mercado Livre | ML Afiliados | `MarketplaceOffer`/`mercadolivre_link_validator.py` — ponte manual controlada | **nenhuma — FORA DO LANÇAMENTO** (`mercadolivre_affiliate_enabled=false`, `mercadolivre_public_offers_enabled=false`, frontend `disabled`); entra depois | n/a | shadow mode; bridge manual pronta (`export_ml_link_candidates.py`/`import_ml_offers.py`); ver PR #56 |
 | Amazon | Amazon Associates encerrado em 22/08/2026 (`petmol-20`) | nenhum | nenhum; integração temporariamente removida das superfícies públicas | n/a | disabled — reativação proibida até nova aprovação e nova tag válida |
 | Petlove Produtos | — | nenhum | nenhuma | n/a | disabled deliberadamente |
@@ -153,6 +153,29 @@ utm_campaign=lojapetmol` diretamente a uma URL de produto Cobasi (sem
 passar pelo painel) gera comissão do mesmo jeito — testes manuais no
 painel MAIS (Relatório de Vendas, Dashboard) foram inconclusivos (nenhum
 mostra métrica de clique/venda sem uma compra real completa).
+
+**Atualização 01/09/2026 — o que o `mais.app` realmente faz:** resolvi o
+shortlink comprovado do Baby (`mais.app/IvUCAG`) pela própria API do MAIS
+(`GET api-encurtador.mais.network/Conversion/ConvertUrl/IvUCAG`). Destino:
+`https://www.cobasi.com.br/racao-royal-canin-...-3827380/p?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol`.
+O `mais.app` é só um encurtador — o `scripts.js` faz `fetch(destino)` →
+`window.location.href`. A "tela laranja" não carimba atribuição nenhuma; a
+atribuição são os 3 UTM numa URL `www.cobasi.com.br` (o painel emite em
+`www`, **não** em `minhaloja`). Por isso o PR #145 reverteu a reescrita
+forçada pra `minhaloja` do #143 — `build_cobasi_affiliate_url` volta a
+preservar o host `www.cobasi.com.br`, idêntico ao link comprovado.
+
+**Ponte `/go/loja` (Android nativo):** `assetlinks.json` de
+`www.cobasi.com.br` e `minhaloja.cobasi.com.br` reivindicam `/*` pro app
+Android da Cobasi (`com.root.cobasi.Activities`). Um Chrome Custom Tab
+pode saltar pro app e a compra lá dentro não carrega o cookie da UTM →
+comissão perdida. `navigateToPartnerUrl` (homeShoppingPartners.ts) roteia
+link Cobasi/`mais.app` por `petmol.com.br/go/loja` **só no Android
+nativo** — a ponte redireciona por JS (`location.replace`), que não é
+elegível a App Link, então o Custom Tab não salta. iOS
+(SFSafariViewController nunca abre Universal Link) e web/PWA vão direto.
+Mesmo princípio da ponte `/go/petz`. **Benefício não medido em device
+real ainda** — validar numa compra Android antes de confiar.
 
 Decisão de produto (11/08/2026): usar o link longo com UTM como **ponte
 temporária** enquanto uma compra real de teste via PETMOL valida a

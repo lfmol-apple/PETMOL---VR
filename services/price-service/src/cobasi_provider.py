@@ -49,7 +49,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .affiliate_links import get_active_link
-from .cobasi_utm import InvalidCobasiUrlError, build_cobasi_affiliate_url, to_minha_loja_url
+from .cobasi_utm import InvalidCobasiUrlError, build_cobasi_affiliate_url
 from .commerce_pricing import fetch_cobasi_price
 from .commerce_provider import DiscoveredOffer, MonetizedOffer, ProductContext
 from .config import Settings, get_settings
@@ -96,6 +96,16 @@ class CobasiProvider:
         query = _build_query(context)
         if not query:
             return None
+
+        # Auditoria de identidade: se a busca ao vivo desse GTIN já foi
+        # flagrada apontando pro produto errado (mismatch_hard fresco) e
+        # não existe link cadastrado comprovado, não oferece Cobasi — as 2
+        # lojas têm que ser o mesmo produto (ver commerce_identity_audit).
+        if context.gtin and not self._has_manual_link(context.gtin):
+            from .commerce_identity_audit import cobasi_identity_blocks
+
+            if cobasi_identity_blocks(self._db, context.gtin):
+                return None
 
         price = await fetch_cobasi_price(query, target_weight_kg=context.weight_kg)
         if not price.found or price.price is None:
@@ -163,10 +173,7 @@ class CobasiProvider:
         link = get_active_link(self._db, product_id, self.merchant)
         if not link:
             return None
-        # Link cadastrado: shortlink MAIS (mais.app/...) já passa pela
-        # atribuição; URL crua da Cobasi é reescrita para a vitrine
-        # "Minha Loja" (minhaloja.cobasi.com.br) + UTM MAIS.
-        return to_minha_loja_url(link.affiliate_product_url), "affiliate_product"
+        return link.affiliate_product_url, "affiliate_product"
 
     def _dev_fallback(self, offer: DiscoveredOffer, settings: Settings) -> Optional[tuple[str, str]]:
         # Sem link cadastrado: em dev, cai pra URL crua da Cobasi só pra

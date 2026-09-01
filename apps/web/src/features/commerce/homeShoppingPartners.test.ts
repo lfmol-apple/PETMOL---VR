@@ -225,18 +225,4 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       vi.resetModules();
     }
   });
-
-  // "Cobasi sempre pela Minha Loja": TODA URL Cobasi que o PETMOL emite
-  // (fallbackUrl, buildAffiliateUrl, busca direta) aponta para
-  // minhaloja.cobasi.com.br — o site principal não credita a comissão MAIS.
-  it('toda rota Cobasi resolve para minhaloja.cobasi.com.br', async () => {
-    const { HOME_SHOPPING_PARTNERS } = await import('./homeShoppingPartners');
-    const cobasi = HOME_SHOPPING_PARTNERS.find((p) => p.id === 'cobasi')!;
-    expect(cobasi.fallbackUrl).toContain('minhaloja.cobasi.com.br');
-    expect(cobasi.storefrontAffiliateUrl).toContain('minhaloja.cobasi.com.br');
-    const built = cobasi.buildAffiliateUrl!('ração royal canin', 'https://base');
-    expect(built).toContain('minhaloja.cobasi.com.br');
-    expect(built).not.toContain('www.cobasi.com.br');
-  });
-
 });

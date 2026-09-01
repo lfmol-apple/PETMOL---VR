@@ -137,6 +137,13 @@ class MarketplaceOfferProvider:
             self._maybe_schedule_discovery(context, product)
             return None
         checked_at = _effective_checked_at(offer)
+        # Oferta existe mas o preço já expirou (janela stale): agenda uma
+        # reprecificação em background — mesmo mecanismo/cooldown da
+        # descoberta (nunca inline). Esta abertura ainda mostra "Conferir
+        # preço"; a próxima já pega o preço novo. Cobre o intervalo entre o
+        # tutor escanear um produto novo e a fila noturna revalidar.
+        if not _is_offer_fresh(checked_at) and not _should_live_refresh(self.merchant, checked_at):
+            self._maybe_schedule_discovery(context, product)
         if _should_live_refresh(self.merchant, checked_at):
             if product and product.barcode_normalized:
                 _refresh_marketplace_offer(self.merchant, product.barcode_normalized)

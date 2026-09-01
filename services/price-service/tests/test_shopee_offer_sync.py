@@ -648,33 +648,40 @@ def test_sync_from_feed_row_nao_reaproveita_entre_lojas_diferentes(monkeypatch):
 # ── fila noturna em prioridades (iter_launch_coverage_queue) ────────────
 
 def test_launch_coverage_queue_prioridades_dedup_e_teto():
-    """A (oferta Shopee ativa) → B (GTIN escaneado pelo tutor) → C
-    (catálogo Awin fresco). Deduplicado por GTIN, ordem preservada, e o
-    teto corta sem mexer no total_available."""
+    """A (GTIN escaneado pelo tutor) → B (backlog de oferta Shopee ativa)
+    → C (catálogo Awin fresco). Deduplicado por GTIN, ordem preservada, e
+    o teto corta sem mexer no total_available."""
     from src.product_catalog_lookup import ProductScanEvent
     from src.shopee_offer_sync import iter_launch_coverage_queue
 
-    gtin_a = "7891111111118"
-    gtin_b = "7892222222225"
-    gtin_c = "7893333333332"
+    gtin_a = "7891111111118"   # escaneado pelo tutor (prioridade A)
+    gtin_b = "7892222222225"   # escaneado + também tem oferta ativa (prova o dedup)
+    gtin_d = "7894444444442"   # só backlog de oferta ativa, nunca escaneado (prioridade B)
+    gtin_c = "7893333333332"   # só no feed Awin (prioridade C)
 
     db = SessionLocal()
     try:
         pa = ProductCatalog(barcode=gtin_a, barcode_normalized=gtin_a, name="Ração A 10kg", brand="Marca A", category="food")
         pb = ProductCatalog(barcode=gtin_b, barcode_normalized=gtin_b, name="Vermífugo B", brand="Marca B", category="dewormer")
+        pd = ProductCatalog(barcode=gtin_d, barcode_normalized=gtin_d, name="Shampoo D", brand="Marca D", category="hygiene")
         pc = ProductCatalog(barcode=gtin_c, barcode_normalized=gtin_c, name="Antipulgas C", brand="Marca C", category="antiparasite")
-        db.add_all([pa, pb, pc])
+        db.add_all([pa, pb, pd, pc])
         db.commit()
-        db.refresh(pa)
+        db.refresh(pb)
+        db.refresh(pd)
 
-        # A: oferta Shopee ativa + (também escaneado, pra provar o dedup)
+        # A: escaneados pelo tutor (o que aparece na tela)
+        db.add(ProductScanEvent(barcode=gtin_a, barcode_normalized=gtin_a, product_id=None, context="scan"))
+        db.add(ProductScanEvent(barcode=gtin_b, barcode_normalized=gtin_b, product_id=pb.id, context="scan"))
+        # B: gtin_b também tem oferta ativa (dedup) + gtin_d só tem oferta ativa
         db.add(MarketplaceOffer(
-            product_id=pa.id, merchant="shopee", affiliate_url="https://s.shopee.com.br/aaa",
+            product_id=pb.id, merchant="shopee", affiliate_url="https://s.shopee.com.br/bbb",
             price=99.9, is_available=True, active=True,
         ))
-        db.add(ProductScanEvent(barcode=gtin_a, barcode_normalized=gtin_a, product_id=pa.id, context="scan"))
-        # B: só escaneado
-        db.add(ProductScanEvent(barcode=gtin_b, barcode_normalized=gtin_b, product_id=None, context="scan"))
+        db.add(MarketplaceOffer(
+            product_id=pd.id, merchant="shopee", affiliate_url="https://s.shopee.com.br/ddd",
+            price=99.9, is_available=True, active=True,
+        ))
         # C: só no feed Awin
         db.add(AffiliateFeedOffer(
             network="awin", merchant="cobasi", advertiser_id="17870", external_product_id="cobasi-c",
@@ -684,17 +691,19 @@ def test_launch_coverage_queue_prioridades_dedup_e_teto():
 
         queue, total_available = iter_launch_coverage_queue(db, max_products=10)
         gtins = [g for g, _n, _b in queue]
-        assert gtins == [gtin_a, gtin_b, gtin_c]
-        assert total_available == 3
+        # escaneados primeiro (A), depois backlog (B), depois Awin (C)
+        assert gtins == [gtin_a, gtin_b, gtin_d, gtin_c]
+        assert total_available == 4
 
         capped, total_available = iter_launch_coverage_queue(db, max_products=2)
         assert [g for g, _n, _b in capped] == [gtin_a, gtin_b]
-        assert total_available == 3
+        assert total_available == 4
     finally:
         db.close()
 
 
-def test_launch_coverage_queue_prioridade_a_ordena_pela_oferta_mais_antiga():
+def test_launch_coverage_queue_backlog_ordena_pela_oferta_mais_antiga():
+    # backlog de ofertas ativas (prioridade B): revalida a mais defasada primeiro
     from src.shopee_offer_sync import iter_active_shopee_offer_gtins
     from datetime import datetime, timedelta, timezone
 

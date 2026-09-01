@@ -14,15 +14,7 @@ from __future__ import annotations
 
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-# Hosts de produto Cobasi que aceitamos como entrada. O host de SAÍDA é
-# SEMPRE `minhaloja.cobasi.com.br` (a vitrine afiliada "Minha Loja"/MAIS) —
-# o site principal com só os parâmetros UTM não credita a comissão MAIS;
-# a atribuição exige entrar pela Minha Loja. Confirmado que o mesmo slug
-# de produto (`/<slug>/p`) e a busca (`/busca?q=`) funcionam nesse host
-# sem redirecionar para fora.
-_MINHA_LOJA_HOST = "minhaloja.cobasi.com.br"
-_COBASI_MAIN_SITE_HOSTS = {"www.cobasi.com.br", "cobasi.com.br"}
-_COBASI_DOMAINS = _COBASI_MAIN_SITE_HOSTS | {_MINHA_LOJA_HOST}
+_COBASI_DOMAINS = {"www.cobasi.com.br", "cobasi.com.br"}
 
 # Valores confirmados no painel MAIS (ver docs/AFFILIATES.md) — não mudar
 # sem reconfirmar com a Cobasi/MAIS.
@@ -37,21 +29,10 @@ class InvalidCobasiUrlError(ValueError):
     pass
 
 
-def is_cobasi_url(url: str) -> bool:
-    """True se `url` é https e de um host Cobasi conhecido (inclui a Minha Loja)."""
-    if not url or not url.strip():
-        return False
-    parts = urlsplit(url.strip())
-    return parts.scheme == "https" and parts.netloc in _COBASI_DOMAINS
-
-
 def build_cobasi_affiliate_url(direct_url: str) -> str:
-    """Reescreve uma URL de produto/busca Cobasi para a vitrine afiliada
-    "Minha Loja" (`minhaloja.cobasi.com.br`) e anexa a UTM da Cobasi/MAIS.
+    """Anexa a UTM da Cobasi/MAIS a uma URL de produto Cobasi.
 
-    - Exige https e host Cobasi conhecido (bloqueia qualquer outro host).
-    - HOST DE SAÍDA é SEMPRE `minhaloja.cobasi.com.br` — o site principal
-      com só UTM não credita a comissão MAIS.
+    - Exige https e domínio cobasi.com.br (bloqueia qualquer outro host).
     - Preserva path e query existentes (SKU/variante do produto).
     - Remove qualquer utm_* já presente antes de adicionar os 3 exigidos,
       para nunca duplicar/conflitar.
@@ -73,25 +54,4 @@ def build_cobasi_affiliate_url(direct_url: str) -> str:
     final_params = existing_params + list(_REQUIRED_UTM_PARAMS)
     new_query = urlencode(final_params)
 
-    return urlunsplit((parts.scheme, _MINHA_LOJA_HOST, parts.path, new_query, parts.fragment))
-
-
-def to_minha_loja_url(url: str) -> str:
-    """Roteia uma URL para a vitrine "Minha Loja" QUANDO ela aponta para o
-    site principal da Cobasi:
-
-    - `www.cobasi.com.br` / `cobasi.com.br` → reescrita para
-      `minhaloja.cobasi.com.br` + UTM MAIS (via build_cobasi_affiliate_url).
-    - Já em `minhaloja.cobasi.com.br`, shortlink MAIS (`mais.app/...`), ou
-      qualquer outro host → devolvida EXATAMENTE como veio (quem cadastrou
-      o link sabia o que estava fazendo; já passa pela atribuição MAIS).
-    """
-    if not url or not url.strip():
-        return url
-    parts = urlsplit(url.strip())
-    if parts.scheme == "https" and parts.netloc in _COBASI_MAIN_SITE_HOSTS:
-        try:
-            return build_cobasi_affiliate_url(url)
-        except InvalidCobasiUrlError:
-            return url
-    return url
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))

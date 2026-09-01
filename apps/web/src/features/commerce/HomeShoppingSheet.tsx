@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { ChevronDown, ChevronRight, ShoppingCart, X } from 'lucide-react';
 import { petDo } from '@/lib/petGender';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { trackClick } from '@/lib/analytics/click';
@@ -164,22 +165,22 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:px-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:px-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
 
       <div
-        className="relative w-full max-w-md bg-white rounded-t-[28px] sm:rounded-[28px] shadow-2xl border border-gray-100 flex flex-col"
-        style={{ maxHeight: '88dvh' }}
+        className="relative w-full max-w-md overflow-hidden rounded-t-[34px] border border-white/70 bg-[#fbfaf7] shadow-[0_-18px_60px_rgba(15,23,42,0.16)] sm:mb-4 sm:rounded-[34px] flex flex-col"
+        style={{ maxHeight: '92dvh' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Drag handle (mobile) */}
-        <div className="flex justify-center pt-3 pb-1 flex-shrink-0 sm:hidden">
-          <div className="w-10 h-1 rounded-full bg-gray-300" />
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+          <div className="h-1.5 w-11 rounded-full bg-slate-300/80" />
         </div>
 
         {/* Header */}
-        <div className="flex items-center gap-3 px-5 pt-3 pb-4 flex-shrink-0">
-          <div className="w-10 h-10 rounded-full overflow-hidden bg-white shadow-sm ring-1 ring-black/5 flex items-center justify-center text-xl flex-shrink-0">
+        <div className="flex items-center gap-3 px-5 pt-3 pb-5 min-[390px]:gap-4 min-[390px]:px-6 flex-shrink-0">
+          <div className="grid h-14 w-14 min-[390px]:h-[58px] min-[390px]:w-[58px] flex-shrink-0 place-items-center overflow-hidden rounded-full bg-white text-[25px] shadow-[0_8px_22px_rgba(15,23,42,0.10)] ring-1 ring-black/[0.04]">
             {petPhotoSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
@@ -188,129 +189,129 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-[17px] font-black text-gray-900 truncate">{title}</h2>
-            <p className="text-[12px] text-gray-400">Tudo que {petName || 'seu pet'} usa</p>
+            <h2 className="truncate text-[24px] font-extrabold leading-[1.06] text-slate-950 min-[390px]:text-[26px]">{title}</h2>
+            <p className="mt-1 truncate text-[14px] font-medium text-slate-500">Tudo que {petName || 'seu pet'} usa</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 active:scale-90 transition-all flex-shrink-0"
+            className="grid h-12 w-12 min-[390px]:h-[52px] min-[390px]:w-[52px] flex-shrink-0 place-items-center rounded-full bg-white/80 text-slate-500 shadow-[0_6px_18px_rgba(15,23,42,0.06)] ring-1 ring-black/[0.04] transition-all duration-200 hover:bg-white hover:text-slate-700 active:scale-[0.96] motion-reduce:transition-none motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbfaf7]"
             aria-label="Fechar"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <X className="h-5 w-5" strokeWidth={2.3} />
           </button>
         </div>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto overscroll-contain flex-1 px-5 pb-8 space-y-4">
-              <div>
-                {/* Mesmo botão "Comprar" dos ItemSheets (emerald cheio,
-                    centrado, shadow-lg), adaptado pra abrir a lista de
-                    recompra da Loja do pet. É a fonte de comissão — fica
-                    acima de tudo e grita "toque aqui". */}
-                <button
-                  type="button"
-                  onClick={toggleReorder}
-                  className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 px-4 py-4 text-white text-[15px] min-[380px]:text-[16px] font-black shadow-lg shadow-emerald-500/25 active:scale-[0.98] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
-                  aria-expanded={reorderOpen}
-                  aria-controls="reorder-panel"
-                  aria-label={`Comprar de novo, ${reorderCards.length} produto${reorderCards.length === 1 ? '' : 's'}, ${reorderOpen ? 'expandido' : 'recolhido'}`}
-                >
-                  <span aria-hidden className="text-[18px] leading-none">🛒</span>
-                  <span className="truncate">Comprar de novo</span>
-                  {reorderCards.length > 0 && (
-                    <span className="grid min-w-[24px] h-6 flex-shrink-0 place-items-center rounded-full bg-white/25 px-1.5 text-[13px] font-black">
-                      {reorderCards.length}
-                    </span>
-                  )}
-                  <svg
-                    viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden
-                    className={`h-4 w-4 flex-shrink-0 transition-transform duration-200 ${reorderOpen ? 'rotate-180' : ''}`}
-                  >
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </button>
+        <div className="overflow-y-auto overscroll-contain flex-1 space-y-5 px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] min-[390px]:px-5">
+          <div>
+            <button
+              type="button"
+              onClick={toggleReorder}
+              className="flex w-full items-center gap-3 rounded-[24px] bg-emerald-500 px-4 py-4 text-left text-white shadow-[0_14px_30px_rgba(16,185,129,0.22)] transition-all duration-200 hover:bg-emerald-500 hover:shadow-[0_18px_36px_rgba(16,185,129,0.26)] active:scale-[0.985] active:shadow-[0_8px_20px_rgba(16,185,129,0.18)] motion-reduce:transition-none motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbfaf7]"
+              aria-expanded={reorderOpen}
+              aria-controls="reorder-panel"
+              aria-label={`Comprar de novo, ${reorderCards.length} produto${reorderCards.length === 1 ? '' : 's'}, ${reorderOpen ? 'expandido' : 'recolhido'}`}
+            >
+              <span aria-hidden className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-2xl bg-white/[0.18] text-white ring-1 ring-white/[0.20]">
+                <ShoppingCart className="h-[21px] w-[21px]" strokeWidth={2.3} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[17px] font-extrabold leading-tight">Comprar de novo</span>
+                <span className="mt-0.5 block truncate text-[13px] font-semibold text-white/[0.78]">
+                  {reorderCards.length === 1 ? '1 produto para repor' : `${reorderCards.length} produtos para repor`}
+                </span>
+              </span>
+              {reorderCards.length > 0 && (
+                <span className="grid h-8 min-w-8 flex-shrink-0 place-items-center rounded-full bg-white/[0.20] px-2 text-[14px] font-extrabold text-white ring-1 ring-white/[0.18]">
+                  {reorderCards.length}
+                </span>
+              )}
+              <ChevronDown
+                aria-hidden
+                className={`h-5 w-5 flex-shrink-0 transition-transform duration-200 motion-reduce:transition-none ${reorderOpen ? 'rotate-180' : ''}`}
+                strokeWidth={2.5}
+              />
+            </button>
 
-                {/* Linha de contexto sob o botão — só quando fechado e há urgência */}
-                {!reorderOpen && reorderScentLine && (
-                  <p className={`mt-1.5 text-center text-[12px] font-semibold ${reorderUrgentTone === 'critical' ? 'text-rose-600' : reorderUrgentTone === 'warning' ? 'text-amber-700' : 'text-gray-500'}`}>
-                    {reorderScentLine}
-                  </p>
-                )}
+            {/* Linha de contexto sob o botão — só quando fechado e há urgência */}
+            {!reorderOpen && reorderScentLine && (
+              <p className={`mt-1.5 text-center text-[12px] font-semibold ${reorderUrgentTone === 'critical' ? 'text-rose-600' : reorderUrgentTone === 'warning' ? 'text-amber-700' : 'text-gray-500'}`}>
+                {reorderScentLine}
+              </p>
+            )}
 
-                {reorderOpen && (
-                  <div id="reorder-panel" role="region" aria-label="Produtos para comprar de novo" className="mt-3">
-                    {reorderCards.length > 0 ? (
-                      <div className="space-y-2">
-                        {reorderCards.map((card) => {
-                          const pickerKey = `reorder:${card.id}`;
-                          return (
-                            <ReorderCardItem
-                              key={card.id}
-                              card={card}
-                              isPickerOpen={quickBuyFor === pickerKey}
-                              visibleQuickBuyPartners={visibleQuickBuyPartners}
-                              onTogglePicker={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
-                              onQuickBuy={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, gtin: card.gtin ?? undefined })}
-                              onDirectBuy={(offer) => {
-                                if (offer.url) navigateToPartnerUrl(offer.url);
-                                void trackClick({
-                                  source: 'home',
-                                  cta_type: 'shop_reorder_buy_direct',
-                                  target: offer.merchant,
-                                  link_type: offer.link_type,
-                                  pet_id: currentPet.pet_id,
-                                  metadata: {
-                                    domain: card.domain,
-                                    merchant: offer.merchant,
-                                    gtin: card.gtin ?? undefined,
-                                    price_shown: typeof offer.price === 'number' && !offer.price_is_stale ? offer.price : null,
-                                    link_type: offer.link_type,
-                                    screen: 'loja',
-                                    price_is_stale: Boolean(offer.price_is_stale),
-                                  },
-                                });
-                              }}
-                              onPetzBuy={(petzLink) => {
-                                void openPetzPartnerStore({
-                                  productUrl: petzLink.direct_product_url,
-                                  searchUrl: petzLink.search_url,
-                                  productName: card.label,
-                                });
-                                void trackClick({
-                                  source: 'home',
-                                  cta_type: 'shop_reorder_buy_petz',
-                                  target: 'petz',
-                                  link_type: 'affiliate_store',
-                                  pet_id: currentPet.pet_id,
-                                  metadata: {
-                                    domain: card.domain,
-                                    merchant: 'petz',
-                                    monetization_mode: 'coupon_attribution_verified',
-                                    destination_type: 'partner_store',
-                                    coupon: PETZ_COUPON_CODE,
-                                    gtin: card.gtin ?? undefined,
-                                    link_type: 'affiliate_store',
-                                    screen: 'loja',
-                                  },
-                                });
-                              }}
-                            />
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4 text-center">
-                        <p className="text-[13px] text-gray-600 leading-snug">
-                          Cadastre a ração e o antipulgas {petDo(currentPet)} {petName || 'seu pet'} — a gente avisa quando estiver acabando, já com o preço do dia.
-                        </p>
-                      </div>
-                    )}
+            {reorderOpen && (
+              <div id="reorder-panel" role="region" aria-label="Produtos para comprar de novo" className="mt-4">
+                {reorderCards.length > 0 ? (
+                  <div className="space-y-4">
+                    {reorderCards.map((card) => {
+                      const pickerKey = `reorder:${card.id}`;
+                      return (
+                        <ReorderCardItem
+                          key={card.id}
+                          card={card}
+                          isPickerOpen={quickBuyFor === pickerKey}
+                          visibleQuickBuyPartners={visibleQuickBuyPartners}
+                          onTogglePicker={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
+                          onQuickBuy={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, gtin: card.gtin ?? undefined })}
+                          onDirectBuy={(offer) => {
+                            if (offer.url) navigateToPartnerUrl(offer.url);
+                            void trackClick({
+                              source: 'home',
+                              cta_type: 'shop_reorder_buy_direct',
+                              target: offer.merchant,
+                              link_type: offer.link_type,
+                              pet_id: currentPet.pet_id,
+                              metadata: {
+                                domain: card.domain,
+                                merchant: offer.merchant,
+                                gtin: card.gtin ?? undefined,
+                                price_shown: typeof offer.price === 'number' && !offer.price_is_stale ? offer.price : null,
+                                link_type: offer.link_type,
+                                screen: 'loja',
+                                price_is_stale: Boolean(offer.price_is_stale),
+                              },
+                            });
+                          }}
+                          onPetzBuy={(petzLink) => {
+                            void openPetzPartnerStore({
+                              productUrl: petzLink.direct_product_url,
+                              searchUrl: petzLink.search_url,
+                              productName: card.label,
+                            });
+                            void trackClick({
+                              source: 'home',
+                              cta_type: 'shop_reorder_buy_petz',
+                              target: 'petz',
+                              link_type: 'affiliate_store',
+                              pet_id: currentPet.pet_id,
+                              metadata: {
+                                domain: card.domain,
+                                merchant: 'petz',
+                                monetization_mode: 'coupon_attribution_verified',
+                                destination_type: 'partner_store',
+                                coupon: PETZ_COUPON_CODE,
+                                gtin: card.gtin ?? undefined,
+                                link_type: 'affiliate_store',
+                                screen: 'loja',
+                              },
+                            });
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-[24px] border border-dashed border-slate-200 bg-white/70 p-4 text-center shadow-[0_8px_24px_rgba(15,23,42,0.045)]">
+                    <p className="text-[13px] text-slate-600 leading-snug">
+                      Cadastre a ração e o antipulgas {petDo(currentPet)} {petName || 'seu pet'} — a gente avisa quando estiver acabando, já com o preço do dia.
+                    </p>
                   </div>
                 )}
               </div>
+            )}
+          </div>
 
               {/* 🐾 Buscar produtos — catálogo Awin sincronizado, no lugar
                   do ícone estático que só levava pro site sem contexto.
@@ -318,17 +319,17 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                   copy neutra para as lojas ativas. Só a
                   busca (texto + escanear/digitar código de barras) — a
                   grade "Explorar categorias" foi removida a pedido. */}
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2.5">Buscar outro produto</p>
-                <AffiliateCatalogSearch petId={currentPet.pet_id} />
-              </div>
+          <div>
+            <p className="mb-2.5 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Buscar outro produto</p>
+            <AffiliateCatalogSearch petId={currentPet.pet_id} />
+          </div>
 
-              <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
+          <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
 
-              <p className="text-center text-[10px] text-gray-400 pt-1">
-                Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
-                A disponibilidade, preço, pagamento e entrega são de responsabilidade da loja escolhida.
-              </p>
+          <p className="pt-1 text-center text-[10px] leading-relaxed text-slate-400">
+            Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
+            A disponibilidade, preço, pagamento e entrega são de responsabilidade da loja escolhida.
+          </p>
         </div>
       </div>
     </div>
@@ -346,16 +347,16 @@ function PartnerStoreGrid({
 
   return (
     <div>
-      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2.5">Ou visite uma loja parceira</p>
+      <p className="mb-2.5 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Ou visite uma loja parceira</p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {partners.map((partner) => (
           <button
             key={partner.id}
             type="button"
             onClick={() => onOpen(partner)}
-            className="flex min-h-[112px] flex-col items-center justify-center gap-2.5 rounded-[1.35rem] border border-gray-200 bg-white p-3 text-center shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-50 active:scale-[0.98]"
+            className="flex min-h-[112px] flex-col items-center justify-center gap-2.5 rounded-[24px] border border-slate-200/70 bg-white p-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-white hover:shadow-[0_14px_30px_rgba(15,23,42,0.075)] active:translate-y-0 active:scale-[0.985] motion-reduce:transition-none motion-reduce:transform-none"
           >
-            <span className="flex h-[68px] w-[86px] items-center justify-center rounded-[1.25rem] border border-gray-100 bg-gradient-to-br from-white via-white to-slate-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_18px_rgba(15,23,42,0.06)]">
+            <span className="flex h-[68px] w-[86px] items-center justify-center rounded-[20px] border border-slate-100 bg-slate-50/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_18px_rgba(15,23,42,0.055)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={partner.logoSrc}
@@ -364,7 +365,7 @@ function PartnerStoreGrid({
                 loading="lazy"
               />
             </span>
-            <span className="text-[12px] font-black text-gray-800">{partner.name}</span>
+            <span className="text-[12px] font-extrabold text-slate-800">{partner.name}</span>
           </button>
         ))}
       </div>
@@ -472,57 +473,66 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
       tabIndex={canAct ? 0 : undefined}
       onClick={handlePrimaryAction}
       onKeyDown={handleKeyDown}
-      className={`p-3 bg-white border rounded-2xl shadow-sm transition-all ${canAct ? 'cursor-pointer active:scale-[0.99] hover:border-emerald-200' : ''} ${hasDiscount ? 'border-orange-300' : 'border-gray-200'}`}
+      className={`rounded-[24px] border bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.055)] transition-all duration-200 motion-reduce:transition-none motion-reduce:transform-none ${canAct ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(15,23,42,0.075)] active:translate-y-0 active:scale-[0.992]' : ''} ${hasDiscount ? 'border-orange-200/90 shadow-[0_12px_32px_rgba(251,146,60,0.12)]' : 'border-slate-200/70'}`}
     >
-      <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-xl bg-gray-50 border border-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center">
+      <div className="grid grid-cols-[74px_minmax(0,1fr)_82px] items-center gap-3 min-[390px]:grid-cols-[92px_minmax(0,1fr)_94px] min-[390px]:gap-4">
+        <div className="grid h-[74px] w-[74px] place-items-center overflow-hidden rounded-[20px] border border-slate-100 bg-slate-50/80 p-2 min-[390px]:h-[92px] min-[390px]:w-[92px] min-[390px]:rounded-[22px] min-[390px]:p-3">
           {imageUrl && !imageFailed ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={imageUrl}
               alt=""
-              className="w-full h-full object-contain"
+              className="h-full w-full object-contain"
               loading="lazy"
               onError={() => setImageFailed(true)}
             />
           ) : (
-            <span aria-hidden className="text-lg opacity-60">{card.icon}</span>
+            <span aria-hidden className="text-[28px] opacity-70 min-[390px]:text-[34px]">{card.icon}</span>
           )}
         </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <p className="flex-1 text-[13.5px] font-bold text-gray-900 leading-tight truncate">{card.label}</p>
-            {hasDiscount && (
-              <span className="flex-shrink-0 rounded-full bg-orange-100 text-orange-700 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5">
+        <div className="min-w-0 self-stretch py-0.5">
+          {hasDiscount && (
+            <div className="mb-1 flex min-h-6 justify-end">
+              <span className="inline-flex items-center rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-orange-700 ring-1 ring-orange-100">
                 🔥 Oferta
               </span>
-            )}
-          </div>
-          <p className={`text-[11.5px] mt-0.5 font-semibold ${card.urgencyTone === 'overdue' ? 'text-rose-600' : card.urgencyTone === 'today' ? 'text-amber-600' : 'text-gray-500'}`}>
+            </div>
+          )}
+          <p className="line-clamp-2 text-[17px] font-bold leading-[1.16] text-slate-950 min-[390px]:text-[18px]">
+            {card.label}
+          </p>
+          <p className={`mt-1.5 text-[12.5px] font-semibold leading-tight ${card.urgencyTone === 'overdue' ? 'text-rose-600' : card.urgencyTone === 'today' ? 'text-amber-600' : 'text-slate-500'}`}>
             {card.urgencyText}
           </p>
-          {loading && <p className="text-[11px] mt-0.5 font-medium text-gray-400">Buscando melhor preço…</p>}
+          {loading && <p className="mt-2 text-[12px] font-semibold text-slate-400">Buscando melhor preço...</p>}
           {!loading && hasMonetizedOffer && offer && (
-            <p className="text-[12px] mt-0.5 font-bold text-emerald-700">
-              {priceReliable
-                ? `${hasMultipleOffers ? 'A partir de ' : ''}${formatBRLPrice(offer.price as number)} · ${merchantLabel(offer.merchant)}`
-                : offerPriceLabel(offer)}
-              {hasDiscount && (
-                <span className="ml-1.5 text-[10px] font-semibold text-gray-400 line-through">{formatBRLPrice(offer.list_price as number)}</span>
+            <div className="mt-2 space-y-1">
+              <p className={`font-bold leading-tight ${priceReliable ? 'text-[15px] text-emerald-800 min-[390px]:text-[16px]' : 'text-[13px] text-emerald-700 min-[390px]:text-[14px]'}`}>
+                {priceReliable
+                  ? `${hasMultipleOffers ? 'A partir de ' : ''}${formatBRLPrice(offer.price as number)}`
+                  : offerPriceLabel(offer)}
+              </p>
+              {priceReliable && (
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] font-bold leading-tight">
+                  <span className="text-emerald-700">{merchantLabel(offer.merchant)}</span>
+                  {hasDiscount && (
+                    <span className="text-slate-400 line-through">{formatBRLPrice(offer.list_price as number)}</span>
+                  )}
+                  {hasMultipleOffers && totalBuyOptions - 1 > 0 && (
+                    <span className="font-extrabold uppercase tracking-wide text-blue-600">
+                      +{totalBuyOptions - 1} loja{totalBuyOptions - 1 > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </p>
               )}
-              {hasMultipleOffers && (
-                <span className="ml-1.5 text-[10px] font-black uppercase tracking-wide text-blue-600">
-                  +{totalBuyOptions - 1} loja{totalBuyOptions - 1 > 1 ? 's' : ''}
-                </span>
-              )}
-            </p>
+            </div>
           )}
           {!loading && !hasMonetizedOffer && hasPetz && (
-            <p className="text-[12px] mt-0.5 font-bold text-blue-700">Disponível na Petz · cupom {PETZ_COUPON_CODE} -10%</p>
+            <p className="mt-2 text-[12.5px] font-bold leading-tight text-blue-700">Disponível na Petz · cupom {PETZ_COUPON_CODE} -10%</p>
           )}
           {!loading && noBuyOptionAtAll && (
-            <p className="text-[11px] mt-0.5 text-gray-400">Buscando opções de compra…</p>
+            <p className="mt-2 text-[12px] font-medium text-slate-400">Buscando opções de compra...</p>
           )}
         </div>
 
@@ -534,9 +544,10 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
               event.stopPropagation();
               handlePrimaryAction();
             }}
-            className="flex-shrink-0 grid min-h-[40px] place-items-center rounded-xl bg-emerald-500 text-white text-[12.5px] font-black px-4 active:scale-95 transition-transform disabled:opacity-50"
+            className="inline-flex h-14 min-w-0 items-center justify-center gap-1.5 rounded-[18px] bg-emerald-500 px-3 text-[13px] font-bold text-white shadow-[0_10px_22px_rgba(16,185,129,0.24)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-500 hover:shadow-[0_14px_28px_rgba(16,185,129,0.30)] active:translate-y-0 active:scale-[0.97] active:shadow-[0_7px_16px_rgba(16,185,129,0.20)] disabled:opacity-50 motion-reduce:transition-none motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 focus-visible:ring-offset-white min-[390px]:h-[58px] min-[390px]:rounded-[20px] min-[390px]:text-[14px]"
           >
-            Comprar
+            <span className="truncate">Comprar</span>
+            <ChevronRight className="h-4 w-4 flex-shrink-0" strokeWidth={2.5} />
           </button>
         )}
       </div>
@@ -549,7 +560,7 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
         />
       )}
       {offers.some((item) => item.price_is_stale) && (
-        <p className="mt-1.5 text-[9px] font-medium text-gray-400">*Preço confirmado ao abrir a loja.</p>
+        <p className="mt-3 text-[10px] font-medium text-slate-400">*Preço confirmado ao abrir a loja.</p>
       )}
       {!hasMonetizedOffer && !hasPetz && isPickerOpen && visibleQuickBuyPartners.length > 0 && (
         <QuickBuyRow partners={visibleQuickBuyPartners} onPick={onQuickBuy} />
@@ -565,8 +576,8 @@ function OfferPickerRow({ offers, onPick, petzLink, onPickPetz }: {
   onPickPetz?: () => void;
 }) {
   return (
-    <div className="mt-2.5 pt-2.5 border-t border-gray-100 space-y-1.5" onClick={(e) => e.stopPropagation()}>
-      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Escolha a loja</p>
+    <div className="mt-4 space-y-2 border-t border-slate-100 pt-3" onClick={(e) => e.stopPropagation()}>
+      <p className="px-0.5 text-[10px] font-extrabold uppercase tracking-wide text-slate-400">Escolha a loja</p>
       {offers.map((offer) => {
         const logoSrc = HOME_SHOPPING_PARTNERS.find((p) => p.id === offer.merchant)?.logoSrc;
         return (
@@ -574,16 +585,16 @@ function OfferPickerRow({ offers, onPick, petzLink, onPickPetz }: {
             key={offer.merchant}
             type="button"
             onClick={() => onPick(offer)}
-            className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-emerald-300 px-3 min-h-[44px] transition-all active:scale-[0.98]"
+            className="flex min-h-[48px] w-full items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/70 px-3.5 transition-all duration-200 hover:border-emerald-200 hover:bg-white active:scale-[0.985] motion-reduce:transition-none motion-reduce:transform-none"
           >
-            <span className="flex items-center gap-1.5 min-w-0">
+            <span className="flex min-w-0 items-center gap-2">
               {logoSrc && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoSrc} alt="" className="w-4 h-4 rounded object-contain bg-white border border-gray-200 flex-shrink-0" />
+                <img src={logoSrc} alt="" className="h-5 w-5 flex-shrink-0 rounded object-contain border border-slate-100 bg-white" />
               )}
-              <span className="text-[12px] font-bold text-gray-800 truncate">{merchantLabel(offer.merchant)}</span>
+              <span className="truncate text-[13px] font-bold text-slate-800">{merchantLabel(offer.merchant)}</span>
             </span>
-            <span className="text-[12px] font-bold text-emerald-700 flex-shrink-0">{offerPriceLabel(offer)}</span>
+            <span className="flex-shrink-0 text-[13px] font-bold text-emerald-700">{offerPriceLabel(offer)}</span>
           </button>
         );
       })}
@@ -591,14 +602,14 @@ function OfferPickerRow({ offers, onPick, petzLink, onPickPetz }: {
         <button
           type="button"
           onClick={onPickPetz}
-          className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-blue-300 px-3 min-h-[44px] transition-all active:scale-[0.98]"
+          className="flex min-h-[48px] w-full items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/70 px-3.5 transition-all duration-200 hover:border-blue-200 hover:bg-white active:scale-[0.985] motion-reduce:transition-none motion-reduce:transform-none"
         >
-          <span className="flex items-center gap-1.5 min-w-0">
+          <span className="flex min-w-0 items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/partner-logos/petz.png" alt="" className="w-4 h-4 rounded object-contain bg-white border border-gray-200 flex-shrink-0" />
-            <span className="text-[12px] font-bold text-gray-800 truncate">Petz</span>
+            <img src="/partner-logos/petz.png" alt="" className="h-5 w-5 flex-shrink-0 rounded object-contain border border-slate-100 bg-white" />
+            <span className="truncate text-[13px] font-bold text-slate-800">Petz</span>
           </span>
-          <span className="text-[12px] font-bold text-blue-700 flex-shrink-0">Cupom -10%</span>
+          <span className="flex-shrink-0 text-[13px] font-bold text-blue-700">Cupom -10%</span>
         </button>
       )}
     </div>
@@ -607,16 +618,16 @@ function OfferPickerRow({ offers, onPick, petzLink, onPickPetz }: {
 
 function QuickBuyRow({ partners, onPick }: { partners: HomeShoppingPartner[]; onPick: (partnerId: HomeShoppingPartnerId) => void }) {
   return (
-    <div className="mt-2.5 flex gap-2" onClick={(e) => e.stopPropagation()}>
+    <div className="mt-4 flex gap-2" onClick={(e) => e.stopPropagation()}>
       {partners.map((partner) => (
         <button
           key={partner.id}
           type="button"
           onClick={() => onPick(partner.id)}
-          className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 min-h-[44px] text-[12px] font-bold text-gray-700 hover:bg-white hover:border-emerald-300 active:scale-95 transition-all"
+          className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200/70 bg-slate-50/70 px-2 text-[12.5px] font-bold text-slate-700 transition-all duration-200 hover:border-emerald-200 hover:bg-white active:scale-[0.97] motion-reduce:transition-none motion-reduce:transform-none"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={partner.logoSrc} alt="" className="w-4 h-4 rounded object-contain bg-white border border-gray-200 flex-shrink-0" />
+          <img src={partner.logoSrc} alt="" className="h-5 w-5 flex-shrink-0 rounded object-contain border border-slate-100 bg-white" />
           <span className="truncate">{partner.name}</span>
         </button>
       ))}
