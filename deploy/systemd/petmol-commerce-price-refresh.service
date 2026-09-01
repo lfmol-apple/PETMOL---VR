@@ -1,0 +1,11 @@
+[Unit]
+Description=PETMOL commerce price refresh (validated offers only)
+After=network.target
+
+[Service]
+Type=oneshot
+User=petmol
+Group=petmol
+WorkingDirectory=/opt/petmol/current/services/price-service
+EnvironmentFile=/opt/petmol/shared/env/api.env
+ExecStart=/opt/petmol/current/services/price-service/.venv/bin/python scripts/refresh_commerce_prices.py --merchant shopee --max-offers 200 --delay-seconds 0.4

@@ -48,8 +48,9 @@ from .commerce_pricing import fetch_cobasi_price
 from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
 from .gtin_utils import normalize_gtin_gs1
+from .product_identity import MerchantCandidate, ProductIdentity, evaluate_identity
 from .product_catalog_lookup import normalize_gtin
-from .shopee_offer_matcher import extract_volume_ml, extract_weight_kg, extract_weight_range_kg, score_candidate
+from .shopee_offer_matcher import extract_volume_ml, extract_weight_kg, extract_weight_range_kg
 # Reused as-is (not duplicated): resolves a title like "Coleira ... Scalibor
 # M" or "... MSD ..." to the commercial brand name regardless of which one
 # a given feed's own `brand` column happens to carry — the same
@@ -128,14 +129,42 @@ class AwinFeedProvider:
         # (quando várias ofertas do mesmo GTIN existirem) — só
         # active + in_stock.
         rows = self._find_rows_by_gtin(gtin.value)
+        found_by_reference_identity = False
         if not rows:
             rows = self._find_rows_by_reference_identity(gtin.value, context)
+            found_by_reference_identity = bool(rows)
         if not rows:
             return None
         if has_ambiguous_offer_identity(rows):
             return None
 
         row = _select_row_by_weight(rows, context.weight_kg)
+        canonical_context_gtin = normalize_gtin(context.gtin)
+        row_gtin = normalize_gtin(row.gtin)
+        identity = ProductIdentity.build(
+            gtin=None if found_by_reference_identity and row_gtin != canonical_context_gtin else (context.gtin or row.gtin),
+            canonical_name=context.canonical_name or context.name or row.title,
+            brand=context.canonical_brand or context.brand or row.brand,
+            species=context.species,
+            category=context.category or row.category,
+            weight_kg=context.weight_kg or row.weight_kg,
+            image_url=context.canonical_image_url or row.image_url,
+            evidence=("PRODUCT_CONTEXT", "AWIN_FEED"),
+        )
+        match_result = evaluate_identity(
+            identity,
+            MerchantCandidate.build(
+                merchant=self.merchant,
+                title=row.title,
+                gtin=row.gtin,
+                brand=row.brand,
+                category=row.category,
+                price=row.price,
+                external_id=row.external_product_id,
+            ),
+        )
+        if not match_result.accepted:
+            return None
         live_price = await self._live_price_for_row(row, context)
         price = row.price
         list_price = row.list_price
@@ -153,17 +182,36 @@ class AwinFeedProvider:
 
         return DiscoveredOffer(
             merchant=self.merchant,
-            product_name=row.title,
-            brand=row.brand,
+            canonical_product_id=context.product_id,
+            canonical_gtin=canonical_context_gtin or identity.gtin,
+            canonical_name=identity.canonical_name,
+            canonical_brand=identity.brand,
+            canonical_image_url=identity.image_url,
+            product_name=identity.canonical_name or row.title,
+            brand=identity.brand or row.brand,
             price=price,
             list_price=list_price,
             is_available=is_available,
             direct_url=direct_url,
             ean=row.gtin,
             external_id=row.external_product_id,
-            image_url=row.image_url,
+            image_url=identity.image_url or row.image_url,
             price_checked_at=price_checked_at,
             price_is_stale=price_is_stale,
+            merchant_product_name=row.title,
+            match_decision=match_result.decision.value,
+            match_confidence=match_result.confidence,
+            match_reasons=list(match_result.reasons),
+            match_attributes=[
+                {
+                    "attribute": item.attribute,
+                    "expected": item.expected,
+                    "observed": item.observed,
+                    "status": item.status.value,
+                    "reason": item.reason,
+                }
+                for item in match_result.attributes
+            ],
         )
 
     async def _live_price_for_row(self, row: AffiliateFeedOffer, context: ProductContext):
@@ -304,55 +352,38 @@ def _looks_like_same_product(
         reference_title = reference.title or context.name or context.query or ""
         if not reference_title:
             continue
-        if not _package_markers_compatible(candidate_title, reference_title):
-            continue
-        if not _size_markers_compatible(candidate_title, reference_title):
-            continue
-        # Marcador de tamanho explícito e coincidente nos dois lados (ex:
-        # os dois falam "M") já é evidência forte de identidade por si só.
-        # Itens sem peso/volume no título (coleira, brinquedo) costumam
-        # ter uma variante curta em alguma loja ("Coleira Scalibor M") que
-        # nunca bateria 0.75 de sobreposição textual contra um título mais
-        # descritivo de outra loja ("Coleira Scalibor Cães Pequenos e
-        # Médios - 48cm"), mesmo sendo o mesmo produto — caso real: Zee
-        # Now nunca aparecia pro GTIN da Cobasi da coleira Scalibor por
-        # causa disso. Só baixa o piso quando essa evidência independente
-        # existe; sem marcador de tamanho batendo dos dois lados, mantém
-        # 0.75 (mesmo comportamento de antes).
-        candidate_sizes = _size_markers(candidate_title)
-        reference_sizes = _size_markers(reference_title)
-        has_explicit_size_match = bool(candidate_sizes and reference_sizes and (candidate_sizes & reference_sizes))
-        # 0.35 é calibrado contra dados reais: "Coleira Antiparasitária
-        # Scalibor M" vs a referência "...Scalibor Cães Pequenos e Médios
-        # - 48 cm" pontua 0.375 (mesmo produto). Mas contra o catálogo
-        # real inteiro (não só um candidato isolado), esse piso sozinho
-        # também bate em OUTRAS marcas de coleira genéricas — "Coleira
-        # Antiparasitária Dug's ... Cães ..." pontua parecido, porque boa
-        # parte da pontuação vem de palavras genéricas do tipo de produto
-        # ("coleira", "antiparasitária", "cães"), não da marca. Confirmado
-        # em produção: sem a trava de marca abaixo, isso derrubava o
-        # próprio caso real por ambiguidade (3+ marcas diferentes batendo
-        # o piso, nenhuma vencendo). Por isso exige a marca comercial da
-        # referência (extraída do título — ver _brand_for_matching, o
-        # campo `brand` do feed é inconsistente fabricante-vs-comercial)
-        # aparecendo no título do candidato, só nesse caminho de piso
-        # reduzido.
-        min_score = 0.75
-        expected_brand = None
-        if has_explicit_size_match:
-            min_score = 0.35
-            expected_brand = _brand_for_matching(reference_title, reference.brand)
-        score = score_candidate(
-            reference_title,
-            candidate_title,
-            expected_brand=expected_brand,
-            expected_weight_kg=context.weight_kg or reference.weight_kg or extract_weight_kg(reference_title),
-            expected_volume_ml=extract_volume_ml(reference_title),
+        result = evaluate_identity(
+            ProductIdentity.build(
+                # This fallback compares a known reference identity from
+                # another feed row to a merchant row that can legitimately
+                # use a sibling barcode. Do not treat the different GTIN as
+                # the evidence; structured identity below must carry it.
+                gtin=None,
+                canonical_name=reference_title,
+                brand=_brand_for_matching(reference_title, reference.brand) or reference.brand,
+                category=reference.category,
+                weight_kg=context.weight_kg or reference.weight_kg,
+            ),
+            MerchantCandidate.build(
+                merchant=candidate.merchant,
+                title=candidate_title,
+                gtin=candidate.gtin,
+                brand=candidate.brand,
+                category=candidate.category,
+                price=candidate.price,
+                external_id=candidate.external_product_id,
+            ),
+            min_confidence=0.58,
         )
-        if score is None or score < min_score:
-            continue
-        return True
+        if result.accepted:
+            return True
+        if _has_attribute_match(result, "brand") and _has_attribute_match(result, "breed_size"):
+            return True
     return False
+
+
+def _has_attribute_match(result, attribute: str) -> bool:
+    return any(item.attribute == attribute and item.status.value == "MATCH" for item in result.attributes)
 
 
 def _package_markers_compatible(candidate_title: str, reference_title: str) -> bool:

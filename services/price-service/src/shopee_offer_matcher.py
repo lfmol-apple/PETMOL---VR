@@ -13,15 +13,10 @@ próprio catálogo PETMOL tiver essa informação, nunca só "descontam
 pontos": um candidato sem a marca esperada, ou com peso/volume
 divergente, nunca é considerado, não importa quão parecido o nome pareça.
 
-Caso real que motivou o desempate por preço (21/08/2026): "Shampoo Hydra
-Pelos Claros Pet Society" (nome PETMOL sem nenhum tamanho informado)
-casou com sobreposição de tokens IDÊNTICA tanto para a versão de varejo
-(300ml, ~R$66) quanto para uma versão profissional de 5L (R$554) — sem
-tamanho nenhum pra comparar dos dois lados, o antigo critério ("primeiro
-com maior score") ficava refém da ordem de relevância da própria busca da
-Shopee, que pode favorecer o anúncio mais caro. Por isso, em empate de
-score, o candidato de MENOR preço vence — é a suposição mais segura
-quando não dá pra confirmar o tamanho (varejo, não atacado profissional).
+Quando o nome PETMOL não informa tamanho/peso/volume e a busca devolve
+variações explícitas diferentes (ex: 300ml e 5L), não há match confiável.
+Preço nunca prova identidade; no máximo ordena candidatos já
+desambiguados por atributos objetivos.
 
 Pure functions, sem I/O — testável sem rede e sem banco.
 """
@@ -284,13 +279,9 @@ def find_best_match(
     produto esperado, ou None se nenhum candidato passar nas checagens
     obrigatórias E atingir min_confidence.
 
-    Em empate de score, o candidato de MENOR preço vence — quando não dá
-    pra confirmar o tamanho (peso/volume ausentes dos dois lados), a
-    suposição mais segura é a versão de varejo, nunca a mais cara/atacado
-    só porque a busca da Shopee a listou primeiro (ver docstring do
-    módulo pro caso real que motivou isto). Nunca escolhe "o menos pior"
-    abaixo do limiar — ausência de match confiável é sempre None, nunca
-    uma aposta."""
+    Preço nunca desempata identidade entre SKUs diferentes. Se o esperado
+    não tem marcador de SKU e a busca retornou candidatos aceitos com
+    tamanhos explícitos divergentes, retorna None para auditoria."""
     candidates: list[tuple[float, float, dict]] = []
     for node in nodes:
         candidate_name = node.get("productName") or ""
@@ -309,6 +300,46 @@ def find_best_match(
 
     if not candidates:
         return None
+    if not _expected_has_explicit_sku(expected_name, expected_weight_kg, expected_volume_ml, expected_length_cm):
+        explicit_signatures = {
+            signature
+            for _score, _price, node in candidates
+            if (signature := _candidate_sku_signature(node.get("productName") or ""))
+        }
+        if len(explicit_signatures) > 1:
+            return None
 
     candidates.sort(key=lambda c: (-c[0], c[1]))
     return candidates[0][2]
+
+
+def _expected_has_explicit_sku(
+    expected_name: str,
+    expected_weight_kg: Optional[float],
+    expected_volume_ml: Optional[float],
+    expected_length_cm: Optional[float],
+) -> bool:
+    return any([
+        expected_weight_kg is not None,
+        expected_volume_ml is not None,
+        expected_length_cm is not None,
+        extract_weight_kg(expected_name) is not None,
+        extract_volume_ml(expected_name) is not None,
+        extract_length_cm(expected_name) is not None,
+        extract_pack_count(expected_name) is not None,
+        extract_weight_range_kg(expected_name) is not None,
+    ])
+
+
+def _candidate_sku_signature(candidate_name: str) -> tuple:
+    return tuple(
+        value
+        for value in (
+            extract_weight_kg(candidate_name),
+            extract_volume_ml(candidate_name),
+            extract_length_cm(candidate_name),
+            extract_pack_count(candidate_name),
+            extract_weight_range_kg(candidate_name),
+        )
+        if value is not None
+    )

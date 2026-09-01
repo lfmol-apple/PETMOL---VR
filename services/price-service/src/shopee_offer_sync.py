@@ -31,6 +31,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .affiliate_links import MarketplaceOffer
+from .product_identity import IdentityMatchResult, MerchantCandidate, ProductIdentity, evaluate_identity
 from .product_catalog_lookup import ProductCatalog, normalize_gtin
 from .shopee_affiliate_client import ShopeeAffiliateError, search_product_offers
 from .shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
@@ -39,7 +40,6 @@ from .shopee_offer_matcher import (
     extract_length_cm,
     extract_volume_ml,
     extract_weight_kg,
-    score_candidate,
 )
 
 logger = logging.getLogger(__name__)
@@ -196,8 +196,15 @@ def _confident_matches(
     expected_volume_ml: Optional[float],
     min_confidence: float,
     expected_length_cm: Optional[float] = None,
-) -> list[dict]:
-    scored: list[tuple[float, float, dict]] = []
+) -> list[tuple[dict, IdentityMatchResult]]:
+    expected_identity = ProductIdentity.build(
+        canonical_name=expected_name,
+        brand=expected_brand,
+        weight_kg=expected_weight_kg,
+        volume_ml=expected_volume_ml,
+        length_cm=expected_length_cm,
+    )
+    scored: list[tuple[float, float, dict, IdentityMatchResult]] = []
     seen_listing_ids: set[str] = set()
     for node in nodes:
         listing_id = str(node.get("itemId")) if node.get("itemId") is not None else ""
@@ -205,33 +212,59 @@ def _confident_matches(
             continue
         if listing_id:
             seen_listing_ids.add(listing_id)
-        score = score_candidate(
-            expected_name,
-            node.get("productName") or "",
-            expected_brand=expected_brand,
-            expected_weight_kg=expected_weight_kg,
-            expected_volume_ml=expected_volume_ml,
-            expected_length_cm=expected_length_cm,
+        result = evaluate_identity(
+            expected_identity,
+            MerchantCandidate.build(
+                merchant="shopee",
+                title=node.get("productName") or "",
+                brand=node.get("brand"),
+                price=_parse_price(node.get("price")),
+                external_id=listing_id,
+            ),
+            min_confidence=min_confidence,
         )
-        if score is None or score < min_confidence:
+        if not result.accepted:
             continue
         price = _parse_price(node.get("price"))
         if price is None:
             continue
-        scored.append((score, price, node))
+        scored.append((result.confidence, price, node, result))
 
-    median_price = _median([price for _score, price, _node in scored])
+    if _has_ambiguous_sku_identity(scored):
+        return []
+
+    median_price = _median([price for _score, price, _node, _result in scored])
     if median_price is not None:
         # Preço baixo demais em marketplace costuma ser variação errada,
         # anúncio inconsistente ou isca. Mantém somente se o título também
-        # for muito forte; caso contrário não entra na disputa de menor preço.
+        # for exato/forte. Isto não prova identidade; só filtra outlier
+        # depois que o Identity Engine já aceitou o SKU.
         scored = [
             item for item in scored
             if item[1] >= median_price * 0.60 or item[0] >= 0.95
         ]
 
     scored.sort(key=lambda item: (item[1], -item[0]))
-    return [node for _score, _price, node in scored]
+    return [(node, result) for _score, _price, node, result in scored]
+
+
+def _has_ambiguous_sku_identity(scored: list[tuple[float, float, dict, IdentityMatchResult]]) -> bool:
+    if len(scored) < 2:
+        return False
+    # If PETMOL has no structured SKU discriminator and Shopee returned
+    # multiple plausible candidates with explicit different sizes, refuse to
+    # publish any. Price is not allowed to choose identity.
+    explicit_signatures: set[tuple] = set()
+    for _confidence, _price, _node, result in scored:
+        attrs = {item.attribute: item for item in result.attributes}
+        signature = tuple(
+            attrs[name].observed
+            for name in ("weight_kg", "volume_ml", "length_cm", "pack_count", "animal_weight_range")
+            if name in attrs and attrs[name].observed is not None
+        )
+        if signature:
+            explicit_signatures.add(signature)
+    return len(explicit_signatures) > 1
 
 
 def _best_awin_identity_for_gtin(db: Session, gtin: str) -> tuple[Optional[str], Optional[str]]:
@@ -279,14 +312,16 @@ def sync_shopee_offer_for_gtin(
     product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
     if not product:
         return ShopeeSyncResult(gtin=gtin_normalized, matched=False, reason="produto não encontrado em products_catalog")
-    if not product.name:
+    product_name = product.canonical_name or product.name
+    product_brand = product.canonical_brand or product.brand
+    if not product_name:
         return ShopeeSyncResult(gtin=gtin_normalized, matched=False, reason="produto sem nome cadastrado — não dá pra buscar/casar")
 
     feed_name, feed_brand = (None, None)
     if expected_name is None and expected_brand is None:
         feed_name, feed_brand = _best_awin_identity_for_gtin(db, gtin_normalized)
-    match_name = expected_name or feed_name or product.name
-    match_brand = expected_brand if expected_brand is not None else (feed_brand or product.brand)
+    match_name = expected_name or feed_name or product_name
+    match_brand = expected_brand if expected_brand is not None else (feed_brand or product_brand)
     keyword_product = ProductCatalog(name=match_name, brand=match_brand)
     expected_weight_kg = expected_weight_kg if expected_weight_kg is not None else extract_weight_kg(match_name)
     # GTIN literal como 1ª busca: vendedor sério de pet (antiparasitário
@@ -325,7 +360,7 @@ def sync_shopee_offer_for_gtin(
     valid_listing_ids: set[str] = set()
     invalid_links = 0
 
-    for match in matches:
+    for match, match_result in matches:
         offer_link = match.get("offerLink") or ""
         try:
             validate_shopee_affiliate_url(offer_link)
@@ -350,11 +385,19 @@ def sync_shopee_offer_for_gtin(
             existing.affiliate_url = offer_link
             existing.direct_url = match.get("productLink")
             existing.seller_name = match.get("shopName")
+            existing.merchant_title = match.get("productName")
+            existing.merchant_gtin = gtin_normalized if gtin_normalized in str(match.get("productName") or "") else None
             existing.price = price
             existing.is_available = True
             existing.active = True
             existing.verified_at = now
             existing.last_checked_at = now
+            existing.match_decision = match_result.decision.value
+            existing.match_confidence = match_result.confidence
+            existing.match_reasons_json = match_result.reasons_json()
+            existing.match_attributes_json = match_result.attributes_json()
+            existing.price_refresh_status = "refreshed"
+            existing.price_refresh_error = None
             offer = existing
         else:
             offer = MarketplaceOffer(
@@ -362,6 +405,8 @@ def sync_shopee_offer_for_gtin(
                 merchant="shopee",
                 external_listing_id=external_listing_id,
                 seller_name=match.get("shopName"),
+                merchant_title=match.get("productName"),
+                merchant_gtin=gtin_normalized if gtin_normalized in str(match.get("productName") or "") else None,
                 affiliate_url=offer_link,
                 direct_url=match.get("productLink"),
                 price=price,
@@ -369,6 +414,11 @@ def sync_shopee_offer_for_gtin(
                 active=True,
                 verified_at=now,
                 last_checked_at=now,
+                match_decision=match_result.decision.value,
+                match_confidence=match_result.confidence,
+                match_reasons_json=match_result.reasons_json(),
+                match_attributes_json=match_result.attributes_json(),
+                price_refresh_status="refreshed",
             )
             db.add(offer)
         db.flush()
@@ -413,6 +463,8 @@ def _ensure_catalog_entry(db: Session, gtin: str, name: str, brand: Optional[str
         barcode_normalized=gtin_normalized,
         name=name,
         brand=brand,
+        canonical_name=name,
+        canonical_brand=brand,
         source_primary="awin_feed",
     )
     db.add(product)

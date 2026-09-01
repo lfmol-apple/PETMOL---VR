@@ -333,6 +333,37 @@ def run_pg_migrations(engine: Engine) -> None:
         # analytics_events: distinguish monetized vs unmonetized clicks (Aug 2026)
         _pg_add_column_if_missing(conn, "analytics_events", "link_type", "VARCHAR(32)")
 
+        # Product Identity Engine (Sep 2026): PETMOL-owned canonical product
+        # identity, separate from merchant offer, monetization and price.
+        # Additive only; existing name/brand remain fallback truth.
+        _pg_add_column_if_missing(conn, "products_catalog", "canonical_name", "TEXT")
+        _pg_add_column_if_missing(conn, "products_catalog", "canonical_brand", "TEXT")
+        _pg_add_column_if_missing(conn, "products_catalog", "species", "VARCHAR(16)")
+        _pg_add_column_if_missing(conn, "products_catalog", "product_family", "TEXT")
+        _pg_add_column_if_missing(conn, "products_catalog", "product_line", "TEXT")
+        _pg_add_column_if_missing(conn, "products_catalog", "weight_kg", "DOUBLE PRECISION")
+        _pg_add_column_if_missing(conn, "products_catalog", "volume_ml", "DOUBLE PRECISION")
+        _pg_add_column_if_missing(conn, "products_catalog", "length_cm", "DOUBLE PRECISION")
+        _pg_add_column_if_missing(conn, "products_catalog", "pack_count", "INTEGER")
+        _pg_add_column_if_missing(conn, "products_catalog", "animal_weight_min_kg", "DOUBLE PRECISION")
+        _pg_add_column_if_missing(conn, "products_catalog", "animal_weight_max_kg", "DOUBLE PRECISION")
+        _pg_add_column_if_missing(conn, "products_catalog", "breed_size", "VARCHAR(32)")
+        _pg_add_column_if_missing(conn, "products_catalog", "breed", "VARCHAR(64)")
+        _pg_add_column_if_missing(conn, "products_catalog", "identity_aliases_json", "TEXT")
+        _pg_add_column_if_missing(conn, "products_catalog", "therapeutic_attributes_json", "TEXT")
+        _pg_add_column_if_missing(conn, "products_catalog", "identity_evidence_json", "TEXT")
+
+        _pg_add_column_if_missing(conn, "marketplace_offers", "merchant_title", "TEXT")
+        _pg_add_column_if_missing(conn, "marketplace_offers", "merchant_gtin", "VARCHAR(32)")
+        _pg_add_column_if_missing(conn, "marketplace_offers", "match_decision", "VARCHAR(32)")
+        _pg_add_column_if_missing(conn, "marketplace_offers", "match_confidence", "DOUBLE PRECISION")
+        _pg_add_column_if_missing(conn, "marketplace_offers", "match_reasons_json", "TEXT")
+        _pg_add_column_if_missing(conn, "marketplace_offers", "match_attributes_json", "TEXT")
+        _pg_add_column_if_missing(conn, "marketplace_offers", "price_refresh_status", "VARCHAR(32)")
+        _pg_add_column_if_missing(conn, "marketplace_offers", "price_refresh_error", "VARCHAR(160)")
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_match_decision ON marketplace_offers (match_decision)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_price_refresh ON marketplace_offers (price_refresh_status, last_checked_at)"))
+
         # Mission Control phase 1: first-party product analytics, additive and
         # pseudonymous. No raw IP, GPS, email, phone, names or sensitive payloads.
         conn.execute(text("""
@@ -855,6 +886,36 @@ def run_sqlite_migrations(engine: Engine) -> None:
 
         # analytics_events: distinguish monetized vs unmonetized clicks (Aug 2026)
         changed |= _sqlite_add_column_if_missing(conn, "analytics_events", "link_type", "TEXT")
+
+        # Product Identity Engine (Sep 2026): PETMOL-owned canonical product
+        # identity, separate from merchant offer, monetization and price.
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "canonical_name", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "canonical_brand", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "species", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "product_family", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "product_line", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "weight_kg", "REAL")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "volume_ml", "REAL")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "length_cm", "REAL")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "pack_count", "INTEGER")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "animal_weight_min_kg", "REAL")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "animal_weight_max_kg", "REAL")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "breed_size", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "breed", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "identity_aliases_json", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "therapeutic_attributes_json", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "identity_evidence_json", "TEXT")
+
+        changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "merchant_title", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "merchant_gtin", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "match_decision", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "match_confidence", "REAL")
+        changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "match_reasons_json", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "match_attributes_json", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "price_refresh_status", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "price_refresh_error", "TEXT")
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_match_decision ON marketplace_offers (match_decision)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_price_refresh ON marketplace_offers (price_refresh_status, last_checked_at)"))
 
         # Mission Control phase 1: first-party product analytics, additive and
         # pseudonymous. No raw IP, GPS, email, phone, names or sensitive payloads.

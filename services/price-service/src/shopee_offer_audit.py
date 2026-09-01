@@ -189,17 +189,18 @@ def _audit_one_offer(
         expected_volume_ml=expected_volume_ml,
         min_confidence=min_confidence,
     )
-    matched_ids = [str(node.get("itemId")) for node in matches if node.get("itemId") is not None]
+    matched_nodes = [node for node, _match_result in matches]
+    matched_ids = [str(node.get("itemId")) for node in matched_nodes if node.get("itemId") is not None]
     base.candidate_count = len(nodes_by_id)
     base.matched_listing_ids = matched_ids
-    base.matched_titles = [(node.get("productName") or "")[:180] for node in matches[:5]]
+    base.matched_titles = [(node.get("productName") or "")[:180] for node in matched_nodes[:5]]
 
     if str(offer.external_listing_id) not in set(matched_ids):
         base.decision = "invalid"
         base.reason = "saved_listing_not_in_confident_matches"
         return base
 
-    matched_node = next((node for node in matches if str(node.get("itemId")) == str(offer.external_listing_id)), None)
+    matched_node = next((node for node in matched_nodes if str(node.get("itemId")) == str(offer.external_listing_id)), None)
     if matched_node is not None:
         offer_link = matched_node.get("offerLink") or ""
         try:

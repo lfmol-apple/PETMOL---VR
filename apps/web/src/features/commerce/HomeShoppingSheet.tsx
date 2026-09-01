@@ -443,6 +443,7 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
   );
   const noBuyOptionAtAll = !hasMonetizedOffer && !hasPetz && visibleQuickBuyPartners.length === 0;
   const canAct = !loading && !noBuyOptionAtAll;
+  const displayProductLabel = offer?.canonical_name || offer?.product_name || card.label;
 
   function handlePrimaryAction() {
     if (!canAct) return;
@@ -494,7 +495,7 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-1.5">
             <p className="line-clamp-2 flex-1 text-[13.5px] font-bold leading-tight text-slate-950">
-              {card.label}
+              {displayProductLabel}
             </p>
             {hasDiscount && (
               <span className="flex-shrink-0 inline-flex items-center rounded-full bg-orange-50 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-orange-700 ring-1 ring-orange-100">

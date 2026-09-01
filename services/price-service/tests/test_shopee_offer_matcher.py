@@ -284,19 +284,17 @@ class TestExtractLengthCm:
 
 
 class TestFindBestMatch:
-    def test_empate_de_score_sem_tamanho_no_nome_pega_o_de_menor_preco(self):
+    def test_empate_de_score_sem_tamanho_no_nome_nao_escolhe_por_preco(self):
         # Caso real (21/08/2026): "Shampoo Hydra Pelos Claros Pet Society"
         # não tem volume no nome PETMOL — as duas versões (5L profissional
-        # e 300ml varejo) empatam em sobreposição de tokens. Nunca pode
-        # escolher a de R$554 só por ter aparecido primeiro na busca.
+        # e 300ml varejo) empatam em sobreposição de tokens. Preco nao
+        # prova identidade; sem tamanho canonico, o correto e None.
         best = find_best_match(
             SHAMPOO_SEARCH_NODES,
             "Shampoo Hydra Pelos Claros Pet Society",
             expected_brand="Pet Society",
         )
-        assert best is not None
-        assert best["itemId"] == 58201216624
-        assert best["price"] == "65.99"
+        assert best is None
 
     def test_com_volume_no_nome_desqualifica_o_tamanho_errado_mesmo_sem_empate_ajudar(self):
         best = find_best_match(

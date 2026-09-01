@@ -180,6 +180,7 @@ export function MonetizedOffersList({
         const hasDiscount = priceReliable && typeof offer.list_price === 'number' && offer.list_price > offer.price;
         const offerMerchantLabel = merchantLabel(offer.merchant);
         const offerLogoSrc = merchantLogoSrc(offer.merchant);
+        const displayProductLabel = offer.canonical_name || offer.product_name || productLabel;
 
         return (
           <button
@@ -201,7 +202,7 @@ export function MonetizedOffersList({
                     Menor preço
                   </span>
                 )}
-                <p className="font-bold text-gray-900 text-[15px] leading-tight truncate">{productLabel}</p>
+                <p className="font-bold text-gray-900 text-[15px] leading-tight truncate">{displayProductLabel}</p>
                 <p className="text-[12px] text-gray-500">
                   {offerMerchantLabel}{offer.is_available === false ? ' · sob consulta' : ''}
                 </p>

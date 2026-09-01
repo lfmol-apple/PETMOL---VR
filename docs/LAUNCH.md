@@ -4,11 +4,10 @@ Lançamento **2026-08-30**. Lojas ativas:
 - **Cobasi** — completa (comparação de preço por produto + vitrine, UTM/MAIS 7%)
 - **Shopee** — vitrine (shortlink afiliado) **+ ofertas por produto**
   (`shopee_affiliate_enabled=True`). Ficou `False` por ~1 dia no
-  lançamento e voltou depois do projeto de precisão (#120): GTIN na
-  busca, hard-fail de cm p/ coleira, sync noturno sem Awin, e — a rede de
-  segurança — oferta com +36h não mostra mais preço-número. Gap residual
-  (variante de coleira abreviada) mitigado por `audit_shopee_offers.py` +
-  revisão. Ver §7.
+  lançamento e voltou depois do projeto de precisão (#120). Em 01/09/2026
+  recebeu Product Identity Engine: GTIN/campos canônicos separados de
+  Merchant Match e Price; preço nunca escolhe variação; refresh não troca
+  listing_id. Ver §7 e `docs/PRODUCT_IDENTITY.md`.
 
 Mercado Livre e Amazon entram depois. Petz foi desativada.
 
@@ -181,6 +180,27 @@ qualidade e o que ainda vale rodar.
    cliente tem timeout de 5s), com cooldown persistido por GTIN
    (`SHOPEE_MISS_RETRY_HOURS`, default 12h); a próxima abertura encontra
    a oferta.
+5. **Product Identity Engine (01/09/2026)**: `products_catalog` é a fonte
+   de verdade; `MarketplaceOffer` guarda `merchant_title` e evidências de
+   match; `CommerceEngine` devolve nome canônico para busca e produto
+   pré-cadastrado. Variações de peso, volume, cm de coleira, comprimidos,
+   faixa de peso do pet, porte, espécie, idade e terapêutica viram
+   `CONFLICT`. GTIN igual vira `EXACT`, salvo corrupção objetiva.
+6. **Refresh de preço separado**: `petmol-commerce-price-refresh.timer`
+   roda a cada 6h (`02,08,14,20:20 UTC`, com atraso aleatório) e chama
+   `scripts/refresh_commerce_prices.py`. Ele processa somente ofertas
+   Shopee já validadas, preserva preço antigo em erro/timeout, nunca cria
+   oferta nova e nunca troca `external_listing_id`; se a API devolver
+   outro SKU aceito no lugar do atual, marca `identity_conflict`.
+
+### Auditoria operacional
+
+- `GET /v1/admin/commerce-identity/product-report` resume Cobasi/Shopee:
+  matches exatos, alta confiança, ambiguidades, conflitos, preços frescos
+  ou stale, erros do refresh e motivos de rejeição.
+- A tela pública deve mostrar `canonical_name`/nome PETMOL. Título de
+  lojista (`merchant_product_name`) é dado de auditoria, não verdade de
+  produto.
 
 ### Ainda vale rodar (higiene, não bloqueia)
 

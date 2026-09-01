@@ -54,6 +54,12 @@ export interface CommerceOffer {
   url: string;
   /** Tipo real da URL aberta: Awin, marketplace, storefront ou fallback direto. */
   link_type: 'affiliate_product' | 'affiliate_marketplace_offer' | 'affiliate_store' | 'direct';
+  /** Identidade canônica PETMOL. A loja fornece oferta/preço, não redefine o produto. */
+  canonical_product_id?: number | null;
+  canonical_gtin?: string | null;
+  canonical_name?: string | null;
+  canonical_brand?: string | null;
+  canonical_image_url?: string | null;
   product_name?: string | null;
   brand?: string | null;
   price?: number | null;
@@ -67,6 +73,12 @@ export interface CommerceOffer {
    * Cobasi tem; Shopee/ML (marketplace) e VTEX direto ainda não.
    * direto ainda não. Sem imagem, o card cai no placeholder neutro. */
   image_url?: string | null;
+  /** Título externo só para diagnóstico/admin, nunca como nome principal do card. */
+  merchant_product_name?: string | null;
+  match_decision?: 'EXACT' | 'HIGH_CONFIDENCE' | 'AMBIGUOUS' | 'CONFLICT' | 'NO_MATCH' | string | null;
+  match_confidence?: number | null;
+  match_reasons?: string[] | null;
+  match_attributes?: Array<Record<string, unknown>> | null;
 }
 
 function normalizeOfferUrl(url: string): string {

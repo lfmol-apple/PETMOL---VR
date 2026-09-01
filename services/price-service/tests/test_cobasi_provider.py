@@ -33,10 +33,10 @@ def _force_env(monkeypatch):
     get_settings.cache_clear()
 
 
-def _register_product(gtin: str = GTIN) -> int:
+def _register_product(gtin: str = GTIN, name: str = "Produto Teste", brand: str = "Marca Teste") -> int:
     db = SessionLocal()
     try:
-        product = ProductCatalog(barcode=gtin, barcode_normalized=gtin, name="Produto Teste", brand="Marca Teste")
+        product = ProductCatalog(barcode=gtin, barcode_normalized=gtin, name=name, brand=brand)
         db.add(product)
         db.commit()
         db.refresh(product)
@@ -78,7 +78,10 @@ def test_cached_mode_without_link_and_prod_returns_none(monkeypatch):
     monkeypatch.setenv("COBASI_AFFILIATE_MODE", "cached")
     monkeypatch.setenv("AFFILIATE_ONLY_COMMERCE", "true")
     get_settings.cache_clear()
-    product_id = _register_product()
+    product_id = _register_product(
+        name="Ração Royal Canin Urinary Small Dog 7,5kg",
+        brand="Royal Canin",
+    )
     db = SessionLocal()
     try:
         provider = CobasiProvider(db)
@@ -225,7 +228,10 @@ async def test_find_offer_registered_gtin_serves_mais_link_with_ean_price(monkey
                       brand="Royal Canin", price=457.81, is_available=True,
                       url="https://www.cobasi.com.br/racao-x-3827380/p?skuId=827398", ean=GTIN)
 
-    product_id = _register_product()
+    product_id = _register_product(
+        name="Ração Royal Canin Urinary Small Dog 7,5kg",
+        brand="Royal Canin",
+    )
     db = SessionLocal()
     try:
         db.add(ProductAffiliateLink(product_id=product_id, merchant="cobasi", affiliate_product_url="https://mais.app/IvUCAG", active=True))
@@ -237,6 +243,8 @@ async def test_find_offer_registered_gtin_serves_mais_link_with_ean_price(monkey
         assert offer.price == 457.81
         assert offer.ean == GTIN
         assert offer.product_name == "Ração Royal Canin Urinary Small Dog 7,5kg"
+        assert offer.canonical_name == "Ração Royal Canin Urinary Small Dog 7,5kg"
+        assert offer.merchant_product_name == "Ração Royal Canin Urinary Small Dog 7,5kg"
 
         result = provider.monetize(offer, ProductContext(gtin=GTIN))
         assert result == ("https://mais.app/IvUCAG", "affiliate_product", "mais", True)
@@ -263,6 +271,7 @@ async def test_find_offer_registered_gtin_no_price_when_ean_unknown(monkeypatch)
         assert offer.price is None
         assert offer.allow_without_price is True
         assert offer.product_name == "Produto Teste"
+        assert offer.canonical_name == "Produto Teste"
     finally:
         db.close()
 
