@@ -234,3 +234,24 @@ def test_manufacturer_brand_does_not_conflict_with_shelf_brand_of_same_product()
     )
     assert same.decision != IdentityDecision.CONFLICT
     assert same.accepted is True
+
+
+def test_gtin14_leading_zero_collapses_to_gtin13():
+    from src.product_catalog_lookup import normalize_gtin
+    assert normalize_gtin("07896185908001") == "7896185908001"
+    assert normalize_gtin("7896185908001") == "7896185908001"
+    # GTIN-14 real (dígito indicador != 0) é preservado
+    assert normalize_gtin("17896185908008") == "17896185908008"
+
+
+def test_animal_weight_range_covers_mais_de_and_e_phrasings():
+    from src.product_identity import extract_animal_weight_range_kg as awr
+    assert awr("Advocate Cães mais de 25kg") == (25.0, 75.0)
+    assert awr("Advocate Gatos entre 4 e 8kg") == (4.0, 8.0)
+    assert awr("Antipulgas para Cães acima de 40kg") == (40.0, 120.0)
+
+
+def test_light_only_tags_obesity_with_food_context():
+    from src.product_identity import _infer_therapeutics
+    assert "obesity" not in _infer_therapeutics("Roupa Pós-Cirúrgica Dry Light para Cães")
+    assert "obesity" in _infer_therapeutics("Ração Golden Light Cães Adultos")

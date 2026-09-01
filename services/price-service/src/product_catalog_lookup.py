@@ -229,7 +229,13 @@ class CatalogCandidate:
 
 
 def normalize_gtin(value: str) -> str:
-    return "".join(ch for ch in (value or "") if ch.isdigit())
+    digits = "".join(ch for ch in (value or "") if ch.isdigit())
+    # GTIN-14 com dígito indicador 0 é o mesmo item base do GTIN-13 — códigos
+    # de barras escaneados às vezes vêm com zero à esquerda (ex.:
+    # "07896185908001") e não batiam com a linha de feed ("7896185908001").
+    if len(digits) == 14 and digits[0] == "0":
+        digits = digits[1:]
+    return digits
 
 
 def is_valid_gtin(value: str) -> bool:

@@ -344,8 +344,13 @@ _THERAPEUTIC_GROUPS = {
     "hypoallergenic": {"hypoallergenic", "hipoalergenico", "hipoalergenica"},
     "gastrointestinal": {"gastrointestinal", "digestive"},
     "dermatologic": {"dermatologic", "dermatologico", "dermatologica", "skin"},
-    "obesity": {"obesity", "satiety", "satierty", "light"},
+    "obesity": {"obesity", "satiety", "satierty"},
 }
+
+# "light" sozinho gera falso-positivo de obesidade em não-alimento ("Roupa
+# Pós-Cirúrgica Dry Light", "Coleira LED Light") — só conta como sinal de
+# obesidade junto de um termo de alimento/dieta.
+_LIGHT_FOOD_CONTEXT = {"racao", "alimento", "dieta", "formula", "food", "diet", "seca", "umida", "petisco"}
 
 
 _ANIMAL_WEIGHT_CONTEXT = re.compile(
@@ -361,10 +366,20 @@ def extract_animal_weight_range_kg(text: str) -> Optional[tuple[float, float]]:
         lo = float(range_match.group(1).replace(",", "."))
         hi = float(range_match.group(2).replace(",", "."))
         return (lo, hi)
-    upto_match = re.search(r"(?:ate|até)\s*(\d+(?:[.,]\d+)?)\s*kg\b", normalized)
+    # "N e M kg" — faixa escrita com "e" ("0,5kg e 2,5kg", "de 4 e 8 kg")
+    e_match = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:kg)?\s*e\s*(\d+(?:[.,]\d+)?)\s*kg\b", normalized)
+    if e_match:
+        lo = float(e_match.group(1).replace(",", "."))
+        hi = float(e_match.group(2).replace(",", "."))
+        if lo < hi:
+            return (lo, hi)
+    upto_match = re.search(r"(?:ate|até|menores? que|abaixo de)\s*(\d+(?:[.,]\d+)?)\s*kg\b", normalized)
     if upto_match:
         return (0.0, float(upto_match.group(1).replace(",", ".")))
-    acima_match = re.search(r"(?:acima de|maiores? que|a partir de)\s*(\d+(?:[.,]\d+)?)\s*kg\b", normalized)
+    acima_match = re.search(
+        r"(?:acima de|mais de|maiores? que|maiores? de|superior a|a partir de)\s*(\d+(?:[.,]\d+)?)\s*kg\b",
+        normalized,
+    )
     if acima_match:
         lo = float(acima_match.group(1).replace(",", "."))
         return (lo, lo * 3)
@@ -587,6 +602,8 @@ def _infer_therapeutics(text: str) -> set[str]:
     for label, aliases in _THERAPEUTIC_GROUPS.items():
         if tokens & aliases or any(alias in normalized for alias in aliases if "/" in alias):
             out.add(label)
+    if "light" in tokens and tokens & _LIGHT_FOOD_CONTEXT:
+        out.add("obesity")
     return out
 
 
