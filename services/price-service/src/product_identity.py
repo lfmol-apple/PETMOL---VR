@@ -99,13 +99,14 @@ class ProductIdentity:
     ) -> "ProductIdentity":
         text = " ".join(part for part in (canonical_name, product_line, product_family) if part)
         animal_range = animal_weight_range or extract_animal_weight_range_kg(text)
+        brand_norm = normalize_brand(brand, name_hint=canonical_name or product_line or product_family)
         return cls(
             gtin=normalize_gtin(gtin or "") or None,
             canonical_name=_clean(canonical_name),
-            brand=_clean(brand),
+            brand=brand_norm,
             species=_normalize_species(species) or _infer_species(text),
             category=_clean(category),
-            product_family=_clean(product_family) or _infer_family(canonical_name, brand),
+            product_family=_clean(product_family) or _infer_family(canonical_name, brand_norm),
             product_line=_clean(product_line) or _infer_product_line(text),
             weight_kg=weight_kg if weight_kg is not None else _product_weight_kg(text, animal_range),
             volume_ml=volume_ml if volume_ml is not None else extract_volume_ml(text),
@@ -179,7 +180,7 @@ class MerchantCandidate:
             merchant=merchant,
             title=_clean(title),
             gtin=normalize_gtin(gtin or "") or None,
-            brand=_clean(brand),
+            brand=normalize_brand(brand, name_hint=title),
             category=_clean(category),
             price=price,
             external_id=_clean(external_id),
@@ -642,6 +643,50 @@ def _clean(value: Optional[str]) -> Optional[str]:
         return None
     text = str(value).strip()
     return text or None
+
+
+# Alguns feeds preenchem "brand" com o nome do FABRICANTE/distribuidor
+# ("MSD", "Boehringer Ingelheim", "Elanco") no lugar da marca de prateleira
+# ("Scalibor", "NexGard", "Drontal"). Isso vira CONFLITO de marca no
+# Identity Engine e mata o match com a mesma apresentação em outra loja.
+# Mapa fabricante -> marcas de consumo que ele detém no varejo pet BR. A
+# troca só acontece quando a marca de consumo aparece LITERALMENTE no nome
+# do produto — determinístico, nunca chuta.
+_MANUFACTURER_TO_BRANDS: dict[str, tuple[str, ...]] = {
+    "msd": ("scalibor", "bravecto", "nobivac"),
+    "msd animal health": ("scalibor", "bravecto", "nobivac"),
+    "merck": ("scalibor", "bravecto"),
+    "boehringer": ("nexgard", "frontline", "broadline"),
+    "boehringer ingelheim": ("nexgard", "frontline", "broadline"),
+    "merial": ("nexgard", "frontline", "broadline"),
+    "elanco": ("drontal", "credelio", "seresto", "milbemax", "comfortis"),
+    "bayer": ("advantage", "advocate", "seresto", "drontal", "profender"),
+    "zoetis": ("simparic", "revolution", "apoquel", "cytopoint"),
+    "ceva": ("vectra", "milpro", "adaptil", "feliway"),
+    "virbac": ("effipro", "effitix"),
+    "mars": ("pedigree", "whiskas", "sheba", "dreamies", "optimum", "royal canin", "cesar"),
+    "mars petcare": ("pedigree", "whiskas", "sheba", "dreamies", "optimum", "royal canin"),
+    "adimax": ("origens", "monello", "papparico"),
+    "nestle purina": ("pro plan", "dog chow", "cat chow", "friskies", "felix"),
+    "purina": ("pro plan", "dog chow", "cat chow", "friskies", "felix"),
+}
+
+
+def normalize_brand(raw: Optional[str], *, name_hint: Optional[str] = None) -> Optional[str]:
+    """Troca um nome de fabricante pela marca de prateleira quando esta
+    aparece no nome do produto. Sem hint ou sem correspondência única,
+    devolve o valor original — nunca piora o que já existe."""
+    cleaned = _clean(raw)
+    if not cleaned:
+        return cleaned
+    owned = _MANUFACTURER_TO_BRANDS.get(_normalize_text(cleaned))
+    if not owned:
+        return cleaned
+    hint_tokens = _tokenize_text(name_hint or "")
+    if not hint_tokens:
+        return cleaned
+    found = [b for b in owned if set(_tokenize_text(b)).issubset(hint_tokens)]
+    return found[0].title() if len(found) == 1 else cleaned
 
 
 def _json_list(value: Optional[str]) -> list[str]:

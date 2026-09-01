@@ -206,3 +206,31 @@ def test_price_is_not_identity_evidence():
 
     assert cheap_wrong.decision == IdentityDecision.CONFLICT
     assert expensive_right.accepted is True
+
+
+def test_manufacturer_name_is_normalized_to_shelf_brand_from_product_name():
+    from src.product_identity import normalize_brand
+
+    # feed põe o fabricante no lugar da marca; o nome do produto tem a marca
+    assert normalize_brand("MSD", name_hint="Coleira Antiparasitária Scalibor M") == "Scalibor"
+    assert normalize_brand("Boehringer Ingelheim", name_hint="Antipulgas NexGard Cães 4,1 a 10kg") == "Nexgard"
+    # sem a marca no nome, ou marca que não é fabricante: intocado
+    assert normalize_brand("MSD", name_hint="Produto Genérico") == "MSD"
+    assert normalize_brand("Golden", name_hint="Ração Golden Fórmula") == "Golden"
+
+
+def test_manufacturer_brand_does_not_conflict_with_shelf_brand_of_same_product():
+    # catálogo com "MSD" (fabricante) vs oferta "Scalibor" (prateleira) —
+    # mesma coleira, não pode ser CONFLICT de marca
+    expected = ProductIdentity.build(canonical_name="Coleira Antiparasitária Scalibor M", brand="MSD", species="dog")
+    assert expected.brand == "Scalibor"
+    same = evaluate_identity(
+        expected,
+        MerchantCandidate.build(
+            merchant="cobasi",
+            title="Coleira Antiparasitária Scalibor Cães Pequenos e Médios - 48 cm",
+            brand="Scalibor",
+        ),
+    )
+    assert same.decision != IdentityDecision.CONFLICT
+    assert same.accepted is True
