@@ -299,7 +299,7 @@ export function VaccineItemSheet({
           </div>
         )}
         <div className="overflow-y-auto flex-1 overscroll-contain">
-          <p className="mx-4 mt-3 mb-1 text-[10px] text-gray-400 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
+          <p className="mx-4 mt-3 mb-1 text-[11.5px] font-medium text-slate-500 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
           {mode === 'view' && (
             <div className="p-5 space-y-3 pb-8">
 

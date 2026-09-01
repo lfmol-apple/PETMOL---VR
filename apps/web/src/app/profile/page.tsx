@@ -14,7 +14,7 @@ import { fetchAiPhotoConsent, revokeAiPhotoConsent } from '@/features/ai/aiPhoto
 // ── Design tokens ─────────────────────────────────────────────
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 
-const G   = 'divide-y divide-slate-100 overflow-hidden rounded-[32px] border border-slate-100 bg-white/50 backdrop-blur-sm shadow-sm';
+const G   = 'divide-y divide-slate-100 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06),0_8px_24px_-12px_rgba(15,23,42,0.10)]';
 const ROW = 'px-4 py-4';
 const CTA = 'w-full py-4 bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-base font-black rounded-2xl active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xl shadow-blue-500/20 uppercase tracking-widest';
 const DEFAULT_CHECKIN_DAY = 1;
@@ -466,7 +466,9 @@ export default function ProfilePage() {
   };
 
   const tutorInitial = (tutorData?.name || 'T').trim().charAt(0).toUpperCase();
-  const inpCls = `w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm outline-none text-slate-800 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all disabled:opacity-50 disabled:bg-transparent disabled:border-transparent disabled:px-0 placeholder:text-slate-300 font-medium`;
+  // Leitura: parece um campo (fill suave azulado + texto forte), não texto
+  // apagado. Edição: fica claramente ativo (borda azul + fundo branco no foco).
+  const inpCls = `w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-[15px] font-semibold text-slate-900 outline-none transition-all placeholder:font-medium placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-500/10 disabled:border-slate-200/70 disabled:bg-slate-50/70 disabled:text-slate-700 enabled:border-blue-200 enabled:bg-blue-50/40`;
   const pushPermissionLabel: Record<NotificationPermission, string> = {
     granted: 'Permitido',
     denied: 'Bloqueado',
@@ -633,7 +635,7 @@ export default function ProfilePage() {
             {/* Dados pessoais */}
             <div className={G}>
               <div className={ROW}>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 pl-1">Nome completo</label>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.1em] mb-1.5 pl-1">Nome completo</label>
                 <input
                   type="text"
                   value={tutorData?.name || ''}
@@ -645,7 +647,7 @@ export default function ProfilePage() {
                 />
               </div>
               <div className={ROW}>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 pl-1">E-mail</label>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.1em] mb-1.5 pl-1">E-mail</label>
                 <input
                   type="email"
                   value={tutorData?.email || ''}
@@ -658,7 +660,7 @@ export default function ProfilePage() {
                 />
               </div>
               <div className={ROW}>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 pl-1">Telefone</label>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.1em] mb-1.5 pl-1">Telefone</label>
                 <input
                   type="tel"
                   value={tutorData?.phone || ''}
@@ -678,14 +680,14 @@ export default function ProfilePage() {
                 onClick={() => setAddrOpen((v) => !v)}
                 className={`${ROW} flex w-full items-center justify-between group`}
               >
-                <span className="text-xs font-bold text-slate-600 uppercase tracking-widest transition-colors group-hover:text-blue-600">Endereço Residencial</span>
+                <span className="text-[13px] font-bold text-slate-700 uppercase tracking-[0.08em] transition-colors group-hover:text-blue-600">Endereço Residencial</span>
                 <span className={`text-slate-400 text-xs transition-transform ${addrOpen ? 'rotate-180 text-blue-600' : ''}`}>▾</span>
               </button>
 
               {addrOpen && (
                 <div className="bg-slate-50/50 p-1 space-y-1">
                   <div className={ROW}>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">CEP</label>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.1em] pl-1 mb-1.5">CEP</label>
                     <div className="flex items-center gap-3">
                       <input
                         type="text"
@@ -710,30 +712,30 @@ export default function ProfilePage() {
                     )}
                   </div>
                   <div className={ROW}>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Rua / Avenida</label>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.1em] pl-1 mb-1.5">Rua / Avenida</label>
                     <input type="text" value={tutorData?.street || ''} onChange={(e) => setTutorData((p) => p ? { ...p, street: e.target.value } : null)} disabled={!editMode} placeholder="Logradouro" className={inpCls} />
                   </div>
                   <div className={`${ROW} grid grid-cols-2 gap-4`}>
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Número</label>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.1em] pl-1 mb-1.5">Número</label>
                       <input type="text" value={tutorData?.number || ''} onChange={(e) => setTutorData((p) => p ? { ...p, number: e.target.value } : null)} disabled={!editMode} placeholder="Nº" className={inpCls} />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Complemento</label>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.1em] pl-1 mb-1.5">Complemento</label>
                       <input type="text" value={tutorData?.complement || ''} onChange={(e) => setTutorData((p) => p ? { ...p, complement: e.target.value } : null)} disabled={!editMode} placeholder="Apto, casa..." className={inpCls} />
                     </div>
                   </div>
                   <div className={ROW}>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Bairro</label>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.1em] pl-1 mb-1.5">Bairro</label>
                     <input type="text" value={tutorData?.neighborhood || ''} onChange={(e) => setTutorData((p) => p ? { ...p, neighborhood: e.target.value } : null)} disabled={!editMode} placeholder="Bairro" className={inpCls} />
                   </div>
                   <div className={`${ROW} grid grid-cols-3 gap-4`}>
                     <div className="col-span-2">
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">Cidade</label>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.1em] pl-1 mb-1.5">Cidade</label>
                       <input type="text" value={tutorData?.city || ''} onChange={(e) => setTutorData((p) => p ? { ...p, city: e.target.value } : null)} disabled={!editMode} placeholder="Cidade" className={inpCls} />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1 mb-1.5">UF</label>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.1em] pl-1 mb-1.5">UF</label>
                       <input type="text" value={tutorData?.state || ''} onChange={(e) => setTutorData((p) => p ? { ...p, state: e.target.value.toUpperCase() } : null)} disabled={!editMode} maxLength={2} placeholder="UF" className={inpCls} />
                     </div>
                   </div>
@@ -759,7 +761,7 @@ export default function ProfilePage() {
                 onClick={() => setNotifsOpen((v) => !v)}
                 className={`${ROW} flex w-full items-center justify-between group`}
               >
-                <span className="text-xs font-bold text-slate-600 uppercase tracking-widest transition-colors group-hover:text-blue-600">Preferências e Notificações</span>
+                <span className="text-[13px] font-bold text-slate-700 uppercase tracking-[0.08em] transition-colors group-hover:text-blue-600">Preferências e Notificações</span>
                 <span className={`text-slate-400 text-xs transition-transform ${notifsOpen ? 'rotate-180 text-blue-600' : ''}`}>▾</span>
               </button>
 
@@ -936,7 +938,7 @@ export default function ProfilePage() {
                 onClick={() => setFamilyOpen((v) => !v)}
                 className={`${ROW} flex w-full items-center justify-between group`}
               >
-                <span className="text-xs font-bold text-slate-600 uppercase tracking-widest transition-colors group-hover:text-blue-600">Família &amp; Cuidadores</span>
+                <span className="text-[13px] font-bold text-slate-700 uppercase tracking-[0.08em] transition-colors group-hover:text-blue-600">Família &amp; Cuidadores</span>
                 <span className={`text-slate-400 text-xs transition-transform ${familyOpen ? 'rotate-180 text-blue-600' : ''}`}>▾</span>
               </button>
 
@@ -967,7 +969,7 @@ export default function ProfilePage() {
                           <p className="text-[11px] text-slate-400">Nenhum cuidador ainda.</p>
                         ) : (
                           <div className="space-y-1">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cuidadores ativos</p>
+                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.1em]">Cuidadores ativos</p>
                             {(petCaretakers[pet.id] ?? []).map(c => (
                               <div key={c.user_id} className="flex items-center justify-between py-1">
                                 <span className="text-[13px] font-semibold text-slate-700">{c.name}</span>
@@ -996,7 +998,7 @@ export default function ProfilePage() {
                 onClick={() => setSupportOpen((v) => !v)}
                 className={`${ROW} flex w-full items-center justify-between group`}
               >
-                <span className="text-xs font-bold text-slate-600 uppercase tracking-widest transition-colors group-hover:text-blue-600">Fale com o PETMOL</span>
+                <span className="text-[13px] font-bold text-slate-700 uppercase tracking-[0.08em] transition-colors group-hover:text-blue-600">Fale com o PETMOL</span>
                 <span className={`text-slate-400 text-xs transition-transform ${supportOpen ? 'rotate-180 text-blue-600' : ''}`}>▾</span>
               </button>
 
@@ -1070,7 +1072,7 @@ export default function ProfilePage() {
                 onClick={() => setMoreOpen((v) => !v)}
                 className={`${ROW} flex w-full items-center justify-between group`}
               >
-                <span className="text-xs font-bold text-slate-600 uppercase tracking-widest transition-colors group-hover:text-blue-600">Gerenciamento de Conta</span>
+                <span className="text-[13px] font-bold text-slate-700 uppercase tracking-[0.08em] transition-colors group-hover:text-blue-600">Gerenciamento de Conta</span>
                 <span className={`text-slate-400 text-xs transition-transform ${moreOpen ? 'rotate-180 text-blue-600' : ''}`}>▾</span>
               </button>
 

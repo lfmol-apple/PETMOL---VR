@@ -620,7 +620,7 @@ export function MedicationItemSheet({
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
-          <p className="mx-4 mt-3 mb-1 text-[10px] text-gray-400 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
+          <p className="mx-4 mt-3 mb-1 text-[11.5px] font-medium text-slate-500 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
           {mode === 'view' && (
@@ -1090,7 +1090,7 @@ export function MedicationItemSheet({
 
               {form.frequency === 'personalizado' && (
                 <div className="grid grid-cols-2 gap-3 px-4 py-3 bg-purple-50 rounded-2xl border border-purple-200">
-                  <div>
+                  <div className="min-w-0">
                     <label className={labelCls}>Próxima dose em</label>
                     <div className="flex items-center gap-2">
                       <input
@@ -1113,7 +1113,7 @@ export function MedicationItemSheet({
                       <span className="text-xs text-gray-500 whitespace-nowrap">dias</span>
                     </div>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className={labelCls}>Total de doses</label>
                     <input
                       type="number"

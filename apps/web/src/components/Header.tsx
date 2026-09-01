@@ -40,7 +40,7 @@ export function Header() {
           <Link
             href={homeHref}
             title={userLabel ? 'Ir para a home' : 'Ir para o início'}
-            className={`flex items-center gap-2 transition-all duration-500 active:scale-95 ${
+            className={`flex flex-shrink-0 items-center gap-2 transition-all duration-500 active:scale-95 ${
               showLogo ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
             }`}
           >
@@ -48,7 +48,7 @@ export function Header() {
               <span className="text-2xl font-black text-[#0056D2] tracking-tight flex items-center gap-1.5">
                 Petmol<span className="ml-1">🐾</span>
               </span>
-              <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#0056D2]/65">
+              <span className="mt-0.5 hidden min-[480px]:block whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.24em] text-[#0056D2]/65">
                 {brandCaption}
               </span>
             </span>
@@ -113,13 +113,13 @@ export function Header() {
           </div>
 
           {/* Mobile Navigation */}
-          <div className={`flex-1 flex md:hidden items-center justify-end gap-2 transition-all duration-500 ${
+          <div className={`flex min-w-0 flex-shrink flex-1 md:hidden items-center justify-end gap-1.5 transition-all duration-500 ${
             showLogo ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
           }`} style={{ transitionDelay: '200ms' }}>
 
             <Link
               href="/guias"
-              className={`inline-flex items-center gap-1 h-9 px-3 rounded-xl text-[13px] font-black transition-all active:scale-95 ${
+              className={`inline-flex flex-shrink-0 items-center gap-1 h-9 px-2.5 rounded-xl text-[13px] font-black transition-all active:scale-95 ${
                 pathname.startsWith('/guias')
                   ? 'text-[#0056D2] bg-blue-100 border border-[#0056D2]/25'
                   : 'text-[#0056D2] bg-blue-50 border border-[#0056D2]/15'

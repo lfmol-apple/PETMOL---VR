@@ -157,6 +157,11 @@ class Settings(BaseSettings):
     vapid_private_key: Optional[str] = None
     vapid_claims_email: str = "mailto:contato@petmol.app"
 
+    # ── Fale com o Petmol (contato do tutor) ──────────────────────────────
+    # Caixa que recebe as mensagens enviadas pela tela "Fale com o Petmol".
+    # SMTP reaproveita as mesmas envs do OTP (SMTP_HOST/PORT/USER/PASS/FROM).
+    contact_inbox_email: str = "gerenciamento@petmol.com.br"
+
     # ── Afiliados / Motor de Intenção ─────────────────────────────────────
     # Deixe vazio para desabilitar redirect (retorna 503 controlado)
     petz_affiliate_url: Optional[str] = None

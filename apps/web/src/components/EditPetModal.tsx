@@ -74,6 +74,9 @@ const segBtn = (active: boolean) =>
   }`;
 
 const inputCls = 'w-full rounded-2xl border-2 border-slate-300 bg-white px-4 py-3.5 text-base outline-none transition-all duration-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:shadow-lg focus:shadow-blue-500/10';
+// iOS: input[type=date] tem largura intrínseca e valor centralizado — força
+// encolher, tira o chrome nativo e alinha à esquerda como os outros campos.
+const dateInputCls = `${inputCls} block min-w-0 appearance-none text-left [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:m-0`;
 
 // Toggle visual — div sem estilos padrão de browser (button no Safari quebra backgroundColor)
 function Toggle({ on }: { on: boolean }) {
@@ -347,7 +350,7 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
         >
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
           <div
-            className="relative bg-white rounded-t-3xl shadow-2xl flex flex-col animate-slideUp"
+            className="relative bg-white rounded-t-3xl shadow-2xl flex flex-col overflow-hidden animate-slideUp"
             style={{ maxHeight: '92%' }}
             onClick={e => e.stopPropagation()}
           >
@@ -369,7 +372,7 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
                 className="w-11 h-11 flex-shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-lg active:scale-95 transition-all"
               >✕</button>
             </div>
-            <div className="overflow-y-auto flex-1 overscroll-contain">
+            <div className="overflow-y-auto flex-1 min-h-0 overscroll-contain">
               {filtered.map(b => (
                 <button
                   key={b}
@@ -640,7 +643,7 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
                 <label className={lbl}>Data de nascimento</label>
                 <input type="date" max={today} value={formData.birth_date}
                   onChange={e => set('birth_date', e.target.value)}
-                  className={inputCls} />
+                  className={dateInputCls} />
               </div>
 
               {/* Peso */}

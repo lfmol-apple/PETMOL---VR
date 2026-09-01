@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { ChevronDown, ChevronRight, ShoppingCart, X } from 'lucide-react';
+import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
 import { petDo } from '@/lib/petGender';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { trackClick } from '@/lib/analytics/click';
@@ -43,6 +44,9 @@ interface HomeShoppingSheetProps {
 // antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
 export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
+  // Mantém a sheet colada ao viewport visível quando o teclado abre (busca) —
+  // sem isso o campo de busca fica atrás do teclado no iOS.
+  const kbViewportRef = useKeyboardSheetViewport(open);
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
 
@@ -165,8 +169,13 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:px-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-md" />
+    <div
+      ref={kbViewportRef}
+      className="fixed inset-x-0 top-0 z-50 flex items-end justify-center sm:px-4"
+      style={{ height: '100dvh' }}
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-xl" />
 
       <div
         className="relative isolate flex w-full max-w-md flex-col overflow-hidden rounded-t-[26px] bg-[#fbfaf7] shadow-[0_-8px_50px_-8px_rgba(15,23,42,0.35)] ring-1 ring-black/5 sm:mb-4 sm:rounded-[26px]"
@@ -190,7 +199,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
             </div>
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-[17px] font-bold leading-[1.15] tracking-[-0.01em] text-slate-900">{title}</h2>
-              <p className="truncate text-[12.5px] font-medium leading-tight text-slate-500">Tudo que {petName || 'seu pet'} usa</p>
+              <p className="truncate text-[13px] font-semibold leading-tight text-slate-600">Tudo que {petName || 'seu pet'} usa</p>
             </div>
             <button
               type="button"

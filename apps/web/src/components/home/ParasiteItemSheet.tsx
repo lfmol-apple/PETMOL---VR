@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Check, Home } from 'lucide-react';
+import { Check, Home, Trash2 } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import type { ParasiteControl } from '@/lib/types/home';
@@ -504,12 +504,23 @@ export function ParasiteItemSheet({
         media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpecies === 'cat' ? '🐱' : '🐶'} />}
         onClose={onClose}
         onBack={mode !== 'view' ? () => { setMode('view'); setEditRecord(null); } : undefined}
+        action={mode === 'edit' && editRecord ? (
+          <button
+            type="button"
+            onClick={() => setConfirmDeleteId(editRecord.id)}
+            disabled={saving}
+            aria-label="Excluir"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 disabled:opacity-50"
+          >
+            <Trash2 className="h-[15px] w-[15px]" strokeWidth={2.3} />
+          </button>
+        ) : undefined}
       />
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
           {mode === 'view' && (
-            <p className="mx-4 mt-2 mb-0 text-[10px] text-gray-400 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
+            <p className="mx-4 mt-2 mb-0 text-[11.5px] font-medium text-slate-500 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
           )}
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
@@ -773,28 +784,10 @@ export function ParasiteItemSheet({
           {/* ── EDIT FORM ─────────────────────────────────────────────────── */}
           {mode === 'edit' && editRecord && (
             <div className="px-4 pt-2 pb-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => { setMode('view'); setEditRecord(null); }}
-                  onTouchEnd={() => { setMode('view'); setEditRecord(null); }}
-                  className="flex items-center gap-1.5 text-gray-500 hover:text-gray-800 text-sm font-semibold"
-                >
-                  ‹ Voltar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmDeleteId(editRecord.id)}
-                  disabled={saving}
-                  className="flex items-center gap-1 text-[13px] font-bold text-red-600 active:opacity-60 disabled:opacity-50"
-                >
-                  🗑 Excluir
-                </button>
-              </div>
               <h3 className="text-[16px] font-bold text-gray-900">Editar registro</h3>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="min-w-0">
+              <div className="flex items-start gap-2.5">
+                <div className="min-w-0 flex-1">
                   <label className={labelCls}>Data</label>
                   <input
                     type="date"
@@ -803,13 +796,14 @@ export function ParasiteItemSheet({
                     onChange={e => setEditForm(f => ({ ...f, date_applied: e.target.value }))}
                   />
                 </div>
-                <div>
-                  <label className={labelCls}>Repetir a cada (dias)</label>
+                <div className="w-[92px] flex-shrink-0">
+                  <label className={labelCls}>A cada (dias)</label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     min="1"
                     max="365"
-                    className={inputCls}
+                    className={`${inputCls} text-center`}
                     value={editForm.frequency_days}
                     onChange={e => setEditForm(f => ({ ...f, frequency_days: e.target.value }))}
                   />

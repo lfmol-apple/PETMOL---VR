@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { Check, ChevronRight, PawPrint, Utensils, Syringe, Bug, Pill, ArrowLeft } from 'lucide-react';
 import { petDo } from '@/lib/petGender';
 import { trackV1Metric, type V1MetricEvent } from '@/lib/v1Metrics';
 import type { FeedingPlanEntry } from '@/lib/types/homeForms';
+import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
 import {
   deriveOnboardingProgress,
   setOnboardingActiveFlag,
@@ -36,12 +37,21 @@ const COMPLETION_EVENT: Record<ActionKey, V1MetricEvent> = {
   dewormer: 'onboarding_dewormer_completed',
 };
 
+const FoodIcon = Utensils;
+
+const STEP_ICON: Record<OnboardingStepKey, typeof PawPrint> = {
+  profile: PawPrint,
+  food: FoodIcon,
+  vaccine: Syringe,
+  flea: Bug,
+  dewormer: Pill,
+};
+
 interface RowConfig {
   key: OnboardingStepKey;
   label: string;
   why: string;
   open?: () => void;
-  /** opções de "agora não" — value grava no store */
   skipChoices?: { value: string; label: string }[];
 }
 
@@ -59,7 +69,6 @@ export function OnboardingChecklistCard({
   onOpenDewormer,
 }: OnboardingChecklistCardProps) {
   const [expandedSkip, setExpandedSkip] = useState<ActionKey | null>(null);
-  // força re-derivação após gravar "agora não" (o store não é reativo)
   const [storeTick, setStoreTick] = useState(0);
 
   const progress = useMemo(
@@ -71,7 +80,6 @@ export function OnboardingChecklistCard({
         parasiteTypes: parasiteControls.map((p) => p.type),
         feedingPlan,
       }),
-    // storeTick entra de propósito para re-ler o localStorage após writes locais
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [petId, hasPet, vaccinesCount, parasiteControls, feedingPlan, storeTick],
   );
@@ -80,13 +88,9 @@ export function OnboardingChecklistCard({
   const artigo = petDo({ sex: petSex });
 
   const showChecklist = shouldShowOnboardingCard(progress);
-  // Só mostra a tela de conclusão para quem de fato passou pelo checklist
-  // (startedAt gravado). Veterano com dados completos que nunca viu o card
-  // não recebe um "tudo pronto" do nada.
   const showCompletion =
     progress.allResolved && !progress.completedShownAt && !!progress.startedAt && hasPet;
 
-  // ── onboarding_started + flag global (uma vez por pet) ──────────────────────
   useEffect(() => {
     if (!hasPet || (!showChecklist && !showCompletion)) return;
     if (!progress.startedAt) {
@@ -97,7 +101,6 @@ export function OnboardingChecklistCard({
     return () => setOnboardingActiveFlag(false);
   }, [hasPet, petId, progress.startedAt, showChecklist, showCompletion]);
 
-  // ── eventos de conclusão por passo (só transições reais, pós-montagem) ─────
   const prevDoneRef = useRef<Record<string, boolean> | null>(null);
   useEffect(() => {
     const current: Record<string, boolean> = {};
@@ -129,44 +132,50 @@ export function OnboardingChecklistCard({
       setStoreTick((t) => t + 1);
     };
     return (
-      <div className="rounded-3xl border border-blue-200 bg-gradient-to-b from-blue-50 to-white p-5 shadow-sm">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[17px] font-black text-slate-900 leading-tight">
-              Tudo pronto para cuidar {artigo} {name} 💙
-            </p>
-            <p className="mt-1 text-[13px] text-slate-500">O PETMOL agora consegue acompanhar:</p>
+      <SheetShell open onClose={finish} tone="cream" variant="center" size="sm" z={70}>
+        <SheetShell.Body className="text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+            <Check className="h-8 w-8" strokeWidth={2.6} />
           </div>
-        </div>
-        <ul className="mt-3 grid grid-cols-1 gap-1.5 text-[13px] font-semibold text-slate-700">
-          <li>🥣 alimentação</li>
-          <li>💉 vacinas</li>
-          <li>🛡️ pulgas e carrapatos</li>
-          <li>💊 vermífugo</li>
-          <li>🛒 próximas compras</li>
-        </ul>
-        <button
-          type="button"
-          onClick={finish}
-          className="mt-4 w-full rounded-2xl bg-[#0056D2] py-3.5 text-sm font-black text-white shadow-md shadow-blue-600/20 active:scale-[0.98] transition-transform"
-        >
-          Ir para o PETMOL
-        </button>
-      </div>
+          <h2 className="mt-4 text-[19px] font-bold leading-tight tracking-[-0.01em] text-slate-900">
+            Tudo pronto para cuidar {artigo} {name} 💙
+          </h2>
+          <p className="mt-1.5 text-[13.5px] text-slate-500">O Petmol já consegue acompanhar:</p>
+          <ul className="mx-auto mt-4 grid max-w-[240px] grid-cols-1 gap-2 text-left text-[14px] font-semibold text-slate-700">
+            {[
+              { icon: FoodIcon, label: 'Alimentação' },
+              { icon: Syringe, label: 'Vacinas' },
+              { icon: Bug, label: 'Pulgas e carrapatos' },
+              { icon: Pill, label: 'Vermífugo' },
+              { icon: ChevronRight, label: 'Próximas compras' },
+            ].map(({ icon: Icon, label }) => (
+              <li key={label} className="flex items-center gap-2.5">
+                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white text-slate-500 ring-1 ring-black/5">
+                  <Icon className="h-4 w-4" strokeWidth={2.2} />
+                </span>
+                {label}
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={finish}
+            className="mt-6 w-full rounded-2xl bg-[#0056D2] py-3.5 text-[15px] font-bold text-white shadow-[0_10px_24px_-8px_rgba(0,86,210,0.5)] transition-transform active:scale-[0.98]"
+          >
+            Ir para o Petmol
+          </button>
+        </SheetShell.Body>
+      </SheetShell>
     );
   }
 
   // ── checklist ─────────────────────────────────────────────────────────────
   const rows: RowConfig[] = [
-    {
-      key: 'profile',
-      label: `Perfil ${artigo} ${name}`,
-      why: '',
-    },
+    { key: 'profile', label: `Perfil ${artigo} ${name}`, why: '' },
     {
       key: 'food',
       label: 'Alimentação',
-      why: `O que ${name} come hoje? Assim o PETMOL estima quando a ração vai acabar e facilita a próxima compra.`,
+      why: `O que ${name} come hoje? Assim o Petmol estima quando a ração vai acabar e facilita a próxima compra.`,
       open: onOpenFood,
       skipChoices: [
         { value: 'later', label: 'Depois' },
@@ -186,7 +195,7 @@ export function OnboardingChecklistCard({
     {
       key: 'flea',
       label: 'Pulgas e carrapatos',
-      why: `${name} usa proteção contra pulgas e carrapatos? Se usar, o PETMOL lembra da reaplicação.`,
+      why: `${name} usa proteção contra pulgas e carrapatos? Se usar, o Petmol lembra da reaplicação.`,
       open: onOpenFlea,
       skipChoices: [
         { value: 'later', label: 'Agora não' },
@@ -197,7 +206,7 @@ export function OnboardingChecklistCard({
     {
       key: 'dewormer',
       label: 'Vermífugo',
-      why: `${name} toma vermífugo? Se tomar, o PETMOL lembra da próxima dose.`,
+      why: `${name} toma vermífugo? Se tomar, o Petmol lembra da próxima dose.`,
       open: onOpenDewormer,
       skipChoices: [
         { value: 'later', label: 'Agora não' },
@@ -228,132 +237,133 @@ export function OnboardingChecklistCard({
   };
 
   const remaining = progress.total - progress.doneCount;
+  const pct = Math.round((progress.doneCount / progress.total) * 100);
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-widest text-blue-500">Configuração inicial</p>
-          <p className="mt-1 text-[16px] font-black leading-tight text-slate-900">
-            {progress.doneCount > 1
-              ? `Continue registrando cuidados ${artigo} ${name}`
-              : `Vamos preparar os cuidados ${artigo} ${name}`}
-          </p>
+    <SheetShell open onClose={dismissCard} tone="cream" variant="center" size="sm" z={70}>
+      <SheetHeader
+        tone="cream"
+        title={
+          progress.doneCount > 1
+            ? `Continue os cuidados ${artigo} ${name}`
+            : `Vamos preparar os cuidados ${artigo} ${name}`
+        }
+        subtitle={`Configuração inicial · ${progress.doneCount} de ${progress.total}`}
+        media={<SheetIcon tone="blue"><PawPrint className="h-5 w-5" strokeWidth={2} /></SheetIcon>}
+        onClose={dismissCard}
+      />
+
+      <SheetShell.Body className="pt-3">
+        {/* progresso */}
+        <div className="flex items-center gap-3">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200/70">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-[#0056D2] to-blue-400 transition-[width] duration-500"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <span className="flex-shrink-0 text-[11px] font-bold tabular-nums text-slate-500">
+            {progress.doneCount}/{progress.total}
+          </span>
         </div>
-        <button
-          type="button"
-          onClick={dismissCard}
-          aria-label="Fechar configuração"
-          className="-mr-1 -mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-slate-400 active:bg-slate-100 active:text-slate-600 transition-colors"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
 
-      {/* progresso */}
-      <div className="mt-3 flex items-center gap-3">
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-          <div
-            className="h-full rounded-full bg-[#0056D2] transition-[width] duration-500"
-            style={{ width: `${(progress.doneCount / progress.total) * 100}%` }}
-          />
-        </div>
-        <span className="flex-shrink-0 text-[11px] font-black text-slate-500">
-          {progress.doneCount} de {progress.total}
-        </span>
-      </div>
+        {/* itens */}
+        <ul className="mt-3 space-y-2">
+          {rows.map((row) => {
+            const done = doneByKey[row.key];
+            const isProfile = row.key === 'profile';
+            const actionKey = row.key as ActionKey;
+            const expanded = expandedSkip === actionKey;
+            const StepIcon = STEP_ICON[row.key];
+            const openable = !done && !isProfile;
 
-      {/* itens */}
-      <ul className="mt-3 space-y-1">
-        {rows.map((row) => {
-          const done = doneByKey[row.key];
-          const isProfile = row.key === 'profile';
-          const actionKey = row.key as ActionKey;
-          const expanded = expandedSkip === actionKey;
-
-          return (
-            <li key={row.key} className="rounded-2xl">
-              <div
-                className={`flex items-center gap-3 rounded-2xl px-2.5 py-2.5 ${
-                  !done && !isProfile ? 'active:bg-slate-50' : ''
+            return (
+              <li
+                key={row.key}
+                className={`overflow-hidden rounded-2xl bg-white ring-1 transition-shadow ${
+                  done ? 'ring-black/[0.04]' : 'shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-black/[0.06]'
                 }`}
               >
-                <span
-                  className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[13px] font-black ${
-                    done ? 'bg-emerald-500 text-white' : 'border-2 border-slate-300 text-transparent'
-                  }`}
-                  aria-hidden
-                >
-                  ✓
-                </span>
-
-                {done || isProfile ? (
-                  <span className={`flex-1 text-[14px] font-bold ${done ? 'text-slate-500 line-through decoration-slate-300' : 'text-slate-900'}`}>
-                    {row.label}
+                <div className="flex items-center gap-3 px-3 py-3">
+                  <span
+                    className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl ${
+                      done
+                        ? 'bg-emerald-500 text-white'
+                        : isProfile
+                          ? 'bg-slate-100 text-slate-400'
+                          : 'bg-blue-50 text-[#0056D2]'
+                    }`}
+                    aria-hidden
+                  >
+                    {done ? <Check className="h-[17px] w-[17px]" strokeWidth={2.8} /> : <StepIcon className="h-[16px] w-[16px]" strokeWidth={2.2} />}
                   </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={row.open}
-                    className="flex-1 text-left text-[14px] font-bold text-slate-900"
-                  >
-                    {row.label}
-                  </button>
-                )}
 
-                {!done && !isProfile && (
-                  <button
-                    type="button"
-                    onClick={row.open}
-                    className="flex-shrink-0 rounded-full bg-blue-50 px-3 py-1.5 text-[12px] font-black text-[#0056D2] active:scale-95 transition-transform"
-                  >
-                    Abrir
-                  </button>
-                )}
-              </div>
-
-              {!done && !isProfile && (
-                <div className="pl-11 pr-2.5 pb-1.5">
-                  <p className="text-[12.5px] leading-snug text-slate-600">{row.why}</p>
-                  {!expanded ? (
-                    <button
-                      type="button"
-                      onClick={() => setExpandedSkip(actionKey)}
-                      className="mt-1 text-[12px] font-bold text-slate-500 underline decoration-slate-300 underline-offset-2 active:text-slate-700"
-                    >
-                      Agora não
+                  {openable ? (
+                    <button type="button" onClick={row.open} className="flex-1 text-left text-[14.5px] font-bold text-slate-900">
+                      {row.label}
                     </button>
                   ) : (
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {row.skipChoices?.map((choice) => (
-                        <button
-                          key={choice.value}
-                          type="button"
-                          onClick={() => handleSkip(actionKey, choice.value)}
-                          className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-semibold text-slate-600 active:bg-slate-50"
-                        >
-                          {choice.label}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => setExpandedSkip(null)}
-                        className="rounded-full px-2 py-1 text-[12px] font-semibold text-slate-500"
-                      >
-                        Voltar
-                      </button>
-                    </div>
+                    <span className={`flex-1 text-[14.5px] font-bold ${done ? 'text-slate-400 line-through decoration-slate-300' : 'text-slate-900'}`}>
+                      {row.label}
+                    </span>
+                  )}
+
+                  {openable && (
+                    <button
+                      type="button"
+                      onClick={row.open}
+                      className="flex flex-shrink-0 items-center gap-1 rounded-full bg-[#0056D2] px-3.5 py-1.5 text-[12px] font-bold text-white shadow-[0_6px_14px_-6px_rgba(0,86,210,0.6)] transition-transform active:scale-95"
+                    >
+                      Abrir
+                      <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.6} />
+                    </button>
                   )}
                 </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
 
-      <p className="mt-2 px-2.5 text-[11.5px] text-slate-500">
-        {remaining === 1 ? 'Falta 1 item — dá pra fazer depois na Home.' : `Faltam ${remaining} itens — você pode completar depois na Home.`}
-      </p>
-    </div>
+                {openable && (
+                  <div className="px-3 pb-3 pl-[52px]">
+                    <p className="text-[12.5px] leading-snug text-slate-500">{row.why}</p>
+                    {!expanded ? (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedSkip(actionKey)}
+                        className="mt-1.5 text-[12px] font-semibold text-slate-400 underline decoration-slate-300 underline-offset-2 active:text-slate-600"
+                      >
+                        Agora não
+                      </button>
+                    ) : (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {row.skipChoices?.map((choice) => (
+                          <button
+                            key={choice.value}
+                            type="button"
+                            onClick={() => handleSkip(actionKey, choice.value)}
+                            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-600 active:bg-slate-50"
+                          >
+                            {choice.label}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setExpandedSkip(null)}
+                          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[12px] font-semibold text-slate-400"
+                        >
+                          <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.4} />
+                          Voltar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+
+        <p className="mt-3 text-center text-[11.5px] text-slate-400">
+          {remaining === 1 ? 'Falta 1 item — dá pra terminar depois na Home.' : `Faltam ${remaining} itens — dá pra terminar depois na Home.`}
+        </p>
+      </SheetShell.Body>
+    </SheetShell>
   );
 }
