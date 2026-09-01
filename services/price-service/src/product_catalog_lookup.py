@@ -77,9 +77,12 @@ class ProductCatalog(Base):
     animal_weight_max_kg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     breed_size: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     breed: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    flavor: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     identity_aliases_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     therapeutic_attributes_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # {campo: {value, source, source_merchant, source_feed, confidence, at}}
     identity_evidence_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    identity_enriched_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     source_primary: Mapped[str] = mapped_column(String(64), nullable=False, default="petmol_db")
     source_confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     raw_payload: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

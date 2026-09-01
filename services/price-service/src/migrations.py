@@ -352,6 +352,11 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "products_catalog", "identity_aliases_json", "TEXT")
         _pg_add_column_if_missing(conn, "products_catalog", "therapeutic_attributes_json", "TEXT")
         _pg_add_column_if_missing(conn, "products_catalog", "identity_evidence_json", "TEXT")
+        # Catalog master enrichment (feat/catalog-master-architecture) — additive, nullable.
+        _pg_add_column_if_missing(conn, "products_catalog", "flavor", "VARCHAR(64)")
+        _pg_add_column_if_missing(conn, "products_catalog", "identity_enriched_at", "TIMESTAMPTZ")
+        _pg_add_column_if_missing(conn, "affiliate_feed_offers", "description", "TEXT")
+        _pg_add_column_if_missing(conn, "affiliate_feed_offers", "mpn", "VARCHAR(64)")
 
         _pg_add_column_if_missing(conn, "marketplace_offers", "merchant_title", "TEXT")
         _pg_add_column_if_missing(conn, "marketplace_offers", "merchant_gtin", "VARCHAR(32)")
@@ -905,6 +910,10 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "identity_aliases_json", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "therapeutic_attributes_json", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "identity_evidence_json", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "flavor", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "identity_enriched_at", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "affiliate_feed_offers", "description", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "affiliate_feed_offers", "mpn", "TEXT")
 
         changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "merchant_title", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "merchant_gtin", "TEXT")

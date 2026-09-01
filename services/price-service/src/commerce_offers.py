@@ -17,7 +17,7 @@ Adicionar um provider novo (Shopee/ML/Petz, quando aprovados) é
 só acrescentar em build_default_engine() — nenhuma tela precisa saber
 quantos providers existem.
 """
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from pydantic import BaseModel
@@ -239,11 +239,36 @@ def _resolve_catalog_product(db: Session, *, gtin: Optional[str], product_id: Op
     if product_id is not None:
         product = db.get(ProductCatalog, product_id)
         if product is not None:
-            return product
+            return _maybe_enrich_catalog(db, product)
     gtin_normalized = normalize_gtin(gtin or "")
     if not gtin_normalized:
         return None
-    return db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
+    product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
+    return _maybe_enrich_catalog(db, product) if product is not None else product
+
+
+def _maybe_enrich_catalog(db: Session, product: ProductCatalog) -> ProductCatalog:
+    """Enriquece a identidade canônica do produto a partir dos feeds Awin
+    quando nunca foi feito (ou está velho). Só banco, sem rede — barato o
+    bastante pro caminho de requisição. Nunca derruba a request."""
+    if not product.barcode_normalized:
+        return product
+    enriched_at = getattr(product, "identity_enriched_at", None)
+    if enriched_at is not None:
+        if enriched_at.tzinfo is None:
+            enriched_at = enriched_at.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) - enriched_at < timedelta(days=7):
+            return product
+    try:
+        from .catalog_enrichment import merge_product_catalog_identity
+
+        merge_product_catalog_identity(db, product.barcode_normalized)
+        db.commit()
+        refreshed = db.get(ProductCatalog, product.id)
+        return refreshed or product
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        return product
 
 
 def _resolve_canonical_image_url(

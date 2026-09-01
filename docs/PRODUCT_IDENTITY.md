@@ -24,6 +24,64 @@ Implementation:
 - `CommerceEngine` exposes canonical PETMOL name/brand to the frontend
   and keeps `merchant_product_name` only for audit.
 
+## Catalog master enrichment
+
+```
+RAW CATALOG SOURCES (Awin feeds: Cobasi / Zee Now / Zee Dog; scanner; admin)
+        ↓  normalize (product_identity, deterministic — no LLM)
+CatalogEvidence  (one per feed row, with source/merchant/feed/confidence)
+        ↓  merge_product_catalog_identity(db, gtin)   ← catalog_enrichment.py
+PRODUCT CATALOG PETMOL  (one row per GTIN = one SKU)
+        ↓
+PRODUCT IDENTITY  →  COBASI (exact EAN) + SHOPEE (candidate search) → lowest valid price
+```
+
+**Awin is a data source, not a store.** `AWIN_SELLABLE_MERCHANTS` is empty;
+no Awin link/price ever reaches the tutor. The feed only feeds
+`ProductCatalog` identity and images.
+
+`catalog_enrichment.merge_product_catalog_identity(db, gtin)`:
+
+- Reads every active `AffiliateFeedOffer` for that GTIN across all feed
+  merchants and turns each into a `CatalogEvidence` via
+  `ProductIdentity.build(title + category + description)`. Species also
+  comes from the `category` breadcrumb ("Cachorro >…" / "Gatos >…").
+- Merges per field with a provenance policy, logged in
+  `ProductCatalog.identity_evidence_json` (`{field: {value, source,
+  confidence, sources, at}}`):
+  - **name / brand / image**: the feed with the most specific title (one
+    that already carries the SKU size) wins; ties broken by feed trust
+    (Cobasi > Zee Now/Dog for presentation).
+  - **structured discriminators** (`weight_kg`, `volume_ml`, `length_cm`,
+    `pack_count`, `animal_weight_range`, `species`): written **only when
+    the feeds agree** (or only one reports it). Disagreement → left NULL
+    and logged as `ambiguous` — never a guess.
+  - **therapeutic attributes**: union across feeds. **aliases**: every
+    distinct feed title.
+- **Never downgrades**: a `canonical_*` field is written only when it is
+  NULL, or when this same pipeline last wrote it (`source == "AWIN_FEED"`)
+  and the new confidence ≥ the logged one. A value from a protected source
+  (`MANUAL` / `ADMIN` / `PETMOL_VALIDATED`) is never touched.
+- Idempotent. Never touches `MarketplaceOffer`, `ProductAffiliateLink`,
+  monetized URLs or price.
+
+Wired at:
+
+- `commerce_offers._resolve_catalog_product` — on-demand when a viewed
+  product has never been enriched (or is >7 days stale). DB-only, no
+  network, never fails the request.
+- `scripts/optimize_commerce_quality.py --catalog-enrich-limit N` — the
+  nightly `petmol-commerce-quality` job, tutor-scanned GTINs first.
+- `scripts/backfill_catalog_identity.py` — one-shot / manual catch-up.
+- `GET /v1/admin/commerce-identity/product/{gtin}` — per-GTIN
+  observability: canonical identity, per-field evidence, feed sources,
+  merchant offers/matches. No secrets, no affiliate URLs.
+
+**Adding a future catalog source** (Petlove/Petz/ML feed): add one
+`evidence_from_<source>()` returning `CatalogEvidence` and let it flow
+through the same `merge_product_catalog_identity`. No new identity engine,
+no per-store matching.
+
 ## GTIN Rule
 
 If a GTIN exists on both sides and matches, identity is resolved as

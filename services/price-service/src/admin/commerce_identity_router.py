@@ -248,3 +248,85 @@ def _safe_json_list(raw: str | None) -> list[str]:
     if not isinstance(parsed, list):
         return []
     return [str(item) for item in parsed if item]
+
+
+@router.get("/product/{gtin}")
+def product_identity_detail(gtin: str, _admin=Depends(get_current_admin_or_readonly_key)):
+    """Observabilidade por GTIN: identidade canônica do ProductCatalog, de
+    onde cada campo veio (identity_evidence_json), as linhas de feed Awin
+    que alimentaram, e as ofertas/matches por merchant. Sem secrets, sem
+    affiliate URLs."""
+    import json
+
+    from ..product_catalog_lookup import normalize_gtin
+
+    g = normalize_gtin(gtin or "")
+    db = SessionLocal()
+    try:
+        product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == g)) if g else None
+        feed_rows = list(db.scalars(
+            select(AffiliateFeedOffer).where(AffiliateFeedOffer.gtin == g, AffiliateFeedOffer.active.is_(True))
+        )) if g else []
+        offers = list(db.scalars(
+            select(MarketplaceOffer)
+            .where(MarketplaceOffer.product_id == (product.id if product else -1), MarketplaceOffer.active.is_(True))
+        )) if product else []
+
+        def _catalog_view(p: ProductCatalog) -> dict:
+            try:
+                evidence = json.loads(p.identity_evidence_json or "{}")
+            except Exception:
+                evidence = {}
+            return {
+                "product_id": p.id,
+                "gtin": p.barcode_normalized,
+                "canonical_name": p.canonical_name or p.name,
+                "canonical_brand": p.canonical_brand or p.brand,
+                "species": p.species,
+                "product_family": p.product_family,
+                "product_line": p.product_line,
+                "weight_kg": p.weight_kg,
+                "volume_ml": p.volume_ml,
+                "length_cm": p.length_cm,
+                "pack_count": p.pack_count,
+                "animal_weight_range": (
+                    [p.animal_weight_min_kg, p.animal_weight_max_kg]
+                    if p.animal_weight_min_kg is not None else None
+                ),
+                "breed_size": p.breed_size,
+                "flavor": p.flavor,
+                "therapeutic_attributes": _safe_json_list(p.therapeutic_attributes_json),
+                "aliases": _safe_json_list(p.identity_aliases_json),
+                "image_url": p.thumbnail_url,
+                "source_primary": p.source_primary,
+                "source_confidence": p.source_confidence,
+                "identity_enriched_at": p.identity_enriched_at.isoformat() if p.identity_enriched_at else None,
+                "evidence": evidence,
+            }
+
+        return {
+            "gtin": g,
+            "catalog": _catalog_view(product) if product else None,
+            "feed_sources": [
+                {
+                    "merchant": r.merchant, "network": r.network,
+                    "title": r.title, "brand": r.brand, "category": r.category,
+                    "has_description": bool(r.description), "mpn": r.mpn,
+                    "in_stock": r.in_stock, "has_image": bool(r.image_url),
+                }
+                for r in feed_rows
+            ],
+            "merchant_offers": [
+                {
+                    "merchant": o.merchant, "seller": o.seller_name,
+                    "merchant_title": o.merchant_title, "merchant_gtin": o.merchant_gtin,
+                    "match_decision": o.match_decision, "match_confidence": o.match_confidence,
+                    "match_reasons": _safe_json_list(o.match_reasons_json),
+                    "price": o.price, "is_available": o.is_available,
+                    "last_checked_at": o.last_checked_at.isoformat() if o.last_checked_at else None,
+                }
+                for o in offers
+            ],
+        }
+    finally:
+        db.close()
