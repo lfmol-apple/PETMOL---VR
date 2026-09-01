@@ -60,7 +60,7 @@ export function SheetHeader({
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-[17px] font-bold leading-[1.15] tracking-[-0.01em] text-slate-900">{title}</h2>
           {(subtitle || status) && (
-            <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[12.5px] font-medium leading-tight text-slate-400">
+            <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[12.5px] font-medium leading-tight text-slate-500">
               {subtitle && <span className="truncate">{subtitle}</span>}
               {subtitle && status && <span className="text-slate-300">·</span>}
               {status && (
