@@ -15,4 +15,4 @@ EnvironmentFile=/opt/petmol/shared/env/api.env
 # proveniência) para até 2000 GTINs/noite (tutores primeiro), e reporta
 # gaps (missing barcode/image/offer) dos produtos que os pets usam. Sem
 # rede/API externa. Shopee bulk sync continua no timer petmol-shopee-sync.
-ExecStart=/opt/petmol/current/services/price-service/.venv/bin/python scripts/optimize_commerce_quality.py --apply --autofill-safe-gtin --limit 500 --catalog-enrich-limit 2000 --summary-only
+ExecStart=/opt/petmol/current/services/price-service/.venv/bin/python scripts/optimize_commerce_quality.py --apply --autofill-safe-gtin --limit 500 --catalog-enrich-limit 2000 --sku-group-limit 3000 --summary-only
