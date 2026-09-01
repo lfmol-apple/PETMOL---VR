@@ -96,14 +96,14 @@ async def test_registering_awin_provider_does_not_change_link_shown_to_tutor(mon
     _register_cobasi_link()
     _register_awin_offer()
 
-    async def _fake_fetch(query, spec=None, *, target_weight_kg=None):
+    async def _fake_fetch(query, target_weight_kg=None):
         return ProductPriceResult(
             found=True, price=100.0, is_available=True, ean=GTIN,
             product_name="Produto Teste", brand="Marca Teste",
             url="https://www.cobasi.com.br/produto-teste/p",
         )
 
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_matched", _fake_fetch)
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", _fake_fetch)
 
     db = SessionLocal()
     try:
@@ -136,14 +136,14 @@ async def test_manually_cached_link_survives_even_with_awin_preferred(monkeypatc
     _register_awin_offer()
     monkeypatch.setattr("src.merchant_routes.PREFERRED_ROUTE_BY_MERCHANT", {"cobasi": "awin"})
 
-    async def _fake_fetch(query, spec=None, *, target_weight_kg=None):
+    async def _fake_fetch(query, target_weight_kg=None):
         return ProductPriceResult(
             found=True, price=100.0, is_available=True, ean=GTIN,
             product_name="Produto Teste", brand="Marca Teste",
             url="https://www.cobasi.com.br/produto-teste/p",
         )
 
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_matched", _fake_fetch)
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", _fake_fetch)
 
     db = SessionLocal()
     try:
@@ -168,14 +168,14 @@ async def test_awin_catalog_uses_mais_utm_when_no_manual_link(monkeypatch):
     monkeypatch.setenv("COBASI_AFFILIATE_MODE", "utm")
     get_settings.cache_clear()
 
-    async def _fake_fetch(query, spec=None, *, target_weight_kg=None):
+    async def _fake_fetch(query, target_weight_kg=None):
         return ProductPriceResult(
             found=True, price=100.0, is_available=True, ean=GTIN,
             product_name="Produto Teste", brand="Marca Teste",
             url="https://www.cobasi.com.br/produto-teste/p",
         )
 
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_matched", _fake_fetch)
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", _fake_fetch)
 
     db = SessionLocal()
     try:
@@ -255,14 +255,14 @@ async def test_mais_fills_in_as_fallback_when_awin_does_not_resolve(monkeypatch)
     _register_cobasi_link()
     # Nenhuma _register_awin_offer() — Awin não tem nada pra este GTIN.
 
-    async def _fake_fetch(query, spec=None, *, target_weight_kg=None):
+    async def _fake_fetch(query, target_weight_kg=None):
         return ProductPriceResult(
             found=True, price=100.0, is_available=True, ean=GTIN,
             product_name="Produto Teste", brand="Marca Teste",
             url="https://www.cobasi.com.br/produto-teste/p",
         )
 
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_matched", _fake_fetch)
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", _fake_fetch)
 
     db = SessionLocal()
     try:

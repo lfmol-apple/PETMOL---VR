@@ -24,19 +24,16 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from ..affiliate_feed import AffiliateFeedSyncRun
-from ..affiliate_links import MarketplaceOffer
 from ..config import get_settings
 from ..db import SessionLocal
 from ..product_catalog_lookup import ProductCatalog
 from ..shopee_offer_sync import (
     has_active_shopee_offer_for_gtin,
-    iter_active_product_gtins,
-    iter_active_shopee_offer_gtins,
     iter_awin_feed_products,
     iter_launch_coverage_queue,
     iter_unified_awin_feed_products,
@@ -44,7 +41,7 @@ from ..shopee_offer_sync import (
     sync_shopee_offer_from_feed_row,
 )
 from ..shopee_offer_audit import audit_active_shopee_offers
-from ..shopee_discovery_attempt import ShopeeDiscoveryAttempt, record_attempt, should_attempt_discovery
+from ..shopee_discovery_attempt import record_attempt, should_attempt_discovery
 from .deps import get_current_admin_or_readonly_key
 from .shopee_sync_state import STATE
 
@@ -382,141 +379,6 @@ def get_status(x_sync_token: Optional[str] = Header(default=None, alias="X-Sync-
 @router.get("/progress")
 def get_progress(_current=Depends(get_current_admin_or_readonly_key)):
     return _status_payload()
-
-
-@router.get("/coverage")
-def get_coverage(
-    x_sync_token: Optional[str] = Header(default=None, alias="X-Sync-Token"),
-    include_feed_scan: bool = Query(
-        default=False,
-        description="Inclui a prioridade C (varredura do feed Awin sem oferta Shopee) — "
-        "mais lento (N+1 por linha de feed). Sem isso, `queue` só cobre A e B.",
-    ),
-):
-    """Foto da cobertura Shopee no banco (não é o progresso do último sync —
-    isso é /status). Read-only, agregado, sem token no payload. Serve para
-    responder 'quantos produtos ainda não têm oferta' e 'em quantas noites
-    o job zera a fila'."""
-    _require_token(x_sync_token)
-    db = SessionLocal()
-    try:
-        return _coverage_payload(db, include_feed_scan=include_feed_scan)
-    finally:
-        db.close()
-
-
-def _coverage_payload(db, *, include_feed_scan: bool) -> dict:
-    settings = get_settings()
-    now = datetime.now(timezone.utc)
-    stale_cutoff = now - timedelta(hours=settings.marketplace_offer_stale_after_hours)
-    miss_cutoff = now - timedelta(hours=settings.shopee_miss_retry_hours)
-    api_err_cutoff = now - timedelta(hours=1)
-
-    def _count(*where) -> int:
-        return int(db.scalar(select(func.count()).select_from(MarketplaceOffer).where(*where)) or 0)
-
-    active = MarketplaceOffer.merchant == "shopee", MarketplaceOffer.active.is_(True)
-    active_total = _count(*active)
-    active_with_price = _count(*active, MarketplaceOffer.price.isnot(None))
-    active_stale = _count(
-        *active,
-        (MarketplaceOffer.last_checked_at.is_(None)) | (MarketplaceOffer.last_checked_at < stale_cutoff),
-    )
-    inactive_total = _count(MarketplaceOffer.merchant == "shopee", MarketplaceOffer.active.is_(False))
-    distinct_products_covered = int(
-        db.scalar(
-            select(func.count(func.distinct(MarketplaceOffer.product_id))).where(*active)
-        ) or 0
-    )
-
-    # Tentativas de discovery on-demand (uma linha por GTIN).
-    attempt_rows = db.execute(
-        select(ShopeeDiscoveryAttempt.last_result, func.count(), func.sum(ShopeeDiscoveryAttempt.attempts))
-        .group_by(ShopeeDiscoveryAttempt.last_result)
-    ).all()
-    attempts = {"matched": 0, "no_match": 0, "api_error": 0}
-    total_attempt_events = 0
-    for result, cnt, ev in attempt_rows:
-        attempts[result] = int(cnt)
-        total_attempt_events += int(ev or 0)
-    in_cooldown_now = int(
-        db.scalar(
-            select(func.count()).select_from(ShopeeDiscoveryAttempt).where(
-                ((ShopeeDiscoveryAttempt.last_result == "no_match") & (ShopeeDiscoveryAttempt.last_attempt_at >= miss_cutoff))
-                | ((ShopeeDiscoveryAttempt.last_result == "api_error") & (ShopeeDiscoveryAttempt.last_attempt_at >= api_err_cutoff))
-            )
-        ) or 0
-    )
-
-    priority_a = len(iter_active_shopee_offer_gtins(db))
-    priority_b = len(iter_active_product_gtins(db))
-    queue: dict = {
-        "priority_a_active_refresh": priority_a,
-        "priority_b_scanned_product_gtins": priority_b,
-    }
-    total_pending: Optional[int] = None
-    if include_feed_scan:
-        _q, total_pending = iter_launch_coverage_queue(db, max_products=10**9)
-        priority_c = len(iter_unified_awin_feed_products(db, skip_existing_shopee=True))
-        queue["priority_c_awin_fresh_without_offer"] = priority_c
-        queue["total_pending_deduped"] = total_pending
-    else:
-        queue["note"] = "priority C (feed scan) omitida — chame com ?include_feed_scan=true"
-
-    with STATE.lock:
-        last_run = {
-            "processed": STATE.processed,
-            "new_matches": STATE.new_matches,
-            "refreshed_existing": STATE.refreshed_existing,
-            "misses": STATE.misses,
-            "errors": STATE.errors,
-            "skipped_cooldown": STATE.skipped_cooldown,
-            "remaining_after_cap": STATE.remaining_after_cap,
-            "duration_seconds": STATE.duration_seconds,
-            "finished_at": STATE.finished_at,
-        }
-
-    cap = settings.shopee_sync_max_products_per_run
-    # Ritmo efetivo por noite: quanto o último run realmente descobriu de
-    # oferta nova (não conta refresh de oferta que já existia). Só dá pra
-    # estimar noites se houver um run recente com sinal.
-    effective_new_per_run = last_run["new_matches"] if last_run["processed"] else None
-    estimated_nights = None
-    if include_feed_scan and total_pending and effective_new_per_run:
-        estimated_nights = round(total_pending / max(effective_new_per_run, 1), 1)
-
-    return {
-        "generated_at": now.isoformat(),
-        "config": {
-            "shopee_affiliate_enabled": settings.shopee_affiliate_enabled,
-            "max_products_per_run": cap,
-            "miss_retry_hours": settings.shopee_miss_retry_hours,
-            "stale_after_hours": settings.marketplace_offer_stale_after_hours,
-        },
-        "offers": {
-            "active_total": active_total,
-            "active_with_price": active_with_price,
-            "active_without_current_price_stale": active_stale,
-            "inactive_total": inactive_total,
-            "distinct_products_covered": distinct_products_covered,
-        },
-        "discovery_attempts": {
-            "gtins_tried": attempts["matched"] + attempts["no_match"] + attempts["api_error"],
-            "matched": attempts["matched"],
-            "no_match": attempts["no_match"],
-            "api_error": attempts["api_error"],
-            "attempt_events_total": total_attempt_events,
-            "in_cooldown_now": in_cooldown_now,
-        },
-        "queue": queue,
-        "pace": {
-            "per_run_cap": cap,
-            "last_run": last_run,
-            "estimated_new_matches_per_run": effective_new_per_run,
-            "estimated_nights_to_clear_pending": estimated_nights,
-            "formula": "estimated_nights = total_pending_deduped / new_matches_do_ultimo_run",
-        },
-    }
 
 
 def _status_payload():

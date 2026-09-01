@@ -20,7 +20,7 @@ from .affiliate_links import MarketplaceOffer
 from .product_catalog_lookup import ProductCatalog, normalize_gtin
 from .shopee_affiliate_client import ShopeeAffiliateError, search_product_offers
 from .shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
-from .shopee_offer_matcher import extract_length_cm, extract_volume_ml, extract_weight_kg
+from .shopee_offer_matcher import extract_volume_ml, extract_weight_kg
 from .shopee_offer_sync import (
     _brand_for_matching,
     _build_keyword_variants,
@@ -44,7 +44,6 @@ class ShopeeOfferAuditItem:
     expected_brand: Optional[str]
     expected_weight_kg: Optional[float]
     expected_volume_ml: Optional[float]
-    expected_length_cm: Optional[float]
     decision: str
     reason: str
     candidate_count: int = 0
@@ -123,7 +122,7 @@ def audit_active_shopee_offers(
     )
     for item in result.items[:20]:
         logger.info(
-            "[shopee_offer_audit] decision=%s reason=%s gtin=%s offer_id=%s listing=%s expected=%r brand=%r weight=%s volume=%s length_cm=%s matches=%s",
+            "[shopee_offer_audit] decision=%s reason=%s gtin=%s offer_id=%s listing=%s expected=%r brand=%r weight=%s volume=%s matches=%s",
             item.decision,
             item.reason,
             item.gtin,
@@ -133,7 +132,6 @@ def audit_active_shopee_offers(
             item.expected_brand,
             item.expected_weight_kg,
             item.expected_volume_ml,
-            item.expected_length_cm,
             item.matched_listing_ids,
         )
     return result
@@ -152,7 +150,6 @@ def _audit_one_offer(
     expected_title, expected_brand = _expected_identity(db, product, gtin, source_merchants)
     expected_weight_kg = extract_weight_kg(expected_title)
     expected_volume_ml = extract_volume_ml(expected_title)
-    expected_length_cm = extract_length_cm(expected_title)
 
     base = ShopeeOfferAuditItem(
         offer_id=offer.id,
@@ -163,7 +160,6 @@ def _audit_one_offer(
         expected_brand=expected_brand,
         expected_weight_kg=expected_weight_kg,
         expected_volume_ml=expected_volume_ml,
-        expected_length_cm=expected_length_cm,
         decision="error",
         reason="not_evaluated",
     )
@@ -191,7 +187,6 @@ def _audit_one_offer(
         expected_brand=match_brand,
         expected_weight_kg=expected_weight_kg,
         expected_volume_ml=expected_volume_ml,
-        expected_length_cm=expected_length_cm,
         min_confidence=min_confidence,
     )
     matched_ids = [str(node.get("itemId")) for node in matches if node.get("itemId") is not None]

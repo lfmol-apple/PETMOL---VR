@@ -36,7 +36,6 @@ def _item_as_dict(item) -> dict:
         "expected_brand": item.expected_brand,
         "expected_weight_kg": item.expected_weight_kg,
         "expected_volume_ml": item.expected_volume_ml,
-        "expected_length_cm": item.expected_length_cm,
         "candidate_count": item.candidate_count,
         "matched_listing_ids": item.matched_listing_ids,
         "matched_titles": item.matched_titles,
@@ -92,7 +91,7 @@ def main() -> int:
             payload = _item_as_dict(item)
             print(
                 "[{decision}] {reason} | gtin={gtin} offer_id={offer_id} listing={external_listing_id} "
-                "brand={expected_brand!r} weight={expected_weight_kg} volume={expected_volume_ml} length_cm={expected_length_cm} "
+                "brand={expected_brand!r} weight={expected_weight_kg} volume={expected_volume_ml} "
                 "candidates={candidate_count} matches={matched_listing_ids} title={expected_title!r}".format(
                     **payload
                 )

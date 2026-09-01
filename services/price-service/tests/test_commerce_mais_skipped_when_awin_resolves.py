@@ -74,7 +74,7 @@ def _register_cobasi_link(gtin: str = GTIN) -> None:
 def _counting_fetch(monkeypatch):
     calls = {"count": 0}
 
-    async def _fake_fetch(query, spec=None, *, target_weight_kg=None):
+    async def _fake_fetch(query, target_weight_kg=None):
         calls["count"] += 1
         return ProductPriceResult(
             found=True, price=100.0, is_available=True, ean=GTIN,
@@ -82,7 +82,7 @@ def _counting_fetch(monkeypatch):
             url="https://www.cobasi.com.br/produto-teste/p",
         )
 
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_matched", _fake_fetch)
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", _fake_fetch)
     return calls
 
 

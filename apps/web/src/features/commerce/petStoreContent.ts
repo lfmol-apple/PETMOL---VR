@@ -43,17 +43,6 @@ export interface ReorderCard {
   packageSizeKg?: number;
   /** GTIN/EAN conhecido, quando domain='food' — ver PetCareReminder.gtin. */
   gtin?: string;
-  /**
-   * false quando o card não tem identidade comercial suficiente para
-   * comparar preço entre lojas. Antiparasitário/coleira sem GTIN pode
-   * variar por tamanho/faixa de peso; nesses casos a UI mantém compra por
-   * busca, mas não mostra "menor preço" como se fosse o mesmo produto.
-   */
-  priceLookupAllowed: boolean;
-  /** Espécie do pet dono do lembrete ("dog"|"cat"), quando conhecida —
-   * hard fail de identidade na Cobasi (ração de gato nunca vira preço de
-   * ração de cão). */
-  species?: string;
 }
 
 function formatUrgencyText(domain: CareReminderDomain, diff: number): string {
@@ -86,11 +75,7 @@ function buildReminderSearchQuery(r: PetCareReminder): string {
   return r.label?.trim() || r.sublabel || 'produto pet';
 }
 
-export function buildReorderCards(
-  reminders: PetCareReminder[],
-  species?: PetSpecies | string | null,
-): ReorderCard[] {
-  const petSpecies = (species || '').trim() || undefined;
+export function buildReorderCards(reminders: PetCareReminder[]): ReorderCard[] {
   return reminders
     .filter((r) => BUYABLE_DOMAINS.includes(r.domain))
     // Medicação sem código de barras não tem identidade comercial segura:
@@ -98,23 +83,18 @@ export function buildReorderCards(
     // múltiplas apresentações. Mantém no cuidado do pet, mas não transforma
     // em card de compra/preço sem GTIN.
     .filter((r) => r.domain !== 'medication' || Boolean((r.gtin || '').trim()))
-    .map((r) => {
-      const gtin = (r.gtin || '').trim() || undefined;
-      return {
-        id: r.key,
-        icon: r.icon,
-        label: r.label,
-        sublabel: r.sublabel,
-        urgencyText: formatUrgencyText(r.domain, r.diff),
-        urgencyTone: r.status,
-        searchQuery: buildReminderSearchQuery(r),
-        domain: r.domain,
-        packageSizeKg: r.packageSizeKg,
-        gtin,
-        priceLookupAllowed: r.domain !== 'parasite' || Boolean(gtin),
-        species: petSpecies,
-      };
-    });
+    .map((r) => ({
+      id: r.key,
+      icon: r.icon,
+      label: r.label,
+      sublabel: r.sublabel,
+      urgencyText: formatUrgencyText(r.domain, r.diff),
+      urgencyTone: r.status,
+      searchQuery: buildReminderSearchQuery(r),
+      domain: r.domain,
+      packageSizeKg: r.packageSizeKg,
+      gtin: r.gtin,
+    }));
 }
 
 function speciesQueryLabel(species: PetSpecies): string {

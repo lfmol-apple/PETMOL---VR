@@ -65,46 +65,5 @@ describe('buildReorderCards — medicação só vira compra com código de barra
     expect(cards).toHaveLength(1);
     expect(cards[0].gtin).toBe('7896112410010');
     expect(cards[0].label).toBe('Meloxicam 2mg');
-    expect(cards[0].priceLookupAllowed).toBe(true);
-  });
-
-  it('mantém coleira sem código como recompra, mas sem lookup de preço comparável', () => {
-    const cards = buildReorderCards([reminder({
-      domain: 'parasite',
-      label: 'Coleira Repelente',
-      sublabel: 'Coleira Repelente',
-      action_target: 'health/parasites/collar',
-      gtin: undefined,
-    })]);
-
-    expect(cards).toHaveLength(1);
-    expect(cards[0].label).toBe('Coleira Repelente');
-    expect(cards[0].priceLookupAllowed).toBe(false);
-  });
-
-  it('libera lookup de preço de coleira quando há GTIN escaneado', () => {
-    const cards = buildReorderCards([reminder({
-      domain: 'parasite',
-      label: 'Coleira Scalibor 48cm',
-      sublabel: 'Coleira Repelente',
-      action_target: 'health/parasites/collar',
-      gtin: '7896185957009',
-    })]);
-
-    expect(cards).toHaveLength(1);
-    expect(cards[0].gtin).toBe('7896185957009');
-    expect(cards[0].priceLookupAllowed).toBe(true);
-  });
-
-  it('carimba a espécie do pet no card (hard fail de identidade na Cobasi)', () => {
-    const dog = buildReorderCards([reminder({ domain: 'food', label: 'Compra de ração', sublabel: 'Golden', gtin: undefined })], 'dog');
-    expect(dog[0].species).toBe('dog');
-    const cat = buildReorderCards([reminder({ domain: 'food', label: 'Compra de ração', sublabel: 'Golden', gtin: undefined })], 'cat');
-    expect(cat[0].species).toBe('cat');
-  });
-
-  it('sem espécie conhecida o card não força nenhum gate de espécie', () => {
-    const cards = buildReorderCards([reminder({ gtin: '7896112410010' })]);
-    expect(cards[0].species).toBeUndefined();
   });
 });

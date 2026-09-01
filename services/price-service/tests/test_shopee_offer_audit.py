@@ -26,22 +26,6 @@ WRONG_SHOPEE_NODE = {
     "offerLink": "https://s.shopee.com.br/royalMediumAdult",
     "productLink": "https://shopee.com.br/product/1/202",
 }
-SCALIBOR_48_NODE = {
-    "itemId": 303,
-    "productName": "Coleira Antiparasitária Scalibor Cães Pequenos e Médios 48 cm",
-    "shopName": "Pet Oficial",
-    "price": "99.9",
-    "offerLink": "https://s.shopee.com.br/scalibor48",
-    "productLink": "https://shopee.com.br/product/1/303",
-}
-SCALIBOR_65_NODE = {
-    "itemId": 404,
-    "productName": "Coleira Antiparasitária Scalibor Cães Grandes 65 cm",
-    "shopName": "Pet Errado",
-    "price": "129.9",
-    "offerLink": "https://s.shopee.com.br/scalibor65",
-    "productLink": "https://shopee.com.br/product/1/404",
-}
 
 
 def _seed_product_with_offer(*, listing_id: str, product_name: str = "Ração Royal Canin Cães Adultos 7,5kg") -> int:
@@ -169,33 +153,6 @@ def test_auditoria_usa_feed_awin_como_identidade_forte(monkeypatch):
     assert result.items[0].expected_title == EXPECTED_FEED_TITLE
     assert result.items[0].expected_weight_kg == 7.5
     assert any("Mini Adult" in keyword for keyword in searched_keywords)
-
-
-def test_auditoria_desativa_coleira_com_cm_diferente(monkeypatch):
-    offer_id = _seed_product_with_offer(
-        listing_id=str(SCALIBOR_65_NODE["itemId"]),
-        product_name="Coleira Antiparasitária Scalibor Cães Pequenos e Médios 48 cm",
-    )
-    _seed_feed_row("Coleira Antiparasitária Scalibor Cães Pequenos e Médios - 48 cm")
-    monkeypatch.setattr(audit_module, "search_product_offers", lambda keyword, limit=20: [SCALIBOR_65_NODE, SCALIBOR_48_NODE])
-
-    db = SessionLocal()
-    try:
-        result = audit_active_shopee_offers(db, deactivate_invalid=True)
-    finally:
-        db.close()
-
-    assert result.invalid == 1
-    assert result.deactivated == 1
-    assert result.items[0].expected_length_cm == 48.0
-    assert result.items[0].matched_listing_ids == ["303"]
-
-    db = SessionLocal()
-    try:
-        offer = db.get(MarketplaceOffer, offer_id)
-        assert offer.active is False
-    finally:
-        db.close()
 
 
 def test_auditoria_nao_desativa_em_dry_run(monkeypatch):

@@ -91,11 +91,6 @@ class Settings(BaseSettings):
     # bloqueio) e o preço não precisa ser por segundo para o caso de uso.
     commerce_pricing_enabled: bool = True
     commerce_pricing_cache_ttl: int = 21600  # 6 horas
-    # Teto de tempo por provider dentro do CommerceEngine.get_offers(): um
-    # provider lento (ex: Cobasi numa janela ruim da VTEX) estoura isto e é
-    # pulado, sem impedir Shopee/os demais de aparecerem. Frontend deve dar
-    # uma margem acima disto (ver apps/web fetchCommerceOffers).
-    commerce_offers_provider_timeout_seconds: float = 7.0
 
     # Database - usa caminho relativo que funciona local e produção
     database_url: str = f"sqlite:///{os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'petmol.db'))}"
