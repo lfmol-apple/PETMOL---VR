@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import type { GroomingRecord, GroomingType } from '@/lib/types/home';
-import { ModalPortal } from '@/components/ModalPortal';
+import { Check, Home } from 'lucide-react';
+import { SheetAvatar, SheetHeader, SheetShell } from '@/components/ui/sheet';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
@@ -366,28 +367,16 @@ export function GroomingItemSheet({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <ModalPortal>
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-x-hidden overscroll-x-none touch-pan-y p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-md" onClick={onClose} />
-
-      {/* Sheet */}
-      <div
-        className="relative w-full max-w-lg isolate flex flex-col overflow-hidden rounded-[26px] bg-[#f2f2f7] shadow-[0_-8px_50px_-8px_rgba(15,23,42,0.35)] ring-1 ring-black/5 animate-scaleIn"
-        style={{ maxHeight: '92dvh' }}
-        onClick={e => e.stopPropagation()}
-      >
+    <SheetShell open onClose={onClose} tone="grey" z={50}>
         {/* Success overlay */}
         {justSaved && (
-          <div className="absolute inset-0 bg-[#F2F2F7] z-20 flex flex-col items-center justify-center gap-5 text-center p-8 rounded-[28px]">
-            <div className="w-16 h-16 rounded-full bg-[#34C759] flex items-center justify-center shadow-lg">
-              <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-5 bg-[#f2f2f7] p-8 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+              <Check className="h-8 w-8" strokeWidth={2.5} />
             </div>
             <div>
-              <h3 className="text-[19px] font-bold text-[#1C1C1E] mb-1">Higiene registrada</h3>
-              <p className="text-[14px] text-[#8E8E93]">Prontuário do pet atualizado.</p>
+              <h3 className="mb-1 text-[19px] font-bold text-slate-900">Higiene registrada</h3>
+              <p className="text-[14px] text-slate-400">Prontuário do pet atualizado.</p>
             </div>
             {justSavedPhone && (
               <a
@@ -410,67 +399,32 @@ export function GroomingItemSheet({
             )}
             <button
               onClick={() => onGoHome?.()}
-              className="w-full py-[14px] rounded-[14px] bg-[#5856D6] text-white text-[16px] font-semibold active:opacity-80 transition-opacity"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3.5 text-[15px] font-bold text-white shadow-[0_8px_20px_-6px_rgba(16,185,129,0.4)] transition-transform active:scale-[0.97]"
             >
+              <Home className="h-[18px] w-[18px]" strokeWidth={2.3} />
               Ir para a home
             </button>
-            <button onClick={() => setJustSaved(false)} className="text-[14px] text-[#5856D6]">
+            <button onClick={() => setJustSaved(false)} className="text-[14px] text-slate-400 underline">
               Ver prontuário
             </button>
           </div>
         )}
 
-        {/* Header */}
-        <div className="px-5 pt-3 pb-3 bg-[#F2F2F7] flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full overflow-hidden bg-[#E5E5EA] flex items-center justify-center text-2xl flex-shrink-0">
-              {petPhotoSrc ? (
-                <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
-              ) : (
-                <span>{petSpecies === 'cat' ? '🐱' : '🐶'}</span>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h2 className="text-[17px] font-bold text-[#1C1C1E] leading-tight">Higiene e Petshop</h2>
-              {petName && (
-                <p className="text-[13px] text-[#8E8E93] mt-0.5">{petName}</p>
-              )}
-            </div>
-            {mode !== 'view' ? (
-              <button
-                type="button"
-                onClick={() => { setMode('view'); setEditRecord(null); }}
-                onTouchEnd={() => { setMode('view'); setEditRecord(null); }}
-                className="w-8 h-8 rounded-full bg-[#E5E5EA] flex items-center justify-center flex-shrink-0 active:opacity-60"
-                aria-label="Voltar"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
-                  <path d="M15 18l-6-6 6-6" />
-                </svg>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-8 h-8 rounded-full bg-[#E5E5EA] flex items-center justify-center flex-shrink-0 active:opacity-60"
-                aria-label="Fechar"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5">
-                  <path d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
-
-          {/* Status badge */}
-          <div className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[12px] font-medium ${status.bg} ${status.text}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
-            {nextDate ? status.label : 'Sem agendamento'}
-          </div>
-        </div>
+        <SheetHeader
+          tone="grey"
+          title="Higiene e Petshop"
+          subtitle={petName || undefined}
+          status={{
+            label: nextDate ? status.label.charAt(0).toUpperCase() + status.label.slice(1) : 'Sem agendamento',
+            tone: status.dot === 'bg-rose-500' ? 'danger' : status.dot === 'bg-amber-500' ? 'warn' : status.dot === 'bg-emerald-500' ? 'good' : 'neutral',
+          }}
+          media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpecies === 'cat' ? '🐱' : '🐶'} />}
+          onClose={onClose}
+          onBack={mode !== 'view' ? () => { setMode('view'); setEditRecord(null); } : undefined}
+        />
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
           {mode === 'view' && (
@@ -915,12 +869,10 @@ export function GroomingItemSheet({
 
         {/* ── Toast ─────────────────────────────────────────────────────────── */}
         {toast && (
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 max-w-[calc(100%-2rem)] bg-gray-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl z-20 text-center break-words pointer-events-none">
+          <div className="pointer-events-none absolute bottom-8 left-1/2 z-30 max-w-[calc(100%-2rem)] -translate-x-1/2 break-words rounded-2xl bg-slate-900 px-5 py-3 text-center text-sm font-medium text-white shadow-xl">
             {toast}
           </div>
         )}
-      </div>
-    </div>
-    </ModalPortal>
+    </SheetShell>
   );
 }
