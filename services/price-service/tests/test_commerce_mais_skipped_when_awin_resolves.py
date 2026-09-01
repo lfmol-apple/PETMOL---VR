@@ -129,11 +129,11 @@ async def test_mais_still_called_when_awin_does_not_resolve(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_mais_still_called_when_manual_link_exists_despite_awin_resolving(monkeypatch):
-    """Awin resolve o GTIN, mas este produto específico tem link
-    cadastrado manualmente — MAIS precisa rodar mesmo assim, porque só
-    ele consegue produzir a oferta is_manually_cached que sempre vence o
-    dedupe (ver commerce_provider.py::_dedupe_by_merchant)."""
+async def test_manual_link_served_without_live_search_even_with_awin_resolving(monkeypatch):
+    """Awin resolve o GTIN, mas este produto tem link cadastrado — a
+    oferta is_manually_cached (que sempre vence o dedupe) é servida
+    DIRETO pela identidade do catálogo, SEM busca ao vivo na VTEX (que
+    podia devolver a variante errada). Ver CobasiProvider.find_offer."""
     calls = _counting_fetch(monkeypatch)
     _register_awin_offer()
     _register_cobasi_link()
@@ -144,8 +144,9 @@ async def test_mais_still_called_when_manual_link_exists_despite_awin_resolving(
     finally:
         db.close()
 
-    assert calls["count"] == 1, "link cadastrado manualmente precisa da chance de rodar mesmo com Awin resolvendo"
+    assert calls["count"] == 0, "produto pré-cadastrado não precisa de busca ao vivo"
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
     assert len(cobasi_offers) == 1
     assert cobasi_offers[0].route == "mais"
     assert cobasi_offers[0].url == "https://mais.app/link-comprovado"
+    assert cobasi_offers[0].product_name == "Produto Teste"
