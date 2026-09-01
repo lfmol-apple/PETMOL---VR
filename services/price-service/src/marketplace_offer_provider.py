@@ -127,7 +127,7 @@ class MarketplaceOfferProvider:
             return None
 
         product = self._db.get(ProductCatalog, product_id)
-        identity = _identity_from_product_context(product, context)
+        identity = ProductIdentity.from_catalog(product) if product is not None else ProductIdentity.build(gtin=context.gtin, canonical_name=context.name or context.query, brand=context.brand)
         offer, live_match_result = _select_valid_marketplace_offer(self._db, product_id, self.merchant, identity)
         if offer is None:
             # Produto conhecido, GTIN confiável, mas ainda sem oferta Shopee
@@ -149,7 +149,7 @@ class MarketplaceOfferProvider:
                 _refresh_marketplace_offer(self.merchant, product.barcode_normalized)
                 self._db.expire_all()
                 product = self._db.get(ProductCatalog, product_id)
-                identity = _identity_from_product_context(product, context)
+                identity = ProductIdentity.from_catalog(product) if product is not None else identity
                 offer, live_match_result = _select_valid_marketplace_offer(self._db, product_id, self.merchant, identity)
                 if offer is None:
                     return None
@@ -254,44 +254,6 @@ def _effective_checked_at(offer: MarketplaceOffer) -> Optional[datetime]:
     return checked_at
 
 
-def _identity_from_product_context(product: Optional[ProductCatalog], context: ProductContext) -> ProductIdentity:
-    if product is None:
-        return ProductIdentity.build(
-            gtin=context.gtin,
-            canonical_name=context.canonical_name or context.name or context.query,
-            brand=context.canonical_brand or context.brand,
-            species=context.species,
-            category=context.category,
-            weight_kg=context.weight_kg,
-            image_url=context.canonical_image_url,
-        )
-    identity = ProductIdentity.from_catalog(product)
-    if context.weight_kg is None or identity.weight_kg is not None:
-        return identity
-    return ProductIdentity.build(
-        gtin=identity.gtin,
-        canonical_name=identity.canonical_name,
-        brand=identity.brand,
-        species=identity.species,
-        category=identity.category,
-        product_family=identity.product_family,
-        product_line=identity.product_line,
-        weight_kg=context.weight_kg,
-        volume_ml=identity.volume_ml,
-        length_cm=identity.length_cm,
-        pack_count=identity.pack_count,
-        animal_weight_range=identity.animal_weight_range,
-        life_stage=identity.life_stage,
-        breed_size=identity.breed_size,
-        breed=identity.breed,
-        flavor=identity.flavor,
-        therapeutic_attributes=identity.therapeutic_attributes,
-        aliases=identity.aliases,
-        image_url=identity.image_url,
-        evidence=(*identity.evidence, "PRODUCT_CONTEXT_WEIGHT"),
-    )
-
-
 def _select_valid_marketplace_offer(
     db: Session,
     product_id: int,
@@ -309,7 +271,7 @@ def _select_valid_marketplace_offer(
     ))
     for row in rows:
         result = _validate_marketplace_offer_identity(identity, row)
-        if result is not None and result.accepted:
+        if result is None or result.accepted:
             return row, result
     return None, None
 

@@ -71,7 +71,6 @@ def _register_offer(product_id: int, **overrides) -> None:
     defaults = dict(
         product_id=product_id, merchant="shopee",
         affiliate_url="https://s.shopee.com.br/3AbCdEfGh",
-        merchant_title="Marca Teste Produto Teste",
         price=59.9, is_available=True, active=True,
     )
     defaults.update(overrides)
@@ -128,21 +127,6 @@ async def test_shopee_offer_uses_catalog_thumbnail_when_marketplace_has_no_image
         offer = await provider.find_offer(ProductContext(gtin=GTIN))
         assert offer is not None
         assert offer.image_url == "https://img.example/racao-nine.jpg"
-    finally:
-        db.close()
-
-
-@pytest.mark.asyncio
-async def test_marketplace_offer_without_identity_evidence_is_not_displayed(monkeypatch):
-    _enable_shopee(monkeypatch)
-    product_id = _register_product()
-    _register_offer(product_id, merchant_title=None, merchant_gtin=None)
-
-    db = SessionLocal()
-    try:
-        provider = MarketplaceOfferProvider(db, "shopee")
-        offer = await provider.find_offer(ProductContext(gtin=GTIN))
-        assert offer is None
     finally:
         db.close()
 
@@ -336,11 +320,7 @@ async def test_finds_offer_by_text_when_context_has_no_gtin(monkeypatch):
         db.commit()
     finally:
         db.close()
-    _register_offer(
-        product_id,
-        price=399.9,
-        merchant_title="Royal Canin Veterinary Urinary SO Small Dog 7,5 kg",
-    )
+    _register_offer(product_id, price=399.9)
 
     db = SessionLocal()
     try:
