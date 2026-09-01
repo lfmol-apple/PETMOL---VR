@@ -64,17 +64,22 @@ export default function TransparenciaPage() {
           Esse conjunto muda ao longo do tempo conforme parcerias são firmadas ou encerradas.
         </p>
 
-        <h2>Programa de Associados da Amazon</h2>
-        {amazonActive ? (
-          <p>{amazonDisclosure.requiredStatement}</p>
-        ) : (
-          <p>
-            O PETMOL <strong>não participa</strong> do Programa de Associados da Amazon neste
-            momento. Não há links de afiliado da Amazon ativos no PETMOL. Se e quando o PETMOL for
-            aprovado no programa, a declaração exigida pela Amazon passará a constar aqui e nas telas
-            aplicáveis.
-          </p>
-        )}
+        <h2>Programa de Associados da Amazon (Amazon Associates US)</h2>
+        <p>
+          O PETMOL participa do <strong>Amazon Associates US</strong> apenas na página pública e
+          editorial <Link href="/recommendations">PETMOL Recommendations</Link>, em inglês, onde
+          lista produtos que considera úteis ou interessantes. Nessa página o PETMOL pode receber
+          uma comissão sobre compras qualificadas (<em>commission on qualifying purchases</em>),
+          sem custo adicional para você. A frase exigida pela Amazon — <em>&ldquo;As an Amazon
+          Associate I earn from qualifying purchases.&rdquo;</em> — aparece junto aos links naquela
+          página.
+        </p>
+        <p>
+          Fora dessa página, <strong>a Amazon não está ativa no PETMOL</strong>: não há links da
+          Amazon no aplicativo, na comparação de preços, na tela de compras do tutor nem no app
+          nativo (iOS/Android).
+        </p>
+        {amazonActive && <p>{amazonDisclosure.requiredStatement}</p>}
 
         <h2>Dúvidas</h2>
         <p>

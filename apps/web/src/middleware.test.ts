@@ -15,6 +15,11 @@ describe('middleware — /loja e /guias chegam à página para retornar 404', ()
     expect(isPublic('/transparencia')).toBe(true);
   });
 
+  it('/recommendations (página Amazon Associates em inglês) é pública', () => {
+    expect(isPublic('/recommendations')).toBe(true);
+    expect(isPublic('/recommendations/')).toBe(true);
+  });
+
   it('rotas autenticadas de verdade continuam exigindo sessão (não viraram públicas por engano)', () => {
     expect(isPublic('/home')).toBe(false);
     expect(isPublic('/profile')).toBe(false);

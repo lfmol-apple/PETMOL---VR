@@ -15,6 +15,10 @@ export function Footer() {
           Guias
         </Link>
         <span className="text-slate-300">•</span>
+        <Link href="/recommendations" className="hover:text-slate-600 transition-colors">
+          Recommendations
+        </Link>
+        <span className="text-slate-300">•</span>
         <Link href="/sobre" className="hover:text-slate-600 transition-colors">
           Sobre
         </Link>

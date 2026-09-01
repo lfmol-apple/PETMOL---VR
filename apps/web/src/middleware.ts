@@ -25,6 +25,7 @@ const PUBLIC_PATHS = [
   '/cuidar/',
   '/loja',
   '/guias',
+  '/recommendations',
   '/sobre',
   '/politica-editorial',
   '/transparencia',
