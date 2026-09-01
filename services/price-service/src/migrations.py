@@ -442,6 +442,12 @@ def run_pg_migrations(engine: Engine) -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ape_session_received ON analytics_product_events (session_id, received_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ape_app_version ON analytics_product_events (app_version)"))
 
+        # Mission Control BI (admin analytics): time-range scans on signup /
+        # pet-creation dates. Additive, read-path only.
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_users_created_at ON users (created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pets_created_at ON pets (created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_users_state_city ON users (state, city)"))
+
         # GET /commerce/awin-search: busca de produto ignorando acento
         # ("racao" precisa achar "Ração" — teclado de celular raramente
         # acentua). unaccent() é extensão contrib nativa do Postgres, não
@@ -1036,6 +1042,11 @@ def run_sqlite_migrations(engine: Engine) -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ape_anon_received ON analytics_product_events (anonymous_id, received_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ape_session_received ON analytics_product_events (session_id, received_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_ape_app_version ON analytics_product_events (app_version)"))
+
+        # Mission Control BI (admin analytics) — ver run_pg_migrations.
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_users_created_at ON users (created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pets_created_at ON pets (created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_users_state_city ON users (state, city)"))
 
         # parasite_control_records: GTIN/EAN escaneado (Ago 2026) — ver
         # comentário equivalente em run_pg_migrations.
