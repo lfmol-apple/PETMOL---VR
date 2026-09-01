@@ -62,6 +62,7 @@ from .commerce_pricing import fetch_cobasi_price_by_gtin
 from .commerce_provider import DiscoveredOffer, MonetizedOffer, ProductContext
 from .config import Settings, get_settings
 from .merchant_routes import preferred_route_for
+from .product_identity import IdentityDecision, MerchantCandidate, ProductIdentity, evaluate_identity
 from .product_catalog_lookup import ProductCatalog, normalize_gtin
 
 
@@ -108,6 +109,35 @@ class CobasiProvider:
         link = get_active_link(self._db, product.id, self.merchant)
         return (product, link) if link is not None else (None, None)
 
+    def _catalog_for_gtin(self, gtin: Optional[str]) -> Optional[ProductCatalog]:
+        gtin_normalized = normalize_gtin(gtin or "")
+        if not gtin_normalized:
+            return None
+        return self._db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
+
+    def _identity_for_context(self, context: ProductContext, product: Optional[ProductCatalog]) -> ProductIdentity:
+        if product is not None:
+            return ProductIdentity.from_catalog(product)
+        return ProductIdentity.build(
+            gtin=context.gtin,
+            canonical_name=context.canonical_name or context.name or context.query,
+            brand=context.canonical_brand or context.brand,
+            species=context.species,
+            category=context.category,
+            weight_kg=context.weight_kg,
+            image_url=context.canonical_image_url,
+            evidence=("PRODUCT_CONTEXT",),
+        )
+
+    def _offer_identity_payload(self, identity: ProductIdentity, product: Optional[ProductCatalog]) -> dict:
+        return {
+            "canonical_product_id": product.id if product else None,
+            "canonical_gtin": identity.gtin,
+            "canonical_name": identity.canonical_name,
+            "canonical_brand": identity.brand,
+            "canonical_image_url": identity.image_url,
+        }
+
     async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
         gtin_n = normalize_gtin(context.gtin) if context.gtin else None
 
@@ -121,18 +151,50 @@ class CobasiProvider:
         #    mais.app/IvUCAG) — monetize() resolve o link pelo context.gtin.
         #    Identidade do CATÁLOGO (nome/marca), preço do EAN quando houver.
         product, link = self._catalog_with_manual_link(context.gtin)
+        identity = self._identity_for_context(context, product or self._catalog_for_gtin(context.gtin))
         if product is not None and link is not None:
             has_price = bool(price and price.found and price.price is not None)
+            match_result = None
+            if has_price:
+                match_result = evaluate_identity(
+                    identity,
+                    MerchantCandidate.build(
+                        merchant=self.merchant,
+                        title=price.product_name,
+                        gtin=price.ean,
+                        brand=price.brand,
+                        price=price.price,
+                    ),
+                )
+                has_price = match_result.decision == IdentityDecision.EXACT
             return DiscoveredOffer(
                 merchant=self.merchant,
-                product_name=(price.product_name if has_price else None) or product.name,
-                brand=product.brand or (price.brand if price else None),
+                **self._offer_identity_payload(identity, product),
+                product_name=identity.canonical_name or product.name,
+                brand=identity.brand or product.brand,
                 price=price.price if has_price else None,
                 list_price=price.list_price if has_price else None,
                 is_available=price.is_available if has_price else True,
                 direct_url=None,
                 ean=gtin_n,
                 allow_without_price=not has_price,
+                merchant_product_name=price.product_name if price else None,
+                match_decision=(match_result.decision.value if match_result else "EXACT"),
+                match_confidence=(match_result.confidence if match_result else 1.0),
+                match_reasons=(list(match_result.reasons) if match_result else ["GTIN_MANUAL_LINK"]),
+                match_attributes=(
+                    [
+                        {
+                            "attribute": item.attribute,
+                            "expected": item.expected,
+                            "observed": item.observed,
+                            "status": item.status.value,
+                            "reason": item.reason,
+                        }
+                        for item in match_result.attributes
+                    ]
+                    if match_result else None
+                ),
             )
 
         # SEM código de barras não há Cobasi. O produto certo é o do GTIN —
@@ -157,15 +219,43 @@ class CobasiProvider:
         if price is None or not price.found or price.price is None:
             return None
 
+        match_result = evaluate_identity(
+            identity,
+            MerchantCandidate.build(
+                merchant=self.merchant,
+                title=price.product_name,
+                gtin=price.ean,
+                brand=price.brand,
+                price=price.price,
+            ),
+        )
+        if match_result.decision != IdentityDecision.EXACT:
+            return None
+
         return DiscoveredOffer(
             merchant=self.merchant,
-            product_name=price.product_name,
-            brand=price.brand,
+            **self._offer_identity_payload(identity, self._catalog_for_gtin(context.gtin)),
+            product_name=identity.canonical_name or price.product_name,
+            brand=identity.brand or price.brand,
             price=price.price,
             list_price=price.list_price,
             is_available=price.is_available,
             direct_url=price.url,
             ean=price.ean or normalize_gtin(context.gtin),
+            merchant_product_name=price.product_name,
+            match_decision=match_result.decision.value,
+            match_confidence=match_result.confidence,
+            match_reasons=list(match_result.reasons),
+            match_attributes=[
+                {
+                    "attribute": item.attribute,
+                    "expected": item.expected,
+                    "observed": item.observed,
+                    "status": item.status.value,
+                    "reason": item.reason,
+                }
+                for item in match_result.attributes
+            ],
         )
 
     def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str, str, bool]]:

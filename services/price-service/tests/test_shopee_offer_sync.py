@@ -153,6 +153,10 @@ def test_match_confiavel_cria_marketplace_offer(monkeypatch):
         assert offer.active is True
         assert offer.is_available is True
         assert offer.verified_at is not None
+        assert offer.merchant_title == SOMA_15KG_OFFER["productName"]
+        assert offer.match_decision in {"EXACT", "HIGH_CONFIDENCE"}
+        assert offer.match_confidence is not None
+        assert offer.match_reasons_json is not None
     finally:
         db.close()
 
@@ -192,6 +196,7 @@ def test_match_confiavel_grava_multiplas_ofertas_e_remove_outlier(monkeypatch):
         rows = db.scalars(select(MarketplaceOffer).where(MarketplaceOffer.merchant == "shopee")).all()
         assert {row.external_listing_id for row in rows} == {"58204606553", "58204606554"}
         assert min(row.price for row in rows if row.price is not None) == 72.9
+        assert all(row.match_decision in {"EXACT", "HIGH_CONFIDENCE"} for row in rows)
     finally:
         db.close()
 

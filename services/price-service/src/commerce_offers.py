@@ -18,9 +18,10 @@ só acrescentar em build_default_engine() — nenhuma tela precisa saber
 quantos providers existem.
 """
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .awin_advertisers import AWIN_SELLABLE_MERCHANTS, AWIN_ADVERTISERS, is_awin_merchant_registrable
@@ -30,6 +31,7 @@ from .commerce_provider import CommerceEngine, CommerceProvider, MonetizedOffer,
 from .marketplace_offer_provider import MarketplaceOfferProvider
 from .mercadolivre_commerce_provider import MercadoLivreCommerceProvider, is_mercadolivre_commerce_publicly_servable
 from .petz_provider import PetzProvider
+from .product_catalog_lookup import ProductCatalog, normalize_gtin
 
 # Merchants marketplace conhecidos (Shopee, Mercado Livre) — sempre
 # registrados, nunca condicionado a settings aqui:
@@ -45,6 +47,10 @@ _MARKETPLACE_MERCHANTS = ("shopee", "mercadolivre")
 class ProductOfferResult(BaseModel):
     found: bool
     merchant: str = "cobasi"
+    canonical_product_id: Optional[int] = None
+    canonical_gtin: Optional[str] = None
+    canonical_name: Optional[str] = None
+    canonical_brand: Optional[str] = None
     product_name: Optional[str] = None
     brand: Optional[str] = None
     price: Optional[float] = None
@@ -58,6 +64,11 @@ class CommerceOfferOut(BaseModel):
     merchant: str
     url: str
     link_type: str
+    canonical_product_id: Optional[int] = None
+    canonical_gtin: Optional[str] = None
+    canonical_name: Optional[str] = None
+    canonical_brand: Optional[str] = None
+    canonical_image_url: Optional[str] = None
     product_name: Optional[str] = None
     brand: Optional[str] = None
     price: Optional[float] = None
@@ -66,6 +77,11 @@ class CommerceOfferOut(BaseModel):
     image_url: Optional[str] = None
     price_checked_at: Optional[datetime] = None
     price_is_stale: bool = False
+    merchant_product_name: Optional[str] = None
+    match_decision: Optional[str] = None
+    match_confidence: Optional[float] = None
+    match_reasons: Optional[list[str]] = None
+    match_attributes: Optional[list[dict[str, Any]]] = None
 
 
 _NOT_FOUND = ProductOfferResult(found=False)
@@ -150,6 +166,10 @@ def _to_result(offer: MonetizedOffer) -> ProductOfferResult:
     return ProductOfferResult(
         found=True,
         merchant=offer.merchant,
+        canonical_product_id=offer.canonical_product_id,
+        canonical_gtin=offer.canonical_gtin,
+        canonical_name=offer.canonical_name,
+        canonical_brand=offer.canonical_brand,
         product_name=offer.product_name,
         brand=offer.brand,
         price=offer.price,
@@ -191,13 +211,34 @@ async def get_commerce_offers(
     estruturados (ex: AwinFeedProvider, que só resolve por GTIN exato,
     nunca por texto). Providers de busca textual (Cobasi/VTEX hoje)
     continuam usando `query`."""
+    product = _resolve_catalog_product(db, gtin=gtin, product_id=product_id)
+    canonical_gtin = normalize_gtin(product.barcode_normalized) if product else normalize_gtin(gtin or "")
+    canonical_name = (product.canonical_name or product.name) if product else (name or query)
+    canonical_brand = (product.canonical_brand or product.brand) if product else brand
+    canonical_image_url = product.thumbnail_url if product else None
     engine = build_default_engine(db)
     context = ProductContext(
         query=query,
         weight_kg=target_weight_kg,
-        gtin=gtin,
-        product_id=product_id,
-        name=name,
-        brand=brand,
+        gtin=canonical_gtin or gtin,
+        product_id=product.id if product else product_id,
+        name=canonical_name,
+        brand=canonical_brand,
+        species=product.species if product else None,
+        category=product.category if product else None,
+        canonical_name=canonical_name,
+        canonical_brand=canonical_brand,
+        canonical_image_url=canonical_image_url,
     )
     return await engine.get_offers(context)
+
+
+def _resolve_catalog_product(db: Session, *, gtin: Optional[str], product_id: Optional[int]) -> Optional[ProductCatalog]:
+    if product_id is not None:
+        product = db.get(ProductCatalog, product_id)
+        if product is not None:
+            return product
+    gtin_normalized = normalize_gtin(gtin or "")
+    if not gtin_normalized:
+        return None
+    return db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))

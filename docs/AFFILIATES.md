@@ -21,6 +21,20 @@ Essas quatro coisas nunca são confundidas no código: ASIN/listing_id de
 marketplace é referência externa, nunca substitui o GTIN; um anúncio
 Shopee/ML nunca se torna a identidade do produto.
 
+Desde 01/09/2026, essa separação é codificada explicitamente em
+`Product Identity` / `Merchant Match` / `Price`:
+
+- **Product Identity** vem de `products_catalog` (GTIN, nome/marca
+  canônicos e atributos de SKU como peso, volume, cm, faixa de peso do
+  pet, comprimidos, porte, espécie e linha terapêutica).
+- **Merchant Match** é uma decisão auditável (`EXACT`,
+  `HIGH_CONFIDENCE`, `AMBIGUOUS`, `CONFLICT`, `NO_MATCH`) gravada junto
+  da oferta quando aplicável.
+- **Price** é só valor volátil de uma oferta já casada; preço nunca prova
+  que duas variações são o mesmo produto.
+
+Detalhes operacionais: `docs/PRODUCT_IDENTITY.md`.
+
 ## Lançamento (2026-08-30): **Cobasi + Shopee**
 
 O app lança com **Cobasi** e **Shopee** como lojas ativas. **Petz** foi
@@ -51,7 +65,7 @@ abaixo).
 | Zee Now | Awin (advertiser 127557, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116779, 13.835 produtos observados; 13.605 GTINs válidos diretos, 152 UPC-11 corrigíveis, 78 inválidos e 9 grupos duplicados em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeenow`, exposição depende dos gates Awin |
 | Zee Dog | Awin (advertiser 127555, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116649, 1.799 produtos observados, 100% GTIN válido/único em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeedog`, exposição depende dos gates Awin |
 | Petz | Awin (advertiser 127553, pending) + programa próprio "Loja Parceira" | `PetzProductMapping` — aprendizado por produto, confirmação humana (ver §Petz) | **nenhuma — DESATIVADA 2026-08-30** (`petz_publicly_disabled=True` + frontend `disabled`); Petz não expõe deep link de produto pra parceiros | não | desativada; código dormente, reativação = 2 flags |
-| Shopee | Shopee Affiliates | `MarketplaceOffer`/`MarketplaceOfferProvider` (busca textual + GTIN como 1ª keyword — API não tem lookup por GTIN) + discovery on-demand por GTIN quando o tutor abre a Loja (background, cooldown por GTIN) | **ATIVA** — vitrine (shortlink) + ofertas por produto. `shopee_affiliate_enabled=True`. Rede de segurança: oferta >36h → sem preço-número ("Conferir preço na loja"), link afiliado preservado. Sync noturno `source=active_products` (fila em prioridades: **GTINs usados pelos tutores** → backlog de ofertas ativas → catálogo Awin fresco — tutores primeiro desde 01/09/2026, senão o backlog de 10k+ estourava o teto de 400/noite e o preço ficava sempre defasado). Abertura de oferta defasada agenda reprecificação em background (mesmo cooldown da descoberta). Ver `docs/LAUNCH.md` §7 | n/a | precisão em #120; gap residual = variante de coleira abreviada (mitigado por audit + revisão) |
+| Shopee | Shopee Affiliates | `MarketplaceOffer`/`MarketplaceOfferProvider` (busca textual + GTIN como 1ª keyword — API não tem lookup por GTIN) + discovery on-demand por GTIN quando o tutor abre a Loja (background, cooldown por GTIN) | **ATIVA** — vitrine (shortlink) + ofertas por produto. `shopee_affiliate_enabled=True`. Rede de segurança: oferta >36h → sem preço-número ("Conferir preço na loja"), link afiliado preservado. Sync noturno `source=active_products` descobre/revalida ofertas; refresh de preço roda separado em `petmol-commerce-price-refresh.timer` e nunca troca `external_listing_id`. Ver `docs/LAUNCH.md` §7 e `docs/PRODUCT_IDENTITY.md` | n/a | Product Identity Engine ativo; conflito de variação bloqueia preço/oferta em vez de escolher pelo menor preço |
 | Mercado Livre | ML Afiliados | `MarketplaceOffer`/`mercadolivre_link_validator.py` — ponte manual controlada | **nenhuma — FORA DO LANÇAMENTO** (`mercadolivre_affiliate_enabled=false`, `mercadolivre_public_offers_enabled=false`, frontend `disabled`); entra depois | n/a | shadow mode; bridge manual pronta (`export_ml_link_candidates.py`/`import_ml_offers.py`); ver PR #56 |
 | Amazon | Amazon Associates encerrado em 22/08/2026 (`petmol-20`) | nenhum | nenhum; integração temporariamente removida das superfícies públicas | n/a | disabled — reativação proibida até nova aprovação e nova tag válida |
 | Petlove Produtos | — | nenhum | nenhuma | n/a | disabled deliberadamente |
@@ -81,10 +95,13 @@ DISCOVERY → MONETIZATION → FILTER (descarta sem monetização) → SORT (men
 Nunca o inverso — nunca "existe link cadastrado? então busca o produto".
 
 - `services/price-service/src/commerce_provider.py` — `ProductContext`
-  (identidade: gtin/name/brand/weight_kg/query), `DiscoveredOffer`
+  (identidade: gtin/name/brand/weight_kg/query + campos canônicos),
+  `DiscoveredOffer`
   (resultado de `find_offer`), `MonetizedOffer` (resultado final, com
   URL+link_type), `CommerceProvider` (protocolo: `find_offer`+`monetize`),
   `CommerceEngine` (orquestra providers → filtra → ordena por preço).
+  `product_name`/`brand` de saída preferem a identidade canônica PETMOL;
+  `merchant_product_name` fica só para auditoria.
 - `services/price-service/src/cobasi_provider.py` — `CobasiProvider`:
   - `find_offer()`: chama `commerce_pricing.fetch_cobasi_price` (API
     pública VTEX da Cobasi, ao vivo) — roda para qualquer produto.

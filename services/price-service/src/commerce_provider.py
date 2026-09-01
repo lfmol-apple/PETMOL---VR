@@ -42,8 +42,13 @@ class ProductContext:
     gtin: Optional[str] = None
     name: Optional[str] = None
     brand: Optional[str] = None
+    species: Optional[str] = None
+    category: Optional[str] = None
     weight_kg: Optional[float] = None
     product_id: Optional[int] = None  # products_catalog.id, quando já resolvido
+    canonical_name: Optional[str] = None
+    canonical_brand: Optional[str] = None
+    canonical_image_url: Optional[str] = None
     # Texto de busca já montado pelo chamador (ex: "Royal Canin ração"),
     # quando o provider usa busca textual (Cobasi hoje). Providers com API
     # estruturada por GTIN podem ignorar isto e usar
@@ -56,6 +61,11 @@ class DiscoveredOffer:
     """Resultado de find_offer() — produto/preço reais, ainda sem monetização."""
 
     merchant: str
+    canonical_product_id: Optional[int] = None
+    canonical_gtin: Optional[str] = None
+    canonical_name: Optional[str] = None
+    canonical_brand: Optional[str] = None
+    canonical_image_url: Optional[str] = None
     product_name: Optional[str] = None
     brand: Optional[str] = None
     price: Optional[float] = None
@@ -75,6 +85,11 @@ class DiscoveredOffer:
     # passar pelo engine. Só esses casos setam allow_without_price=True.
     # Cobasi/Awin nunca setam — continuam exigindo preço.
     allow_without_price: bool = False
+    match_decision: Optional[str] = None
+    match_confidence: Optional[float] = None
+    match_reasons: Optional[list[str]] = None
+    match_attributes: Optional[list[dict]] = None
+    merchant_product_name: Optional[str] = None
 
 
 @dataclass
@@ -84,6 +99,13 @@ class MonetizedOffer:
     merchant: str
     url: str
     link_type: str  # affiliate_product | affiliate_marketplace_offer | affiliate_store | direct
+    # Identidade PETMOL, separada da oferta externa. O frontend deve
+    # renderizar estes campos como fonte de verdade quando existirem.
+    canonical_product_id: Optional[int] = None
+    canonical_gtin: Optional[str] = None
+    canonical_name: Optional[str] = None
+    canonical_brand: Optional[str] = None
+    canonical_image_url: Optional[str] = None
     # Mecanismo de monetização usado (ex: "mais" para Cobasi via MAIS/UTM,
     # "awin" para merchants via feed Awin) — usado só internamente pelo
     # CommerceEngine para dedupe por merchant_routes.py. Opcional porque
@@ -105,6 +127,12 @@ class MonetizedOffer:
     image_url: Optional[str] = None
     price_checked_at: Optional[datetime] = None
     price_is_stale: bool = False
+    # Oferta/match externo, para auditoria. Não substitui canonical_*.
+    merchant_product_name: Optional[str] = None
+    match_decision: Optional[str] = None
+    match_confidence: Optional[float] = None
+    match_reasons: Optional[list[str]] = None
+    match_attributes: Optional[list[dict]] = None
 
 
 class CommerceProvider(Protocol):
@@ -176,14 +204,24 @@ class CommerceEngine:
                 link_type=link_type,
                 route=route,
                 is_manually_cached=is_manually_cached,
-                product_name=discovered.product_name,
-                brand=discovered.brand,
+                canonical_product_id=discovered.canonical_product_id or context.product_id,
+                canonical_gtin=discovered.canonical_gtin or context.gtin,
+                canonical_name=discovered.canonical_name or context.canonical_name or context.name or discovered.product_name,
+                canonical_brand=discovered.canonical_brand or context.canonical_brand or context.brand or discovered.brand,
+                canonical_image_url=discovered.canonical_image_url or context.canonical_image_url or discovered.image_url,
+                product_name=discovered.canonical_name or context.canonical_name or context.name or discovered.product_name,
+                brand=discovered.canonical_brand or context.canonical_brand or context.brand or discovered.brand,
                 price=discovered.price,
                 list_price=discovered.list_price,
                 is_available=discovered.is_available,
-                image_url=discovered.image_url,
+                image_url=discovered.canonical_image_url or context.canonical_image_url or discovered.image_url,
                 price_checked_at=discovered.price_checked_at,
                 price_is_stale=discovered.price_is_stale,
+                merchant_product_name=discovered.merchant_product_name or discovered.product_name,
+                match_decision=discovered.match_decision,
+                match_confidence=discovered.match_confidence,
+                match_reasons=discovered.match_reasons,
+                match_attributes=discovered.match_attributes,
             ))
 
         offers = _dedupe_by_merchant(offers)

@@ -5,17 +5,17 @@ quando aprovado), lendo só MarketplaceOffer — nunca gera link, nunca
 chama a rede do marketplace ao vivo, nunca scraping.
 
 Diferente de AwinFeedProvider (sincroniza automaticamente via feed
-externo em lote): aqui cada linha de MarketplaceOffer é cadastrada
-manualmente por um admin, a partir do link oficial que o Portal do
-Afiliado da rede emitiu (ver admin/marketplace_offers_router.py) — nunca
+externo em lote): aqui cada linha de MarketplaceOffer vem de discovery
+controlado/sync oficial do marketplace ou de cadastro manual revisado por
+admin, sempre com link afiliado real emitido pela rede — nunca
 inventado/gerado por template. Um provider por merchant marketplace, não
 um genérico "marketplace" — mesmo padrão de AwinFeedProvider(merchant).
 
 CommerceEngine descarta qualquer DiscoveredOffer sem preço
 (commerce_provider.py) — como nunca fazemos scraping de preço, uma
-oferta só aparece quando o admin cadastrou um preço real junto do link;
-sem isso, a oferta simplesmente não é visível por este caminho (não é um
-bug, é a mesma regra "sem monetização real, não aparece" aplicada aqui).
+oferta só aparece com preço quando o sync/refresh confirmou um número
+fresco; sem isso, a oferta pode virar "conferir preço na loja", mas preço
+velho não é publicado como número.
 """
 from __future__ import annotations
 
@@ -30,10 +30,10 @@ from .affiliate_links import MarketplaceOffer, get_active_marketplace_offer
 from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
 from .db import SessionLocal
+from .product_identity import MerchantCandidate, ProductIdentity, evaluate_identity
 from .product_catalog_lookup import ProductCatalog, normalize_gtin, search_catalog_by_text
 from .mercadolivre_link_validator import InvalidMercadoLivreAffiliateUrlError, validate_mercadolivre_affiliate_url
 from .shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
-from .shopee_offer_matcher import score_candidate
 
 # Merchants marketplace conhecidos e seu validador de link oficial — cada
 # um com o próprio, nunca reaproveitando o de outro merchant por
@@ -107,15 +107,14 @@ class MarketplaceOfferProvider:
         for product in search_catalog_by_text(self._db, q=catalog_query, category="food", limit=10):
             if get_active_marketplace_offer(self._db, product.id, self.merchant) is None:
                 continue
-            score = score_candidate(
-                product.name or "",
-                query,
-                expected_brand=product.brand,
+            result = evaluate_identity(
+                ProductIdentity.from_catalog(product),
+                MerchantCandidate.build(merchant=self.merchant, title=query, brand=context.brand),
             )
-            if score is None or score < 0.5:
+            if not result.accepted:
                 continue
-            if best is None or score > best[0]:
-                best = (score, product)
+            if best is None or result.confidence > best[0]:
+                best = (result.confidence, product)
 
         return best[1].id if best else None
 
@@ -155,8 +154,22 @@ class MarketplaceOfferProvider:
                 checked_at = _effective_checked_at(offer)
 
         fresh = _is_offer_fresh(checked_at)
+        identity = ProductIdentity.from_catalog(product) if product is not None else ProductIdentity.build(gtin=context.gtin, canonical_name=context.name or context.query, brand=context.brand)
+        match_reasons = None
+        match_attributes = None
+        if offer.match_reasons_json:
+            match_reasons = _json_list(offer.match_reasons_json)
+        if offer.match_attributes_json:
+            match_attributes = _json_dict_list(offer.match_attributes_json)
         return DiscoveredOffer(
             merchant=self.merchant,
+            canonical_product_id=product.id if product else product_id,
+            canonical_gtin=identity.gtin or context.gtin,
+            canonical_name=identity.canonical_name or context.name or context.query,
+            canonical_brand=identity.brand or context.brand,
+            canonical_image_url=identity.image_url or (product.thumbnail_url if product else None),
+            product_name=identity.canonical_name or context.name or context.query,
+            brand=identity.brand or context.brand,
             # Preço de marketplace defasado NÃO vira número na tela — o
             # anúncio de terceiro pode ter mudado de preço/estoque desde o
             # último sync. Sem preço fresco, o frontend mostra "Conferir
@@ -171,6 +184,11 @@ class MarketplaceOfferProvider:
             # Oferta afiliada válida cujo preço expirou — passa pelo engine
             # mesmo com price=None (ver commerce_provider.CommerceEngine).
             allow_without_price=not fresh,
+            merchant_product_name=offer.merchant_title,
+            match_decision=offer.match_decision or "HIGH_CONFIDENCE",
+            match_confidence=offer.match_confidence if offer.match_confidence is not None else 0.75,
+            match_reasons=match_reasons or ["PREVALIDATED_MARKETPLACE_OFFER"],
+            match_attributes=match_attributes,
         )
 
     def _maybe_schedule_discovery(self, context: ProductContext, product: Optional[ProductCatalog]) -> None:
@@ -273,3 +291,27 @@ def _refresh_marketplace_offer(merchant: str, gtin: str) -> None:
         db.rollback()
     finally:
         db.close()
+
+
+def _json_list(raw: str) -> list[str]:
+    import json
+
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(item) for item in parsed if item]
+
+
+def _json_dict_list(raw: str) -> list[dict]:
+    import json
+
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [item for item in parsed if isinstance(item, dict)]

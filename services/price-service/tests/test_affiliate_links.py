@@ -160,7 +160,7 @@ def _fake_price(ean: str | None, price: float = 16.9, url: str = "https://www.co
 
 def test_product_offer_dev_fallback_when_no_link_registered(client, monkeypatch):
     async def fake_fetch(gtin: str) -> ProductPriceResult:
-        return _fake_price(ean=None)
+        return _fake_price(ean=GTIN)
 
     monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_by_gtin", fake_fetch)
 
@@ -173,7 +173,7 @@ def test_product_offer_dev_fallback_when_no_link_registered(client, monkeypatch)
 
 def test_product_offer_prod_hides_when_no_link_registered(client, monkeypatch):
     async def fake_fetch(gtin: str) -> ProductPriceResult:
-        return _fake_price(ean=None)
+        return _fake_price(ean=GTIN)
 
     monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_by_gtin", fake_fetch)
     _force_prod(monkeypatch)
