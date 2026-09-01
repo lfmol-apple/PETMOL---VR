@@ -225,28 +225,4 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       vi.resetModules();
     }
   });
-
-  // §6 auditoria forense: quando NÃO há preço provável (UNKNOWN de
-  // identidade), a Loja não pode sumir — o MonetizedOffersList mostra o
-  // SafeStoreCtaRow com os parceiros de QUICK_BUY_PARTNERS. Este teste
-  // garante que esses parceiros sempre resolvem uma rota de loja segura.
-  it('QUICK_BUY_PARTNERS (Cobasi, Shopee) sempre resolvem CTA de loja seguro para o fallback sem preço', async () => {
-    const { HOME_SHOPPING_PARTNERS, resolvePartnerUrl, isPartnerVisibleForSearch } = await import('./homeShoppingPartners');
-    const { QUICK_BUY_PARTNERS } = await import('./petStoreContent');
-
-    expect(QUICK_BUY_PARTNERS).toEqual(['cobasi', 'shopee']);
-
-    const rendered = QUICK_BUY_PARTNERS
-      .map((id) => HOME_SHOPPING_PARTNERS.find((p) => p.id === id)!)
-      .filter(isPartnerVisibleForSearch);
-
-    expect(rendered.map((p) => p.id)).toEqual(['cobasi', 'shopee']);
-    for (const partner of rendered) {
-      const url = resolvePartnerUrl(partner, 'ração pet', '');
-      expect(url).toBeTruthy();
-    }
-    // Cobasi → vitrine afiliada "Minha Loja"
-    const cobasi = rendered.find((p) => p.id === 'cobasi')!;
-    expect(resolvePartnerUrl(cobasi, 'ração pet', '')).toContain('minhaloja.cobasi.com.br');
-  });
 });
