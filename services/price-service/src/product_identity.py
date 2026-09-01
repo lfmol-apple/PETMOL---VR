@@ -288,6 +288,38 @@ def evaluate_identity(
     return IdentityMatchResult(IdentityDecision.NO_MATCH, confidence, _dedupe(tuple(reasons)), tuple(comparisons))
 
 
+_STRUCTURAL_FIELDS = ("weight_kg", "volume_ml", "length_cm", "pack_count", "animal_weight_range", "species", "breed_size")
+
+
+def compare_structural(a: ProductIdentity, b: ProductIdentity) -> tuple[AttributeComparison, ...]:
+    """Compara dois produtos PETMOL campo a campo (não PETMOL-vs-merchant).
+    Usado pelo agrupamento de SKU: só forma grupo se os discriminadores
+    estruturais BATEM; qualquer CONFLICT veta. Reaproveita os comparadores
+    e tolerâncias do evaluate_identity. Sem texto, sem score."""
+    out = [
+        _compare_numeric("weight_kg", a.weight_kg, b.weight_kg, tolerance=max(0.05, (a.weight_kg or 0) * 0.05)),
+        _compare_numeric("volume_ml", a.volume_ml, b.volume_ml, tolerance=max(20.0, (a.volume_ml or 0) * 0.05)),
+        _compare_numeric("length_cm", a.length_cm, b.length_cm, tolerance=2.0),
+        _compare_exact("pack_count", a.pack_count, b.pack_count),
+        _compare_range("animal_weight_range", a.animal_weight_range, b.animal_weight_range),
+        _compare_exact("species", a.species, b.species),
+        _compare_exact("breed_size", a.breed_size, b.breed_size),
+    ]
+    return tuple(out)
+
+
+def structural_conflict(a: ProductIdentity, b: ProductIdentity) -> Optional[str]:
+    for item in compare_structural(a, b):
+        if item.status == AttributeStatus.CONFLICT:
+            return item.reason
+    return None
+
+
+def structural_agreement(a: ProductIdentity, b: ProductIdentity) -> list[str]:
+    """Campos estruturais que BATEM entre os dois (não UNKNOWN, não CONFLICT)."""
+    return [item.attribute for item in compare_structural(a, b) if item.status == AttributeStatus.MATCH]
+
+
 def select_unambiguous_match(
     expected: ProductIdentity,
     candidates: list[MerchantCandidate],
