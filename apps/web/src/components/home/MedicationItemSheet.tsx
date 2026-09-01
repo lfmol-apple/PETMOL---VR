@@ -144,7 +144,7 @@ type Mode = 'view' | 'add' | 'edit' | 'buy';
 
 const labelCls = 'block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5';
 const inputCls =
-  'w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300';
+  'w-full min-w-0 border border-gray-200 rounded-xl px-3 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300';
 
 // ── Component ────────────────────────────────────────────────────────────────
 export function MedicationItemSheet({
@@ -986,7 +986,7 @@ export function MedicationItemSheet({
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
+                <div className="min-w-0">
                   <label className={labelCls}>Fabricante</label>
                   <input
                     type="text"
@@ -1041,7 +1041,7 @@ export function MedicationItemSheet({
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
+                <div className="min-w-0">
                   <label className={labelCls}>Dose</label>
                   <input
                     type="text"

@@ -464,7 +464,7 @@ export function ParasiteItemSheet({
   }
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
-  const inputCls = `w-full prime-input text-gray-800 ${cfg.colorRing}`;
+  const inputCls = `w-full min-w-0 prime-input text-gray-800 ${cfg.colorRing}`;
   const labelCls = 'block text-[10px] font-black text-gray-400 uppercase tracking-[0.16em] mb-1.5 ml-1';
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -794,7 +794,7 @@ export function ParasiteItemSheet({
               <h3 className="text-[16px] font-bold text-gray-900">Editar registro</h3>
 
               <div className="grid grid-cols-2 gap-2.5">
-                <div>
+                <div className="min-w-0">
                   <label className={labelCls}>Data</label>
                   <input
                     type="date"

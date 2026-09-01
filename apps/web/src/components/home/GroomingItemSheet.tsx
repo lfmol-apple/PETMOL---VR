@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import type { GroomingRecord, GroomingType } from '@/lib/types/home';
-import { Check, Home } from 'lucide-react';
+import { Check, Home, Trash2 } from 'lucide-react';
 import { SheetAvatar, SheetHeader, SheetShell } from '@/components/ui/sheet';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
@@ -362,7 +362,7 @@ export function GroomingItemSheet({
   }
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
-  const inputCls = 'w-full border border-[#E5E5EA] rounded-xl px-4 py-3 text-[15px] text-[#1C1C1E] bg-white focus:outline-none focus:ring-2 focus:ring-[#5856D6]/30 placeholder:text-[#C7C7CC]';
+  const inputCls = 'w-full min-w-0 border border-[#E5E5EA] rounded-xl px-3 py-3 text-[15px] text-[#1C1C1E] bg-white focus:outline-none focus:ring-2 focus:ring-[#5856D6]/30 placeholder:text-[#C7C7CC]';
   const labelCls = 'block text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider mb-1.5';
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -421,6 +421,17 @@ export function GroomingItemSheet({
           media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpecies === 'cat' ? '🐱' : '🐶'} />}
           onClose={onClose}
           onBack={mode !== 'view' ? () => { setMode('view'); setEditRecord(null); } : undefined}
+          action={mode === 'edit' && editRecord ? (
+            <button
+              type="button"
+              onClick={() => setConfirmDeleteId(editRecord.id)}
+              disabled={saving}
+              aria-label="Excluir"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 disabled:opacity-50"
+            >
+              <Trash2 className="h-[15px] w-[15px]" strokeWidth={2.3} />
+            </button>
+          ) : undefined}
         />
 
         {/* Scrollable body */}
@@ -716,45 +727,26 @@ export function GroomingItemSheet({
 
           {/* ── EDIT FORM ─────────────────────────────────────────────────── */}
           {mode === 'edit' && editRecord && (
-            <div className="px-4 pb-4 space-y-3 pt-2">
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => { setMode('view'); setEditRecord(null); }}
-                  onTouchEnd={() => { setMode('view'); setEditRecord(null); }}
-                  className="flex items-center gap-1 text-[#5856D6] text-[15px] font-semibold"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4"><path d="M15 18l-6-6 6-6"/></svg>
-                  Voltar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmDeleteId(editRecord.id)}
-                  disabled={saving}
-                  className="flex items-center gap-1 text-[13px] font-bold text-[#FF3B30] active:opacity-60 disabled:opacity-50"
-                >
-                  🗑 Excluir
-                </button>
-              </div>
+            <div className="space-y-3 px-5 pb-4 pt-3">
               <h3 className="text-[17px] font-bold text-[#1C1C1E]">Editar registro</h3>
 
               <div className="grid grid-cols-2 gap-2.5">
-                <div>
+                <div className="min-w-0">
                   <label className={labelCls}>Data *</label>
                   <input
                     type="date"
-                    className={inputCls}
+                    className={`${inputCls} min-w-0`}
                     value={editForm.date}
                     onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className={labelCls}>Repetir a cada (dias)</label>
                   <input
                     type="number"
                     min="1"
                     max="365"
-                    className={inputCls}
+                    className={`${inputCls} min-w-0`}
                     value={editForm.frequency_days}
                     onChange={e => setEditForm(f => ({ ...f, frequency_days: e.target.value }))}
                   />
