@@ -56,7 +56,10 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .affiliate_feed import AffiliateFeedOffer
 from .affiliate_links import get_active_link
+from .affiliate_offer_identity import has_ambiguous_offer_identity
+from .awin_feed_provider import _identity_key, _looks_like_same_product, _select_row_by_weight
 from .cobasi_utm import InvalidCobasiUrlError, build_cobasi_affiliate_url
 from .commerce_pricing import fetch_cobasi_price_by_gtin
 from .commerce_provider import DiscoveredOffer, MonetizedOffer, ProductContext
@@ -215,9 +218,11 @@ class CobasiProvider:
 
         # 2) Sem link cadastrado: só oferece se o EAN exato resolveu na
         #    VTEX (SKU do código de barras). GTIN que a Cobasi não conhece
-        #    = sem oferta (nunca cai pra busca por texto).
+        #    pode cair no fallback estruturado de feed Cobasi quando outra
+        #    loja já provou que o GTIN do tutor é a mesma apresentação
+        #    comercial com código irmão (ex: Scalibor M ↔ 48 cm).
         if price is None or not price.found or price.price is None:
-            return None
+            return self._find_cobasi_feed_sibling_offer(context, identity)
 
         match_result = evaluate_identity(
             identity,
@@ -246,6 +251,112 @@ class CobasiProvider:
             match_decision=match_result.decision.value,
             match_confidence=match_result.confidence,
             match_reasons=list(match_result.reasons),
+            match_attributes=[
+                {
+                    "attribute": item.attribute,
+                    "expected": item.expected,
+                    "observed": item.observed,
+                    "status": item.status.value,
+                    "reason": item.reason,
+                }
+                for item in match_result.attributes
+            ],
+        )
+
+    def _find_cobasi_feed_sibling_offer(
+        self,
+        context: ProductContext,
+        identity: ProductIdentity,
+    ) -> Optional[DiscoveredOffer]:
+        """Fallback para GTINs irmãos entre lojas, sem busca textual.
+
+        A fonte continua estruturada: primeiro precisa existir uma linha de
+        feed de qualquer loja Awin para o GTIN do tutor; depois buscamos uma
+        linha Cobasi ativa cujo título/apresentação case pelo Product
+        Identity Engine. Isso cobre casos reais como Scalibor "M" em uma
+        loja e "Pequenos e Médios - 48 cm" na Cobasi, sem abrir espaço para
+        misturar 48 cm com 65 cm.
+        """
+        canonical_gtin = normalize_gtin(context.gtin)
+        if not canonical_gtin:
+            return None
+
+        references = list(self._db.scalars(
+            select(AffiliateFeedOffer).where(
+                AffiliateFeedOffer.network == "awin",
+                AffiliateFeedOffer.gtin == canonical_gtin,
+                AffiliateFeedOffer.active.is_(True),
+                AffiliateFeedOffer.in_stock.is_(True),
+            )
+        ))
+        if not references:
+            return None
+
+        candidates = list(self._db.scalars(
+            select(AffiliateFeedOffer)
+            .where(
+                AffiliateFeedOffer.network == "awin",
+                AffiliateFeedOffer.merchant == self.merchant,
+                AffiliateFeedOffer.gtin != canonical_gtin,
+                AffiliateFeedOffer.active.is_(True),
+                AffiliateFeedOffer.in_stock.is_(True),
+            )
+            .order_by(AffiliateFeedOffer.price.asc())
+        ))
+        matches = [
+            row for row in candidates
+            if _looks_like_same_product(row, references, context)
+        ]
+        if not matches or has_ambiguous_offer_identity(matches):
+            return None
+        best_identity = _identity_key(matches[0])
+        if any(_identity_key(row) != best_identity for row in matches[1:]):
+            return None
+
+        row = _select_row_by_weight(matches, context.weight_kg)
+        row_identity = ProductIdentity.build(
+            gtin=None,
+            canonical_name=identity.canonical_name or context.canonical_name or context.name or row.title,
+            brand=identity.brand or context.canonical_brand or context.brand or row.brand,
+            species=identity.species or context.species,
+            category=identity.category or context.category or row.category,
+            weight_kg=identity.weight_kg or context.weight_kg or row.weight_kg,
+            image_url=identity.image_url or context.canonical_image_url or row.image_url,
+            evidence=("PRODUCT_CONTEXT", "AWIN_FEED_REFERENCE"),
+        )
+        match_result = evaluate_identity(
+            row_identity,
+            MerchantCandidate.build(
+                merchant=self.merchant,
+                title=row.title,
+                gtin=row.gtin,
+                brand=row.brand,
+                category=row.category,
+                price=row.price,
+                external_id=row.external_product_id,
+            ),
+        )
+        if not match_result.accepted:
+            return None
+
+        return DiscoveredOffer(
+            merchant=self.merchant,
+            **self._offer_identity_payload(identity, self._catalog_for_gtin(context.gtin)),
+            product_name=identity.canonical_name or context.canonical_name or context.name or row.title,
+            brand=identity.brand or context.canonical_brand or context.brand or row.brand,
+            price=row.price,
+            list_price=row.list_price,
+            is_available=row.in_stock,
+            direct_url=row.merchant_url,
+            ean=row.gtin,
+            external_id=row.external_product_id,
+            image_url=identity.image_url or context.canonical_image_url or row.image_url,
+            price_checked_at=row.last_synced_at,
+            price_is_stale=True,
+            merchant_product_name=row.title,
+            match_decision=match_result.decision.value,
+            match_confidence=match_result.confidence,
+            match_reasons=[*match_result.reasons, "COBASI_FEED_SIBLING_GTIN"],
             match_attributes=[
                 {
                     "attribute": item.attribute,

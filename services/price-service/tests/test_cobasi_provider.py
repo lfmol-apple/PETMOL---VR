@@ -11,6 +11,7 @@ chama a API real da Cobasi.
 """
 import pytest
 
+from src.affiliate_feed import AffiliateFeedOffer
 from src.affiliate_links import ProductAffiliateLink
 from src.cobasi_provider import CobasiProvider
 from src.commerce_pricing import ProductPriceResult
@@ -47,6 +48,24 @@ def _register_product(gtin: str = GTIN, name: str = "Produto Teste", brand: str 
 
 def _offer(direct_url="https://www.cobasi.com.br/produto/p") -> DiscoveredOffer:
     return DiscoveredOffer(merchant="cobasi", price=100.0, direct_url=direct_url, ean=GTIN)
+
+
+def _feed_row(**overrides) -> AffiliateFeedOffer:
+    defaults = dict(
+        network="awin",
+        merchant="cobasi",
+        advertiser_id="17870",
+        gtin=GTIN,
+        external_product_id="cobasi-1",
+        title="Produto Teste",
+        brand="Marca Teste",
+        price=100.0,
+        in_stock=True,
+        active=True,
+        merchant_url="https://www.cobasi.com.br/produto-teste/p",
+    )
+    defaults.update(overrides)
+    return AffiliateFeedOffer(**defaults)
 
 
 def test_default_mode_is_utm(monkeypatch):
@@ -318,6 +337,66 @@ async def test_find_offer_none_when_gtin_not_on_cobasi(monkeypatch):
     try:
         provider = CobasiProvider(db)
         assert await provider.find_offer(ProductContext(query="x", gtin="7890000000017")) is None
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_find_offer_uses_cobasi_feed_sibling_gtin_for_scalibor_m(monkeypatch):
+    """Scalibor M do tutor pode aparecer na Cobasi como P/M 48 cm.
+
+    O fallback exige referência estruturada para o GTIN original e Product
+    Identity aceito; não é busca textual por preço.
+    """
+    async def fake(gtin):
+        assert gtin == "7896185907004"
+        return ProductPriceResult(found=False)
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_by_gtin", fake)
+    db = SessionLocal()
+    try:
+        db.add(_feed_row(
+            merchant="zeenow",
+            advertiser_id="127557",
+            gtin="7896185907004",
+            external_product_id="zn-scalibor-m",
+            title="Coleira Antiparasitária Scalibor M",
+            brand="MSD",
+            price=84.79,
+        ))
+        db.add(_feed_row(
+            gtin="7896185957009",
+            external_product_id="cobasi-scalibor-pm",
+            title="Coleira Antiparasitária Scalibor Cães Pequenos e Médios - 48 cm",
+            brand="Scalibor",
+            price=80.9,
+            merchant_url="https://www.cobasi.com.br/coleira-antiparasitaria-scalibor-caes-pequenos-e-medios-48-cm/p",
+        ))
+        db.add(_feed_row(
+            gtin="7896185907011",
+            external_product_id="cobasi-scalibor-g",
+            title="Coleira Antiparasitária Scalibor Cães Grandes - 65 cm",
+            brand="Scalibor",
+            price=88.9,
+            merchant_url="https://www.cobasi.com.br/coleira-antiparasitaria-scalibor-caes-grandes-65-cm/p",
+        ))
+        db.commit()
+
+        provider = CobasiProvider(db)
+        offer = await provider.find_offer(ProductContext(
+            query="COLEIRA SCALIBOR ANTIPARASITÁRIA PARA CÃES",
+            gtin="7896185907004",
+            canonical_name="COLEIRA SCALIBOR ANTIPARASITÁRIA PARA CÃES",
+            canonical_brand="Scalibor",
+        ))
+
+        assert offer is not None
+        assert offer.merchant == "cobasi"
+        assert offer.ean == "7896185957009"
+        assert offer.price == 80.9
+        assert offer.price_is_stale is True
+        assert "48-cm" in offer.direct_url
+        assert "COBASI_FEED_SIBLING_GTIN" in offer.match_reasons
     finally:
         db.close()
 
