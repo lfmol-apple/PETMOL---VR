@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronRight, PawPrint, Utensils, Syringe, Bug, Pill, ArrowLeft } from 'lucide-react';
+import { Check, ChevronRight, PawPrint, Utensils, Syringe, Bug, Pill, ArrowLeft, X } from 'lucide-react';
 import { petDo } from '@/lib/petGender';
 import { trackV1Metric, type V1MetricEvent } from '@/lib/v1Metrics';
 import type { FeedingPlanEntry } from '@/lib/types/homeForms';
-import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { SheetShell } from '@/components/ui/sheet';
 import {
   deriveOnboardingProgress,
   setOnboardingActiveFlag,
@@ -18,6 +18,7 @@ interface OnboardingChecklistCardProps {
   petId: string;
   petName: string;
   petSex?: 'male' | 'female' | null;
+  petPhotoSrc?: string;
   hasPet: boolean;
   vaccinesCount: number;
   parasiteControls: { type: string }[];
@@ -55,10 +56,44 @@ interface RowConfig {
   skipChoices?: { value: string; label: string }[];
 }
 
+/** Cabeçalho no mesmo estilo da Loja do pet: bloco azul PETMOL, texto branco,
+ *  carinha do pet em cima. O título quebra em 2 linhas — nunca corta. */
+function BrandSheetHeader({
+  title, subtitle, photoSrc, onClose,
+}: { title: string; subtitle: string; photoSrc?: string; onClose: () => void }) {
+  return (
+    <div className="relative z-10 flex-shrink-0 bg-[#0056D2] text-white shadow-[0_6px_20px_-8px_rgba(0,86,210,0.6)]">
+      <div className="flex items-start gap-3 px-5 pb-4 pt-4">
+        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-lg shadow-[0_2px_10px_rgba(0,0,0,0.25)] ring-2 ring-white/60">
+          {photoSrc ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={photoSrc} alt="" className="h-full w-full object-cover" loading="lazy" />
+          ) : (
+            <PawPrint className="h-5 w-5 text-[#0056D2]" strokeWidth={2.2} />
+          )}
+        </div>
+        <div className="min-w-0 flex-1 pt-0.5">
+          <h2 className="text-[17px] font-black leading-[1.2] tracking-[-0.01em] text-white [overflow-wrap:anywhere]">{title}</h2>
+          <p className="mt-1 text-[11px] font-bold uppercase leading-tight tracking-[0.13em] text-white/75">{subtitle}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fechar"
+          className="-mr-1 mt-0.5 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition-colors duration-150 hover:bg-white/25 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0056D2]"
+        >
+          <X className="h-[15px] w-[15px]" strokeWidth={2.5} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function OnboardingChecklistCard({
   petId,
   petName,
   petSex,
+  petPhotoSrc,
   hasPet,
   vaccinesCount,
   parasiteControls,
@@ -132,13 +167,19 @@ export function OnboardingChecklistCard({
       setStoreTick((t) => t + 1);
     };
     return (
-      <SheetShell open onClose={finish} tone="cream" variant="center" size="sm" z={70}>
+      <SheetShell open onClose={finish} tone="glass" variant="center" size="sm" z={70}>
+        <BrandSheetHeader
+          title={`Tudo pronto para cuidar ${artigo} ${name} 💙`}
+          subtitle="Configuração inicial concluída"
+          photoSrc={petPhotoSrc}
+          onClose={finish}
+        />
         <SheetShell.Body className="text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
             <Check className="h-8 w-8" strokeWidth={2.6} />
           </div>
-          <h2 className="mt-4 text-[19px] font-bold leading-tight tracking-[-0.01em] text-slate-900">
-            Tudo pronto para cuidar {artigo} {name} 💙
+          <h2 className="mt-4 text-[17px] font-bold leading-tight tracking-[-0.01em] text-slate-900">
+            O Petmol já acompanha tudo que importa
           </h2>
           <p className="mt-1.5 text-[13.5px] text-slate-500">O Petmol já consegue acompanhar:</p>
           <ul className="mx-auto mt-4 grid max-w-[240px] grid-cols-1 gap-2 text-left text-[14px] font-semibold text-slate-700">
@@ -240,20 +281,19 @@ export function OnboardingChecklistCard({
   const pct = Math.round((progress.doneCount / progress.total) * 100);
 
   return (
-    <SheetShell open onClose={dismissCard} tone="cream" variant="center" size="sm" z={70}>
-      <SheetHeader
-        tone="cream"
+    <SheetShell open onClose={dismissCard} tone="glass" variant="center" size="sm" z={70}>
+      <BrandSheetHeader
         title={
           progress.doneCount > 1
             ? `Continue os cuidados ${artigo} ${name}`
             : `Vamos preparar os cuidados ${artigo} ${name}`
         }
         subtitle={`Configuração inicial · ${progress.doneCount} de ${progress.total}`}
-        media={<SheetIcon tone="blue"><PawPrint className="h-5 w-5" strokeWidth={2} /></SheetIcon>}
+        photoSrc={petPhotoSrc}
         onClose={dismissCard}
       />
 
-      <SheetShell.Body className="pt-3">
+      <SheetShell.Body className="pt-4">
         {/* progresso */}
         <div className="flex items-center gap-3">
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200/70">
