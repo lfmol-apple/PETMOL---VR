@@ -154,6 +154,29 @@ passar pelo painel) gera comissão do mesmo jeito — testes manuais no
 painel MAIS (Relatório de Vendas, Dashboard) foram inconclusivos (nenhum
 mostra métrica de clique/venda sem uma compra real completa).
 
+**Atualização 01/09/2026 — o que o `mais.app` realmente faz:** resolvi o
+shortlink comprovado do Baby (`mais.app/IvUCAG`) pela própria API do MAIS
+(`GET api-encurtador.mais.network/Conversion/ConvertUrl/IvUCAG`). Destino:
+`https://www.cobasi.com.br/racao-royal-canin-...-3827380/p?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol`.
+O `mais.app` é só um encurtador — o `scripts.js` faz `fetch(destino)` →
+`window.location.href`. A "tela laranja" não carimba atribuição nenhuma; a
+atribuição são os 3 UTM numa URL `www.cobasi.com.br` (o painel emite em
+`www`, **não** em `minhaloja`). Por isso o PR #145 reverteu a reescrita
+forçada pra `minhaloja` do #143 — `build_cobasi_affiliate_url` volta a
+preservar o host `www.cobasi.com.br`, idêntico ao link comprovado.
+
+**Ponte `/go/loja` (Android nativo):** `assetlinks.json` de
+`www.cobasi.com.br` e `minhaloja.cobasi.com.br` reivindicam `/*` pro app
+Android da Cobasi (`com.root.cobasi.Activities`). Um Chrome Custom Tab
+pode saltar pro app e a compra lá dentro não carrega o cookie da UTM →
+comissão perdida. `navigateToPartnerUrl` (homeShoppingPartners.ts) roteia
+link Cobasi/`mais.app` por `petmol.com.br/go/loja` **só no Android
+nativo** — a ponte redireciona por JS (`location.replace`), que não é
+elegível a App Link, então o Custom Tab não salta. iOS
+(SFSafariViewController nunca abre Universal Link) e web/PWA vão direto.
+Mesmo princípio da ponte `/go/petz`. **Benefício não medido em device
+real ainda** — validar numa compra Android antes de confiar.
+
 Decisão de produto (11/08/2026): usar o link longo com UTM como **ponte
 temporária** enquanto uma compra real de teste via PETMOL valida a
 atribuição de comissão de fato — não como confirmação formal do
