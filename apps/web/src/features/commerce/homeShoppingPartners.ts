@@ -305,9 +305,44 @@ export function isStandaloneInstalledApp(): boolean {
  * opens the partner in the system browser (SFSafariViewController / Chrome
  * Custom Tabs) instead, preserving the affiliate URL/UTM/SubIDs untouched.
  */
+/** Hosts Cobasi/MAIS cujo link afiliado o app da Cobasi reivindica no
+ *  Android (assetlinks.json de www.cobasi.com.br e minhaloja.cobasi.com.br
+ *  = `com.root.cobasi.Activities`, `/*` — verificado 01/09/2026). Abrir um
+ *  desses num Chrome Custom Tab PODE saltar pro app da Cobasi e a compra
+ *  lá dentro não carrega o cookie da UTM MAIS → comissão perdida. */
+const COBASI_AFFILIATE_HOSTS = ['www.cobasi.com.br', 'cobasi.com.br', 'minhaloja.cobasi.com.br', 'mais.app'];
+
+export function isCobasiAffiliateUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && COBASI_AFFILIATE_HOSTS.includes(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ponte `/go/loja` — só no Android nativo. A página fica em petmol.com.br
+ * e navega pra Cobasi por JS (`location.replace`); uma navegação-redirect
+ * dentro de um browsing context não é elegível a App Link no Chrome, então
+ * o Custom Tab não salta pro app da Cobasi e o tutor termina a compra no
+ * navegador, onde o cookie da UTM MAIS vale. iOS não precisa
+ * (SFSafariViewController nunca abre Universal Link); web/PWA não têm app
+ * pra saltar. Ver docs/AFFILIATES.md.
+ */
+export function cobasiBridgeUrl(target: string): string {
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://www.petmol.com.br';
+  return `${origin}/go/loja?to=${encodeURIComponent(target)}`;
+}
+
 export function navigateToPartnerUrl(url: string): void {
   if (Capacitor.isNativePlatform()) {
-    void import('@capacitor/browser').then(({ Browser }) => Browser.open({ url }));
+    const finalUrl =
+      Capacitor.getPlatform?.() === 'android' && isCobasiAffiliateUrl(url) ? cobasiBridgeUrl(url) : url;
+    void import('@capacitor/browser').then(({ Browser }) => Browser.open({ url: finalUrl }));
     return;
   }
   if (isStandaloneInstalledApp()) {
