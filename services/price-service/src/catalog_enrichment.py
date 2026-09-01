@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional
@@ -158,15 +159,24 @@ def _mode(values: list[Any]) -> Optional[Any]:
     return max(counts.items(), key=lambda kv: kv[1])[0]
 
 
-def _pick_canonical_name(evidences: list[CatalogEvidence]) -> Optional[str]:
-    # prefere um título que já traz o SKU (peso/volume) — mais específico —
-    # e, entre iguais, o merchant de maior confiança de apresentação.
-    structured = [e for e in evidences if e.has_structured_name and e.title]
-    pool = structured or [e for e in evidences if e.title]
-    if not pool:
-        return None
-    pool.sort(key=lambda e: (e.presentation_trust, len(e.title or "")), reverse=True)
-    return pool[0].title
+_SIZE_TOKEN_RE = re.compile(r"\b\d+(?:[.,]\d+)?\s*(?:kg|g|ml|l|cm|un|comp|comprimidos?|tabletes?|pipetas?)\b", re.I)
+
+
+def _pick_canonical_name(evidences: list[CatalogEvidence], *, current: Optional[str] = None) -> Optional[str]:
+    # prefere um título que já traz o SKU (peso/volume/pack) — mais
+    # específico. Entre candidatos com SKU, o mais completo (mais longo);
+    # empate → maior confiança de apresentação. Nunca troca um nome atual
+    # que já tem o SKU por um mais curto/genérico.
+    cands = [e.title for e in evidences if e.title]
+    if not cands:
+        return current
+    with_size = [t for t in cands if _SIZE_TOKEN_RE.search(t)]
+    pool = with_size or cands
+    if current and _SIZE_TOKEN_RE.search(current):
+        pool = [*pool, current]
+    trust = {e.title: e.presentation_trust for e in evidences if e.title}
+    pool.sort(key=lambda t: (bool(_SIZE_TOKEN_RE.search(t)), len(t), trust.get(t, 1.0)), reverse=True)
+    return pool[0]
 
 
 def _pick_image(evidences: list[CatalogEvidence]) -> Optional[str]:
@@ -319,7 +329,8 @@ def merge_product_catalog_identity(
         }
 
     # nome / marca / imagem — identidade de apresentação
-    _set("canonical_name", _pick_canonical_name(evidences), confidence=max((e.presentation_trust for e in evidences), default=0.0))
+    _set("canonical_name", _pick_canonical_name(evidences, current=product.canonical_name or product.name),
+         confidence=max((e.presentation_trust for e in evidences), default=0.0))
     _set("canonical_brand", _text_field("brand", evidences), confidence=0.75)
     _set("thumbnail_url", _pick_image(evidences), confidence=max((e.presentation_trust for e in evidences), default=0.0))
 

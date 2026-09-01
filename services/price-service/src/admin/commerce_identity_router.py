@@ -330,3 +330,85 @@ def product_identity_detail(gtin: str, _admin=Depends(get_current_admin_or_reado
         }
     finally:
         db.close()
+
+
+class SkuGroupPairRequest(BaseModel):
+    gtin_a: str
+    gtin_b: str
+    by: str = "admin"
+
+
+def _safe_json(raw):
+    import json as _json
+    try:
+        return _json.loads(raw or "{}")
+    except Exception:
+        return {}
+
+
+@router.get("/sku-group/{gtin}")
+def sku_group_detail(gtin: str, _admin=Depends(get_current_admin_or_readonly_key)):
+    """Por que estes GTINs estão (ou NÃO estão) no mesmo grupo de SKU."""
+    from ..product_catalog_lookup import SkuGroupMember, normalize_gtin
+    from .. import sku_grouping as sg
+
+    g = normalize_gtin(gtin or "")
+    db = SessionLocal()
+    try:
+        rows = db.scalars(select(SkuGroupMember).where(SkuGroupMember.member_gtin == g)).all() if g else []
+        keys = [r.group_key for r in rows if r.status == "active"]
+        members = db.scalars(
+            select(SkuGroupMember).where(SkuGroupMember.group_key.in_(keys))
+        ).all() if keys else []
+        product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == g)) if g else None
+        near_misses = []
+        if product is not None:
+            slug = sg._brand_slug(product.canonical_brand or product.brand,
+                                  name_hint=product.canonical_name or product.name)
+            for cand in sg._candidate_gtins(db, product, slug)[:40]:
+                d = sg.evaluate_pair(db, g, cand)
+                if not d.grouped:
+                    near_misses.append({"gtin": cand, "reason": d.reason, "basis": d.basis})
+        return {
+            "gtin": g,
+            "memberships": [
+                {"group_key": r.group_key, "basis": r.match_basis, "status": r.status,
+                 "confidence": r.confidence, "confirmed_by": r.confirmed_by,
+                 "canonical_gtin": r.canonical_gtin, "evidence": _safe_json(r.evidence_json)}
+                for r in rows
+            ],
+            "group_members": sorted({m.member_gtin for m in members if m.status == "active"}),
+            "not_grouped": near_misses,
+        }
+    finally:
+        db.close()
+
+
+@router.post("/sku-group/confirm")
+def sku_group_confirm(payload: SkuGroupPairRequest,
+                      x_sync_token: Optional[str] = Header(default=None, alias="X-Sync-Token")):
+    _authorize(x_sync_token)
+    from .. import sku_grouping as sg
+
+    db = SessionLocal()
+    try:
+        key = sg.confirm_membership(db, payload.gtin_a, payload.gtin_b, payload.by)
+        db.commit()
+        return {"ok": True, "group_key": key}
+    finally:
+        db.close()
+
+
+@router.post("/sku-group/reject")
+def sku_group_reject(payload: SkuGroupPairRequest,
+                     x_sync_token: Optional[str] = Header(default=None, alias="X-Sync-Token")):
+    _authorize(x_sync_token)
+    from .. import sku_grouping as sg
+
+    db = SessionLocal()
+    try:
+        key = sg.reject_pair(db, payload.gtin_a, payload.gtin_b, payload.by)
+        db.commit()
+        return {"ok": True, "group_key": key}
+    finally:
+        db.close()

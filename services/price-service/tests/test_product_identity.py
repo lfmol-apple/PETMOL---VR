@@ -282,3 +282,14 @@ def test_light_only_tags_obesity_with_food_context():
     from src.product_identity import _infer_therapeutics
     assert "obesity" not in _infer_therapeutics("Roupa Pós-Cirúrgica Dry Light para Cães")
     assert "obesity" in _infer_therapeutics("Ração Golden Light Cães Adultos")
+
+
+def test_manufacturer_to_brands_map_is_well_formed():
+    from src.product_identity import _MANUFACTURER_TO_BRANDS, normalize_brand
+    for maker, brands in _MANUFACTURER_TO_BRANDS.items():
+        assert maker == maker.lower(), f"chave de fabricante deve ser minúscula: {maker!r}"
+        assert len(brands) == len(set(brands)), f"marcas duplicadas em {maker!r}"
+    # a substituição só acontece com correspondência ÚNICA no nome — dois
+    # brands do mesmo fabricante no título → não troca (fica o original).
+    assert normalize_brand("Elanco", name_hint="Drontal e Credelio combo") == "Elanco"
+    assert normalize_brand("Elanco", name_hint="Drontal Plus Cães") == "Drontal"
