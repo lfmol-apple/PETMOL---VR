@@ -190,7 +190,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
             </div>
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-[17px] font-bold leading-[1.15] tracking-[-0.01em] text-slate-900">{title}</h2>
-              <p className="truncate text-[12.5px] font-medium leading-tight text-slate-400">Tudo que {petName || 'seu pet'} usa</p>
+              <p className="truncate text-[12.5px] font-medium leading-tight text-slate-500">Tudo que {petName || 'seu pet'} usa</p>
             </div>
             <button
               type="button"

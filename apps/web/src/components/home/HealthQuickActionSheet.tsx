@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { ModalPortal } from '@/components/ModalPortal';
+import { Bath, Bug, CalendarDays, Check, Pill, ShieldCheck, Syringe, UtensilsCrossed, type LucideIcon } from 'lucide-react';
+import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
 import type { PetEventRecord } from '@/lib/petEvents';
 import { localTodayISO } from '@/lib/localDate';
 import { getToken } from '@/lib/auth-token';
@@ -30,16 +31,16 @@ interface HealthQuickActionSheetProps {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ICONS: Record<string, string> = {
-  'health/vaccines': '💉',
-  'health/parasites/dewormer': '🐛',
-  'health/parasites/flea_tick': '🦟',
-  'health/parasites/collar': '🔵',
-  'health/parasites': '🐛',
-  'health/medication': '💊',
-  'health/grooming': '🛁',
-  'health/food': '🥣',
-  'health/eventos': '📅',
+const ICONS: Record<string, LucideIcon> = {
+  'health/vaccines': Syringe,
+  'health/parasites/dewormer': Bug,
+  'health/parasites/flea_tick': Bug,
+  'health/parasites/collar': ShieldCheck,
+  'health/parasites': Bug,
+  'health/medication': Pill,
+  'health/grooming': Bath,
+  'health/food': UtensilsCrossed,
+  'health/eventos': CalendarDays,
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -57,25 +58,21 @@ export function HealthQuickActionSheet({
   const [pickedDate, setPickedDate] = useState(localTodayISO());
   const [vaccineSubView, setVaccineSubView] = useState<null | 'register'>(null);
 
-  const icon = ICONS[item.action_target] ?? '⚕️';
+  const Icon = ICONS[item.action_target] ?? Check;
   const isMedication = item.action_target === 'health/medication';
   const isVaccine = item.action_target === 'health/vaccines';
 
+  const overdue = item.days_overdue != null && item.days_overdue > 0;
   const statusLabel =
     item.status === 'today'
-      ? 'HOJE'
-      : item.days_overdue != null && item.days_overdue > 0
-        ? item.days_overdue > 90
-          ? 'REVISÃO RECOMENDADA'
-          : `ATRASADO ${item.days_overdue} dia${item.days_overdue !== 1 ? 's' : ''}`
-        : 'EM BREVE';
-
-  const statusCls =
-    item.status === 'today'
-      ? 'bg-amber-100 text-amber-800 border-amber-200'
-      : item.days_overdue != null && item.days_overdue > 0
-        ? 'bg-rose-100 text-rose-800 border-rose-200'
-        : 'bg-amber-100 text-amber-800 border-amber-200';
+      ? 'Hoje'
+      : overdue
+        ? (item.days_overdue as number) > 90
+          ? 'Revisão recomendada'
+          : `Atrasado ${item.days_overdue} dia${item.days_overdue !== 1 ? 's' : ''}`
+        : 'Em breve';
+  const statusTone: 'warn' | 'danger' | 'neutral' =
+    item.status === 'today' ? 'warn' : overdue ? 'danger' : 'neutral';
 
   // Finds the active medication event matching source_record_id or falls back to first active
   const findMedicationEvent = (): PetEventRecord | null => {
@@ -133,58 +130,29 @@ export function HealthQuickActionSheet({
 
   if (done) {
     return (
-      <ModalPortal>
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" onClick={onClose}>
-          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-md" />
-          <div className="relative w-full max-w-sm bg-white rounded-[28px] shadow-2xl border border-gray-200 p-6 text-center">
-            <p className="text-lg font-bold text-gray-900">{done}</p>
-            <p className="text-sm text-gray-500 mt-1">{item.pet_name}</p>
+      <SheetShell open onClose={onClose} variant="center" size="sm" z={90}>
+        <div className="px-6 py-8 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+            <Check className="h-6 w-6" strokeWidth={2.5} />
           </div>
+          <p className="text-[16px] font-bold text-slate-900">{done}</p>
+          <p className="mt-1 text-[13px] text-slate-400">{item.pet_name}</p>
         </div>
-      </ModalPortal>
+      </SheetShell>
     );
   }
 
   // ── Main render ───────────────────────────────────────────────────────────
 
   return (
-    <ModalPortal>
-      <div
-        className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4"
-        onClick={onClose}
-      >
-        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
-
-        <div
-          className="relative w-full max-w-sm bg-white rounded-t-[32px] sm:rounded-[28px] shadow-2xl border border-gray-200 overflow-hidden animate-slideUp sm:animate-scaleIn"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="sheet-handle my-3 opacity-40 sm:hidden" />
-
-          {/* Header */}
-          <div className="px-5 pt-4 pb-3 border-b border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-2xl flex-shrink-0">
-                {icon}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[15px] font-bold text-gray-900 leading-tight truncate">{item.label}</p>
-                <span className={`inline-flex items-center mt-0.5 px-2 py-0.5 rounded-full border text-[11px] font-bold ${statusCls}`}>
-                  {statusLabel}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 active:scale-90 transition-all flex-shrink-0"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="px-5 py-4 pb-6 space-y-2.5">
+    <SheetShell open onClose={onClose} size="sm" z={90}>
+      <SheetHeader
+        title={item.label}
+        status={{ label: statusLabel, tone: statusTone }}
+        media={<SheetIcon tone="blue"><Icon className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+        onClose={onClose}
+      />
+      <SheetShell.Body className="space-y-2.5">
 
             {/* ── Vaccine-specific hierarchy ────────────────────────────── */}
             {isVaccine && !showDatePicker && vaccineSubView === null && (
@@ -346,9 +314,7 @@ export function HealthQuickActionSheet({
                 </button>
               </>
             )}
-          </div>
-        </div>
-      </div>
-    </ModalPortal>
+      </SheetShell.Body>
+    </SheetShell>
   );
 }

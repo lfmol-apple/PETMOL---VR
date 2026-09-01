@@ -5,7 +5,8 @@ import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
 import { extractMedicationBarcode } from '@/lib/petCareDomain';
-import { ModalPortal } from '@/components/ModalPortal';
+import { Check, Home, Trash2 } from 'lucide-react';
+import { SheetAvatar, SheetHeader, SheetShell } from '@/components/ui/sheet';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { buildRemindAt, listReminders, deleteReminder, createReminder, refreshSubscription } from '@/features/notifications/pushService';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
@@ -143,7 +144,7 @@ type Mode = 'view' | 'add' | 'edit' | 'buy';
 
 const labelCls = 'block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5';
 const inputCls =
-  'w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300';
+  'w-full min-w-0 border border-gray-200 rounded-xl px-3 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300';
 
 // ── Component ────────────────────────────────────────────────────────────────
 export function MedicationItemSheet({
@@ -570,121 +571,55 @@ export function MedicationItemSheet({
     : medications.length > 0
       ? 'Sem tratamentos ativos'
       : 'Nenhuma medicação';
-  const statusCls = active.length > 0
-    ? 'bg-purple-100 text-purple-700 border-purple-200'
-    : 'bg-gray-100 text-gray-600 border-gray-200';
-  const dotCls = active.length > 0 ? 'bg-purple-500' : 'bg-gray-400';
   const nextActive = active[0] ?? null;
 
   return (
-    <ModalPortal>
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-x-hidden overscroll-x-none touch-pan-y p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
-
-      {/* Sheet */}
-      <div
-        className="relative w-full max-w-lg bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 flex flex-col overflow-x-hidden overflow-y-hidden animate-scaleIn"
-        style={{ maxHeight: '92dvh' }}
-        onClick={e => e.stopPropagation()}
-      >
+    <SheetShell open onClose={onClose} z={100}>
         {/* Success overlay */}
         {justSaved && (
-          <div className="absolute inset-0 bg-white z-20 flex flex-col items-center justify-center gap-6 text-center p-8 rounded-[32px]">
-            <div className="text-6xl">✅</div>
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-white p-8 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+              <Check className="h-8 w-8" strokeWidth={2.5} />
+            </div>
             <div>
-              <h3 className="text-xl font-bold text-gray-900 mb-1">Medicação registrada!</h3>
-              <p className="text-sm text-gray-500">O prontuário do pet foi atualizado.</p>
+              <h3 className="mb-1 text-xl font-bold text-slate-900">Medicação registrada!</h3>
+              <p className="text-sm text-slate-400">O prontuário do pet foi atualizado.</p>
             </div>
             <button
               onClick={() => onGoHome?.()}
-              className="w-full rounded-2xl bg-blue-600 py-3.5 text-[15px] font-black text-white shadow-md shadow-blue-500/20 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3.5 text-[15px] font-bold text-white shadow-[0_8px_20px_-6px_rgba(16,185,129,0.4)] transition-transform active:scale-[0.97]"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
+              <Home className="h-[18px] w-[18px]" strokeWidth={2.3} />
               Ir para a home
             </button>
-            <button onClick={() => setJustSaved(false)} className="text-sm text-gray-400 underline">
+            <button onClick={() => setJustSaved(false)} className="text-sm text-slate-400 underline">
               Ver prontuário
             </button>
           </div>
         )}
 
-        {/* Header */}
-        <div className="px-5 pt-3 pb-2.5 bg-white border-b border-purple-100 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center text-2xl flex-shrink-0">
-              {petPhotoSrc ? (
-                <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
-              ) : (
-                <span>{petSpecies === 'cat' ? '🐱' : '🐶'}</span>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                <h2 className="text-[16px] font-bold text-gray-900 leading-tight whitespace-nowrap">Medicação</h2>
-                {petName && (
-                  <span className="inline-flex max-w-full items-center px-2 py-0.5 rounded-full bg-white text-purple-800 text-[11px] font-black tracking-[0.04em] shadow-sm border border-purple-100 whitespace-normal break-all leading-tight">
-                    {petName}
-                  </span>
-                )}
-              </div>
-              {mode === 'view' && (
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotCls}`} />
-                  <span className={`text-[13px] font-semibold truncate ${active.length > 0 ? 'text-purple-700' : 'text-gray-500'}`}>{statusLabel}</span>
-                </div>
-              )}
-              {mode !== 'view' && (
-                <span className="text-[13px] font-semibold text-purple-600 mt-0.5">
-                  {mode === 'add' ? 'Novo registro' : 'Editar medicação'}
-                </span>
-              )}
-            </div>
-            {mode !== 'view' ? (
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {mode === 'edit' && editingId && (
-                  <button
-                    type="button"
-                    onClick={confirmDeleteCurrent}
-                    disabled={saving}
-                    className="text-[13px] font-bold text-red-600 active:opacity-60 disabled:opacity-50"
-                  >
-                    🗑 Excluir
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setMode('view')}
-                  onTouchEnd={() => setMode('view')}
-                  className="relative z-10 pointer-events-auto w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
-                  aria-label="Voltar"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
-                    <path d="M15 18l-6-6 6-6" />
-                  </svg>
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="relative z-10 pointer-events-auto w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:bg-white shadow-sm flex-shrink-0"
-                  aria-label="Fechar"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4">
-                    <path d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        <SheetHeader
+          title="Medicação"
+          subtitle={mode === 'view' ? (petName || undefined) : mode === 'add' ? 'Novo registro' : 'Editar medicação'}
+          status={mode === 'view' ? { label: statusLabel, tone: active.length > 0 ? 'good' : 'neutral' } : undefined}
+          media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpecies === 'cat' ? '🐱' : '🐶'} />}
+          onClose={onClose}
+          onBack={mode !== 'view' ? () => setMode('view') : undefined}
+          action={mode === 'edit' && editingId ? (
+            <button
+              type="button"
+              onClick={confirmDeleteCurrent}
+              disabled={saving}
+              aria-label="Excluir"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 disabled:opacity-50"
+            >
+              <Trash2 className="h-[15px] w-[15px]" strokeWidth={2.3} />
+            </button>
+          ) : undefined}
+        />
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto overflow-x-hidden flex-1 overscroll-contain">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
           <p className="mx-4 mt-3 mb-1 text-[10px] text-gray-400 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
@@ -1051,7 +986,7 @@ export function MedicationItemSheet({
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
+                <div className="min-w-0">
                   <label className={labelCls}>Fabricante</label>
                   <input
                     type="text"
@@ -1106,7 +1041,7 @@ export function MedicationItemSheet({
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
+                <div className="min-w-0">
                   <label className={labelCls}>Dose</label>
                   <input
                     type="text"
@@ -1315,9 +1250,7 @@ export function MedicationItemSheet({
           )}
 
         </div>
-      </div>
-    </div>
-    </ModalPortal>
+    </SheetShell>
   );
 }
 

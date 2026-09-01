@@ -1,8 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ShoppingCart } from 'lucide-react';
 import { FoodControlTab, type FoodControlTabFormRequest, type FoodControlTabState } from '@/components/FoodControlTab';
 import type { PetHealthProfile } from '@/lib/petHealth';
+import { SheetAvatar, SheetHeader, SheetIcon } from '@/components/ui/sheet';
 import { ModalPortal } from '@/components/ModalPortal';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
@@ -1069,10 +1071,10 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
         className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overscroll-x-none touch-pan-y p-4"
         onClick={(e) => { if (e.target === overlayRef.current) handleClose(); }}
       >
-        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={handleClose} />
+        <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-md" onClick={handleClose} />
 
         <div
-          className="relative w-full max-w-md bg-white rounded-[28px] shadow-2xl border border-gray-200/60 flex flex-col overflow-x-hidden overflow-y-hidden animate-scaleIn touch-manipulation"
+          className="relative isolate flex w-full max-w-md flex-col overflow-hidden rounded-[26px] bg-white shadow-[0_-8px_50px_-8px_rgba(15,23,42,0.35)] ring-1 ring-black/5 animate-scaleIn touch-manipulation"
           style={{ maxHeight: 'min(92dvh, 760px)' }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -1104,26 +1106,12 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
           ═══════════════════════════════════════════════════════════════ */}
           {mode === 'edit' && (
             <>
-              <div className="relative z-10 flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-white flex-shrink-0">
-                <PhotoBubble size={36} photoSrc={petPhotoSrc} photoFailed={photoLoadFailed} onPhotoError={() => setPhotoLoadFailed(true)} species={pet.species} petName={pet.pet_name} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    Editar plano
-                  </p>
-                  <p className="text-[15px] font-black text-gray-900">{pet.pet_name}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleEditBackToView}
-                  className="pointer-events-auto flex items-center gap-1.5 h-11 px-3 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all flex-shrink-0 text-sm font-semibold"
-                  aria-label="Voltar"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4 flex-shrink-0">
-                    <path d="M15 18l-6-6 6-6" />
-                  </svg>
-                  <span className="leading-none">Voltar</span>
-                </button>
-              </div>
+              <SheetHeader
+                title="Editar plano"
+                subtitle={pet.pet_name}
+                media={<SheetAvatar src={petPhotoSrc} alt={pet.pet_name} fallback={pet.species === 'cat' ? '🐱' : '🐶'} />}
+                onBack={handleEditBackToView}
+              />
               <div className="px-4 pt-3 flex-shrink-0">
                 <FeedbackBanner />
               </div>
@@ -1153,16 +1141,12 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
           ═══════════════════════════════════════════════════════════════ */}
           {mode === 'buy' && (
             <>
-              <div className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 flex-shrink-0">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-xl flex-shrink-0">🛒</div>
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-base font-bold text-gray-900 truncate">
-                    {buyTargetItem ? `Comprar ${buyTargetItem.label}` : (foodBrand ? `Comprar ${foodBrand}` : 'Comprar ração')}
-                  </h2>
-                  <p className="text-xs text-gray-400">{pet.pet_name}</p>
-                </div>
-                <BackBtn onClick={() => { setMode('view'); setBuyTargetItem(null); }} />
-              </div>
+              <SheetHeader
+                title={buyTargetItem ? `Comprar ${buyTargetItem.label}` : (foodBrand ? `Comprar ${foodBrand}` : 'Comprar ração')}
+                subtitle={pet.pet_name}
+                media={<SheetIcon tone="blue"><ShoppingCart className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+                onBack={() => { setMode('view'); setBuyTargetItem(null); }}
+              />
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <div className="p-5 pb-8 space-y-4">
                   {buyTargetItem || foodBrand || foodState.gtin ? (
@@ -1204,41 +1188,12 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
           ═══════════════════════════════════════════════════════════════ */}
           {mode === 'view' && (
             <>
-              {/* Fixed header */}
-              <div className="px-4 pt-1 pb-3 flex items-center gap-3 flex-shrink-0">
-                <PhotoBubble size={44} photoSrc={petPhotoSrc} photoFailed={photoLoadFailed} onPhotoError={() => setPhotoLoadFailed(true)} species={pet.species} petName={pet.pet_name} />
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-[18px] font-black text-gray-900 leading-tight">
-                    {/* Título da tela sempre "Alimentação" — é a mesma
-                        palavra do card da home que abre esse sheet. A aba
-                        Ração/Petiscos logo abaixo já deixa claro qual dos
-                        dois está sendo visto, sem precisar duplicar isso
-                        no título. */}
-                    Alimentação {petDo(pet)} {pet.pet_name}
-                  </h2>
-                </div>
-                {subMode !== 'main' ? (
-                  <button
-                    type="button"
-                    onClick={handleSubModeBackToMain}
-                    className="relative z-10 pointer-events-auto flex items-center gap-1.5 h-11 px-3 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all flex-shrink-0 text-sm font-semibold"
-                    aria-label="Voltar"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-4 h-4 flex-shrink-0">
-                      <path d="M15 18l-6-6 6-6" />
-                    </svg>
-                    <span className="leading-none">Voltar</span>
-                  </button>
-                ) : (
-                  <button type="button" onClick={handleClose}
-                    className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 active:scale-90 transition-all flex-shrink-0"
-                    aria-label="Fechar">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
-                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                )}
-              </div>
+              <SheetHeader
+                title={`Alimentação ${petDo(pet)} ${pet.pet_name}`}
+                media={<SheetAvatar src={petPhotoSrc} alt={pet.pet_name} fallback={pet.species === 'cat' ? '🐱' : '🐶'} />}
+                onClose={subMode === 'main' ? handleClose : undefined}
+                onBack={subMode !== 'main' ? handleSubModeBackToMain : undefined}
+              />
 
               {/* Abas Ração / Petiscos — troca qual seção aparece, em vez de
                   empilhar as duas numa rolagem só (pedido do tutor: mais

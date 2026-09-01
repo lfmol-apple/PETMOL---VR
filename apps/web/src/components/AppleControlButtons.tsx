@@ -1,9 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { Building2, ChevronRight, Scissors, Store } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
 import { petDo } from '@/lib/petGender';
 import { type HomeInactiveEligibleControlId } from '@/lib/homeControlPreferences';
+import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+
+const MAPS = (q: string) => `https://www.google.com/maps/search/${encodeURIComponent(q)}`;
 
 // ── Props H1 logic preserved ──────────────────────────────────────────────────
 interface AppleControlButtonsProps {
@@ -100,6 +104,7 @@ export function AppleControlButtons({
 }: AppleControlButtonsProps) {
   const { t } = useI18n();
   const [showEmergencyChoice, setShowEmergencyChoice] = useState(false);
+  const [showPetshopChoice, setShowPetshopChoice] = useState(false);
   const shoppingTitle = petName ? `Loja ${petDo({ sex: petSex })} ${petName}` : t('home.shopping.title');
   const foodHeadlineText = !hasFoodData
     ? 'Cuidado em aberto'
@@ -262,6 +267,21 @@ export function AppleControlButtons({
             </div>
             <span className="text-lg text-red-300 transition-transform group-hover:translate-x-1">›</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setShowPetshopChoice(true)}
+            className="group relative flex min-h-[44px] w-full items-center gap-2 overflow-hidden rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm transition-all duration-300 hover:shadow-md active:scale-[0.98] min-[390px]:min-h-[52px] min-[390px]:gap-2.5 min-[390px]:rounded-2xl min-[390px]:p-3"
+          >
+            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 transition-transform group-hover:scale-105 min-[390px]:h-8 min-[390px]:w-8">
+              <Store className="h-[15px] w-[15px] text-slate-500 min-[390px]:h-4 min-[390px]:w-4" strokeWidth={2.2} />
+            </div>
+            <div className="min-w-0 flex-1 text-left">
+              <h3 className="truncate text-[13px] font-bold leading-tight text-slate-800 min-[390px]:text-[14px] sm:text-base">PetShops perto de você</h3>
+              <p className="mt-0.5 truncate text-[9px] font-semibold leading-[1.1] text-slate-400 min-[390px]:text-[10px] sm:text-xs">Lojas, banho e tosa e hospedagem</p>
+            </div>
+            <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-300 transition-transform group-hover:translate-x-1" strokeWidth={2.5} />
+          </button>
         </div>
       </div>
 
@@ -327,6 +347,42 @@ export function AppleControlButtons({
             </div>
           </div>
         </div>
+      )}
+
+      {showPetshopChoice && (
+        <SheetShell open onClose={() => setShowPetshopChoice(false)} variant="center" size="sm" z={80}>
+          <SheetHeader
+            title="PetShops perto de você"
+            subtitle="Abre no Google Maps"
+            media={<SheetIcon tone="slate"><Store className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+            onClose={() => setShowPetshopChoice(false)}
+          />
+          <SheetShell.Body className="space-y-2.5">
+            {[
+              { Icon: Store, label: 'PetShops', desc: 'Lojas de produtos e serviços pet', q: 'petshop perto de mim' },
+              { Icon: Scissors, label: 'Banho e tosa', desc: 'Estética e higiene do pet', q: 'banho e tosa para cães perto de mim' },
+              { Icon: Building2, label: 'Hotéis e creches', desc: 'Hospedagem e day care', q: 'hotel para pet creche para cachorro perto de mim' },
+            ].map(({ Icon, label, desc, q }) => (
+              <a
+                key={label}
+                href={MAPS(q)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShowPetshopChoice(false)}
+                className="flex items-center gap-3.5 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all duration-150 hover:border-slate-300 hover:shadow-[0_8px_20px_-8px_rgba(15,23,42,0.12)] active:scale-[0.98]"
+              >
+                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-slate-50 ring-1 ring-black/5">
+                  <Icon className="h-5 w-5 text-slate-500" strokeWidth={2.2} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[14px] font-bold text-slate-900">{label}</div>
+                  <div className="mt-0.5 text-[12px] text-slate-400">{desc}</div>
+                </div>
+                <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-300" strokeWidth={2.5} />
+              </a>
+            ))}
+          </SheetShell.Body>
+        </SheetShell>
       )}
 
     </>
