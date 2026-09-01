@@ -98,6 +98,7 @@ class ProductIdentity:
         evidence: tuple[str, ...] = (),
     ) -> "ProductIdentity":
         text = " ".join(part for part in (canonical_name, product_line, product_family) if part)
+        animal_range = animal_weight_range or extract_animal_weight_range_kg(text)
         return cls(
             gtin=normalize_gtin(gtin or "") or None,
             canonical_name=_clean(canonical_name),
@@ -106,11 +107,11 @@ class ProductIdentity:
             category=_clean(category),
             product_family=_clean(product_family) or _infer_family(canonical_name, brand),
             product_line=_clean(product_line) or _infer_product_line(text),
-            weight_kg=weight_kg if weight_kg is not None else extract_weight_kg(text),
+            weight_kg=weight_kg if weight_kg is not None else _product_weight_kg(text, animal_range),
             volume_ml=volume_ml if volume_ml is not None else extract_volume_ml(text),
             length_cm=length_cm if length_cm is not None else extract_length_cm(text),
             pack_count=pack_count if pack_count is not None else extract_pack_count(text),
-            animal_weight_range=animal_weight_range or extract_animal_weight_range_kg(text),
+            animal_weight_range=animal_range,
             life_stage=_normalize_life_stage(life_stage) or _infer_life_stage(text),
             breed_size=_normalize_breed_size(breed_size) or _infer_breed_size(text),
             breed=_clean(breed),
@@ -346,6 +347,12 @@ _THERAPEUTIC_GROUPS = {
 }
 
 
+_ANIMAL_WEIGHT_CONTEXT = re.compile(
+    r"(?:caes|cao|cachorr\w*|gat\w*|animais?|racas?|pet\w*|porte)\b[^\d]{0,24}"
+    r"(?:de|acima de|ate|até|maiores? que|a partir de)\s*\d",
+)
+
+
 def extract_animal_weight_range_kg(text: str) -> Optional[tuple[float, float]]:
     normalized = _normalize_text(text)
     range_match = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:kg)?\s*(?:a|-|ate|até)\s*(\d+(?:[.,]\d+)?)\s*kg\b", normalized)
@@ -356,7 +363,30 @@ def extract_animal_weight_range_kg(text: str) -> Optional[tuple[float, float]]:
     upto_match = re.search(r"(?:ate|até)\s*(\d+(?:[.,]\d+)?)\s*kg\b", normalized)
     if upto_match:
         return (0.0, float(upto_match.group(1).replace(",", ".")))
+    acima_match = re.search(r"(?:acima de|maiores? que|a partir de)\s*(\d+(?:[.,]\d+)?)\s*kg\b", normalized)
+    if acima_match:
+        lo = float(acima_match.group(1).replace(",", "."))
+        return (lo, lo * 3)
     return None
+
+
+def _product_weight_kg(text: str, animal_range: Optional[tuple[float, float]]) -> Optional[float]:
+    """Peso da EMBALAGEM. "Cães acima de 40kg" / "para cães de 5,1 a 10kg" é
+    peso do ANIMAL, não do produto — não vira weight_kg."""
+    value = extract_weight_kg(text)
+    if value is None:
+        return None
+    normalized = _normalize_text(text)
+    if animal_range is not None:
+        lo, hi = animal_range
+        if lo - 0.01 <= value <= hi + 0.01:
+            return None
+    if _ANIMAL_WEIGHT_CONTEXT.search(normalized):
+        # o único número em kg está numa frase de peso do animal
+        other = re.findall(r"(\d+(?:[.,]\d+)?)\s*(kg|g)\b", normalized)
+        if len(other) <= 1:
+            return None
+    return value
 
 
 def _compare_gtin(expected: Optional[str], observed: Optional[str]) -> AttributeComparison:
