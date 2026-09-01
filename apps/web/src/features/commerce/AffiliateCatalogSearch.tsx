@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { Search } from 'lucide-react';
 import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
 import { trackClick } from '@/lib/analytics/click';
 import { identifyProductByBarcode, type ScannedProduct } from '@/lib/productScanner';
@@ -271,24 +272,24 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
     <div>
       {/* Escanear código / código de barras manual: ocultos por enquanto
           (feedback do tutor) — só a busca por texto, maior e direta. */}
-      <div className="sticky top-0 z-20 bg-white pb-2">
+      <div className="sticky top-0 z-20 bg-[#fbfaf7] pb-2">
         <div className="relative">
-        <input
-          ref={searchInputRef}
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onFocus={(e) => {
-            // font-size >= 16px evita o zoom automático do Safari iOS ao
-            // focar um input (o que empurrava o campo pra fora da área
-            // visível); scrollIntoView garante que ele fique acima do
-            // teclado mesmo dentro de uma sheet/modal rolável.
-            window.setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300);
-          }}
-          placeholder="Buscar produto..."
-          className="w-full border-2 border-gray-200 rounded-2xl pl-12 pr-4 py-4 text-[16px] font-semibold text-gray-900 placeholder-gray-400 outline-none focus:border-blue-400 transition-colors"
-        />
-        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">🔎</span>
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" strokeWidth={2.2} />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={(e) => {
+              // font-size >= 16px evita o zoom automático do Safari iOS ao
+              // focar um input (o que empurrava o campo pra fora da área
+              // visível); scrollIntoView garante que ele fique acima do
+              // teclado mesmo dentro de uma sheet/modal rolável.
+              window.setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300);
+            }}
+            placeholder="Buscar produto..."
+            className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-[16px] font-medium text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none transition-all duration-150 placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10"
+          />
         </div>
       </div>
 
