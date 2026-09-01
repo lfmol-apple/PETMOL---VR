@@ -190,6 +190,11 @@ def _row_to_offer_fields(row: dict, merchant: str, advertiser_id: str, synced_at
         title=(row.get("product_name") or "").strip() or None,
         brand=(row.get("brand_name") or "").strip() or None,
         category=_first_nonempty(row.get("category_name"), row.get("product_type"), row.get("merchant_category")),
+        # `description` e `mpn` já vêm nas FEED_COLUMNS — guardados como
+        # sinal de enriquecimento de catálogo (catalog_enrichment.py),
+        # nunca user-facing. Descrição truncada pra não inchar a linha.
+        description=(((row.get("description") or "").strip())[:2000] or None),
+        mpn=(((row.get("mpn") or "").strip())[:64] or None),
         price=_parse_float(row.get("search_price", "")),
         currency="BRL",
         in_stock=_availability_from_row(row),

@@ -21,7 +21,7 @@ import {
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
 import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
-import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerPriceLabel, type CommerceOffer, type PetzDirectLink } from './productPricing';
+import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerOriginLabel, offerPriceLabel, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
 import {
   buildReorderCards,
@@ -166,44 +166,46 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:px-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-md" />
 
       <div
-        className="relative w-full max-w-md overflow-hidden rounded-t-[24px] border border-white/70 bg-[#fbfaf7] shadow-[0_-12px_40px_rgba(15,23,42,0.14)] sm:mb-4 sm:rounded-[24px] flex flex-col"
+        className="relative isolate flex w-full max-w-md flex-col overflow-hidden rounded-t-[26px] bg-[#fbfaf7] shadow-[0_-8px_50px_-8px_rgba(15,23,42,0.35)] ring-1 ring-black/5 sm:mb-4 sm:rounded-[26px]"
         style={{ maxHeight: '88dvh' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1 flex-shrink-0 sm:hidden">
-          <div className="h-1 w-10 rounded-full bg-slate-300/80" />
-        </div>
+        {/* Cabeçalho — camada opaca própria, nunca deixa o fundo vazar */}
+        <div className="relative z-10 flex-shrink-0 bg-[#fbfaf7]">
+          <div className="flex justify-center pt-2.5 pb-1 sm:hidden">
+            <div className="h-1 w-9 rounded-full bg-slate-300/80" />
+          </div>
 
-        {/* Header */}
-        <div className="flex items-center gap-3 px-5 pt-3 pb-4 flex-shrink-0">
-          <div className="grid h-10 w-10 flex-shrink-0 place-items-center overflow-hidden rounded-full bg-white text-xl shadow-[0_4px_14px_rgba(15,23,42,0.08)] ring-1 ring-black/[0.04]">
-            {petPhotoSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={petPhotoSrc} alt={petName || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
-            ) : (
-              <span>{currentPet.species === 'cat' ? '🐱' : '🐶'}</span>
-            )}
+          <div className="flex items-center gap-3 px-5 pb-4 pt-1.5 sm:pt-4">
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-xl shadow-[0_2px_10px_rgba(15,23,42,0.12)] ring-2 ring-white">
+              {petPhotoSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={petPhotoSrc} alt={petName || 'Pet'} className="h-full w-full object-cover" loading="lazy" />
+              ) : (
+                <span>{currentPet.species === 'cat' ? '🐱' : '🐶'}</span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-[17px] font-bold leading-[1.15] tracking-[-0.01em] text-slate-900">{title}</h2>
+              <p className="truncate text-[12.5px] font-medium leading-tight text-slate-400">Tudo que {petName || 'seu pet'} usa</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fechar"
+              className="-mr-1 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-900/[0.06] text-slate-500 transition-colors duration-150 hover:bg-slate-900/[0.1] hover:text-slate-800 active:scale-90 motion-reduce:transition-none motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbfaf7]"
+            >
+              <X className="h-[15px] w-[15px]" strokeWidth={2.5} />
+            </button>
           </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="truncate text-[17px] font-extrabold leading-tight text-slate-950">{title}</h2>
-            <p className="truncate text-[12px] font-medium text-slate-500">Tudo que {petName || 'seu pet'} usa</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-white/80 text-slate-500 shadow-[0_3px_12px_rgba(15,23,42,0.06)] ring-1 ring-black/[0.04] transition-all duration-200 hover:bg-white hover:text-slate-700 active:scale-[0.9] motion-reduce:transition-none motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbfaf7]"
-            aria-label="Fechar"
-          >
-            <X className="h-4 w-4" strokeWidth={2.3} />
-          </button>
+          <div className="mx-5 h-px bg-gradient-to-r from-transparent via-slate-900/[0.07] to-transparent" />
         </div>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto overscroll-contain flex-1 space-y-4 px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+        <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
           <div>
             <button
               type="button"
@@ -320,7 +322,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                   busca (texto + escanear/digitar código de barras) — a
                   grade "Explorar categorias" foi removida a pedido. */}
           <div>
-            <p className="mb-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Buscar outro produto</p>
+            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Buscar outro produto</p>
             <AffiliateCatalogSearch petId={currentPet.pet_id} />
           </div>
 
@@ -347,7 +349,7 @@ function PartnerStoreGrid({
 
   return (
     <div>
-      <p className="mb-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Ou visite uma loja parceira</p>
+      <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Ou visite uma loja parceira</p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {partners.map((partner) => (
           <button
@@ -422,10 +424,10 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
     };
   }, [card.gtin, card.label, card.searchQuery]);
 
-  // Toda oferta na lista é o mesmo produto (mesmo GTIN) — só preço/loja
-  // mudam. Nem toda loja tem imagem (Shopee/busca por palavra-chave ainda
-  // não tem, só o feed Awin tem), então usa a primeira com imagem em vez
-  // de travar na foto só da oferta mais barata.
+  // Toda oferta na lista é o mesmo SKU físico — o GTIN da oferta pode ser
+  // um EAN irmão do grupo (ver offerOriginLabel). Nem toda loja tem imagem
+  // (Shopee/busca por palavra-chave ainda não tem, só o feed Awin tem),
+  // então usa a primeira com imagem em vez de travar na foto só da mais barata.
   const imageUrl = offers.find((o) => o.image_url)?.image_url ?? null;
   const hasPetz = Boolean(petzLink?.available && petzLink.url);
   // offers já vem ordenado por preço crescente (CommerceEngine) — offer é
@@ -525,6 +527,9 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
               )}
             </p>
           )}
+          {!loading && hasMonetizedOffer && offer && offerOriginLabel(offer) && (
+            <p className="mt-0.5 text-[10px] font-medium leading-tight text-slate-400">{offerOriginLabel(offer)}</p>
+          )}
           {!loading && !hasMonetizedOffer && hasPetz && (
             <p className="mt-0.5 text-[12px] font-bold leading-tight text-blue-700">Disponível na Petz · cupom {PETZ_COUPON_CODE} -10%</p>
           )}
@@ -574,7 +579,7 @@ function OfferPickerRow({ offers, onPick, petzLink, onPickPetz }: {
 }) {
   return (
     <div className="mt-2.5 space-y-1.5 border-t border-slate-100 pt-2.5" onClick={(e) => e.stopPropagation()}>
-      <p className="px-0.5 text-[10px] font-extrabold uppercase tracking-wide text-slate-400">Escolha a loja</p>
+      <p className="px-0.5 text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">Escolha a loja</p>
       {offers.map((offer) => {
         const logoSrc = HOME_SHOPPING_PARTNERS.find((p) => p.id === offer.merchant)?.logoSrc;
         return (
@@ -584,12 +589,17 @@ function OfferPickerRow({ offers, onPick, petzLink, onPickPetz }: {
             onClick={() => onPick(offer)}
             className="flex min-h-[44px] w-full items-center justify-between gap-2 rounded-xl border border-slate-200/70 bg-slate-50/70 px-3 transition-all duration-200 hover:border-emerald-200 hover:bg-white active:scale-[0.98] motion-reduce:transition-none motion-reduce:transform-none"
           >
-            <span className="flex min-w-0 items-center gap-1.5">
-              {logoSrc && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoSrc} alt="" className="h-4 w-4 flex-shrink-0 rounded object-contain border border-slate-100 bg-white" />
+            <span className="flex min-w-0 flex-col items-start gap-0.5">
+              <span className="flex min-w-0 items-center gap-1.5">
+                {logoSrc && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoSrc} alt="" className="h-4 w-4 flex-shrink-0 rounded object-contain border border-slate-100 bg-white" />
+                )}
+                <span className="truncate text-[12px] font-bold text-slate-800">{merchantLabel(offer.merchant)}</span>
+              </span>
+              {offerOriginLabel(offer) && (
+                <span className="truncate text-[9px] font-medium text-slate-400">{offerOriginLabel(offer)}</span>
               )}
-              <span className="truncate text-[12px] font-bold text-slate-800">{merchantLabel(offer.merchant)}</span>
             </span>
             <span className="flex-shrink-0 text-[12px] font-bold text-emerald-700">{offerPriceLabel(offer)}</span>
           </button>

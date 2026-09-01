@@ -188,22 +188,41 @@ async def test_prevalidated_marketplace_offer_skips_wrong_variant_and_uses_valid
 
 
 @pytest.mark.asyncio
-async def test_stale_offer_is_served_without_a_price_number(monkeypatch):
-    """Oferta de marketplace defasada continua aparecendo (o link ainda
-    vale), mas SEM preço — o número velho de um anúncio de terceiro pode
-    estar errado. O frontend mostra "Conferir preço na <loja>"."""
+async def test_stale_offer_two_tier_price_window(monkeypatch):
+    """Fase 1-D: entre a janela fresca e _show_stale_after_hours, a oferta
+    aparece com o último preço marcado stale ("confirme na loja"). Além
+    disso, sem número."""
     _enable_shopee(monkeypatch)
     monkeypatch.setenv("MARKETPLACE_OFFER_STALE_AFTER_HOURS", "36")
+    monkeypatch.setenv("MARKETPLACE_OFFER_SHOW_STALE_AFTER_HOURS", "240")
+    monkeypatch.setenv("MARKETPLACE_OFFER_INLINE_REFRESH_ENABLED", "false")
     monkeypatch.setenv("MARKETPLACE_OFFER_REFRESH_AFTER_MINUTES", "0")
     get_settings.cache_clear()
     product_id = _register_product()
-    old = datetime.now(timezone.utc) - timedelta(hours=37)
-    _register_offer(product_id, last_checked_at=old, verified_at=old)
 
+    within = datetime.now(timezone.utc) - timedelta(hours=100)
+    _register_offer(product_id, price=88.9, last_checked_at=within, verified_at=within)
     db = SessionLocal()
     try:
-        provider = MarketplaceOfferProvider(db, "shopee")
-        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        offer = await MarketplaceOfferProvider(db, "shopee").find_offer(ProductContext(gtin=GTIN))
+        assert offer is not None
+        assert offer.price == 88.9
+        assert offer.price_is_stale is True
+    finally:
+        db.close()
+
+    beyond = datetime.now(timezone.utc) - timedelta(hours=300)
+    db = SessionLocal()
+    try:
+        row = db.query(MarketplaceOffer).filter(MarketplaceOffer.product_id == product_id).one()
+        row.last_checked_at = beyond
+        row.verified_at = beyond
+        db.commit()
+    finally:
+        db.close()
+    db = SessionLocal()
+    try:
+        offer = await MarketplaceOfferProvider(db, "shopee").find_offer(ProductContext(gtin=GTIN))
         assert offer is not None
         assert offer.price is None
         assert offer.price_is_stale is True
@@ -212,26 +231,48 @@ async def test_stale_offer_is_served_without_a_price_number(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_old_shopee_offer_is_served_without_inline_refresh_by_default(monkeypatch):
+async def test_inline_refresh_off_by_default_but_works_when_enabled(monkeypatch):
+    # Fase 1-D / P3: refresh inline é OPT-IN (bloqueia o event loop —
+    # _refresh_marketplace_offer é síncrono). Padrão desligado.
     _enable_shopee(monkeypatch)
     monkeypatch.setenv("MARKETPLACE_OFFER_REFRESH_AFTER_MINUTES", "30")
     get_settings.cache_clear()
     product_id = _register_product()
-    old = datetime.now(timezone.utc) - timedelta(hours=2)
+    old = datetime.now(timezone.utc) - timedelta(hours=8)
     _register_offer(product_id, price=382.32, last_checked_at=old, verified_at=old)
 
+    called = {"n": 0}
+
     def fake_refresh(merchant: str, gtin: str) -> None:
-        raise AssertionError("public offer lookup must not block on inline marketplace refresh by default")
+        called["n"] += 1
+        rdb = SessionLocal()
+        try:
+            row = rdb.query(MarketplaceOffer).filter(MarketplaceOffer.product_id == product_id).one()
+            row.price = 345.04
+            row.last_checked_at = datetime.now(timezone.utc)
+            row.verified_at = row.last_checked_at
+            rdb.commit()
+        finally:
+            rdb.close()
 
     monkeypatch.setattr("src.marketplace_offer_provider._refresh_marketplace_offer", fake_refresh)
 
     db = SessionLocal()
     try:
-        provider = MarketplaceOfferProvider(db, "shopee")
-        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        offer = await MarketplaceOfferProvider(db, "shopee").find_offer(ProductContext(gtin=GTIN))
+        assert called["n"] == 0  # desligado por padrão
         assert offer is not None
-        assert offer.price == 382.32
-        assert offer.price_is_stale is False
+    finally:
+        db.close()
+
+    monkeypatch.setenv("MARKETPLACE_OFFER_INLINE_REFRESH_ENABLED", "true")
+    get_settings.cache_clear()
+    db = SessionLocal()
+    try:
+        offer = await MarketplaceOfferProvider(db, "shopee").find_offer(ProductContext(gtin=GTIN))
+        assert called["n"] == 1
+        assert offer is not None
+        assert offer.price == 345.04
     finally:
         db.close()
 

@@ -149,6 +149,11 @@ class CobasiProvider:
         # resto. GTIN que a Cobasi não conhece → sem preço (link cadastrado
         # ainda serve; resto não oferece).
         price = await fetch_cobasi_price_by_gtin(context.gtin) if gtin_n else None
+        # NB: merchant_price_cache NÃO é gravado aqui — escrita síncrona no
+        # event loop, na sessão da request (que não faz commit), causava
+        # deadlock de lock sob carga real (incidente 2026-09-01). A tabela
+        # é populada por job de fundo; o read fica pra uma versão futura.
+        price_from_cache = False
 
         # 1) Produto pré-cadastrado com link MAIS (ração do Baby /
         #    mais.app/IvUCAG) — monetize() resolve o link pelo context.gtin.
@@ -222,7 +227,7 @@ class CobasiProvider:
         #    loja já provou que o GTIN do tutor é a mesma apresentação
         #    comercial com código irmão (ex: Scalibor M ↔ 48 cm).
         if price is None or not price.found or price.price is None:
-            return self._find_cobasi_feed_sibling_offer(context, identity)
+            return await self._find_cobasi_feed_sibling_offer(context, identity)
 
         match_result = evaluate_identity(
             identity,
@@ -247,10 +252,11 @@ class CobasiProvider:
             is_available=price.is_available,
             direct_url=price.url,
             ean=price.ean or normalize_gtin(context.gtin),
+            price_is_stale=price_from_cache,
             merchant_product_name=price.product_name,
             match_decision=match_result.decision.value,
             match_confidence=match_result.confidence,
-            match_reasons=list(match_result.reasons),
+            match_reasons=[*match_result.reasons, *(["COBASI_PRICE_FROM_CACHE"] if price_from_cache else [])],
             match_attributes=[
                 {
                     "attribute": item.attribute,
@@ -263,7 +269,7 @@ class CobasiProvider:
             ],
         )
 
-    def _find_cobasi_feed_sibling_offer(
+    async def _find_cobasi_feed_sibling_offer(
         self,
         context: ProductContext,
         identity: ProductIdentity,
@@ -292,7 +298,14 @@ class CobasiProvider:
         if not references:
             return None
 
-        candidates = list(self._db.scalars(
+        # Bloqueia por MARCA no SQL — sem isso a varredura pega ~8k linhas de
+        # feed Cobasi e roda o Identity Engine (regex) em cada uma, no event
+        # loop, a cada request (incidente 2026-09-01). A marca vem da
+        # referência do próprio GTIN do tutor.
+        ref_brands = {(r.brand or "").strip() for r in references if (r.brand or "").strip()}
+        if identity.brand:
+            ref_brands.add(identity.brand.strip())  # marca de prateleira normalizada
+        cand_q = (
             select(AffiliateFeedOffer)
             .where(
                 AffiliateFeedOffer.network == "awin",
@@ -302,7 +315,15 @@ class CobasiProvider:
                 AffiliateFeedOffer.in_stock.is_(True),
             )
             .order_by(AffiliateFeedOffer.price.asc())
-        ))
+            .limit(120)
+        )
+        if ref_brands:
+            from sqlalchemy import or_ as _or
+
+            cand_q = cand_q.where(_or(*[AffiliateFeedOffer.brand.ilike(b) for b in ref_brands]))
+        candidates = list(self._db.scalars(cand_q))
+        if not candidates:
+            return None
         matches = [
             row for row in candidates
             if _looks_like_same_product(row, references, context)
@@ -339,24 +360,58 @@ class CobasiProvider:
         if not match_result.accepted:
             return None
 
+        # Preço ao vivo do EAN irmão na VTEX da Cobasi — só troca o preço do
+        # feed (stale) quando a consulta ao vivo resolve o MESMO SKU irmão.
+        # A identidade exibida (nome/GTIN do tutor) nunca muda.
+        price = row.price
+        list_price = row.list_price
+        price_stale = True
+        price_checked_at = row.last_synced_at
+        direct_url = row.merchant_url
+        reasons = [*match_result.reasons, "COBASI_FEED_SIBLING_GTIN"]
+        sibling_gtin = normalize_gtin(row.gtin or "")
+        if sibling_gtin:
+            try:
+                live = await fetch_cobasi_price_by_gtin(sibling_gtin)
+            except Exception:  # noqa: BLE001 — preço ao vivo é best-effort
+                live = None
+            if live and live.found and live.price is not None:
+                live_match = evaluate_identity(
+                    row_identity,
+                    MerchantCandidate.build(
+                        merchant=self.merchant,
+                        title=live.product_name,
+                        gtin=live.ean or sibling_gtin,
+                        brand=live.brand,
+                        price=live.price,
+                    ),
+                )
+                if live_match.accepted:
+                    price = live.price
+                    list_price = live.list_price
+                    price_stale = False
+                    price_checked_at = None
+                    direct_url = live.url or direct_url
+                    reasons.append("COBASI_SIBLING_GTIN_LIVE")
+
         return DiscoveredOffer(
             merchant=self.merchant,
             **self._offer_identity_payload(identity, self._catalog_for_gtin(context.gtin)),
             product_name=identity.canonical_name or context.canonical_name or context.name or row.title,
             brand=identity.brand or context.canonical_brand or context.brand or row.brand,
-            price=row.price,
-            list_price=row.list_price,
+            price=price,
+            list_price=list_price,
             is_available=row.in_stock,
-            direct_url=row.merchant_url,
+            direct_url=direct_url,
             ean=row.gtin,
             external_id=row.external_product_id,
             image_url=identity.image_url or context.canonical_image_url or row.image_url,
-            price_checked_at=row.last_synced_at,
-            price_is_stale=True,
+            price_checked_at=price_checked_at,
+            price_is_stale=price_stale,
             merchant_product_name=row.title,
             match_decision=match_result.decision.value,
             match_confidence=match_result.confidence,
-            match_reasons=[*match_result.reasons, "COBASI_FEED_SIBLING_GTIN"],
+            match_reasons=reasons,
             match_attributes=[
                 {
                     "attribute": item.attribute,

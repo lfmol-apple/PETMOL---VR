@@ -9,8 +9,10 @@ User=petmol
 Group=petmol
 WorkingDirectory=/opt/petmol/current/services/price-service
 EnvironmentFile=/opt/petmol/shared/env/api.env
-# Conservative daily mode: no marketplace/API calls here. It enriches local
-# catalog identity/image from already-synced Awin feeds and reports gaps
-# (missing barcode, missing image, missing offer) for the products pets
-# actually use. Shopee bulk sync remains the separate shopee-sync timer.
-ExecStart=/opt/petmol/current/services/price-service/.venv/bin/python scripts/optimize_commerce_quality.py --apply --autofill-safe-gtin --limit 500 --summary-only
+# Conservative daily mode: no marketplace/API calls here. It runs the
+# deterministic catalog master enrichment (merge_product_catalog_identity —
+# funde os feeds Awin por GTIN na identidade canônica do SKU, com
+# proveniência) para até 2000 GTINs/noite (tutores primeiro), e reporta
+# gaps (missing barcode/image/offer) dos produtos que os pets usam. Sem
+# rede/API externa. Shopee bulk sync continua no timer petmol-shopee-sync.
+ExecStart=/opt/petmol/current/services/price-service/.venv/bin/python scripts/optimize_commerce_quality.py --apply --autofill-safe-gtin --limit 500 --catalog-enrich-limit 2000 --sku-group-limit 3000 --summary-only

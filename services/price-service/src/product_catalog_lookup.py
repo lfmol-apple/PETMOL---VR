@@ -77,15 +77,59 @@ class ProductCatalog(Base):
     animal_weight_max_kg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     breed_size: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     breed: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    flavor: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     identity_aliases_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     therapeutic_attributes_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # {campo: {value, source, source_merchant, source_feed, confidence, at}}
     identity_evidence_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    identity_enriched_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     source_primary: Mapped[str] = mapped_column(String(64), nullable=False, default="petmol_db")
     source_confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     raw_payload: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     last_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SkuGroupMember(Base):
+    """Associação cross-GTIN: um mesmo SKU físico com EANs diferentes.
+    Uma linha por membro; group_key determinístico; proveniência por linha.
+    Ver src/sku_grouping.py."""
+
+    __tablename__ = "product_sku_group_members"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    group_key: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    member_gtin: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    canonical_gtin: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    match_basis: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    evidence_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="SKU_GROUPER")
+    confirmed_by: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class MerchantPriceCache(Base):
+    """Último preço visto por (merchant, gtin) — persistente, sobrevive a
+    restart. Fallback "visto por R$X em <data>" e histórico. Ver
+    src/commerce_pricing.py."""
+
+    __tablename__ = "merchant_price_cache"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    merchant: Mapped[str] = mapped_column(String(32), nullable=False)
+    gtin: Mapped[str] = mapped_column(String(32), nullable=False)
+    price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    list_price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="BRL")
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default="live")
+    product_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class ProductScanEvent(Base):
@@ -226,7 +270,13 @@ class CatalogCandidate:
 
 
 def normalize_gtin(value: str) -> str:
-    return "".join(ch for ch in (value or "") if ch.isdigit())
+    digits = "".join(ch for ch in (value or "") if ch.isdigit())
+    # GTIN-14 com dígito indicador 0 é o mesmo item base do GTIN-13 — códigos
+    # de barras escaneados às vezes vêm com zero à esquerda (ex.:
+    # "07896185908001") e não batiam com a linha de feed ("7896185908001").
+    if len(digits) == 14 and digits[0] == "0":
+        digits = digits[1:]
+    return digits
 
 
 def is_valid_gtin(value: str) -> bool:

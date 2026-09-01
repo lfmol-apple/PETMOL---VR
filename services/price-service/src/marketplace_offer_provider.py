@@ -156,6 +156,10 @@ class MarketplaceOfferProvider:
                 checked_at = _effective_checked_at(offer)
 
         fresh = _is_offer_fresh(checked_at)
+        # Fase 1-D: entre "fresco" e _show_stale_after_hours ainda mostramos
+        # o último preço, marcado stale ("confirme na loja") — número
+        # possivelmente velho vence "sem número" num nudge de recompra.
+        show_stale_price = (not fresh) and _is_offer_within_show_window(checked_at)
         match_reasons = None
         match_attributes = None
         if offer.match_reasons_json:
@@ -174,11 +178,10 @@ class MarketplaceOfferProvider:
             canonical_image_url=identity.image_url or (product.thumbnail_url if product else None),
             product_name=identity.canonical_name or context.name or context.query,
             brand=identity.brand or context.brand,
-            # Preço de marketplace defasado NÃO vira número na tela — o
-            # anúncio de terceiro pode ter mudado de preço/estoque desde o
-            # último sync. Sem preço fresco, o frontend mostra "Conferir
-            # preço na <loja>" e a oferta desce pro fim do ranking.
-            price=offer.price if fresh else None,
+            # Preço fresco = número normal. Entre a janela fresca e
+            # _show_stale_after_hours: mostra o último preço marcado stale.
+            # Além disso: sem número ("Conferir preço"), oferta pro fim.
+            price=offer.price if (fresh or show_stale_price) else None,
             is_available=offer.is_available,
             direct_url=offer.direct_url,
             external_id=str(offer.id),
@@ -311,6 +314,16 @@ def _is_offer_fresh(checked_at: Optional[datetime]) -> bool:
     settings = get_settings()
     cutoff = datetime.now(timezone.utc) - timedelta(hours=settings.marketplace_offer_stale_after_hours)
     return checked_at >= cutoff
+
+
+def _is_offer_within_show_window(checked_at: Optional[datetime]) -> bool:
+    """Fora da janela fresca mas ainda recente o bastante pra mostrar o
+    último preço marcado 'confirme na loja'."""
+    if checked_at is None:
+        return False
+    settings = get_settings()
+    hours = getattr(settings, "marketplace_offer_show_stale_after_hours", 240)
+    return checked_at >= datetime.now(timezone.utc) - timedelta(hours=hours)
 
 
 def _should_live_refresh(merchant: str, checked_at: Optional[datetime]) -> bool:

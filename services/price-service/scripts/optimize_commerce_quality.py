@@ -39,10 +39,29 @@ def main() -> int:
     parser.add_argument("--resolve-gtin", action="store_true", help="Call configured GTIN providers when catalog/image is missing.")
     parser.add_argument("--autofill-safe-gtin", action="store_true", help="Write GTIN into pet-linked records only for unambiguous high-confidence suggestions.")
     parser.add_argument("--no-feed-enrich", action="store_true", help="Disable enrichment from already-synced Awin feeds.")
+    parser.add_argument("--catalog-enrich-limit", type=int, default=0,
+                        help="Also run the deterministic catalog master enrichment (merge_product_catalog_identity) "
+                             "for up to N feed GTINs (tutor-scanned first). 0 = skip.")
+    parser.add_argument("--sku-group-limit", type=int, default=0,
+                        help="Also rebuild deterministic cross-GTIN SKU groups for up to N catalog GTINs. 0 = skip.")
     parser.add_argument("--summary-only", action="store_true", help="Print only aggregate metrics.")
     args = parser.parse_args()
 
     dry_run = not args.apply or args.dry_run
+    catalog_enrich_summary = None
+    sku_group_summary = None
+    if args.catalog_enrich_limit > 0 and not dry_run:
+        from src.catalog_enrichment import enrich_feed_catalog_batch  # noqa: E402
+
+        with SessionLocal() as db:
+            batch = enrich_feed_catalog_batch(db, max_products=args.catalog_enrich_limit)
+        catalog_enrich_summary = vars(batch)
+    if args.sku_group_limit > 0 and not dry_run:
+        from src.sku_grouping import rebuild_groups_batch  # noqa: E402
+
+        with SessionLocal() as db:
+            sku_group_summary = vars(rebuild_groups_batch(db, max_products=args.sku_group_limit))
+
     with SessionLocal() as db:
         result = optimize_commerce_quality(
             db,
@@ -58,6 +77,10 @@ def main() -> int:
     payload = result.to_dict()
     if args.summary_only:
         payload = {key: value for key, value in payload.items() if key != "items"}
+    if catalog_enrich_summary is not None:
+        payload["catalog_master_enrichment"] = catalog_enrich_summary
+    if sku_group_summary is not None:
+        payload["sku_grouping"] = sku_group_summary
     print(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
     return 0
 

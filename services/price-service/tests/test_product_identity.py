@@ -106,7 +106,9 @@ def test_scalibor_length_variation_is_conflict():
     assert "LENGTH_CM_CONFLICT" in result.reasons
 
 
-def test_scalibor_without_length_can_still_match_by_size_words():
+def test_scalibor_size_words_resolve_to_length_cm_and_match():
+    # I4/I6: "Scalibor pequenos e médios" e "Scalibor 48cm" são a mesma coleira —
+    # a letra/porte vira length_cm no Identity Engine (tabela fechada).
     expected = ProductIdentity.build(canonical_name="Coleira Antiparasitaria Scalibor 48cm", brand="Scalibor")
     result = evaluate_identity(
         expected,
@@ -114,8 +116,33 @@ def test_scalibor_without_length_can_still_match_by_size_words():
     )
 
     assert result.accepted is True
-    assert _statuses(result)["length_cm"] == AttributeStatus.UNKNOWN
+    assert _statuses(result)["length_cm"] == AttributeStatus.MATCH
     assert _statuses(result)["breed_size"] == AttributeStatus.MATCH
+
+
+def test_scalibor_48_vs_65_is_length_conflict_via_size_words():
+    expected = ProductIdentity.build(canonical_name="Coleira Antiparasitaria Scalibor M", brand="MSD")
+    result = evaluate_identity(
+        expected,
+        MerchantCandidate.build(merchant="shopee", title="Coleira Scalibor Caes Grandes 65cm", brand="Scalibor"),
+    )
+    assert result.decision == IdentityDecision.CONFLICT
+    assert "LENGTH_CM_CONFLICT" in result.reasons
+
+
+def test_multipack_listing_conflicts_with_single_unit_product():
+    expected = ProductIdentity.build(canonical_name="Coleira Antiparasitaria Scalibor 48cm", brand="Scalibor")
+    kit = evaluate_identity(
+        expected,
+        MerchantCandidate.build(merchant="shopee", title="Kit 3 Coleiras Scalibor 48cm Antiparasitaria", brand="Scalibor"),
+    )
+    assert kit.decision == IdentityDecision.CONFLICT
+    assert "MULTIPACK_CONFLICT" in kit.reasons
+    single = evaluate_identity(
+        expected,
+        MerchantCandidate.build(merchant="shopee", title="Coleira Scalibor 48cm Antiparasitaria", brand="Scalibor"),
+    )
+    assert single.accepted is True
 
 
 def test_animal_weight_range_variation_is_conflict():
@@ -206,3 +233,63 @@ def test_price_is_not_identity_evidence():
 
     assert cheap_wrong.decision == IdentityDecision.CONFLICT
     assert expensive_right.accepted is True
+
+
+def test_manufacturer_name_is_normalized_to_shelf_brand_from_product_name():
+    from src.product_identity import normalize_brand
+
+    # feed põe o fabricante no lugar da marca; o nome do produto tem a marca
+    assert normalize_brand("MSD", name_hint="Coleira Antiparasitária Scalibor M") == "Scalibor"
+    assert normalize_brand("Boehringer Ingelheim", name_hint="Antipulgas NexGard Cães 4,1 a 10kg") == "Nexgard"
+    # sem a marca no nome, ou marca que não é fabricante: intocado
+    assert normalize_brand("MSD", name_hint="Produto Genérico") == "MSD"
+    assert normalize_brand("Golden", name_hint="Ração Golden Fórmula") == "Golden"
+
+
+def test_manufacturer_brand_does_not_conflict_with_shelf_brand_of_same_product():
+    # catálogo com "MSD" (fabricante) vs oferta "Scalibor" (prateleira) —
+    # mesma coleira, não pode ser CONFLICT de marca
+    expected = ProductIdentity.build(canonical_name="Coleira Antiparasitária Scalibor M", brand="MSD", species="dog")
+    assert expected.brand == "Scalibor"
+    same = evaluate_identity(
+        expected,
+        MerchantCandidate.build(
+            merchant="cobasi",
+            title="Coleira Antiparasitária Scalibor Cães Pequenos e Médios - 48 cm",
+            brand="Scalibor",
+        ),
+    )
+    assert same.decision != IdentityDecision.CONFLICT
+    assert same.accepted is True
+
+
+def test_gtin14_leading_zero_collapses_to_gtin13():
+    from src.product_catalog_lookup import normalize_gtin
+    assert normalize_gtin("07896185908001") == "7896185908001"
+    assert normalize_gtin("7896185908001") == "7896185908001"
+    # GTIN-14 real (dígito indicador != 0) é preservado
+    assert normalize_gtin("17896185908008") == "17896185908008"
+
+
+def test_animal_weight_range_covers_mais_de_and_e_phrasings():
+    from src.product_identity import extract_animal_weight_range_kg as awr
+    assert awr("Advocate Cães mais de 25kg") == (25.0, 75.0)
+    assert awr("Advocate Gatos entre 4 e 8kg") == (4.0, 8.0)
+    assert awr("Antipulgas para Cães acima de 40kg") == (40.0, 120.0)
+
+
+def test_light_only_tags_obesity_with_food_context():
+    from src.product_identity import _infer_therapeutics
+    assert "obesity" not in _infer_therapeutics("Roupa Pós-Cirúrgica Dry Light para Cães")
+    assert "obesity" in _infer_therapeutics("Ração Golden Light Cães Adultos")
+
+
+def test_manufacturer_to_brands_map_is_well_formed():
+    from src.product_identity import _MANUFACTURER_TO_BRANDS, normalize_brand
+    for maker, brands in _MANUFACTURER_TO_BRANDS.items():
+        assert maker == maker.lower(), f"chave de fabricante deve ser minúscula: {maker!r}"
+        assert len(brands) == len(set(brands)), f"marcas duplicadas em {maker!r}"
+    # a substituição só acontece com correspondência ÚNICA no nome — dois
+    # brands do mesmo fabricante no título → não troca (fica o original).
+    assert normalize_brand("Elanco", name_hint="Drontal e Credelio combo") == "Elanco"
+    assert normalize_brand("Elanco", name_hint="Drontal Plus Cães") == "Drontal"

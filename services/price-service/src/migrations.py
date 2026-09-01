@@ -352,6 +352,11 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "products_catalog", "identity_aliases_json", "TEXT")
         _pg_add_column_if_missing(conn, "products_catalog", "therapeutic_attributes_json", "TEXT")
         _pg_add_column_if_missing(conn, "products_catalog", "identity_evidence_json", "TEXT")
+        # Catalog master enrichment (feat/catalog-master-architecture) — additive, nullable.
+        _pg_add_column_if_missing(conn, "products_catalog", "flavor", "VARCHAR(64)")
+        _pg_add_column_if_missing(conn, "products_catalog", "identity_enriched_at", "TIMESTAMPTZ")
+        _pg_add_column_if_missing(conn, "affiliate_feed_offers", "description", "TEXT")
+        _pg_add_column_if_missing(conn, "affiliate_feed_offers", "mpn", "VARCHAR(64)")
 
         _pg_add_column_if_missing(conn, "marketplace_offers", "merchant_title", "TEXT")
         _pg_add_column_if_missing(conn, "marketplace_offers", "merchant_gtin", "VARCHAR(32)")
@@ -363,6 +368,48 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "marketplace_offers", "price_refresh_error", "VARCHAR(160)")
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_match_decision ON marketplace_offers (match_decision)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_price_refresh ON marketplace_offers (price_refresh_status, last_checked_at)"))
+
+        # Catálogo mestre — grupos de SKU cross-GTIN (Fase 1-A). Uma linha por
+        # associação; group_key determinístico; proveniência por membro.
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS product_sku_group_members (
+                id              SERIAL PRIMARY KEY,
+                group_key       TEXT NOT NULL,
+                member_gtin     VARCHAR(32) NOT NULL,
+                canonical_gtin  VARCHAR(32),
+                match_basis     VARCHAR(32) NOT NULL,
+                status          VARCHAR(16) NOT NULL DEFAULT 'active',
+                confidence      DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                evidence_json   TEXT NOT NULL DEFAULT '{}',
+                source          VARCHAR(32) NOT NULL DEFAULT 'SKU_GROUPER',
+                confirmed_by    VARCHAR(128),
+                created_at      TIMESTAMPTZ DEFAULT NOW(),
+                updated_at      TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_sku_group_member ON product_sku_group_members (group_key, member_gtin)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sku_group_member_gtin ON product_sku_group_members (member_gtin, status)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sku_group_key ON product_sku_group_members (group_key)"))
+
+        # Cache persistente de preço por merchant (Fase 1-D) — sobrevive a
+        # restart, dá histórico e fallback "visto por R$X em <data>".
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS merchant_price_cache (
+                id              SERIAL PRIMARY KEY,
+                merchant        VARCHAR(32) NOT NULL,
+                gtin            VARCHAR(32) NOT NULL,
+                price           DOUBLE PRECISION,
+                list_price      DOUBLE PRECISION,
+                currency        VARCHAR(8) DEFAULT 'BRL',
+                source          VARCHAR(32) NOT NULL DEFAULT 'live',
+                product_name    TEXT,
+                url             TEXT,
+                checked_at      TIMESTAMPTZ DEFAULT NOW(),
+                created_at      TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_merchant_price_cache ON merchant_price_cache (merchant, gtin)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_merchant_price_cache_checked ON merchant_price_cache (merchant, checked_at)"))
 
         # Mission Control phase 1: first-party product analytics, additive and
         # pseudonymous. No raw IP, GPS, email, phone, names or sensitive payloads.
@@ -905,6 +952,10 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "identity_aliases_json", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "therapeutic_attributes_json", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "identity_evidence_json", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "flavor", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "identity_enriched_at", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "affiliate_feed_offers", "description", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "affiliate_feed_offers", "mpn", "TEXT")
 
         changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "merchant_title", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "merchant_gtin", "TEXT")
@@ -916,6 +967,44 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "price_refresh_error", "TEXT")
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_match_decision ON marketplace_offers (match_decision)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_price_refresh ON marketplace_offers (price_refresh_status, last_checked_at)"))
+
+        # Catálogo mestre — grupos de SKU cross-GTIN (Fase 1-A) + cache de preço (1-D).
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS product_sku_group_members (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_key       TEXT NOT NULL,
+                member_gtin     TEXT NOT NULL,
+                canonical_gtin  TEXT,
+                match_basis     TEXT NOT NULL,
+                status          TEXT NOT NULL DEFAULT 'active',
+                confidence      REAL NOT NULL DEFAULT 0.0,
+                evidence_json   TEXT NOT NULL DEFAULT '{}',
+                source          TEXT NOT NULL DEFAULT 'SKU_GROUPER',
+                confirmed_by    TEXT,
+                created_at      TEXT,
+                updated_at      TEXT
+            )
+        """))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_sku_group_member ON product_sku_group_members (group_key, member_gtin)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sku_group_member_gtin ON product_sku_group_members (member_gtin, status)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sku_group_key ON product_sku_group_members (group_key)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS merchant_price_cache (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                merchant        TEXT NOT NULL,
+                gtin            TEXT NOT NULL,
+                price           REAL,
+                list_price      REAL,
+                currency        TEXT DEFAULT 'BRL',
+                source          TEXT NOT NULL DEFAULT 'live',
+                product_name    TEXT,
+                url             TEXT,
+                checked_at      TEXT,
+                created_at      TEXT
+            )
+        """))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_merchant_price_cache ON merchant_price_cache (merchant, gtin)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_merchant_price_cache_checked ON merchant_price_cache (merchant, checked_at)"))
 
         # Mission Control phase 1: first-party product analytics, additive and
         # pseudonymous. No raw IP, GPS, email, phone, names or sensitive payloads.

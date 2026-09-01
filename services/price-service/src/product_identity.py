@@ -23,6 +23,7 @@ from .shopee_offer_matcher import (
     extract_pack_count,
     extract_volume_ml,
     extract_weight_kg,
+    is_multipack,
 )
 
 
@@ -98,19 +99,21 @@ class ProductIdentity:
         evidence: tuple[str, ...] = (),
     ) -> "ProductIdentity":
         text = " ".join(part for part in (canonical_name, product_line, product_family) if part)
+        animal_range = animal_weight_range or extract_animal_weight_range_kg(text)
+        brand_norm = normalize_brand(brand, name_hint=canonical_name or product_line or product_family)
         return cls(
             gtin=normalize_gtin(gtin or "") or None,
             canonical_name=_clean(canonical_name),
-            brand=_clean(brand),
+            brand=brand_norm,
             species=_normalize_species(species) or _infer_species(text),
             category=_clean(category),
-            product_family=_clean(product_family) or _infer_family(canonical_name, brand),
+            product_family=_clean(product_family) or _infer_family(canonical_name, brand_norm),
             product_line=_clean(product_line) or _infer_product_line(text),
-            weight_kg=weight_kg if weight_kg is not None else extract_weight_kg(text),
+            weight_kg=weight_kg if weight_kg is not None else _product_weight_kg(text, animal_range),
             volume_ml=volume_ml if volume_ml is not None else extract_volume_ml(text),
-            length_cm=length_cm if length_cm is not None else extract_length_cm(text),
+            length_cm=length_cm if length_cm is not None else (extract_length_cm(text) or _infer_collar_length_cm(text)),
             pack_count=pack_count if pack_count is not None else extract_pack_count(text),
-            animal_weight_range=animal_weight_range or extract_animal_weight_range_kg(text),
+            animal_weight_range=animal_range,
             life_stage=_normalize_life_stage(life_stage) or _infer_life_stage(text),
             breed_size=_normalize_breed_size(breed_size) or _infer_breed_size(text),
             breed=_clean(breed),
@@ -178,7 +181,7 @@ class MerchantCandidate:
             merchant=merchant,
             title=_clean(title),
             gtin=normalize_gtin(gtin or "") or None,
-            brand=_clean(brand),
+            brand=normalize_brand(brand, name_hint=title),
             category=_clean(category),
             price=price,
             external_id=_clean(external_id),
@@ -225,8 +228,9 @@ def evaluate_identity(
         _compare_species(expected.species, candidate_text),
         _compare_numeric("weight_kg", expected.weight_kg, extract_weight_kg(candidate_text), tolerance=max(0.05, (expected.weight_kg or 0) * 0.05)),
         _compare_numeric("volume_ml", expected.volume_ml, extract_volume_ml(candidate_text), tolerance=max(20.0, (expected.volume_ml or 0) * 0.05)),
-        _compare_numeric("length_cm", expected.length_cm, extract_length_cm(candidate_text), tolerance=2.0),
+        _compare_numeric("length_cm", expected.length_cm, extract_length_cm(candidate_text) or _infer_collar_length_cm(candidate_text), tolerance=2.0),
         _compare_exact("pack_count", expected.pack_count, extract_pack_count(candidate_text)),
+        _compare_multipack(expected, candidate_text),
         _compare_range("animal_weight_range", expected.animal_weight_range, extract_animal_weight_range_kg(candidate_text)),
         _compare_exact("life_stage", expected.life_stage, _infer_life_stage(candidate_text)),
         _compare_exact("breed_size", expected.breed_size, _infer_breed_size(candidate_text)),
@@ -282,6 +286,56 @@ def evaluate_identity(
     if missing:
         reasons.extend(f"MISSING_{name.upper()}" for name in missing)
     return IdentityMatchResult(IdentityDecision.NO_MATCH, confidence, _dedupe(tuple(reasons)), tuple(comparisons))
+
+
+_STRUCTURAL_FIELDS = ("weight_kg", "volume_ml", "length_cm", "pack_count", "animal_weight_range", "species", "breed_size")
+
+
+def _compare_set_conflict(attribute: str, a: set, b: set) -> AttributeComparison:
+    """Dois conjuntos não-vazios e diferentes = CONFLICT (ex.: urinary vs
+    renal). Um vazio = UNKNOWN. Iguais = MATCH."""
+    if not a or not b:
+        return AttributeComparison(attribute, sorted(a), sorted(b), AttributeStatus.UNKNOWN, f"MISSING_{attribute.upper()}")
+    if a == b:
+        return AttributeComparison(attribute, sorted(a), sorted(b), AttributeStatus.MATCH, f"{attribute.upper()}_MATCH")
+    return AttributeComparison(attribute, sorted(a), sorted(b), AttributeStatus.CONFLICT, f"{attribute.upper()}_CONFLICT")
+
+
+def compare_structural(a: ProductIdentity, b: ProductIdentity) -> tuple[AttributeComparison, ...]:
+    """Compara dois produtos PETMOL campo a campo (não PETMOL-vs-merchant).
+    Usado pelo agrupamento de SKU: só forma grupo se os discriminadores
+    estruturais BATEM; qualquer CONFLICT veta. Tolerâncias mais APERTADAS
+    que o evaluate_identity — agrupamento exige o MESMO SKU, não 'perto'.
+    Sem texto, sem score."""
+    w_tol = max(0.01, min(a.weight_kg or 9e9, b.weight_kg or 9e9) * 0.02)
+    v_tol = max(5.0, min(a.volume_ml or 9e9, b.volume_ml or 9e9) * 0.02)
+    out = [
+        _compare_numeric("weight_kg", a.weight_kg, b.weight_kg, tolerance=w_tol),
+        _compare_numeric("volume_ml", a.volume_ml, b.volume_ml, tolerance=v_tol),
+        _compare_numeric("length_cm", a.length_cm, b.length_cm, tolerance=1.0),
+        _compare_exact("pack_count", a.pack_count, b.pack_count),
+        _compare_range("animal_weight_range", a.animal_weight_range, b.animal_weight_range),
+        _compare_exact("species", a.species, b.species),
+        _compare_exact("breed_size", a.breed_size, b.breed_size),
+        _compare_exact("breed", a.breed, b.breed),
+        _compare_exact("life_stage", a.life_stage, b.life_stage),
+        _compare_exact("flavor", a.flavor, b.flavor),
+        _compare_set_conflict("therapeutic_attributes", set(a.therapeutic_attributes), set(b.therapeutic_attributes)),
+        _compare_exact("product_line", a.product_line, b.product_line),
+    ]
+    return tuple(out)
+
+
+def structural_conflict(a: ProductIdentity, b: ProductIdentity) -> Optional[str]:
+    for item in compare_structural(a, b):
+        if item.status == AttributeStatus.CONFLICT:
+            return item.reason
+    return None
+
+
+def structural_agreement(a: ProductIdentity, b: ProductIdentity) -> list[str]:
+    """Campos estruturais que BATEM entre os dois (não UNKNOWN, não CONFLICT)."""
+    return [item.attribute for item in compare_structural(a, b) if item.status == AttributeStatus.MATCH]
 
 
 def select_unambiguous_match(
@@ -342,8 +396,19 @@ _THERAPEUTIC_GROUPS = {
     "hypoallergenic": {"hypoallergenic", "hipoalergenico", "hipoalergenica"},
     "gastrointestinal": {"gastrointestinal", "digestive"},
     "dermatologic": {"dermatologic", "dermatologico", "dermatologica", "skin"},
-    "obesity": {"obesity", "satiety", "satierty", "light"},
+    "obesity": {"obesity", "satiety", "satierty"},
 }
+
+# "light" sozinho gera falso-positivo de obesidade em não-alimento ("Roupa
+# Pós-Cirúrgica Dry Light", "Coleira LED Light") — só conta como sinal de
+# obesidade junto de um termo de alimento/dieta.
+_LIGHT_FOOD_CONTEXT = {"racao", "alimento", "dieta", "formula", "food", "diet", "seca", "umida", "petisco"}
+
+
+_ANIMAL_WEIGHT_CONTEXT = re.compile(
+    r"(?:caes|cao|cachorr\w*|gat\w*|animais?|racas?|pet\w*|porte)\b[^\d]{0,24}"
+    r"(?:de|acima de|ate|até|maiores? que|a partir de)\s*\d",
+)
 
 
 def extract_animal_weight_range_kg(text: str) -> Optional[tuple[float, float]]:
@@ -353,10 +418,43 @@ def extract_animal_weight_range_kg(text: str) -> Optional[tuple[float, float]]:
         lo = float(range_match.group(1).replace(",", "."))
         hi = float(range_match.group(2).replace(",", "."))
         return (lo, hi)
-    upto_match = re.search(r"(?:ate|até)\s*(\d+(?:[.,]\d+)?)\s*kg\b", normalized)
+    # "N e M kg" — faixa escrita com "e" ("0,5kg e 2,5kg", "de 4 e 8 kg")
+    e_match = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:kg)?\s*e\s*(\d+(?:[.,]\d+)?)\s*kg\b", normalized)
+    if e_match:
+        lo = float(e_match.group(1).replace(",", "."))
+        hi = float(e_match.group(2).replace(",", "."))
+        if lo < hi:
+            return (lo, hi)
+    upto_match = re.search(r"(?:ate|até|menores? que|abaixo de)\s*(\d+(?:[.,]\d+)?)\s*kg\b", normalized)
     if upto_match:
         return (0.0, float(upto_match.group(1).replace(",", ".")))
+    acima_match = re.search(
+        r"(?:acima de|mais de|maiores? que|maiores? de|superior a|a partir de)\s*(\d+(?:[.,]\d+)?)\s*kg\b",
+        normalized,
+    )
+    if acima_match:
+        lo = float(acima_match.group(1).replace(",", "."))
+        return (lo, lo * 3)
     return None
+
+
+def _product_weight_kg(text: str, animal_range: Optional[tuple[float, float]]) -> Optional[float]:
+    """Peso da EMBALAGEM. "Cães acima de 40kg" / "para cães de 5,1 a 10kg" é
+    peso do ANIMAL, não do produto — não vira weight_kg."""
+    value = extract_weight_kg(text)
+    if value is None:
+        return None
+    normalized = _normalize_text(text)
+    if animal_range is not None:
+        lo, hi = animal_range
+        if lo - 0.01 <= value <= hi + 0.01:
+            return None
+    if _ANIMAL_WEIGHT_CONTEXT.search(normalized):
+        # o único número em kg está numa frase de peso do animal
+        other = re.findall(r"(\d+(?:[.,]\d+)?)\s*(kg|g)\b", normalized)
+        if len(other) <= 1:
+            return None
+    return value
 
 
 def _compare_gtin(expected: Optional[str], observed: Optional[str]) -> AttributeComparison:
@@ -403,6 +501,19 @@ def _compare_exact(attribute: str, expected: Any, observed: Any) -> AttributeCom
     if expected == observed:
         return AttributeComparison(attribute, expected, observed, AttributeStatus.MATCH, f"{attribute.upper()}_MATCH")
     return AttributeComparison(attribute, expected, observed, AttributeStatus.CONFLICT, f"{attribute.upper()}_CONFLICT")
+
+
+def _compare_multipack(expected: "ProductIdentity", candidate_text: str) -> AttributeComparison:
+    """Conjunto múltiplo (kit/combo/N unidades) é outra apresentação
+    comercial que a unidade. Anúncio multipack contra produto de unidade
+    (pack_count nulo ou 1, e o próprio nome não é multipack) → CONFLICT."""
+    cand_multi = is_multipack(candidate_text)
+    exp_multi = is_multipack(expected.canonical_name or "") or (expected.pack_count or 1) > 1
+    if cand_multi and not exp_multi:
+        return AttributeComparison("multipack", exp_multi, cand_multi, AttributeStatus.CONFLICT, "MULTIPACK_CONFLICT")
+    if cand_multi and exp_multi:
+        return AttributeComparison("multipack", exp_multi, cand_multi, AttributeStatus.MATCH, "MULTIPACK_MATCH")
+    return AttributeComparison("multipack", exp_multi, cand_multi, AttributeStatus.UNKNOWN, "MISSING_MULTIPACK")
 
 
 def _compare_range(attribute: str, expected: Optional[tuple[float, float]], observed: Optional[tuple[float, float]]) -> AttributeComparison:
@@ -517,6 +628,38 @@ def _normalize_life_stage(value: Optional[str]) -> Optional[str]:
     return _infer_life_stage(value or "")
 
 
+# Coleiras antiparasitárias vêm em tamanhos fixos por comprimento (cm) e a
+# maioria dos títulos traz só a letra ("Scalibor M") ou "Cães Grandes". O
+# comprimento é o discriminador de SKU que separa 48 de 65 cm. Conjunto
+# fechado, tabelas publicadas pelos fabricantes — não é matcher, é
+# normalizador de identidade.
+_COLLAR_LENGTH_CM: dict[str, list[tuple[re.Pattern[str], float]]] = {
+    "scalibor": [
+        (re.compile(r"\b(65|grandes?|large|\bg\b)\b"), 65.0),
+        (re.compile(r"\b(48|pequenos?|medios?|small|\bp\b|\bm\b)\b"), 48.0),
+    ],
+    "seresto": [
+        (re.compile(r"\b(70|grandes?|acima de 8|large|\bg\b)\b"), 70.0),
+        (re.compile(r"\b(38|pequenos?|gatos?|ate 8|até 8|small|\bp\b)\b"), 38.0),
+    ],
+}
+
+
+def _infer_collar_length_cm(text: Optional[str]) -> Optional[float]:
+    if not text:
+        return None
+    normalized = _normalize_text(text)
+    if "coleira" not in normalized and "collar" not in normalized:
+        return None
+    for brand, rules in _COLLAR_LENGTH_CM.items():
+        if brand not in normalized:
+            continue
+        for pattern, cm in rules:
+            if pattern.search(normalized):
+                return cm
+    return None
+
+
 def _infer_breed_size(text: str) -> Optional[str]:
     tokens = _tokenize_text(text)
     if tokens & {"mini", "pequeno", "pequenos", "pequena", "pequenas", "small", "p"}:
@@ -556,6 +699,8 @@ def _infer_therapeutics(text: str) -> set[str]:
     for label, aliases in _THERAPEUTIC_GROUPS.items():
         if tokens & aliases or any(alias in normalized for alias in aliases if "/" in alias):
             out.add(label)
+    if "light" in tokens and tokens & _LIGHT_FOOD_CONTEXT:
+        out.add("obesity")
     return out
 
 
@@ -612,6 +757,50 @@ def _clean(value: Optional[str]) -> Optional[str]:
         return None
     text = str(value).strip()
     return text or None
+
+
+# Alguns feeds preenchem "brand" com o nome do FABRICANTE/distribuidor
+# ("MSD", "Boehringer Ingelheim", "Elanco") no lugar da marca de prateleira
+# ("Scalibor", "NexGard", "Drontal"). Isso vira CONFLITO de marca no
+# Identity Engine e mata o match com a mesma apresentação em outra loja.
+# Mapa fabricante -> marcas de consumo que ele detém no varejo pet BR. A
+# troca só acontece quando a marca de consumo aparece LITERALMENTE no nome
+# do produto — determinístico, nunca chuta.
+_MANUFACTURER_TO_BRANDS: dict[str, tuple[str, ...]] = {
+    "msd": ("scalibor", "bravecto", "nobivac"),
+    "msd animal health": ("scalibor", "bravecto", "nobivac"),
+    "merck": ("scalibor", "bravecto"),
+    "boehringer": ("nexgard", "frontline", "broadline"),
+    "boehringer ingelheim": ("nexgard", "frontline", "broadline"),
+    "merial": ("nexgard", "frontline", "broadline"),
+    "elanco": ("drontal", "credelio", "seresto", "milbemax", "comfortis"),
+    "bayer": ("advantage", "advocate", "seresto", "drontal", "profender"),
+    "zoetis": ("simparic", "revolution", "apoquel", "cytopoint"),
+    "ceva": ("vectra", "milpro", "adaptil", "feliway"),
+    "virbac": ("effipro", "effitix"),
+    "mars": ("pedigree", "whiskas", "sheba", "dreamies", "optimum", "royal canin", "cesar"),
+    "mars petcare": ("pedigree", "whiskas", "sheba", "dreamies", "optimum", "royal canin"),
+    "adimax": ("origens", "monello", "papparico"),
+    "nestle purina": ("pro plan", "dog chow", "cat chow", "friskies", "felix"),
+    "purina": ("pro plan", "dog chow", "cat chow", "friskies", "felix"),
+}
+
+
+def normalize_brand(raw: Optional[str], *, name_hint: Optional[str] = None) -> Optional[str]:
+    """Troca um nome de fabricante pela marca de prateleira quando esta
+    aparece no nome do produto. Sem hint ou sem correspondência única,
+    devolve o valor original — nunca piora o que já existe."""
+    cleaned = _clean(raw)
+    if not cleaned:
+        return cleaned
+    owned = _MANUFACTURER_TO_BRANDS.get(_normalize_text(cleaned))
+    if not owned:
+        return cleaned
+    hint_tokens = _tokenize_text(name_hint or "")
+    if not hint_tokens:
+        return cleaned
+    found = [b for b in owned if set(_tokenize_text(b)).issubset(hint_tokens)]
+    return found[0].title() if len(found) == 1 else cleaned
 
 
 def _json_list(value: Optional[str]) -> list[str]:

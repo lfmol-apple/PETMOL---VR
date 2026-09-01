@@ -17,7 +17,8 @@ Adicionar um provider novo (Shopee/ML/Petz, quando aprovados) é
 só acrescentar em build_default_engine() — nenhuma tela precisa saber
 quantos providers existem.
 """
-from datetime import datetime
+import asyncio
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from pydantic import BaseModel
@@ -84,6 +85,11 @@ class CommerceOfferOut(BaseModel):
     match_confidence: Optional[float] = None
     match_reasons: Optional[list[str]] = None
     match_attributes: Optional[list[dict[str, Any]]] = None
+    origin_gtin: Optional[str] = None
+    origin_product_name: Optional[str] = None
+    sku_group_id: Optional[str] = None
+    sku_group_basis: Optional[str] = None
+    sku_group_confidence: Optional[float] = None
 
 
 _NOT_FOUND = ProductOfferResult(found=False)
@@ -214,6 +220,16 @@ async def get_commerce_offers(
     nunca por texto). Providers de busca textual (Cobasi/VTEX hoje)
     continuam usando `query`."""
     product = _resolve_catalog_product(db, gtin=gtin, product_id=product_id)
+    if product is not None and getattr(product, "identity_enriched_at", None) is None and product.barcode_normalized:
+        # Enriquecimento sob demanda SÓ pra produto nunca enriquecido, e
+        # fora do event loop (merge_product_catalog_identity é síncrono e
+        # pesado — bloqueava o worker, ver incidente 2026-09-01).
+        try:
+            await asyncio.to_thread(_enrich_catalog_blocking, product.id)
+            db.expire(product)
+            product = db.get(ProductCatalog, product.id) or product
+        except Exception:  # noqa: BLE001
+            pass
     canonical_gtin = normalize_gtin(product.barcode_normalized) if product else normalize_gtin(gtin or "")
     canonical_name = (product.canonical_name or product.name) if product else (name or query)
     canonical_brand = (product.canonical_brand or product.brand) if product else brand
@@ -232,7 +248,116 @@ async def get_commerce_offers(
         canonical_brand=canonical_brand,
         canonical_image_url=canonical_image_url,
     )
-    return await engine.get_offers(context)
+    offers = await engine.get_offers(context)
+    for o in offers:
+        if o.origin_gtin is None:
+            o.origin_gtin = o.canonical_gtin or canonical_gtin
+
+    sibling_offers = await _sku_group_sibling_offers(
+        db, engine, product,
+        canonical_gtin=canonical_gtin, canonical_name=canonical_name,
+        canonical_brand=canonical_brand, canonical_image_url=canonical_image_url,
+        query=query, target_weight_kg=target_weight_kg, primary=offers,
+    )
+    if sibling_offers:
+        offers = _merge_group_offers(offers, sibling_offers)
+        offers.sort(key=lambda o: o.price if o.price is not None else float("inf"))
+    return offers
+
+
+def _merge_group_offers(primary: list, siblings: list) -> list:
+    """Aditivo: a primária vence por merchant SE tiver preço fresco. Se a
+    primária daquele merchant está sem preço/stale e a irmã tem preço
+    fresco, a irmã substitui (mesmo produto físico, código irmão). Nunca
+    reduz o total de opções."""
+    fresh_primary = {o.merchant for o in primary if o.price is not None and not o.price_is_stale}
+    kept_primary = [o for o in primary if o.merchant in fresh_primary]
+    stale_primary = [o for o in primary if o.merchant not in fresh_primary]
+    covered = set(fresh_primary)
+    out = list(kept_primary)
+    for o in siblings:
+        if o.merchant in covered:
+            continue
+        if o.price is not None and not o.price_is_stale:
+            out.append(o)
+            covered.add(o.merchant)
+    # merchants ainda sem oferta fresca: mantém a primária stale (fallback)
+    for o in stale_primary:
+        if o.merchant not in covered:
+            out.append(o)
+            covered.add(o.merchant)
+    return out
+
+
+async def _sku_group_sibling_offers(
+    db: Session, engine, product: Optional[ProductCatalog], *,
+    canonical_gtin: Optional[str], canonical_name: Optional[str],
+    canonical_brand: Optional[str], canonical_image_url: Optional[str],
+    query: Optional[str], target_weight_kg: Optional[float], primary: list,
+) -> list:
+    from .config import get_settings
+
+    settings = get_settings()
+    if not getattr(settings, "sku_grouping_enabled", True) or product is None or not canonical_gtin:
+        return []
+    # Custo: 1 chamada HTTP (Cobasi) por irmão. Só roda quando a primária
+    # tem buraco de verdade — nenhuma oferta com preço fresco. "Uma loja
+    # fresca e outra stale" não justifica o custo no caminho de request.
+    if any(o.price is not None and not o.price_is_stale for o in primary):
+        return []
+    try:
+        from .sku_grouping import resolve_sku_group_members
+        from .product_identity import ProductIdentity, MerchantCandidate, evaluate_identity, IdentityDecision
+
+        members = resolve_sku_group_members(db, canonical_gtin)[: settings.sku_grouping_max_siblings]
+    except Exception:  # noqa: BLE001
+        return []
+    if not members:
+        return []
+
+    tutor_identity = ProductIdentity.from_catalog(product)
+    out: list = []
+    for m in members:
+        sib = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == m.member_gtin))
+        if sib is None:
+            continue
+        sib_ctx = ProductContext(
+            query=query, weight_kg=target_weight_kg,
+            gtin=sib.barcode_normalized, product_id=sib.id,
+            name=sib.canonical_name or sib.name, brand=sib.canonical_brand or sib.brand,
+            species=sib.species, category=sib.category,
+            canonical_name=canonical_name, canonical_brand=canonical_brand,
+            canonical_image_url=canonical_image_url,
+        )
+        try:
+            sib_offers = await engine.get_offers(sib_ctx)
+        except Exception:  # noqa: BLE001
+            continue
+        for o in sib_offers:
+            # re-verificação em tempo de oferta: só descarta CONFLICT explícito
+            title = o.merchant_product_name or ""
+            if title:
+                decision = evaluate_identity(
+                    tutor_identity,
+                    MerchantCandidate.build(merchant=o.merchant, title=title, gtin=None),
+                ).decision
+                if decision == IdentityDecision.CONFLICT:
+                    continue
+            o.origin_gtin = sib.barcode_normalized
+            o.origin_product_name = sib.canonical_name or sib.name
+            o.sku_group_id = m.group_key
+            o.sku_group_basis = m.match_basis
+            o.sku_group_confidence = m.confidence
+            o.canonical_product_id = product.id
+            o.canonical_gtin = canonical_gtin
+            o.canonical_name = canonical_name
+            o.canonical_brand = canonical_brand
+            if canonical_image_url:
+                o.canonical_image_url = canonical_image_url
+            o.product_name = canonical_name or o.product_name
+            o.match_reasons = [*(o.match_reasons or []), "SKU_GROUP_SIBLING"]
+            out.append(o)
+    return out
 
 
 def _resolve_catalog_product(db: Session, *, gtin: Optional[str], product_id: Optional[int]) -> Optional[ProductCatalog]:
@@ -244,6 +369,24 @@ def _resolve_catalog_product(db: Session, *, gtin: Optional[str], product_id: Op
     if not gtin_normalized:
         return None
     return db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
+
+
+def _enrich_catalog_blocking(product_id: int) -> None:
+    """Enriquecimento sob demanda pra produto NUNCA enriquecido. Roda em
+    thread separada (asyncio.to_thread) com sessão própria — nunca no event
+    loop, nunca na sessão da request. Best-effort."""
+    from .catalog_enrichment import merge_product_catalog_identity
+    from .db import SessionLocal
+
+    with SessionLocal() as s:
+        try:
+            p = s.get(ProductCatalog, product_id)
+            if p is None or not p.barcode_normalized or p.identity_enriched_at is not None:
+                return
+            merge_product_catalog_identity(s, p.barcode_normalized)
+            s.commit()
+        except Exception:  # noqa: BLE001
+            s.rollback()
 
 
 def _resolve_canonical_image_url(

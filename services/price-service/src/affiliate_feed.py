@@ -68,6 +68,13 @@ class AffiliateFeedOffer(Base):
     brand: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     category: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     weight_kg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # `description` do feed — texto do merchant, usado SÓ como sinal de
+    # extração de atributos estruturados no enriquecimento de catálogo
+    # (catalog_enrichment.py). Nunca é mostrado ao tutor.
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Manufacturer Part Number — chave de identidade secundária (nunca
+    # substitui GTIN; só ajuda a concordar entre feeds quando o GTIN falta).
+    mpn: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
     # ── Oferta comercial ─────────────────────────────────────────────────
     price: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

@@ -293,42 +293,21 @@ def compute_status(db: Session, item: CommerceQualityItem) -> CommerceQualitySta
 
 
 def enrich_catalog_from_affiliate_feed(db: Session, item: CommerceQualityItem, *, dry_run: bool) -> bool:
+    """Enriquece a identidade canônica do SKU a partir dos feeds Awin, via
+    o pipeline determinístico e auditável (catalog_enrichment). Funde todas
+    as linhas de feed do GTIN, com política de proveniência — nunca rebaixa
+    dado bom, nunca chuta discriminador que os feeds discordam."""
     gtin = normalize_gtin(item.gtin or "")
     if not gtin:
         return False
-    rows = db.scalars(
-        select(AffiliateFeedOffer).where(
-            AffiliateFeedOffer.gtin == gtin,
-            AffiliateFeedOffer.active.is_(True),
-            AffiliateFeedOffer.title.isnot(None),
-        )
-    ).all()
-    if not rows:
-        return False
+    from .catalog_enrichment import merge_product_catalog_identity
 
-    best = max(rows, key=_feed_row_quality)
-    product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin))
-    needs_create = product is None
-    needs_update = bool(product and (not product.name or not product.thumbnail_url or not product.brand))
-    if not needs_create and not needs_update:
+    result = merge_product_catalog_identity(db, gtin, dry_run=dry_run)
+    if result.skipped_reason:
         return False
-    if dry_run:
-        return True
-
-    now = datetime.now(timezone.utc)
-    if product is None:
-        product = ProductCatalog(barcode=gtin, barcode_normalized=gtin)
-        db.add(product)
-    product.name = product.name or best.title
-    product.brand = product.brand or best.brand
-    product.category = product.category or _category_from_item(item)
-    product.thumbnail_url = product.thumbnail_url or best.image_url
-    product.source_primary = product.source_primary or "awin_feed"
-    product.source_confidence = max(float(product.source_confidence or 0.0), 80.0)
-    product.last_verified_at = now
-    product.updated_at = now
-    db.commit()
-    return True
+    if not dry_run:
+        db.commit()
+    return bool(result.created or result.updated_fields)
 
 
 def suggest_gtins_for_item(db: Session, item: CommerceQualityItem, *, limit: int = 3) -> list[CommerceQualitySuggestion]:
