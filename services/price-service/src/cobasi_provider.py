@@ -1,16 +1,18 @@
 """
 CobasiProvider — implementação de CommerceProvider para a Cobasi.
 
-find_offer():
-  - Produto com link Cobasi cadastrado (ProductAffiliateLink) para o
-    context.gtin → serve a identidade do CATÁLOGO direto, sem busca ao
-    vivo (a VTEX pode devolver a variante errada — peso/volume/espécie —
-    e o link cadastrado é a verdade). Oferta sem preço.
-  - Senão → busca dinâmica via commerce_pricing.fetch_cobasi_price (API
-    pública VTEX da Cobasi, ao vivo), com o gate de auditoria de
-    identidade (commerce_identity_audit.cobasi_identity_blocks) antes.
-  Roda para QUALQUER produto, com ou sem link afiliado cadastrado (ver
-  commerce_provider.py para o princípio geral).
+find_offer() — o produto certo é SEMPRE o do código de barras. Nunca uma
+busca por texto (casa a variante errada — espécie/peso/volume — e foi o
+que gerou os falsos positivos de produção):
+  1. GTIN com link Cobasi cadastrado (ProductAffiliateLink) → serve a
+     identidade do CATÁLOGO direto, sem rede. Oferta sem preço.
+  2. GTIN sem link → resolve pelo EAN exato na VTEX da Cobasi
+     (commerce_pricing.fetch_cobasi_price_by_gtin, `fq=alternateIds_Ean:`).
+     O SKU cujo ean bate com o GTIN — nunca uma variante vizinha. Antes,
+     o gate de auditoria (commerce_identity_audit.cobasi_identity_blocks).
+  3. SEM GTIN (produto cadastrado sem código de barras) → sem oferta
+     Cobasi. Até ganhar um GTIN ou um ProductAffiliateLink manual.
+  GTIN que não existe no catálogo da Cobasi → sem oferta (não arrisca).
 
 monetize(): um link cadastrado manualmente (ProductAffiliateLink) SEMPRE
 tem prioridade, em qualquer modo != "disabled" — nunca abandona um link
@@ -56,17 +58,11 @@ from sqlalchemy.orm import Session
 
 from .affiliate_links import get_active_link
 from .cobasi_utm import InvalidCobasiUrlError, build_cobasi_affiliate_url
-from .commerce_pricing import fetch_cobasi_price
+from .commerce_pricing import fetch_cobasi_price_by_gtin
 from .commerce_provider import DiscoveredOffer, MonetizedOffer, ProductContext
 from .config import Settings, get_settings
 from .merchant_routes import preferred_route_for
 from .product_catalog_lookup import ProductCatalog, normalize_gtin
-
-
-def _build_query(context: ProductContext) -> str:
-    if context.query:
-        return context.query
-    return " ".join(p for p in (context.brand, context.name) if p).strip()
 
 
 class CobasiProvider:
@@ -113,41 +109,52 @@ class CobasiProvider:
         return (product, link) if link is not None else (None, None)
 
     async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
-        # Produto pré-cadastrado com link MAIS (ex: ração do Baby /
-        # mais.app/IvUCAG): serve ESSE produto exato pela identidade do
-        # catálogo — sem busca ao vivo na VTEX, que pode devolver a
-        # variante errada (peso/volume/espécie). monetize() resolve o link
-        # cadastrado pelo context.gtin. Oferta sem preço de propósito
-        # ("Conferir preço na Cobasi").
+        gtin_n = normalize_gtin(context.gtin) if context.gtin else None
+
+        # Preço real vem SEMPRE do EAN exato na VTEX (o SKU do código de
+        # barras — nunca uma variante). Vale pro link cadastrado e pro
+        # resto. GTIN que a Cobasi não conhece → sem preço (link cadastrado
+        # ainda serve; resto não oferece).
+        price = await fetch_cobasi_price_by_gtin(context.gtin) if gtin_n else None
+
+        # 1) Produto pré-cadastrado com link MAIS (ração do Baby /
+        #    mais.app/IvUCAG) — monetize() resolve o link pelo context.gtin.
+        #    Identidade do CATÁLOGO (nome/marca), preço do EAN quando houver.
         product, link = self._catalog_with_manual_link(context.gtin)
         if product is not None and link is not None:
+            has_price = bool(price and price.found and price.price is not None)
             return DiscoveredOffer(
                 merchant=self.merchant,
-                product_name=product.name,
-                brand=product.brand,
-                price=None,
-                is_available=True,
+                product_name=(price.product_name if has_price else None) or product.name,
+                brand=product.brand or (price.brand if price else None),
+                price=price.price if has_price else None,
+                list_price=price.list_price if has_price else None,
+                is_available=price.is_available if has_price else True,
                 direct_url=None,
-                ean=normalize_gtin(context.gtin),
-                allow_without_price=True,
+                ean=gtin_n,
+                allow_without_price=not has_price,
             )
 
-        query = _build_query(context)
-        if not query:
+        # SEM código de barras não há Cobasi. O produto certo é o do GTIN —
+        # esse é o coração do sistema. Uma busca por texto ("Golden ração")
+        # casa a variante errada (espécie/peso/volume) e foi exatamente o
+        # que gerou os falsos positivos de produção. Produto cadastrado sem
+        # código de barras não tem oferta Cobasi até ganhar um GTIN ou um
+        # ProductAffiliateLink manual.
+        if not context.gtin:
             return None
 
-        # Auditoria de identidade: se a busca ao vivo desse GTIN já foi
-        # flagrada apontando pro produto errado (mismatch_hard fresco) e
-        # não existe link cadastrado comprovado, não oferece Cobasi — as 2
-        # lojas têm que ser o mesmo produto (ver commerce_identity_audit).
-        if context.gtin:
-            from .commerce_identity_audit import cobasi_identity_blocks
+        # Auditoria de identidade: GTIN já flagrado apontando pro produto
+        # errado (mismatch_hard fresco) → não oferece (ver commerce_identity_audit).
+        from .commerce_identity_audit import cobasi_identity_blocks
 
-            if cobasi_identity_blocks(self._db, context.gtin):
-                return None
+        if cobasi_identity_blocks(self._db, context.gtin):
+            return None
 
-        price = await fetch_cobasi_price(query, target_weight_kg=context.weight_kg)
-        if not price.found or price.price is None:
+        # 2) Sem link cadastrado: só oferece se o EAN exato resolveu na
+        #    VTEX (SKU do código de barras). GTIN que a Cobasi não conhece
+        #    = sem oferta (nunca cai pra busca por texto).
+        if price is None or not price.found or price.price is None:
             return None
 
         return DiscoveredOffer(
@@ -158,7 +165,7 @@ class CobasiProvider:
             list_price=price.list_price,
             is_available=price.is_available,
             direct_url=price.url,
-            ean=price.ean,
+            ean=price.ean or normalize_gtin(context.gtin),
         )
 
     def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str, str, bool]]:

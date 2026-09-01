@@ -6,7 +6,7 @@ NÃO é ativada em produção sem confirmação formal (ver docs/AFFILIATES.md
 e cobasi_utm.py). Os testes abaixo que exercitam "cached"/"utm" ligam o
 modo explicitamente via COBASI_AFFILIATE_MODE — não dependem do padrão
 atual, só provam que a lógica de cada modo continua correta quando
-alguém o reativar. fetch_cobasi_price é sempre monkeypatchado; nunca
+alguém o reativar. fetch_cobasi_price_by_gtin (EAN exato) é sempre monkeypatchado; nunca
 chama a API real da Cobasi.
 """
 import pytest
@@ -210,18 +210,20 @@ def test_invalid_mode_rejected_by_settings(monkeypatch):
 
 # ── find_offer() — produto pré-cadastrado tem prioridade sobre busca ──────
 
+def _patch_gtin_price(monkeypatch, **kw):
+    """Monkeypatcha a resolução Cobasi por EAN. kw: found/price/url/ean/…"""
+    async def fake(gtin):
+        return ProductPriceResult(**{"found": True, "store": "cobasi", **kw})
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_by_gtin", fake)
+
+
 @pytest.mark.asyncio
-async def test_find_offer_registered_gtin_skips_live_search(monkeypatch):
-    """GTIN com link Cobasi cadastrado → serve a identidade do catálogo,
-    sem chamar fetch_cobasi_price (a busca ao vivo podia devolver a
-    variante errada — ex: ração do Baby)."""
-    called = {"n": 0}
-
-    async def fake_fetch(query, target_weight_kg=None):
-        called["n"] += 1
-        return ProductPriceResult(found=True, price=1.0, url="https://www.cobasi.com.br/errado/p", ean="0000000000000")
-
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+async def test_find_offer_registered_gtin_serves_mais_link_with_ean_price(monkeypatch):
+    """GTIN com link Cobasi cadastrado → URL = mais.app comprovado, mas
+    preço/nome vêm do EAN EXATO na VTEX (o SKU do código de barras)."""
+    _patch_gtin_price(monkeypatch, product_name="Ração Royal Canin Urinary Small Dog 7,5kg",
+                      brand="Royal Canin", price=457.81, is_available=True,
+                      url="https://www.cobasi.com.br/racao-x-3827380/p?skuId=827398", ean=GTIN)
 
     product_id = _register_product()
     db = SessionLocal()
@@ -232,14 +234,81 @@ async def test_find_offer_registered_gtin_skips_live_search(monkeypatch):
         provider = CobasiProvider(db)
         offer = await provider.find_offer(ProductContext(query="royal canin urinary", gtin=GTIN, weight_kg=7.5))
         assert offer is not None
-        assert called["n"] == 0
-        assert offer.price is None
-        assert offer.allow_without_price is True
+        assert offer.price == 457.81
         assert offer.ean == GTIN
-        assert offer.product_name == "Produto Teste"
+        assert offer.product_name == "Ração Royal Canin Urinary Small Dog 7,5kg"
 
         result = provider.monetize(offer, ProductContext(gtin=GTIN))
         assert result == ("https://mais.app/IvUCAG", "affiliate_product", "mais", True)
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_find_offer_registered_gtin_no_price_when_ean_unknown(monkeypatch):
+    """Link cadastrado + EAN que a Cobasi não conhece → serve o link
+    mesmo assim, sem preço."""
+    async def fake(gtin):
+        return ProductPriceResult(found=False)
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_by_gtin", fake)
+
+    product_id = _register_product()
+    db = SessionLocal()
+    try:
+        db.add(ProductAffiliateLink(product_id=product_id, merchant="cobasi", affiliate_product_url="https://mais.app/IvUCAG", active=True))
+        db.commit()
+        provider = CobasiProvider(db)
+        offer = await provider.find_offer(ProductContext(gtin=GTIN))
+        assert offer is not None
+        assert offer.price is None
+        assert offer.allow_without_price is True
+        assert offer.product_name == "Produto Teste"
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_find_offer_resolves_by_gtin_when_no_link(monkeypatch):
+    """Sem link cadastrado, mas com GTIN → resolve pelo EAN exato na VTEX."""
+    _patch_gtin_price(
+        monkeypatch, product_name="Ração X 7,5kg", brand="Marca X", price=457.81,
+        list_price=457.81, is_available=True,
+        url="https://www.cobasi.com.br/racao-x-3827380/p?skuId=827398", ean=GTIN,
+    )
+    db = SessionLocal()
+    try:
+        provider = CobasiProvider(db)
+        offer = await provider.find_offer(ProductContext(query="qualquer texto", gtin=GTIN, weight_kg=7.5))
+        assert offer is not None
+        assert offer.price == 457.81
+        assert offer.ean == GTIN
+        assert "skuId=827398" in offer.direct_url
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_find_offer_none_without_gtin(monkeypatch):
+    """SEM código de barras não há Cobasi — nunca busca por texto."""
+    _patch_gtin_price(monkeypatch, price=10.0, url="https://www.cobasi.com.br/x/p")
+    db = SessionLocal()
+    try:
+        provider = CobasiProvider(db)
+        assert await provider.find_offer(ProductContext(query="Golden ração", weight_kg=15)) is None
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_find_offer_none_when_gtin_not_on_cobasi(monkeypatch):
+    """GTIN que a VTEX não conhece → sem oferta (não arrisca produto errado)."""
+    async def fake(gtin):
+        return ProductPriceResult(found=False)
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_by_gtin", fake)
+    db = SessionLocal()
+    try:
+        provider = CobasiProvider(db)
+        assert await provider.find_offer(ProductContext(query="x", gtin="7890000000017")) is None
     finally:
         db.close()
 
@@ -266,60 +335,32 @@ async def test_resolve_product_id_prefers_context_gtin_over_offer_ean(monkeypatc
 
 @pytest.mark.asyncio
 async def test_find_offer_works_with_no_product_catalog_row_at_all(monkeypatch):
-    """§13: ProductAffiliateLink não é mais condição de discovery — nem
-    products_catalog precisa ter o produto pra find_offer() funcionar.
-    Nenhum ProductCatalog, nenhum ProductAffiliateLink, banco vazio."""
-    async def fake_fetch(query, target_weight_kg=None):
-        return ProductPriceResult(
-            found=True, store="cobasi", product_name="Produto Nunca Visto",
-            brand="Marca X", price=59.9, list_price=None, is_available=True,
-            url="https://www.cobasi.com.br/produto-x/p", ean="9999999999999",
-        )
-
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
-
+    """products_catalog não precisa ter o produto — o EAN exato resolve
+    direto na VTEX (banco vazio, nenhum ProductAffiliateLink)."""
+    _patch_gtin_price(
+        monkeypatch, product_name="Produto Nunca Visto", brand="Marca X",
+        price=59.9, is_available=True, url="https://www.cobasi.com.br/produto-x/p", ean=GTIN,
+    )
     db = SessionLocal()
     try:
         provider = CobasiProvider(db)
-        offer = await provider.find_offer(ProductContext(query="produto nunca visto"))
+        offer = await provider.find_offer(ProductContext(query="produto nunca visto", gtin=GTIN))
         assert offer is not None
         assert offer.price == 59.9
-        assert offer.ean == "9999999999999"
+        assert offer.ean == GTIN
     finally:
         db.close()
 
 
 @pytest.mark.asyncio
-async def test_find_offer_returns_none_when_not_found(monkeypatch):
-    async def fake_fetch(query, target_weight_kg=None):
+async def test_find_offer_returns_none_when_ean_lookup_empty(monkeypatch):
+    async def fake(gtin):
         return ProductPriceResult(found=False)
-
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
-
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price_by_gtin", fake)
     db = SessionLocal()
     try:
         provider = CobasiProvider(db)
-        offer = await provider.find_offer(ProductContext(query="produto qualquer"))
-        assert offer is None
-    finally:
-        db.close()
-
-
-@pytest.mark.asyncio
-async def test_find_offer_passes_through_weight_for_sku_selection(monkeypatch):
-    captured = {}
-
-    async def fake_fetch(query, target_weight_kg=None):
-        captured["weight"] = target_weight_kg
-        return ProductPriceResult(found=True, price=10.0, url="https://www.cobasi.com.br/p")
-
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
-
-    db = SessionLocal()
-    try:
-        provider = CobasiProvider(db)
-        await provider.find_offer(ProductContext(query="ração", weight_kg=7.5))
-        assert captured["weight"] == 7.5
+        assert await provider.find_offer(ProductContext(query="produto qualquer", gtin=GTIN)) is None
     finally:
         db.close()
 
