@@ -2262,6 +2262,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     petId={currentPet.pet_id}
                     petName={currentPet.pet_name}
                     petSex={currentPet.sex}
+                    petPhotoSrc={getPhotoUrl(currentPet.photo, currentPet.pet_id, photoVersions) ?? undefined}
                     hasPet={pets.length > 0}
                     vaccinesCount={vaccines.length}
                     parasiteControls={parasiteControls}

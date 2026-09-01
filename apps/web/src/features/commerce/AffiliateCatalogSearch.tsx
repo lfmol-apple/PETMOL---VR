@@ -276,8 +276,10 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
           resultados enquanto o tutor digita: -mx-5/px-5 sangra até as bordas
           da sheet, blur + hairline dão a separação premium. */}
       <div className="sticky top-0 z-30 -mx-5 border-b border-black/[0.06] bg-[#fbfaf7]/90 px-5 pb-2.5 pt-2 backdrop-blur-2xl">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" strokeWidth={2.2} />
+        {/* Lupa em flex (não absoluta) — nunca encavala com o texto digitado,
+            mesmo no iOS quando o campo rola o conteúdo. */}
+        <label className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white pl-4 pr-3 shadow-[0_4px_16px_-6px_rgba(15,23,42,0.18)] transition-all duration-150 focus-within:border-emerald-400 focus-within:ring-4 focus-within:ring-emerald-500/10">
+          <Search className="h-[18px] w-[18px] flex-shrink-0 text-slate-400" strokeWidth={2.2} />
           <input
             ref={searchInputRef}
             type="text"
@@ -291,9 +293,9 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
               window.setTimeout(() => e.target.scrollIntoView({ block: 'start', behavior: 'smooth' }), 200);
             }}
             placeholder="Buscar produto..."
-            className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-[16px] font-medium text-slate-900 shadow-[0_4px_16px_-6px_rgba(15,23,42,0.18)] outline-none transition-all duration-150 placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10"
+            className="min-w-0 flex-1 border-0 bg-transparent py-3.5 text-[16px] font-medium text-slate-900 outline-none placeholder:text-slate-400"
           />
-        </div>
+        </label>
       </div>
 
       {scannerOpen && (
