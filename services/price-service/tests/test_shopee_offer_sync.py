@@ -540,16 +540,19 @@ def test_sync_from_feed_row_nunca_sobrescreve_catalogo_ja_existente(monkeypatch)
 
 # ── GTIN irmão (mesmo item, código de barras diferente) ─────────────────
 
-IRMAO_TITLE = "Filtro Interno Maxxi FI 500"
-IRMAO_BRAND = "Maxxi"
+# GTIN irmão: só reaproveita a oferta quando há PROVA ESTRUTURAL de que
+# é o mesmo SKU físico (código reemitido). Preço NÃO é evidência.
+IRMAO_TITLE = "Coleira Antipulgas Scalibor Cães 65cm"
+IRMAO_TITLE_OUTRO_TAM = "Coleira Antipulgas Scalibor Cães 48cm"
+IRMAO_BRAND = "Scalibor"
 IRMAO_PRICE = 99.9
 IRMAO_GTIN_A = "7898762981131"
 IRMAO_GTIN_B = "7898762981148"
 
 MAXXI_FALLBACK_OFFER = {
     "itemId": 77001122334,
-    "productName": "Filtro Interno Maxxi FI 500",
-    "shopName": "Aquarismo Center",
+    "productName": "Coleira Antipulgas Scalibor Cães 65cm",
+    "shopName": "Pet Center",
     "price": "149.9",
     "offerLink": "https://s.shopee.com.br/maxxiFallback",
     "productLink": "https://shopee.com.br/product/1/77001122334",
@@ -560,21 +563,22 @@ def _boom_se_chamado(*_args, **_kwargs):
     raise AssertionError("search_product_offers não deveria ser chamado — devia reaproveitar o GTIN irmão")
 
 
-def _registrar_gtin_ja_casado(merchant: str = "cobasi", price: float = IRMAO_PRICE) -> int:
+def _registrar_gtin_ja_casado(merchant: str = "cobasi", price: float = IRMAO_PRICE, title: str = IRMAO_TITLE) -> int:
     """GTIN A: já tem entrada em products_catalog + oferta Shopee ativa."""
     db = SessionLocal()
     db.add(AffiliateFeedOffer(
         network="awin", merchant=merchant, advertiser_id="17870", external_product_id="irmao-a",
-        gtin=IRMAO_GTIN_A, title=IRMAO_TITLE, brand=IRMAO_BRAND, price=price, active=True, in_stock=True,
+        gtin=IRMAO_GTIN_A, title=title, brand=IRMAO_BRAND, price=price, active=True, in_stock=True,
     ))
     product = ProductCatalog(
-        barcode=IRMAO_GTIN_A, barcode_normalized=IRMAO_GTIN_A, name=IRMAO_TITLE, brand=IRMAO_BRAND,
+        barcode=IRMAO_GTIN_A, barcode_normalized=IRMAO_GTIN_A, name=title, brand=IRMAO_BRAND,
     )
     db.add(product)
     db.commit()
     db.refresh(product)
     db.add(MarketplaceOffer(
         product_id=product.id, merchant="shopee", external_listing_id="shopee-irmao-a",
+        merchant_title=title, match_decision="HIGH_CONFIDENCE", match_confidence=0.8,
         affiliate_url="https://s.shopee.com.br/irmaoA", price=price, active=True, is_available=True,
     ))
     db.commit()
@@ -583,14 +587,16 @@ def _registrar_gtin_ja_casado(merchant: str = "cobasi", price: float = IRMAO_PRI
     return product_id
 
 
-def test_sync_from_feed_row_reaproveita_oferta_de_gtin_irmao_mesmo_preco(monkeypatch):
-    _registrar_gtin_ja_casado()
+def test_sync_from_feed_row_reaproveita_gtin_irmao_com_prova_estrutural(monkeypatch):
+    """Mesmo SKU físico provado pela assinatura estrutural (65cm == 65cm) —
+    reaproveita mesmo com preço diferente."""
+    _registrar_gtin_ja_casado(price=IRMAO_PRICE)
     monkeypatch.setattr(sync_module, "search_product_offers", _boom_se_chamado)
 
     db = SessionLocal()
     db.add(AffiliateFeedOffer(
         network="awin", merchant="cobasi", advertiser_id="17870", external_product_id="irmao-b",
-        gtin=IRMAO_GTIN_B, title=IRMAO_TITLE, brand=IRMAO_BRAND, price=IRMAO_PRICE, active=True, in_stock=True,
+        gtin=IRMAO_GTIN_B, title=IRMAO_TITLE, brand=IRMAO_BRAND, price=149.9, active=True, in_stock=True,
     ))
     db.commit()
 
@@ -602,19 +608,20 @@ def test_sync_from_feed_row_reaproveita_oferta_de_gtin_irmao_mesmo_preco(monkeyp
     offer_b = db.scalar(select(MarketplaceOffer).where(MarketplaceOffer.product_id == product_b.id))
     assert offer_b is not None
     assert offer_b.external_listing_id == "shopee-irmao-a"
-    assert offer_b.affiliate_url == "https://s.shopee.com.br/irmaoA"
+    assert offer_b.merchant_title == IRMAO_TITLE
     db.close()
 
 
-def test_sync_from_feed_row_nao_reaproveita_quando_preco_diverge(monkeypatch):
-    """Preço diferente = tamanho/versão realmente diferente — nunca cola."""
-    _registrar_gtin_ja_casado(price=IRMAO_PRICE)
+def test_sync_from_feed_row_nao_reaproveita_quando_tamanho_diverge(monkeypatch):
+    """Discriminador estrutural diferente (48cm ≠ 65cm) = SKU diferente —
+    nunca cola, mesmo com preço idêntico."""
+    _registrar_gtin_ja_casado(price=IRMAO_PRICE, title=IRMAO_TITLE_OUTRO_TAM)
     monkeypatch.setattr(sync_module, "search_product_offers", lambda keyword, limit=10: [MAXXI_FALLBACK_OFFER])
 
     db = SessionLocal()
     db.add(AffiliateFeedOffer(
         network="awin", merchant="cobasi", advertiser_id="17870", external_product_id="irmao-c",
-        gtin=IRMAO_GTIN_B, title=IRMAO_TITLE, brand=IRMAO_BRAND, price=149.9, active=True, in_stock=True,
+        gtin=IRMAO_GTIN_B, title=IRMAO_TITLE, brand=IRMAO_BRAND, price=IRMAO_PRICE, active=True, in_stock=True,
     ))
     db.commit()
 
@@ -623,13 +630,34 @@ def test_sync_from_feed_row_nao_reaproveita_quando_preco_diverge(monkeypatch):
 
     product_b = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == IRMAO_GTIN_B))
     offer_b = db.scalar(select(MarketplaceOffer).where(MarketplaceOffer.product_id == product_b.id))
-    # Casou pela busca normal (MAXXI_FALLBACK_OFFER), não reaproveitou o irmão A
+    assert offer_b.external_listing_id == str(MAXXI_FALLBACK_OFFER["itemId"])
+    db.close()
+
+
+def test_sync_from_feed_row_nao_reaproveita_sem_evidencia_estrutural(monkeypatch):
+    """Título sem discriminador estrutural — não dá pra provar mesmo SKU,
+    cai pra busca normal (nunca cola por preço)."""
+    _registrar_gtin_ja_casado(price=IRMAO_PRICE, title="Filtro Interno Maxxi")
+    fallback = dict(MAXXI_FALLBACK_OFFER, productName="Filtro Interno Maxxi")
+    monkeypatch.setattr(sync_module, "search_product_offers", lambda keyword, limit=10: [fallback])
+
+    db = SessionLocal()
+    db.add(AffiliateFeedOffer(
+        network="awin", merchant="cobasi", advertiser_id="17870", external_product_id="irmao-e",
+        gtin=IRMAO_GTIN_B, title="Filtro Interno Maxxi", brand="Maxxi", price=IRMAO_PRICE, active=True, in_stock=True,
+    ))
+    db.commit()
+
+    result = sync_shopee_offer_from_feed_row(db, IRMAO_GTIN_B, "Filtro Interno Maxxi", "Maxxi")
+    assert result.matched is True
+    product_b = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == IRMAO_GTIN_B))
+    offer_b = db.scalar(select(MarketplaceOffer).where(MarketplaceOffer.product_id == product_b.id))
     assert offer_b.external_listing_id == str(MAXXI_FALLBACK_OFFER["itemId"])
     db.close()
 
 
 def test_sync_from_feed_row_nao_reaproveita_entre_lojas_diferentes(monkeypatch):
-    """Mesmo título/marca/preço, mas lojas (merchants) diferentes — não é
+    """Mesmo SKU provado, mas lojas (merchants) diferentes — não é
     garantia de ser o mesmo item físico, então não reaproveita."""
     _registrar_gtin_ja_casado(merchant="cobasi")
     monkeypatch.setattr(sync_module, "search_product_offers", lambda keyword, limit=10: [MAXXI_FALLBACK_OFFER])

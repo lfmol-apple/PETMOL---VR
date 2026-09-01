@@ -192,12 +192,62 @@ def _refresh_one_shopee_offer(
 
 
 def _refresh_queue(db: Session, *, merchant: str, max_offers: int) -> list[MarketplaceOffer]:
-    return list(db.scalars(
+    """Prioridade: 1) ofertas de GTINs que os tutores de fato escaneiam
+    (é o que aparece na tela); 2) ofertas sem merchant_title (linha legada
+    pré-#154 — sem evidência de identidade até revalidar); 3) o resto, mais
+    antiga primeiro. Preço/identidade nunca mudam por causa da ordem — só
+    o QUE é revalidado primeiro."""
+    cap = max(max_offers, 1)
+    seen: set[int] = set()
+    queue: list[MarketplaceOffer] = []
+
+    def _take(rows: list[MarketplaceOffer]) -> None:
+        for row in rows:
+            if len(queue) >= cap:
+                return
+            if row.id in seen:
+                continue
+            seen.add(row.id)
+            queue.append(row)
+
+    base = (
         select(MarketplaceOffer)
         .where(MarketplaceOffer.merchant == merchant, MarketplaceOffer.active.is_(True))
+    )
+
+    tutor_gtins = _tutor_scanned_gtins(db)
+    if tutor_gtins:
+        _take(list(db.scalars(
+            base.join(ProductCatalog, ProductCatalog.id == MarketplaceOffer.product_id)
+            .where(ProductCatalog.barcode_normalized.in_(tutor_gtins))
+            .order_by(MarketplaceOffer.last_checked_at.is_(None).desc(), MarketplaceOffer.last_checked_at.asc())
+        )))
+
+    _take(list(db.scalars(
+        base.where(MarketplaceOffer.merchant_title.is_(None))
         .order_by(MarketplaceOffer.last_checked_at.is_(None).desc(), MarketplaceOffer.last_checked_at.asc())
-        .limit(max(max_offers, 1))
-    ))
+        .limit(cap)
+    )))
+
+    _take(list(db.scalars(
+        base.order_by(MarketplaceOffer.last_checked_at.is_(None).desc(), MarketplaceOffer.last_checked_at.asc())
+        .limit(cap)
+    )))
+    return queue
+
+
+def _tutor_scanned_gtins(db: Session) -> list[str]:
+    try:
+        from .product_catalog_lookup import ProductScanEvent
+    except Exception:  # noqa: BLE001
+        return []
+    rows = db.execute(
+        select(ProductScanEvent.barcode_normalized)
+        .join(ProductCatalog, ProductCatalog.barcode_normalized == ProductScanEvent.barcode_normalized)
+        .where(ProductScanEvent.barcode_normalized.isnot(None))
+        .distinct()
+    ).all()
+    return [normalize_gtin(g) for (g,) in rows if g and normalize_gtin(g)]
 
 
 def _active_offer_count(db: Session, merchant: str) -> int:

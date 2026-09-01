@@ -50,11 +50,57 @@ Shopee has no exact GTIN lookup in the affiliate API. The sync searches GTIN
 first, then canonical keyword variants, and every candidate must pass
 Product Identity before it is upserted into `MarketplaceOffer`.
 
+### Serve-time identity gate (`_marketplace_offer_identity_verdict`)
+
+Every active `MarketplaceOffer` row is classified **before any price
+comparison** (identity first, price later). Cheapest row first; the first
+`ACCEPT` wins.
+
+| Row state | Verdict |
+|---|---|
+| `merchant_gtin` == canonical GTIN | `ACCEPT` (EXACT) |
+| `merchant_gtin` present, != canonical GTIN | `REJECT` |
+| `merchant_title` present, live `evaluate_identity` = CONFLICT | `REJECT` (always — objective discriminator diverges) |
+| `merchant_title` present, live = EXACT/HIGH_CONFIDENCE | `ACCEPT` |
+| `merchant_title` present, live = NO_MATCH/AMBIGUOUS, stored `match_decision` was EXACT/HIGH_CONFIDENCE | `ACCEPT` (weak title this pass — e.g. manufacturer brand absent from listing — but a prior sync validated the unchanged title; not a conflict) |
+| `merchant_title` present, live weak, no good stored decision | `REJECT` |
+| no title, stored `match_decision` EXACT/HIGH_CONFIDENCE | `ACCEPT` |
+| no title, stored `match_decision` CONFLICT/NO_MATCH/AMBIGUOUS | `REJECT` |
+| no title, no stored decision (legacy row, pre-identity-engine) | `UNVERIFIED` |
+
+`UNVERIFIED` rows are served **only** when the canonical product carries no
+structured SKU discriminator (nothing that could be a wrong variant), and
+only as a last resort; a background re-sync is scheduled so the next view
+is validated. A structured product with only `UNVERIFIED` rows shows **no
+Shopee offer** until re-sync populates the evidence.
+
+### Winner = MIN(price) among proven-same-SKU rows only
+
+Not the cheapest of all results, not the cheapest of the same name/brand/
+family — only the cheapest row that passed the gate above. Multiple
+`MarketplaceOffer` rows per product (different sellers) are all kept; the
+provider re-picks the cheapest valid one on every request, so the next
+refresh can naturally change the winner.
+
+### Sibling GTIN reuse (`_find_alias_shopee_offers`)
+
+A re-issued barcode may point at an existing sibling's Shopee offer, but
+**only with deterministic structural proof** (`_proven_same_physical_sku`):
+same normalized brand + same family + every present structural
+discriminator equal + at least one present. **Price is never identity
+evidence** — two SKUs can share a price and one SKU can have different feed
+prices. No proof → normal Shopee search.
+
+### Refresh job
+
 The refresh job only refreshes existing validated `MarketplaceOffer` rows.
 It never creates a new row and never swaps `external_listing_id`. If Shopee
 returns another accepted listing but not the currently linked listing, the
 row is marked `identity_conflict` and becomes unavailable instead of
-silently changing SKU.
+silently changing SKU. Re-validation runs `evaluate_identity` on the
+current listing; a fresh CONFLICT blocks the row. The refresh queue is
+prioritized: tutor-scanned GTINs → rows missing `merchant_title` (identity
+backfill) → oldest.
 
 ## Frontend Contract
 

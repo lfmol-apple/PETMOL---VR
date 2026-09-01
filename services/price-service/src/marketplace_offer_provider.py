@@ -30,7 +30,14 @@ from .affiliate_links import MarketplaceOffer, get_active_marketplace_offer
 from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
 from .db import SessionLocal
-from .product_identity import IdentityMatchResult, MerchantCandidate, ProductIdentity, evaluate_identity
+from .product_identity import (
+    IdentityDecision,
+    IdentityMatchResult,
+    MerchantCandidate,
+    ProductIdentity,
+    _expected_has_structured_sku,
+    evaluate_identity,
+)
 from .product_catalog_lookup import ProductCatalog, normalize_gtin, search_catalog_by_text
 from .mercadolivre_link_validator import InvalidMercadoLivreAffiliateUrlError, validate_mercadolivre_affiliate_url
 from .shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
@@ -127,15 +134,24 @@ class MarketplaceOfferProvider:
             return None
 
         product = self._db.get(ProductCatalog, product_id)
-        identity = ProductIdentity.from_catalog(product) if product is not None else ProductIdentity.build(gtin=context.gtin, canonical_name=context.name or context.query, brand=context.brand)
-        offer, live_match_result = _select_valid_marketplace_offer(self._db, product_id, self.merchant, identity)
+        identity = _identity_from_product_context(product, context)
+        offer, live_match_result, needs_identity_backfill = _select_valid_marketplace_offer(
+            self._db, product_id, self.merchant, identity
+        )
         if offer is None:
-            # Produto conhecido, GTIN confiável, mas ainda sem oferta Shopee
-            # cadastrada — tenta descobrir UMA vez, em background (nunca
-            # inline: o cliente tem timeout de 5s). Cooldown por GTIN
-            # persistido. A próxima abertura da Loja encontra a oferta.
+            # Sem oferta comprovadamente do mesmo SKU — ou nunca houve
+            # discovery, ou as linhas existentes não passam na identidade
+            # (variante errada) ou ainda não têm evidência (linha legada
+            # pré-#154). Nos dois últimos casos, um re-sync direcionado
+            # resolve na próxima abertura. Nunca inline (timeout de 5s do
+            # cliente); cooldown por GTIN persistido.
             self._maybe_schedule_discovery(context, product)
             return None
+        if needs_identity_backfill:
+            # Oferta servida provisoriamente (produto sem discriminador de
+            # SKU pra conflitar) — agenda o re-sync que grava merchant_title
+            # e revalida a identidade de verdade.
+            self._maybe_schedule_discovery(context, product)
         checked_at = _effective_checked_at(offer)
         # Oferta existe mas o preço já expirou (janela stale): agenda uma
         # reprecificação em background — mesmo mecanismo/cooldown da
@@ -149,8 +165,8 @@ class MarketplaceOfferProvider:
                 _refresh_marketplace_offer(self.merchant, product.barcode_normalized)
                 self._db.expire_all()
                 product = self._db.get(ProductCatalog, product_id)
-                identity = ProductIdentity.from_catalog(product) if product is not None else identity
-                offer, live_match_result = _select_valid_marketplace_offer(self._db, product_id, self.merchant, identity)
+                identity = _identity_from_product_context(product, context)
+                offer, live_match_result, _ = _select_valid_marketplace_offer(self._db, product_id, self.merchant, identity)
                 if offer is None:
                     return None
                 checked_at = _effective_checked_at(offer)
@@ -254,42 +270,146 @@ def _effective_checked_at(offer: MarketplaceOffer) -> Optional[datetime]:
     return checked_at
 
 
+def _identity_from_product_context(product: Optional[ProductCatalog], context: ProductContext) -> ProductIdentity:
+    """Identidade canônica PETMOL. Quando o catálogo não tem um
+    discriminador estrutural que o frontend enviou (ex: weight_kg do
+    lembrete de ração), completa com o contexto — sem isso a checagem de
+    identidade da Shopee seria mais fraca que a realidade."""
+    if product is None:
+        return ProductIdentity.build(
+            gtin=context.gtin,
+            canonical_name=context.canonical_name or context.name or context.query,
+            brand=context.canonical_brand or context.brand,
+            species=context.species,
+            category=context.category,
+            weight_kg=context.weight_kg,
+            image_url=context.canonical_image_url,
+        )
+    identity = ProductIdentity.from_catalog(product)
+    if context.weight_kg is None or identity.weight_kg is not None:
+        return identity
+    return ProductIdentity.build(
+        gtin=identity.gtin,
+        canonical_name=identity.canonical_name,
+        brand=identity.brand,
+        species=identity.species,
+        category=identity.category,
+        product_family=identity.product_family,
+        product_line=identity.product_line,
+        weight_kg=context.weight_kg,
+        volume_ml=identity.volume_ml,
+        length_cm=identity.length_cm,
+        pack_count=identity.pack_count,
+        animal_weight_range=identity.animal_weight_range,
+        life_stage=identity.life_stage,
+        breed_size=identity.breed_size,
+        breed=identity.breed,
+        flavor=identity.flavor,
+        therapeutic_attributes=identity.therapeutic_attributes,
+        aliases=identity.aliases,
+        image_url=identity.image_url,
+        evidence=(*identity.evidence, "PRODUCT_CONTEXT_WEIGHT"),
+    )
+
+
+# IDENTIDADE PRIMEIRO: cada linha de MarketplaceOffer é classificada antes
+# de qualquer comparação de preço.
+_VERDICT_ACCEPT = "ACCEPT"          # comprovadamente o mesmo SKU
+_VERDICT_REJECT = "REJECT"          # discriminador objetivo conflita / evidência insuficiente
+_VERDICT_UNVERIFIED = "UNVERIFIED"  # linha legada sem nenhuma evidência (pré-#154)
+
+
+def _marketplace_offer_identity_verdict(
+    identity: ProductIdentity, offer: MarketplaceOffer
+) -> tuple[str, Optional[IdentityMatchResult]]:
+    canonical_gtin = identity.gtin
+    offer_gtin = normalize_gtin(offer.merchant_gtin or "") or None
+
+    # 1. O anúncio traz o GTIN esperado de forma confiável → EXACT.
+    if offer_gtin and canonical_gtin and offer_gtin == canonical_gtin:
+        return _VERDICT_ACCEPT, None
+    if offer_gtin and canonical_gtin and offer_gtin != canonical_gtin:
+        return _VERDICT_REJECT, None
+
+    stored_ok = offer.match_decision in ("EXACT", "HIGH_CONFIDENCE")
+    stored_bad = offer.match_decision in ("CONFLICT", "NO_MATCH", "AMBIGUOUS")
+
+    # 2. Tem título do anúncio → revalida a identidade estrutural ao vivo.
+    if offer.merchant_title:
+        result = evaluate_identity(
+            identity,
+            MerchantCandidate.build(
+                merchant=offer.merchant,
+                title=offer.merchant_title or "",
+                gtin=offer.merchant_gtin,
+                brand=None,
+                price=offer.price,
+                external_id=offer.external_listing_id,
+            ),
+        )
+        # CONFLICT = discriminador objetivo diverge (peso/volume/espécie/
+        # pack/sabor) → SEMPRE rejeita, não importa o veredito salvo.
+        if result.decision == IdentityDecision.CONFLICT:
+            return _VERDICT_REJECT, result
+        if result.accepted:
+            return _VERDICT_ACCEPT, result
+        # NO_MATCH/AMBIGUOUS: título fraco NESTA passada (ex: marca-
+        # fabricante ausente do anúncio). Se um sync/refresh anterior já
+        # validou esta linha (título não mudou), confia — não é conflito.
+        if stored_ok:
+            return _VERDICT_ACCEPT, result
+        return _VERDICT_REJECT, result
+
+    # 3. Sem título, mas com veredito salvo por um sync/refresh que já
+    #    rodou o Identity Engine (a linha foi validada quando tinha título).
+    if stored_ok:
+        return _VERDICT_ACCEPT, None
+    if stored_bad:
+        return _VERDICT_REJECT, None
+
+    # 4. Linha legada sem nenhuma evidência.
+    return _VERDICT_UNVERIFIED, None
+
+
 def _select_valid_marketplace_offer(
     db: Session,
     product_id: int,
     merchant: str,
     identity: ProductIdentity,
-) -> tuple[Optional[MarketplaceOffer], Optional[IdentityMatchResult]]:
+) -> tuple[Optional[MarketplaceOffer], Optional[IdentityMatchResult], bool]:
+    """Escolhe a oferta MAIS BARATA entre as comprovadamente do mesmo SKU.
+
+    Preço nunca participa da prova de identidade — só do desempate depois.
+    Percorre as linhas da mais barata pra mais cara e devolve a primeira
+    ACCEPT. Linha legada sem evidência (UNVERIFIED) só é servida como
+    último recurso e apenas quando o produto PETMOL não tem discriminador
+    estrutural pra conflitar — nesse caso não há como o anúncio ser
+    "variante errada". Retorna também `needs_identity_backfill`.
+    """
     rows = list(db.scalars(
         select(MarketplaceOffer)
         .where(
             MarketplaceOffer.product_id == product_id,
             MarketplaceOffer.merchant == merchant,
             MarketplaceOffer.active.is_(True),
+            MarketplaceOffer.is_available.isnot(False),
         )
         .order_by(MarketplaceOffer.price.is_(None), MarketplaceOffer.price.asc(), MarketplaceOffer.verified_at.desc())
     ))
+    identity_is_structured = _expected_has_structured_sku(identity)
+    unverified_fallback: Optional[MarketplaceOffer] = None
     for row in rows:
-        result = _validate_marketplace_offer_identity(identity, row)
-        if result is None or result.accepted:
-            return row, result
-    return None, None
-
-
-def _validate_marketplace_offer_identity(identity: ProductIdentity, offer: MarketplaceOffer) -> Optional[IdentityMatchResult]:
-    if not offer.merchant_title and not offer.merchant_gtin:
-        return None
-    return evaluate_identity(
-        identity,
-        MerchantCandidate.build(
-            merchant=offer.merchant,
-            title=offer.merchant_title or "",
-            gtin=offer.merchant_gtin,
-            brand=None,
-            price=offer.price,
-            external_id=offer.external_listing_id,
-        ),
-    )
+        verdict, result = _marketplace_offer_identity_verdict(identity, row)
+        if verdict == _VERDICT_ACCEPT:
+            return row, result, False
+        if verdict == _VERDICT_REJECT:
+            continue
+        # UNVERIFIED
+        if unverified_fallback is None and not identity_is_structured:
+            unverified_fallback = row
+    if unverified_fallback is not None:
+        return unverified_fallback, None, True
+    return None, None, False
 
 
 def _attributes_to_dicts(result: IdentityMatchResult) -> list[dict]:

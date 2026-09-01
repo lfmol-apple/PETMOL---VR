@@ -426,7 +426,13 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
   // mudam. Nem toda loja tem imagem (Shopee/busca por palavra-chave ainda
   // não tem, só o feed Awin tem), então usa a primeira com imagem em vez
   // de travar na foto só da oferta mais barata.
-  const imageUrl = offers.find((o) => o.image_url)?.image_url ?? null;
+  // Imagem: identidade canônica primeiro (catálogo / feed do mesmo GTIN),
+  // só depois a imagem que veio junto com uma oferta. Nunca a foto de uma
+  // variante parecida só porque o nome bate.
+  const imageUrl =
+    offers.find((o) => o.canonical_image_url)?.canonical_image_url ??
+    offers.find((o) => o.image_url)?.image_url ??
+    null;
   const hasPetz = Boolean(petzLink?.available && petzLink.url);
   // offers já vem ordenado por preço crescente (CommerceEngine) — offer é
   // sempre o mais barato. Quando mais de uma opção de compra existe pro

@@ -81,6 +81,10 @@ export interface CommerceOffer {
   match_attributes?: Array<Record<string, unknown>> | null;
 }
 
+function onlyDigits(value?: string | null): string {
+  return (value ?? '').replace(/\D/g, '');
+}
+
 function normalizeOfferUrl(url: string): string {
   if (url.startsWith('/commerce/awin-click')) {
     return `${API_BASE_URL}${url}`;
@@ -211,10 +215,19 @@ export async function fetchCommerceOffers(query: string, packageSizeKg?: number,
     });
     if (!res.ok) return [];
     const data = (await res.json()) as { offers?: CommerceOffer[] };
+    // Defesa final de identidade: se o card sabe o GTIN e a oferta traz um
+    // canonical_gtin diferente, é outro produto — nunca renderiza. O
+    // backend não deveria devolver isso, mas o card não confia cegamente.
+    const requestedGtin = onlyDigits(gtin);
     return Array.isArray(data.offers)
       ? data.offers
           .map((offer) => ({ ...offer, url: normalizeOfferUrl(offer.url) }))
           .filter((offer) => offer.is_available !== false && Boolean(offer.url))
+          .filter((offer) => {
+            if (!requestedGtin) return true;
+            const canon = onlyDigits(offer.canonical_gtin);
+            return !canon || canon === requestedGtin;
+          })
       : [];
   } catch {
     return [];

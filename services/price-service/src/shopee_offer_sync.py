@@ -473,22 +473,65 @@ def _ensure_catalog_entry(db: Session, gtin: str, name: str, brand: Optional[str
     return product
 
 
+_ALIAS_SKU_DISCRIMINATORS = (
+    "weight_kg",
+    "volume_ml",
+    "length_cm",
+    "pack_count",
+    "animal_weight_range",
+    "life_stage",
+    "breed_size",
+    "flavor",
+    "therapeutic_attributes",
+)
+
+
+def _proven_same_physical_sku(name_a: str, brand_a: Optional[str], name_b: str, brand_b: Optional[str]) -> bool:
+    """Evidência DETERMINÍSTICA de que dois GTINs são o MESMO SKU físico
+    (código de barras reemitido / retrabalho de embalagem) — nunca
+    tamanho/sabor/versão diferente. Preço NÃO entra aqui.
+
+    Exige: mesma marca normalizada + mesma família + assinatura estrutural
+    idêntica (todo discriminador presente nos dois lados bate; nenhum
+    conflita) + pelo menos um discriminador estrutural realmente presente
+    e igual nos dois. Qualquer discriminador presente só de um lado =
+    não dá pra provar = não reaproveita."""
+    a = ProductIdentity.build(canonical_name=name_a, brand=brand_a)
+    b = ProductIdentity.build(canonical_name=name_b, brand=brand_b)
+    if not a.brand or not b.brand or _normalize_token(a.brand) != _normalize_token(b.brand):
+        return False
+    if not a.product_family or not b.product_family or _normalize_token(a.product_family) != _normalize_token(b.product_family):
+        return False
+    shared_match = False
+    for attr in _ALIAS_SKU_DISCRIMINATORS:
+        va = getattr(a, attr) or None
+        vb = getattr(b, attr) or None
+        if va is None and vb is None:
+            continue
+        if va is None or vb is None:
+            return False  # presente só de um lado → indeterminado
+        if attr == "weight_kg":
+            if abs(float(va) - float(vb)) > max(0.02, float(va) * 0.02):
+                return False
+        elif va != vb:
+            return False
+        shared_match = True
+    return shared_match
+
+
 def _find_alias_shopee_offers(
     db: Session, gtin_normalized: str, name: str, brand: Optional[str]
 ) -> list[MarketplaceOffer]:
     """Mesma loja às vezes lista o mesmo item comercial sob GTINs
-    diferentes (código reemitido, retrabalho de embalagem, etc.) — nunca
-    tamanho/variação diferente, que sempre muda o preço. Quando um GTIN
-    "irmão" da mesma loja já tem oferta Shopee casada, reaproveita em vez
-    de gastar outra busca de rede pro mesmo produto físico (mais barato e
-    fecha a lacuna de "produto sem preço só porque foi escaneado sob o
-    outro código de barras").
+    diferentes (código reemitido, retrabalho de embalagem) — NUNCA
+    tamanho/variação diferente. Quando um GTIN "irmão" da mesma loja já
+    tem oferta Shopee casada e há prova determinística de que é o mesmo
+    SKU físico, reaproveita em vez de gastar outra busca de rede.
 
-    Critério deliberadamente estrito pra nunca colar itens errados: mesma
-    loja (merchant) + título normalizado idêntico + marca normalizada
-    idêntica + preço idêntico até o centavo. Qualquer diferença de preço
-    já é sinal de tamanho/versão realmente diferente — não reaproveita
-    nesse caso, cai pro fluxo normal de busca+match na Shopee."""
+    IDENTIDADE PRIMEIRO: preço NÃO é evidência de identidade (dois SKUs
+    diferentes podem ter o mesmo preço; o mesmo SKU pode ter preços
+    diferentes entre feeds). Sem prova estrutural determinística
+    (_proven_same_physical_sku), cai pro fluxo normal de busca+match."""
     from .affiliate_feed import AffiliateFeedOffer
 
     own_row = db.scalar(
@@ -497,13 +540,8 @@ def _find_alias_shopee_offers(
         .order_by(AffiliateFeedOffer.id)
         .limit(1)
     )
-    if not own_row or own_row.price is None:
+    if not own_row or not own_row.title:
         return []
-
-    title_key = _normalize_token(name)
-    if not title_key:
-        return []
-    brand_key = _normalize_token(brand or "")
 
     siblings = db.scalars(
         select(AffiliateFeedOffer).where(
@@ -512,17 +550,15 @@ def _find_alias_shopee_offers(
             AffiliateFeedOffer.in_stock.is_(True),
             AffiliateFeedOffer.gtin.isnot(None),
             AffiliateFeedOffer.gtin != gtin_normalized,
-            AffiliateFeedOffer.price == own_row.price,
+            AffiliateFeedOffer.title.isnot(None),
         )
     ).all()
 
     for sibling in siblings:
-        if _normalize_token(sibling.title or "") != title_key:
-            continue
-        if _normalize_token(sibling.brand or "") != brand_key:
-            continue
         sibling_gtin = normalize_gtin(sibling.gtin)
         if not sibling_gtin or sibling_gtin == gtin_normalized:
+            continue
+        if not _proven_same_physical_sku(name, brand, sibling.title or "", sibling.brand):
             continue
         sibling_product = db.scalar(
             select(ProductCatalog).where(ProductCatalog.barcode_normalized == sibling_gtin)
@@ -571,6 +607,14 @@ def _clone_offers_for_product(db: Session, product_id: int, source_offers: list[
         offer.active = True
         offer.verified_at = now
         offer.last_checked_at = now
+        # Carrega a evidência de identidade do irmão comprovado — senão a
+        # oferta clonada ficaria "sem evidência" no gate do provider.
+        offer.merchant_title = src.merchant_title
+        offer.merchant_gtin = src.merchant_gtin
+        offer.match_decision = src.match_decision
+        offer.match_confidence = src.match_confidence
+        offer.match_reasons_json = src.match_reasons_json
+        offer.match_attributes_json = src.match_attributes_json
         db.flush()
         cloned_ids.append(offer.id)
     db.commit()

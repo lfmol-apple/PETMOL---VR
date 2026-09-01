@@ -184,3 +184,40 @@ def test_refresh_stops_gracefully_when_time_limit_is_reached(monkeypatch):
         assert summary.remaining >= 1
     finally:
         db.close()
+
+
+def test_refresh_queue_prioritizes_missing_title_before_old_ones(monkeypatch):
+    """Fila de refresh: linha legada sem merchant_title (sem evidência de
+    identidade) vem antes de uma linha já com título, mesmo mais antiga.
+    Ordem nunca muram preço/identidade — só o que é revalidado primeiro."""
+    product_id = _register_product()
+    old_titled = _register_offer(
+        product_id, external_listing_id="titled",
+        merchant_title="Racao Soma Nutricao Carne Adulto Cao 15kg",
+        last_checked_at=datetime.now(timezone.utc) - timedelta(days=40),
+    )
+    legacy = _register_offer(
+        product_id, external_listing_id="legacy", merchant_title=None,
+        last_checked_at=datetime.now(timezone.utc) - timedelta(days=1),
+    )
+
+    seen: list[int] = []
+    monkeypatch.setattr(
+        refresh_module, "search_product_offers",
+        lambda keyword, limit=20: [],
+    )
+    orig = refresh_module._refresh_one_shopee_offer
+
+    def _spy(db, offer, summary, **kw):
+        seen.append(offer.id)
+        return orig(db, offer, summary, **kw)
+
+    monkeypatch.setattr(refresh_module, "_refresh_one_shopee_offer", _spy)
+
+    db = SessionLocal()
+    try:
+        refresh_marketplace_prices(db, max_offers=10, delay_seconds=0)
+    finally:
+        db.close()
+
+    assert seen.index(legacy) < seen.index(old_titled)

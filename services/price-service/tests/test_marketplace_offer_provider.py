@@ -320,7 +320,11 @@ async def test_finds_offer_by_text_when_context_has_no_gtin(monkeypatch):
         db.commit()
     finally:
         db.close()
-    _register_offer(product_id, price=399.9)
+    _register_offer(
+        product_id, price=399.9,
+        merchant_title="Ração Royal Canin Veterinary Urinary Small Dog Cães 7,5kg",
+        match_decision="HIGH_CONFIDENCE",
+    )
 
     db = SessionLocal()
     try:
