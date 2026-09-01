@@ -183,50 +183,19 @@ export async function fetchPetzDirectLink(
   }
 }
 
-export interface CommerceOffersLookup {
-  query: string;
-  packageSizeKg?: number;
-  gtin?: string;
-  /** Nome/título do produto — ajuda a Cobasi quando `query` vem pobre. */
-  name?: string;
-  /** Marca do produto. */
-  brand?: string;
-  /**
-   * Espécie do pet ("dog"|"cat" ou "cachorro"|"gato") — hard fail de
-   * identidade na Cobasi: ração de gato nunca vira preço de ração de cão.
-   */
-  species?: string;
-}
-
-export async function fetchCommerceOffers(
-  lookup: CommerceOffersLookup | string,
-  packageSizeKg?: number,
-  gtin?: string,
-): Promise<CommerceOffer[]> {
-  // Compat: aceita a assinatura antiga (query, packageSizeKg, gtin).
-  const opts: CommerceOffersLookup =
-    typeof lookup === 'string' ? { query: lookup, packageSizeKg, gtin } : lookup;
-  const trimmed = (opts.query || '').trim();
-  const name = (opts.name || '').trim();
-  const brand = (opts.brand || '').trim();
-  const species = (opts.species || '').trim();
-  if (!trimmed && !opts.gtin && !name) return [];
+export async function fetchCommerceOffers(query: string, packageSizeKg?: number, gtin?: string): Promise<CommerceOffer[]> {
+  const trimmed = query.trim();
+  if (!trimmed && !gtin) return [];
   try {
     const params = new URLSearchParams();
     if (trimmed) params.set('q', trimmed);
-    if (typeof opts.packageSizeKg === 'number' && opts.packageSizeKg > 0) {
-      params.set('weight_kg', String(opts.packageSizeKg));
+    if (typeof packageSizeKg === 'number' && packageSizeKg > 0) {
+      params.set('weight_kg', String(packageSizeKg));
     }
-    if (opts.gtin) params.set('gtin', opts.gtin);
-    if (name) params.set('name', name);
-    if (brand) params.set('brand', brand);
-    if (species) params.set('species', species);
+    if (gtin) params.set('gtin', gtin);
     const res = await fetch(`${API_BASE_URL}/commerce/offers?${params.toString()}`, {
       cache: 'no-store',
-      // Cobasi é busca ao vivo na VTEX (até ~7s no backend por provider);
-      // margem acima disso para não abortar um provider que ainda ia
-      // responder. Não pode travar a UI indefinidamente.
-      signal: AbortSignal.timeout(9000),
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return [];
     const data = (await res.json()) as { offers?: CommerceOffer[] };

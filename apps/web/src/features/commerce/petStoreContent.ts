@@ -50,10 +50,6 @@ export interface ReorderCard {
    * busca, mas não mostra "menor preço" como se fosse o mesmo produto.
    */
   priceLookupAllowed: boolean;
-  /** Espécie do pet dono do lembrete ("dog"|"cat"), quando conhecida —
-   * hard fail de identidade na Cobasi (ração de gato nunca vira preço de
-   * ração de cão). */
-  species?: string;
 }
 
 function formatUrgencyText(domain: CareReminderDomain, diff: number): string {
@@ -86,11 +82,7 @@ function buildReminderSearchQuery(r: PetCareReminder): string {
   return r.label?.trim() || r.sublabel || 'produto pet';
 }
 
-export function buildReorderCards(
-  reminders: PetCareReminder[],
-  species?: PetSpecies | string | null,
-): ReorderCard[] {
-  const petSpecies = (species || '').trim() || undefined;
+export function buildReorderCards(reminders: PetCareReminder[]): ReorderCard[] {
   return reminders
     .filter((r) => BUYABLE_DOMAINS.includes(r.domain))
     // Medicação sem código de barras não tem identidade comercial segura:
@@ -112,7 +104,6 @@ export function buildReorderCards(
         packageSizeKg: r.packageSizeKg,
         gtin,
         priceLookupAllowed: r.domain !== 'parasite' || Boolean(gtin),
-        species: petSpecies,
       };
     });
 }

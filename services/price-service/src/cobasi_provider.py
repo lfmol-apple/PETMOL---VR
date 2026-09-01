@@ -43,7 +43,6 @@ faz should_run() retornar True direto, sem checar offers_so_far).
 """
 from __future__ import annotations
 
-import logging
 from typing import Optional
 
 from sqlalchemy import select
@@ -51,42 +50,25 @@ from sqlalchemy.orm import Session
 
 from .affiliate_links import get_active_link
 from .cobasi_utm import InvalidCobasiUrlError, build_cobasi_affiliate_url
-from .commerce_pricing import CobasiIdentitySpec, fetch_cobasi_price_matched
+from .commerce_pricing import fetch_cobasi_price
 from .commerce_provider import DiscoveredOffer, MonetizedOffer, ProductContext
 from .config import Settings, get_settings
 from .merchant_routes import preferred_route_for
 from .product_catalog_lookup import ProductCatalog, normalize_gtin
 
-logger = logging.getLogger(__name__)
+
+def _build_query(context: ProductContext) -> str:
+    if context.query:
+        return context.query
+    return " ".join(p for p in (context.brand, context.name) if p).strip()
 
 
-def _query_candidates(context: ProductContext) -> list[tuple[str, str]]:
-    """(kind, termo de busca) a tentar na Cobasi, da fonte mais forte pra
-    menos — para um produto conhecido não ficar sem oferta só porque `q`
-    veio pobre. Deduplicado por termo, sem entradas vazias.
-
-      1. gtin       — a busca da VTEX indexa EAN; quando resolve, devolve o
-                      produto exato (EAN casa, o fallback textual nem roda);
-      2. explicit_q — o `q` que o chamador mandou (comportamento atual);
-      3. brand_name — marca + nome;
-      4. name       — nome sozinho.
-    """
-    gtin = normalize_gtin(context.gtin or "")
-    brand = (context.brand or "").strip()
-    name = (context.name or "").strip()
-    raw = [
-        ("gtin", gtin if gtin else ""),
-        ("explicit_q", (context.query or "").strip()),
-        ("brand_name", " ".join(p for p in (brand, name) if p).strip()),
-        ("name", name),
-    ]
-    out: list[tuple[str, str]] = []
-    seen: set[str] = set()
-    for kind, q in raw:
-        if q and q not in seen:
-            seen.add(q)
-            out.append((kind, q))
-    return out
+def _gtin_matches(expected: Optional[str], actual: Optional[str]) -> bool:
+    expected_normalized = normalize_gtin(expected or "")
+    actual_normalized = normalize_gtin(actual or "")
+    if not expected_normalized:
+        return True
+    return bool(actual_normalized) and actual_normalized == expected_normalized
 
 
 class CobasiProvider:
@@ -119,50 +101,26 @@ class CobasiProvider:
         return get_active_link(self._db, product.id, self.merchant) is not None
 
     async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
-        candidates = _query_candidates(context)
-        if not candidates:
-            logger.info("[cobasi] find_offer: sem termo de busca utilizável")
+        query = _build_query(context)
+        if not query:
             return None
 
-        # Identidade do produto do tutor — a oferta Cobasi só é aceita se
-        # puder ser PROVADA contra isto (espécie/peso/volume/cm/qtd/linha).
-        # Sem evidência suficiente → não mostra preço (fail closed).
-        spec = CobasiIdentitySpec.build(
-            reference_name=context.name or context.query,
-            brand=context.brand,
-            species=context.species,
-            gtin=context.gtin,
-            weight_kg=context.weight_kg,
+        price = await fetch_cobasi_price(query, target_weight_kg=context.weight_kg)
+        if not price.found or price.price is None:
+            return None
+        if not _gtin_matches(context.gtin, price.ean):
+            return None
+
+        return DiscoveredOffer(
+            merchant=self.merchant,
+            product_name=price.product_name,
+            brand=price.brand,
+            price=price.price,
+            list_price=price.list_price,
+            is_available=price.is_available,
+            direct_url=price.url,
+            ean=price.ean,
         )
-
-        last_reason = "no_results"
-        for kind, query in candidates:
-            price = await fetch_cobasi_price_matched(query, spec, target_weight_kg=context.weight_kg)
-
-            if not price.found or price.price is None:
-                last_reason = price.reason if price.reason != "ok" else "no_price"
-                logger.info("[cobasi] descartado: %s (query_kind=%s)", last_reason, kind)
-                continue
-
-            # Estoque NÃO é filtrado aqui de propósito — o CommerceEngine já
-            # descarta is_available is False (regra atual, inalterada).
-            logger.info(
-                "[cobasi] oferta resolvida: %s (query_kind=%s, em_estoque=%s)",
-                price.reason, kind, price.is_available,
-            )
-            return DiscoveredOffer(
-                merchant=self.merchant,
-                product_name=price.product_name,
-                brand=price.brand,
-                price=price.price,
-                list_price=price.list_price,
-                is_available=price.is_available,
-                direct_url=price.url,
-                ean=price.ean,
-            )
-
-        logger.info("[cobasi] sem oferta: %s (tentativas=%d)", last_reason, len(candidates))
-        return None
 
     def monetize(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str, str, bool]]:
         settings = get_settings()
