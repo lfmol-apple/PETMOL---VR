@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Building2, ChevronRight, Scissors, Store } from 'lucide-react';
+import { Building2, ChevronRight, MessageCircleHeart, Scissors, Store } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
 import { petDo } from '@/lib/petGender';
 import { type HomeInactiveEligibleControlId } from '@/lib/homeControlPreferences';
 import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { TalkToPetmolSheet } from '@/components/TalkToPetmolSheet';
 
 const MAPS = (q: string) => `https://www.google.com/maps/search/${encodeURIComponent(q)}`;
 
@@ -105,6 +106,7 @@ export function AppleControlButtons({
   const { t } = useI18n();
   const [showEmergencyChoice, setShowEmergencyChoice] = useState(false);
   const [showPetshopChoice, setShowPetshopChoice] = useState(false);
+  const [showTalk, setShowTalk] = useState(false);
   const shoppingTitle = petName ? `Loja ${petDo({ sex: petSex })} ${petName}` : t('home.shopping.title');
   const foodHeadlineText = !hasFoodData
     ? 'Cuidado em aberto'
@@ -282,6 +284,21 @@ export function AppleControlButtons({
             </div>
             <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-300 transition-transform group-hover:translate-x-1" strokeWidth={2.5} />
           </button>
+
+          <button
+            type="button"
+            onClick={() => setShowTalk(true)}
+            className="group relative flex min-h-[44px] w-full items-center gap-2 overflow-hidden rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm transition-all duration-300 hover:shadow-md active:scale-[0.98] min-[390px]:min-h-[52px] min-[390px]:gap-2.5 min-[390px]:rounded-2xl min-[390px]:p-3"
+          >
+            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-blue-50 transition-transform group-hover:scale-105 min-[390px]:h-8 min-[390px]:w-8">
+              <MessageCircleHeart className="h-[15px] w-[15px] text-blue-500 min-[390px]:h-4 min-[390px]:w-4" strokeWidth={2} />
+            </div>
+            <div className="min-w-0 flex-1 text-left">
+              <h3 className="truncate text-[13px] font-bold leading-tight text-slate-800 min-[390px]:text-[14px] sm:text-base">Fale com o Petmol</h3>
+              <p className="mt-0.5 truncate text-[9px] font-semibold leading-[1.1] text-slate-400 min-[390px]:text-[10px] sm:text-xs">Sugestão, elogio ou problema</p>
+            </div>
+            <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-300 transition-transform group-hover:translate-x-1" strokeWidth={2.5} />
+          </button>
         </div>
       </div>
 
@@ -348,6 +365,8 @@ export function AppleControlButtons({
           </div>
         </div>
       )}
+
+      <TalkToPetmolSheet open={showTalk} onClose={() => setShowTalk(false)} source="home" />
 
       {showPetshopChoice && (
         <SheetShell open onClose={() => setShowPetshopChoice(false)} variant="center" size="sm" z={80}>

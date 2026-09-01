@@ -1400,6 +1400,15 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     if (destination) applyHomeSurfaceResolution(destination);
   }, [applyHomeSurfaceResolution, healthQuickAction]);
 
+  // "Ir para a home" — ao fechar um sheet por esse caminho, a home nunca pode
+  // ficar parada no meio (foto do pet cortada pelo header fixo): volta ao topo.
+  const goHome = useCallback((cleanup?: () => void) => {
+    cleanup?.();
+    if (typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+    }
+  }, []);
+
   const {
     closeVermifugoSheet,
     closeAntipulgasSheet,
@@ -2388,7 +2397,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           eventTypeLocked={eventTypeLocked}
           onBackFromHealthModal={backFromHealthModal}
           onCloseHealthModal={closeHealthModal}
-          onGoHome={closeHealthModal}
+          onGoHome={() => goHome(closeHealthModal)}
           onSelectHealthTab={selectHealthTab}
           onOpenVaccineCenter={openVaccineCenterFromHealthModal}
           vaccines={vaccines}
@@ -2474,7 +2483,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           handleImportAnalyzedVaccines={handleImportAnalyzedVaccines}
           importVaccineLoading={importVaccineLoading}
           reviewConfirmed={reviewConfirmed}
-          onGoHome={() => { closeCardAnalysis(); closeVaccineSheet(); }}
+          onGoHome={() => goHome(() => { closeCardAnalysis(); closeVaccineSheet(); })}
           onAfterSave={() => setVaccineFormJustSaved(true)}
         />
       )}
@@ -2647,7 +2656,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           parasiteControls={parasiteControls.filter(p => p.type === 'dewormer' || p.type === 'heartworm' || p.type === 'leishmaniasis')}
           initialMode={parasiteSheetInitialMode}
           onClose={() => { setParasiteSheetInitialMode('view'); closeVermifugoSheet(); }}
-          onGoHome={() => { setParasiteSheetInitialMode('view'); closeVermifugoSheet(); }}
+          onGoHome={() => goHome(() => { setParasiteSheetInitialMode('view'); closeVermifugoSheet(); })}
           onRefresh={loadParasiteControls}
         />
       )}
@@ -2662,7 +2671,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           parasiteControls={parasiteControls.filter(p => p.type === 'flea_tick')}
           initialMode={parasiteSheetInitialMode}
           onClose={() => { setParasiteSheetInitialMode('view'); closeAntipulgasSheet(); }}
-          onGoHome={() => { setParasiteSheetInitialMode('view'); closeAntipulgasSheet(); }}
+          onGoHome={() => goHome(() => { setParasiteSheetInitialMode('view'); closeAntipulgasSheet(); })}
           onRefresh={loadParasiteControls}
         />
       )}
@@ -2677,7 +2686,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           parasiteControls={parasiteControls.filter(p => p.type === 'collar')}
           initialMode={parasiteSheetInitialMode}
           onClose={() => { setParasiteSheetInitialMode('view'); closeColeiraSheet(); }}
-          onGoHome={() => { setParasiteSheetInitialMode('view'); closeColeiraSheet(); }}
+          onGoHome={() => goHome(() => { setParasiteSheetInitialMode('view'); closeColeiraSheet(); })}
           onRefresh={loadParasiteControls}
         />
       )}
@@ -2687,7 +2696,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           pet={currentPet}
           petPhotoUrl={(currentPet as { photo?: string | null; photo_url?: string | null }).photo ?? (currentPet as { photo_url?: string | null }).photo_url ?? null}
           onClose={() => { setFoodSheetInitialMode('view'); closeFoodSheet(); }}
-          onGoHome={() => { setFoodSheetInitialMode('view'); closeFoodSheet(); }}
+          onGoHome={() => goHome(() => { setFoodSheetInitialMode('view'); closeFoodSheet(); })}
           onSaved={handleFoodSaved}
           initialMode={foodSheetInitialMode}
           racaoEventId={petEvents.find((e) => e.type === 'racao')?.id ?? null}
@@ -2703,7 +2712,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           vaccines={vaccines}
           initialMode={vaccineSheetInitialMode}
           onClose={() => { setVaccineSheetInitialMode('view'); closeVaccineSheet(); }}
-          onGoHome={() => { setVaccineSheetInitialMode('view'); closeVaccineSheet(); }}
+          onGoHome={() => goHome(() => { setVaccineSheetInitialMode('view'); closeVaccineSheet(); })}
           onQuickAdd={handleVaccineQuickAdd}
           onDirectSaveVaccine={handleQuickAddVaccine}
           onFullFormVaccine={handleVaccineFullForm}
@@ -2733,7 +2742,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           petEvents={petEvents}
           initialMode={medicationSheetInitialMode}
           onClose={() => { setMedicationSheetInitialMode('view'); closeMedicationSheet(); }}
-          onGoHome={() => { setMedicationSheetInitialMode('view'); closeMedicationSheet(); }}
+          onGoHome={() => goHome(() => { setMedicationSheetInitialMode('view'); closeMedicationSheet(); })}
           onRefresh={refreshMedicationHistory}
         />
       )}
@@ -2746,7 +2755,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           petPhotoUrl={currentPet?.photo}
           groomingRecords={groomingRecords}
           onClose={closeGroomingSheet}
-          onGoHome={closeGroomingSheet}
+          onGoHome={() => goHome(closeGroomingSheet)}
           onRefresh={loadGroomingRecords}
         />
       )}
@@ -2789,7 +2798,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           pet={currentPet}
           petPhotoUrl={currentPet.photo ? getPhotoUrl(currentPet.photo) : null}
           onClose={() => setShowPetSumidoSheet(false)}
-          onGoHome={() => setShowPetSumidoSheet(false)}
+          onGoHome={() => goHome(() => setShowPetSumidoSheet(false))}
         />
       )}
 
@@ -2808,7 +2817,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
             initialMissingDate={alert.missing_date ?? undefined}
             initialMissingTime={alert.missing_time ?? undefined}
             onClose={() => { setEditingAlertId(null); fetchOwnMissingAlerts(); }}
-            onGoHome={() => { setEditingAlertId(null); fetchOwnMissingAlerts(); }}
+            onGoHome={() => goHome(() => { setEditingAlertId(null); fetchOwnMissingAlerts(); })}
           />
         );
       })()}
