@@ -155,18 +155,22 @@ qualidade e o que ainda vale rodar.
 2. **Hard-fail de comprimento em cm** pra coleiras
    (`shopee_offer_matcher.py::extract_length_cm`) — Scalibor 48cm nunca
    casa com um anúncio "65 cm".
-3. **Sync noturno em prioridades** (RC 1.0): o timer diário
-   (`petmol-shopee-sync.timer`) usa `source=active_products` — fila
-   determinística deduplicada por GTIN, na ordem: **A** toda oferta
-   Shopee ativa (revalida/reprecifica, da mais antiga pra mais nova;
-   nunca apaga a oferta se a API falhar) → **B** GTINs que os tutores de
-   fato usam (`product_scan_events` resolvidos num produto de catálogo
-   com nome) → **C** catálogo Awin fresco (Cobasi/Zee Now/Zee Dog), só o
+3. **Sync noturno em prioridades** (RC 1.0; ordem revista 01/09/2026): o
+   timer diário (`petmol-shopee-sync.timer`) usa `source=active_products`
+   — fila determinística deduplicada por GTIN, na ordem: **A** GTINs que
+   os tutores de fato usam (`product_scan_events` resolvidos num produto
+   de catálogo com nome) — é o que aparece na tela, conjunto pequeno,
+   revalidado toda noite → **B** o resto das ofertas Shopee ativas
+   (backlog, da mais antiga pra mais nova; nunca apaga a oferta se a API
+   falhar) → **C** catálogo Awin fresco (Cobasi/Zee Now/Zee Dog), só o
    que ainda não tem oferta Shopee. Teto por execução
    (`SHOPEE_SYNC_MAX_PRODUCTS_PER_RUN`, default 400); ao bater o teto,
-   para limpo e a próxima noite continua. Sem depender do feed Awin pras
-   prioridades A/B. O `activate.sh` do deploy instala o trigger script
-   novo sozinho.
+   para limpo e a próxima noite continua. **Por que tutores primeiro:**
+   antes, "A" era todas as ~10k+ ofertas ativas — estourava o teto de 400
+   toda noite, "B"/"C" nunca rodavam e o preço Shopee ficava
+   permanentemente defasado (janela stale de 36h). O feed Awin não é
+   dependência das prioridades A/B. O `activate.sh` do deploy instala o
+   trigger script novo sozinho.
 4. **Frescor + descoberta on-demand**: oferta de marketplace defasada
    (`marketplace_offer_stale_after_hours`, default 36h) não vira mais
    número na tela — `price=None`, o app mostra "Conferir preço na Shopee"

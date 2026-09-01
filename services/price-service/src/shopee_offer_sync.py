@@ -766,13 +766,22 @@ def iter_launch_coverage_queue(
     feed_merchants: tuple[str, ...] = _DEFAULT_AWIN_SHOPEE_SOURCE_MERCHANTS,
 ) -> tuple[list[tuple[str, Optional[str], Optional[str]]], int]:
     """Fila noturna determinística em prioridades:
-      A — todas as ofertas Shopee ativas (refresh, mais antigas primeiro);
-      B — GTINs realmente usados pelos tutores (scan events);
+      A — GTINs realmente usados pelos tutores (scan events) — é o que
+          aparece na tela; tem que estar sempre fresco. Conjunto pequeno.
+      B — o resto das ofertas Shopee ativas (backlog, mais antigas
+          primeiro) — produto que ninguém abriu ainda; esquenta sob
+          demanda quando alguém escaneia (entra em A na noite seguinte).
       C — catálogo Awin fresco (Cobasi + Zee Now + Zee Dog), só o que
           ainda não tem oferta Shopee.
     Deduplicado por GTIN normalizado, preservando a ordem (A antes de B
     antes de C). Corta em `max_products`; retorna (fila, total_disponível)
     pra o STATE registrar `remaining`.
+
+    Ordem trocada em 01/09/2026: A era "todas as ofertas ativas" (10k+),
+    estourava o teto de 400 toda noite e B/C nunca rodavam — preço Shopee
+    ficava permanentemente defasado (janela stale de 36h). Tutores primeiro
+    resolve isso: o conjunto que os tutores de fato veem é pequeno e passa
+    a ser revalidado toda noite.
     """
     seen: set[str] = set()
     queue: list[tuple[str, Optional[str], Optional[str]]] = []
@@ -784,9 +793,9 @@ def iter_launch_coverage_queue(
         seen.add(g)
         queue.append((g, name, brand))
 
-    for g in iter_active_shopee_offer_gtins(db):
-        _add(g)
     for g in iter_active_product_gtins(db):
+        _add(g)
+    for g in iter_active_shopee_offer_gtins(db):
         _add(g)
     for gtin, name, brand in iter_unified_awin_feed_products(db, merchants=feed_merchants, skip_existing_shopee=True):
         _add(gtin, name, brand)
