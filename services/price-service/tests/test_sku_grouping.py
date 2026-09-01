@@ -183,3 +183,44 @@ def test_ungroupable_gtin_stays_ungrouped():
     r = _rebuild("7899000000091")
     assert r.group_key is None
     assert _members("7899000000091") == []
+
+
+def test_same_brand_different_product_type_never_group():
+    # "Ração Alcon Peixes" vs "Ração Alcon Roedores" — mesma marca, pesos
+    # minúsculos parecidos, mas produtos diferentes.
+    _feed("7896108000001", "Ração para Peixes Carnívoros Alcon 90g", brand="Alcon", category="Peixe")
+    _feed("7896108000002", "Ração Frutas e Legumes para Roedores e Coelhos Alcon 75g", brand="Alcon", category="Roedor")
+    _enrich("7896108000001", "7896108000002")
+    db = SessionLocal()
+    try:
+        d = sg.evaluate_pair(db, "7896108000001", "7896108000002")
+        assert d.grouped is False
+    finally:
+        db.close()
+
+
+def test_hills_urinary_vs_renal_same_weight_never_group():
+    _feed("0052742001111", "Ração Hills Prescription Diet c/d Multicare Feline Urinary 1,8kg",
+          brand="Hills", category="Gatos")
+    _feed("0052742002222", "Ração Hills Prescription Diet k/d Feline Renal 1,8kg",
+          brand="Hills", category="Gatos")
+    _enrich("0052742001111", "0052742002222")
+    db = SessionLocal()
+    try:
+        d = sg.evaluate_pair(db, "0052742001111", "0052742002222")
+        assert d.grouped is False
+    finally:
+        db.close()
+
+
+def test_clique_no_transitive_closure():
+    # A(porte NULO) casa com B(small) e com C(large); B e C conflitam →
+    # grupo não pode conter B e C juntos.
+    _feed("7897777770001", "Biscoito Marca Multi para Cães Adultos 500g", brand="MarcaBisc")
+    _feed("7897777770002", "Biscoito Marca para Cães Raças Pequenas 500g", brand="MarcaBisc")
+    _feed("7897777770003", "Biscoito Marca Maxi para Cães Grandes 500g", brand="MarcaBisc")
+    _enrich("7897777770001", "7897777770002", "7897777770003")
+    r = _rebuild("7897777770001")
+    members = set(r.members or [])
+    # nunca B e C no mesmo grupo
+    assert not ({"7897777770002", "7897777770003"} <= members)

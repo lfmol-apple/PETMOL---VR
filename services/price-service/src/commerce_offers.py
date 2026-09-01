@@ -84,6 +84,11 @@ class CommerceOfferOut(BaseModel):
     match_confidence: Optional[float] = None
     match_reasons: Optional[list[str]] = None
     match_attributes: Optional[list[dict[str, Any]]] = None
+    origin_gtin: Optional[str] = None
+    origin_product_name: Optional[str] = None
+    sku_group_id: Optional[str] = None
+    sku_group_basis: Optional[str] = None
+    sku_group_confidence: Optional[float] = None
 
 
 _NOT_FOUND = ProductOfferResult(found=False)
@@ -232,7 +237,115 @@ async def get_commerce_offers(
         canonical_brand=canonical_brand,
         canonical_image_url=canonical_image_url,
     )
-    return await engine.get_offers(context)
+    offers = await engine.get_offers(context)
+    for o in offers:
+        if o.origin_gtin is None:
+            o.origin_gtin = o.canonical_gtin or canonical_gtin
+
+    sibling_offers = await _sku_group_sibling_offers(
+        db, engine, product,
+        canonical_gtin=canonical_gtin, canonical_name=canonical_name,
+        canonical_brand=canonical_brand, canonical_image_url=canonical_image_url,
+        query=query, target_weight_kg=target_weight_kg, primary=offers,
+    )
+    if sibling_offers:
+        offers = _merge_group_offers(offers, sibling_offers)
+        offers.sort(key=lambda o: o.price if o.price is not None else float("inf"))
+    return offers
+
+
+def _merge_group_offers(primary: list, siblings: list) -> list:
+    """Aditivo: a primária vence por merchant SE tiver preço fresco. Se a
+    primária daquele merchant está sem preço/stale e a irmã tem preço
+    fresco, a irmã substitui (mesmo produto físico, código irmão). Nunca
+    reduz o total de opções."""
+    fresh_primary = {o.merchant for o in primary if o.price is not None and not o.price_is_stale}
+    kept_primary = [o for o in primary if o.merchant in fresh_primary]
+    stale_primary = [o for o in primary if o.merchant not in fresh_primary]
+    covered = set(fresh_primary)
+    out = list(kept_primary)
+    for o in siblings:
+        if o.merchant in covered:
+            continue
+        if o.price is not None and not o.price_is_stale:
+            out.append(o)
+            covered.add(o.merchant)
+    # merchants ainda sem oferta fresca: mantém a primária stale (fallback)
+    for o in stale_primary:
+        if o.merchant not in covered:
+            out.append(o)
+            covered.add(o.merchant)
+    return out
+
+
+async def _sku_group_sibling_offers(
+    db: Session, engine, product: Optional[ProductCatalog], *,
+    canonical_gtin: Optional[str], canonical_name: Optional[str],
+    canonical_brand: Optional[str], canonical_image_url: Optional[str],
+    query: Optional[str], target_weight_kg: Optional[float], primary: list,
+) -> list:
+    from .config import get_settings
+
+    settings = get_settings()
+    if not getattr(settings, "sku_grouping_enabled", True) or product is None or not canonical_gtin:
+        return []
+    # se a primária já tem preço fresco pra Cobasi E Shopee, não vale a pena
+    fresh = {o.merchant for o in primary if o.price is not None and not o.price_is_stale}
+    if {"cobasi", "shopee"}.issubset(fresh):
+        return []
+    try:
+        from .sku_grouping import resolve_sku_group_members
+        from .product_identity import ProductIdentity, MerchantCandidate, evaluate_identity, IdentityDecision
+
+        members = resolve_sku_group_members(db, canonical_gtin)[: settings.sku_grouping_max_siblings]
+    except Exception:  # noqa: BLE001
+        return []
+    if not members:
+        return []
+
+    tutor_identity = ProductIdentity.from_catalog(product)
+    out: list = []
+    for m in members:
+        sib = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == m.member_gtin))
+        if sib is None:
+            continue
+        sib_ctx = ProductContext(
+            query=query, weight_kg=target_weight_kg,
+            gtin=sib.barcode_normalized, product_id=sib.id,
+            name=sib.canonical_name or sib.name, brand=sib.canonical_brand or sib.brand,
+            species=sib.species, category=sib.category,
+            canonical_name=canonical_name, canonical_brand=canonical_brand,
+            canonical_image_url=canonical_image_url,
+        )
+        try:
+            sib_offers = await engine.get_offers(sib_ctx)
+        except Exception:  # noqa: BLE001
+            continue
+        for o in sib_offers:
+            # re-verificação em tempo de oferta: só descarta CONFLICT explícito
+            title = o.merchant_product_name or ""
+            if title:
+                decision = evaluate_identity(
+                    tutor_identity,
+                    MerchantCandidate.build(merchant=o.merchant, title=title, gtin=None),
+                ).decision
+                if decision == IdentityDecision.CONFLICT:
+                    continue
+            o.origin_gtin = sib.barcode_normalized
+            o.origin_product_name = sib.canonical_name or sib.name
+            o.sku_group_id = m.group_key
+            o.sku_group_basis = m.match_basis
+            o.sku_group_confidence = m.confidence
+            o.canonical_product_id = product.id
+            o.canonical_gtin = canonical_gtin
+            o.canonical_name = canonical_name
+            o.canonical_brand = canonical_brand
+            if canonical_image_url:
+                o.canonical_image_url = canonical_image_url
+            o.product_name = canonical_name or o.product_name
+            o.match_reasons = [*(o.match_reasons or []), "SKU_GROUP_SIBLING"]
+            out.append(o)
+    return out
 
 
 def _resolve_catalog_product(db: Session, *, gtin: Optional[str], product_id: Optional[int]) -> Optional[ProductCatalog]:

@@ -291,19 +291,36 @@ def evaluate_identity(
 _STRUCTURAL_FIELDS = ("weight_kg", "volume_ml", "length_cm", "pack_count", "animal_weight_range", "species", "breed_size")
 
 
+def _compare_set_conflict(attribute: str, a: set, b: set) -> AttributeComparison:
+    """Dois conjuntos não-vazios e diferentes = CONFLICT (ex.: urinary vs
+    renal). Um vazio = UNKNOWN. Iguais = MATCH."""
+    if not a or not b:
+        return AttributeComparison(attribute, sorted(a), sorted(b), AttributeStatus.UNKNOWN, f"MISSING_{attribute.upper()}")
+    if a == b:
+        return AttributeComparison(attribute, sorted(a), sorted(b), AttributeStatus.MATCH, f"{attribute.upper()}_MATCH")
+    return AttributeComparison(attribute, sorted(a), sorted(b), AttributeStatus.CONFLICT, f"{attribute.upper()}_CONFLICT")
+
+
 def compare_structural(a: ProductIdentity, b: ProductIdentity) -> tuple[AttributeComparison, ...]:
     """Compara dois produtos PETMOL campo a campo (não PETMOL-vs-merchant).
     Usado pelo agrupamento de SKU: só forma grupo se os discriminadores
-    estruturais BATEM; qualquer CONFLICT veta. Reaproveita os comparadores
-    e tolerâncias do evaluate_identity. Sem texto, sem score."""
+    estruturais BATEM; qualquer CONFLICT veta. Tolerâncias mais APERTADAS
+    que o evaluate_identity — agrupamento exige o MESMO SKU, não 'perto'.
+    Sem texto, sem score."""
+    w_tol = max(0.01, min(a.weight_kg or 9e9, b.weight_kg or 9e9) * 0.02)
+    v_tol = max(5.0, min(a.volume_ml or 9e9, b.volume_ml or 9e9) * 0.02)
     out = [
-        _compare_numeric("weight_kg", a.weight_kg, b.weight_kg, tolerance=max(0.05, (a.weight_kg or 0) * 0.05)),
-        _compare_numeric("volume_ml", a.volume_ml, b.volume_ml, tolerance=max(20.0, (a.volume_ml or 0) * 0.05)),
-        _compare_numeric("length_cm", a.length_cm, b.length_cm, tolerance=2.0),
+        _compare_numeric("weight_kg", a.weight_kg, b.weight_kg, tolerance=w_tol),
+        _compare_numeric("volume_ml", a.volume_ml, b.volume_ml, tolerance=v_tol),
+        _compare_numeric("length_cm", a.length_cm, b.length_cm, tolerance=1.0),
         _compare_exact("pack_count", a.pack_count, b.pack_count),
         _compare_range("animal_weight_range", a.animal_weight_range, b.animal_weight_range),
         _compare_exact("species", a.species, b.species),
         _compare_exact("breed_size", a.breed_size, b.breed_size),
+        _compare_exact("life_stage", a.life_stage, b.life_stage),
+        _compare_exact("flavor", a.flavor, b.flavor),
+        _compare_set_conflict("therapeutic_attributes", set(a.therapeutic_attributes), set(b.therapeutic_attributes)),
+        _compare_exact("product_line", a.product_line, b.product_line),
     ]
     return tuple(out)
 

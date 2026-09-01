@@ -79,6 +79,23 @@ export interface CommerceOffer {
   match_confidence?: number | null;
   match_reasons?: string[] | null;
   match_attributes?: Array<Record<string, unknown>> | null;
+  /** Grupo de SKU: quando o preço veio de um EAN irmão (mesmo produto físico,
+   * código diferente). A identidade do card continua a do tutor. */
+  origin_gtin?: string | null;
+  origin_product_name?: string | null;
+  sku_group_id?: string | null;
+  sku_group_basis?: string | null;
+  sku_group_confidence?: number | null;
+}
+
+/** "vendido como <nome>" quando a oferta veio de um EAN irmão do grupo. */
+export function offerOriginLabel(offer: CommerceOffer): string | null {
+  const origin = offer.origin_gtin;
+  const canonical = offer.canonical_gtin;
+  if (origin && canonical && origin !== canonical && offer.origin_product_name) {
+    return `vendido como ${offer.origin_product_name}`;
+  }
+  return null;
 }
 
 function normalizeOfferUrl(url: string): string {

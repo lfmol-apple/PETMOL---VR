@@ -324,6 +324,14 @@ class Settings(BaseSettings):
     # job/API do marketplace. Se ficar mais velho que isso, não deve ser
     # exibido como opção de compra atual.
     marketplace_offer_stale_after_hours: int = 36
+    # Fase 1-D: abaixo de _stale_after_hours a oferta é "fresca"; entre isso
+    # e _show_stale_after_hours o último preço ainda aparece marcado
+    # "confirme na loja"; acima disso, sem número.
+    marketplace_offer_show_stale_after_hours: int = 240
+    # Fase 1-A/B: expande o produto do tutor pros EANs irmãos do grupo de
+    # SKU e busca preço em cada um. Aditivo — nunca remove oferta.
+    sku_grouping_enabled: bool = True
+    sku_grouping_max_siblings: int = 3
 
     # ── Cobertura Shopee: discovery on-demand + job noturno ─────────────
     # Quando o tutor abre um produto com GTIN confiável e ainda não há

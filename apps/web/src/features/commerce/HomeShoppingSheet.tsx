@@ -21,7 +21,7 @@ import {
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
 import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
-import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerPriceLabel, type CommerceOffer, type PetzDirectLink } from './productPricing';
+import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerOriginLabel, offerPriceLabel, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
 import {
   buildReorderCards,
@@ -422,10 +422,10 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
     };
   }, [card.gtin, card.label, card.searchQuery]);
 
-  // Toda oferta na lista é o mesmo produto (mesmo GTIN) — só preço/loja
-  // mudam. Nem toda loja tem imagem (Shopee/busca por palavra-chave ainda
-  // não tem, só o feed Awin tem), então usa a primeira com imagem em vez
-  // de travar na foto só da oferta mais barata.
+  // Toda oferta na lista é o mesmo SKU físico — o GTIN da oferta pode ser
+  // um EAN irmão do grupo (ver offerOriginLabel). Nem toda loja tem imagem
+  // (Shopee/busca por palavra-chave ainda não tem, só o feed Awin tem),
+  // então usa a primeira com imagem em vez de travar na foto só da mais barata.
   const imageUrl = offers.find((o) => o.image_url)?.image_url ?? null;
   const hasPetz = Boolean(petzLink?.available && petzLink.url);
   // offers já vem ordenado por preço crescente (CommerceEngine) — offer é
@@ -525,6 +525,9 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
               )}
             </p>
           )}
+          {!loading && hasMonetizedOffer && offer && offerOriginLabel(offer) && (
+            <p className="mt-0.5 text-[10px] font-medium leading-tight text-slate-400">{offerOriginLabel(offer)}</p>
+          )}
           {!loading && !hasMonetizedOffer && hasPetz && (
             <p className="mt-0.5 text-[12px] font-bold leading-tight text-blue-700">Disponível na Petz · cupom {PETZ_COUPON_CODE} -10%</p>
           )}
@@ -584,12 +587,17 @@ function OfferPickerRow({ offers, onPick, petzLink, onPickPetz }: {
             onClick={() => onPick(offer)}
             className="flex min-h-[44px] w-full items-center justify-between gap-2 rounded-xl border border-slate-200/70 bg-slate-50/70 px-3 transition-all duration-200 hover:border-emerald-200 hover:bg-white active:scale-[0.98] motion-reduce:transition-none motion-reduce:transform-none"
           >
-            <span className="flex min-w-0 items-center gap-1.5">
-              {logoSrc && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoSrc} alt="" className="h-4 w-4 flex-shrink-0 rounded object-contain border border-slate-100 bg-white" />
+            <span className="flex min-w-0 flex-col items-start gap-0.5">
+              <span className="flex min-w-0 items-center gap-1.5">
+                {logoSrc && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoSrc} alt="" className="h-4 w-4 flex-shrink-0 rounded object-contain border border-slate-100 bg-white" />
+                )}
+                <span className="truncate text-[12px] font-bold text-slate-800">{merchantLabel(offer.merchant)}</span>
+              </span>
+              {offerOriginLabel(offer) && (
+                <span className="truncate text-[9px] font-medium text-slate-400">{offerOriginLabel(offer)}</span>
               )}
-              <span className="truncate text-[12px] font-bold text-slate-800">{merchantLabel(offer.merchant)}</span>
             </span>
             <span className="flex-shrink-0 text-[12px] font-bold text-emerald-700">{offerPriceLabel(offer)}</span>
           </button>

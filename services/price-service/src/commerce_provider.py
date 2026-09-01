@@ -133,6 +133,16 @@ class MonetizedOffer:
     match_confidence: Optional[float] = None
     match_reasons: Optional[list[str]] = None
     match_attributes: Optional[list[dict]] = None
+    # Grupo de SKU cross-GTIN: quando a oferta foi resolvida contra um EAN
+    # IRMÃO do produto do tutor (mesmo SKU físico, código diferente). A
+    # identidade canônica exibida continua a do tutor; estes campos dizem
+    # de onde o preço veio. origin_gtin == canonical_gtin nas ofertas
+    # normais.
+    origin_gtin: Optional[str] = None
+    origin_product_name: Optional[str] = None
+    sku_group_id: Optional[str] = None
+    sku_group_basis: Optional[str] = None
+    sku_group_confidence: Optional[float] = None
 
 
 class CommerceProvider(Protocol):

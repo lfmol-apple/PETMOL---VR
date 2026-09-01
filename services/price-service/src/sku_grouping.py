@@ -29,17 +29,28 @@ from .product_catalog_lookup import ProductCatalog, SkuGroupMember, normalize_gt
 from .product_identity import (
     ProductIdentity,
     _normalize_text,
+    _tokenize_text,
     compare_structural,
     normalize_brand,
     structural_agreement,
     structural_conflict,
 )
 
+# tokens genéricos que não contam como "mesmo tipo de produto"
+_GENERIC_NAME_TOKENS = {
+    "racao", "raça", "para", "de", "com", "e", "adulto", "adultos", "caes", "cao",
+    "gato", "gatos", "pet", "pets", "kg", "g", "ml", "l", "un", "und", "sabor",
+    "premium", "super", "natural", "seca", "umida", "premium", "the", "of", "cm",
+}
+
 logger = logging.getLogger(__name__)
 
 _PROTECTED_STATUS = {"rejected"}
 _DETERMINISTIC_EVIDENCE_SOURCES = {"AWIN_FEED", "MANUAL", "ADMIN", "PETMOL_VALIDATED"}
-_PRIMARY_DISCRIMINATORS = ("length_cm", "weight_kg", "volume_ml", "pack_count")
+# Discriminador "forte" de SKU — pelo menos um precisa BATER pros dois lados.
+# animal_weight_range entra porque, pra medicamento (pipeta/comprimido), a
+# faixa de peso do animal É a apresentação; nesses não há peso de embalagem.
+_PRIMARY_DISCRIMINATORS = ("length_cm", "weight_kg", "volume_ml", "pack_count", "animal_weight_range")
 
 
 def _now() -> datetime:
@@ -133,13 +144,23 @@ def evaluate_pair(db: Session, gtin_a: str, gtin_b: str) -> PairDecision:
     if ia.species and ib.species and ia.species != ib.species:
         return PairDecision(False, basis="REFUSED", reason="SPECIES_CONFLICT")
 
-    # R2 — MPN compartilhado
+    # R2 — MPN compartilhado (MPN é a chave GS1 do fabricante; R0 já vetou)
     mpns_a = _feed_mpns(db, a)
     mpns_b = _feed_mpns(db, b)
     if mpns_a and mpns_b and (mpns_a & mpns_b):
         return PairDecision(True, basis="SHARED_MPN", confidence=0.95, matched_keys=["mpn", "brand"])
 
     # R3 — discriminadores estruturais idênticos + concordância
+    # Espécie precisa ser conhecida e igual dos dois lados (não "não conflita").
+    if not (ia.species and ib.species and ia.species == ib.species):
+        return PairDecision(False, reason="especie_indefinida")
+    # os nomes precisam compartilhar algum token de TIPO de produto (guarda
+    # negativa contra "Ração Peixes" vs "Ração Roedores" da mesma marca).
+    toks_a = _tokenize_text(pa.canonical_name or pa.name or "") - _GENERIC_NAME_TOKENS - _tokenize_text(slug_a)
+    toks_b = _tokenize_text(pb.canonical_name or pb.name or "") - _GENERIC_NAME_TOKENS - _tokenize_text(slug_b)
+    if toks_a and toks_b and not (toks_a & toks_b):
+        return PairDecision(False, reason="tipos_de_produto_divergentes")
+
     agree = structural_agreement(ia, ib)
     has_primary = any(k in agree for k in _PRIMARY_DISCRIMINATORS)
     if not has_primary:
@@ -179,20 +200,42 @@ class GroupResult:
     skipped_reason: Optional[str] = None
 
 
+_bucket_cache: dict[int, dict[str, list[str]]] = {}
+
+
+def _brand_bucket(db: Session, *, refresh: bool = False) -> dict[str, list[str]]:
+    """Mapa brand_slug -> [gtins]. Cache por sessão pra evitar O(n²) no batch."""
+    key = id(db)
+    if refresh or key not in _bucket_cache:
+        buckets: dict[str, list[str]] = {}
+        for g, cb, br, cn, nm in db.execute(
+            select(ProductCatalog.barcode_normalized, ProductCatalog.canonical_brand,
+                   ProductCatalog.brand, ProductCatalog.canonical_name, ProductCatalog.name)
+            .where(ProductCatalog.barcode_normalized.isnot(None),
+                   ProductCatalog.canonical_brand.isnot(None))
+        ).all():
+            slug = _brand_slug(cb or br, name_hint=cn or nm)
+            if slug:
+                buckets.setdefault(slug, []).append(g)
+        _bucket_cache[key] = buckets
+    return _bucket_cache[key]
+
+
 def _candidate_gtins(db: Session, product: ProductCatalog, slug: str) -> list[str]:
+    bucket = _brand_bucket(db).get(slug, [])
+    if len(bucket) > 1:
+        return [g for g in bucket if g != product.barcode_normalized]
+    # bucket vazio/desatualizado — varredura direcionada
     ident = _identity(product)
     stmt = select(ProductCatalog.barcode_normalized, ProductCatalog.canonical_brand,
-                  ProductCatalog.brand, ProductCatalog.canonical_name, ProductCatalog.name,
-                  ProductCatalog.species).where(
+                  ProductCatalog.brand, ProductCatalog.canonical_name, ProductCatalog.name).where(
         ProductCatalog.barcode_normalized != product.barcode_normalized,
+        ProductCatalog.canonical_brand.isnot(None),
     )
     if ident.species:
         stmt = stmt.where(ProductCatalog.species.in_([ident.species, None]))
-    out: list[str] = []
-    for g, cb, br, cn, nm, sp in db.execute(stmt).all():
-        if _brand_slug(cb or br, name_hint=cn or nm) == slug:
-            out.append(g)
-    return out
+    return [g for g, cb, br, cn, nm in db.execute(stmt).all()
+            if _brand_slug(cb or br, name_hint=cn or nm) == slug]
 
 
 def rebuild_groups_for_gtin(db: Session, gtin: str, *, dry_run: bool = False) -> GroupResult:
@@ -213,11 +256,18 @@ def rebuild_groups_for_gtin(db: Session, gtin: str, *, dry_run: bool = False) ->
     ).all()
     locked_key = next((m.group_key for m in admin_rows if m.status == "active"), None)
 
-    eligible: dict[str, PairDecision] = {}
+    raw_eligible: dict[str, PairDecision] = {}
     for cand in _candidate_gtins(db, product, slug):
         d = evaluate_pair(db, g, cand)
         if d.grouped:
-            eligible[cand] = d
+            raw_eligible[cand] = d
+
+    # clique: um peer só entra se casa com TODOS os já dentro (sem
+    # fechamento transitivo — A~B e B~C não implica A~C).
+    eligible: dict[str, PairDecision] = {}
+    for cand in sorted(raw_eligible, key=lambda c: -raw_eligible[c].confidence):
+        if all(evaluate_pair(db, cand, other).grouped for other in eligible):
+            eligible[cand] = raw_eligible[cand]
 
     if not eligible and locked_key is None:
         # limpa qualquer associação automática obsoleta deste GTIN
@@ -422,6 +472,7 @@ def rebuild_groups_batch(db: Session, *, max_products: int = 500, gtins: Optiona
                 )
             ).all() if g
         ]
+    _brand_bucket(db, refresh=True)  # aquece o cache uma vez
     total = len(queue)
     for g in queue[:max_products]:
         summary.processed += 1
@@ -439,4 +490,5 @@ def rebuild_groups_batch(db: Session, *, max_products: int = 500, gtins: Optiona
             summary.errors += 1
             logger.warning("[sku_grouping] gtin=%s falhou: %s", g, exc)
     summary.remaining = max(total - max_products, 0)
+    _bucket_cache.pop(id(db), None)
     return summary
