@@ -18,15 +18,8 @@ import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, m
 import {
   openPetzPartnerStore,
   navigateToPartnerUrl,
-  openHomeShoppingPartner,
-  partnerGenericLinkType,
-  isPartnerVisibleForSearch,
-  HOME_SHOPPING_PARTNERS,
   PETZ_COUPON_CODE,
-  type HomeShoppingPartner,
-  type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
-import { QUICK_BUY_PARTNERS } from './petStoreContent';
 import { useCommerceOffers } from './useCommerceOffers';
 import { trackClick } from '@/lib/analytics/click';
 import { trackPartnerClicked } from '@/lib/v1Metrics';
@@ -175,21 +168,11 @@ export function MonetizedOffersList({
   }
 
   if (offers.length === 0) {
-    // Sem preço PROVÁVEL — o PETMOL não afirma um preço que não conseguiu
-    // provar. Mas a loja não some: o tutor pode ir procurar na vitrine do
-    // parceiro (CTA seguro já permitido pela monetização — mesma rota do
-    // QuickBuyRow da Home). Ver docs/AFFILIATES.md e a auditoria forense.
     return (
       <div className="space-y-3">
         <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center shadow-sm">
           <p className="text-[13px] font-bold text-gray-700">{emptyStateTitle}</p>
           <p className="mt-1 text-[12px] text-gray-500">{emptyStateSubtitle}</p>
-          <SafeStoreCtaRow
-            query={query || productLabel}
-            petId={petId}
-            source={source}
-            gtin={gtin ?? undefined}
-          />
         </div>
         <PetzStorefrontCard petzLink={petzLink} productLabel={productLabel} onClick={handleVerNaPetz} />
       </div>
@@ -267,53 +250,6 @@ export function MonetizedOffersList({
  * renderiza nada até o backend confirmar que o produto existe no catálogo
  * Petz (petzLink.available); some sozinho se a chamada falhar/demorar.
  */
-/**
- * Linha de acesso à loja quando NÃO há preço provável (UNKNOWN de
- * identidade). Não é preço, não é comparação — só o caminho seguro para
- * o tutor procurar na vitrine do parceiro. Usa exatamente a rota de
- * afiliado já existente (openHomeShoppingPartner → resolvePartnerUrl):
- * Cobasi → vitrine "Minha Loja"; Shopee → link de busca afiliado. Não
- * inventa preço, não cria integração, não toca no matcher/discovery.
- */
-function SafeStoreCtaRow({ query, petId, source, gtin }: { query: string; petId: string; source: string; gtin?: string }) {
-  const partners = QUICK_BUY_PARTNERS
-    .map((id) => HOME_SHOPPING_PARTNERS.find((p) => p.id === id))
-    .filter((p): p is HomeShoppingPartner => Boolean(p) && isPartnerVisibleForSearch(p as HomeShoppingPartner));
-  if (partners.length === 0) return null;
-
-  function handlePick(partnerId: HomeShoppingPartnerId) {
-    const opened = openHomeShoppingPartner(partnerId, query);
-    void trackClick({
-      source,
-      cta_type: 'store_search_fallback',
-      target: partnerId,
-      link_type: partnerGenericLinkType(partnerId),
-      pet_id: petId,
-      metadata: { opened, gtin: gtin ?? undefined, screen: source, reason: 'no_priced_offer' },
-    });
-  }
-
-  return (
-    <>
-      <p className="mt-3 text-[11px] font-semibold text-gray-400">Procurar na loja</p>
-      <div className="mt-1.5 flex gap-2">
-        {partners.map((partner) => (
-          <button
-            key={partner.id}
-            type="button"
-            onClick={() => handlePick(partner.id)}
-            className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 min-h-[44px] text-[12px] font-bold text-gray-700 hover:bg-white hover:border-emerald-300 active:scale-95 transition-all"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={partner.logoSrc} alt="" className="w-4 h-4 rounded object-contain bg-white border border-gray-200 flex-shrink-0" />
-            <span className="truncate">{partner.name}</span>
-          </button>
-        ))}
-      </div>
-    </>
-  );
-}
-
 function PetzStorefrontCard({ petzLink, productLabel, onClick }: { petzLink: PetzDirectLink | null; productLabel: string; onClick: () => void }) {
   if (!petzLink?.available || !petzLink.url) return null;
   return (

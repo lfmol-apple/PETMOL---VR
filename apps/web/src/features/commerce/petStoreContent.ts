@@ -45,14 +45,9 @@ export interface ReorderCard {
   gtin?: string;
   /**
    * false quando o card não tem identidade comercial suficiente para
-   * TRATAR o resultado como "menor preço" comparável entre lojas
-   * (antiparasitário/coleira sem GTIN varia por tamanho/faixa de peso).
-   *
-   * NÃO bloqueia mais a descoberta: a identidade é provada no backend
-   * (_candidate_identity_verdict — MATCH/MISMATCH/UNKNOWN), então uma
-   * oferta com preço só volta quando é o mesmo produto. A busca sempre
-   * roda; este flag é advisory para a UI de comparação. Ver a auditoria
-   * forense e docs/AFFILIATES.md.
+   * comparar preço entre lojas. Antiparasitário/coleira sem GTIN pode
+   * variar por tamanho/faixa de peso; nesses casos a UI mantém compra por
+   * busca, mas não mostra "menor preço" como se fosse o mesmo produto.
    */
   priceLookupAllowed: boolean;
   /** Espécie do pet dono do lembrete ("dog"|"cat"), quando conhecida —
