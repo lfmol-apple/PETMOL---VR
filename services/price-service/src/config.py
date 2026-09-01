@@ -83,8 +83,11 @@ class Settings(BaseSettings):
     # monetizado imediatamente e marca stale quando necessário. Refresh
     # inline só deve ser ligado em ambiente controlado; em produção ele
     # pode fazer /commerce/offers estourar o timeout do app.
-    marketplace_offer_refresh_after_minutes: int = 30
-    marketplace_offer_inline_refresh_enabled: bool = False
+    # Fase 1-D: refresh inline pro GTIN que o tutor acabou de abrir, quando
+    # o preço está velho o bastante. Best-effort (não bloqueia se a API
+    # falhar). Janela generosa pra não chamar a API a cada request stale.
+    marketplace_offer_refresh_after_minutes: int = 360
+    marketplace_offer_inline_refresh_enabled: bool = True
 
     # Preço real da Cobasi (API pública de catálogo VTEX) para a Loja do Baby.
     # Cache longo de propósito — reduz volume de chamadas à Cobasi (evitar

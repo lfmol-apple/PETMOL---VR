@@ -149,6 +149,30 @@ class CobasiProvider:
         # resto. GTIN que a Cobasi não conhece → sem preço (link cadastrado
         # ainda serve; resto não oferece).
         price = await fetch_cobasi_price_by_gtin(context.gtin) if gtin_n else None
+        price_from_cache = False
+        if gtin_n:
+            try:
+                from .merchant_price_cache import recall_price, remember_price
+
+                if price and price.found and price.price is not None:
+                    remember_price(
+                        self._db, self.merchant, gtin_n,
+                        price=price.price, list_price=price.list_price,
+                        product_name=price.product_name, url=price.url,
+                    )
+                else:
+                    cached = recall_price(self._db, self.merchant, gtin_n)
+                    if cached is not None:
+                        from .commerce_pricing import ProductPriceResult
+
+                        price = ProductPriceResult(
+                            found=True, price=cached.price, list_price=cached.list_price,
+                            product_name=cached.product_name, url=cached.url,
+                            ean=gtin_n, is_available=True,
+                        )
+                        price_from_cache = True
+            except Exception:  # noqa: BLE001 — cache nunca derruba
+                pass
 
         # 1) Produto pré-cadastrado com link MAIS (ração do Baby /
         #    mais.app/IvUCAG) — monetize() resolve o link pelo context.gtin.
@@ -247,10 +271,11 @@ class CobasiProvider:
             is_available=price.is_available,
             direct_url=price.url,
             ean=price.ean or normalize_gtin(context.gtin),
+            price_is_stale=price_from_cache,
             merchant_product_name=price.product_name,
             match_decision=match_result.decision.value,
             match_confidence=match_result.confidence,
-            match_reasons=list(match_result.reasons),
+            match_reasons=[*match_result.reasons, *(["COBASI_PRICE_FROM_CACHE"] if price_from_cache else [])],
             match_attributes=[
                 {
                     "attribute": item.attribute,
@@ -355,6 +380,14 @@ class CobasiProvider:
             except Exception:  # noqa: BLE001 — preço ao vivo é best-effort
                 live = None
             if live and live.found and live.price is not None:
+                try:
+                    from .merchant_price_cache import remember_price
+
+                    remember_price(self._db, self.merchant, sibling_gtin,
+                                   price=live.price, list_price=live.list_price,
+                                   product_name=live.product_name, url=live.url)
+                except Exception:  # noqa: BLE001
+                    pass
                 live_match = evaluate_identity(
                     row_identity,
                     MerchantCandidate.build(
