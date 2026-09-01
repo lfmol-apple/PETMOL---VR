@@ -186,7 +186,7 @@ async def test_awin_catalog_uses_mais_utm_when_no_manual_link(monkeypatch):
     cobasi_offers = [o for o in offers if o.merchant == "cobasi"]
     assert len(cobasi_offers) == 1
     assert cobasi_offers[0].route == "mais"
-    assert cobasi_offers[0].url == "https://www.cobasi.com.br/produto-teste/p?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol"
+    assert cobasi_offers[0].url == "https://minhaloja.cobasi.com.br/produto-teste/p?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol"
 
 
 @pytest.mark.asyncio
