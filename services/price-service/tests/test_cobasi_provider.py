@@ -208,7 +208,61 @@ def test_invalid_mode_rejected_by_settings(monkeypatch):
         get_settings()
 
 
-# ── find_offer() — descoberta dinâmica, sem qualquer cadastro prévio ──────
+# ── find_offer() — produto pré-cadastrado tem prioridade sobre busca ──────
+
+@pytest.mark.asyncio
+async def test_find_offer_registered_gtin_skips_live_search(monkeypatch):
+    """GTIN com link Cobasi cadastrado → serve a identidade do catálogo,
+    sem chamar fetch_cobasi_price (a busca ao vivo podia devolver a
+    variante errada — ex: ração do Baby)."""
+    called = {"n": 0}
+
+    async def fake_fetch(query, target_weight_kg=None):
+        called["n"] += 1
+        return ProductPriceResult(found=True, price=1.0, url="https://www.cobasi.com.br/errado/p", ean="0000000000000")
+
+    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
+
+    product_id = _register_product()
+    db = SessionLocal()
+    try:
+        db.add(ProductAffiliateLink(product_id=product_id, merchant="cobasi", affiliate_product_url="https://mais.app/IvUCAG", active=True))
+        db.commit()
+
+        provider = CobasiProvider(db)
+        offer = await provider.find_offer(ProductContext(query="royal canin urinary", gtin=GTIN, weight_kg=7.5))
+        assert offer is not None
+        assert called["n"] == 0
+        assert offer.price is None
+        assert offer.allow_without_price is True
+        assert offer.ean == GTIN
+        assert offer.product_name == "Produto Teste"
+
+        result = provider.monetize(offer, ProductContext(gtin=GTIN))
+        assert result == ("https://mais.app/IvUCAG", "affiliate_product", "mais", True)
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_resolve_product_id_prefers_context_gtin_over_offer_ean(monkeypatch):
+    """monetize() acha o link cadastrado pelo context.gtin mesmo quando a
+    busca devolveu o EAN de outra variante."""
+    monkeypatch.setenv("COBASI_AFFILIATE_MODE", "utm")
+    get_settings.cache_clear()
+    product_id = _register_product()  # GTIN
+    db = SessionLocal()
+    try:
+        db.add(ProductAffiliateLink(product_id=product_id, merchant="cobasi", affiliate_product_url="https://mais.app/IvUCAG", active=True))
+        db.commit()
+
+        provider = CobasiProvider(db)
+        offer = DiscoveredOffer(merchant="cobasi", price=32.9, direct_url="https://www.cobasi.com.br/variante-errada/p", ean="7899999999999")
+        result = provider.monetize(offer, ProductContext(gtin=GTIN))
+        assert result == ("https://mais.app/IvUCAG", "affiliate_product", "mais", True)
+    finally:
+        db.close()
+
 
 @pytest.mark.asyncio
 async def test_find_offer_works_with_no_product_catalog_row_at_all(monkeypatch):

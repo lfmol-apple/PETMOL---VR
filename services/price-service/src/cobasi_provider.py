@@ -1,10 +1,16 @@
 """
 CobasiProvider — implementação de CommerceProvider para a Cobasi.
 
-find_offer(): busca dinâmica via commerce_pricing.fetch_cobasi_price — a
-API pública VTEX da Cobasi, ao vivo. Roda para QUALQUER produto, sem
-depender de link afiliado cadastrado previamente (ver commerce_provider.py
-para o princípio geral).
+find_offer():
+  - Produto com link Cobasi cadastrado (ProductAffiliateLink) para o
+    context.gtin → serve a identidade do CATÁLOGO direto, sem busca ao
+    vivo (a VTEX pode devolver a variante errada — peso/volume/espécie —
+    e o link cadastrado é a verdade). Oferta sem preço.
+  - Senão → busca dinâmica via commerce_pricing.fetch_cobasi_price (API
+    pública VTEX da Cobasi, ao vivo), com o gate de auditoria de
+    identidade (commerce_identity_audit.cobasi_identity_blocks) antes.
+  Roda para QUALQUER produto, com ou sem link afiliado cadastrado (ver
+  commerce_provider.py para o princípio geral).
 
 monetize(): um link cadastrado manualmente (ProductAffiliateLink) SEMPRE
 tem prioridade, em qualquer modo != "disabled" — nunca abandona um link
@@ -92,7 +98,40 @@ class CobasiProvider:
             return False
         return get_active_link(self._db, product.id, self.merchant) is not None
 
+    def _catalog_with_manual_link(self, gtin: Optional[str]):
+        """(ProductCatalog, ProductAffiliateLink) quando o GTIN tem link
+        Cobasi cadastrado e ativo — senão (None, None)."""
+        gtin_normalized = normalize_gtin(gtin) if gtin else None
+        if not gtin_normalized:
+            return None, None
+        product = self._db.scalar(
+            select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized)
+        )
+        if product is None:
+            return None, None
+        link = get_active_link(self._db, product.id, self.merchant)
+        return (product, link) if link is not None else (None, None)
+
     async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
+        # Produto pré-cadastrado com link MAIS (ex: ração do Baby /
+        # mais.app/IvUCAG): serve ESSE produto exato pela identidade do
+        # catálogo — sem busca ao vivo na VTEX, que pode devolver a
+        # variante errada (peso/volume/espécie). monetize() resolve o link
+        # cadastrado pelo context.gtin. Oferta sem preço de propósito
+        # ("Conferir preço na Cobasi").
+        product, link = self._catalog_with_manual_link(context.gtin)
+        if product is not None and link is not None:
+            return DiscoveredOffer(
+                merchant=self.merchant,
+                product_name=product.name,
+                brand=product.brand,
+                price=None,
+                is_available=True,
+                direct_url=None,
+                ean=normalize_gtin(context.gtin),
+                allow_without_price=True,
+            )
+
         query = _build_query(context)
         if not query:
             return None
@@ -101,7 +140,7 @@ class CobasiProvider:
         # flagrada apontando pro produto errado (mismatch_hard fresco) e
         # não existe link cadastrado comprovado, não oferece Cobasi — as 2
         # lojas têm que ser o mesmo produto (ver commerce_identity_audit).
-        if context.gtin and not self._has_manual_link(context.gtin):
+        if context.gtin:
             from .commerce_identity_audit import cobasi_identity_blocks
 
             if cobasi_identity_blocks(self._db, context.gtin):
@@ -158,13 +197,20 @@ class CobasiProvider:
     def _resolve_product_id(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[int]:
         if context.product_id is not None:
             return context.product_id
-        if not offer.ean:
-            return None
-        gtin_normalized = normalize_gtin(offer.ean)
-        product = self._db.scalar(
-            select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized)
-        )
-        return product.id if product else None
+        # context.gtin (o produto que o PETMOL sabe que é) tem prioridade
+        # sobre offer.ean (o SKU que a busca ao vivo devolveu — pode ser a
+        # variante errada). Sem isso, um link cadastrado nunca é achado
+        # quando a busca desambigua errado (ex: ração do Baby).
+        for candidate in (context.gtin, offer.ean):
+            gtin_normalized = normalize_gtin(candidate) if candidate else None
+            if not gtin_normalized:
+                continue
+            product = self._db.scalar(
+                select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized)
+            )
+            if product is not None:
+                return product.id
+        return None
 
     def _lookup_cached_link(self, offer: DiscoveredOffer, context: ProductContext) -> Optional[tuple[str, str]]:
         product_id = self._resolve_product_id(offer, context)
