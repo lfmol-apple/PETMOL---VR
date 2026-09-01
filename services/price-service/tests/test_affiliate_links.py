@@ -204,53 +204,6 @@ def test_product_offer_prefers_registered_affiliate_link_over_raw_url(client, mo
     assert data["link_type"] == "affiliate_product"
 
 
-def test_registered_bare_cobasi_link_is_routed_through_minha_loja(client, monkeypatch):
-    """Link cadastrado apontando pro site principal da Cobasi é servido
-    reescrito pra vitrine "Minha Loja" + UTM MAIS."""
-    product_id = _register_product()
-    db = SessionLocal()
-    try:
-        db.add(ProductAffiliateLink(
-            product_id=product_id, merchant="cobasi",
-            affiliate_product_url="https://www.cobasi.com.br/racao-x-3827380/p", active=True,
-        ))
-        db.commit()
-    finally:
-        db.close()
-
-    async def fake_fetch(query: str, target_weight_kg=None) -> ProductPriceResult:
-        return _fake_price(ean=GTIN)
-
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
-    r = client.get("/commerce/product-offer", params={"q": "royal canin urinary"})
-    data = r.json()
-    assert data["found"] is True
-    assert data["url"].startswith("https://minhaloja.cobasi.com.br/racao-x-3827380/p")
-    assert "utm_source=mais" in data["url"]
-    assert data["link_type"] == "affiliate_product"
-
-
-def test_registered_mais_shortlink_is_left_untouched(client, monkeypatch):
-    """Shortlink MAIS (mais.app/...) já passa pela atribuição — não é mexido."""
-    product_id = _register_product()
-    db = SessionLocal()
-    try:
-        db.add(ProductAffiliateLink(
-            product_id=product_id, merchant="cobasi",
-            affiliate_product_url="https://mais.app/IvUCAG", active=True,
-        ))
-        db.commit()
-    finally:
-        db.close()
-
-    async def fake_fetch(query: str, target_weight_kg=None) -> ProductPriceResult:
-        return _fake_price(ean=GTIN)
-
-    monkeypatch.setattr("src.cobasi_provider.fetch_cobasi_price", fake_fetch)
-    r = client.get("/commerce/product-offer", params={"q": "royal canin urinary"})
-    assert r.json()["url"] == "https://mais.app/IvUCAG"
-
-
 def test_product_offer_prod_with_registered_link_still_works(client, monkeypatch):
     product_id = _register_product()
     db = SessionLocal()

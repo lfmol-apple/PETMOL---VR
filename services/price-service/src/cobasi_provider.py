@@ -49,7 +49,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .affiliate_links import get_active_link
-from .cobasi_utm import InvalidCobasiUrlError, build_cobasi_affiliate_url, to_minha_loja_url
+from .cobasi_utm import InvalidCobasiUrlError, build_cobasi_affiliate_url
 from .commerce_pricing import fetch_cobasi_price
 from .commerce_provider import DiscoveredOffer, MonetizedOffer, ProductContext
 from .config import Settings, get_settings
@@ -163,10 +163,7 @@ class CobasiProvider:
         link = get_active_link(self._db, product_id, self.merchant)
         if not link:
             return None
-        # Link cadastrado: shortlink MAIS (mais.app/...) já passa pela
-        # atribuição; URL crua da Cobasi é reescrita para a vitrine
-        # "Minha Loja" (minhaloja.cobasi.com.br) + UTM MAIS.
-        return to_minha_loja_url(link.affiliate_product_url), "affiliate_product"
+        return link.affiliate_product_url, "affiliate_product"
 
     def _dev_fallback(self, offer: DiscoveredOffer, settings: Settings) -> Optional[tuple[str, str]]:
         # Sem link cadastrado: em dev, cai pra URL crua da Cobasi só pra
