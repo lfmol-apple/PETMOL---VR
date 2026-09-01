@@ -224,3 +224,30 @@ def test_clique_no_transitive_closure():
     members = set(r.members or [])
     # nunca B e C no mesmo grupo
     assert not ({"7897777770002", "7897777770003"} <= members)
+
+
+def test_vet_diet_never_groups_with_regular_food_same_weight():
+    _feed("7896181290001", "Ração Seca Royal Canin Veterinary Diet Urinary Small Dog 7,5kg",
+          brand="Royal Canin", category="Cachorro")
+    _feed("7896181290002", "Ração Royal Canin Mini Adult para Cães Adultos Porte Pequeno 7,5kg",
+          brand="Royal Canin", category="Cachorro")
+    _enrich("7896181290001", "7896181290002")
+    db = SessionLocal()
+    try:
+        d = sg.evaluate_pair(db, "7896181290001", "7896181290002")
+        assert d.grouped is False
+        assert d.reason in ("paridade_terapeutica", "tipos_de_produto_divergentes") or d.reason.startswith("nomes_pouco_similares")
+    finally:
+        db.close()
+
+
+def test_royal_canin_urinary_vs_renal_same_weight_never_group():
+    _feed("7896181291001", "Ração Royal Canin Veterinary Urinary Small Dog 7,5kg", brand="Royal Canin", category="Cachorro")
+    _feed("7896181291002", "Ração Royal Canin Veterinary Renal Small Dog 7,5kg", brand="Royal Canin", category="Cachorro")
+    _enrich("7896181291001", "7896181291002")
+    db = SessionLocal()
+    try:
+        d = sg.evaluate_pair(db, "7896181291001", "7896181291002")
+        assert d.grouped is False
+    finally:
+        db.close()

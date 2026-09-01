@@ -317,6 +317,7 @@ def compare_structural(a: ProductIdentity, b: ProductIdentity) -> tuple[Attribut
         _compare_range("animal_weight_range", a.animal_weight_range, b.animal_weight_range),
         _compare_exact("species", a.species, b.species),
         _compare_exact("breed_size", a.breed_size, b.breed_size),
+        _compare_exact("breed", a.breed, b.breed),
         _compare_exact("life_stage", a.life_stage, b.life_stage),
         _compare_exact("flavor", a.flavor, b.flavor),
         _compare_set_conflict("therapeutic_attributes", set(a.therapeutic_attributes), set(b.therapeutic_attributes)),

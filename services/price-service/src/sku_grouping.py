@@ -154,17 +154,32 @@ def evaluate_pair(db: Session, gtin_a: str, gtin_b: str) -> PairDecision:
     # Espécie precisa ser conhecida e igual dos dois lados (não "não conflita").
     if not (ia.species and ib.species and ia.species == ib.species):
         return PairDecision(False, reason="especie_indefinida")
-    # os nomes precisam compartilhar algum token de TIPO de produto (guarda
-    # negativa contra "Ração Peixes" vs "Ração Roedores" da mesma marca).
-    toks_a = _tokenize_text(pa.canonical_name or pa.name or "") - _GENERIC_NAME_TOKENS - _tokenize_text(slug_a)
-    toks_b = _tokenize_text(pb.canonical_name or pb.name or "") - _GENERIC_NAME_TOKENS - _tokenize_text(slug_b)
-    if toks_a and toks_b and not (toks_a & toks_b):
-        return PairDecision(False, reason="tipos_de_produto_divergentes")
+    # Um lado é dieta terapêutica/veterinária e o outro não → produtos
+    # diferentes (RC Urinary ≠ RC Yorkshire), mesmo com peso igual.
+    if bool(ia.therapeutic_attributes) != bool(ib.therapeutic_attributes):
+        return PairDecision(False, reason="paridade_terapeutica")
+    # Raça-específico vs não (RC Pug ≠ RC Dachshund ≠ RC Mini Adult).
+    if (ia.breed or "") != (ib.breed or ""):
+        return PairDecision(False, reason="raca_divergente")
 
     agree = structural_agreement(ia, ib)
     has_primary = any(k in agree for k in _PRIMARY_DISCRIMINATORS)
     if not has_primary:
         return PairDecision(False, reason="sem_discriminador_primario_concordante")
+
+    # Guarda de nome: com discriminador FORTE (cm exato ou MPN) basta os
+    # nomes não serem disjuntos; só com peso/volume, exige similaridade alta
+    # dos tokens distintivos (RC "Urinary Small Dog" ≠ RC "Renal Small Dog").
+    toks_a = _tokenize_text(pa.canonical_name or pa.name or "") - _GENERIC_NAME_TOKENS - _tokenize_text(slug_a)
+    toks_b = _tokenize_text(pb.canonical_name or pb.name or "") - _GENERIC_NAME_TOKENS - _tokenize_text(slug_b)
+    strong = ("length_cm" in agree) or (mpns_a and mpns_b and (mpns_a & mpns_b))
+    if toks_a and toks_b:
+        if not (toks_a & toks_b):
+            return PairDecision(False, reason="tipos_de_produto_divergentes")
+        if not strong:
+            jaccard = len(toks_a & toks_b) / len(toks_a | toks_b)
+            if jaccard < 0.6:
+                return PairDecision(False, reason=f"nomes_pouco_similares:{jaccard:.2f}")
     for k in agree:
         if k in ("species", "breed_size", "animal_weight_range"):
             continue
