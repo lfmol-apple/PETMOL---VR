@@ -8,11 +8,12 @@ import {
 } from './data';
 
 /**
- * The 11 official Special Links exactly as delivered by the PETMOL Amazon
+ * The official Special Links exactly as delivered (batch 1 = 11, batch 2 = +13 = 24) by the PETMOL Amazon
  * Associates account (order preserved). This array is the contract: the data
  * source must render these strings verbatim, with nothing added or rebuilt.
  */
 const OFFICIAL_LINKS = [
+  // batch 1
   'https://amzn.to/3Uzcsf4',
   'https://amzn.to/3SmPhUL',
   'https://amzn.to/4gGI8qi',
@@ -24,14 +25,28 @@ const OFFICIAL_LINKS = [
   'https://amzn.to/4gwMD8b',
   'https://amzn.to/46zcuWZ',
   'https://amzn.to/4qV30Pu',
+  // batch 2
+  'https://amzn.to/3SN1ORt',
+  'https://amzn.to/4yiLVkX',
+  'https://amzn.to/4gKkNUH',
+  'https://amzn.to/4i36zk9',
+  'https://amzn.to/46ldoqh',
+  'https://amzn.to/4iHq6qo',
+  'https://amzn.to/4iIjtnL',
+  'https://amzn.to/4qMsUVk',
+  'https://amzn.to/4i7f6CE',
+  'https://amzn.to/4gP5bzl',
+  'https://amzn.to/3SkGtyI',
+  'https://amzn.to/3UsMtGd',
+  'https://amzn.to/4x5Qs9o',
 ];
 
 describe('recommendations data — official Amazon Special Links', () => {
-  it('has exactly 11 recommendations', () => {
-    expect(RECOMMENDATIONS).toHaveLength(11);
+  it('has exactly 24 recommendations', () => {
+    expect(RECOMMENDATIONS).toHaveLength(24);
   });
 
-  it('renders the 11 official amzn.to links verbatim, in order, with no manipulation', () => {
+  it('renders the 24 official amzn.to links verbatim, in order, with no manipulation', () => {
     expect(RECOMMENDATIONS.map((r) => r.affiliateUrl)).toEqual(OFFICIAL_LINKS);
   });
 
@@ -55,9 +70,9 @@ describe('recommendations data — official Amazon Special Links', () => {
     }
   });
 
-  it('no two recommendations share the same Special Link', () => {
+  it('no two recommendations share the same Special Link (24 distinct)', () => {
     const links = RECOMMENDATIONS.map((r) => r.affiliateUrl);
-    expect(new Set(links).size).toBe(11);
+    expect(new Set(links).size).toBe(24);
   });
 
   it('every recommendation has a stable id and a real category', () => {

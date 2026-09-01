@@ -183,6 +183,113 @@ export const RECOMMENDATIONS: Recommendation[] = [
     category: 'travel-outdoors',
     affiliateUrl: 'https://amzn.to/4qV30Pu',
   },
+
+  // ── Batch 2 — 13 more Special Links (all resolved from the redirect target's
+  //    URL slug + `keywords=` param; none needed a product-page fetch). ──
+  {
+    id: 'rec-12',
+    title: 'KONG Classic Dog Toy',
+    blurb:
+      'The stuffable rubber KONG again — a durable chew you fill with kibble or paste to keep a dog occupied. A different listing from the one above.',
+    category: 'for-pets',
+    affiliateUrl: 'https://amzn.to/3SN1ORt',
+  },
+  {
+    id: 'rec-13',
+    title: 'PrettyLitter (health-monitoring cat litter)',
+    blurb:
+      'A silica cat litter that changes colour to flag possible urinary issues. Clumping, low-dust, and light to carry compared with clay.',
+    category: 'home-with-pets',
+    affiliateUrl: 'https://amzn.to/4yiLVkX',
+  },
+  {
+    id: 'rec-14',
+    title: 'Under-Cabinet LED Lights',
+    blurb:
+      'Rechargeable stick-on light bars with a motion sensor and dimming. Useful over a kitchen counter, inside a closet, or by a pet-feeding station.',
+    category: 'smart-home-technology',
+    affiliateUrl: 'https://amzn.to/4gKkNUH',
+  },
+  {
+    id: 'rec-15',
+    title: 'Gaming Headset',
+    blurb:
+      'A wired over-ear headset with a boom mic. One of our non-pet picks — comfortable for long calls or gaming.',
+    category: 'petmol-finds',
+    affiliateUrl: 'https://amzn.to/4i36zk9',
+  },
+  {
+    id: 'rec-16',
+    title: 'Optimum Nutrition Gold Standard Whey',
+    blurb:
+      'A widely used whey protein powder. Not pet-related — just something we keep in the kitchen.',
+    category: 'petmol-finds',
+    affiliateUrl: 'https://amzn.to/46ldoqh',
+  },
+  {
+    id: 'rec-17',
+    title: 'Mighty Patch (Hero Cosmetics)',
+    blurb:
+      'Small hydrocolloid patches you put on a blemish overnight. A PETMOL find for the bathroom cabinet, not the pet.',
+    category: 'petmol-finds',
+    affiliateUrl: 'https://amzn.to/4iHq6qo',
+  },
+  {
+    id: 'rec-18',
+    title: 'Countertop Ice Maker',
+    blurb:
+      'A compact ice maker that does not need a plumbing hookup — you pour water in and it makes ice in a few minutes.',
+    category: 'petmol-finds',
+    affiliateUrl: 'https://amzn.to/4iIjtnL',
+  },
+  {
+    id: 'rec-19',
+    title: 'Owala FreeSip Water Bottle',
+    blurb:
+      'An insulated stainless bottle with a spout you can either sip or swig from. Keeps water cold through a long walk.',
+    category: 'travel-outdoors',
+    affiliateUrl: 'https://amzn.to/4qMsUVk',
+  },
+  {
+    id: 'rec-20',
+    title: 'iPhone Screen Protector',
+    blurb:
+      'Tempered-glass screen protector with an install frame. A cheap bit of insurance for a phone that gets dropped around the house.',
+    category: 'smart-home-technology',
+    affiliateUrl: 'https://amzn.to/4i7f6CE',
+  },
+  {
+    id: 'rec-21',
+    title: 'Surge Protector Power Strip',
+    blurb:
+      'A power strip with surge protection and several outlets — handy behind a desk or a TV, or wherever the chargers pile up.',
+    category: 'smart-home-technology',
+    affiliateUrl: 'https://amzn.to/4gP5bzl',
+  },
+  {
+    id: 'rec-22',
+    title: 'Anker USB-C Charger',
+    blurb:
+      'A small fast USB-C wall charger. The kind of thing you buy a second one of so there is always one packed for travel.',
+    category: 'smart-home-technology',
+    affiliateUrl: 'https://amzn.to/3SkGtyI',
+  },
+  {
+    id: 'rec-23',
+    title: 'Apple AirPods',
+    blurb:
+      'Apple’s wireless earbuds. A non-pet pick — useful for calls while walking a dog with your hands free.',
+    category: 'smart-home-technology',
+    affiliateUrl: 'https://amzn.to/3UsMtGd',
+  },
+  {
+    id: 'rec-24',
+    title: 'Waterproof AirTag Collar Holder',
+    blurb:
+      'A waterproof case that slides an Apple AirTag onto a collar strap. Like the holder above, it helps locate a nearby pet — it is not a live GPS tracker.',
+    category: 'travel-outdoors',
+    affiliateUrl: 'https://amzn.to/4x5Qs9o',
+  },
 ];
 
 /** Categories that actually have at least one pick, in display order. */

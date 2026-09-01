@@ -29,19 +29,19 @@ describe('/recommendations — public English Amazon Associates page', () => {
     expect((metadata.openGraph as { locale?: string })?.locale).toBe('en_US');
   });
 
-  it('renders all 11 Special Links exactly as provided, once each', () => {
+  it('renders all 24 Special Links exactly as provided, once each', () => {
     const { container } = render(<RecommendationsPage />);
     const hrefs = Array.from(container.querySelectorAll('a[href^="https://amzn.to/"]')).map(
       (a) => a.getAttribute('href'),
     );
     expect(hrefs.sort()).toEqual([...OFFICIAL_LINKS].sort());
-    expect(new Set(hrefs).size).toBe(11);
+    expect(new Set(hrefs).size).toBe(24);
   });
 
   it('every Amazon link is target=_blank with rel sponsored nofollow noopener noreferrer', () => {
     const { container } = render(<RecommendationsPage />);
     const links = container.querySelectorAll('a[href^="https://amzn.to/"]');
-    expect(links.length).toBe(11);
+    expect(links.length).toBe(24);
     links.forEach((a) => {
       expect(a.getAttribute('target')).toBe('_blank');
       const rel = (a.getAttribute('rel') || '').split(/\s+/);
