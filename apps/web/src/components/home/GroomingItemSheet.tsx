@@ -369,11 +369,11 @@ export function GroomingItemSheet({
     <ModalPortal>
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-x-hidden overscroll-x-none touch-pan-y p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-md" onClick={onClose} />
 
       {/* Sheet */}
       <div
-        className="relative w-full max-w-lg bg-[#F2F2F7] rounded-[28px] shadow-2xl flex flex-col overflow-x-hidden overflow-y-hidden animate-scaleIn"
+        className="relative w-full max-w-lg isolate flex flex-col overflow-hidden rounded-[26px] bg-[#f2f2f7] shadow-[0_-8px_50px_-8px_rgba(15,23,42,0.35)] ring-1 ring-black/5 animate-scaleIn"
         style={{ maxHeight: '92dvh' }}
         onClick={e => e.stopPropagation()}
       >

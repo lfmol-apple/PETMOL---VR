@@ -1069,10 +1069,10 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
         className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overscroll-x-none touch-pan-y p-4"
         onClick={(e) => { if (e.target === overlayRef.current) handleClose(); }}
       >
-        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={handleClose} />
+        <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-md" onClick={handleClose} />
 
         <div
-          className="relative w-full max-w-md bg-white rounded-[28px] shadow-2xl border border-gray-200/60 flex flex-col overflow-x-hidden overflow-y-hidden animate-scaleIn touch-manipulation"
+          className="relative isolate flex w-full max-w-md flex-col overflow-hidden rounded-[26px] bg-white shadow-[0_-8px_50px_-8px_rgba(15,23,42,0.35)] ring-1 ring-black/5 animate-scaleIn touch-manipulation"
           style={{ maxHeight: 'min(92dvh, 760px)' }}
           onClick={(e) => e.stopPropagation()}
         >
