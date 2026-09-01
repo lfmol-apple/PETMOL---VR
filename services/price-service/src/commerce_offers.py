@@ -17,6 +17,7 @@ Adicionar um provider novo (Shopee/ML/Petz, quando aprovados) é
 só acrescentar em build_default_engine() — nenhuma tela precisa saber
 quantos providers existem.
 """
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -219,6 +220,16 @@ async def get_commerce_offers(
     nunca por texto). Providers de busca textual (Cobasi/VTEX hoje)
     continuam usando `query`."""
     product = _resolve_catalog_product(db, gtin=gtin, product_id=product_id)
+    if product is not None and getattr(product, "identity_enriched_at", None) is None and product.barcode_normalized:
+        # Enriquecimento sob demanda SÓ pra produto nunca enriquecido, e
+        # fora do event loop (merge_product_catalog_identity é síncrono e
+        # pesado — bloqueava o worker, ver incidente 2026-09-01).
+        try:
+            await asyncio.to_thread(_enrich_catalog_blocking, product.id)
+            db.expire(product)
+            product = db.get(ProductCatalog, product.id) or product
+        except Exception:  # noqa: BLE001
+            pass
     canonical_gtin = normalize_gtin(product.barcode_normalized) if product else normalize_gtin(gtin or "")
     canonical_name = (product.canonical_name or product.name) if product else (name or query)
     canonical_brand = (product.canonical_brand or product.brand) if product else brand
@@ -353,36 +364,29 @@ def _resolve_catalog_product(db: Session, *, gtin: Optional[str], product_id: Op
     if product_id is not None:
         product = db.get(ProductCatalog, product_id)
         if product is not None:
-            return _maybe_enrich_catalog(db, product)
+            return product
     gtin_normalized = normalize_gtin(gtin or "")
     if not gtin_normalized:
         return None
-    product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
-    return _maybe_enrich_catalog(db, product) if product is not None else product
+    return db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
 
 
-def _maybe_enrich_catalog(db: Session, product: ProductCatalog) -> ProductCatalog:
-    """Enriquece a identidade canônica do produto a partir dos feeds Awin
-    quando nunca foi feito (ou está velho). Só banco, sem rede — barato o
-    bastante pro caminho de requisição. Nunca derruba a request."""
-    if not product.barcode_normalized:
-        return product
-    enriched_at = getattr(product, "identity_enriched_at", None)
-    if enriched_at is not None:
-        if enriched_at.tzinfo is None:
-            enriched_at = enriched_at.replace(tzinfo=timezone.utc)
-        if datetime.now(timezone.utc) - enriched_at < timedelta(days=7):
-            return product
-    try:
-        from .catalog_enrichment import merge_product_catalog_identity
+def _enrich_catalog_blocking(product_id: int) -> None:
+    """Enriquecimento sob demanda pra produto NUNCA enriquecido. Roda em
+    thread separada (asyncio.to_thread) com sessão própria — nunca no event
+    loop, nunca na sessão da request. Best-effort."""
+    from .catalog_enrichment import merge_product_catalog_identity
+    from .db import SessionLocal
 
-        merge_product_catalog_identity(db, product.barcode_normalized)
-        db.commit()
-        refreshed = db.get(ProductCatalog, product.id)
-        return refreshed or product
-    except Exception:  # noqa: BLE001
-        db.rollback()
-        return product
+    with SessionLocal() as s:
+        try:
+            p = s.get(ProductCatalog, product_id)
+            if p is None or not p.barcode_normalized or p.identity_enriched_at is not None:
+                return
+            merge_product_catalog_identity(s, p.barcode_normalized)
+            s.commit()
+        except Exception:  # noqa: BLE001
+            s.rollback()
 
 
 def _resolve_canonical_image_url(
