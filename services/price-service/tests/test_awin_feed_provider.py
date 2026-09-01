@@ -85,7 +85,7 @@ def test_cobasi_monetize_uses_mais_utm_product_url_from_awin_catalog():
         assert result is not None
         url, link_type, route = result
         assert url == (
-            "https://minhaloja.cobasi.com.br/produto-teste/p?"
+            "https://www.cobasi.com.br/produto-teste/p?"
             "idsku=123&utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol"
         )
         assert link_type == "affiliate_product"
@@ -104,7 +104,7 @@ def test_cobasi_monetize_uses_mais_utm_even_without_awin_affiliate_url():
 
         assert result is not None
         url, link_type, route = result
-        assert url == "https://minhaloja.cobasi.com.br/produto-teste/p?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol"
+        assert url == "https://www.cobasi.com.br/produto-teste/p?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol"
         assert link_type == "affiliate_product"
         assert route == "mais"
     finally:
@@ -748,7 +748,7 @@ def test_awin_test_gtin_authorizes_monetize_too(monkeypatch, _not_publicly_serva
         offer = DiscoveredOffer(merchant="cobasi", price=100.0, direct_url=row.merchant_url, ean=GTIN, external_id=row.external_product_id)
         result = provider.monetize(offer, ProductContext(gtin=GTIN))
         assert result == (
-            "https://minhaloja.cobasi.com.br/produto-teste/p?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol",
+            "https://www.cobasi.com.br/produto-teste/p?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol",
             "affiliate_product",
             "mais",
         )
