@@ -51,8 +51,21 @@ _LENGTH_CM_TOKEN_RE = re.compile(r"^\d+(?:[.,]\d+)?cm$")
 _LENGTH_CM_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*cm\b")
 _PACK_COUNT_RE = re.compile(
     r"\b(\d+)\s*"
-    r"(comprimidos?|tabletes?|tabs?|pipetas?|doses?|unidades?|unds?)\b"
+    r"(comprimidos?|tabletes?|tabs?|pipetas?|doses?|unidades?|unds?|sach[eê]s?|"
+    r"flaconetes?|ampolas?|bisnagas?|saquinhos?|coleiras?|caixas?)\b"
 )
+
+# Embalagem múltipla vendida como conjunto — identidade comercial diferente
+# de uma unidade. "Kit 2 coleiras", "combo", "leve 3", "3 unidades".
+_MULTIPACK_RE = re.compile(
+    r"\b(kit\s*[2-9]\d*|combo|leve\s*[2-9]|pack\s*[2-9]|"
+    r"[2-9]\d*\s*(?:x|unidades?|unds?|coleiras?|caixas?|frascos?|potes?|kits?)|"
+    r"c/\s*[2-9]\d*\s*(?:un|und|unidades?))\b"
+)
+
+
+def is_multipack(text: str) -> bool:
+    return bool(_MULTIPACK_RE.search(_normalize(text or "")))
 
 # Termos que mudam a identidade comercial de ração. Com busca textual da
 # Shopee, "Royal Canin 15kg" pode devolver outra linha/porte/idade na

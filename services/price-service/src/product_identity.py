@@ -23,6 +23,7 @@ from .shopee_offer_matcher import (
     extract_pack_count,
     extract_volume_ml,
     extract_weight_kg,
+    is_multipack,
 )
 
 
@@ -110,7 +111,7 @@ class ProductIdentity:
             product_line=_clean(product_line) or _infer_product_line(text),
             weight_kg=weight_kg if weight_kg is not None else _product_weight_kg(text, animal_range),
             volume_ml=volume_ml if volume_ml is not None else extract_volume_ml(text),
-            length_cm=length_cm if length_cm is not None else extract_length_cm(text),
+            length_cm=length_cm if length_cm is not None else (extract_length_cm(text) or _infer_collar_length_cm(text)),
             pack_count=pack_count if pack_count is not None else extract_pack_count(text),
             animal_weight_range=animal_range,
             life_stage=_normalize_life_stage(life_stage) or _infer_life_stage(text),
@@ -227,8 +228,9 @@ def evaluate_identity(
         _compare_species(expected.species, candidate_text),
         _compare_numeric("weight_kg", expected.weight_kg, extract_weight_kg(candidate_text), tolerance=max(0.05, (expected.weight_kg or 0) * 0.05)),
         _compare_numeric("volume_ml", expected.volume_ml, extract_volume_ml(candidate_text), tolerance=max(20.0, (expected.volume_ml or 0) * 0.05)),
-        _compare_numeric("length_cm", expected.length_cm, extract_length_cm(candidate_text), tolerance=2.0),
+        _compare_numeric("length_cm", expected.length_cm, extract_length_cm(candidate_text) or _infer_collar_length_cm(candidate_text), tolerance=2.0),
         _compare_exact("pack_count", expected.pack_count, extract_pack_count(candidate_text)),
+        _compare_multipack(expected, candidate_text),
         _compare_range("animal_weight_range", expected.animal_weight_range, extract_animal_weight_range_kg(candidate_text)),
         _compare_exact("life_stage", expected.life_stage, _infer_life_stage(candidate_text)),
         _compare_exact("breed_size", expected.breed_size, _infer_breed_size(candidate_text)),
@@ -451,6 +453,19 @@ def _compare_exact(attribute: str, expected: Any, observed: Any) -> AttributeCom
     return AttributeComparison(attribute, expected, observed, AttributeStatus.CONFLICT, f"{attribute.upper()}_CONFLICT")
 
 
+def _compare_multipack(expected: "ProductIdentity", candidate_text: str) -> AttributeComparison:
+    """Conjunto múltiplo (kit/combo/N unidades) é outra apresentação
+    comercial que a unidade. Anúncio multipack contra produto de unidade
+    (pack_count nulo ou 1, e o próprio nome não é multipack) → CONFLICT."""
+    cand_multi = is_multipack(candidate_text)
+    exp_multi = is_multipack(expected.canonical_name or "") or (expected.pack_count or 1) > 1
+    if cand_multi and not exp_multi:
+        return AttributeComparison("multipack", exp_multi, cand_multi, AttributeStatus.CONFLICT, "MULTIPACK_CONFLICT")
+    if cand_multi and exp_multi:
+        return AttributeComparison("multipack", exp_multi, cand_multi, AttributeStatus.MATCH, "MULTIPACK_MATCH")
+    return AttributeComparison("multipack", exp_multi, cand_multi, AttributeStatus.UNKNOWN, "MISSING_MULTIPACK")
+
+
 def _compare_range(attribute: str, expected: Optional[tuple[float, float]], observed: Optional[tuple[float, float]]) -> AttributeComparison:
     if expected is None or observed is None:
         return AttributeComparison(attribute, expected, observed, AttributeStatus.UNKNOWN, f"MISSING_{attribute.upper()}")
@@ -561,6 +576,38 @@ def _infer_life_stage(text: str) -> Optional[str]:
 
 def _normalize_life_stage(value: Optional[str]) -> Optional[str]:
     return _infer_life_stage(value or "")
+
+
+# Coleiras antiparasitárias vêm em tamanhos fixos por comprimento (cm) e a
+# maioria dos títulos traz só a letra ("Scalibor M") ou "Cães Grandes". O
+# comprimento é o discriminador de SKU que separa 48 de 65 cm. Conjunto
+# fechado, tabelas publicadas pelos fabricantes — não é matcher, é
+# normalizador de identidade.
+_COLLAR_LENGTH_CM: dict[str, list[tuple[re.Pattern[str], float]]] = {
+    "scalibor": [
+        (re.compile(r"\b(65|grandes?|large|\bg\b)\b"), 65.0),
+        (re.compile(r"\b(48|pequenos?|medios?|small|\bp\b|\bm\b)\b"), 48.0),
+    ],
+    "seresto": [
+        (re.compile(r"\b(70|grandes?|acima de 8|large|\bg\b)\b"), 70.0),
+        (re.compile(r"\b(38|pequenos?|gatos?|ate 8|até 8|small|\bp\b)\b"), 38.0),
+    ],
+}
+
+
+def _infer_collar_length_cm(text: Optional[str]) -> Optional[float]:
+    if not text:
+        return None
+    normalized = _normalize_text(text)
+    if "coleira" not in normalized and "collar" not in normalized:
+        return None
+    for brand, rules in _COLLAR_LENGTH_CM.items():
+        if brand not in normalized:
+            continue
+        for pattern, cm in rules:
+            if pattern.search(normalized):
+                return cm
+    return None
 
 
 def _infer_breed_size(text: str) -> Optional[str]:

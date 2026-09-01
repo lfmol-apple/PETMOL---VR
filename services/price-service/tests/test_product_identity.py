@@ -106,7 +106,9 @@ def test_scalibor_length_variation_is_conflict():
     assert "LENGTH_CM_CONFLICT" in result.reasons
 
 
-def test_scalibor_without_length_can_still_match_by_size_words():
+def test_scalibor_size_words_resolve_to_length_cm_and_match():
+    # I4/I6: "Scalibor pequenos e médios" e "Scalibor 48cm" são a mesma coleira —
+    # a letra/porte vira length_cm no Identity Engine (tabela fechada).
     expected = ProductIdentity.build(canonical_name="Coleira Antiparasitaria Scalibor 48cm", brand="Scalibor")
     result = evaluate_identity(
         expected,
@@ -114,8 +116,33 @@ def test_scalibor_without_length_can_still_match_by_size_words():
     )
 
     assert result.accepted is True
-    assert _statuses(result)["length_cm"] == AttributeStatus.UNKNOWN
+    assert _statuses(result)["length_cm"] == AttributeStatus.MATCH
     assert _statuses(result)["breed_size"] == AttributeStatus.MATCH
+
+
+def test_scalibor_48_vs_65_is_length_conflict_via_size_words():
+    expected = ProductIdentity.build(canonical_name="Coleira Antiparasitaria Scalibor M", brand="MSD")
+    result = evaluate_identity(
+        expected,
+        MerchantCandidate.build(merchant="shopee", title="Coleira Scalibor Caes Grandes 65cm", brand="Scalibor"),
+    )
+    assert result.decision == IdentityDecision.CONFLICT
+    assert "LENGTH_CM_CONFLICT" in result.reasons
+
+
+def test_multipack_listing_conflicts_with_single_unit_product():
+    expected = ProductIdentity.build(canonical_name="Coleira Antiparasitaria Scalibor 48cm", brand="Scalibor")
+    kit = evaluate_identity(
+        expected,
+        MerchantCandidate.build(merchant="shopee", title="Kit 3 Coleiras Scalibor 48cm Antiparasitaria", brand="Scalibor"),
+    )
+    assert kit.decision == IdentityDecision.CONFLICT
+    assert "MULTIPACK_CONFLICT" in kit.reasons
+    single = evaluate_identity(
+        expected,
+        MerchantCandidate.build(merchant="shopee", title="Coleira Scalibor 48cm Antiparasitaria", brand="Scalibor"),
+    )
+    assert single.accepted is True
 
 
 def test_animal_weight_range_variation_is_conflict():
