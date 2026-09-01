@@ -399,8 +399,14 @@ interface ReorderCardItemProps {
 // MedicationItemSheet.tsx "onde comprar") — mesma lógica de preço/picker já
 // validada aqui, sem duplicar useCommerceOffers numa segunda cópia.
 export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy, onPetzBuy }: ReorderCardItemProps) {
+  // A busca SEMPRE roda: a identidade agora é provada no backend
+  // (_candidate_identity_verdict — MATCH/MISMATCH/UNKNOWN). Sem prova de
+  // identidade nenhuma oferta com preço volta, então `priceLookupAllowed`
+  // não precisa mais bloquear a descoberta — só continua sinalizando que,
+  // para esse card, não se deve tratar o resultado como "menor preço"
+  // comparável entre lojas (ver petStoreContent.ts).
   const { offers, loading } = useCommerceOffers(
-    card.searchQuery, card.packageSizeKg, card.gtin, card.priceLookupAllowed,
+    card.searchQuery, card.packageSizeKg, card.gtin, true,
     {
       brand: card.sublabel,
       name: card.label && card.label !== 'Compra de ração' ? card.label : undefined,
