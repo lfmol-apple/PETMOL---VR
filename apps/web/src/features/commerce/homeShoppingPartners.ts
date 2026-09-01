@@ -110,7 +110,10 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     description: 'Compare preço e entrega para ração e cuidados',
     logoSrc: '/partner-logos/cobasi.png',
     logoAlt: 'Cobasi',
-    fallbackUrl: 'https://www.cobasi.com.br',
+    // TODA URL Cobasi que o PETMOL abre passa pela vitrine afiliada
+    // "Minha Loja" (minhaloja.cobasi.com.br) — o site principal com só
+    // UTM não credita a comissão MAIS.
+    fallbackUrl: 'https://minhaloja.cobasi.com.br?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol',
     // Programa real: Minha Loja Cobasi / Empreendedor MAIS — storefront fixa
     // confirmada e ligada (usada só pela área geral "Lojas", abaixo em
     // storefrontAffiliateUrl). O buildAffiliateUrl desta entrada é legado,
@@ -134,7 +137,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     supportsStorefrontAffiliate: true,
     storefrontAffiliateUrl: 'https://minhaloja.cobasi.com.br?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol',
     buildAffiliateUrl: (query, base) =>
-      `${base}&url=${encodeURIComponent(`https://www.cobasi.com.br/busca?q=${encodeURIComponent(query)}`)}`,
+      `${base}&url=${encodeURIComponent(`https://minhaloja.cobasi.com.br/busca?q=${encodeURIComponent(query)}`)}`,
   },
   {
     id: 'petz',
@@ -219,7 +222,9 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
 // affiliate-only, ausência de link afiliado confirmado vira "sem URL" em
 // vez de abrir uma busca que não remunera o PETMOL.
 const DIRECT_SEARCH_URLS: Record<HomeShoppingPartnerId, (q: string) => string> = {
-  cobasi:       (q) => `https://www.cobasi.com.br/busca?q=${encodeURIComponent(q)}`,
+  // Cobasi: sempre pela vitrine afiliada "Minha Loja" (minhaloja.cobasi.com.br)
+  // + UTM MAIS — nunca o site principal, que não credita a comissão.
+  cobasi:       (q) => `https://minhaloja.cobasi.com.br/busca?q=${encodeURIComponent(q)}&utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol`,
   // Petz não tem busca por produto — resolvePartnerUrl() sempre resolve
   // pela storefrontAffiliateUrl antes de chegar aqui; nunca de fato usado.
   petz:         () => 'https://www.petz.com.br/parceiro/pettmol',
