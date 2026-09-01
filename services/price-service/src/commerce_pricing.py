@@ -41,6 +41,19 @@ logger = logging.getLogger(__name__)
 _COBASI_SEARCH_URL = "https://www.cobasi.com.br/api/catalog_system/pub/products/search/{query}"
 _COBASI_TIMEOUT = 6.0
 
+# O WAF da VTEX rejeita a busca ("Bad Request! Scripts are not allowed!") quando
+# o termo tem aspas/apóstrofo ou caracteres de marcação — "Hill's", 'K/D', etc.
+_QUERY_STRIP_RE = re.compile(r"[\"'`´^~<>|;{}\[\]\\]+")
+
+
+def _sanitize_query(query: str) -> str:
+    """Termo seguro para o path da busca VTEX: sem aspas/apóstrofo/marcação,
+    barra vira espaço (senão o `/` corta o path), espaços colapsados."""
+    cleaned = _QUERY_STRIP_RE.sub(" ", query or "")
+    cleaned = cleaned.replace("/", " ")
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
 _cache: TTLCache = TTLCache(maxsize=500, ttl=get_settings().commerce_pricing_cache_ttl)
 _candidates_cache: TTLCache = TTLCache(maxsize=500, ttl=get_settings().commerce_pricing_cache_ttl)
 
@@ -165,7 +178,7 @@ async def _search_cobasi_once(
     vários produtos retornados — sempre a query ORIGINAL completa, mesmo
     quando `query` (o que de fato vai pra busca) é um fallback encurtado
     que já perdeu a palavra de porte (ver _shorten_query_variants)."""
-    url = _COBASI_SEARCH_URL.format(query=urllib.parse.quote(query))
+    url = _COBASI_SEARCH_URL.format(query=urllib.parse.quote(_sanitize_query(query), safe=""))
     try:
         async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
             response = await client.get(
@@ -215,18 +228,57 @@ async def _search_cobasi_once(
     )
 
 
-# ── Identidade estrutural: aceitar uma oferta Cobasi só quando dá pra
-#    PROVAR que é a mesma apresentação do produto do tutor ────────────────────
+# ── Identidade de produto: MATCH / MISMATCH / UNKNOWN ──────────────────────
 #
-# Sem isto, `_search_cobasi_once` pegava products[0] / items[0] e devolvia o
-# preço — mesmo quando era ração de gato 1 kg no lugar de ração de cão 15 kg
-# (falso positivo confirmado em produção). Filosofia: melhor não mostrar
-# preço do que mostrar preço de produto errado.
+# Três estados, regra fundamental AUSENTE != DIFERENTE:
+#   MATCH    — evidência positiva suficiente de que é a mesma apresentação
+#              (EAN exato; ou marca + discriminador objetivo + nome
+#              compatível, sem especialização não corroborada).
+#   MISMATCH — contradição objetiva: EAN conhecido divergente, espécie
+#              oposta, peso/volume/cm/quantidade DECLARADOS e incompatíveis,
+#              ou especialização (idade/linha/veterinária) explicitamente
+#              diferente da esperada.
+#   UNKNOWN  — falta informação para provar OU rejeitar. Antes de ficar
+#              UNKNOWN, o atributo é procurado nos DEMAIS campos VTEX da
+#              MESMA resposta (Peso da Ração, variations, customLabel0
+#              Departamento, Idade, Linha, Raças...). Sem chamada extra.
 #
-# Não usa PREÇO como prova de identidade — só atributos objetivos do produto.
+# Preço NUNCA é evidência de identidade.
+# Rota EAN-exato (fq=alternateIds_Ean) tem prioridade sobre busca textual —
+# ver fetch_cobasi_price_by_ean / cobasi_provider.find_offer.
+
+from enum import Enum
+
+_COBASI_EAN_SEARCH_URL = "https://www.cobasi.com.br/api/catalog_system/pub/products/search"
+
+# Palavras de categoria genérica — não contam como "token discriminante" de um
+# nome de referência rico (ex: "Royal Canin ração" só tem marca + categoria).
+_GENERIC_CATEGORY_TOKENS = frozenset({
+    "racao", "raça", "alimento", "comida", "petisco", "snack",
+    "coleira", "shampoo", "condicionador", "sabonete", "colonia", "perfume",
+    "vermifugo", "antipulgas", "antiparasitario", "vermicida", "medicamento",
+    "remedio", "suplemento", "pet", "caes", "cao", "cães", "gato", "gatos",
+    "para", "kit", "un", "und", "unidade",
+})
+# Único grupo distintivo que pode aparecer no candidato sem estar no nome
+# esperado: "adulto" é o padrão mainstream. Filhote/sênior, linha racial e
+# linha veterinária mudam a identidade comercial e precisam ser corroborados.
+_MAINSTREAM_GROUP_TOKENS = frozenset({"adulto", "adult", "adults"})
+_RACIAL_LINE_MARKERS = ("racas especificas", "raca especifica")
+
+
+class MatchState(str, Enum):
+    MATCH = "match"
+    MISMATCH = "mismatch"
+    UNKNOWN = "unknown"
+
 
 def _digits(value: Optional[str]) -> str:
     return re.sub(r"\D", "", value or "")
+
+
+def _accepts(state: "MatchState") -> bool:
+    return state == MatchState.MATCH
 
 
 @dataclass
@@ -271,87 +323,364 @@ class CobasiIdentitySpec:
             )
         )
 
+    def rich_reference_tokens(self) -> int:
+        """Tokens do nome de referência que discriminam de fato (fora marca
+        e categoria genérica) — ex: "urinary", "small", "dog", "frango"."""
+        if not self.reference_name:
+            return 0
+        brand_tokens = _tokenize_text(self.brand or "")
+        toks = _tokenize_text(self.reference_name) - brand_tokens - _GENERIC_CATEGORY_TOKENS
+        return len(toks)
+
+
+def _spec_values(product: Optional[dict], *keys: str) -> list[str]:
+    """Valores (minúsculos, sem acento) de campos de specification VTEX já
+    presentes na resposta — cada campo é uma lista. Nunca faz chamada de rede."""
+    if not product:
+        return []
+    out: list[str] = []
+    for k in keys:
+        v = product.get(k)
+        if isinstance(v, list):
+            out.extend(_norm_text(str(x)).strip() for x in v if str(x).strip())
+        elif isinstance(v, str) and v.strip():
+            out.append(_norm_text(v).strip())
+    return out
+
+
+def _sku_variation_values(item: Optional[dict]) -> list[str]:
+    if not item:
+        return []
+    out: list[str] = []
+    for var in item.get("variations") or []:
+        vals = item.get(var)
+        if isinstance(vals, list):
+            out.extend(str(x) for x in vals)
+        elif isinstance(vals, str):
+            out.append(vals)
+    return out
+
+
+def _candidate_weight_kg(text: str, product: Optional[dict], item: Optional[dict]) -> Optional[float]:
+    """Peso do SKU — nome, depois item.name/variations do SKU, depois
+    'Peso da Ração'/'Peso' do produto SÓ quando é valor único (não ambíguo
+    entre SKUs). AUSENTE (None) nunca é tratado como DIFERENTE."""
+    w = extract_weight_kg(text)
+    if w is not None:
+        return w
+    if item is not None:
+        w = extract_weight_kg(str(item.get("name") or ""))
+        if w is not None:
+            return w
+        for val in _sku_variation_values(item):
+            w = extract_weight_kg(val)
+            if w is not None:
+                return w
+    parsed = [x for x in (extract_weight_kg(p) for p in _spec_values(product, "Peso da Ração", "Peso", "Peso do Produto", "Peso Aproximado")) if x is not None]
+    if parsed and len({round(p, 3) for p in parsed}) == 1:
+        return parsed[0]
+    return None
+
+
+def _candidate_volume_ml(text: str, product: Optional[dict], item: Optional[dict]) -> Optional[float]:
+    v = extract_volume_ml(text)
+    if v is not None:
+        return v
+    if item is not None:
+        v = extract_volume_ml(str(item.get("name") or ""))
+        if v is not None:
+            return v
+        for val in _sku_variation_values(item):
+            v = extract_volume_ml(val)
+            if v is not None:
+                return v
+    parsed = [x for x in (extract_volume_ml(p) for p in _spec_values(product, "Volume", "Conteudo", "Conteúdo")) if x is not None]
+    if parsed and len({round(p, 1) for p in parsed}) == 1:
+        return parsed[0]
+    return None
+
+
+_DOG_WORDS = frozenset({"cao", "caes", "cachorro", "cachorros", "canino", "caninos", "dog", "dogs", "cadela", "cadelas"})
+_CAT_WORDS = frozenset({"gato", "gatos", "gata", "gatas", "felino", "felinos", "cat", "cats", "kitten"})
+
+
+def _candidate_species(text: str, product: Optional[dict]) -> Optional[str]:
+    words = set(re.findall(r"[a-z]+", _norm_text(text)))
+    words |= {w for val in _spec_values(product, "customLabel0 Departamento", "Departamento",
+                                        "Tipo de Pet", "Genero Pet") for w in re.findall(r"[a-z]+", val)}
+    has_dog = bool(words & _DOG_WORDS)
+    has_cat = bool(words & _CAT_WORDS)
+    if has_dog and has_cat:      # produto para as duas espécies — sem contradição
+        return None
+    if has_cat:
+        return "cat"
+    if has_dog:
+        return "dog"
+    return None
+
+
+_AGE_LIKE = frozenset({"filhote", "filhotes", "puppy", "junior", "senior", "sênior", "idoso", "idosos", "mature"})
+_VET_LIKE = frozenset({"urinary", "urinario", "urinaria", "renal", "kidney", "hypoallergenic",
+                       "hipoalergenico", "hipoalergenica", "gastrointestinal", "digestive",
+                       "dermatologic", "dermatologica", "dermatologico", "obesity", "satiety",
+                       "obesidade", "metabolic", "diabetic", "diabetico", "hepatic", "hepatico",
+                       "recovery", "convalescence", "mobility", "cardiac", "neutered", "anallergenic"})
+_VET_REFERENCE_PHRASES = ("prescription diet", "veterinary diet", "veterinary", "veterinario",
+                          "veterinaria", "cuidado renal", "cuidado gastrointestinal",
+                          "trato urinario", "s o small", "clinical")
+
+
+def _candidate_specializations(cand_tokens: set, product: Optional[dict]) -> set:
+    """Especializações NÃO-mainstream do candidato — precisam estar
+    corroboradas no nome esperado. Idade filhote/sênior, linha racial e
+    linha veterinária. Porte/tamanho fica de fora de propósito: descreve
+    faixa de uso (ex: coleira "Cães Pequenos e Médios 48 cm"), não
+    identidade, e o discriminador forte nesses casos é o cm/peso exato."""
+    from .shopee_offer_matcher import _DISTINCTIVE_GROUPS
+
+    out: set = set()
+    for group in _DISTINCTIVE_GROUPS:
+        if not (cand_tokens & group) or (group & _MAINSTREAM_GROUP_TOKENS):
+            continue
+        if group & _AGE_LIKE:
+            out.add(("age", frozenset(group)))
+        elif group & _VET_LIKE:
+            out.add(("vet", frozenset(group)))
+    if cand_tokens & _AGE_LIKE:
+        out.add(("age", frozenset(cand_tokens & _AGE_LIKE)))
+    if cand_tokens & _VET_LIKE:
+        out.add(("vet", frozenset(cand_tokens & _VET_LIKE)))
+    # idade também vem da specification VTEX 'Idade' quando não está no nome
+    idades = {i for i in _spec_values(product, "Idade", "Fase") for i in re.findall(r"[a-z]+", i)}
+    if idades and not (idades & {"adulto", "adultos", "adult"}):
+        if idades & {"filhote", "filhotes", "junior"}:
+            out.add(("age", frozenset({"filhote"})))
+        if idades & {"senior", "idoso", "idosos"}:
+            out.add(("age", frozenset({"senior"})))
+    if any(any(m in val for m in _RACIAL_LINE_MARKERS) for val in _spec_values(product, "Linha")):
+        out.add(("racial_line", frozenset({"__racas_especificas__"})))
+    if _spec_values(product, "Tipo Ração Medicamentosa", "Tipo Ração Medicada", "Indicacao Terapeutica"):
+        out.add(("vet", frozenset({"__medicamentosa__"})))
+    return out
+
+
+_BREED_WORDS = frozenset({
+    "pitbull", "bulldog", "poodle", "yorkshire", "maltes", "shihtzu", "shih", "tzu",
+    "labrador", "golden", "retriever", "pastor", "pinscher", "rottweiler", "beagle",
+    "dachshund", "pomeranian", "pomerania", "lulu", "chihuahua", "pug", "boxer",
+    "schnauzer", "border", "collie", "husky", "akita", "spitz", "persa", "siames",
+    "maine", "coon", "ragdoll", "sphynx", "angora",
+})
+
+
+def _breed_tokens(text: str, brand: Optional[str] = None) -> frozenset:
+    toks = set(re.findall(r"[a-z]+", _norm_text(text))) & _BREED_WORDS
+    toks -= set(re.findall(r"[a-z]+", _norm_text(brand or "")))   # "Golden" a marca != raça
+    return frozenset(toks)
+
+
+def _expected_specializations(spec: "CobasiIdentitySpec") -> set:
+    ref_norm = _norm_text(spec.reference_name or "")
+    ref_tokens = set(re.findall(r"[a-z]+", ref_norm))
+    out = _candidate_specializations(ref_tokens, None)
+    if ref_tokens & {"adulto", "adultos", "adult"}:
+        out.add(("age", frozenset({"adulto"})))
+    if any(ph in ref_norm for ph in _VET_REFERENCE_PHRASES):
+        out.add(("vet", frozenset({"__vet_ref__"})))
+    breeds = _breed_tokens(spec.reference_name or "", spec.brand)
+    if "racas especificas" in ref_norm or "raca especifica" in ref_norm or breeds:
+        out.add(("racial_line", breeds or frozenset({"__racas_especificas__"})))
+    return out
+
+
+def _candidate_is_mainstream(cand_tokens: set, product: Optional[dict]) -> bool:
+    """Candidato "genérico/mainstream" em TODOS os eixos de formulação:
+    sem idade != adulto, sem castrado, sem linha racial, sem linha
+    veterinária, sem raça específica. Usado quando o nome esperado é pobre
+    demais (só marca + categoria) para provar sub-variante — nesse caso só
+    o produto padrão da marca pode ser exibido; o resto vira UNKNOWN."""
+    if _candidate_specializations(cand_tokens, product):
+        return False
+    if cand_tokens & {"castrado", "castrados", "castrada", "castradas", "sterilised", "sterilized", "neutered"}:
+        return False
+    # Idade só desqualifica quando EXCLUI adulto (ex: ['Filhote'], ['Sênior']).
+    # ['Adulto', 'Sênior'] é faixa de uso, não especialização.
+    idades = _spec_values(product, "Idade", "Fase")
+    if idades and not any(i in ("adulto", "adult", "adultos") for i in idades):
+        return False
+    # Raça específica = lista CURTA de raças nomeadas (não "Todas as Raças",
+    # não uma lista longa de compatibilidade).
+    racas = [r for r in _spec_values(product, "Racas de Cachorro", "Racas de Gato", "Raca") if "todas" not in r]
+    if racas and len(racas) <= 3:
+        return False
+    return True
+
 
 def _candidate_identity_verdict(
-    spec: CobasiIdentitySpec, product_name: str, sku_name: str, sku_ean: Optional[str]
-) -> tuple[bool, str]:
-    """(aceita?, motivo). Hard reject em qualquer contradição objetiva de
-    espécie / peso / volume / cm / contagem de unidades / linha-variante
-    (via score_candidate). Aceita só com evidência positiva de identidade —
-    caso contrário, fail closed ("insufficient_identity_evidence")."""
+    spec: "CobasiIdentitySpec",
+    product_name: str,
+    sku_name: str,
+    sku_ean: Optional[str],
+    *,
+    product: Optional[dict] = None,
+    item: Optional[dict] = None,
+) -> tuple["MatchState", str]:
+    """(MatchState, motivo). `product`/`item` (dicts VTEX) são opcionais — quando
+    passados, atributos ausentes do nome são procurados nas specifications da
+    mesma resposta antes de virar UNKNOWN."""
     cand = f"{product_name or ''} {sku_name or ''}".strip()
+
+    # ── contradições objetivas de espécie (valem inclusive sobre o EAN:
+    #    um GTIN de ração de gato + pet cão = dado inconsistente, não exibe)
+    if spec.species:
+        cs = _candidate_species(cand, product)
+        if cs and cs != spec.species:
+            return (MatchState.MISMATCH, "species_mismatch")
 
     exp_gtin, act_gtin = _digits(spec.gtin), _digits(sku_ean)
     if exp_gtin and act_gtin:
-        return (act_gtin == exp_gtin, "ean_equal" if act_gtin == exp_gtin else "ean_mismatch")
+        if act_gtin == exp_gtin:
+            return (MatchState.MATCH, "ean_equal")
+        return (MatchState.MISMATCH, "ean_mismatch")
 
-    # ── contradições objetivas ────────────────────────────────────────────
-    if spec.species:
-        cand_species = _infer_species(cand)
-        if cand_species and cand_species != spec.species:
-            return (False, "species_mismatch")
-
+    # ── atributos "hard" — DECLARADO e diferente = MISMATCH; ausente = UNKNOWN
+    unknown_axes: list[str] = []
     hard_checked = 0
+    decisive_checked = 0   # cm / contagem de unidades — quase-únicos
     if spec.weight_kg is not None:
-        cw = extract_weight_kg(cand)
+        cw = _candidate_weight_kg(cand, product, item)
         if cw is None:
-            return (False, "weight_unverifiable")
-        if abs(cw - spec.weight_kg) > max(0.05, spec.weight_kg * 0.06):
-            return (False, "weight_mismatch")
-        hard_checked += 1
+            unknown_axes.append("weight")
+        elif abs(cw - spec.weight_kg) > max(0.05, spec.weight_kg * 0.06):
+            return (MatchState.MISMATCH, "weight_mismatch")
+        else:
+            hard_checked += 1
     if spec.volume_ml is not None:
-        cv = extract_volume_ml(cand)
+        cv = _candidate_volume_ml(cand, product, item)
         if cv is None:
-            return (False, "volume_unverifiable")
-        if abs(cv - spec.volume_ml) > max(20.0, spec.volume_ml * 0.06):
-            return (False, "volume_mismatch")
-        hard_checked += 1
+            unknown_axes.append("volume")
+        elif abs(cv - spec.volume_ml) > max(20.0, spec.volume_ml * 0.06):
+            return (MatchState.MISMATCH, "volume_mismatch")
+        else:
+            hard_checked += 1
     if spec.length_cm is not None:
         cl = extract_length_cm(cand)
         if cl is None:
-            return (False, "length_unverifiable")
-        if abs(cl - spec.length_cm) > 2.0:
-            return (False, "length_mismatch")
-        hard_checked += 1
+            for val in _sku_variation_values(item) + _spec_values(product, "Comprimento", "Tamanho"):
+                cl = extract_length_cm(val)
+                if cl is not None:
+                    break
+        if cl is None:
+            unknown_axes.append("length")
+        elif abs(cl - spec.length_cm) > 2.0:
+            return (MatchState.MISMATCH, "length_mismatch")
+        else:
+            hard_checked += 1
+            decisive_checked += 1
     if spec.pack_count is not None:
         cp = extract_pack_count(cand)
-        if cp is None or cp != spec.pack_count:
-            return (False, "pack_count_mismatch")
-        hard_checked += 1
+        if cp is None:
+            for val in _sku_variation_values(item):
+                cp = extract_pack_count(val)
+                if cp is not None:
+                    break
+        if cp is None:
+            unknown_axes.append("pack_count")
+        elif cp != spec.pack_count:
+            return (MatchState.MISMATCH, "pack_count_mismatch")
+        else:
+            hard_checked += 1
+            decisive_checked += 1
 
-    # ── camada marca + tokens + grupos distintivos (idade/porte/linha) ────
+    # ── marca + tokens + grupos distintivos via score_candidate (não
+    #    modificado). NÃO passa peso/volume/cm — esses eixos já foram
+    #    checados acima com semântica de 3 estados (AUSENTE != DIFERENTE);
+    #    score_candidate rejeitaria em atributo AUSENTE do nome do candidato.
     score: Optional[float] = None
     if spec.reference_name:
-        score = score_candidate(
-            spec.reference_name, cand,
-            expected_brand=spec.brand,
-            expected_weight_kg=spec.weight_kg,
-            expected_volume_ml=spec.volume_ml,
-            expected_length_cm=spec.length_cm,
-        )
+        score = score_candidate(spec.reference_name, cand, expected_brand=spec.brand)
         if score is None:
-            return (False, "structural_mismatch")
+            return (MatchState.MISMATCH, "structural_mismatch")
+
+    # ── especialização por EIXO (idade / veterinária / linha racial) ─────
+    #   • esperado tem o eixo, candidato não → MISMATCH (falta a linha certa)
+    #   • candidato tem o eixo, esperado não → UNKNOWN (não dá pra confirmar)
+    #   • ambos têm mas grupos diferentes → MISMATCH
+    cand_tokens = _tokenize_text(cand)
+    cand_spec = _candidate_specializations(cand_tokens, product)
+    exp_spec = _expected_specializations(spec)
+    _NON_ADULT = {"filhote", "filhotes", "puppy", "junior", "senior", "idoso", "idosos", "mature"}
+    _WILDCARD = {"__vet_ref__", "__medicamentosa__", "__racas_especificas__"}
+
+    # raças nomeadas: duas raças diferentes = produtos diferentes
+    exp_breeds = _breed_tokens(spec.reference_name or "", spec.brand)
+    cand_breeds = _breed_tokens(cand, spec.brand)
+    if exp_breeds and cand_breeds and not (exp_breeds & cand_breeds):
+        return (MatchState.MISMATCH, "line_mismatch")
+
+    for kind in ("age", "vet", "racial_line"):
+        c_groups = {g for k, g in cand_spec if k == kind}
+        e_groups = {g for k, g in exp_spec if k == kind}
+        e_tokens = set().union(*e_groups) if e_groups else set()
+        c_tokens = set().union(*c_groups) if c_groups else set()
+        if kind == "age" and e_tokens == {"adulto"}:
+            if c_tokens & _NON_ADULT:
+                return (MatchState.MISMATCH, "line_mismatch")
+            continue
+        if kind == "racial_line" and exp_breeds and cand_breeds and (exp_breeds & cand_breeds):
+            continue   # mesma raça nomeada nos dois — ok
+        if e_groups and not c_groups:
+            return (MatchState.MISMATCH, "line_mismatch")
+        if e_groups and c_groups and not (e_tokens & _WILDCARD):
+            if not any(cg & e_tokens for cg in c_groups):
+                return (MatchState.MISMATCH, "line_mismatch")
+        if c_groups and not e_groups:
+            return (MatchState.UNKNOWN, "unconfirmed_" + kind)
 
     brand_in_text = bool(spec.brand) and _norm_text(spec.brand) in _norm_text(cand)
-    ref_token_count = len(_tokenize_text(spec.reference_name)) if spec.reference_name else 0
+    rich_tokens = spec.rich_reference_tokens()
 
-    # ── evidência positiva exigida (fail closed) ─────────────────────────
-    if score is not None and score >= 0.55 and hard_checked >= 1:
-        return (True, "structural_match")          # marca + discriminador de tamanho/qtd
-    if brand_in_text and hard_checked >= 1:
-        return (True, "brand_plus_attr_match")     # sem nome de referência, mas marca + discriminador
-    if score is not None and score >= 0.80 and ref_token_count >= 4:
-        return (True, "strong_name_match")         # nome de produto rico e específico, marca confirmada
-    return (False, "insufficient_identity_evidence")
+    # Nome esperado pobre (só marca + categoria, ex: "Golden ração"): não dá
+    # pra provar sub-variante. Só aceita quando o candidato é o produto
+    # PADRÃO da marca; castrado / sênior / linha específica / veterinária,
+    # ou qualquer sub-variante de formulação → UNKNOWN.
+    if rich_tokens < 2 and not _candidate_is_mainstream(cand_tokens, product):
+        return (MatchState.UNKNOWN, "ambiguous_generic_reference")
+
+    # ── evidência positiva exigida ───────────────────────────────────────
+    #   • discriminador DECISIVO (cm exato, contagem exata) + nome compatível
+    #   • OU peso/volume exato + ao menos 1 token de conteúdo no esperado
+    #   • OU nome de referência rico e muito específico E sem eixo em aberto
+    if score is not None and score >= 0.60 and decisive_checked >= 1:
+        return (MatchState.MATCH, "structural_match")
+    if score is not None and score >= 0.60 and hard_checked >= 1 and rich_tokens >= 1:
+        return (MatchState.MATCH, "structural_match")
+    if score is not None and score >= 0.78 and rich_tokens >= 3 and not unknown_axes:
+        return (MatchState.MATCH, "strong_name_match")
+    if unknown_axes:
+        # atributo do tutor não confirmável no candidato — resolvível por
+        # enriquecimento / specs VTEX, não é contradição.
+        return (MatchState.UNKNOWN, "attr_unverifiable:" + unknown_axes[0])
+    return (MatchState.UNKNOWN, "insufficient_identity_evidence")
 
 
 def _summarize_reject_reasons(reasons: list[str]) -> str:
-    for tag in ("ean_mismatch", "species_mismatch", "weight_mismatch", "length_mismatch",
-                "volume_mismatch", "pack_count_mismatch", "structural_mismatch"):
-        if tag in reasons:
-            return tag if tag in ("ean_mismatch", "species_mismatch") else "variant_mismatch"
-    if "insufficient_identity_evidence" in reasons:
+    # EAN divergente é o sinal mais forte de "produto errado".
+    if "ean_mismatch" in reasons:
+        return "ean_mismatch"
+    # UNKNOWN nos candidatos on-target descreve melhor a falta de preço do que
+    # um species_mismatch de um candidato de outra categoria no mesmo resultado.
+    unknown_family = any(
+        r.startswith(("unconfirmed_", "attr_unverifiable", "ambiguous_"))
+        or r == "insufficient_identity_evidence"
+        for r in reasons
+    )
+    if unknown_family:
         return "insufficient_identity_evidence"
+    for tag in ("species_mismatch", "weight_mismatch", "length_mismatch",
+                "volume_mismatch", "pack_count_mismatch", "structural_mismatch", "line_mismatch"):
+        if tag in reasons:
+            return tag if tag == "species_mismatch" else "variant_mismatch"
     if "no_price" in reasons:
         return "no_price"
     return "no_results"
@@ -373,8 +702,52 @@ def _iter_vtex_sku_candidates(products: list) -> "list[tuple[dict, dict, dict, O
     return out
 
 
-async def _search_cobasi_matched_once(query: str, spec: CobasiIdentitySpec) -> ProductPriceResult:
-    url = _COBASI_SEARCH_URL.format(query=urllib.parse.quote(query))
+def _price_result_from_sku(product: dict, item: dict, offer: dict, ean: Optional[str], reason: str) -> ProductPriceResult:
+    link_text = product.get("linkText")
+    price = offer.get("Price")
+    return ProductPriceResult(
+        found=True, store="cobasi",
+        product_name=(item.get("nameComplete") or item.get("name") or product.get("productName")),
+        brand=product.get("brand"),
+        price=float(price) if isinstance(price, (int, float)) else None,
+        list_price=float(offer["ListPrice"]) if isinstance(offer.get("ListPrice"), (int, float)) else None,
+        is_available=offer.get("IsAvailable"),
+        url=f"https://www.cobasi.com.br/{link_text}/p" if link_text else None,
+        ean=ean,
+        reason=reason,
+    )
+
+
+def _resolve_from_products(products: list, spec: "CobasiIdentitySpec") -> ProductPriceResult:
+    """Percorre todos os SKUs; MATCH exibe preço, MISMATCH/UNKNOWN só
+    registram motivo. EAN exato encerra na hora."""
+    reject_reasons: list[str] = []
+    best: Optional[ProductPriceResult] = None
+    for product, item, offer, ean in _iter_vtex_sku_candidates(products):
+        state, reason = _candidate_identity_verdict(
+            spec, product.get("productName") or "",
+            item.get("nameComplete") or item.get("name") or "", ean,
+            product=product, item=item,
+        )
+        if not _accepts(state):
+            reject_reasons.append(reason)
+            continue
+        price = offer.get("Price")
+        if not isinstance(price, (int, float)) or not price:
+            reject_reasons.append("no_price")
+            continue
+        result = _price_result_from_sku(product, item, offer, ean, reason)
+        if reason == "ean_equal":
+            return result
+        if best is None:
+            best = result
+    if best is not None:
+        return best
+    return ProductPriceResult(found=False, reason=_summarize_reject_reasons(reject_reasons))
+
+
+async def _search_cobasi_matched_once(query: str, spec: "CobasiIdentitySpec") -> ProductPriceResult:
+    url = _COBASI_SEARCH_URL.format(query=urllib.parse.quote(_sanitize_query(query), safe=""))
     try:
         async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
             response = await client.get(
@@ -388,48 +761,72 @@ async def _search_cobasi_matched_once(query: str, spec: CobasiIdentitySpec) -> P
     products = response.json()
     if not isinstance(products, list) or not products:
         return ProductPriceResult(found=False, reason="no_results")
+    return _resolve_from_products(products, spec)
 
-    reject_reasons: list[str] = []
-    best: Optional[ProductPriceResult] = None
-    for product, item, offer, ean in _iter_vtex_sku_candidates(products):
-        p_name = product.get("productName") or ""
-        sku_name = item.get("nameComplete") or item.get("name") or ""
-        ok, reason = _candidate_identity_verdict(spec, p_name, sku_name, ean)
-        if not ok:
-            reject_reasons.append(reason)
-            continue
-        price = offer.get("Price")
-        if not isinstance(price, (int, float)) or not price:
-            reject_reasons.append("no_price")
-            continue
-        link_text = product.get("linkText")
-        result = ProductPriceResult(
-            found=True, store="cobasi",
-            product_name=sku_name or p_name,
-            brand=product.get("brand"),
-            price=float(price),
-            list_price=float(offer["ListPrice"]) if isinstance(offer.get("ListPrice"), (int, float)) else None,
-            is_available=offer.get("IsAvailable"),
-            url=f"https://www.cobasi.com.br/{link_text}/p" if link_text else None,
-            ean=ean,
-            reason=reason,
-        )
-        if reason == "ean_equal":          # prova mais forte — para aqui
-            return result
-        if best is None:
-            best = result                   # 1º candidato estruturalmente válido (ordem VTEX = determinística)
 
-    if best is not None:
-        return best
-    return ProductPriceResult(found=False, reason=_summarize_reject_reasons(reject_reasons))
+async def _search_cobasi_by_ean_once(gtin: str) -> ProductPriceResult | list:
+    """Consulta VTEX pela rota que REALMENTE resolve EAN:
+    `?fq=alternateIds_Ean:{gtin}` (o path `/search/{gtin}` sempre volta vazio).
+    Devolve a lista bruta de products em sucesso, ou um ProductPriceResult de
+    erro/no_results."""
+    digits = _digits(gtin)
+    if not digits:
+        return ProductPriceResult(found=False, reason="empty_query")
+    try:
+        async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
+            response = await client.get(
+                _COBASI_EAN_SEARCH_URL,
+                params={"fq": f"alternateIds_Ean:{digits}", "sc": 1},
+                headers={"Accept": "application/json"},
+            )
+    except (httpx.TimeoutException, httpx.ConnectError) as exc:
+        logger.info("[commerce_pricing] cobasi ean timeout gtin=%r err=%s", digits, type(exc).__name__)
+        return ProductPriceResult(found=False, reason="timeout")
+    if response.status_code not in (200, 206):
+        return ProductPriceResult(found=False, reason="http_error")
+    products = response.json()
+    if not isinstance(products, list) or not products:
+        return ProductPriceResult(found=False, reason="no_results")
+    return products
+
+
+async def fetch_cobasi_price_by_ean(gtin: str, spec: "CobasiIdentitySpec") -> ProductPriceResult:
+    """Rota EAN-first (nível A). Resolve o produto por `fq=alternateIds_Ean` e
+    só aceita o SKU cujo `item.ean` == GTIN do PETMOL. Nunca cai em busca
+    textual aqui — isso é responsabilidade do chamador."""
+    digits = _digits(gtin)
+    if not digits:
+        return ProductPriceResult(found=False, reason="empty_query")
+    if not get_settings().commerce_pricing_enabled:
+        return ProductPriceResult(found=False, reason="disabled")
+
+    key = f"e:{digits}::{spec.fingerprint()}"
+    cached = _cache.get(key)
+    if cached is not None:
+        return cached
+    try:
+        products = await _search_cobasi_by_ean_once(digits)
+        if isinstance(products, ProductPriceResult):
+            result = products
+        else:
+            ean_spec = spec if spec.gtin else CobasiIdentitySpec(
+                reference_name=spec.reference_name, brand=spec.brand, species=spec.species,
+                gtin=digits, weight_kg=spec.weight_kg, volume_ml=spec.volume_ml,
+                length_cm=spec.length_cm, pack_count=spec.pack_count,
+            )
+            result = _resolve_from_products(products, ean_spec)
+    except Exception as exc:
+        logger.info("[commerce_pricing] cobasi ean failed gtin=%r err=%s", digits, type(exc).__name__)
+        result = ProductPriceResult(found=False, reason="error")
+    _cache[key] = result
+    return result
 
 
 async def fetch_cobasi_price_matched(
-    query: str, spec: CobasiIdentitySpec, *, target_weight_kg: Optional[float] = None
+    query: str, spec: "CobasiIdentitySpec", *, target_weight_kg: Optional[float] = None
 ) -> ProductPriceResult:
-    """Como fetch_cobasi_price, mas só devolve uma oferta quando a
-    identidade do produto pode ser PROVADA contra `spec`. Examina todos os
-    SKUs de todos os resultados VTEX, não só o primeiro."""
+    """Busca textual estrutural: só devolve oferta em MATCH (identidade
+    provável). Examina todos os SKUs de todos os resultados VTEX."""
     query = (query or "").strip()
     if not query:
         return ProductPriceResult(found=False, reason="empty_query")
@@ -594,7 +991,7 @@ async def _search_cobasi_candidates_uncached(query: str, limit: int) -> list[dic
     if not settings.commerce_pricing_enabled:
         return []
 
-    url = _COBASI_SEARCH_URL.format(query=urllib.parse.quote(query))
+    url = _COBASI_SEARCH_URL.format(query=urllib.parse.quote(_sanitize_query(query), safe=""))
     try:
         async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
             response = await client.get(

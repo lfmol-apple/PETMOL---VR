@@ -51,7 +51,11 @@ from sqlalchemy.orm import Session
 
 from .affiliate_links import get_active_link
 from .cobasi_utm import InvalidCobasiUrlError, build_cobasi_affiliate_url
-from .commerce_pricing import CobasiIdentitySpec, fetch_cobasi_price_matched
+from .commerce_pricing import (
+    CobasiIdentitySpec,
+    fetch_cobasi_price_by_ean,
+    fetch_cobasi_price_matched,
+)
 from .commerce_provider import DiscoveredOffer, MonetizedOffer, ProductContext
 from .config import Settings, get_settings
 from .merchant_routes import preferred_route_for
@@ -60,25 +64,35 @@ from .product_catalog_lookup import ProductCatalog, normalize_gtin
 logger = logging.getLogger(__name__)
 
 
-def _query_candidates(context: ProductContext) -> list[tuple[str, str]]:
-    """(kind, termo de busca) a tentar na Cobasi, da fonte mais forte pra
-    menos — para um produto conhecido não ficar sem oferta só porque `q`
-    veio pobre. Deduplicado por termo, sem entradas vazias.
+def _query_candidates(context: ProductContext, *, reference_name: str = "") -> list[tuple[str, str]]:
+    """(kind, termo de busca) textual a tentar na Cobasi, da fonte mais forte
+    pra menos. A rota por GTIN NÃO entra aqui — `products/search/{gtin}`
+    sempre volta vazio; EAN é resolvido por fetch_cobasi_price_by_ean
+    (`fq=alternateIds_Ean`) antes de qualquer busca textual.
 
-      1. gtin       — a busca da VTEX indexa EAN; quando resolve, devolve o
-                      produto exato (EAN casa, o fallback textual nem roda);
-      2. explicit_q — o `q` que o chamador mandou (comportamento atual);
-      3. brand_name — marca + nome;
-      4. name       — nome sozinho.
+      1. catalog_name — nome do products_catalog (enriquecido por GTIN);
+      2. name         — nome/título passado pelo chamador;
+      3. brand_name   — marca + nome (sem duplicar a marca se o nome já a tem);
+      4. explicit_q   — o `q` cru que o chamador mandou.
     """
-    gtin = normalize_gtin(context.gtin or "")
     brand = (context.brand or "").strip()
     name = (context.name or "").strip()
+    ref = (reference_name or "").strip()
+
+    def _brand_prefixed(text: str) -> str:
+        # Só prefixa a marca quando ela ainda não aparece no texto — senão
+        # gera "Drontal Vermífugo Drontal Plus…".
+        if not text or not brand:
+            return text
+        if brand.lower() in text.lower():
+            return ""
+        return f"{brand} {text}".strip()
+
     raw = [
-        ("gtin", gtin if gtin else ""),
-        ("explicit_q", (context.query or "").strip()),
-        ("brand_name", " ".join(p for p in (brand, name) if p).strip()),
+        ("catalog_name", ref if ref and ref not in (name, context.query) else ""),
         ("name", name),
+        ("brand_name", _brand_prefixed(name)),
+        ("explicit_q", (context.query or "").strip()),
     ]
     out: list[tuple[str, str]] = []
     seen: set[str] = set()
@@ -118,17 +132,40 @@ class CobasiProvider:
             return False
         return get_active_link(self._db, product.id, self.merchant) is not None
 
-    async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
-        candidates = _query_candidates(context)
-        if not candidates:
-            logger.info("[cobasi] find_offer: sem termo de busca utilizável")
+    def _catalog_name_for_gtin(self, gtin: Optional[str]) -> Optional[str]:
+        """Enriquecimento de identidade: nome confiável já gravado em
+        products_catalog (preenchido por processo anterior — commerce_quality
+        _optimizer). Só LÊ o dado local; nenhuma dependência nova de feed."""
+        normalized = normalize_gtin(gtin or "")
+        if not normalized:
             return None
+        product = self._db.scalar(
+            select(ProductCatalog).where(ProductCatalog.barcode_normalized == normalized)
+        )
+        name = (product.name or "").strip() if product else ""
+        return name or None
 
-        # Identidade do produto do tutor — a oferta Cobasi só é aceita se
-        # puder ser PROVADA contra isto (espécie/peso/volume/cm/qtd/linha).
-        # Sem evidência suficiente → não mostra preço (fail closed).
+    def _discovered_from_price(self, price) -> DiscoveredOffer:
+        # Estoque NÃO é filtrado aqui de propósito — o CommerceEngine já
+        # descarta is_available is False (regra atual, inalterada).
+        return DiscoveredOffer(
+            merchant=self.merchant,
+            product_name=price.product_name,
+            brand=price.brand,
+            price=price.price,
+            list_price=price.list_price,
+            is_available=price.is_available,
+            direct_url=price.url,
+            ean=price.ean,
+        )
+
+    async def find_offer(self, context: ProductContext) -> Optional[DiscoveredOffer]:
+        # Identidade do produto do tutor — a oferta Cobasi só é aceita em
+        # MATCH (identidade provável). MISMATCH e UNKNOWN não viram preço.
+        catalog_name = self._catalog_name_for_gtin(context.gtin)
+        reference_name = catalog_name or context.name or context.query
         spec = CobasiIdentitySpec.build(
-            reference_name=context.name or context.query,
+            reference_name=reference_name,
             brand=context.brand,
             species=context.species,
             gtin=context.gtin,
@@ -136,30 +173,32 @@ class CobasiProvider:
         )
 
         last_reason = "no_results"
+
+        # ── Nível A — EAN exato (fq=alternateIds_Ean), prioridade máxima ──
+        if context.gtin:
+            ean_price = await fetch_cobasi_price_by_ean(context.gtin, spec)
+            if ean_price.found and ean_price.price is not None:
+                logger.info("[cobasi] oferta resolvida via EAN: %s (em_estoque=%s)",
+                            ean_price.reason, ean_price.is_available)
+                return self._discovered_from_price(ean_price)
+            last_reason = ean_price.reason if ean_price.reason != "ok" else "no_price"
+            logger.info("[cobasi] rota EAN sem oferta: %s", last_reason)
+
+        # ── Nível B/C — busca textual estrutural ─────────────────────────
+        candidates = _query_candidates(context, reference_name=catalog_name or "")
+        if not candidates:
+            logger.info("[cobasi] find_offer: sem termo de busca utilizável (last=%s)", last_reason)
+            return None
+
         for kind, query in candidates:
             price = await fetch_cobasi_price_matched(query, spec, target_weight_kg=context.weight_kg)
-
             if not price.found or price.price is None:
                 last_reason = price.reason if price.reason != "ok" else "no_price"
                 logger.info("[cobasi] descartado: %s (query_kind=%s)", last_reason, kind)
                 continue
-
-            # Estoque NÃO é filtrado aqui de propósito — o CommerceEngine já
-            # descarta is_available is False (regra atual, inalterada).
-            logger.info(
-                "[cobasi] oferta resolvida: %s (query_kind=%s, em_estoque=%s)",
-                price.reason, kind, price.is_available,
-            )
-            return DiscoveredOffer(
-                merchant=self.merchant,
-                product_name=price.product_name,
-                brand=price.brand,
-                price=price.price,
-                list_price=price.list_price,
-                is_available=price.is_available,
-                direct_url=price.url,
-                ean=price.ean,
-            )
+            logger.info("[cobasi] oferta resolvida: %s (query_kind=%s, em_estoque=%s)",
+                        price.reason, kind, price.is_available)
+            return self._discovered_from_price(price)
 
         logger.info("[cobasi] sem oferta: %s (tentativas=%d)", last_reason, len(candidates))
         return None
