@@ -97,6 +97,16 @@ class CobasiProvider:
         if not query:
             return None
 
+        # Auditoria de identidade: se a busca ao vivo desse GTIN já foi
+        # flagrada apontando pro produto errado (mismatch_hard fresco) e
+        # não existe link cadastrado comprovado, não oferece Cobasi — as 2
+        # lojas têm que ser o mesmo produto (ver commerce_identity_audit).
+        if context.gtin and not self._has_manual_link(context.gtin):
+            from .commerce_identity_audit import cobasi_identity_blocks
+
+            if cobasi_identity_blocks(self._db, context.gtin):
+                return None
+
         price = await fetch_cobasi_price(query, target_weight_kg=context.weight_kg)
         if not price.found or price.price is None:
             return None
