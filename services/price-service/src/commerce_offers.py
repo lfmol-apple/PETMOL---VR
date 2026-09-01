@@ -289,9 +289,10 @@ async def _sku_group_sibling_offers(
     settings = get_settings()
     if not getattr(settings, "sku_grouping_enabled", True) or product is None or not canonical_gtin:
         return []
-    # se a primária já tem preço fresco pra Cobasi E Shopee, não vale a pena
-    fresh = {o.merchant for o in primary if o.price is not None and not o.price_is_stale}
-    if {"cobasi", "shopee"}.issubset(fresh):
+    # Custo: 1 chamada HTTP (Cobasi) por irmão. Só roda quando a primária
+    # tem buraco de verdade — nenhuma oferta com preço fresco. "Uma loja
+    # fresca e outra stale" não justifica o custo no caminho de request.
+    if any(o.price is not None and not o.price_is_stale for o in primary):
         return []
     try:
         from .sku_grouping import resolve_sku_group_members

@@ -83,11 +83,12 @@ class Settings(BaseSettings):
     # monetizado imediatamente e marca stale quando necessário. Refresh
     # inline só deve ser ligado em ambiente controlado; em produção ele
     # pode fazer /commerce/offers estourar o timeout do app.
-    # Fase 1-D: refresh inline pro GTIN que o tutor acabou de abrir, quando
-    # o preço está velho o bastante. Best-effort (não bloqueia se a API
-    # falhar). Janela generosa pra não chamar a API a cada request stale.
+    # Fase 1-D / decisão P3: refresh inline pro GTIN recém-aberto. DESLIGADO
+    # por padrão — _refresh_marketplace_offer é síncrono e bloqueia o event
+    # loop (sync_shopee_offer_for_gtin faz várias chamadas HTTP). Ligar só
+    # depois de mover pra thread/executor. Ver docs/PRODUCT_IDENTITY.md.
     marketplace_offer_refresh_after_minutes: int = 360
-    marketplace_offer_inline_refresh_enabled: bool = True
+    marketplace_offer_inline_refresh_enabled: bool = False
 
     # Preço real da Cobasi (API pública de catálogo VTEX) para a Loja do Baby.
     # Cache longo de propósito — reduz volume de chamadas à Cobasi (evitar
@@ -334,7 +335,7 @@ class Settings(BaseSettings):
     # Fase 1-A/B: expande o produto do tutor pros EANs irmãos do grupo de
     # SKU e busca preço em cada um. Aditivo — nunca remove oferta.
     sku_grouping_enabled: bool = True
-    sku_grouping_max_siblings: int = 3
+    sku_grouping_max_siblings: int = 2
 
     # ── Cobertura Shopee: discovery on-demand + job noturno ─────────────
     # Quando o tutor abre um produto com GTIN confiável e ainda não há

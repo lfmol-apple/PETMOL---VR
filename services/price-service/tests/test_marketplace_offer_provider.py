@@ -231,8 +231,9 @@ async def test_stale_offer_two_tier_price_window(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_inline_refresh_is_on_by_default_for_old_shopee_offer(monkeypatch):
-    # Fase 1-D / decisão P3: refresh inline ligado por padrão.
+async def test_inline_refresh_off_by_default_but_works_when_enabled(monkeypatch):
+    # Fase 1-D / P3: refresh inline é OPT-IN (bloqueia o event loop —
+    # _refresh_marketplace_offer é síncrono). Padrão desligado.
     _enable_shopee(monkeypatch)
     monkeypatch.setenv("MARKETPLACE_OFFER_REFRESH_AFTER_MINUTES", "30")
     get_settings.cache_clear()
@@ -259,10 +260,19 @@ async def test_inline_refresh_is_on_by_default_for_old_shopee_offer(monkeypatch)
     db = SessionLocal()
     try:
         offer = await MarketplaceOfferProvider(db, "shopee").find_offer(ProductContext(gtin=GTIN))
+        assert called["n"] == 0  # desligado por padrão
+        assert offer is not None
+    finally:
+        db.close()
+
+    monkeypatch.setenv("MARKETPLACE_OFFER_INLINE_REFRESH_ENABLED", "true")
+    get_settings.cache_clear()
+    db = SessionLocal()
+    try:
+        offer = await MarketplaceOfferProvider(db, "shopee").find_offer(ProductContext(gtin=GTIN))
         assert called["n"] == 1
         assert offer is not None
         assert offer.price == 345.04
-        assert offer.price_is_stale is False
     finally:
         db.close()
 
