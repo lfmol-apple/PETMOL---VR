@@ -17,10 +17,13 @@ import { isNativeAppClient } from '@/lib/nativeApp';
  *
  * Discreto, sem dependência nova. Fecha ao escolher, ao clicar fora e no Esc.
  */
+const MENU_WIDTH = 248;
+
 export function ContentMenu() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [showEnglishArea, setShowEnglishArea] = useState(true);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
 
@@ -31,6 +34,15 @@ export function ContentMenu() {
 
   useEffect(() => {
     if (!open) return;
+    // O menu abre em position:fixed ancorado ao viewport — nunca sai da tela
+    // pela esquerda (o botão ☰ fica no meio do header, não na borda direita).
+    const place = () => {
+      const r = rootRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const left = Math.max(8, Math.min(r.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8));
+      setPos({ top: r.bottom + 8, left });
+    };
+    place();
     const onPointerDown = (e: PointerEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
@@ -39,9 +51,13 @@ export function ContentMenu() {
     };
     document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
     return () => {
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
     };
   }, [open]);
 
@@ -67,12 +83,13 @@ export function ContentMenu() {
         </svg>
       </button>
 
-      {open && (
+      {open && pos && (
         <div
           id={menuId}
           role="menu"
           aria-label="Conteúdo"
-          className="absolute right-0 top-[calc(100%+8px)] z-50 w-[248px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_32px_-8px_rgba(15,23,42,0.22)]"
+          style={{ top: pos.top, left: pos.left, width: MENU_WIDTH }}
+          className="fixed z-50 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_32px_-8px_rgba(15,23,42,0.22)]"
         >
           <Link
             href="/guias"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Search } from 'lucide-react';
 import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
 import { trackClick } from '@/lib/analytics/click';
@@ -34,11 +34,20 @@ interface AffiliateCatalogSearchProps {
   merchantFilter?: HomeShoppingPartnerId;
   /**
    * Chamado quando a busca entra/sai do "modo ativo" (campo focado ou com
-   * texto). A sheet que hospeda o componente usa isso pra fixar o campo no
-   * topo e esconder o resto (Comprar de novo / lojas parceiras) enquanto o
-   * tutor está buscando — só a busca e os resultados abaixo dela.
+   * texto).
    */
   onActiveChange?: (active: boolean) => void;
+  /**
+   * 'inline' (padrão): campo + resultados no fluxo normal, para uso dentro
+   * de sheets que já têm o próprio scroll (Vacina/Vermífugo/Medicação/Ração).
+   * 'fill': o componente vira uma coluna flex que preenche o espaço do pai —
+   * campo de busca FIXO no topo (não rola) e uma área de scroll própria
+   * abaixo com os resultados; quando não há busca ativa, essa área mostra
+   * `children` (ex.: "Comprar de novo" + lojas parceiras da Loja do pet).
+   */
+  layout?: 'inline' | 'fill';
+  className?: string;
+  children?: ReactNode;
 }
 
 type ResolvedOffers = CommerceOffer[] | 'loading' | 'error';
@@ -64,7 +73,7 @@ type BarcodeLookupState = 'idle' | 'loading' | 'done' | 'not_found' | 'error';
 // URL web final do produto com `awc`; isso evita o OneLink abrir a home/app
 // da Cobasi em vez do produto.
 
-export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilter, onActiveChange }: AffiliateCatalogSearchProps) {
+export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilter, onActiveChange, layout = 'inline', className, children }: AffiliateCatalogSearchProps) {
   const [query, setQuery] = useState(initialQuery);
   const [focused, setFocused] = useState(false);
   // Escanear/código de barras: ocultos por enquanto (feedback do tutor —
@@ -281,17 +290,10 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
     );
   }
 
-  return (
-    <div>
-      {/* Escanear código / código de barras manual: ocultos por enquanto
-          (feedback do tutor) — só a busca por texto, maior e direta. */}
-      {/* Campo de busca — fica SEMPRE no topo (sticky) e por cima dos
-          resultados enquanto o tutor digita: -mx-5/px-5 sangra até as bordas
-          da sheet, blur + hairline dão a separação premium. */}
-      <div className="sticky top-0 z-30 -mx-5 border-b border-black/[0.06] bg-[#fbfaf7]/90 px-5 pb-2.5 pt-2 backdrop-blur-2xl">
-        {/* Lupa em flex (não absoluta) — nunca encavala com o texto digitado,
-            mesmo no iOS quando o campo rola o conteúdo. */}
-        <label className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white pl-4 pr-3 shadow-[0_4px_16px_-6px_rgba(15,23,42,0.18)] transition-all duration-150 focus-within:border-emerald-400 focus-within:ring-4 focus-within:ring-emerald-500/10">
+  // Campo de busca extraído — reaproveitado nos dois layouts (inline / fill).
+  // Lupa em flex (não absoluta) — nunca encavala com o texto digitado.
+  const searchField = (
+    <label className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white pl-4 pr-3 shadow-[0_4px_16px_-6px_rgba(15,23,42,0.18)] transition-all duration-150 focus-within:border-emerald-400 focus-within:ring-4 focus-within:ring-emerald-500/10">
           <Search className="h-[18px] w-[18px] flex-shrink-0 text-slate-400" strokeWidth={2.2} />
           <input
             ref={searchInputRef}
@@ -311,24 +313,26 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
             className="min-w-0 flex-1 border-0 bg-transparent py-3.5 text-[16px] font-medium text-slate-900 outline-none placeholder:text-slate-400"
           />
         </label>
-      </div>
+  );
 
-      {scannerOpen && (
-        <ProductDetectionSheetGold
-          petId={petId}
-          defaultMode="scan"
-          onClose={() => setScannerOpen(false)}
-          onProductConfirmed={(product) => {
-            setScannerOpen(false);
-            if (product.barcode) {
-              void resolveBarcode(product.barcode);
-            } else if (product.name) {
-              setQuery(product.name);
-            }
-          }}
-        />
-      )}
+  const scanner = scannerOpen ? (
+    <ProductDetectionSheetGold
+      petId={petId}
+      defaultMode="scan"
+      onClose={() => setScannerOpen(false)}
+      onProductConfirmed={(product) => {
+        setScannerOpen(false);
+        if (product.barcode) {
+          void resolveBarcode(product.barcode);
+        } else if (product.name) {
+          setQuery(product.name);
+        }
+      }}
+    />
+  ) : null;
 
+  const statusAndResults = (
+    <>
       {loading && (
         <p className="text-[12px] text-gray-400 mt-2 px-1">Buscando...</p>
       )}
@@ -513,6 +517,47 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
           })}
         </div>
       )}
+    </>
+  );
+
+  // Layout 'fill' (Loja do pet): coluna flex que preenche o pai. Campo de
+  // busca numa banda fixa que NUNCA rola; abaixo, uma área de scroll própria
+  // com os resultados (durante a busca) ou `children` (Comprar de novo +
+  // lojas parceiras) quando não há busca ativa.
+  if (layout === 'fill') {
+    return (
+      <div className={`flex min-h-0 flex-col ${className ?? ''}`}>
+        <div className="flex-shrink-0 border-b border-black/[0.06] bg-[#eef0f2]/70 px-5 pb-3 pt-1 backdrop-blur-xl">
+          {searchField}
+        </div>
+        {scanner}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-3.5">
+          {searchActive ? (
+            <>
+              {statusAndResults}
+              {!loading && trimmedQuery.length < 2 && (
+                <p className="px-1 pt-1 text-[12px] text-slate-400">Digite o nome ou a marca do produto.</p>
+              )}
+            </>
+          ) : (
+            <div className="space-y-5">{children}</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Layout 'inline' (Vacina / Vermífugo / Medicação / Ração): campo sticky +
+  // resultados no fluxo do scroll da sheet hospedeira.
+  return (
+    <div className={className}>
+      {/* -mx-5/px-5 sangra até as bordas da sheet; blur + hairline dão a
+          separação premium enquanto o tutor digita. */}
+      <div className="sticky top-0 z-30 -mx-5 border-b border-black/[0.06] bg-[#fbfaf7]/90 px-5 pb-2.5 pt-2 backdrop-blur-2xl">
+        {searchField}
+      </div>
+      {scanner}
+      {statusAndResults}
     </div>
   );
 }

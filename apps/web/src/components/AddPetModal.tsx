@@ -382,12 +382,12 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
                 className="w-11 h-11 flex-shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-lg active:scale-95 transition-all"
               >✕</button>
             </div>
-            <div className="overflow-y-auto flex-1 min-h-0 overscroll-contain">
+            <div className="overflow-y-auto flex-1 min-h-0 overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
               {filtered.map(b => (
                 <button
                   key={b}
                   type="button"
-                  onPointerDown={e => { e.preventDefault(); select(b); }}
+                  onClick={() => select(b)}
                   className={`w-full text-left px-5 py-[18px] text-[17px] border-b border-slate-100 last:border-b-0 active:bg-blue-50 transition-colors ${b === value ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-800'}`}
                 >
                   {b}
