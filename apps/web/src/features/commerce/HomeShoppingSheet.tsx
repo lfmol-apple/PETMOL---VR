@@ -89,8 +89,9 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   }
 
   function handleStorePartnerOpen(partner: HomeShoppingPartner) {
-    const searchQuery = 'produtos pet';
-    const url = resolvePartnerUrl(partner, searchQuery, '');
+    // Card genérico de loja: abre a loja SEM busca pré-definida — o tutor
+    // pesquisa livremente lá dentro (feedback do tutor).
+    const url = resolvePartnerUrl(partner, '', '');
     void trackClick({
       source: 'home',
       cta_type: 'shop_partner_store_click',
@@ -100,7 +101,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
       metadata: {
         opened: Boolean(url),
         surface: 'store_grid',
-        search_query: searchQuery,
+        search_query: null,
       },
     });
     if (!url) return;

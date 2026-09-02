@@ -182,7 +182,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
     // Não resolva lojas para todos os 50 resultados de uma vez: no celular
     // isso deixava vários cards presos em "Buscando". Prefetch curto para
     // os primeiros resultados; os demais carregam sob demanda no toque.
-    results.slice(0, 6).forEach((item) => loadStoresForGtin(item));
+    results.slice(0, 8).forEach((item) => loadStoresForGtin(item));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results]);
 
@@ -306,7 +306,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
               // font-size >= 16px evita o zoom automático do Safari iOS. O
               // campo é sticky, então basta trazer o topo dele pra vista —
               // block:'start' (não 'center') mantém o que se digita no alto.
-              window.setTimeout(() => e.target.scrollIntoView({ block: 'start', behavior: 'smooth' }), 200);
+              window.setTimeout(() => e.target.scrollIntoView?.({ block: 'start', behavior: 'smooth' }), 200);
             }}
             onBlur={() => setFocused(false)}
             placeholder="Buscar produto..."
@@ -358,8 +358,14 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
             const unavailable = !loadingStores && !storeLoadError && offers.length === 0 && !hasPetz;
             const expectedStoreCount = Math.max(offers.length + (hasPetz ? 1 : 0), item.offer_count || 0);
             const canOpen = expectedStoreCount > 0 || hasPetz || loadingStores;
+            // Assim que as ofertas resolvem, Cobasi/Shopee aparecem direto no
+            // card — sem precisar tocar em "🛒 Lojas" (feedback do tutor).
+            const storesResolved = Array.isArray(resolved);
+            const inlineStores = storesResolved && (offers.length > 0 || hasPetz);
+            const showStores = inlineStores || (choosingStore && canOpen);
+            const canTapToExpand = canOpen && !inlineStores;
             const handleResultTap = () => {
-              if (!canOpen) return;
+              if (!canTapToExpand) return;
               setStoreChoicesForGtin(choosingStore ? null : item.gtin);
               if (!Array.isArray(resolved)) loadStoresForGtin(item);
             };
@@ -372,11 +378,11 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
             return (
               <div
                 key={item.gtin}
-                role={canOpen ? 'button' : undefined}
-                tabIndex={canOpen ? 0 : undefined}
-                onClick={canOpen ? handleResultTap : undefined}
-                onKeyDown={canOpen ? handleResultKeyDown : undefined}
-                className={`p-3 bg-white rounded-2xl ring-1 ring-black/5 shadow-[0_4px_16px_-8px_rgba(15,23,42,0.18)] transition-all ${canOpen ? 'cursor-pointer hover:ring-emerald-200 active:scale-[0.99]' : ''}`}
+                role={canTapToExpand ? 'button' : undefined}
+                tabIndex={canTapToExpand ? 0 : undefined}
+                onClick={canTapToExpand ? handleResultTap : undefined}
+                onKeyDown={canTapToExpand ? handleResultKeyDown : undefined}
+                className={`p-3 bg-white rounded-2xl ring-1 ring-black/5 shadow-[0_4px_16px_-8px_rgba(15,23,42,0.18)] transition-all ${canTapToExpand ? 'cursor-pointer hover:ring-emerald-200 active:scale-[0.99]' : ''}`}
               >
                 <div className="flex items-center gap-3.5">
                   <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-50 border border-gray-100 flex-shrink-0 flex items-center justify-center">
@@ -406,7 +412,11 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                     )}
                   </div>
 
-                  {canOpen ? (
+                  {inlineStores ? (
+                    <span className="flex-shrink-0 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold px-3 py-1.5">
+                      {offers.length + (hasPetz ? 1 : 0)} loja{offers.length + (hasPetz ? 1 : 0) > 1 ? 's' : ''}
+                    </span>
+                  ) : canOpen ? (
                     <button
                       type="button"
                       onClick={(event) => {
@@ -428,7 +438,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                   )}
                 </div>
 
-                {choosingStore && canOpen && (
+                {showStores && (
                   <div className="mt-2.5 pt-2.5 border-t border-gray-100 space-y-1.5">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Escolha a loja</p>
                     {loadingStores && (
