@@ -2271,6 +2271,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     onOpenVaccines={handleOpenVaccines}
                     onOpenFlea={handleOpenAntipulgas}
                     onOpenDewormer={handleOpenVermifugo}
+                    suppressed={showFoodSheet || showVaccineSheet || showAntipulgasSheet || showVermifugoSheet}
                   />
 
                   <PetTabs
