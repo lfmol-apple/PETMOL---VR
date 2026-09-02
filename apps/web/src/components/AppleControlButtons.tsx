@@ -371,9 +371,11 @@ export function AppleControlButtons({
       {showPetshopChoice && (
         <SheetShell open onClose={() => setShowPetshopChoice(false)} variant="center" size="sm" z={80}>
           <SheetHeader
+            tone="petmol"
+            withHandle
             title="PetShops perto de você"
             subtitle="Abre no Google Maps"
-            media={<SheetIcon tone="slate"><Store className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+            media={<SheetIcon tone="onPetmol"><Store className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
             onClose={() => setShowPetshopChoice(false)}
           />
           <SheetShell.Body className="space-y-2.5">
