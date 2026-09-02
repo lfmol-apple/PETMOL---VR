@@ -55,6 +55,9 @@ interface SheetShellProps {
   className?: string;
   /** z-index base — alguns sheets empilham sobre outros */
   z?: number;
+  /** não desenha o "puxador" do bottom-sheet — use quando o SheetHeader
+   *  petmol renderiza o próprio (evita faixa branca entre puxador e header) */
+  hideHandle?: boolean;
 }
 
 export function SheetShell({
@@ -68,6 +71,7 @@ export function SheetShell({
   dismissOnBackdrop = true,
   className = '',
   z = 50,
+  hideHandle = false,
 }: SheetShellProps) {
   useEffect(() => {
     if (!open) return;
@@ -110,7 +114,7 @@ export function SheetShell({
           style={{ maxHeight: '92dvh' }}
           onClick={(e) => e.stopPropagation()}
         >
-          {variant === 'bottom' && (
+          {variant === 'bottom' && !hideHandle && (
             <div className="flex flex-shrink-0 justify-center pt-2.5 pb-1 sm:hidden">
               <div className="h-1 w-9 rounded-full bg-slate-300/80" />
             </div>

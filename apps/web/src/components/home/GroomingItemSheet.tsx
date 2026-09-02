@@ -367,7 +367,7 @@ export function GroomingItemSheet({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <SheetShell open onClose={onClose} tone="grey" z={50}>
+    <SheetShell open onClose={onClose} hideHandle tone="grey" z={50}>
         {/* Success overlay */}
         {justSaved && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-5 bg-[#f2f2f7] p-8 text-center">
@@ -411,7 +411,8 @@ export function GroomingItemSheet({
         )}
 
         <SheetHeader
-          tone="grey"
+          tone="petmol"
+          withHandle
           title="Higiene e Petshop"
           subtitle={petName || undefined}
           status={{

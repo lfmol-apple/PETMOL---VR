@@ -71,11 +71,13 @@ export function UpcomingEventsSheet({ open, onClose, reminders, petName, onSelec
   groups.sort((a, b) => groupOrder(a.items[0].diff) - groupOrder(b.items[0].diff));
 
   return (
-    <SheetShell open={open} onClose={onClose} size="md" z={70}>
+    <SheetShell open={open} onClose={onClose} hideHandle size="md" z={70}>
       <SheetHeader
+        tone="petmol"
+        withHandle
         title="Próximos eventos"
         subtitle={`${petName} · ${reminders.length} ${reminders.length === 1 ? 'evento' : 'eventos'}`}
-        media={<SheetIcon tone="blue"><CalendarClock className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+        media={<SheetIcon tone="onPetmol"><CalendarClock className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
         onClose={onClose}
       />
 
