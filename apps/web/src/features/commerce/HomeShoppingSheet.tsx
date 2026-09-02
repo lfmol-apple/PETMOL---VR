@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
-import { ChevronDown, ChevronRight, ShoppingCart } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
-import { petDo, petO } from '@/lib/petGender';
+import { petO } from '@/lib/petGender';
 import { SheetAvatar, SheetHeader } from '@/components/ui/sheet';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { trackClick } from '@/lib/analytics/click';
@@ -11,12 +11,10 @@ import type { PetHealthProfile } from '@/lib/petHealth';
 import type { PetCareReminder } from '@/lib/petCareDomain';
 import {
   HOME_SHOPPING_PARTNERS,
-  openHomeShoppingPartner,
   navigateToPartnerUrl,
   resolvePartnerUrl,
   openPetzPartnerStore,
   PETZ_COUPON_CODE,
-  isPartnerVisibleForSearch,
   isPartnerVisibleInStoreArea,
   partnerGenericLinkType,
   type HomeShoppingPartner,
@@ -26,9 +24,7 @@ import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
 import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerOriginLabel, offerPriceLabel, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
 import {
-  buildReorderCards,
   buildPetStoreTitle,
-  QUICK_BUY_PARTNERS,
   type ReorderCard,
 } from './petStoreContent';
 
@@ -43,108 +39,24 @@ interface HomeShoppingSheetProps {
 // disponível) é a seção que importa de verdade — uma tela mais longa com
 // categorias genéricas e promoções não-personalizadas só cansava o tutor
 // antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
-export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
-  const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
+export function HomeShoppingSheet({ open, onClose, currentPet }: HomeShoppingSheetProps) {
   // Mantém a sheet colada ao viewport visível quando o teclado abre (busca) —
   // sem isso o campo de busca fica atrás do teclado no iOS.
   const kbViewportRef = useKeyboardSheetViewport(open);
 
-  const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
-
-  // Preview de urgência no estado fechado — deriva dos lembretes já calculados
-  // (têm `diff`), lidera pelo mais urgente. Ignora a sentinela de petisco.
-  const { reorderUrgentTone, reorderScentLine } = useMemo(() => {
-    const urgent = buyableReminders
-      .filter((r) => ['food', 'parasite', 'medication'].includes(r.domain) && r.diff < 9000)
-      .sort((a, b) => a.diff - b.diff);
-    const lead = urgent[0];
-    const tone: 'critical' | 'warning' | 'neutral' =
-      !lead ? 'neutral' : lead.diff <= 0 ? 'critical' : lead.diff <= 7 ? 'warning' : 'neutral';
-
-    let line: string | null = null;
-    if (lead && lead.diff <= 14) {
-      const name =
-        lead.action_target === 'health/food'
-          ? 'Ração'
-          : lead.action_target === 'health/parasites/dewormer'
-            ? 'Vermífugo'
-            : lead.action_target === 'health/parasites/flea_tick'
-              ? 'Antipulgas'
-              : lead.action_target === 'health/parasites/collar'
-                ? 'Coleira'
-                : lead.action_target === 'health/medication'
-                  ? 'Remédio'
-                  : (lead.label || 'Item').slice(0, 18);
-      const verb = lead.action_target === 'health/food' ? 'acaba' : 'vence';
-      const when =
-        lead.diff < 0
-          ? lead.action_target === 'health/food' ? 'pode ter acabado' : `venceu há ${Math.abs(lead.diff)} dia${Math.abs(lead.diff) === 1 ? '' : 's'}`
-          : lead.diff === 0
-            ? `${verb} hoje`
-            : `${verb} em ${lead.diff} dia${lead.diff === 1 ? '' : 's'}`;
-      const extra = urgent.length > 1 ? ` · +${urgent.length - 1} item${urgent.length - 1 === 1 ? '' : 's'}` : '';
-      line = `${name} ${when}${extra}`;
-    }
-    return { reorderUrgentTone: tone, reorderScentLine: line };
-  }, [buyableReminders]);
-
-  // Abre por padrão quando há produtos pra reabastecer — essa lista é o motivo
-  // da tela existir e a fonte de comissão; esconder atrás de um toque era
-  // justamente a fricção reclamada. Só fica fechada quando está vazia (aí o
-  // texto de "cadastre a ração" não domina) ou quando o tutor recolheu na mão
-  // (memória só da sessão — reabre no próximo acesso pra reancorar o hábito).
-  const [reorderOpen, setReorderOpen] = useState(false);
-
   useEffect(() => {
-    if (!open) {
-      setQuickBuyFor(null);
-      setReorderOpen(false);
-      return;
-    }
-    setReorderOpen(reorderCards.length > 0);
+    if (!open) return;
     void trackClick({ source: 'home', cta_type: 'shop_sheet_view', pet_id: currentPet.pet_id });
     void trackClick({ source: 'home', cta_type: 'store_opened', pet_id: currentPet.pet_id });
-  }, [open, currentPet.pet_id, reorderCards.length]);
+  }, [open, currentPet.pet_id]);
 
-  const toggleReorder = () => {
-    setReorderOpen((value) => {
-      const next = !value;
-      void trackClick({
-        source: 'home',
-        cta_type: 'shop_reorder_toggle',
-        pet_id: currentPet.pet_id,
-        metadata: { open: next, card_count: reorderCards.length, urgency: reorderUrgentTone },
-      });
-      return next;
-    });
-  };
   const visibleStorePartners = useMemo(() => HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea), []);
-
-  const visibleQuickBuyPartners = useMemo(
-    () =>
-      QUICK_BUY_PARTNERS
-        .map((id) => HOME_SHOPPING_PARTNERS.find((p) => p.id === id))
-        .filter((p): p is HomeShoppingPartner => Boolean(p) && isPartnerVisibleForSearch(p as HomeShoppingPartner)),
-    [],
-  );
 
   if (!open) return null;
 
   const petName = currentPet.pet_name;
   const petPhotoSrc = resolvePetPhotoUrl(currentPet.photo);
   const title = buildPetStoreTitle(currentPet);
-
-  function handleQuickBuy(partnerId: HomeShoppingPartnerId, searchQuery: string, ctaType: string, metadata: Record<string, unknown>) {
-    const opened = openHomeShoppingPartner(partnerId, searchQuery);
-    void trackClick({
-      source: 'home',
-      cta_type: ctaType,
-      target: partnerId,
-      link_type: partnerGenericLinkType(partnerId),
-      pet_id: currentPet.pet_id,
-      metadata: { ...metadata, opened },
-    });
-  }
 
   function handleStorePartnerOpen(partner: HomeShoppingPartner) {
     const searchQuery = 'produtos pet';
@@ -202,123 +114,11 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
         {/* Scrollable content */}
         <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+          {/* 🐾 Buscar produtos — catálogo Awin sincronizado. Multi-loja por
+              natureza (ver AffiliateCatalogSearch.tsx); busca por texto ou
+              código de barras. É a primeira coisa da tela. */}
           <div>
-            <button
-              type="button"
-              onClick={toggleReorder}
-              className="flex w-full items-center gap-2.5 rounded-2xl bg-emerald-500 px-4 py-3 text-left text-white shadow-[0_8px_20px_rgba(16,185,129,0.22)] transition-all duration-200 hover:bg-emerald-600 active:scale-[0.98] motion-reduce:transition-none motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 focus-visible:ring-offset-[#fbfaf7]"
-              aria-expanded={reorderOpen}
-              aria-controls="reorder-panel"
-              aria-label={`Comprar de novo, ${reorderCards.length} produto${reorderCards.length === 1 ? '' : 's'}, ${reorderOpen ? 'expandido' : 'recolhido'}`}
-            >
-              <span aria-hidden className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg bg-white/[0.18] text-white ring-1 ring-white/[0.20]">
-                <ShoppingCart className="h-[17px] w-[17px]" strokeWidth={2.3} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[15px] font-extrabold leading-tight min-[380px]:text-[16px]">Comprar de novo</span>
-                <span className="block truncate text-[11px] font-semibold text-white/[0.78]">
-                  {reorderCards.length === 1 ? '1 produto para repor' : `${reorderCards.length} produtos para repor`}
-                </span>
-              </span>
-              {reorderCards.length > 0 && (
-                <span className="grid h-6 min-w-6 flex-shrink-0 place-items-center rounded-full bg-white/[0.22] px-1.5 text-[12px] font-extrabold text-white">
-                  {reorderCards.length}
-                </span>
-              )}
-              <ChevronDown
-                aria-hidden
-                className={`h-4 w-4 flex-shrink-0 transition-transform duration-200 motion-reduce:transition-none ${reorderOpen ? 'rotate-180' : ''}`}
-                strokeWidth={2.5}
-              />
-            </button>
-
-            {/* Linha de contexto sob o botão — só quando fechado e há urgência */}
-            {!reorderOpen && reorderScentLine && (
-              <p className={`mt-1.5 text-center text-[12px] font-semibold ${reorderUrgentTone === 'critical' ? 'text-rose-600' : reorderUrgentTone === 'warning' ? 'text-amber-700' : 'text-gray-500'}`}>
-                {reorderScentLine}
-              </p>
-            )}
-
-            {reorderOpen && (
-              <div id="reorder-panel" role="region" aria-label="Produtos para comprar de novo" className="mt-3">
-                {reorderCards.length > 0 ? (
-                  <div className="space-y-2.5">
-                    {reorderCards.map((card) => {
-                      const pickerKey = `reorder:${card.id}`;
-                      return (
-                        <ReorderCardItem
-                          key={card.id}
-                          card={card}
-                          isPickerOpen={quickBuyFor === pickerKey}
-                          visibleQuickBuyPartners={visibleQuickBuyPartners}
-                          onTogglePicker={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
-                          onQuickBuy={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, gtin: card.gtin ?? undefined })}
-                          onDirectBuy={(offer) => {
-                            if (offer.url) navigateToPartnerUrl(offer.url);
-                            void trackClick({
-                              source: 'home',
-                              cta_type: 'shop_reorder_buy_direct',
-                              target: offer.merchant,
-                              link_type: offer.link_type,
-                              pet_id: currentPet.pet_id,
-                              metadata: {
-                                domain: card.domain,
-                                merchant: offer.merchant,
-                                gtin: card.gtin ?? undefined,
-                                price_shown: typeof offer.price === 'number' && !offer.price_is_stale ? offer.price : null,
-                                link_type: offer.link_type,
-                                screen: 'loja',
-                                price_is_stale: Boolean(offer.price_is_stale),
-                              },
-                            });
-                          }}
-                          onPetzBuy={(petzLink) => {
-                            void openPetzPartnerStore({
-                              productUrl: petzLink.direct_product_url,
-                              searchUrl: petzLink.search_url,
-                              productName: card.label,
-                            });
-                            void trackClick({
-                              source: 'home',
-                              cta_type: 'shop_reorder_buy_petz',
-                              target: 'petz',
-                              link_type: 'affiliate_store',
-                              pet_id: currentPet.pet_id,
-                              metadata: {
-                                domain: card.domain,
-                                merchant: 'petz',
-                                monetization_mode: 'coupon_attribution_verified',
-                                destination_type: 'partner_store',
-                                coupon: PETZ_COUPON_CODE,
-                                gtin: card.gtin ?? undefined,
-                                link_type: 'affiliate_store',
-                                screen: 'loja',
-                              },
-                            });
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-center shadow-sm">
-                    <p className="text-[13px] text-slate-600 leading-snug">
-                      Cadastre a ração e o antipulgas {petDo(currentPet)} {petName || 'seu pet'} — a gente avisa quando estiver acabando, já com o preço do dia.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-              {/* 🐾 Buscar produtos — catálogo Awin sincronizado, no lugar
-                  do ícone estático que só levava pro site sem contexto.
-                  Multi-loja por natureza (ver AffiliateCatalogSearch.tsx) —
-                  copy neutra para as lojas ativas. Só a
-                  busca (texto + escanear/digitar código de barras) — a
-                  grade "Explorar categorias" foi removida a pedido. */}
-          <div>
-            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Buscar outro produto</p>
+            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Buscar produto</p>
             <AffiliateCatalogSearch petId={currentPet.pet_id} />
           </div>
 
