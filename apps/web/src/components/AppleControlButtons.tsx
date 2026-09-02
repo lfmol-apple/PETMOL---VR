@@ -369,7 +369,7 @@ export function AppleControlButtons({
       <TalkToPetmolSheet open={showTalk} onClose={() => setShowTalk(false)} source="home" />
 
       {showPetshopChoice && (
-        <SheetShell open onClose={() => setShowPetshopChoice(false)} tone="glass" variant="center" size="sm" z={80}>
+        <SheetShell open onClose={() => setShowPetshopChoice(false)} tone="glassSheer" variant="center" size="sm" z={80}>
           <SheetHeader
             tone="petmol"
             withHandle
