@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
 import { petO } from '@/lib/petGender';
@@ -48,23 +48,6 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   // Mantém a sheet colada ao viewport visível quando o teclado abre (busca) —
   // sem isso o campo de busca fica atrás do teclado no iOS.
   const kbViewportRef = useKeyboardSheetViewport(open);
-  const sheetRef = useRef<HTMLDivElement>(null);
-  // iOS dispara um "ghost click" ~300ms depois do toque, na coordenada
-  // original. Ao tocar no campo de busca o teclado sobe, a sheet encolhe/
-  // sobe (items-end), e esse click atrasado cai no backdrop → a sheet
-  // fechava sozinha e "voltava pra Home". Ignora o backdrop logo após um
-  // foco dentro da sheet e enquanto um campo dela estiver focado.
-  const lastFocusInsideAt = useRef(0);
-
-  function handleBackdropClick() {
-    if (Date.now() - lastFocusInsideAt.current < 800) return;
-    const active = typeof document !== 'undefined' ? document.activeElement : null;
-    if (active instanceof HTMLElement && sheetRef.current?.contains(active)) {
-      active.blur();
-      return;
-    }
-    onClose();
-  }
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
 
@@ -106,9 +89,8 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   }
 
   function handleStorePartnerOpen(partner: HomeShoppingPartner) {
-    // Card genérico de loja: abre a loja SEM busca pré-definida — o tutor
-    // pesquisa livremente lá dentro (feedback do tutor).
-    const url = resolvePartnerUrl(partner, '', '');
+    const searchQuery = 'produtos pet';
+    const url = resolvePartnerUrl(partner, searchQuery, '');
     void trackClick({
       source: 'home',
       cta_type: 'shop_partner_store_click',
@@ -118,7 +100,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
       metadata: {
         opened: Boolean(url),
         surface: 'store_grid',
-        search_query: null,
+        search_query: searchQuery,
       },
     });
     if (!url) return;
@@ -134,16 +116,14 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
       ref={kbViewportRef}
       className="fixed inset-x-0 top-0 z-50 flex items-end justify-center sm:px-4"
       style={{ height: '100dvh' }}
-      onClick={handleBackdropClick}
+      onClick={onClose}
     >
       <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-2xl" />
 
       <div
-        ref={sheetRef}
         className="relative isolate flex w-full max-w-md flex-col overflow-hidden rounded-t-[28px] bg-[#f5f6f8]/82 shadow-[0_-8px_60px_-6px_rgba(15,23,42,0.45)] ring-1 ring-white/40 backdrop-blur-2xl sm:mb-4 sm:rounded-[28px]"
-        style={{ maxHeight: 'min(93dvh, 100%)' }}
+        style={{ maxHeight: '88dvh' }}
         onClick={(e) => e.stopPropagation()}
-        onFocusCapture={() => { lastFocusInsideAt.current = Date.now(); }}
       >
         {/* Cabeçalho petmol compartilhado — mesma variante usada nos demais
             sheets do pet (SheetHeader tone="petmol"). */}
@@ -162,15 +142,17 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
           onClose={onClose}
         />
 
-        {/* 🐾 Busca com o campo FIXO no topo (layout="fill"): a busca não rola
-            junto com os produtos. Abaixo dela, uma área de scroll própria —
-            resultados durante a busca, ou "Comprar de novo" + lojas parceiras
-            quando não há busca ativa. */}
-        <AffiliateCatalogSearch
-          petId={currentPet.pet_id}
-          layout="fill"
-          className="min-h-0 flex-1"
-        >
+        {/* Scrollable content */}
+        <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+          {/* 🐾 Busca — sobe pro topo da tela (era o botão verde "Comprar de
+              novo"). Catálogo Awin; busca por texto ou código de barras. */}
+          <div>
+            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Buscar produto</p>
+            <AffiliateCatalogSearch petId={currentPet.pet_id} />
+          </div>
+
+          {/* Comprar de novo — os produtos ficam sempre visíveis (sem o
+              botão verde recolhível que existia antes). */}
           {reorderCards.length > 0 && (
             <div>
               <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Comprar de novo</p>
@@ -236,13 +218,12 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
           )}
 
           <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
-        </AffiliateCatalogSearch>
 
-        {/* Disclosure fixo — sempre visível, inclusive durante a busca. */}
-        <p className="flex-shrink-0 border-t border-black/[0.06] bg-[#eef0f2]/60 px-5 py-2 text-center text-[10px] leading-snug text-slate-400">
-          Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
-          Disponibilidade, preço e entrega são responsabilidade da loja.
-        </p>
+          <p className="pt-1 text-center text-[10px] leading-relaxed text-slate-400">
+            Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
+            A disponibilidade, preço, pagamento e entrega são de responsabilidade da loja escolhida.
+          </p>
+        </div>
       </div>
     </div>
   );
