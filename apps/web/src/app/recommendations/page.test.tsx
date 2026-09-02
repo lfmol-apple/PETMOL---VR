@@ -13,10 +13,10 @@ describe('/recommendations — public English Amazon Associates page', () => {
     expect(isPublic('/recommendations/')).toBe(true);
   });
 
-  it('is listed in the sitemap (and /guias is not, while it is paused)', async () => {
+  it('is listed in the sitemap (alongside /guias, now that it is reactivated)', async () => {
     const urls = (await sitemap()).map((e) => new URL(e.url).pathname);
     expect(urls).toContain('/recommendations');
-    expect(urls).not.toContain('/guias');
+    expect(urls).toContain('/guias');
   });
 
   it('has English, canonical metadata', () => {

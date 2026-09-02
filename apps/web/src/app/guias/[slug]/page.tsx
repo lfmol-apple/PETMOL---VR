@@ -55,8 +55,7 @@ export async function generateMetadata({ params }: GuidePageProps): Promise<Meta
 }
 
 export default async function GuidePage({ params }: GuidePageProps) {
-  // Guias pausados temporariamente (ver publicCommercePages.ts) — conteúdo
-  // intacto, volta ao reativar a flag.
+  // Guard reversível pela flag (ver publicCommercePages.ts). Hoje ATIVA.
   if (!PUBLIC_GUIDE_DETAIL_PAGE_ENABLED) notFound();
 
   const { slug } = await params;
