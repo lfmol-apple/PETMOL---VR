@@ -1,10 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import { Store } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
 import { showBlockingNotice } from '@/features/interactions/userPromptChannel';
 import { ModalPortal } from '@/components/ModalPortal';
 import { PETMOL_HEADER_BG } from '@/components/ui/sheet';
+import { PetShopsNearbySheet } from '@/components/home/PetShopsNearbySheet';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import type { PetHealthProfile } from '@/lib/petHealth';
 
@@ -109,6 +112,8 @@ export function HomeNavigationModals({
 }: HomeNavigationModalsProps) {
   const { t } = useI18n();
   const petPhotoSrc = resolvePetPhotoUrl(currentPet?.photo);
+  // "PetShops perto de você" saiu da Home e agora vive aqui dentro de Cuidados.
+  const [showPetShopsNearby, setShowPetShopsNearby] = useState(false);
 
   return (
     <ModalPortal>
@@ -152,8 +157,8 @@ export function HomeNavigationModals({
 
       {showHealthOptionsModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn" onClick={onCloseHealthOptionsModal}>
-          <div 
-            className="bg-slate-50 rounded-[32px] shadow-2xl w-full max-w-sm flex flex-col overflow-hidden animate-scaleIn"
+          <div
+            className="bg-slate-50 rounded-[32px] shadow-2xl w-full max-w-sm max-h-[92dvh] flex flex-col overflow-hidden animate-scaleIn"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header Mini-Home — bloco azul PETMOL, mesma linguagem dos sheets do pet */}
@@ -181,8 +186,8 @@ export function HomeNavigationModals({
               </button>
             </div>
 
-            {/* Grid de Cuidados (Mini-Home) */}
-            <div className="p-4 sm:p-6 bg-slate-50">
+            {/* Grid de Cuidados (Mini-Home) — rola se não couber */}
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50">
               <div className="grid grid-cols-2 gap-3 mb-2">
                 {[
                   { icon: '🪱', image: '/vermifugo-produto.webp', label: 'Vermífugo', gradient: 'from-orange-100 to-amber-200 border-amber-300', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
@@ -266,6 +271,23 @@ export function HomeNavigationModals({
                   </button>
                 )})}
               </div>
+
+              {/* PetShops perto de você — busca de estabelecimento no Maps.
+                  Saiu da Home; agora vive aqui dentro de Cuidados. */}
+              <button
+                type="button"
+                onClick={() => setShowPetShopsNearby(true)}
+                className="mt-1 flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 text-left shadow-sm transition-all hover:border-slate-300 hover:shadow-md active:scale-[0.98]"
+              >
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                  <Store className="h-[17px] w-[17px]" strokeWidth={2.2} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-bold text-slate-900">PetShops perto de você</span>
+                  <span className="block text-[11px] text-slate-400">Lojas, banho e tosa e hospedagem</span>
+                </span>
+                <span aria-hidden className="text-slate-300">›</span>
+              </button>
             </div>
 
             {/* Footer */}
@@ -275,6 +297,8 @@ export function HomeNavigationModals({
           </div>
         </div>
       )}
+
+      <PetShopsNearbySheet open={showPetShopsNearby} onClose={() => setShowPetShopsNearby(false)} />
 
       {/* EventTypeModal SILENCIADO: bloco legado de Consultas/Exames removido da UI */}
 
