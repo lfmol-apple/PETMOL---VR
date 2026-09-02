@@ -319,10 +319,10 @@ function BreedPicker({ species, value, onChange }: { species: string; value: str
 
   const select = (breed: string) => { onChange(breed); setOpen(false); };
 
-  const openSheet = () => {
-    setOpen(true);
-    setTimeout(() => searchRef.current?.focus(), 120);
-  };
+  // Abre a folha já mostrando a lista inteira rolável — sem dar foco no
+  // campo de busca (isso abria o teclado e comprimia a lista). O teclado
+  // só sobe quando o tutor toca no campo "Buscar raça…".
+  const openSheet = () => setOpen(true);
 
   if (!species || species === 'other') return null;
 
