@@ -1,31 +1,71 @@
-import { PRODUCT_COLLECTIONS, type ProductCollection } from '@/features/guides/productCollections';
+import Link from 'next/link';
+import { headers } from 'next/headers';
+import { PRODUCT_COLLECTIONS, type ProductCollection, type ProductPick } from '@/features/guides/productCollections';
+import { getGuideBySlug } from '@/features/guides';
+import { isNativeAppUserAgent } from '@/lib/nativeApp';
+import { AffiliateDisclosure } from './AffiliateDisclosure';
 
 /**
  * "Produtos selecionados pelo PETMOL" — seção editorial dos Guias.
  *
- * FASE 1: cada núcleo é um bloco editorial com "Seleções em preparação".
- * Não renderiza produto, link, preço, rating nem badge — porque ainda não
- * existem. Quando a Fase 2 preencher `collection.items`, esta seção passa a
- * listar os produtos; até lá, mostra o placeholder.
+ * Web: lista os produtos como cards editoriais com um CTA discreto "Ver na
+ * Amazon" que abre o link de afiliado do usuário (`affiliateUrl`, verbatim)
+ * em nova aba. Sem preço, rating, review ou desconto.
+ *
+ * App nativo: os cards comerciais (links de afiliado Amazon) NÃO são
+ * renderizados — regras da Amazon Associates para aplicativos + as
+ * proteções web-only já existentes de /recommendations. O conteúdo
+ * editorial dos guias continua aparecendo normalmente; só esta seção some.
  */
-function CollectionCard({ collection }: { collection: ProductCollection }) {
+function ProductCardItem({ item }: { item: ProductPick }) {
+  const relatedGuide = item.relatedGuideSlug ? getGuideBySlug(item.relatedGuideSlug) : undefined;
+  return (
+    <li className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4">
+      <p className="text-[14px] font-bold leading-snug text-slate-900">{item.name}</p>
+      <p className="mt-1 text-[13px] leading-snug text-slate-500">{item.editorialNote}</p>
+      {relatedGuide && (
+        <Link
+          href={`/guias/${relatedGuide.slug}`}
+          className="mt-2 text-[12px] font-semibold text-blue-600 hover:underline"
+        >
+          Guia relacionado: {relatedGuide.title}
+        </Link>
+      )}
+      <a
+        href={item.affiliateUrl}
+        target="_blank"
+        rel="sponsored nofollow noopener noreferrer"
+        className="mt-3 inline-flex w-fit items-center gap-1 rounded-xl border border-[#0056D2]/20 bg-blue-50 px-3.5 py-2 text-[13px] font-bold text-[#0056D2] transition-colors hover:bg-blue-100"
+      >
+        Ver na Amazon
+        <span aria-hidden>→</span>
+      </a>
+    </li>
+  );
+}
+
+function CollectionBlock({ collection }: { collection: ProductCollection }) {
   const hasItems = collection.items.length > 0;
   return (
-    <div className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5">
-      <div className="flex items-center gap-2">
-        <span aria-hidden className="text-[18px]">
-          {collection.icon}
-        </span>
-        <h3 className="text-[15px] font-black text-slate-900">{collection.label}</h3>
+    <div>
+      <div className="flex items-baseline gap-2">
+        <h3 className="text-[16px] font-black text-slate-900">
+          <span aria-hidden className="mr-1.5">
+            {collection.icon}
+          </span>
+          {collection.label}
+        </h3>
+        {hasItems && (
+          <span className="text-[12px] text-slate-400">
+            {collection.items.length} {collection.items.length === 1 ? 'item' : 'itens'}
+          </span>
+        )}
       </div>
-      <p className="mt-1.5 text-[13px] leading-snug text-slate-500">{collection.description}</p>
+      <p className="mt-1 text-[13px] text-slate-500">{collection.description}</p>
       {hasItems ? (
-        <ul className="mt-3 space-y-1.5">
+        <ul className="mt-3 grid gap-3 sm:grid-cols-2">
           {collection.items.map((item) => (
-            <li key={item.name} className="text-[13px] font-semibold text-slate-800">
-              {item.name}
-              <span className="block text-[12px] font-normal text-slate-500">{item.editorialNote}</span>
-            </li>
+            <ProductCardItem key={item.asin} item={item} />
           ))}
         </ul>
       ) : (
@@ -37,7 +77,14 @@ function CollectionCard({ collection }: { collection: ProductCollection }) {
   );
 }
 
-export function ProductSelectionSection() {
+export async function ProductSelectionSection() {
+  // App nativo: não renderiza a área comercial (ver comentário no topo).
+  const isNativeApp = isNativeAppUserAgent((await headers()).get('user-agent'));
+  if (isNativeApp) return null;
+
+  const collections = PRODUCT_COLLECTIONS.filter((c) => c.items.length > 0);
+  if (collections.length === 0) return null;
+
   return (
     <section aria-labelledby="produtos-selecionados" className="mt-12">
       <h2
@@ -51,14 +98,14 @@ export function ProductSelectionSection() {
         As recomendações são organizadas por necessidade e aparecem junto ao conteúdo editorial
         relacionado.
       </p>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {PRODUCT_COLLECTIONS.map((collection) => (
-          <CollectionCard key={collection.id} collection={collection} />
+      <div className="mt-3">
+        <AffiliateDisclosure variant="compact" />
+      </div>
+      <div className="mt-6 space-y-8">
+        {collections.map((collection) => (
+          <CollectionBlock key={collection.id} collection={collection} />
         ))}
       </div>
-      <p className="mt-4 text-[12px] text-slate-400">
-        Em breve: recomendações selecionadas pelo PETMOL, com um resumo editorial de cada item.
-      </p>
     </section>
   );
 }

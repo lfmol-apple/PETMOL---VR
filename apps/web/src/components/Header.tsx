@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLogout } from '@/hooks/useLogout';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { ContentMenu } from '@/components/ContentMenu';
 
 export function Header() {
   const { t } = useI18n();
@@ -59,17 +60,8 @@ export function Header() {
             showLogo ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
           }`} style={{ transitionDelay: '200ms' }}>
 
-            {/* Central editorial PETMOL (cães e gatos) — pública, web e app */}
-            <Link
-              href="/guias"
-              className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-sm font-black transition-all active:scale-95 ${
-                pathname.startsWith('/guias')
-                  ? 'text-[#0056D2] bg-blue-100 border border-[#0056D2]/25'
-                  : 'text-[#0056D2] bg-blue-50 border border-[#0056D2]/15 hover:bg-blue-100'
-              }`}
-            >
-              <span aria-hidden>🐾</span> Guias
-            </Link>
+            {/* Menu de conteúdo (Guias / Recommendations) */}
+            <ContentMenu />
 
             {/* User Auth */}
             {userLabel ? (
@@ -117,18 +109,8 @@ export function Header() {
             showLogo ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
           }`} style={{ transitionDelay: '200ms' }}>
 
-            <Link
-              href="/guias"
-              aria-label="Guias"
-              title="Guias"
-              className={`inline-flex flex-shrink-0 items-center gap-1 h-9 px-2.5 rounded-xl text-[13px] font-black transition-all active:scale-95 ${
-                pathname.startsWith('/guias')
-                  ? 'text-[#0056D2] bg-blue-100 border border-[#0056D2]/25'
-                  : 'text-[#0056D2] bg-blue-50 border border-[#0056D2]/15'
-              }`}
-            >
-              <span aria-hidden>🐾</span> Guias
-            </Link>
+            {/* Menu de conteúdo (Guias / Recommendations) */}
+            <ContentMenu />
 
             {/* Mobile User Auth */}
             {userLabel ? (
