@@ -116,15 +116,14 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
 
     resolvingGtinsRef.current.add(gtin);
     setOffersByGtin((prev) => ({ ...prev, [gtin]: 'loading' }));
-    // Passa pelo commerce engine de verdade (GET /commerce/offers). Desde
-    // 29/08/2026 a Cobasi só monetiza via busca ao vivo na VTEX
-    // (CobasiProvider), nunca por GTIN puro via Awin (AWIN_SELLABLE_MERCHANTS
-    // vazio — ver awin_advertisers.py) — sem um texto de busca aqui, a Cobasi
-    // nunca aparecia no "Escolha a loja" mesmo quando o próprio card veio com
-    // preço Cobasi do catálogo Awin. título+marca do resultado já buscado é
-    // texto suficiente pra CobasiProvider re-resolver o mesmo produto.
-    const searchQuery = [item.brand, item.title].filter(Boolean).join(' ').trim();
-    fetchCommerceOffers(searchQuery, undefined, gtin)
+    // UM critério: SÓ o GTIN do resultado. O texto (marca+título do feed)
+    // fazia o /commerce/offers re-buscar por palavra e casar o SKU errado
+    // entre variantes do mesmo produto (ex: coleira 48cm x 65cm). O motivo
+    // original de mandar o texto — "a Cobasi não aparecia sem ele" (#98,
+    // 29/08) — deixou de valer depois do catálogo mestre (#156): com o GTIN
+    // a Cobasi já resolve pelo feed enriquecido. Identidade exata, sem
+    // ambiguidade de tamanho.
+    fetchCommerceOffers('', undefined, gtin)
       .then((offers) => setOffersByGtin((prev) => ({ ...prev, [gtin]: offers })))
       .catch(() => setOffersByGtin((prev) => ({ ...prev, [gtin]: 'error' })))
       .finally(() => {
