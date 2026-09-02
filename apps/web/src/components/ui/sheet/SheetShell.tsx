@@ -28,7 +28,7 @@ const TONE_BG: Record<Tone, string> = {
   glass: 'bg-[#f5f6f8]/82 backdrop-blur-2xl',
   // vidro bem translúcido — a tela de baixo aparece borrada e levemente
   // ofuscada através do painel (sheets pequenos, corpo com cards próprios).
-  glassSheer: 'bg-white/20 backdrop-blur-2xl',
+  glassSheer: 'bg-white/[0.12] backdrop-blur-2xl',
 };
 
 export const SHEET_TONE_RING_OFFSET: Record<Tone, string> = {
