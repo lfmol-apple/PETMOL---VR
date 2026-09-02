@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
 import { petO } from '@/lib/petGender';
@@ -48,6 +48,23 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   // Mantém a sheet colada ao viewport visível quando o teclado abre (busca) —
   // sem isso o campo de busca fica atrás do teclado no iOS.
   const kbViewportRef = useKeyboardSheetViewport(open);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  // Ao focar a busca, o teclado sobe e a sheet passa a caber só na metade
+  // visível (maxHeight min(...,100%)). O iOS ainda dispara um "ghost click"
+  // ~300ms depois, na coordenada original do toque — que agora aponta pro
+  // backdrop → a sheet fechava sozinha. Ignora o backdrop logo após um foco
+  // dentro da sheet; com um campo focado, só fecha o teclado.
+  const lastFocusInsideAt = useRef(0);
+
+  function handleBackdropClick() {
+    if (Date.now() - lastFocusInsideAt.current < 800) return;
+    const active = typeof document !== 'undefined' ? document.activeElement : null;
+    if (active instanceof HTMLElement && sheetRef.current?.contains(active)) {
+      active.blur();
+      return;
+    }
+    onClose();
+  }
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
 
@@ -116,14 +133,16 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
       ref={kbViewportRef}
       className="fixed inset-x-0 top-0 z-50 flex items-end justify-center sm:px-4"
       style={{ height: '100dvh' }}
-      onClick={onClose}
+      onClick={handleBackdropClick}
     >
       <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-2xl" />
 
       <div
+        ref={sheetRef}
         className="relative isolate flex w-full max-w-md flex-col overflow-hidden rounded-t-[28px] bg-[#f5f6f8]/82 shadow-[0_-8px_60px_-6px_rgba(15,23,42,0.45)] ring-1 ring-white/40 backdrop-blur-2xl sm:mb-4 sm:rounded-[28px]"
-        style={{ maxHeight: '88dvh' }}
+        style={{ maxHeight: 'min(88dvh, 100%)' }}
         onClick={(e) => e.stopPropagation()}
+        onFocusCapture={() => { lastFocusInsideAt.current = Date.now(); }}
       >
         {/* Cabeçalho petmol compartilhado — mesma variante usada nos demais
             sheets do pet (SheetHeader tone="petmol"). */}
