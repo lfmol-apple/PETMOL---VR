@@ -58,10 +58,19 @@ def _notify_inbox(
     if not inbox:
         return
 
+    sender_email = (user_email or "").strip()
     who_name = (user_name or "").strip() or "Tutor"
-    who_email = (user_email or "").strip() or "(sem login)"
+    who_email = sender_email or "(sem login)"
     label = _CATEGORY_LABEL.get(category, category)
-    subject = f"[Fale com o Petmol] {label} — {who_name}"
+    # E-mail do tutor vai no ASSUNTO e no corpo — nunca no header Reply-To.
+    # Reply-To apontando pra um endereço @gmail.com fazia a mensagem cair no
+    # spam / ser tratada como auto-enviada quando o tutor era o próprio dono
+    # da caixa (admin). "Claude manda anônimo e chega; usuário manda logado
+    # e não chega" — a única diferença era esse header.
+    subject = (
+        f"[Fale com o Petmol] {label} — {who_name}"
+        + (f" <{sender_email}>" if sender_email else "")
+    )
     meta = (
         f"Categoria: {label}\n"
         f"De: {who_name} <{who_email}>\n"
@@ -82,11 +91,14 @@ def _notify_inbox(
         f'border-radius:10px;padding:12px 14px">{escape(message)}</div>'
         '</div>'
     )
-    reply_to = (user_email or "").strip() or None
     try:
-        send_mail(to=inbox, subject=subject, body_text=body_text, body_html=body_html, reply_to=reply_to)
+        ok = send_mail(to=inbox, subject=subject, body_text=body_text, body_html=body_html)
+        if ok:
+            logger.info("support: notificação entregue em %s (registro %s)", inbox, entry_id)
+        else:
+            logger.warning("support: notificação NÃO entregue em %s (registro %s) — ver mailer", inbox, entry_id)
     except Exception as exc:  # pragma: no cover - defensivo
-        logger.warning("support: notificação por e-mail falhou: %s", exc)
+        logger.warning("support: notificação por e-mail falhou (registro %s): %s", entry_id, exc)
 
 
 def _optional_user(
