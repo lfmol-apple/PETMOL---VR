@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Search } from 'lucide-react';
 import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
 import { trackClick } from '@/lib/analytics/click';
@@ -32,22 +32,6 @@ interface AffiliateCatalogSearchProps {
   petId: string;
   initialQuery?: string;
   merchantFilter?: HomeShoppingPartnerId;
-  /**
-   * Chamado quando a busca entra/sai do "modo ativo" (campo focado ou com
-   * texto).
-   */
-  onActiveChange?: (active: boolean) => void;
-  /**
-   * 'inline' (padrão): campo + resultados no fluxo normal, para uso dentro
-   * de sheets que já têm o próprio scroll (Vacina/Vermífugo/Medicação/Ração).
-   * 'fill': o componente vira uma coluna flex que preenche o espaço do pai —
-   * campo de busca FIXO no topo (não rola) e uma área de scroll própria
-   * abaixo com os resultados; quando não há busca ativa, essa área mostra
-   * `children` (ex.: "Comprar de novo" + lojas parceiras da Loja do pet).
-   */
-  layout?: 'inline' | 'fill';
-  className?: string;
-  children?: ReactNode;
 }
 
 type ResolvedOffers = CommerceOffer[] | 'loading' | 'error';
@@ -73,9 +57,8 @@ type BarcodeLookupState = 'idle' | 'loading' | 'done' | 'not_found' | 'error';
 // URL web final do produto com `awc`; isso evita o OneLink abrir a home/app
 // da Cobasi em vez do produto.
 
-export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilter, onActiveChange, layout = 'inline', className, children }: AffiliateCatalogSearchProps) {
+export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilter }: AffiliateCatalogSearchProps) {
   const [query, setQuery] = useState(initialQuery);
-  const [focused, setFocused] = useState(false);
   // Escanear/código de barras: ocultos por enquanto (feedback do tutor —
   // deixar só a busca por texto, maior e mais direta). Estado e handlers
   // continuam aqui prontos pra reativar rápido depois, só a UI some.
@@ -98,15 +81,10 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
   const trimmedQuery = query.trim();
   const activeMerchantFilter = merchantFilter ?? undefined;
   const visibleResults = results;
-  const searchActive = focused || trimmedQuery.length >= 2;
 
   useEffect(() => {
     setQuery(initialQuery);
   }, [initialQuery, merchantFilter]);
-
-  useEffect(() => {
-    onActiveChange?.(searchActive);
-  }, [searchActive, onActiveChange]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -182,7 +160,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
     // Não resolva lojas para todos os 50 resultados de uma vez: no celular
     // isso deixava vários cards presos em "Buscando". Prefetch curto para
     // os primeiros resultados; os demais carregam sob demanda no toque.
-    results.slice(0, 8).forEach((item) => loadStoresForGtin(item));
+    results.slice(0, 6).forEach((item) => loadStoresForGtin(item));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results]);
 
@@ -290,10 +268,17 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
     );
   }
 
-  // Campo de busca extraído — reaproveitado nos dois layouts (inline / fill).
-  // Lupa em flex (não absoluta) — nunca encavala com o texto digitado.
-  const searchField = (
-    <label className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white pl-4 pr-3 shadow-[0_4px_16px_-6px_rgba(15,23,42,0.18)] transition-all duration-150 focus-within:border-emerald-400 focus-within:ring-4 focus-within:ring-emerald-500/10">
+  return (
+    <div>
+      {/* Escanear código / código de barras manual: ocultos por enquanto
+          (feedback do tutor) — só a busca por texto, maior e direta. */}
+      {/* Campo de busca — fica SEMPRE no topo (sticky) e por cima dos
+          resultados enquanto o tutor digita: -mx-5/px-5 sangra até as bordas
+          da sheet, blur + hairline dão a separação premium. */}
+      <div className="sticky top-0 z-30 -mx-5 border-b border-black/[0.06] bg-[#fbfaf7]/90 px-5 pb-2.5 pt-2 backdrop-blur-2xl">
+        {/* Lupa em flex (não absoluta) — nunca encavala com o texto digitado,
+            mesmo no iOS quando o campo rola o conteúdo. */}
+        <label className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white pl-4 pr-3 shadow-[0_4px_16px_-6px_rgba(15,23,42,0.18)] transition-all duration-150 focus-within:border-emerald-400 focus-within:ring-4 focus-within:ring-emerald-500/10">
           <Search className="h-[18px] w-[18px] flex-shrink-0 text-slate-400" strokeWidth={2.2} />
           <input
             ref={searchInputRef}
@@ -302,37 +287,33 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
             onChange={(e) => setQuery(e.target.value)}
             enterKeyHint="search"
             onFocus={(e) => {
-              setFocused(true);
               // font-size >= 16px evita o zoom automático do Safari iOS. O
               // campo é sticky, então basta trazer o topo dele pra vista —
               // block:'start' (não 'center') mantém o que se digita no alto.
-              window.setTimeout(() => e.target.scrollIntoView?.({ block: 'start', behavior: 'smooth' }), 200);
+              window.setTimeout(() => e.target.scrollIntoView({ block: 'start', behavior: 'smooth' }), 200);
             }}
-            onBlur={() => setFocused(false)}
             placeholder="Buscar produto..."
             className="min-w-0 flex-1 border-0 bg-transparent py-3.5 text-[16px] font-medium text-slate-900 outline-none placeholder:text-slate-400"
           />
         </label>
-  );
+      </div>
 
-  const scanner = scannerOpen ? (
-    <ProductDetectionSheetGold
-      petId={petId}
-      defaultMode="scan"
-      onClose={() => setScannerOpen(false)}
-      onProductConfirmed={(product) => {
-        setScannerOpen(false);
-        if (product.barcode) {
-          void resolveBarcode(product.barcode);
-        } else if (product.name) {
-          setQuery(product.name);
-        }
-      }}
-    />
-  ) : null;
+      {scannerOpen && (
+        <ProductDetectionSheetGold
+          petId={petId}
+          defaultMode="scan"
+          onClose={() => setScannerOpen(false)}
+          onProductConfirmed={(product) => {
+            setScannerOpen(false);
+            if (product.barcode) {
+              void resolveBarcode(product.barcode);
+            } else if (product.name) {
+              setQuery(product.name);
+            }
+          }}
+        />
+      )}
 
-  const statusAndResults = (
-    <>
       {loading && (
         <p className="text-[12px] text-gray-400 mt-2 px-1">Buscando...</p>
       )}
@@ -358,14 +339,8 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
             const unavailable = !loadingStores && !storeLoadError && offers.length === 0 && !hasPetz;
             const expectedStoreCount = Math.max(offers.length + (hasPetz ? 1 : 0), item.offer_count || 0);
             const canOpen = expectedStoreCount > 0 || hasPetz || loadingStores;
-            // Assim que as ofertas resolvem, Cobasi/Shopee aparecem direto no
-            // card — sem precisar tocar em "🛒 Lojas" (feedback do tutor).
-            const storesResolved = Array.isArray(resolved);
-            const inlineStores = storesResolved && (offers.length > 0 || hasPetz);
-            const showStores = inlineStores || (choosingStore && canOpen);
-            const canTapToExpand = canOpen && !inlineStores;
             const handleResultTap = () => {
-              if (!canTapToExpand) return;
+              if (!canOpen) return;
               setStoreChoicesForGtin(choosingStore ? null : item.gtin);
               if (!Array.isArray(resolved)) loadStoresForGtin(item);
             };
@@ -378,11 +353,11 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
             return (
               <div
                 key={item.gtin}
-                role={canTapToExpand ? 'button' : undefined}
-                tabIndex={canTapToExpand ? 0 : undefined}
-                onClick={canTapToExpand ? handleResultTap : undefined}
-                onKeyDown={canTapToExpand ? handleResultKeyDown : undefined}
-                className={`p-3 bg-white rounded-2xl ring-1 ring-black/5 shadow-[0_4px_16px_-8px_rgba(15,23,42,0.18)] transition-all ${canTapToExpand ? 'cursor-pointer hover:ring-emerald-200 active:scale-[0.99]' : ''}`}
+                role={canOpen ? 'button' : undefined}
+                tabIndex={canOpen ? 0 : undefined}
+                onClick={canOpen ? handleResultTap : undefined}
+                onKeyDown={canOpen ? handleResultKeyDown : undefined}
+                className={`p-3 bg-white rounded-2xl ring-1 ring-black/5 shadow-[0_4px_16px_-8px_rgba(15,23,42,0.18)] transition-all ${canOpen ? 'cursor-pointer hover:ring-emerald-200 active:scale-[0.99]' : ''}`}
               >
                 <div className="flex items-center gap-3.5">
                   <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-50 border border-gray-100 flex-shrink-0 flex items-center justify-center">
@@ -412,11 +387,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                     )}
                   </div>
 
-                  {inlineStores ? (
-                    <span className="flex-shrink-0 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold px-3 py-1.5">
-                      {offers.length + (hasPetz ? 1 : 0)} loja{offers.length + (hasPetz ? 1 : 0) > 1 ? 's' : ''}
-                    </span>
-                  ) : canOpen ? (
+                  {canOpen ? (
                     <button
                       type="button"
                       onClick={(event) => {
@@ -438,7 +409,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                   )}
                 </div>
 
-                {showStores && (
+                {choosingStore && canOpen && (
                   <div className="mt-2.5 pt-2.5 border-t border-gray-100 space-y-1.5">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide px-0.5">Escolha a loja</p>
                     {loadingStores && (
@@ -527,47 +498,6 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
           })}
         </div>
       )}
-    </>
-  );
-
-  // Layout 'fill' (Loja do pet): coluna flex que preenche o pai. Campo de
-  // busca numa banda fixa que NUNCA rola; abaixo, uma área de scroll própria
-  // com os resultados (durante a busca) ou `children` (Comprar de novo +
-  // lojas parceiras) quando não há busca ativa.
-  if (layout === 'fill') {
-    return (
-      <div className={`flex min-h-0 flex-col ${className ?? ''}`}>
-        <div className="flex-shrink-0 border-b border-black/[0.06] bg-[#eef0f2]/70 px-5 pb-3 pt-1 backdrop-blur-xl">
-          {searchField}
-        </div>
-        {scanner}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-3.5">
-          {searchActive ? (
-            <>
-              {statusAndResults}
-              {!loading && trimmedQuery.length < 2 && (
-                <p className="px-1 pt-1 text-[12px] text-slate-400">Digite o nome ou a marca do produto.</p>
-              )}
-            </>
-          ) : (
-            <div className="space-y-5">{children}</div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Layout 'inline' (Vacina / Vermífugo / Medicação / Ração): campo sticky +
-  // resultados no fluxo do scroll da sheet hospedeira.
-  return (
-    <div className={className}>
-      {/* -mx-5/px-5 sangra até as bordas da sheet; blur + hairline dão a
-          separação premium enquanto o tutor digita. */}
-      <div className="sticky top-0 z-30 -mx-5 border-b border-black/[0.06] bg-[#fbfaf7]/90 px-5 pb-2.5 pt-2 backdrop-blur-2xl">
-        {searchField}
-      </div>
-      {scanner}
-      {statusAndResults}
     </div>
   );
 }
