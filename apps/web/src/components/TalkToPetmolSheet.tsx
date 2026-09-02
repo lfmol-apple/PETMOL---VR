@@ -78,11 +78,12 @@ export function TalkToPetmolSheet({ open, onClose, source = 'home' }: Props) {
   return (
     <SheetShell open onClose={handleClose} tone="grey" variant="center" size="sm" z={80}>
       <SheetHeader
-        tone="grey"
+        tone="petmol"
+        withHandle
         title="Fale com o Petmol"
         subtitle={done ? 'Mensagem enviada' : 'Sugestão, elogio ou problema'}
         media={
-          <SheetIcon tone={done ? 'emerald' : 'blue'}>
+          <SheetIcon tone={done ? 'emerald' : 'onPetmol'}>
             {done ? <Check className="h-5 w-5" strokeWidth={2.5} /> : <MessageCircleHeart className="h-5 w-5" strokeWidth={2} />}
           </SheetIcon>
         }

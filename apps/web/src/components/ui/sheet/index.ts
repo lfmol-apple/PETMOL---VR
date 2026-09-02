@@ -5,4 +5,5 @@ export {
   SheetIcon,
   SheetChip,
   SheetSectionLabel,
+  PETMOL_HEADER_BG,
 } from './SheetHeader';

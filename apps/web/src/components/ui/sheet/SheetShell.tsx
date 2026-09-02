@@ -15,7 +15,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { ModalPortal } from '@/components/ModalPortal';
 
-type Tone = 'white' | 'cream' | 'grey' | 'glass';
+type Tone = 'white' | 'cream' | 'grey' | 'glass' | 'glassSheer';
 type Size = 'sm' | 'md' | 'lg';
 type Variant = 'bottom' | 'center';
 
@@ -26,6 +26,9 @@ const TONE_BG: Record<Tone, string> = {
   // vidro fosco — mesmo efeito da Loja do pet (fundo da tela vira uma
   // sombra borrada atrás do painel).
   glass: 'bg-[#f5f6f8]/82 backdrop-blur-2xl',
+  // vidro bem translúcido — a tela de baixo aparece borrada e levemente
+  // ofuscada através do painel (sheets pequenos, corpo com cards próprios).
+  glassSheer: 'bg-white/[0.12] backdrop-blur-2xl',
 };
 
 export const SHEET_TONE_RING_OFFSET: Record<Tone, string> = {
@@ -33,6 +36,7 @@ export const SHEET_TONE_RING_OFFSET: Record<Tone, string> = {
   cream: 'focus-visible:ring-offset-[#fbfaf7]',
   grey: 'focus-visible:ring-offset-[#f2f2f7]',
   glass: 'focus-visible:ring-offset-[#f5f6f8]',
+  glassSheer: 'focus-visible:ring-offset-white',
 };
 
 const SIZE_MAX: Record<Size, string> = {

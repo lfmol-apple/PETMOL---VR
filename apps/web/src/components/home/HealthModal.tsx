@@ -25,6 +25,7 @@ import type {
 } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
 import { ModalPortal } from '@/components/ModalPortal';
+import { PETMOL_HEADER_BG } from '@/components/ui/sheet';
 type VaccineCardOcrRecord = {
   tipo_vacina?: string | null; nome_comercial: string | null;
   data_aplicacao: string | null; data_revacina: string | null;
@@ -288,19 +289,10 @@ export function HealthModal({
   return (
     <ModalPortal>
     <>
-        <div className="fixed inset-0 bg-slate-900/55 backdrop-blur-md flex items-center justify-center sm:p-4 z-50 animate-fadeIn">
+        <div className="fixed inset-0 bg-slate-950/55 backdrop-blur-2xl flex items-center justify-center sm:p-4 z-50 animate-fadeIn">
           <div className="bg-slate-50 rounded-[28px] shadow-premium w-full max-w-3xl max-h-[100dvh] sm:max-h-[92dvh] overflow-hidden flex flex-col animate-scaleIn border border-slate-200/50">
-            {/* Header do Modal - Design Clean e Elegante */}
-            <div className="sticky top-0 z-50 shadow-sm bg-white/90 backdrop-blur-xl border-b border-slate-100">
-              {/* Borda Colorida Superior - dinâmica por modo */}
-              <div className={`absolute top-0 left-0 right-0 h-1 ${
-                healthModalMode === 'grooming' ? 'bg-emerald-500' :
-                healthModalMode === 'food' ? 'bg-amber-500' :
-                healthModalMode === 'health' && healthActiveTab === 'parasites' ? 'bg-orange-500' :
-                healthModalMode === 'health' && healthActiveTab === 'medication' ? 'bg-purple-500' :
-                'bg-blue-500'
-              }`}></div>
-              
+            {/* Header do Modal — bloco azul PETMOL, mesma linguagem dos sheets do pet */}
+            <div className={`sticky top-0 z-50 ${PETMOL_HEADER_BG} shadow-[0_6px_20px_-10px_rgba(0,66,126,0.7)]`}>
               {/* Conteúdo do Header */}
               <div className="relative">
                 {/* Barra Superior Minimalista */}
@@ -310,18 +302,18 @@ export function HealthModal({
                     {healthModalMode === 'health' && (
                       <button
                         onClick={handleBack}
-                        className="group bg-gray-100 hover:bg-gray-200 rounded-2xl w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center flex-shrink-0 transition-all duration-200 active:scale-95 border border-gray-200"
+                        className="group flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-white/15 text-white transition-all duration-200 hover:bg-white/25 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0056D2] sm:h-10 sm:w-10"
                         aria-label="Voltar"
                       >
-                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
                         </svg>
                       </button>
                     )}
                     {/* Avatar Grande do Pet */}
-                    <div className="relative group flex-shrink-0 cursor-pointer">
-                      <div className="absolute -inset-0.5 bg-gray-200/50 rounded-3xl blur-md group-hover:bg-gray-300/60 transition-all duration-300"></div>
-                      <div className="relative rounded-2xl p-0.5 overflow-hidden w-10 h-10 sm:w-14 sm:h-14 group-hover:shadow-lg transition-all duration-300 bg-white shadow-sm ring-1 ring-slate-100/50">
+                    <div className="relative group flex-shrink-0">
+                      <div className="absolute -inset-0.5 bg-white/20 rounded-3xl blur-md transition-all duration-300"></div>
+                      <div className="relative rounded-2xl p-0.5 overflow-hidden w-10 h-10 sm:w-14 sm:h-14 transition-all duration-300 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.18)] ring-2 ring-white/70">
                         {currentPet?.photo ? (
                           <div className="relative w-full h-full rounded-xl overflow-hidden">
                             <img
@@ -356,10 +348,10 @@ export function HealthModal({
                     </div>
                     {/* Nome do Pet */}
                     <div className="min-w-0 flex-1">
-                      <h2 className="text-base sm:text-xl font-black text-gray-900 truncate mb-0.5 sm:mb-1">
+                      <h2 className="text-[17px] sm:text-xl font-black text-white truncate mb-0.5 tracking-[-0.01em]">
                         {currentPet?.pet_name}
                       </h2>
-                      <p className="text-gray-600 text-xs sm:text-base font-medium">
+                      <p className="text-white/75 text-[12px] sm:text-[13px] font-semibold uppercase tracking-[0.1em] leading-tight truncate">
                         {healthModalMode === 'grooming' ? t('health.grooming') :
                          healthModalMode === 'food' ? t('home.food.title') :
                          healthModalMode === 'health' && healthActiveTab === 'vaccines' ? '💉 Vacinas' :
@@ -375,10 +367,10 @@ export function HealthModal({
                     {currentPet && (
                       <button
                         onClick={() => setShowShareOverlay(v => !v)}
-                        className={`group rounded-2xl w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center flex-shrink-0 transition-all duration-200 active:scale-95 border ${showShareOverlay ? 'bg-brand-DEFAULT border-brand-DEFAULT/50' : 'bg-gray-100 hover:bg-gray-200 border-gray-200'}`}
+                        className={`group flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl transition-all duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0056D2] sm:h-10 sm:w-10 ${showShareOverlay ? 'bg-white text-[#0056D2]' : 'bg-white/15 text-white hover:bg-white/25'}`}
                         aria-label="Compartilhar histórico do pet"
                       >
-                        <svg className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors ${showShareOverlay ? 'text-white' : 'text-gray-700'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                         </svg>
                       </button>
@@ -386,7 +378,7 @@ export function HealthModal({
                     {onGoHome && (
                       <button
                         onClick={onGoHome}
-                        className="h-8 px-3 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold hover:bg-blue-100 transition-colors flex-shrink-0"
+                        className="h-8 flex-shrink-0 rounded-full bg-white/15 px-3 text-xs font-semibold text-white transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0056D2]"
                         aria-label="Ir para a home"
                       >
                         Início
@@ -394,10 +386,10 @@ export function HealthModal({
                     )}
                     <button
                       onClick={handleClose}
-                      className="group bg-gray-100 hover:bg-gray-200 rounded-2xl w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center flex-shrink-0 transition-all duration-200 active:scale-95 border border-gray-200"
+                      className="group flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-white/15 text-white transition-all duration-200 hover:bg-white/25 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0056D2] sm:h-10 sm:w-10"
                       aria-label={t('common.close')}
                     >
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700 transform group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white transform group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
@@ -417,24 +409,21 @@ export function HealthModal({
                         }`}
                       >
                         {healthActiveTab === tab.id ? (
-                          <>
-                            <div className="absolute inset-0 bg-white rounded-2xl border border-slate-200"></div>
-                            <div className="absolute inset-0 ring-2 ring-brand-DEFAULT/20 rounded-2xl"></div>
-                          </>
+                          <div className="absolute inset-0 bg-white rounded-2xl shadow-sm"></div>
                         ) : (
-                          <div className="absolute inset-0 bg-slate-100/50 rounded-2xl border border-slate-200/50 group-hover:bg-slate-200/50"></div>
+                          <div className="absolute inset-0 bg-white/10 rounded-2xl border border-white/25 group-hover:bg-white/20"></div>
                         )}
-                        
-                        <span className={`relative text-lg sm:text-xl transition-transform ${healthActiveTab === tab.id ? 'scale-110' : 'grayscale group-hover:grayscale-0'}`}>
+
+                        <span className={`relative text-lg sm:text-xl transition-transform ${healthActiveTab === tab.id ? 'scale-110' : 'grayscale opacity-90 group-hover:grayscale-0'}`}>
                           {tab.icon}
                         </span>
                         <span className={`relative font-bold transition-colors ${
-                          healthActiveTab === tab.id ? 'text-brand-DEFAULT' : 'text-slate-500 group-hover:text-slate-700'
+                          healthActiveTab === tab.id ? 'text-[#0056D2]' : 'text-white/80 group-hover:text-white'
                         }`}>
                           {tab.label}
                         </span>
                         {tab.urgent && (
-                          <span className="relative h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
+                          <span className="relative h-2 w-2 rounded-full bg-rose-400 ring-2 ring-[#0056D2]" />
                         )}
                       </button>
                     ))}

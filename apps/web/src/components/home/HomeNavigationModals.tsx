@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useI18n } from '@/lib/I18nContext';
 import { showBlockingNotice } from '@/features/interactions/userPromptChannel';
 import { ModalPortal } from '@/components/ModalPortal';
+import { PETMOL_HEADER_BG } from '@/components/ui/sheet';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import type { PetHealthProfile } from '@/lib/petHealth';
 
@@ -155,10 +156,10 @@ export function HomeNavigationModals({
             className="bg-slate-50 rounded-[32px] shadow-2xl w-full max-w-sm flex flex-col overflow-hidden animate-scaleIn"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header Mini-Home */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200/60 bg-white/80 backdrop-blur-md">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full overflow-hidden bg-white shadow-sm ring-1 ring-black/5 flex items-center justify-center">
+            {/* Header Mini-Home — bloco azul PETMOL, mesma linguagem dos sheets do pet */}
+            <div className={`flex items-center justify-between px-6 py-5 ${PETMOL_HEADER_BG} shadow-[0_6px_20px_-10px_rgba(0,66,126,0.7)]`}>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 flex-shrink-0 rounded-full overflow-hidden bg-white shadow-[0_2px_10px_rgba(0,0,0,0.18)] ring-2 ring-white/70 flex items-center justify-center">
                   {petPhotoSrc ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={petPhotoSrc} alt={currentPet?.pet_name || 'Pet'} className="w-full h-full object-cover" loading="lazy" />
@@ -166,14 +167,14 @@ export function HomeNavigationModals({
                     <span className="text-xl">{currentPet?.species === 'cat' ? '🐱' : '🐶'}</span>
                   )}
                 </div>
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 leading-tight">Cuidados</h3>
-                  <p className="text-xs text-slate-500 font-medium">{currentPet?.pet_name ? `Cuidando de ${currentPet.pet_name}` : 'Cuidados preventivos'}</p>
+                <div className="min-w-0">
+                  <h3 className="text-[17px] font-black text-white leading-tight tracking-[-0.01em]">Cuidados</h3>
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-white/75 leading-tight truncate">{currentPet?.pet_name ? `Cuidando de ${currentPet.pet_name}` : 'Cuidados preventivos'}</p>
                 </div>
               </div>
-              <button 
-                onClick={onCloseHealthOptionsModal} 
-                className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+              <button
+                onClick={onCloseHealthOptionsModal}
+                className="ml-2 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0056D2]"
                 aria-label="Fechar"
               >
                 ✕
