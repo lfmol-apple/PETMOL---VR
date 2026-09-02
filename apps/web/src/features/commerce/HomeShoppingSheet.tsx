@@ -45,9 +45,6 @@ interface HomeShoppingSheetProps {
 // antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
 export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
-  // Enquanto o tutor está buscando (campo focado ou com texto), a busca fica
-  // fixa no topo e o resto some — só a busca e os resultados abaixo dela.
-  const [searchActive, setSearchActive] = useState(false);
   // Mantém a sheet colada ao viewport visível quando o teclado abre (busca) —
   // sem isso o campo de busca fica atrás do teclado no iOS.
   const kbViewportRef = useKeyboardSheetViewport(open);
@@ -57,7 +54,6 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   useEffect(() => {
     if (!open) {
       setQuickBuyFor(null);
-      setSearchActive(false);
       return;
     }
     void trackClick({ source: 'home', cta_type: 'shop_sheet_view', pet_id: currentPet.pet_id });
@@ -126,7 +122,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
       <div
         className="relative isolate flex w-full max-w-md flex-col overflow-hidden rounded-t-[28px] bg-[#f5f6f8]/82 shadow-[0_-8px_60px_-6px_rgba(15,23,42,0.45)] ring-1 ring-white/40 backdrop-blur-2xl sm:mb-4 sm:rounded-[28px]"
-        style={{ maxHeight: '88dvh' }}
+        style={{ maxHeight: 'min(93dvh, 100%)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabeçalho petmol compartilhado — mesma variante usada nos demais
@@ -146,24 +142,16 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
           onClose={onClose}
         />
 
-        {/* Scrollable content */}
-        <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-          {/* 🐾 Busca — sobe pro topo da tela (era o botão verde "Comprar de
-              novo"). Catálogo Awin; busca por texto ou código de barras.
-              Quando o tutor toca no campo, ele fica fixo no topo (sticky
-              dentro do AffiliateCatalogSearch) e escondemos o rótulo +
-              "Comprar de novo" + lojas parceiras: só os resultados abaixo. */}
-          <div>
-            {!searchActive && (
-              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Buscar produto</p>
-            )}
-            <AffiliateCatalogSearch petId={currentPet.pet_id} onActiveChange={setSearchActive} />
-          </div>
-
-          {/* Comprar de novo — os produtos ficam sempre visíveis (sem o
-              botão verde recolhível que existia antes), exceto durante a
-              busca. */}
-          {!searchActive && reorderCards.length > 0 && (
+        {/* 🐾 Busca com o campo FIXO no topo (layout="fill"): a busca não rola
+            junto com os produtos. Abaixo dela, uma área de scroll própria —
+            resultados durante a busca, ou "Comprar de novo" + lojas parceiras
+            quando não há busca ativa. */}
+        <AffiliateCatalogSearch
+          petId={currentPet.pet_id}
+          layout="fill"
+          className="min-h-0 flex-1"
+        >
+          {reorderCards.length > 0 && (
             <div>
               <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Comprar de novo</p>
               <div className="space-y-2.5">
@@ -227,13 +215,14 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
             </div>
           )}
 
-          {!searchActive && <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />}
+          <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
+        </AffiliateCatalogSearch>
 
-          <p className="pt-1 text-center text-[10px] leading-relaxed text-slate-400">
-            Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
-            A disponibilidade, preço, pagamento e entrega são de responsabilidade da loja escolhida.
-          </p>
-        </div>
+        {/* Disclosure fixo — sempre visível, inclusive durante a busca. */}
+        <p className="flex-shrink-0 border-t border-black/[0.06] bg-[#eef0f2]/60 px-5 py-2 text-center text-[10px] leading-snug text-slate-400">
+          Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
+          Disponibilidade, preço e entrega são responsabilidade da loja.
+        </p>
       </div>
     </div>
   );
