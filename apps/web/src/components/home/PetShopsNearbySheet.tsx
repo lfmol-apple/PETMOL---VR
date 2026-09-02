@@ -1,14 +1,15 @@
 'use client';
 
-import { Building2, ChevronRight, Scissors, Store } from 'lucide-react';
+import { Building2, ChevronRight, Store } from 'lucide-react';
 import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
 
 const MAPS = (q: string) => `https://www.google.com/maps/search/${encodeURIComponent(q)}`;
 
 /**
- * "PetShops perto de você" — busca por PetShop / banho e tosa / hospedagem
- * no Google Maps. Funcionalidade preservada da Home; agora vive dentro da
- * área Cuidados (ver HomeNavigationModals). Sem mudança de lógica.
+ * "PetShops perto de você" — busca por PetShop / hospedagem no Google Maps,
+ * dentro da área Cuidados (ver HomeNavigationModals). "Banho e tosa" saiu
+ * daqui a pedido (o registro de banho/tosa já existe como card próprio em
+ * Cuidados; um petshop pesquisado também atende banho e tosa).
  */
 export function PetShopsNearbySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null;
@@ -26,8 +27,6 @@ export function PetShopsNearbySheet({ open, onClose }: { open: boolean; onClose:
         {[
           { Icon: Store, label: 'PetShops', desc: 'Lojas de produtos e serviços pet', q: 'petshop perto de mim',
             border: 'border-blue-200/70', chip: 'bg-blue-50 text-blue-600 ring-blue-100' },
-          { Icon: Scissors, label: 'Banho e tosa', desc: 'Estética e higiene do pet', q: 'banho e tosa para cães perto de mim',
-            border: 'border-teal-200/70', chip: 'bg-teal-50 text-teal-600 ring-teal-100' },
           { Icon: Building2, label: 'Hotéis e creches', desc: 'Hospedagem e day care', q: 'hotel para pet creche para cachorro perto de mim',
             border: 'border-amber-200/70', chip: 'bg-amber-50 text-amber-600 ring-amber-100' },
         ].map(({ Icon, label, desc, q, border, chip }) => (

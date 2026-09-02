@@ -11,10 +11,12 @@ import type { PetHealthProfile } from '@/lib/petHealth';
 import type { PetCareReminder } from '@/lib/petCareDomain';
 import {
   HOME_SHOPPING_PARTNERS,
+  openHomeShoppingPartner,
   navigateToPartnerUrl,
   resolvePartnerUrl,
   openPetzPartnerStore,
   PETZ_COUPON_CODE,
+  isPartnerVisibleForSearch,
   isPartnerVisibleInStoreArea,
   partnerGenericLinkType,
   type HomeShoppingPartner,
@@ -24,7 +26,9 @@ import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
 import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerOriginLabel, offerPriceLabel, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
 import {
+  buildReorderCards,
   buildPetStoreTitle,
+  QUICK_BUY_PARTNERS,
   type ReorderCard,
 } from './petStoreContent';
 
@@ -39,24 +43,50 @@ interface HomeShoppingSheetProps {
 // disponível) é a seção que importa de verdade — uma tela mais longa com
 // categorias genéricas e promoções não-personalizadas só cansava o tutor
 // antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
-export function HomeShoppingSheet({ open, onClose, currentPet }: HomeShoppingSheetProps) {
+export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
+  const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
   // Mantém a sheet colada ao viewport visível quando o teclado abre (busca) —
   // sem isso o campo de busca fica atrás do teclado no iOS.
   const kbViewportRef = useKeyboardSheetViewport(open);
 
+  const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
+
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setQuickBuyFor(null);
+      return;
+    }
     void trackClick({ source: 'home', cta_type: 'shop_sheet_view', pet_id: currentPet.pet_id });
     void trackClick({ source: 'home', cta_type: 'store_opened', pet_id: currentPet.pet_id });
   }, [open, currentPet.pet_id]);
 
   const visibleStorePartners = useMemo(() => HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea), []);
 
+  const visibleQuickBuyPartners = useMemo(
+    () =>
+      QUICK_BUY_PARTNERS
+        .map((id) => HOME_SHOPPING_PARTNERS.find((p) => p.id === id))
+        .filter((p): p is HomeShoppingPartner => Boolean(p) && isPartnerVisibleForSearch(p as HomeShoppingPartner)),
+    [],
+  );
+
   if (!open) return null;
 
   const petName = currentPet.pet_name;
   const petPhotoSrc = resolvePetPhotoUrl(currentPet.photo);
   const title = buildPetStoreTitle(currentPet);
+
+  function handleQuickBuy(partnerId: HomeShoppingPartnerId, searchQuery: string, ctaType: string, metadata: Record<string, unknown>) {
+    const opened = openHomeShoppingPartner(partnerId, searchQuery);
+    void trackClick({
+      source: 'home',
+      cta_type: ctaType,
+      target: partnerId,
+      link_type: partnerGenericLinkType(partnerId),
+      pet_id: currentPet.pet_id,
+      metadata: { ...metadata, opened },
+    });
+  }
 
   function handleStorePartnerOpen(partner: HomeShoppingPartner) {
     const searchQuery = 'produtos pet';
@@ -113,14 +143,79 @@ export function HomeShoppingSheet({ open, onClose, currentPet }: HomeShoppingShe
         />
 
         {/* Scrollable content */}
-        <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-          {/* 🐾 Buscar produtos — catálogo Awin sincronizado. Multi-loja por
-              natureza (ver AffiliateCatalogSearch.tsx); busca por texto ou
-              código de barras. É a primeira coisa da tela. */}
+        <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+          {/* 🐾 Busca — sobe pro topo da tela (era o botão verde "Comprar de
+              novo"). Catálogo Awin; busca por texto ou código de barras. */}
           <div>
             <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Buscar produto</p>
             <AffiliateCatalogSearch petId={currentPet.pet_id} />
           </div>
+
+          {/* Comprar de novo — os produtos ficam sempre visíveis (sem o
+              botão verde recolhível que existia antes). */}
+          {reorderCards.length > 0 && (
+            <div>
+              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Comprar de novo</p>
+              <div className="space-y-2.5">
+                {reorderCards.map((card) => {
+                  const pickerKey = `reorder:${card.id}`;
+                  return (
+                    <ReorderCardItem
+                      key={card.id}
+                      card={card}
+                      isPickerOpen={quickBuyFor === pickerKey}
+                      visibleQuickBuyPartners={visibleQuickBuyPartners}
+                      onTogglePicker={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
+                      onQuickBuy={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, gtin: card.gtin ?? undefined })}
+                      onDirectBuy={(offer) => {
+                        if (offer.url) navigateToPartnerUrl(offer.url);
+                        void trackClick({
+                          source: 'home',
+                          cta_type: 'shop_reorder_buy_direct',
+                          target: offer.merchant,
+                          link_type: offer.link_type,
+                          pet_id: currentPet.pet_id,
+                          metadata: {
+                            domain: card.domain,
+                            merchant: offer.merchant,
+                            gtin: card.gtin ?? undefined,
+                            price_shown: typeof offer.price === 'number' && !offer.price_is_stale ? offer.price : null,
+                            link_type: offer.link_type,
+                            screen: 'loja',
+                            price_is_stale: Boolean(offer.price_is_stale),
+                          },
+                        });
+                      }}
+                      onPetzBuy={(petzLink) => {
+                        void openPetzPartnerStore({
+                          productUrl: petzLink.direct_product_url,
+                          searchUrl: petzLink.search_url,
+                          productName: card.label,
+                        });
+                        void trackClick({
+                          source: 'home',
+                          cta_type: 'shop_reorder_buy_petz',
+                          target: 'petz',
+                          link_type: 'affiliate_store',
+                          pet_id: currentPet.pet_id,
+                          metadata: {
+                            domain: card.domain,
+                            merchant: 'petz',
+                            monetization_mode: 'coupon_attribution_verified',
+                            destination_type: 'partner_store',
+                            coupon: PETZ_COUPON_CODE,
+                            gtin: card.gtin ?? undefined,
+                            link_type: 'affiliate_store',
+                            screen: 'loja',
+                          },
+                        });
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
 
