@@ -2030,7 +2030,7 @@ export function ProductDetectionSheetGold({
             onClick={() => setStep('manual')}
             className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] font-bold text-slate-700 transition-all active:scale-[0.98]"
           >
-            ⌨️ Tenho o código de barras
+            ⌨️ Digitar o código de barras
           </button>
         )}
       </div>
@@ -2180,7 +2180,7 @@ export function ProductDetectionSheetGold({
               }}
               className="rounded-2xl border border-white/15 bg-white/10 px-2 py-3 text-xs font-semibold text-white"
             >
-              ⌨️ Digitar código
+              ⌨️ Digitar o código de barras
             </button>
             )}
           </div>
@@ -2653,7 +2653,7 @@ export function ProductDetectionSheetGold({
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-blue-100 text-2xl">✏️</div>
             <div className="flex-1">
-              <p className="text-[15px] font-bold text-blue-900">Digitar código de barras</p>
+              <p className="text-[15px] font-bold text-blue-900">Digitar o código de barras</p>
               <p className="mt-0.5 text-xs text-blue-600">Digite o código de barras ou busque por nome</p>
             </div>
             <span className="flex-shrink-0 text-xl text-blue-300">›</span>

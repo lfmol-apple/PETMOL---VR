@@ -75,7 +75,7 @@ export function ProductBarcodeScanner({
             onClick={() => openWithMode('manual')}
             className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] font-bold text-slate-700 active:scale-[0.98] transition-all"
           >
-            ⌨️ Tenho o código
+            ⌨️ Digitar o código de barras
           </button>
         </div>
       </div>
