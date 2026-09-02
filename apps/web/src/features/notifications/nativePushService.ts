@@ -25,13 +25,14 @@ export async function registerNativePush(token: string): Promise<void> {
   try {
     const { PushNotifications } = await import('@capacitor/push-notifications');
 
+    // v1.0: NÃO pedir permissão de push aqui. O envio nativo (APNs/FCM)
+    // ainda não está configurado — abrir um prompt de permissão que nunca
+    // entrega nada é má experiência e, no iOS, some junto com o
+    // UIBackgroundModes removido. Só registramos o token se a permissão
+    // JÁ estiver concedida (ex.: build futuro com push real que fez o
+    // prompt na hora certa). Ver docs/MOBILE_RELEASE_CHECKLIST.md.
     const permStatus = await PushNotifications.checkPermissions();
-    let granted = permStatus.receive === 'granted';
-    if (!granted && permStatus.receive !== 'denied') {
-      const req = await PushNotifications.requestPermissions();
-      granted = req.receive === 'granted';
-    }
-    if (!granted) return;
+    if (permStatus.receive !== 'granted') return;
 
     await PushNotifications.removeAllListeners();
 

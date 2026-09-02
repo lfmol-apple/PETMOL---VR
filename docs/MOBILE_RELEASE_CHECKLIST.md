@@ -7,7 +7,7 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 - [x] Landing page sem promessa de "grátis para sempre" — `apps/web/src/app/page.tsx`, `login/page.tsx`, `home/page.tsx`, `profile/page.tsx` (PR #55, `567a95b`)
 - [x] Termos de Uso cobrindo afiliados/comissão/parceiros/planos futuros — `apps/web/src/app/legal/terms/page.tsx` (PR #55, `263697c`)
 - [x] Política de Privacidade — já cobria o escopo real de dados, pública sem login
-- [x] Exclusão de conta remove dados de todas as tabelas relacionadas (LGPD) — `services/price-service/src/user_auth/router.py` (PR #55, `076246b`)
+- [x] Exclusão de conta remove dados de todas as tabelas relacionadas (LGPD) — `services/price-service/src/user_auth/router.py` (PR #55, `076246b`; ampliado no PR `fix/store-readiness-round1`: +`care_plans`, `notification_pendencies`, `push_delivery_logs`, `product_correction_events`, `product_learning_events`, com guarda `_existing_tables` p/ não quebrar entre schemas prod/sqlite; comentário errado sobre `care_plans` corrigido)
 
 ## IA / vacinas
 
@@ -55,16 +55,17 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 - [x] `@capacitor/push-notifications` instalado e sincronizado (`npx cap sync android`, plugin linkado e compilando — `./gradlew assembleDebug` com tasks `:capacitor-push-notifications:*` reais); registro de token, backend (`NativePushToken`, endpoints `/notifications/native-device`) e frontend (`nativePushService.ts`, wired em `useNotificationPermissionController.ts`) prontos — commit `09b9641` (CI verde)
 - [x] Build de release compilável + AAB gerado — `./gradlew bundleRelease` rodou com sucesso, `app-release.aab` gerado e assinado com um keystore de TESTE (`~/.petmol-mobile-keys/TEST-ONLY-do-not-use-for-real-release.jks`, fora do repo, senha só em env var). **Esse keystore de teste não deve ser usado para a submissão real** — gerar um keystore de produção novo, guardar senha e arquivo com backup seguro (perda = não consegue mais atualizar o app depois do primeiro upload)
 - [x] Ícone adaptativo e splash trocados pela marca PETMOL (gerados via `@capacitor/assets` a partir de `apps/web/public/icons/icon-source.svg`, o mesmo mark já usado no PWA) — build de release re-verificado com os novos assets
-- [ ] Validar permissões declaradas no `AndroidManifest.xml` (câmera, notificações) contra o que o app realmente usa
+- [x] Validar permissões declaradas no `AndroidManifest.xml` contra o uso real (auditoria de release, PR `fix/store-readiness-round1`): `INTERNET`/`POST_NOTIFICATIONS`/`ACCESS_COARSE_LOCATION` OK; **faltava `CAMERA`** — o scanner ao vivo (`ProductDetectionSheet` usa `getUserMedia` no WebView) só cai no fallback de foto/manual sem essa permissão. Adicionada `CAMERA` + `uses-feature camera/autofocus required=false`.
 - [ ] Play Console: Internal Testing track
 
 ## iOS
 
 - [x] Projeto Xcode gerado (`npx cap add ios` não exige Xcode, só build/archive exigem) — mesmo shell Capacitor do Android (`server.url` remoto), bundle id `br.com.petmol.app` herdado automaticamente do `capacitor.config.ts`
 - [x] Usage descriptions de câmera/fotos adicionadas no `Info.plist` (`NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`, `NSPhotoLibraryAddUsageDescription`) — faltavam no template padrão
-- [x] Entitlement de notificação push (`App.entitlements`, `aps-environment=development`) + `UIBackgroundModes: remote-notification` no `Info.plist` — commit `09b9641`. **Não wired ao `project.pbxproj`** (`CODE_SIGN_ENTITLEMENTS`) porque não há Xcode instalado neste Mac pra verificar que o projeto ainda abre depois de editar esse arquivo à mão; é um toggle de um clique ("+ Capability → Push Notifications") a fazer no Xcode junto com o passo abaixo
+- [x] **v1.0 vai SEM push nativo.** `UIBackgroundModes: remote-notification` **removido** do `Info.plist` (PR `fix/store-readiness-round1`) — declarar background mode sem push funcional é risco de rejeição App Store 2.5.4. `nativePushService` agora só registra o token se a permissão JÁ estiver concedida (não abre prompt que não leva a nada). `App.entitlements` (`aps-environment=development`) segue no repo, órfão, pronto pra quando a APNs Auth Key existir. Ao ligar push de verdade: gerar `.p8`, no Xcode "+ Capability → Push Notifications" (conecta `CODE_SIGN_ENTITLEMENTS`), trocar `aps-environment` p/ `production`, restaurar o `UIBackgroundModes` e o prompt de permissão.
 - [ ] **Bloqueado hoje**: Xcode completo não está instalado neste Mac (só Command Line Tools) — `xcodebuild` recusa rodar; requer instalação interativa via App Store com o Apple ID do usuário, não pode ser feito de forma não-interativa. CocoaPods também não está instalado (necessário pra `pod install` antes de abrir o projeto no Xcode)
 - [x] Ícones e launch screen trocados pela marca PETMOL (mesmo processo do Android — `@capacitor/assets`, AppIcon + Splash light/dark)
+- [x] Área Amazon US (`/recommendations`) mantida FORA do app nativo (PR `fix/store-readiness-round1`): `capacitor.config.ts` marca o UA com `PetmolApp`; a rota `/recommendations` dá `notFound()` quando o UA é do app; links "Picks"/"Recommendations" escondidos no Header/Footer/landing/InstitutionalLayout quando `Capacitor.isNativePlatform()`. Web e crawlers inalterados.
 - [ ] Documentar para App Review que o app usa recursos nativos reais do PETMOL (cadastro de pet, scanner, alimentação, saúde, lembretes, medicação, comparação de produtos) — não é apenas um WebView passivo
 - [ ] Build de release compilável + archive — depende do Xcode estar instalado
 - [ ] TestFlight interno

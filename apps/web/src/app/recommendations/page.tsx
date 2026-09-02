@@ -82,6 +82,9 @@ function RecommendationCard({ item }: { item: Recommendation }) {
 }
 
 export default function RecommendationsPage() {
+  // Bloqueio "só web, nunca no app nativo" fica no middleware (rewrite p/ 404
+  // quando o User-Agent é o do app — ver middleware.ts / NATIVE_APP_UA_MARKER).
+  // Aqui a página segue sync (server component simples, prerenderável).
   const categories = getPopulatedCategories();
   const total = RECOMMENDATIONS.length;
 

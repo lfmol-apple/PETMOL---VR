@@ -11,6 +11,10 @@ const config: CapacitorConfig = {
   appId: 'br.com.petmol.app',
   appName: 'PETMOL',
   webDir: 'capacitor-shell',
+  // Marca o User-Agent do WebView para o site distinguir "rodando dentro do
+  // app nativo" de "web/PWA" no servidor (ex.: esconder a área Amazon US
+  // pública, que é só para a web). O front também tem Capacitor.isNativePlatform().
+  appendUserAgent: 'PetmolApp',
   server: {
     url: 'https://www.petmol.com.br',
     cleartext: false,

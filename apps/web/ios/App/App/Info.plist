@@ -5,7 +5,7 @@
   <key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
+	<string>pt-BR</string>
 	<key>CFBundleDisplayName</key>
         <string>PETMOL</string>
 	<key>CFBundleExecutable</key>
@@ -18,10 +18,12 @@
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-	</array>
+	<!-- UIBackgroundModes (remote-notification) removido para a v1.0: o envio
+	     de push nativo (APNs) ainda não está configurado — declarar o
+	     background mode sem usá-lo é risco de rejeição (App Store 2.5.4).
+	     Restaurar junto com a APNs Auth Key + a capability Push no Xcode. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>

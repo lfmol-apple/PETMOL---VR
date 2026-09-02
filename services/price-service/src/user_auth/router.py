@@ -493,8 +493,12 @@ def delete_account(
         raise HTTPException(status_code=400, detail="Senha incorreta")
 
     # Deleta dados relacionados via SQL direto para evitar problemas de relacionamento
-    from sqlalchemy import text
+    from sqlalchemy import inspect as _sa_inspect, text
     uid = str(user.id)
+
+    # Nome de tabela varia entre ambientes (prod Postgres x sqlite de teste);
+    # só executa DELETE nas que existem, em vez de derrubar o endpoint com 500.
+    _existing_tables = set(_sa_inspect(db.get_bind()).get_table_names())
 
     # Arquivos em disco (documentos enviados) nao sao apagados so por remover
     # a linha do banco — sem isso o "direito ao apagamento" (LGPD) nao vale
@@ -512,37 +516,48 @@ def delete_account(
         ).fetchall()
     ]
 
-    # Tabelas com pet_id (ordem importa: filhas antes de pets)
-    # 'care_plans' nao existe no schema real (41 tabelas, nenhuma com esse
-    # nome — confirmado inspecionando Base.metadata.tables) e derrubava esse
-    # endpoint inteiro com 500 antes de chegar em qualquer outra tabela,
-    # inclusive vaccine_records/pet_documents mais abaixo na lista.
+    # Tabelas com pet_id (ordem importa: filhas antes de pets).
     pet_child_tables = [
         'analytics_events',
+        'care_plans',
         'events',
         'feeding_plans',
         'grooming_records',
+        'notification_pendencies',
         'parasite_control_records',
         'pet_document_imports',
         'pet_documents',
+        'product_correction_events',
+        'product_learning_events',
         'rg_public',
         'user_monthly_checkins',
         'vaccine_records',
     ]
     for t in pet_child_tables:
+        if t not in _existing_tables:
+            continue
         db.execute(text(f"DELETE FROM {t} WHERE pet_id IN (SELECT id FROM pets WHERE user_id = :uid)"), {"uid": uid})
 
     # These tables key on user_id directly (not pet_id) and have no FK/cascade
     # to the users table — without this they're left orphaned after deletion:
-    # push subscriptions (device + endpoint), pending reminders, and any Pet
-    # Sumido reports/follows this user created or was helping with.
-    db.execute(text("DELETE FROM push_subscriptions WHERE user_id = :uid"), {"uid": uid})
-    db.execute(text("DELETE FROM native_push_tokens WHERE user_id = :uid"), {"uid": uid})
-    db.execute(text("DELETE FROM reminders WHERE user_id = :uid"), {"uid": uid})
-    db.execute(text("DELETE FROM user_consents WHERE user_id = :uid"), {"uid": uid})
-    db.execute(text("DELETE FROM missing_pets WHERE user_id = :uid"), {"uid": uid})
-    db.execute(text("DELETE FROM missing_pet_followers WHERE finder_user_id = :uid"), {"uid": uid})
-    db.execute(text("DELETE FROM found_reports WHERE finder_user_id = :uid"), {"uid": uid})
+    # push subscriptions (device + endpoint), pending reminders, notificações
+    # pendentes/entregues e qualquer alerta de Pet Sumido que o usuário criou
+    # ou estava ajudando.
+    _user_keyed_deletes = [
+        ("push_subscriptions", "user_id"),
+        ("native_push_tokens", "user_id"),
+        ("push_delivery_logs", "user_id"),
+        ("notification_pendencies", "user_id"),
+        ("reminders", "user_id"),
+        ("user_consents", "user_id"),
+        ("missing_pets", "user_id"),
+        ("missing_pet_followers", "finder_user_id"),
+        ("found_reports", "finder_user_id"),
+    ]
+    for tbl, col in _user_keyed_deletes:
+        if tbl not in _existing_tables:
+            continue
+        db.execute(text(f"DELETE FROM {tbl} WHERE {col} = :uid"), {"uid": uid})
     # support_feedback: anonimizar em vez de apagar — a mensagem em si já é
     # minimizada por design (sem foto/dado de saúde/documento), e continua
     # sendo sinal de produto válido depois que o autor sai; só o vínculo

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { InstitutionalFooterNav } from './InstitutionalFooterNav';
 
 /** Casca visual comum das páginas institucionais públicas (/sobre, /politica-editorial, /transparencia). */
 export function InstitutionalLayout({
@@ -30,20 +31,7 @@ export function InstitutionalLayout({
         <div className="mt-8 space-y-6 text-[15px] leading-relaxed text-slate-700 [&_h2]:pt-2 [&_h2]:text-[18px] [&_h2]:font-black [&_h2]:text-slate-900 [&_ul]:ml-1 [&_ul]:space-y-1.5 [&_a]:font-semibold [&_a]:text-blue-600 [&_a:hover]:underline">
           {children}
         </div>
-        <nav aria-label="Páginas institucionais" className="mt-12 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-200 pt-6 text-[13px]">
-          <Link href="/recommendations" className="font-semibold text-blue-600 hover:underline">
-            Recommendations
-          </Link>
-          <Link href="/sobre" className="font-semibold text-blue-600 hover:underline">
-            Sobre
-          </Link>
-          <Link href="/politica-editorial" className="font-semibold text-blue-600 hover:underline">
-            Política editorial
-          </Link>
-          <Link href="/transparencia" className="font-semibold text-blue-600 hover:underline">
-            Transparência
-          </Link>
-        </nav>
+        <InstitutionalFooterNav />
       </div>
     </div>
   );

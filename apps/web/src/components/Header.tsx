@@ -6,12 +6,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLogout } from '@/hooks/useLogout';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { isNativeAppClient } from '@/lib/nativeApp';
 
 export function Header() {
   const { t } = useI18n();
   const { tutor } = useAuth();
   const { initiateLogout } = useLogout();
   const [showLogo, setShowLogo] = useState(false);
+  // Área "Recommendations" (Amazon US) é só para a web — escondida no app nativo.
+  const [hideAmazonPicks, setHideAmazonPicks] = useState(false);
   const pathname = usePathname();
 
   const userLabel = tutor?.name?.split(' ')[0] || tutor?.email?.split('@')[0] || null;
@@ -25,6 +28,10 @@ export function Header() {
   useEffect(() => {
     const timer = setTimeout(() => setShowLogo(true), 100);
     return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    setHideAmazonPicks(isNativeAppClient());
   }, []);
 
   const handleLogout = () => { initiateLogout(); };
@@ -59,17 +66,19 @@ export function Header() {
             showLogo ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
           }`} style={{ transitionDelay: '200ms' }}>
 
-            {/* Conteúdo público */}
-            <Link
-              href="/recommendations"
-              className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-sm font-black transition-all active:scale-95 ${
-                pathname.startsWith('/recommendations')
-                  ? 'text-[#0056D2] bg-blue-100 border border-[#0056D2]/25'
-                  : 'text-[#0056D2] bg-blue-50 border border-[#0056D2]/15 hover:bg-blue-100'
-              }`}
-            >
-              <span aria-hidden>📖</span> Recommendations
-            </Link>
+            {/* Conteúdo público — só na web, nunca no app nativo */}
+            {!hideAmazonPicks && (
+              <Link
+                href="/recommendations"
+                className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-sm font-black transition-all active:scale-95 ${
+                  pathname.startsWith('/recommendations')
+                    ? 'text-[#0056D2] bg-blue-100 border border-[#0056D2]/25'
+                    : 'text-[#0056D2] bg-blue-50 border border-[#0056D2]/15 hover:bg-blue-100'
+                }`}
+              >
+                <span aria-hidden>📖</span> Recommendations
+              </Link>
+            )}
 
             {/* User Auth */}
             {userLabel ? (
@@ -117,18 +126,20 @@ export function Header() {
             showLogo ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
           }`} style={{ transitionDelay: '200ms' }}>
 
-            <Link
-              href="/recommendations"
-              aria-label="Recommendations"
-              title="Recommendations"
-              className={`inline-flex flex-shrink-0 items-center gap-1 h-9 px-2.5 rounded-xl text-[13px] font-black transition-all active:scale-95 ${
-                pathname.startsWith('/recommendations')
-                  ? 'text-[#0056D2] bg-blue-100 border border-[#0056D2]/25'
-                  : 'text-[#0056D2] bg-blue-50 border border-[#0056D2]/15'
-              }`}
-            >
-              <span aria-hidden>📖</span> Picks
-            </Link>
+            {!hideAmazonPicks && (
+              <Link
+                href="/recommendations"
+                aria-label="Recommendations"
+                title="Recommendations"
+                className={`inline-flex flex-shrink-0 items-center gap-1 h-9 px-2.5 rounded-xl text-[13px] font-black transition-all active:scale-95 ${
+                  pathname.startsWith('/recommendations')
+                    ? 'text-[#0056D2] bg-blue-100 border border-[#0056D2]/25'
+                    : 'text-[#0056D2] bg-blue-50 border border-[#0056D2]/15'
+                }`}
+              >
+                <span aria-hidden>📖</span> Picks
+              </Link>
+            )}
 
             {/* Mobile User Auth */}
             {userLabel ? (

@@ -39,6 +39,15 @@
          @capacitor/push-notifications registration silently never surfaces
          a system prompt on those devices. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Scanner ao vivo de código de barras / identificação de produto usa
+         navigator.mediaDevices.getUserMedia dentro do WebView (ver
+         ProductDetectionSheet / ProductBarcodeScanner). O bridge do Capacitor
+         só concede a câmera ao WebView se a permissão estiver declarada aqui;
+         sem isso o scanner cai no fallback de foto/manual. `required=false`
+         para não bloquear a instalação em tablets sem câmera. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <!-- Localização aproximada, apenas em primeiro plano: usada em contexto
          (Pet Sumido, "achei um pet", alerta geolocalizado de pet perdido).
          Sem ACCESS_FINE_LOCATION e sem localização em background — o

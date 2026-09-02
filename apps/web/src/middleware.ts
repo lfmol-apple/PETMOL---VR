@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { NATIVE_APP_UA_MARKER } from '@/lib/nativeApp';
 
 // Rotas públicas — não exigem autenticação
 const PUBLIC_PATHS = [
@@ -79,6 +80,23 @@ export function middleware(request: NextRequest) {
     pathname.match(/\.(ico|svg|png|jpg|jpeg|webp|webmanifest|json|txt|xml)$/)
   ) {
     return NextResponse.next();
+  }
+
+  // Área Amazon US ("/recommendations") é pública SÓ na web — nunca dentro do
+  // app nativo (ToS do Amazon Associates para apps + página em inglês num app
+  // pt-BR). O UA do WebView Capacitor carrega o marcador (appendUserAgent).
+  // Os pontos de entrada já são escondidos no cliente; isto é a rede de
+  // segurança para acesso direto/deep link.
+  if (pathname === '/recommendations' || pathname.startsWith('/recommendations/')) {
+    const ua = request.headers.get('user-agent') || '';
+    if (ua.includes(NATIVE_APP_UA_MARKER)) {
+      const proto = firstHeaderValue(request.headers.get('x-forwarded-proto'))
+        || request.nextUrl.protocol.replace(':', '');
+      const host = firstHeaderValue(request.headers.get('x-forwarded-host'))
+        || firstHeaderValue(request.headers.get('host'))
+        || request.nextUrl.host;
+      return NextResponse.redirect(new URL('/', `${proto}://${host}`));
+    }
   }
 
   // Rotas públicas passam direto
