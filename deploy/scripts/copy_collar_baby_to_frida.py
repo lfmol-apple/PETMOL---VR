@@ -25,14 +25,16 @@ from pathlib import Path
 PRICE_SERVICE_DIR = Path.cwd()
 sys.path.insert(0, str(PRICE_SERVICE_DIR))
 
-env_file = PRICE_SERVICE_DIR / ".env"
-if env_file.exists():
-    import os
-    for line in env_file.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, v = line.split("=", 1)
-            os.environ.setdefault(k.strip(), v.strip())
+import os
+
+for _env in (PRICE_SERVICE_DIR / ".env", Path("/opt/petmol/shared/env/api.env")):
+    if _env.exists():
+        for line in _env.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+        break
 
 import src.main  # noqa: F401 — força registro completo dos models SQLAlchemy
 from src.db import SessionLocal
