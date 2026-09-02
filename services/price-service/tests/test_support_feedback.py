@@ -45,7 +45,12 @@ def test_feedback_persists_and_emails_inbox(client, monkeypatch):
     assert captured["to"] == "gerenciamento@petmol.com.br"
     assert "Fale com o Petmol" in captured["subject"]
     assert "modo escuro" in captured["body_text"]
-    assert captured["reply_to"] == "sup.a@example.com"
+    # e-mail do tutor vai no assunto + corpo, NUNCA no header Reply-To
+    # (Reply-To @gmail.com fazia a mensagem não chegar quando o tutor era o
+    #  próprio dono da caixa).
+    assert "sup.a@example.com" in captured["subject"]
+    assert "sup.a@example.com" in captured["body_text"]
+    assert captured["reply_to"] is None
 
 
 def test_feedback_still_ok_when_email_raises(client, monkeypatch):
