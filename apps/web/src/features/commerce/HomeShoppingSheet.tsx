@@ -45,6 +45,9 @@ interface HomeShoppingSheetProps {
 // antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
 export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
+  // Enquanto o tutor está buscando (campo focado ou com texto), a busca fica
+  // fixa no topo e o resto some — só a busca e os resultados abaixo dela.
+  const [searchActive, setSearchActive] = useState(false);
   // Mantém a sheet colada ao viewport visível quando o teclado abre (busca) —
   // sem isso o campo de busca fica atrás do teclado no iOS.
   const kbViewportRef = useKeyboardSheetViewport(open);
@@ -54,6 +57,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   useEffect(() => {
     if (!open) {
       setQuickBuyFor(null);
+      setSearchActive(false);
       return;
     }
     void trackClick({ source: 'home', cta_type: 'shop_sheet_view', pet_id: currentPet.pet_id });
@@ -145,15 +149,21 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
         {/* Scrollable content */}
         <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
           {/* 🐾 Busca — sobe pro topo da tela (era o botão verde "Comprar de
-              novo"). Catálogo Awin; busca por texto ou código de barras. */}
+              novo"). Catálogo Awin; busca por texto ou código de barras.
+              Quando o tutor toca no campo, ele fica fixo no topo (sticky
+              dentro do AffiliateCatalogSearch) e escondemos o rótulo +
+              "Comprar de novo" + lojas parceiras: só os resultados abaixo. */}
           <div>
-            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Buscar produto</p>
-            <AffiliateCatalogSearch petId={currentPet.pet_id} />
+            {!searchActive && (
+              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Buscar produto</p>
+            )}
+            <AffiliateCatalogSearch petId={currentPet.pet_id} onActiveChange={setSearchActive} />
           </div>
 
           {/* Comprar de novo — os produtos ficam sempre visíveis (sem o
-              botão verde recolhível que existia antes). */}
-          {reorderCards.length > 0 && (
+              botão verde recolhível que existia antes), exceto durante a
+              busca. */}
+          {!searchActive && reorderCards.length > 0 && (
             <div>
               <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Comprar de novo</p>
               <div className="space-y-2.5">
@@ -217,7 +227,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
             </div>
           )}
 
-          <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
+          {!searchActive && <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />}
 
           <p className="pt-1 text-center text-[10px] leading-relaxed text-slate-400">
             Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.

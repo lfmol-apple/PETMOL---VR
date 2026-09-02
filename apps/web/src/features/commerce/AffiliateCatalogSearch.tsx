@@ -32,6 +32,13 @@ interface AffiliateCatalogSearchProps {
   petId: string;
   initialQuery?: string;
   merchantFilter?: HomeShoppingPartnerId;
+  /**
+   * Chamado quando a busca entra/sai do "modo ativo" (campo focado ou com
+   * texto). A sheet que hospeda o componente usa isso pra fixar o campo no
+   * topo e esconder o resto (Comprar de novo / lojas parceiras) enquanto o
+   * tutor está buscando — só a busca e os resultados abaixo dela.
+   */
+  onActiveChange?: (active: boolean) => void;
 }
 
 type ResolvedOffers = CommerceOffer[] | 'loading' | 'error';
@@ -57,8 +64,9 @@ type BarcodeLookupState = 'idle' | 'loading' | 'done' | 'not_found' | 'error';
 // URL web final do produto com `awc`; isso evita o OneLink abrir a home/app
 // da Cobasi em vez do produto.
 
-export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilter }: AffiliateCatalogSearchProps) {
+export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilter, onActiveChange }: AffiliateCatalogSearchProps) {
   const [query, setQuery] = useState(initialQuery);
+  const [focused, setFocused] = useState(false);
   // Escanear/código de barras: ocultos por enquanto (feedback do tutor —
   // deixar só a busca por texto, maior e mais direta). Estado e handlers
   // continuam aqui prontos pra reativar rápido depois, só a UI some.
@@ -81,10 +89,15 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
   const trimmedQuery = query.trim();
   const activeMerchantFilter = merchantFilter ?? undefined;
   const visibleResults = results;
+  const searchActive = focused || trimmedQuery.length >= 2;
 
   useEffect(() => {
     setQuery(initialQuery);
   }, [initialQuery, merchantFilter]);
+
+  useEffect(() => {
+    onActiveChange?.(searchActive);
+  }, [searchActive, onActiveChange]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -287,11 +300,13 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
             onChange={(e) => setQuery(e.target.value)}
             enterKeyHint="search"
             onFocus={(e) => {
+              setFocused(true);
               // font-size >= 16px evita o zoom automático do Safari iOS. O
               // campo é sticky, então basta trazer o topo dele pra vista —
               // block:'start' (não 'center') mantém o que se digita no alto.
               window.setTimeout(() => e.target.scrollIntoView({ block: 'start', behavior: 'smooth' }), 200);
             }}
+            onBlur={() => setFocused(false)}
             placeholder="Buscar produto..."
             className="min-w-0 flex-1 border-0 bg-transparent py-3.5 text-[16px] font-medium text-slate-900 outline-none placeholder:text-slate-400"
           />
