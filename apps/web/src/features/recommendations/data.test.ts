@@ -3,9 +3,23 @@ import {
   AMAZON_REQUIRED_STATEMENT,
   RECOMMENDATIONS,
   RECOMMENDATION_CATEGORIES,
+  destinationOf,
   getPopulatedCategories,
   getRecommendationsNeedingMetadata,
 } from './data';
+
+/** The 24 links that existed before batch 3 — must be present, byte-for-byte,
+ *  unchanged, in the same relative order. */
+const LINKS_BEFORE_BATCH_3 = [
+  'https://amzn.to/3Uzcsf4', 'https://amzn.to/3SmPhUL', 'https://amzn.to/4gGI8qi',
+  'https://amzn.to/4cXWj9l', 'https://amzn.to/4x6HXuG', 'https://amzn.to/4cplcKW',
+  'https://amzn.to/4qR9sqC', 'https://amzn.to/4yge3VH', 'https://amzn.to/4gwMD8b',
+  'https://amzn.to/46zcuWZ', 'https://amzn.to/4qV30Pu', 'https://amzn.to/3SN1ORt',
+  'https://amzn.to/4yiLVkX', 'https://amzn.to/4gKkNUH', 'https://amzn.to/4i36zk9',
+  'https://amzn.to/46ldoqh', 'https://amzn.to/4iHq6qo', 'https://amzn.to/4iIjtnL',
+  'https://amzn.to/4qMsUVk', 'https://amzn.to/4i7f6CE', 'https://amzn.to/4gP5bzl',
+  'https://amzn.to/3SkGtyI', 'https://amzn.to/3UsMtGd', 'https://amzn.to/4x5Qs9o',
+];
 
 /**
  * The official Special Links exactly as delivered (batch 1 = 11, batch 2 = +13 = 24) by the PETMOL Amazon
@@ -39,14 +53,24 @@ const OFFICIAL_LINKS = [
   'https://amzn.to/3SkGtyI',
   'https://amzn.to/3UsMtGd',
   'https://amzn.to/4x5Qs9o',
+  // batch 3
+  'https://amzn.to/4qQ9tep',
+  'https://amzn.to/4x6LaKK',
+  'https://amzn.to/46GyY8t',
+  'https://amzn.to/4yfE8V0',
+  'https://amzn.to/3T3zWIV',
+  'https://amzn.to/4xC7CfM',
+  'https://amzn.to/4cmmRkv',
+  'https://amzn.to/4A9hkIn',
+  'https://amzn.to/4iGLk7U',
 ];
 
 describe('recommendations data — official Amazon Special Links', () => {
-  it('has exactly 24 recommendations', () => {
-    expect(RECOMMENDATIONS).toHaveLength(24);
+  it('has exactly 33 recommendations', () => {
+    expect(RECOMMENDATIONS).toHaveLength(33);
   });
 
-  it('renders the 24 official amzn.to links verbatim, in order, with no manipulation', () => {
+  it('renders the 33 official amzn.to links verbatim, in order, with no manipulation', () => {
     expect(RECOMMENDATIONS.map((r) => r.affiliateUrl)).toEqual(OFFICIAL_LINKS);
   });
 
@@ -70,9 +94,9 @@ describe('recommendations data — official Amazon Special Links', () => {
     }
   });
 
-  it('no two recommendations share the same Special Link (24 distinct)', () => {
+  it('no two recommendations share the same Special Link (33 distinct)', () => {
     const links = RECOMMENDATIONS.map((r) => r.affiliateUrl);
-    expect(new Set(links).size).toBe(24);
+    expect(new Set(links).size).toBe(33);
   });
 
   it('every recommendation has a stable id and a real category', () => {
@@ -104,6 +128,25 @@ describe('recommendations data — official Amazon Special Links', () => {
     expect(pending.map((r) => r.id).sort()).toEqual(['rec-01', 'rec-03', 'rec-08']);
     for (const r of pending) {
       expect(r.title).not.toMatch(/B0[A-Z0-9]{8}/); // no ASIN leaked as a title
+    }
+  });
+
+  it('keeps every pre-batch-3 Special Link intact, byte-for-byte, in order', () => {
+    expect(RECOMMENDATIONS.slice(0, 24).map((r) => r.affiliateUrl)).toEqual(LINKS_BEFORE_BATCH_3);
+  });
+
+  it('batch 3 (rec-25..rec-33) are all product links, none flagged unresolved', () => {
+    const b3 = RECOMMENDATIONS.filter((r) => Number(r.id.slice(4)) >= 25);
+    expect(b3).toHaveLength(9);
+    for (const r of b3) {
+      expect(destinationOf(r)).toBe('product');
+      expect(r.needsEditorialMetadata).toBeUndefined();
+    }
+  });
+
+  it('destinationOf defaults to "product" and only returns known values', () => {
+    for (const r of RECOMMENDATIONS) {
+      expect(['product', 'collection']).toContain(destinationOf(r));
     }
   });
 

@@ -2,8 +2,10 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   AMAZON_REQUIRED_STATEMENT,
+  RECOMMENDATIONS,
   RECOMMENDATIONS_DISCLOSURE_SHORT,
   RECOMMENDATIONS_INTRO,
+  destinationOf,
   getPopulatedCategories,
   getRecommendationsByCategory,
   type Recommendation,
@@ -33,7 +35,7 @@ export const metadata: Metadata = {
   },
 };
 
-function AffiliateCta({ href }: { href: string }) {
+function AffiliateCta({ href, collection }: { href: string; collection: boolean }) {
   return (
     <a
       href={href}
@@ -41,35 +43,51 @@ function AffiliateCta({ href }: { href: string }) {
       rel="sponsored nofollow noopener noreferrer"
       className="inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#0056D2] px-4 py-2 text-[13px] font-bold text-white transition-transform active:scale-95 hover:bg-[#0047ad]"
     >
-      View on Amazon
+      {collection ? 'Browse on Amazon' : 'View on Amazon'}
       <span aria-hidden>↗</span>
     </a>
   );
 }
 
 function RecommendationCard({ item }: { item: Recommendation }) {
+  const collection = destinationOf(item) === 'collection';
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
-        <h3 className="text-[15px] font-bold leading-snug text-slate-900">{item.title}</h3>
-        <p className="mt-1 text-[13px] leading-relaxed text-slate-500">{item.blurb}</p>
+    <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="text-[15px] font-bold leading-snug text-slate-900">{item.title}</h3>
+          {collection && (
+            <span className="mt-0.5 flex-shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+              Selection
+            </span>
+          )}
+        </div>
+        <p className="mt-1 text-[13px] leading-relaxed text-slate-500">
+          {item.blurb}
+          {collection && (
+            <span className="text-slate-400"> You’ll land on a selection of these on Amazon, not one product.</span>
+          )}
+        </p>
         {item.needsEditorialMetadata && (
           <p className="mt-1.5 text-[11px] font-medium uppercase tracking-wide text-amber-600">
             Editorial note pending
           </p>
         )}
       </div>
-      <AffiliateCta href={item.affiliateUrl} />
+      <div className="flex justify-end">
+        <AffiliateCta href={item.affiliateUrl} collection={collection} />
+      </div>
     </div>
   );
 }
 
 export default function RecommendationsPage() {
   const categories = getPopulatedCategories();
+  const total = RECOMMENDATIONS.length;
 
   return (
     <div lang="en" className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      <div className="mx-auto max-w-3xl px-5 py-10 sm:py-12">
+      <div className="mx-auto max-w-4xl px-5 py-10 sm:py-12">
         <nav aria-label="Breadcrumb" className="mb-4 text-[12px] text-slate-400">
           <Link href="/" className="hover:text-slate-600">
             Home
@@ -88,12 +106,29 @@ export default function RecommendationsPage() {
             Useful products we discover for pets, pet parents, the home, and everyday life.
           </p>
           <p className="max-w-2xl text-[14px] leading-relaxed text-slate-500">{RECOMMENDATIONS_INTRO}</p>
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-slate-400">
+            {total} picks · {categories.length} categories
+          </p>
         </header>
+
+        {/* Category jump-nav — the list is long enough to want shortcuts. */}
+        <nav aria-label="Jump to a category" className="mt-6 flex flex-wrap gap-2">
+          {categories.map((cat) => (
+            <a
+              key={cat.id}
+              href={`#cat-${cat.id}`}
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700"
+            >
+              {cat.label}
+              <span className="ml-1.5 text-slate-400">{getRecommendationsByCategory(cat.id).length}</span>
+            </a>
+          ))}
+        </nav>
 
         {/* Disclosure — right next to the products, not hidden in the footer. */}
         <section
           aria-label="Affiliate disclosure"
-          className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[13px] leading-relaxed text-amber-900"
+          className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[13px] leading-relaxed text-amber-900"
         >
           <p className="font-bold">{AMAZON_REQUIRED_STATEMENT}</p>
           <p className="mt-1">{RECOMMENDATIONS_DISCLOSURE_SHORT}</p>
@@ -102,14 +137,14 @@ export default function RecommendationsPage() {
           </p>
         </section>
 
-        <div className="mt-10 space-y-10">
+        <div className="mt-10 space-y-12">
           {categories.map((cat) => (
-            <section key={cat.id} aria-labelledby={`cat-${cat.id}`}>
-              <h2 id={`cat-${cat.id}`} className="text-[17px] font-black text-slate-900">
+            <section key={cat.id} aria-labelledby={`cat-${cat.id}`} className="scroll-mt-6">
+              <h2 id={`cat-${cat.id}`} className="text-[18px] font-black text-slate-900">
                 {cat.label}
               </h2>
-              <p className="mb-3 mt-0.5 text-[13px] text-slate-500">{cat.description}</p>
-              <div className="space-y-2.5">
+              <p className="mb-4 mt-0.5 text-[13px] text-slate-500">{cat.description}</p>
+              <div className="grid gap-3 sm:grid-cols-2">
                 {getRecommendationsByCategory(cat.id).map((item) => (
                   <RecommendationCard key={item.id} item={item} />
                 ))}
@@ -118,7 +153,7 @@ export default function RecommendationsPage() {
           ))}
         </div>
 
-        <footer className="mt-12 space-y-3 border-t border-slate-200 pt-6 text-[12px] leading-relaxed text-slate-400">
+        <footer className="mt-14 space-y-3 border-t border-slate-200 pt-6 text-[12px] leading-relaxed text-slate-400">
           <p>
             PETMOL selects these items because it finds them interesting or useful. This page is run
             by PETMOL, not by Amazon, and PETMOL is not affiliated with the manufacturers. Every

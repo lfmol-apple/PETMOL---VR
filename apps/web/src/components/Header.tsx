@@ -61,14 +61,14 @@ export function Header() {
 
             {/* Conteúdo público */}
             <Link
-              href="/guias"
+              href="/recommendations"
               className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-sm font-black transition-all active:scale-95 ${
-                pathname.startsWith('/guias')
+                pathname.startsWith('/recommendations')
                   ? 'text-[#0056D2] bg-blue-100 border border-[#0056D2]/25'
                   : 'text-[#0056D2] bg-blue-50 border border-[#0056D2]/15 hover:bg-blue-100'
               }`}
             >
-              <span aria-hidden>📖</span> Guias
+              <span aria-hidden>📖</span> Recommendations
             </Link>
 
             {/* User Auth */}
@@ -118,14 +118,16 @@ export function Header() {
           }`} style={{ transitionDelay: '200ms' }}>
 
             <Link
-              href="/guias"
+              href="/recommendations"
+              aria-label="Recommendations"
+              title="Recommendations"
               className={`inline-flex flex-shrink-0 items-center gap-1 h-9 px-2.5 rounded-xl text-[13px] font-black transition-all active:scale-95 ${
-                pathname.startsWith('/guias')
+                pathname.startsWith('/recommendations')
                   ? 'text-[#0056D2] bg-blue-100 border border-[#0056D2]/25'
                   : 'text-[#0056D2] bg-blue-50 border border-[#0056D2]/15'
               }`}
             >
-              <span aria-hidden>📖</span> Guias
+              <span aria-hidden>📖</span> Picks
             </Link>
 
             {/* Mobile User Auth */}

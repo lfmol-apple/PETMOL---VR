@@ -29,7 +29,8 @@ export default function TransparenciaPage() {
       >
         <h2>Como o PETMOL se sustenta</h2>
         <p>
-          O aplicativo e os <Link href="/guias">guias</Link> são gratuitos. Para manter o serviço, o
+          O aplicativo é gratuito e a página pública de conteúdo é a{' '}
+          <Link href="/recommendations">PETMOL Recommendations</Link>. Para manter o serviço, o
           PETMOL pode participar de <strong>programas de afiliados</strong> de lojas parceiras.
         </p>
 

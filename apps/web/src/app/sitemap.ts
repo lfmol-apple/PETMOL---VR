@@ -33,8 +33,18 @@ async function getPublicMissingPetUrls(): Promise<MetadataRoute.Sitemap> {
   }
 }
 
-/** Guias + área editorial — derivado da fonte central `features/guides`. */
-function getEditorialUrls(): MetadataRoute.Sitemap {
+/** Páginas institucionais públicas — sempre no índice, independentes da área
+ *  de guias (que pode estar pausada). */
+function getInstitutionalUrls(): MetadataRoute.Sitemap {
+  return [
+    { url: `${SITE_URL}/sobre`, lastModified: new Date('2026-08-30'), changeFrequency: 'yearly' as const, priority: 0.4 },
+    { url: `${SITE_URL}/politica-editorial`, lastModified: new Date('2026-08-30'), changeFrequency: 'yearly' as const, priority: 0.4 },
+    { url: `${SITE_URL}/transparencia`, lastModified: new Date('2026-09-01'), changeFrequency: 'yearly' as const, priority: 0.4 },
+  ];
+}
+
+/** Guias — só entram no sitemap enquanto a área editorial estiver ativa. */
+function getGuideUrls(): MetadataRoute.Sitemap {
   if (!PUBLIC_GUIDES_PAGE_ENABLED) return [];
   const guides = getAllGuides();
   const latest = guides.reduce(
@@ -54,9 +64,6 @@ function getEditorialUrls(): MetadataRoute.Sitemap {
       changeFrequency: 'monthly' as const,
       priority: 0.7,
     })),
-    { url: `${SITE_URL}/sobre`, lastModified: new Date('2026-08-30'), changeFrequency: 'yearly' as const, priority: 0.4 },
-    { url: `${SITE_URL}/politica-editorial`, lastModified: new Date('2026-08-30'), changeFrequency: 'yearly' as const, priority: 0.4 },
-    { url: `${SITE_URL}/transparencia`, lastModified: new Date('2026-08-30'), changeFrequency: 'yearly' as const, priority: 0.4 },
   ];
 }
 
@@ -70,8 +77,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/privacy`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
     { url: `${SITE_URL}/terms`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
     { url: `${SITE_URL}/coverage`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.4 },
-    { url: `${SITE_URL}/recommendations`, lastModified: new Date('2026-09-01'), changeFrequency: 'weekly', priority: 0.5 },
+    { url: `${SITE_URL}/recommendations`, lastModified: new Date('2026-09-01'), changeFrequency: 'weekly', priority: 0.8 },
   ];
 
-  return [...staticPages, ...getEditorialUrls(), ...(await getPublicMissingPetUrls())];
+  return [
+    ...staticPages,
+    ...getInstitutionalUrls(),
+    ...getGuideUrls(),
+    ...(await getPublicMissingPetUrls()),
+  ];
 }

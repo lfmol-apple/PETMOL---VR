@@ -14,6 +14,7 @@ import { EditorialByline } from '@/components/guides/EditorialByline';
 import { SourcesList } from '@/components/guides/SourcesList';
 import { AffiliateDisclosure } from '@/components/guides/AffiliateDisclosure';
 import { GuideArticleJsonLd } from '@/components/guides/JsonLd';
+import { PUBLIC_GUIDE_DETAIL_PAGE_ENABLED } from '../../publicCommercePages';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
@@ -54,6 +55,10 @@ export async function generateMetadata({ params }: GuidePageProps): Promise<Meta
 }
 
 export default async function GuidePage({ params }: GuidePageProps) {
+  // Guias pausados temporariamente (ver publicCommercePages.ts) — conteúdo
+  // intacto, volta ao reativar a flag.
+  if (!PUBLIC_GUIDE_DETAIL_PAGE_ENABLED) notFound();
+
   const { slug } = await params;
   const guide = getGuideBySlug(slug);
   if (!guide) notFound();
