@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Store } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
 import { showBlockingNotice } from '@/features/interactions/userPromptChannel';
 import { ModalPortal } from '@/components/ModalPortal';
@@ -198,6 +197,8 @@ export function HomeNavigationModals({
                     : []),
                   { icon: '🛁', image: '/cuidados-pets-banho.webp', label: 'Banho e Tosa', gradient: 'from-sky-100 to-blue-200 border-sky-300', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
                   { icon: '💊', image: '/cuidados-medicacao.webp', label: 'Medicação', gradient: 'from-purple-100 to-violet-200 border-purple-300', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
+                  // Busca de estabelecimento (Maps) — saiu da Home, é mais um card aqui em Cuidados.
+                  { icon: '🏪', image: undefined, label: 'PetShops', gradient: 'from-slate-100 to-slate-200 border-slate-300', tab: 'petshops', alert: false, tone: undefined },
                 ].map(({ icon, image, label, gradient, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 
@@ -235,7 +236,12 @@ export function HomeNavigationModals({
                         window.open('https://www.google.com/maps/search/veterinário+24+horas+perto+de+mim', '_blank', 'noopener,noreferrer');
                         return;
                       }
-                      
+                      if (tab === 'petshops') {
+                        onCloseHealthOptionsModal();
+                        setShowPetShopsNearby(true);
+                        return;
+                      }
+
                       onCloseHealthOptionsModal();
                       onOpenHealthTab(tab);
                     }}
@@ -266,28 +272,11 @@ export function HomeNavigationModals({
                     )}
                     <div className="relative">
                       <span className={`text-[14px] font-bold leading-tight block ${isEmergency ? 'text-red-700' : 'text-slate-900'}`}>{label}</span>
-                      <span className={`text-[9px] font-black uppercase tracking-widest mt-0.5 block ${isEmergency ? 'text-red-500/80' : 'text-slate-600/60'}`}>{isEmergency ? 'Clínicas e hospitais 24h' : 'Gerenciar'}</span>
+                      <span className={`text-[9px] font-black uppercase tracking-widest mt-0.5 block ${isEmergency ? 'text-red-500/80' : 'text-slate-600/60'}`}>{isEmergency ? 'Clínicas e hospitais 24h' : tab === 'petshops' ? 'Perto de você' : 'Gerenciar'}</span>
                     </div>
                   </button>
                 )})}
               </div>
-
-              {/* PetShops perto de você — busca de estabelecimento no Maps.
-                  Saiu da Home; agora vive aqui dentro de Cuidados. */}
-              <button
-                type="button"
-                onClick={() => setShowPetShopsNearby(true)}
-                className="mt-1 flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 text-left shadow-sm transition-all hover:border-slate-300 hover:shadow-md active:scale-[0.98]"
-              >
-                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                  <Store className="h-[17px] w-[17px]" strokeWidth={2.2} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-bold text-slate-900">PetShops perto de você</span>
-                  <span className="block text-[11px] text-slate-400">Lojas, banho e tosa e hospedagem</span>
-                </span>
-                <span aria-hidden className="text-slate-300">›</span>
-              </button>
             </div>
 
             {/* Footer */}

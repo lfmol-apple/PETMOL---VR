@@ -69,8 +69,8 @@ describe('Home — reorganização (Plano de Saúde / PetShops / Fale com o PETM
       />,
     );
     expect(screen.getByText('Cuidados')).toBeTruthy();
-    // "PetShops perto de você" agora renderiza dentro do modal Cuidados
-    expect(screen.getByText('PetShops perto de você')).toBeTruthy();
-    expect(screen.getByText('Lojas, banho e tosa e hospedagem')).toBeTruthy();
+    // "PetShops" agora é mais um card dentro do grid de Cuidados
+    expect(screen.getByText('PetShops')).toBeTruthy();
+    expect(screen.getByText('Perto de você')).toBeTruthy();
   });
 });
