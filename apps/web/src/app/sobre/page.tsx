@@ -38,9 +38,10 @@ export default function SobrePage() {
               comunitário quando um pet se perde.
             </>,
             <>
-              <strong>Os <Link href="/guias">Guias</Link></strong> (públicos, sem login): conteúdo
-              prático sobre alimentação, compras inteligentes, transporte, casa e primeiros cuidados,
-              com calculadoras para planejar o gasto com ração.
+              <strong><Link href="/recommendations">PETMOL Recommendations</Link></strong> (pública,
+              sem login): uma lista editorial, em inglês, de produtos que o PETMOL acha úteis, com
+              links de afiliado da Amazon. Os <em>Guias</em> práticos estão pausados por ora e voltam
+              mais à frente.
             </>,
           ]}
         />

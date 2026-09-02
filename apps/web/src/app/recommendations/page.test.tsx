@@ -13,11 +13,10 @@ describe('/recommendations — public English Amazon Associates page', () => {
     expect(isPublic('/recommendations/')).toBe(true);
   });
 
-  it('is listed in the sitemap', async () => {
+  it('is listed in the sitemap (and /guias is not, while it is paused)', async () => {
     const urls = (await sitemap()).map((e) => new URL(e.url).pathname);
     expect(urls).toContain('/recommendations');
-    // /guias must still be there — this page does not replace it
-    expect(urls).toContain('/guias');
+    expect(urls).not.toContain('/guias');
   });
 
   it('has English, canonical metadata', () => {
@@ -29,19 +28,19 @@ describe('/recommendations — public English Amazon Associates page', () => {
     expect((metadata.openGraph as { locale?: string })?.locale).toBe('en_US');
   });
 
-  it('renders all 24 Special Links exactly as provided, once each', () => {
+  it('renders all 33 Special Links exactly as provided, once each', () => {
     const { container } = render(<RecommendationsPage />);
     const hrefs = Array.from(container.querySelectorAll('a[href^="https://amzn.to/"]')).map(
       (a) => a.getAttribute('href'),
     );
     expect(hrefs.sort()).toEqual([...OFFICIAL_LINKS].sort());
-    expect(new Set(hrefs).size).toBe(24);
+    expect(new Set(hrefs).size).toBe(33);
   });
 
   it('every Amazon link is target=_blank with rel sponsored nofollow noopener noreferrer', () => {
     const { container } = render(<RecommendationsPage />);
     const links = container.querySelectorAll('a[href^="https://amzn.to/"]');
-    expect(links.length).toBe(24);
+    expect(links.length).toBe(33);
     links.forEach((a) => {
       expect(a.getAttribute('target')).toBe('_blank');
       const rel = (a.getAttribute('rel') || '').split(/\s+/);
@@ -77,9 +76,22 @@ describe('/recommendations — public English Amazon Associates page', () => {
     expect(text).not.toMatch(/\b\d+\s*reviews?\b/i);
   });
 
-  it('CTA text is "View on Amazon"', () => {
+  it('CTA text matches the destination type (product → View, collection → Browse)', () => {
     const { container } = render(<RecommendationsPage />);
-    const links = container.querySelectorAll('a[href^="https://amzn.to/"]');
-    links.forEach((a) => expect(a.textContent).toMatch(/View on Amazon/));
+    const byHref = new Map(
+      RECOMMENDATIONS.map((r) => [r.affiliateUrl, (r.destinationType ?? 'product')]),
+    );
+    container.querySelectorAll('a[href^="https://amzn.to/"]').forEach((a) => {
+      const kind = byHref.get(a.getAttribute('href') || '');
+      expect(a.textContent).toMatch(kind === 'collection' ? /Browse on Amazon/ : /View on Amazon/);
+    });
+  });
+
+  it('shows the pick count and a category jump-nav now that the list is long', () => {
+    const { container } = render(<RecommendationsPage />);
+    expect(container.textContent).toMatch(new RegExp(`${RECOMMENDATIONS.length}\\s*picks`));
+    const jump = container.querySelector('nav[aria-label="Jump to a category"]');
+    expect(jump).toBeTruthy();
+    expect(jump!.querySelectorAll('a[href^="#cat-"]').length).toBeGreaterThanOrEqual(5);
   });
 });

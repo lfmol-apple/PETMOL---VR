@@ -31,8 +31,8 @@ export function InstitutionalLayout({
           {children}
         </div>
         <nav aria-label="Páginas institucionais" className="mt-12 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-200 pt-6 text-[13px]">
-          <Link href="/guias" className="font-semibold text-blue-600 hover:underline">
-            Guias PETMOL
+          <Link href="/recommendations" className="font-semibold text-blue-600 hover:underline">
+            Recommendations
           </Link>
           <Link href="/sobre" className="font-semibold text-blue-600 hover:underline">
             Sobre

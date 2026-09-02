@@ -65,6 +65,12 @@ export const RECOMMENDATION_CATEGORIES: RecommendationCategoryMeta[] = [
   },
 ];
 
+/** Where a Special Link lands on Amazon.
+ *  - 'product'    → one product page (/dp/<ASIN>)
+ *  - 'collection' → an Amazon search / category / storefront with many products
+ *  Absent = 'product' (the batch-1/2 entries predate this field). */
+export type RecommendationDestination = 'product' | 'collection';
+
 export interface Recommendation {
   id: string;
   /** Editorial title. For identified picks it names the product line the
@@ -76,9 +82,15 @@ export interface Recommendation {
   category: RecommendationCategory;
   /** EXACT amzn.to Special Link from the Amazon SiteStripe. Rendered verbatim. */
   affiliateUrl: string;
+  /** product vs collection/search — see RecommendationDestination. */
+  destinationType?: RecommendationDestination;
   /** true = we could not confidently identify the destination product; a human
    *  must confirm the title/description. The link is still real and rendered. */
   needsEditorialMetadata?: boolean;
+}
+
+export function destinationOf(r: Recommendation): RecommendationDestination {
+  return r.destinationType ?? 'product';
 }
 
 /**
@@ -289,6 +301,91 @@ export const RECOMMENDATIONS: Recommendation[] = [
       'A waterproof case that slides an Apple AirTag onto a collar strap. Like the holder above, it helps locate a nearby pet — it is not a live GPS tracker.',
     category: 'travel-outdoors',
     affiliateUrl: 'https://amzn.to/4x5Qs9o',
+  },
+
+  // ── Batch 3 — 9 more Special Links. Each redirect resolves to a single
+  //    /dp/<ASIN> product page (no search/collection links in this batch);
+  //    titles/blurbs come from the redirect URL slug only, nothing invented. ──
+  {
+    id: 'rec-25',
+    title: 'Fida Interactive Dog Toy',
+    blurb:
+      'A washable, non-toxic chew toy from Fida aimed at strong chewers. The kind of thing that survives a dog that destroys everything else.',
+    category: 'for-pets',
+    affiliateUrl: 'https://amzn.to/4qQ9tep',
+    destinationType: 'product',
+  },
+  {
+    id: 'rec-26',
+    title: 'Dog Rope Toy (multipack)',
+    blurb:
+      'A set of cotton rope toys for tugging and chewing. Cheap to replace, and useful for a bit of shared play that also helps with teeth.',
+    category: 'for-pets',
+    affiliateUrl: 'https://amzn.to/4x6LaKK',
+    destinationType: 'product',
+  },
+  {
+    id: 'rec-27',
+    title: 'ChomChom Roller',
+    blurb:
+      'The reusable pet-hair roller again, this time as a direct product link. You empty a small chamber instead of buying sticky refills.',
+    category: 'cleaning-organization',
+    affiliateUrl: 'https://amzn.to/46GyY8t',
+    destinationType: 'product',
+  },
+  {
+    id: 'rec-28',
+    title: 'DUSTIX DX-1 Pro Cordless Vacuum',
+    blurb:
+      'A brushless, rechargeable handheld vacuum. Handy for quick pickups of fur, litter scatter and crumbs without dragging out the big one.',
+    category: 'cleaning-organization',
+    affiliateUrl: 'https://amzn.to/4yfE8V0',
+    destinationType: 'product',
+  },
+  {
+    id: 'rec-29',
+    title: 'BISSELL TurboEraser Upholstery Vacuum',
+    blurb:
+      'A cordless vacuum built for upholstery and pet hair, with an easy-empty bin. Good for sofas, car seats and stairs.',
+    category: 'cleaning-organization',
+    affiliateUrl: 'https://amzn.to/3T3zWIV',
+    destinationType: 'product',
+  },
+  {
+    id: 'rec-30',
+    title: 'Outdoor Waterproof Outlet Extender',
+    blurb:
+      'A weatherproof cover and multi-outlet extender for an outside socket — for a yard light, a pump or a heated water bowl in winter.',
+    category: 'smart-home-technology',
+    affiliateUrl: 'https://amzn.to/4xC7CfM',
+    destinationType: 'product',
+  },
+  {
+    id: 'rec-31',
+    title: 'Corner Mount for eufy SoloCam (2-pack)',
+    blurb:
+      'A pair of angled wall mounts that let a eufy SoloCam sit in a corner and cover more of a room or yard.',
+    category: 'smart-home-technology',
+    affiliateUrl: 'https://amzn.to/4cmmRkv',
+    destinationType: 'product',
+  },
+  {
+    id: 'rec-32',
+    title: 'UNBREAKcable AirTag Holder',
+    blurb:
+      'A protective case for an Apple AirTag with a keyring. A third take on keeping an AirTag on a bag, a set of keys or a leash.',
+    category: 'travel-outdoors',
+    affiliateUrl: 'https://amzn.to/4A9hkIn',
+    destinationType: 'product',
+  },
+  {
+    id: 'rec-33',
+    title: 'PICKFUN Pet Camera Companion Robot',
+    blurb:
+      'A small moving pet camera you can drive from your phone to follow a pet around the house. A more playful take than a fixed camera.',
+    category: 'smart-home-technology',
+    affiliateUrl: 'https://amzn.to/4iGLk7U',
+    destinationType: 'product',
   },
 ];
 

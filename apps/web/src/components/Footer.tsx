@@ -11,10 +11,6 @@ export function Footer() {
       <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 text-[11.5px] text-slate-400">
         <span>© 2026 PETMOL</span>
         <span className="text-slate-300">•</span>
-        <Link href="/guias" className="hover:text-slate-600 transition-colors">
-          Guias
-        </Link>
-        <span className="text-slate-300">•</span>
         <Link href="/recommendations" className="hover:text-slate-600 transition-colors">
           Recommendations
         </Link>

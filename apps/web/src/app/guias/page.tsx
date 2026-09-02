@@ -7,9 +7,11 @@ import {
   getRecentGuides,
   getToolGuides,
 } from '@/features/guides';
+import { notFound } from 'next/navigation';
 import { GuideCard } from '@/components/guides/GuideCard';
 import { GuidesCollectionJsonLd } from '@/components/guides/JsonLd';
 import { AffiliateDisclosure } from '@/components/guides/AffiliateDisclosure';
+import { PUBLIC_GUIDES_PAGE_ENABLED } from '../publicCommercePages';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
@@ -34,6 +36,10 @@ const TOOL_LABEL: Record<string, string> = {
 };
 
 export default function GuiasIndexPage() {
+  // Área de guias pausada temporariamente (ver publicCommercePages.ts).
+  // Conteúdo preservado; reativar a flag traz a página de volta como estava.
+  if (!PUBLIC_GUIDES_PAGE_ENABLED) notFound();
+
   const all = getAllGuides();
   const featured = getFeaturedGuides();
   const recent = getRecentGuides(4);
