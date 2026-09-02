@@ -10,7 +10,7 @@ Confirmado via schema do banco (`petmol_prod_mirror`) e leitura do código nesta
 - **Pets**: nome, espécie, raça, foto do pet
 - **Saúde do pet** (não do usuário humano): vacinas (tipo, data, próxima dose), medicações, controle de parasitas, plano de alimentação
 - **Documentos do pet**: uploads de arquivos (`pet_documents` — carteirinha de vacina, receitas, etc.), com tipo MIME e tamanho
-- **Localização**: latitude/longitude só no fluxo opcional "Pet Sumido" (último local visto de um pet perdido) — não há rastreamento contínuo de localização do usuário
+- **Localização (precisa)**: latitude/longitude, só em primeiro plano, sem rastreamento contínuo/background. Capturada em: (1) fluxo "Pet Sumido" / "achei um pet" / "reportar pet perdido" — último local visto; (2) **ao ativar notificações**, o app anexa `lat/lng` à inscrição (`useNotificationPermissionController.getLocationSilently` → `POST /notifications/subscribe`) **apenas se a permissão de localização já estiver concedida** (não dispara prompt) — usado para alertas geolocalizados de pet perdido; (3) perfil, ao configurar a região. Declarar como coletada para "Funcionalidade do app". No **app nativo v1.0** o caminho (2) é Web Push (não roda no WebView), então na prática o nativo só coleta em (1) e (3) — mas a declaração deve cobrir o escopo completo.
 - **Notificações push**: endpoint/chaves de inscrição Web Push (VAPID), não um token de um SDK de push de terceiros
 - **Uso de IA**: fotos (carteirinha de vacina, identificação de produto) só são enviadas à API do Gemini (Google) para extração/leitura após consentimento explícito por usuário — é compartilhamento com terceiro nesse fluxo específico
 - **Analytics — só primeira-parte**: `analytics_events`/`analytics_clicks` (tabelas próprias do PETMOL) guardam `lead_id`, IP **hasheado** (não o IP bruto), user-agent, tipo de evento/CTA, e cliques em ofertas de afiliados (qual parceiro, produto). **Confirmado: nenhum SDK de analytics de terceiros** (sem Google Analytics/gtag, sem Facebook Pixel) no frontend.
@@ -28,7 +28,7 @@ Confirmado via schema do banco (`petmol_prod_mirror`) e leitura do código nesta
 | Physical Address | Sim (opcional) | Sim | Não | App Functionality |
 | User Content (fotos do pet, documentos, fotos de carteirinha de vacina) | Sim | Sim | Não | App Functionality |
 | Health & Fitness (dados de saúde do **pet**, não do usuário — vacinas/medicações/parasitas) | Declarar como User Content ou Health, conforme a categoria mais específica que a Apple oferecer para "dados de saúde de terceiro/animal" no momento da submissão — reconferir o formulário atual da App Store Connect, a categoria exata pode ter mudado | Sim | Não | App Functionality |
-| Location (Precise) | Sim, mas só no fluxo opcional "Pet Sumido" | Sim (contato do denunciante) | Não | App Functionality |
+| Location (Precise) | Sim — Pet Sumido / achei-um-pet, ativação de notificações (só se já autorizado), e configuração de região no perfil. Só em primeiro plano, sem background | Sim | Não | App Functionality |
 | Identifiers (ID de conta) | Sim | Sim | Não | App Functionality |
 | Usage Data (cliques em ofertas/CTAs, eventos de app) | Sim | Sim (via `lead_id`, não anônimo) | Não | Analytics (primeira parte), App Functionality |
 | User Content (mensagens de "Fale com o PETMOL") | Sim | Opcional (vinculado à conta se logado) | Não | App Functionality, Customer Support |
@@ -46,7 +46,7 @@ Confirmado via schema do banco (`petmol_prod_mirror`) e leitura do código nesta
 | Nome, e-mail, telefone | Sim | Não | Funcionalidade do app, contas | Sim (nome/e-mail) | Sim (HTTPS) | Sim (exclusão de conta no app) |
 | Endereço | Sim (opcional) | Não | Funcionalidade do app | Não | Sim | Sim |
 | Fotos (pet, documentos, carteirinha de vacina) | Sim | Sim, só com Google/Gemini quando o usuário consente e usa leitura por IA | Funcionalidade do app | Não | Sim | Sim |
-| Localização precisa | Sim, só no fluxo "Pet Sumido" | Não | Funcionalidade do app (localizar pet perdido) | Não (fluxo opcional) | Sim | Sim (dado apagado com o registro) |
+| Localização precisa | Sim — Pet Sumido/achei-um-pet, ativação de notificações (só se já autorizado), região no perfil. Primeiro plano apenas | Não | Funcionalidade do app (localizar pet perdido, alerta geolocalizado) | Não | Sim | Sim (apagado na exclusão de conta) |
 | Histórico de uso/cliques em ofertas | Sim | Não (analytics é first-party) | Analytics, funcionalidade do app | Não | Sim | Sim (vinculado à conta, removido na exclusão) |
 | ID do dispositivo/push | Sim (endpoint Web Push e/ou token nativo FCM/APNs) | Não (fica só entre o dispositivo e o próprio serviço de push do SO — FCM/APNs — e o servidor PETMOL) | Funcionalidade do app (notificações) | Não | Sim | Sim |
 | Mensagens de suporte ("Fale com o PETMOL") | Sim | Não | Funcionalidade do app, suporte ao cliente | Não | Sim | Sim (vinculado à conta, anonimizado na exclusão) |

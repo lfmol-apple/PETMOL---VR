@@ -1,17 +1,24 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getToken } from '@/lib/auth-token';
 import { PetmolTextLogo } from '@/components/ui/BrandBackground';
+import { isNativeAppClient } from '@/lib/nativeApp';
 
 export default function LandingPage() {
   const router = useRouter();
+  // "Recommendations" (Amazon US) é só web — escondido no app nativo.
+  const [hideAmazonPicks, setHideAmazonPicks] = useState(false);
 
   useEffect(() => {
     if (getToken()) router.replace('/home');
   }, [router]);
+
+  useEffect(() => {
+    setHideAmazonPicks(isNativeAppClient());
+  }, []);
 
   return (
     <div className="min-h-dvh bg-white flex flex-col">
@@ -20,10 +27,12 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-5 py-3 flex items-center justify-between">
         <PetmolTextLogo className="text-3xl" color="#0056D2" />
         <div className="flex items-center gap-2">
-          <Link href="/recommendations"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-black text-[#0056D2] bg-blue-50 border border-[#0056D2]/15 hover:bg-blue-100 active:scale-[0.97] transition-all">
-            <span aria-hidden>📖</span> Picks
-          </Link>
+          {!hideAmazonPicks && (
+            <Link href="/recommendations"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-black text-[#0056D2] bg-blue-50 border border-[#0056D2]/15 hover:bg-blue-100 active:scale-[0.97] transition-all">
+              <span aria-hidden>📖</span> Picks
+            </Link>
+          )}
           <Link href="/login"
             className="px-4 py-2 rounded-xl text-sm font-bold text-[#0056D2] border border-[#0056D2]/30 active:bg-blue-50">
             Entrar
@@ -81,7 +90,8 @@ export default function LandingPage() {
         />
       </section>
 
-      {/* PETMOL Recommendations — página pública editorial, sem login */}
+      {/* PETMOL Recommendations — página pública editorial, sem login (só web) */}
+      {!hideAmazonPicks && (
       <section className="px-5 pb-10">
         <div className="rounded-3xl border border-slate-100 bg-slate-50 p-6">
           <div className="flex items-baseline justify-between gap-2">
@@ -103,6 +113,7 @@ export default function LandingPage() {
           </Link>
         </div>
       </section>
+      )}
 
       {/* Social proof */}
       <section className="px-5 pb-10">
@@ -128,7 +139,9 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="mt-auto border-t border-slate-100 px-5 py-5 text-center">
         <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-400">
-          <Link href="/recommendations" className="hover:text-slate-600">Recommendations</Link>
+          {!hideAmazonPicks && (
+            <Link href="/recommendations" className="hover:text-slate-600">Recommendations</Link>
+          )}
           <Link href="/sobre" className="hover:text-slate-600">Sobre</Link>
           <Link href="/politica-editorial" className="hover:text-slate-600">Política editorial</Link>
           <Link href="/transparencia" className="hover:text-slate-600">Transparência</Link>
