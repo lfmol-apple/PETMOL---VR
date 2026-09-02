@@ -11,19 +11,20 @@ import { notFound } from 'next/navigation';
 import { GuideCard } from '@/components/guides/GuideCard';
 import { GuidesCollectionJsonLd } from '@/components/guides/JsonLd';
 import { AffiliateDisclosure } from '@/components/guides/AffiliateDisclosure';
+import { ProductSelectionSection } from '@/components/guides/ProductSelectionSection';
 import { PUBLIC_GUIDES_PAGE_ENABLED } from '../publicCommercePages';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 export const metadata: Metadata = {
-  title: 'Guias PETMOL — decisões práticas para tutores de cães',
+  title: 'Guias PETMOL — decisões práticas para cães e gatos',
   description:
-    'Guias diretos sobre alimentação, compras inteligentes, transporte, casa e primeiros cuidados. Com calculadoras de ração. Acesso livre, sem cadastro.',
+    'Guias práticos sobre alimentação, higiene, comportamento, passeio, transporte, casa e rotina de cães e gatos. Direto ao ponto, com ferramentas e calculadoras quando elas ajudam. Acesso livre, sem cadastro.',
   alternates: { canonical: `${SITE_URL}/guias` },
   openGraph: {
-    title: 'Guias PETMOL',
+    title: 'Guias PETMOL — cães e gatos',
     description:
-      'Guias práticos para tutores de cães: como escolher ração, comparar produtos por custo real, transporte, casa e primeiros cuidados.',
+      'Guias práticos para tutores de cães e gatos: como escolher ração, comparar produtos por custo real, higiene, casa, passeio e transporte.',
     url: `${SITE_URL}/guias`,
     type: 'website',
   },
@@ -36,8 +37,7 @@ const TOOL_LABEL: Record<string, string> = {
 };
 
 export default function GuiasIndexPage() {
-  // Área de guias pausada temporariamente (ver publicCommercePages.ts).
-  // Conteúdo preservado; reativar a flag traz a página de volta como estava.
+  // Guard reversível pela flag (ver publicCommercePages.ts). Hoje ATIVA.
   if (!PUBLIC_GUIDES_PAGE_ENABLED) notFound();
 
   const all = getAllGuides();
@@ -62,12 +62,13 @@ export default function GuiasIndexPage() {
             🐾 Guias PETMOL
           </span>
           <h1 className="text-[28px] font-black leading-tight text-slate-900 sm:text-[34px]">
-            Decisões práticas para quem cuida de um cão
+            Decisões práticas para cuidar melhor do seu pet
           </h1>
           <p className="max-w-2xl text-[15px] leading-relaxed text-slate-500">
-            Cada guia responde uma dúvida concreta — que ração escolher, quanto custa alimentar um
-            cão, coleira ou peitoral, o que levar numa viagem. Direto ao ponto, com calculadoras onde
-            elas ajudam. Sem login, sem newsletter, sem enrolação.
+            Central editorial do PETMOL para tutores de cães e gatos. Cada guia responde uma dúvida
+            concreta — que ração escolher, quanto custa alimentar o pet, coleira ou peitoral, o que
+            levar numa viagem, como organizar a higiene em casa. Direto ao ponto, com calculadoras
+            onde elas ajudam. Sem login, sem newsletter, sem enrolação.
           </p>
         </header>
 
@@ -157,6 +158,8 @@ export default function GuiasIndexPage() {
             </div>
           ))}
         </section>
+
+        <ProductSelectionSection />
 
         <div className="mt-12 space-y-6">
           <AffiliateDisclosure />

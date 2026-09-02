@@ -23,22 +23,28 @@ describe('página pública de loja desativada', () => {
   });
 });
 
-describe('área editorial /guias — PAUSADA temporariamente', () => {
-  it('as flags dos guias estão desligadas (reversível — conteúdo intacto no código)', () => {
-    expect(PUBLIC_GUIDES_PAGE_ENABLED).toBe(false);
-    expect(PUBLIC_GUIDE_DETAIL_PAGE_ENABLED).toBe(false);
+describe('área editorial /guias — REATIVADA (Amazon Associates Brasil, Fase 1)', () => {
+  it('as flags dos guias estão ligadas', () => {
+    expect(PUBLIC_GUIDES_PAGE_ENABLED).toBe(true);
+    expect(PUBLIC_GUIDE_DETAIL_PAGE_ENABLED).toBe(true);
   });
 
-  it('/guias retorna 404 enquanto pausada', () => {
-    expect(() => GuiasIndexPage()).toThrow('NEXT_NOT_FOUND');
+  it('/guias renderiza (não dá mais 404)', () => {
+    expect(() => GuiasIndexPage()).not.toThrow();
   });
 
-  it('/guias/[slug] retorna 404 mesmo para um slug real enquanto pausada', async () => {
+  it('/guias/[slug] renderiza para um slug real', async () => {
     const slug = getAllGuides()[0]!.slug;
-    await expect(GuidePage({ params: Promise.resolve({ slug }) })).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(GuidePage({ params: Promise.resolve({ slug }) })).resolves.toBeTruthy();
   });
 
-  it('os 15 guias continuam existindo na base de conteúdo (só a exibição foi pausada)', () => {
+  it('/guias/[slug] ainda dá 404 para um slug inexistente', async () => {
+    await expect(
+      GuidePage({ params: Promise.resolve({ slug: 'slug-que-nao-existe-xyz' }) }),
+    ).rejects.toThrow('NEXT_NOT_FOUND');
+  });
+
+  it('os 15 guias continuam existindo na base de conteúdo', () => {
     expect(getAllGuides().length).toBeGreaterThanOrEqual(15);
   });
 });
@@ -49,11 +55,11 @@ describe('sitemap público', () => {
     expect(urls).not.toContain('/loja');
   });
 
-  it('não lista /guias nem os guias enquanto a área estiver pausada', async () => {
+  it('lista /guias e todos os guias agora que a área está reativada', async () => {
     const urls = (await sitemap()).map((e) => new URL(e.url).pathname);
-    expect(urls).not.toContain('/guias');
+    expect(urls).toContain('/guias');
     for (const guide of getAllGuides()) {
-      expect(urls).not.toContain(`/guias/${guide.slug}`);
+      expect(urls).toContain(`/guias/${guide.slug}`);
     }
   });
 

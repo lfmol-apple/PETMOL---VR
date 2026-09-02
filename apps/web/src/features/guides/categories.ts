@@ -9,7 +9,7 @@ export const GUIDE_CATEGORIES: Record<GuideCategoryId, GuideCategory> = {
   alimentacao: {
     id: 'alimentacao',
     label: 'Alimentação',
-    description: 'Escolher, medir e guardar a ração — e entender o custo real de alimentar um cão.',
+    description: 'Escolher, medir e guardar a ração — e entender o custo real de alimentar o pet.',
     icon: '🥣',
   },
   'compras-inteligentes': {
@@ -27,13 +27,13 @@ export const GUIDE_CATEGORIES: Record<GuideCategoryId, GuideCategory> = {
   'casa-e-conforto': {
     id: 'casa-e-conforto',
     label: 'Casa e conforto',
-    description: 'Cama, comedouro, bebedouro e os itens que definem o espaço do cão dentro de casa.',
+    description: 'Cama, comedouro, bebedouro e os itens que definem o espaço do pet dentro de casa.',
     icon: '🛏️',
   },
   'passeio-e-transporte': {
     id: 'passeio-e-transporte',
     label: 'Passeio e transporte',
-    description: 'Coleira, peitoral, caixa de transporte e viagem de carro com o cão.',
+    description: 'Coleira, peitoral, caixa de transporte e viagem de carro com o pet.',
     icon: '🧳',
   },
   'primeiros-cuidados': {
