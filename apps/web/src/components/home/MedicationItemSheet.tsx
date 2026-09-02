@@ -574,7 +574,7 @@ export function MedicationItemSheet({
   const nextActive = active[0] ?? null;
 
   return (
-    <SheetShell open onClose={onClose} z={100}>
+    <SheetShell open onClose={onClose} hideHandle z={100}>
         {/* Success overlay */}
         {justSaved && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-white p-8 text-center">
@@ -599,6 +599,8 @@ export function MedicationItemSheet({
         )}
 
         <SheetHeader
+          tone="petmol"
+          withHandle
           title="Medicação"
           subtitle={mode === 'view' ? (petName || undefined) : mode === 'add' ? 'Novo registro' : 'Editar medicação'}
           status={mode === 'view' ? { label: statusLabel, tone: active.length > 0 ? 'good' : 'neutral' } : undefined}

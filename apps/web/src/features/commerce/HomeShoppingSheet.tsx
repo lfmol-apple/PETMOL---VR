@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
-import { ChevronDown, ChevronRight, ShoppingCart, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, ShoppingCart } from 'lucide-react';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
 import { petDo, petO } from '@/lib/petGender';
+import { SheetAvatar, SheetHeader } from '@/components/ui/sheet';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { trackClick } from '@/lib/analytics/click';
 import type { PetHealthProfile } from '@/lib/petHealth';
@@ -182,37 +183,22 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
         style={{ maxHeight: '88dvh' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Cabeçalho — bloco azul PETMOL, texto branco, bem evidente. */}
-        <div className="relative z-10 flex-shrink-0 bg-[#0056D2] text-white shadow-[0_6px_20px_-8px_rgba(0,86,210,0.6)]">
-          <div className="flex justify-center pt-2.5 pb-1 sm:hidden">
-            <div className="h-1 w-9 rounded-full bg-white/40" />
-          </div>
-
-          <div className="flex items-center gap-3 px-5 pb-4 pt-1.5 sm:pt-4">
-            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-xl shadow-[0_2px_10px_rgba(0,0,0,0.25)] ring-2 ring-white/60">
-              {petPhotoSrc ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={petPhotoSrc} alt={petName || 'Pet'} className="h-full w-full object-cover" loading="lazy" />
-              ) : (
-                <span>{currentPet.species === 'cat' ? '🐱' : '🐶'}</span>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate text-[18px] font-black leading-[1.15] tracking-[-0.01em] text-white">{title}</h2>
-              <p className="truncate text-[11px] font-bold uppercase leading-tight tracking-[0.13em] text-white/75">
-                Tudo que {petO(currentPet)} {petName || 'seu pet'} precisa
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Fechar"
-              className="-mr-1 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition-colors duration-150 hover:bg-white/25 active:scale-90 motion-reduce:transition-none motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0056D2]"
-            >
-              <X className="h-[15px] w-[15px]" strokeWidth={2.5} />
-            </button>
-          </div>
-        </div>
+        {/* Cabeçalho petmol compartilhado — mesma variante usada nos demais
+            sheets do pet (SheetHeader tone="petmol"). */}
+        <SheetHeader
+          tone="petmol"
+          withHandle
+          title={title}
+          subtitle={`Tudo que ${petO(currentPet)} ${petName || 'seu pet'} precisa`}
+          media={
+            <SheetAvatar
+              src={petPhotoSrc}
+              alt={petName || 'Pet'}
+              fallback={currentPet.species === 'cat' ? '🐱' : '🐶'}
+            />
+          }
+          onClose={onClose}
+        />
 
         {/* Scrollable content */}
         <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">

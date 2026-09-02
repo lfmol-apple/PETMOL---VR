@@ -1,15 +1,25 @@
 'use client';
 
 /**
- * SheetHeader — cabeçalho padrão de sheet: camada OPACA própria (o fundo
- * nunca vaza atrás do título), mídia (avatar/ícone) + título + subtítulo +
- * status, e um botão fechar (X) ou voltar (chevron) sempre centralizado.
+ * SheetHeader — cabeçalho padrão de sheet.
+ *
+ * - `tone` claro (white/cream/grey): camada opaca, título escuro, botões
+ *   cinza. É o cabeçalho discreto de sempre.
+ * - `tone="petmol"`: bloco azul institucional com uma profundidade radial
+ *   MUITO sutil (linguagem do BrandBackground, sem trazer o BrandBackground
+ *   inteiro). Título branco, subtítulo branco/translúcido, botões brancos
+ *   translúcidos. Compacto — nunca vira banner. É a identidade dos sheets
+ *   principais do pet, no mesmo espírito da Loja do Pet.
+ *
+ * Em `tone="petmol"` num bottom-sheet, passe `withHandle` e diga ao
+ * SheetShell `hideHandle` — o "puxador" fica sobre o azul, sem faixa branca
+ * estranha entre ele e o header.
  */
 import { ChevronLeft, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { SHEET_TONE_RING_OFFSET } from './SheetShell';
 
-type Tone = 'white' | 'cream' | 'grey';
+type Tone = 'white' | 'cream' | 'grey' | 'petmol';
 type StatusTone = 'neutral' | 'good' | 'warn' | 'danger';
 
 const STATUS_DOT: Record<StatusTone, string> = {
@@ -18,6 +28,19 @@ const STATUS_DOT: Record<StatusTone, string> = {
   warn: 'bg-amber-500',
   danger: 'bg-rose-500',
 };
+
+// No fundo azul os pontos de status precisam de contraste próprio.
+const STATUS_DOT_ON_PETMOL: Record<StatusTone, string> = {
+  neutral: 'bg-white/60',
+  good: 'bg-emerald-300',
+  warn: 'bg-amber-300',
+  danger: 'bg-rose-300',
+};
+
+/** Azul PETMOL + profundidade radial discreta (linguagem do BrandBackground:
+ *  #3B82F6 / #1E40AF), sobre o azul institucional #0056D2 usado no app. */
+export const PETMOL_HEADER_BG =
+  'bg-[#0056D2] bg-[radial-gradient(120%_140%_at_12%_-10%,#2f6fe0_0%,#0056D2_46%,#00427e_100%)] text-white';
 
 interface SheetHeaderProps {
   title: ReactNode;
@@ -30,8 +53,12 @@ interface SheetHeaderProps {
   /** ação extra à esquerda do botão fechar (ex.: "Excluir") */
   action?: ReactNode;
   tone?: Tone;
-  /** esconde a hairline inferior */
+  /** esconde a hairline inferior (ignorado em petmol — nunca tem hairline) */
   flush?: boolean;
+  /** desenha o "puxador" do bottom-sheet dentro do próprio header (petmol) */
+  withHandle?: boolean;
+  /** deixa o título quebrar em 2 linhas em vez de truncar */
+  wrapTitle?: boolean;
 }
 
 export function SheetHeader({
@@ -44,50 +71,81 @@ export function SheetHeader({
   action,
   tone = 'white',
   flush = false,
+  withHandle = false,
+  wrapTitle = false,
 }: SheetHeaderProps) {
-  const toneBg = tone === 'cream' ? 'bg-[#fbfaf7]' : tone === 'grey' ? 'bg-[#f2f2f7]' : 'bg-white';
-  const btn = `-mr-1 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-900/[0.06] text-slate-500 transition-colors duration-150 hover:bg-slate-900/[0.1] hover:text-slate-800 active:scale-90 motion-reduce:transition-none motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${SHEET_TONE_RING_OFFSET[tone]}`;
+  const isPetmol = tone === 'petmol';
+
+  const toneBg = isPetmol
+    ? PETMOL_HEADER_BG + ' shadow-[0_6px_20px_-10px_rgba(0,66,126,0.7)]'
+    : tone === 'cream'
+      ? 'bg-[#fbfaf7]'
+      : tone === 'grey'
+        ? 'bg-[#f2f2f7]'
+        : 'bg-white';
+
+  const btn = isPetmol
+    ? '-mr-1 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition-colors duration-150 hover:bg-white/25 active:scale-90 motion-reduce:transition-none motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0056D2]'
+    : `-mr-1 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-900/[0.06] text-slate-500 transition-colors duration-150 hover:bg-slate-900/[0.1] hover:text-slate-800 active:scale-90 motion-reduce:transition-none motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${SHEET_TONE_RING_OFFSET[tone as 'white' | 'cream' | 'grey'] ?? 'focus-visible:ring-offset-white'}`;
+
+  const titleCls = isPetmol
+    ? `text-[17px] font-black leading-[1.15] tracking-[-0.01em] text-white ${wrapTitle ? '[overflow-wrap:anywhere]' : 'truncate'}`
+    : `text-[17px] font-bold leading-[1.15] tracking-[-0.01em] text-slate-900 ${wrapTitle ? '[overflow-wrap:anywhere]' : 'truncate'}`;
+
+  const subtitleWrapCls = isPetmol
+    ? 'mt-0.5 flex min-w-0 items-center gap-2 text-[12px] font-semibold uppercase leading-tight tracking-[0.1em] text-white/75'
+    : 'mt-0.5 flex min-w-0 items-center gap-2 text-[13px] font-medium leading-tight text-slate-600';
+
+  const dotMap = isPetmol ? STATUS_DOT_ON_PETMOL : STATUS_DOT;
 
   return (
     <div className={`relative z-10 flex-shrink-0 ${toneBg}`}>
-      <div className="flex items-center gap-3 px-5 pb-4 pt-1.5 sm:pt-4">
+      {isPetmol && withHandle && (
+        <div className="flex justify-center pt-2.5 pb-0.5 sm:hidden">
+          <div className="h-1 w-9 rounded-full bg-white/40" />
+        </div>
+      )}
+      <div className={`flex gap-3 px-5 pb-4 ${wrapTitle ? 'items-start' : 'items-center'} ${isPetmol && withHandle ? 'pt-1.5' : 'pt-1.5 sm:pt-4'} ${isPetmol && !withHandle ? 'pt-4' : ''}`}>
         {onBack && (
-          <button type="button" onClick={onBack} aria-label="Voltar" className={`${btn} -ml-1 mr-0`}>
+          <button type="button" onClick={onBack} aria-label="Voltar" className={`${btn} -ml-1 mr-0 ${wrapTitle ? 'mt-0.5' : ''}`}>
             <ChevronLeft className="h-[17px] w-[17px]" strokeWidth={2.5} />
           </button>
         )}
         {media && <div className="flex-shrink-0">{media}</div>}
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-[17px] font-bold leading-[1.15] tracking-[-0.01em] text-slate-900">{title}</h2>
+        <div className={`min-w-0 flex-1 ${wrapTitle ? 'pt-0.5' : ''}`}>
+          <h2 className={titleCls}>{title}</h2>
           {(subtitle || status) && (
-            <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[13px] font-medium leading-tight text-slate-600">
+            <div className={subtitleWrapCls}>
               {subtitle && <span className="truncate">{subtitle}</span>}
-              {subtitle && status && <span className="text-slate-300">·</span>}
+              {subtitle && status && <span className={isPetmol ? 'text-white/40' : 'text-slate-300'}>·</span>}
               {status && (
                 <span className="inline-flex flex-shrink-0 items-center gap-1.5">
-                  <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[status.tone ?? 'neutral']}`} />
+                  <span className={`h-1.5 w-1.5 rounded-full ${dotMap[status.tone ?? 'neutral']}`} />
                   {status.label}
                 </span>
               )}
             </div>
           )}
         </div>
-        {action && <div className="flex-shrink-0">{action}</div>}
+        {action && <div className={`flex-shrink-0 ${wrapTitle ? 'mt-0.5' : ''}`}>{action}</div>}
         {onClose && (
-          <button type="button" onClick={onClose} aria-label="Fechar" className={btn}>
+          <button type="button" onClick={onClose} aria-label="Fechar" className={`${btn} ${wrapTitle ? 'mt-0.5' : ''}`}>
             <X className="h-[15px] w-[15px]" strokeWidth={2.5} />
           </button>
         )}
       </div>
-      {!flush && <div className="mx-5 h-px bg-gradient-to-r from-transparent via-slate-900/[0.07] to-transparent" />}
+      {!isPetmol && !flush && (
+        <div className="mx-5 h-px bg-gradient-to-r from-transparent via-slate-900/[0.07] to-transparent" />
+      )}
     </div>
   );
 }
 
-/** Avatar circular padrão pro header (pet, tutor). */
+/** Avatar circular padrão pro header (pet, tutor). Funciona em fundo claro
+ *  e no azul (anel branco translúcido). */
 export function SheetAvatar({ src, alt, fallback }: { src?: string | null; alt?: string; fallback?: ReactNode }) {
   return (
-    <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-white text-xl shadow-[0_2px_10px_rgba(15,23,42,0.12)] ring-2 ring-white">
+    <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-white text-xl shadow-[0_2px_10px_rgba(15,23,42,0.18)] ring-2 ring-white/70">
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt={alt || ''} className="h-full w-full object-cover" loading="lazy" />
@@ -98,14 +156,23 @@ export function SheetAvatar({ src, alt, fallback }: { src?: string | null; alt?:
   );
 }
 
-/** Ícone em quadrado arredondado pro header (ações sem pet). */
-export function SheetIcon({ children, tone = 'slate' }: { children: ReactNode; tone?: 'slate' | 'emerald' | 'amber' | 'rose' | 'blue' }) {
+/** Ícone em quadrado arredondado pro header (ações sem pet).
+ *  `tone="onPetmol"` = quadrado branco com ícone azul, pra usar sobre o
+ *  cabeçalho petmol. */
+export function SheetIcon({
+  children,
+  tone = 'slate',
+}: {
+  children: ReactNode;
+  tone?: 'slate' | 'emerald' | 'amber' | 'rose' | 'blue' | 'onPetmol';
+}) {
   const map = {
     slate: 'bg-slate-100 text-slate-600',
     emerald: 'bg-emerald-50 text-emerald-600 ring-emerald-100',
     amber: 'bg-amber-50 text-amber-600 ring-amber-100',
     rose: 'bg-rose-50 text-rose-600 ring-rose-100',
     blue: 'bg-blue-50 text-blue-600 ring-blue-100',
+    onPetmol: 'bg-white text-[#0056D2] ring-white/60 shadow-[0_2px_10px_rgba(0,0,0,0.18)]',
   } as const;
   return (
     <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ring-1 ring-black/5 ${map[tone]}`}>

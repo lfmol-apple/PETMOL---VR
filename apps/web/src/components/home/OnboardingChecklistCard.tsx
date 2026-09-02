@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronRight, PawPrint, Utensils, Syringe, Bug, Pill, ArrowLeft, X } from 'lucide-react';
+import { Check, ChevronRight, PawPrint, Utensils, Syringe, Bug, Pill, ArrowLeft } from 'lucide-react';
 import { petDo } from '@/lib/petGender';
 import { trackV1Metric, type V1MetricEvent } from '@/lib/v1Metrics';
 import type { FeedingPlanEntry } from '@/lib/types/homeForms';
-import { SheetShell } from '@/components/ui/sheet';
+import { SheetAvatar, SheetHeader, SheetShell } from '@/components/ui/sheet';
 import {
   deriveOnboardingProgress,
   setOnboardingActiveFlag,
@@ -54,39 +54,6 @@ interface RowConfig {
   why: string;
   open?: () => void;
   skipChoices?: { value: string; label: string }[];
-}
-
-/** Cabeçalho no mesmo estilo da Loja do pet: bloco azul PETMOL, texto branco,
- *  carinha do pet em cima. O título quebra em 2 linhas — nunca corta. */
-function BrandSheetHeader({
-  title, subtitle, photoSrc, onClose,
-}: { title: string; subtitle: string; photoSrc?: string; onClose: () => void }) {
-  return (
-    <div className="relative z-10 flex-shrink-0 bg-[#0056D2] text-white shadow-[0_6px_20px_-8px_rgba(0,86,210,0.6)]">
-      <div className="flex items-start gap-3 px-5 pb-4 pt-4">
-        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-lg shadow-[0_2px_10px_rgba(0,0,0,0.25)] ring-2 ring-white/60">
-          {photoSrc ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={photoSrc} alt="" className="h-full w-full object-cover" loading="lazy" />
-          ) : (
-            <PawPrint className="h-5 w-5 text-[#0056D2]" strokeWidth={2.2} />
-          )}
-        </div>
-        <div className="min-w-0 flex-1 pt-0.5">
-          <h2 className="text-[17px] font-black leading-[1.2] tracking-[-0.01em] text-white [overflow-wrap:anywhere]">{title}</h2>
-          <p className="mt-1 text-[11px] font-bold uppercase leading-tight tracking-[0.13em] text-white/75">{subtitle}</p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Fechar"
-          className="-mr-1 mt-0.5 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition-colors duration-150 hover:bg-white/25 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0056D2]"
-        >
-          <X className="h-[15px] w-[15px]" strokeWidth={2.5} />
-        </button>
-      </div>
-    </div>
-  );
 }
 
 export function OnboardingChecklistCard({
@@ -167,11 +134,13 @@ export function OnboardingChecklistCard({
       setStoreTick((t) => t + 1);
     };
     return (
-      <SheetShell open onClose={finish} tone="glass" variant="center" size="sm" z={70}>
-        <BrandSheetHeader
+      <SheetShell open onClose={finish} tone="glass" variant="center" size="sm" z={70} hideHandle>
+        <SheetHeader
+          tone="petmol"
+          wrapTitle
           title={`Tudo pronto para cuidar ${artigo} ${name} 💙`}
           subtitle="Configuração inicial concluída"
-          photoSrc={petPhotoSrc}
+          media={<SheetAvatar src={petPhotoSrc} alt="" fallback={<PawPrint className="h-5 w-5 text-[#0056D2]" strokeWidth={2.2} />} />}
           onClose={finish}
         />
         <SheetShell.Body className="text-center">
@@ -281,15 +250,17 @@ export function OnboardingChecklistCard({
   const pct = Math.round((progress.doneCount / progress.total) * 100);
 
   return (
-    <SheetShell open onClose={dismissCard} tone="glass" variant="center" size="sm" z={70}>
-      <BrandSheetHeader
+    <SheetShell open onClose={dismissCard} tone="glass" variant="center" size="sm" z={70} hideHandle>
+      <SheetHeader
+        tone="petmol"
+        wrapTitle
         title={
           progress.doneCount > 1
             ? `Continue os cuidados ${artigo} ${name}`
             : `Vamos preparar os cuidados ${artigo} ${name}`
         }
         subtitle={`Configuração inicial · ${progress.doneCount} de ${progress.total}`}
-        photoSrc={petPhotoSrc}
+        media={<SheetAvatar src={petPhotoSrc} alt="" fallback={<PawPrint className="h-5 w-5 text-[#0056D2]" strokeWidth={2.2} />} />}
         onClose={dismissCard}
       />
 

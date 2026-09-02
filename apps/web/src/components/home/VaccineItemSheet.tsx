@@ -253,7 +253,7 @@ export function VaccineItemSheet({
   }
 
   return (
-    <SheetShell open onClose={onClose} z={50}>
+    <SheetShell open onClose={onClose} hideHandle z={50}>
         {/* Success overlay */}
         {justSaved && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-white p-8 text-center">
@@ -278,6 +278,8 @@ export function VaccineItemSheet({
         )}
 
         <SheetHeader
+          tone="petmol"
+          withHandle
           title="Vacinas"
           subtitle={petName || undefined}
           status={{

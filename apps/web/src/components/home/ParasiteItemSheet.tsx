@@ -469,7 +469,7 @@ export function ParasiteItemSheet({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <SheetShell open onClose={onClose} tone="cream" z={50}>
+    <SheetShell open onClose={onClose} hideHandle tone="cream" z={50}>
       {/* Success overlay */}
       {justSaved && (
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-[#fbfaf7] p-8 text-center">
@@ -494,7 +494,8 @@ export function ParasiteItemSheet({
       )}
 
       <SheetHeader
-        tone="cream"
+        tone="petmol"
+        withHandle
         title={cfg.title}
         subtitle={petName || undefined}
         status={{

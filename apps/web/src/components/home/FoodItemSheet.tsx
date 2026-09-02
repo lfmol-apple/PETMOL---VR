@@ -1071,7 +1071,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
         className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overscroll-x-none touch-pan-y p-4"
         onClick={(e) => { if (e.target === overlayRef.current) handleClose(); }}
       >
-        <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-md" onClick={handleClose} />
+        <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-2xl" onClick={handleClose} />
 
         <div
           className="relative isolate flex w-full max-w-md flex-col overflow-hidden rounded-[26px] bg-white shadow-[0_-8px_50px_-8px_rgba(15,23,42,0.35)] ring-1 ring-black/5 animate-scaleIn touch-manipulation"
@@ -1107,6 +1107,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
           {mode === 'edit' && (
             <>
               <SheetHeader
+                tone="petmol"
                 title="Editar plano"
                 subtitle={pet.pet_name}
                 media={<SheetAvatar src={petPhotoSrc} alt={pet.pet_name} fallback={pet.species === 'cat' ? '🐱' : '🐶'} />}
@@ -1142,9 +1143,10 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
           {mode === 'buy' && (
             <>
               <SheetHeader
+                tone="petmol"
                 title={buyTargetItem ? `Comprar ${buyTargetItem.label}` : (foodBrand ? `Comprar ${foodBrand}` : 'Comprar ração')}
                 subtitle={pet.pet_name}
-                media={<SheetIcon tone="blue"><ShoppingCart className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+                media={<SheetIcon tone="onPetmol"><ShoppingCart className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
                 onBack={() => { setMode('view'); setBuyTargetItem(null); }}
               />
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -1189,6 +1191,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
           {mode === 'view' && (
             <>
               <SheetHeader
+                tone="petmol"
                 title={`Alimentação ${petDo(pet)} ${pet.pet_name}`}
                 media={<SheetAvatar src={petPhotoSrc} alt={pet.pet_name} fallback={pet.species === 'cat' ? '🐱' : '🐶'} />}
                 onClose={subMode === 'main' ? handleClose : undefined}
