@@ -27,6 +27,10 @@ interface OnboardingChecklistCardProps {
   onOpenVaccines: () => void;
   onOpenFlea: () => void;
   onOpenDewormer: () => void;
+  /** enquanto um sheet-alvo (alimentação/vacina/…) está aberto, o checklist
+   *  se recolhe pra não cobrir esse sheet — reaparece já com o progresso
+   *  atualizado quando ele fecha. */
+  suppressed?: boolean;
 }
 
 type ActionKey = Exclude<OnboardingStepKey, 'profile'>;
@@ -69,6 +73,7 @@ export function OnboardingChecklistCard({
   onOpenVaccines,
   onOpenFlea,
   onOpenDewormer,
+  suppressed = false,
 }: OnboardingChecklistCardProps) {
   const [expandedSkip, setExpandedSkip] = useState<ActionKey | null>(null);
   const [storeTick, setStoreTick] = useState(0);
@@ -134,7 +139,7 @@ export function OnboardingChecklistCard({
       setStoreTick((t) => t + 1);
     };
     return (
-      <SheetShell open onClose={finish} tone="glass" variant="center" size="sm" z={70} hideHandle>
+      <SheetShell open={!suppressed} onClose={finish} tone="grey" variant="center" size="sm" z={70} hideHandle>
         <SheetHeader
           tone="petmol"
           wrapTitle
@@ -250,7 +255,7 @@ export function OnboardingChecklistCard({
   const pct = Math.round((progress.doneCount / progress.total) * 100);
 
   return (
-    <SheetShell open onClose={dismissCard} tone="glass" variant="center" size="sm" z={70} hideHandle>
+    <SheetShell open={!suppressed} onClose={dismissCard} tone="grey" variant="center" size="sm" z={70} hideHandle>
       <SheetHeader
         tone="petmol"
         wrapTitle
