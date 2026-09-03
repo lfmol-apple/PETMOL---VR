@@ -320,7 +320,12 @@ def sync_shopee_offer_for_gtin(
     feed_name, feed_brand = (None, None)
     if expected_name is None and expected_brand is None:
         feed_name, feed_brand = _best_awin_identity_for_gtin(db, gtin_normalized)
-    match_name = expected_name or feed_name or product_name
+    # Pós-#156, quando o produto foi enriquecido, o canonical_name já traz o
+    # feed Awin mesclado MAIS o discriminador de variante (tamanho/pack/porte)
+    # — é a identidade mais forte. O título cru do feed só assume quando o
+    # catálogo ainda não passou pelo enriquecimento (nome de scanner/IA).
+    enriched_name = product.canonical_name if getattr(product, "identity_enriched_at", None) is not None else None
+    match_name = expected_name or enriched_name or feed_name or product_name
     match_brand = expected_brand if expected_brand is not None else (feed_brand or product_brand)
     keyword_product = ProductCatalog(name=match_name, brand=match_brand)
     expected_weight_kg = expected_weight_kg if expected_weight_kg is not None else extract_weight_kg(match_name)

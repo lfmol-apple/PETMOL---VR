@@ -83,6 +83,43 @@ def test_breed_size_variation_is_conflict():
     assert "BREED_SIZE_CONFLICT" in result.reasons
 
 
+def test_breed_size_pm_product_matches_p_only_listing():
+    # Produto "Pequenos e Médios" (P/M) x anúncio que diz só "TAM P" — mesma
+    # coleira. Faixa P/M cobre P; não é conflito. (Era o que fazia o sync
+    # recusar a Scalibor 48cm certa: feed "Pequenos e Médios" -> small_medium,
+    # anúncio "48CM TAM P" -> small, e o _compare_exact tratava como conflito.)
+    expected = ProductIdentity.build(
+        canonical_name="Coleira Antiparasitaria Scalibor Caes Pequenos e Medios", brand="Scalibor"
+    )
+    result = evaluate_identity(
+        expected,
+        MerchantCandidate.build(
+            merchant="shopee",
+            title="COLEIRA SCALIBOR 48CM LEISHMANIOSE ANTIPULGA CARRAPATO TAM P",
+            brand="Scalibor",
+        ),
+    )
+    assert result.accepted is True
+    assert _statuses(result)["breed_size"] == AttributeStatus.MATCH
+    assert "BREED_SIZE_CONFLICT" not in result.reasons
+
+
+def test_breed_size_pm_product_still_conflicts_with_large_listing():
+    expected = ProductIdentity.build(
+        canonical_name="Coleira Antiparasitaria Scalibor Caes Pequenos e Medios", brand="Scalibor"
+    )
+    result = evaluate_identity(
+        expected,
+        MerchantCandidate.build(
+            merchant="shopee",
+            title="Coleira Scalibor Antipulgas Carrapatos Caes Porte Grande",
+            brand="Scalibor",
+        ),
+    )
+    assert result.decision == IdentityDecision.CONFLICT
+    assert "BREED_SIZE_CONFLICT" in result.reasons
+
+
 def test_life_stage_variation_is_conflict():
     expected = ProductIdentity.build(canonical_name="Royal Canin Mini Adult Caes 15kg", brand="Royal Canin")
     result = evaluate_identity(
