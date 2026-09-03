@@ -61,6 +61,44 @@ def test_weight_variation_is_conflict():
     assert _statuses(result)["weight_kg"] == AttributeStatus.CONFLICT
 
 
+def test_veterinary_diet_vs_regular_food_same_brand_size_is_conflict():
+    # Ração do Baby: "Veterinary Diet Urinary Small Dog 7,5kg". Anúncio
+    # "Royal Canin Mini Indoro Porte Pequeno 7,5kg" partilha marca + peso +
+    # porte, mas é ração COMUM, não dieta veterinária — SKU e preço
+    # diferentes. Sem o marcador terapêutico no anúncio => CONFLITO.
+    expected = ProductIdentity.build(
+        canonical_name="Ração Royal Canin Veterinary Diet Urinary Small Dog para Cães de Porte Pequeno 7,5kg",
+        brand="Royal Canin",
+    )
+    result = evaluate_identity(
+        expected,
+        MerchantCandidate.build(
+            merchant="shopee",
+            title="RAÇÃO ROYAL CANIN MINI INDOOR CÃES ADULTOS PORTE PEQUENO 7.5KG",
+            brand="Royal Canin",
+        ),
+    )
+    assert result.accepted is False
+    assert "THERAPEUTIC_ATTRIBUTES_CONFLICT" in result.reasons
+
+
+def test_veterinary_diet_matches_listing_that_names_the_line():
+    expected = ProductIdentity.build(
+        canonical_name="Ração Royal Canin Veterinary Diet Urinary Small Dog para Cães de Porte Pequeno 7,5kg",
+        brand="Royal Canin",
+    )
+    result = evaluate_identity(
+        expected,
+        MerchantCandidate.build(
+            merchant="shopee",
+            title="Royal Canin Veterinary Canine Urinary S/O Small 7,5kg",
+            brand="Royal Canin",
+        ),
+    )
+    assert result.accepted is True
+    assert _statuses(result)["therapeutic_attributes"] == AttributeStatus.MATCH
+
+
 def test_therapeutic_line_variation_is_conflict():
     expected = ProductIdentity.build(canonical_name="Royal Canin Veterinary Urinary S/O Small Dog 7,5kg", brand="Royal Canin")
     result = evaluate_identity(
@@ -213,6 +251,45 @@ def test_pack_count_variation_is_conflict():
 
     assert result.decision == IdentityDecision.CONFLICT
     assert "PACK_COUNT_CONFLICT" in result.reasons
+
+
+def test_pack_count_abbreviation_still_conflicts():
+    # "4 Comp." (abreviado) tem que ser lido igual a "4 comprimidos".
+    expected = ProductIdentity.build(canonical_name="Vermifugo Drontal Plus Caes ate 10kg 2 comprimidos", brand="Drontal")
+    result = evaluate_identity(
+        expected,
+        MerchantCandidate.build(merchant="shopee", title="Vermifugo Drontal Plus Caes Ate 10kg - 4 Comp. - Elanco", brand="Drontal"),
+    )
+    assert result.decision == IdentityDecision.CONFLICT
+    assert "PACK_COUNT_CONFLICT" in result.reasons
+
+
+def test_explicit_box_count_conflicts_with_single_unit_product():
+    # Produto esperado é avulso (sem pack no título); anúncio "3 Comprimidos"
+    # é a caixa fechada — SKU comercial distinto, preço distinto → CONFLITO.
+    expected = ProductIdentity.build(
+        canonical_name="NexGard Antipulgas e Carrapatos de 4,1 a 10kg para Caes",
+        brand="NexGard",
+    )
+    box = evaluate_identity(
+        expected,
+        MerchantCandidate.build(merchant="shopee", title="Antipulgas NexGard 3 Comprimidos para Caes de 4,1 a 10kg", brand="NexGard"),
+    )
+    assert box.decision == IdentityDecision.CONFLICT
+    assert "MULTIPACK_CONFLICT" in box.reasons
+
+    kit_com = evaluate_identity(
+        expected,
+        MerchantCandidate.build(merchant="shopee", title="Kit com 2 NexGard 4 a 10kg Antipulgas e Carrapatos", brand="NexGard"),
+    )
+    assert kit_com.decision == IdentityDecision.CONFLICT
+    assert "MULTIPACK_CONFLICT" in kit_com.reasons
+
+    single = evaluate_identity(
+        expected,
+        MerchantCandidate.build(merchant="shopee", title="NexGard Antipulgas e Carrapatos Caes 4,1 a 10kg 1 Comprimido", brand="NexGard"),
+    )
+    assert single.accepted is True
 
 
 def test_flavor_variation_is_conflict():

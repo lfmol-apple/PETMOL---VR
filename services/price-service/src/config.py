@@ -337,6 +337,13 @@ class Settings(BaseSettings):
     # e _show_stale_after_hours o último preço ainda aparece marcado
     # "confirme na loja"; acima disso, sem número.
     marketplace_offer_show_stale_after_hours: int = 240
+    # IDENTIDADE PRIMEIRO NO SERVING. Quando ligado, o provider só serve
+    # oferta marketplace cuja identidade está COMPROVADA (result.accepted);
+    # oferta legada sem título/GTIN ou com conflito não aparece (a Cobasi
+    # cobre a tela). DESLIGADO por padrão: o despejo de agosto tem ~60k
+    # linhas sem título e ligar isso antes de enriquecer a fila A derruba
+    # a cobertura Shopee da vitrine. Liga depois do enriquecimento.
+    marketplace_strict_identity_serving: bool = False
     # Fase 1-A/B: expande o produto do tutor pros EANs irmãos do grupo de
     # SKU e busca preço em cada um. Aditivo — nunca remove oferta. DESLIGADO
     # por padrão até o passo de irmãos ficar 100% fora do event loop (as

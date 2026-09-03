@@ -68,16 +68,90 @@ def _set_product_thumbnail(product_id: int, thumbnail_url: str) -> None:
 
 
 def _register_offer(product_id: int, **overrides) -> None:
-    defaults = dict(
-        product_id=product_id, merchant="shopee",
-        affiliate_url="https://s.shopee.com.br/3AbCdEfGh",
-        price=59.9, is_available=True, active=True,
-    )
-    defaults.update(overrides)
     db = SessionLocal()
     try:
+        product = db.get(ProductCatalog, product_id)
+        # Oferta bem sincronizada carrega o título do anúncio — é o que a
+        # identidade valida. Sem isso o provider (identidade primeiro) não
+        # serve. Testes de variante errada sobrescrevem merchant_title.
+        defaults = dict(
+            product_id=product_id, merchant="shopee",
+            affiliate_url="https://s.shopee.com.br/3AbCdEfGh",
+            price=59.9, is_available=True, active=True,
+            merchant_title=product.name,
+            merchant_gtin=product.barcode_normalized,
+        )
+        defaults.update(overrides)
         db.add(MarketplaceOffer(**defaults))
         db.commit()
+    finally:
+        db.close()
+
+
+def _titleless_offer(product_id: int, **overrides) -> None:
+    # simula o despejo de agosto: linha sem merchant_title/merchant_gtin
+    db = SessionLocal()
+    try:
+        defaults = dict(
+            product_id=product_id, merchant="shopee",
+            affiliate_url="https://s.shopee.com.br/3AbCdEfGh",
+            price=59.9, is_available=True, active=True,
+            merchant_title=None, merchant_gtin=None,
+        )
+        defaults.update(overrides)
+        db.add(MarketplaceOffer(**defaults))
+        db.commit()
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_titleless_legacy_offer_served_when_not_strict(monkeypatch):
+    _enable_shopee(monkeypatch)
+    monkeypatch.setenv("MARKETPLACE_STRICT_IDENTITY_SERVING", "false")
+    get_settings.cache_clear()
+    product_id = _register_product()
+    _titleless_offer(product_id)
+
+    db = SessionLocal()
+    try:
+        offer = await MarketplaceOfferProvider(db, "shopee").find_offer(ProductContext(gtin=GTIN))
+        assert offer is not None  # fail-open: cobertura preservada
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_titleless_legacy_offer_not_served_when_strict(monkeypatch):
+    _enable_shopee(monkeypatch)
+    monkeypatch.setenv("MARKETPLACE_STRICT_IDENTITY_SERVING", "true")
+    get_settings.cache_clear()
+    product_id = _register_product()
+    _titleless_offer(product_id)
+
+    db = SessionLocal()
+    try:
+        offer = await MarketplaceOfferProvider(db, "shopee").find_offer(ProductContext(gtin=GTIN))
+        assert offer is None  # identidade não comprovada → Cobasi cobre a tela
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_proven_conflict_offer_never_served_even_when_not_strict(monkeypatch):
+    _enable_shopee(monkeypatch)
+    monkeypatch.setenv("MARKETPLACE_STRICT_IDENTITY_SERVING", "false")
+    get_settings.cache_clear()
+    product_id = _register_product(name="Coleira Antiparasitaria Scalibor 48cm", brand="Scalibor")
+    _register_offer(
+        product_id, price=19.9, merchant_gtin=None,
+        merchant_title="Kit 3 Coleiras Scalibor 48cm Antiparasitaria",
+    )
+
+    db = SessionLocal()
+    try:
+        offer = await MarketplaceOfferProvider(db, "shopee").find_offer(ProductContext(gtin=GTIN))
+        assert offer is None  # conflito comprovado nunca é servido
     finally:
         db.close()
 
@@ -142,6 +216,7 @@ async def test_prevalidated_marketplace_offer_with_wrong_variant_is_not_displaye
         product_id,
         price=20.20,
         merchant_title="Biscoito Pedigree Biscrok Multisabor 150g",
+        merchant_gtin=None,
         match_decision="HIGH_CONFIDENCE",
     )
 
@@ -165,12 +240,14 @@ async def test_prevalidated_marketplace_offer_skips_wrong_variant_and_uses_valid
         product_id,
         price=20.20,
         merchant_title="Biscoito Pedigree Biscrok Multisabor 150g",
+        merchant_gtin=None,
         match_decision="HIGH_CONFIDENCE",
     )
     _register_offer(
         product_id,
         price=27.99,
         merchant_title="Biscoito Pedigree Biscrok Carne 500g",
+        merchant_gtin=None,
         match_decision="HIGH_CONFIDENCE",
     )
 
