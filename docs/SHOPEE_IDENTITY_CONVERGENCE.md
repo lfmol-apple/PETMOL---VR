@@ -227,3 +227,67 @@ nosso tier. Ver [SHOPEE_AFFILIATE_TRACKING_AUDIT.md](SHOPEE_AFFILIATE_TRACKING_A
 - Deploy de código e saneamento de dados são etapas **separadas**.
 - Antes de operação de massa: dry-run/piloto → PARAR → mostrar números →
   decisão do usuário.
+
+---
+
+## 12. Resultados rounds 1 + 2 (03/09/2026)
+
+Catch-up único executado (`enrich_ab.py` round 1 + `enrich_round2.py`
+round 2, com o matcher de `9cab748`). Aditivo, checkpoint, backup
+`marketplace_offers_PRE_ENRICH_20260903T025947Z.sql.gz`.
+
+| | round 1 | round 2 |
+|---|---|---|
+| GTINs processados | 10.842 | 5.318 (só os que o round 1 não casou) |
+| casados | 5.479 (~50%) | 1.103 (~21% do balde difícil) |
+| ofertas gravadas c/ título+decisão | 25.840 | 5.338 |
+| resgatados por banda de preço Cobasi | — | 71 (~6% dos matches — não inerte) |
+| erro de API | 461 | 80 |
+
+**Estado da vitrine (medição `measure_coverage.py`, flag ON simulado):**
+
+- Ofertas Shopee ativas: 60.498 → **50.466** (~10k title-less legadas
+  aposentadas por substituto positivo)
+- `match_decision`: **31.282 HIGH_CONFIDENCE** / 19.176 NULL (legado) /
+  6 NO_MATCH / 2 CONFLICT
+- **Produtos com Shopee servível (flag ON): 5.981 de 10.837 (55%)** —
+  vs **42** no dia 0 do piloto
+- ~6.582 GTINs com match no total; a diferença pra 5.981 servíveis é
+  re-validação de identidade do provider (catálogo) um pouco mais rígida
+  que o `expected_name` do sync.
+
+**Análise do balde sem-match (4.212 GTINs):**
+
+| segmento | total | tem Cobasi | visto por tutor |
+|---|---|---|---|
+| acessório/outro | 2.811 | 1.131 | **3** |
+| ração | 906 | 679 | **4** |
+| med/antiparasitário | 227 | 135 | 0 |
+| petisco | 161 | 62 | 2 |
+| higiene | 107 | 46 | 1 |
+
+**Só ~10 GTINs sem-match são vistos por tutor** (scan/plano). Retry
+priority-A neles: 0 casou — são ausências genuínas na Shopee, não erro de
+API. Os 10: 2 são lixo de scanner (vinho, óleo de cabelo), 6 têm Cobasi
+(família Biscrok, Pedigree úmida, Pet Milk), 2 são pet real sem Cobasi
+(Bifinho Doguitos, tapete Kapazi). **Nenhum gap de cobertura relevante.**
+
+O caso Biscrok é o matcher recusando corretamente anúncios multi-variante
+ambíguos ("Biscrok Multi" vs "Raças Pequenas" vs tamanhos) — Cobasi mostra
+o preço.
+
+### Prontidão pra ligar `MARKETPLACE_STRICT_IDENTITY_SERVING=true`
+
+- **Cobertura: 5.981 produtos** servíveis com identidade comprovada.
+- Produtos que sairiam da vitrine Shopee: ~4.856 — **quase todos long-tail
+  / lixo de UPC**, ~10 vistos por tutor, todos com Cobasi menos 2 itens
+  menores.
+- Risco de preço errado com flag ON: **eliminado** (só serve comprovado).
+- Recomendação: **pronto pra ligar** após merge do #186. Decisão do
+  usuário (impacto visível na vitrine).
+
+### Steady state
+
+Rounds não se repetem. Daqui pra frente: fila noturna priorizada (§7) +
+re-run segmentado só quando muda regra do matcher. Ver
+`services/price-service/scripts/` e a fila `iter_launch_coverage_queue`.
