@@ -50,15 +50,18 @@ _VOLUME_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(ml|l|litro|litros)\b")
 _LENGTH_CM_TOKEN_RE = re.compile(r"^\d+(?:[.,]\d+)?cm$")
 _LENGTH_CM_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*cm\b")
 _PACK_COUNT_RE = re.compile(
-    r"\b(\d+)\s*"
-    r"(comprimidos?|tabletes?|tabs?|pipetas?|doses?|unidades?|unds?|sach[eê]s?|"
-    r"flaconetes?|ampolas?|bisnagas?|saquinhos?|coleiras?|caixas?)\b"
+    r"\b(\d+)\s*(?:x\s*)?"
+    r"(comprimidos?|comp|cp|tabletes?|tabs?|pipetas?|doses?|"
+    r"unidades?|unid|unds?|un|sach[eê]s?|flaconetes?|ampolas?|"
+    r"bisnagas?|saquinhos?|coleiras?|caixas?|cx)"
+    r"\.?(?![a-z])"
 )
 
 # Embalagem múltipla vendida como conjunto — identidade comercial diferente
-# de uma unidade. "Kit 2 coleiras", "combo", "leve 3", "3 unidades".
+# de uma unidade. "Kit 2 coleiras", "kit com 2", "combo", "leve 3",
+# "3 unidades".
 _MULTIPACK_RE = re.compile(
-    r"\b(kit\s*[2-9]\d*|combo|leve\s*[2-9]|pack\s*[2-9]|"
+    r"\b(kit\s*(?:com\s*|c/\s*)?[2-9]\d*|combo|leve\s*[2-9]|pack\s*[2-9]|"
     r"[2-9]\d*\s*(?:x|unidades?|unds?|coleiras?|caixas?|frascos?|potes?|kits?)|"
     r"c/\s*[2-9]\d*\s*(?:un|und|unidades?))\b"
 )

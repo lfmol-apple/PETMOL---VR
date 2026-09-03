@@ -546,8 +546,14 @@ def _compare_breed_size(expected: Optional[str], observed: Optional[str]) -> Att
 def _compare_multipack(expected: "ProductIdentity", candidate_text: str) -> AttributeComparison:
     """Conjunto múltiplo (kit/combo/N unidades) é outra apresentação
     comercial que a unidade. Anúncio multipack contra produto de unidade
-    (pack_count nulo ou 1, e o próprio nome não é multipack) → CONFLICT."""
-    cand_multi = is_multipack(candidate_text)
+    (pack_count nulo ou 1, e o próprio nome não é multipack) → CONFLICT.
+
+    Um anúncio que diz explicitamente "3 comprimidos"/"3 tabletes"/"2 un"
+    contra um produto esperado de unidade (sem pack no título/catálogo)
+    também é CONFLITO: é a caixa fechada, SKU comercial distinto do avulso.
+    """
+    cand_pack = extract_pack_count(candidate_text)
+    cand_multi = is_multipack(candidate_text) or (cand_pack is not None and cand_pack >= 2)
     exp_multi = is_multipack(expected.canonical_name or "") or (expected.pack_count or 1) > 1
     if cand_multi and not exp_multi:
         return AttributeComparison("multipack", exp_multi, cand_multi, AttributeStatus.CONFLICT, "MULTIPACK_CONFLICT")
