@@ -30,7 +30,7 @@ from .affiliate_links import MarketplaceOffer, get_active_marketplace_offer
 from .commerce_provider import DiscoveredOffer, ProductContext
 from .config import get_settings
 from .db import SessionLocal
-from .product_identity import IdentityMatchResult, MerchantCandidate, ProductIdentity, evaluate_identity
+from .product_identity import IdentityDecision, IdentityMatchResult, MerchantCandidate, ProductIdentity, evaluate_identity
 from .product_catalog_lookup import ProductCatalog, normalize_gtin, search_catalog_by_text
 from .mercadolivre_link_validator import InvalidMercadoLivreAffiliateUrlError, validate_mercadolivre_affiliate_url
 from .shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
@@ -287,13 +287,22 @@ def _select_valid_marketplace_offer(
     # (result.accepted). Oferta sem título/GTIN — identidade não
     # verificável — ou com conflito NÃO é servida: continua `active` pra
     # revalidação/enriquecimento pela auditoria, mas não aparece pro tutor
-    # sem evidência. A Cobasi cobre a tela enquanto isso. Antes o código
-    # era fail-open (`result is None` também retornava) e servia às cegas
-    # a oferta mais barata do despejo legado — variante/linha errada.
+    # sem evidência. A Cobasi cobre a tela enquanto isso.
+    #
+    # Atrás de marketplace_strict_identity_serving (OFF por padrão): o
+    # despejo de agosto tem ~60k linhas sem título; ligar o modo estrito
+    # antes de enriquecer a fila A derruba a cobertura Shopee. Enquanto
+    # OFF mantém o comportamento antigo (fail-open) mas NUNCA serve uma
+    # oferta em conflito comprovado.
+    strict = get_settings().marketplace_strict_identity_serving
     for row in rows:
         result = _validate_marketplace_offer_identity(identity, row)
+        if result is not None and result.decision == IdentityDecision.CONFLICT:
+            continue
         if result is not None and result.accepted:
             return row, result
+        if not strict and result is None:
+            return row, None
     return None, None
 
 
