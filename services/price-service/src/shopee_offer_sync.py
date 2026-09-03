@@ -150,6 +150,30 @@ def _build_keyword_variants(product: ProductCatalog, expected_weight_kg: Optiona
             " ".join(part for part in (brand, "Urinary Small Dog", weight) if part),
             " ".join(part for part in (brand, "Veterinary Canine Urinary S/O Small", weight) if part),
         ])
+
+    # Escada orientada pela identidade enriquecida: cada discriminador real
+    # (linha/sabor/porte/faixa de peso do animal/comprimento) vira uma
+    # busca marca + discriminador [+ peso]. Só amplia discovery — o matcher
+    # continua validando tudo. (sugestão do review)
+    try:
+        _ident = ProductIdentity.build(canonical_name=name, brand=brand or None, weight_kg=expected_weight_kg)
+        _disc: list[str] = []
+        if _ident.product_line:
+            _disc.append(_ident.product_line)
+        if _ident.flavor:
+            _disc.append(_ident.flavor)
+        if _ident.breed_size:
+            _disc.append(_ident.breed_size.replace("_", " "))
+        if _ident.animal_weight_range:
+            lo, hi = _ident.animal_weight_range
+            _disc.append(f"{lo:g} a {hi:g}kg")
+        if _ident.length_cm:
+            _disc.append(f"{_ident.length_cm:g}cm")
+        for term in _disc:
+            raw_variants.append(" ".join(part for part in (brand, term, weight) if part))
+            raw_variants.append(" ".join(part for part in (brand, term) if part))
+    except Exception:  # noqa: BLE001 — keyword é best-effort
+        pass
     variants: list[str] = []
     seen: set[str] = set()
     for variant in raw_variants:
@@ -159,7 +183,8 @@ def _build_keyword_variants(product: ProductCatalog, expected_weight_kg: Optiona
             continue
         seen.add(key)
         variants.append(normalized)
-    return variants
+    # teto de buscas por GTIN — respeita o rate limit (~0,4s/chamada).
+    return variants[:9]
 
 
 def _brand_for_matching(title: str, brand: Optional[str]) -> Optional[str]:
