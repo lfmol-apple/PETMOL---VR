@@ -61,6 +61,44 @@ def test_weight_variation_is_conflict():
     assert _statuses(result)["weight_kg"] == AttributeStatus.CONFLICT
 
 
+def test_veterinary_diet_vs_regular_food_same_brand_size_is_conflict():
+    # Ração do Baby: "Veterinary Diet Urinary Small Dog 7,5kg". Anúncio
+    # "Royal Canin Mini Indoro Porte Pequeno 7,5kg" partilha marca + peso +
+    # porte, mas é ração COMUM, não dieta veterinária — SKU e preço
+    # diferentes. Sem o marcador terapêutico no anúncio => CONFLITO.
+    expected = ProductIdentity.build(
+        canonical_name="Ração Royal Canin Veterinary Diet Urinary Small Dog para Cães de Porte Pequeno 7,5kg",
+        brand="Royal Canin",
+    )
+    result = evaluate_identity(
+        expected,
+        MerchantCandidate.build(
+            merchant="shopee",
+            title="RAÇÃO ROYAL CANIN MINI INDOOR CÃES ADULTOS PORTE PEQUENO 7.5KG",
+            brand="Royal Canin",
+        ),
+    )
+    assert result.accepted is False
+    assert "THERAPEUTIC_ATTRIBUTES_CONFLICT" in result.reasons
+
+
+def test_veterinary_diet_matches_listing_that_names_the_line():
+    expected = ProductIdentity.build(
+        canonical_name="Ração Royal Canin Veterinary Diet Urinary Small Dog para Cães de Porte Pequeno 7,5kg",
+        brand="Royal Canin",
+    )
+    result = evaluate_identity(
+        expected,
+        MerchantCandidate.build(
+            merchant="shopee",
+            title="Royal Canin Veterinary Canine Urinary S/O Small 7,5kg",
+            brand="Royal Canin",
+        ),
+    )
+    assert result.accepted is True
+    assert _statuses(result)["therapeutic_attributes"] == AttributeStatus.MATCH
+
+
 def test_therapeutic_line_variation_is_conflict():
     expected = ProductIdentity.build(canonical_name="Royal Canin Veterinary Urinary S/O Small Dog 7,5kg", brand="Royal Canin")
     result = evaluate_identity(

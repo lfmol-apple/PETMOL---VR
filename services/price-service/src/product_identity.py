@@ -235,10 +235,15 @@ def evaluate_identity(
         _compare_exact("life_stage", expected.life_stage, _infer_life_stage(candidate_text)),
         _compare_breed_size(expected.breed_size, _infer_breed_size(candidate_text)),
         _compare_exact("flavor", expected.flavor, _infer_flavor(candidate_text)),
-        _compare_set("therapeutic_attributes", set(expected.therapeutic_attributes), _infer_therapeutics(candidate_text)),
+        _compare_therapeutic(set(expected.therapeutic_attributes), _infer_therapeutics(candidate_text)),
     ]
 
     conflicts = [item for item in comparisons if item.status == AttributeStatus.CONFLICT]
+    if comparisons[0].status == AttributeStatus.MATCH:
+        # EAN confirmado é a verdade da identidade do produto. Um "conflito"
+        # terapêutico inferido só de palavra no título (anúncio incompleto)
+        # não derruba um match de GTIN exato.
+        conflicts = [c for c in conflicts if c.attribute != "therapeutic_attributes"]
     if conflicts:
         reasons = tuple(_reason_for_conflict(item) for item in conflicts)
         if any(item.attribute == "gtin" for item in conflicts):
@@ -565,6 +570,31 @@ def _compare_set(attribute: str, expected: set[str], observed: set[str]) -> Attr
     if expected == observed or expected.issubset(observed):
         return AttributeComparison(attribute, sorted(expected), sorted(observed), AttributeStatus.MATCH, f"{attribute.upper()}_MATCH")
     return AttributeComparison(attribute, sorted(expected), sorted(observed), AttributeStatus.CONFLICT, f"{attribute.upper()}_CONFLICT")
+
+
+def _compare_therapeutic(expected: set[str], observed: set[str]) -> AttributeComparison:
+    """Dieta veterinária/terapêutica é uma FRONTEIRA de identidade, não um
+    detalhe. "Royal Canin Urinary" e "Royal Canin Mini Indoor" partilham
+    marca/peso/porte mas são SKUs diferentes, com preços diferentes — e o
+    pet não pode trocar. Se o produto esperado tem um marcador terapêutico
+    e o anúncio não mostra NENHUM (ou mostra outro) → CONFLITO, não UNKNOWN.
+    O caminho contrário (anúncio terapêutico, produto comum) segue UNKNOWN:
+    o vendedor pode ter posto "urinary" num anúncio de ração comum por erro.
+    """
+    if not expected:
+        return AttributeComparison(
+            "therapeutic_attributes", None, sorted(observed) or None,
+            AttributeStatus.UNKNOWN, "MISSING_THERAPEUTIC_ATTRIBUTES",
+        )
+    if expected & observed:
+        return AttributeComparison(
+            "therapeutic_attributes", sorted(expected), sorted(observed),
+            AttributeStatus.MATCH, "THERAPEUTIC_ATTRIBUTES_MATCH",
+        )
+    return AttributeComparison(
+        "therapeutic_attributes", sorted(expected), sorted(observed) or None,
+        AttributeStatus.CONFLICT, "THERAPEUTIC_ATTRIBUTES_CONFLICT",
+    )
 
 
 def _comparison(attribute: str, comparisons: list[AttributeComparison]) -> AttributeComparison:
