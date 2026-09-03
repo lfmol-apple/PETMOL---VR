@@ -233,7 +233,7 @@ def evaluate_identity(
         _compare_multipack(expected, candidate_text),
         _compare_range("animal_weight_range", expected.animal_weight_range, extract_animal_weight_range_kg(candidate_text)),
         _compare_exact("life_stage", expected.life_stage, _infer_life_stage(candidate_text)),
-        _compare_exact("breed_size", expected.breed_size, _infer_breed_size(candidate_text)),
+        _compare_breed_size(expected.breed_size, _infer_breed_size(candidate_text)),
         _compare_exact("flavor", expected.flavor, _infer_flavor(candidate_text)),
         _compare_set("therapeutic_attributes", set(expected.therapeutic_attributes), _infer_therapeutics(candidate_text)),
     ]
@@ -272,6 +272,14 @@ def evaluate_identity(
     )
     has_sku_evidence = bool(sku_matches or flavor_matches) or not _expected_has_structured_sku(expected)
     confidence = min(0.98, round((text_score * 0.55) + (0.15 if "BRAND_MATCH" in identity_reasons else 0) + (0.15 if family_match else 0) + (0.08 * len(sku_matches)), 4))
+
+    # Marca + 2+ discriminadores estruturais confirmados (peso/volume/tamanho/
+    # porte/pack), sem nenhum conflito (conflito já teria retornado acima):
+    # é o MESMO SKU físico, mesmo que o anúncio use palavras diferentes das
+    # do catálogo ("TAM P" x "Pequenos e Médios"). O score de texto sozinho
+    # subestima esses casos e fazia o sync recusar variantes de tamanho.
+    if "BRAND_MATCH" in identity_reasons and len(sku_matches) >= 2:
+        confidence = max(confidence, min_confidence)
 
     if has_identity_base and has_sku_evidence and confidence >= min_confidence:
         return IdentityMatchResult(
@@ -316,7 +324,7 @@ def compare_structural(a: ProductIdentity, b: ProductIdentity) -> tuple[Attribut
         _compare_exact("pack_count", a.pack_count, b.pack_count),
         _compare_range("animal_weight_range", a.animal_weight_range, b.animal_weight_range),
         _compare_exact("species", a.species, b.species),
-        _compare_exact("breed_size", a.breed_size, b.breed_size),
+        _compare_breed_size(a.breed_size, b.breed_size),
         _compare_exact("breed", a.breed, b.breed),
         _compare_exact("life_stage", a.life_stage, b.life_stage),
         _compare_exact("flavor", a.flavor, b.flavor),
@@ -501,6 +509,33 @@ def _compare_exact(attribute: str, expected: Any, observed: Any) -> AttributeCom
     if expected == observed:
         return AttributeComparison(attribute, expected, observed, AttributeStatus.MATCH, f"{attribute.upper()}_MATCH")
     return AttributeComparison(attribute, expected, observed, AttributeStatus.CONFLICT, f"{attribute.upper()}_CONFLICT")
+
+
+# Porte como faixa ordinal — um produto rotulado "Pequenos e Médios" (P/M)
+# cobre P e M; um anúncio que diz só "P" (ou só "TAM P") é a MESMA coleira,
+# não um conflito. Conflito de verdade é faixa sem interseção (P/M x G).
+_BREED_SIZE_SPAN = {
+    "xsmall": frozenset({0}),
+    "small": frozenset({1}),
+    "small_medium": frozenset({1, 2}),
+    "medium": frozenset({2}),
+    "large": frozenset({3}),
+    "giant": frozenset({4}),
+}
+
+
+def _compare_breed_size(expected: Optional[str], observed: Optional[str]) -> AttributeComparison:
+    if expected is None or observed is None:
+        return AttributeComparison("breed_size", expected, observed, AttributeStatus.UNKNOWN, "MISSING_BREED_SIZE")
+    if expected == observed:
+        return AttributeComparison("breed_size", expected, observed, AttributeStatus.MATCH, "BREED_SIZE_MATCH")
+    exp_span = _BREED_SIZE_SPAN.get(expected)
+    obs_span = _BREED_SIZE_SPAN.get(observed)
+    if exp_span is None or obs_span is None:
+        return AttributeComparison("breed_size", expected, observed, AttributeStatus.UNKNOWN, "BREED_SIZE_UNKNOWN")
+    if exp_span & obs_span:
+        return AttributeComparison("breed_size", expected, observed, AttributeStatus.MATCH, "BREED_SIZE_MATCH")
+    return AttributeComparison("breed_size", expected, observed, AttributeStatus.CONFLICT, "BREED_SIZE_CONFLICT")
 
 
 def _compare_multipack(expected: "ProductIdentity", candidate_text: str) -> AttributeComparison:
