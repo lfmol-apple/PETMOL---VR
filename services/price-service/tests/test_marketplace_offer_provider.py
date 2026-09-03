@@ -68,14 +68,20 @@ def _set_product_thumbnail(product_id: int, thumbnail_url: str) -> None:
 
 
 def _register_offer(product_id: int, **overrides) -> None:
-    defaults = dict(
-        product_id=product_id, merchant="shopee",
-        affiliate_url="https://s.shopee.com.br/3AbCdEfGh",
-        price=59.9, is_available=True, active=True,
-    )
-    defaults.update(overrides)
     db = SessionLocal()
     try:
+        product = db.get(ProductCatalog, product_id)
+        # Oferta bem sincronizada carrega o título do anúncio — é o que a
+        # identidade valida. Sem isso o provider (identidade primeiro) não
+        # serve. Testes de variante errada sobrescrevem merchant_title.
+        defaults = dict(
+            product_id=product_id, merchant="shopee",
+            affiliate_url="https://s.shopee.com.br/3AbCdEfGh",
+            price=59.9, is_available=True, active=True,
+            merchant_title=product.name,
+            merchant_gtin=product.barcode_normalized,
+        )
+        defaults.update(overrides)
         db.add(MarketplaceOffer(**defaults))
         db.commit()
     finally:
@@ -142,6 +148,7 @@ async def test_prevalidated_marketplace_offer_with_wrong_variant_is_not_displaye
         product_id,
         price=20.20,
         merchant_title="Biscoito Pedigree Biscrok Multisabor 150g",
+        merchant_gtin=None,
         match_decision="HIGH_CONFIDENCE",
     )
 
@@ -165,12 +172,14 @@ async def test_prevalidated_marketplace_offer_skips_wrong_variant_and_uses_valid
         product_id,
         price=20.20,
         merchant_title="Biscoito Pedigree Biscrok Multisabor 150g",
+        merchant_gtin=None,
         match_decision="HIGH_CONFIDENCE",
     )
     _register_offer(
         product_id,
         price=27.99,
         merchant_title="Biscoito Pedigree Biscrok Carne 500g",
+        merchant_gtin=None,
         match_decision="HIGH_CONFIDENCE",
     )
 

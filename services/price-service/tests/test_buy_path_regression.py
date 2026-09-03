@@ -95,6 +95,8 @@ def test_affiliate_only_never_returns_direct_link(client, monkeypatch):
         db.add(MarketplaceOffer(
             product_id=product_id,
             merchant="shopee",
+            merchant_title="Produto Teste",
+            merchant_gtin=GTIN,
             affiliate_url="https://s.shopee.com.br/real-affiliate-link",
             direct_url="https://shopee.com.br/produto/sem-comissao",
             price=59.9,
@@ -103,6 +105,8 @@ def test_affiliate_only_never_returns_direct_link(client, monkeypatch):
         db.add(MarketplaceOffer(
             product_id=product_id,
             merchant="mercadolivre",
+            merchant_title="Produto Teste",
+            merchant_gtin=GTIN,
             affiliate_url="https://www.mercadolivre.com.br/social/petmol?matt_word=x&matt_tool=1",
             direct_url="https://www.mercadolivre.com.br/produto/sem-comissao",
             price=79.9,

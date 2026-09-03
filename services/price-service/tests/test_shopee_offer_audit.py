@@ -113,21 +113,74 @@ def test_auditoria_desativa_listing_salvo_quando_produto_nao_bate(monkeypatch):
 
     db = SessionLocal()
     try:
-        result = audit_active_shopee_offers(db, deactivate_invalid=True)
+        result = audit_active_shopee_offers(db, deactivate_conflicts=True)
     finally:
         db.close()
 
     assert result.total == 1
     assert result.valid == 0
-    assert result.invalid == 1
+    # Evidência POSITIVA de conflito de identidade (porte: pequeno x médio)
+    # → CONFLICT → desativa e libera o GTIN pra recasar.
+    assert result.conflict == 1
+    assert result.unresolved == 0
     assert result.deactivated == 1
-    assert result.items[0].reason == "saved_listing_not_in_confident_matches"
+    assert result.items[0].decision == "conflict"
+    assert result.items[0].reason.startswith("identity_conflict:")
+    assert GTIN in result.resync_gtins
 
     db = SessionLocal()
     try:
         offer = db.get(MarketplaceOffer, offer_id)
         assert offer.active is False
         assert offer.last_checked_at is not None
+    finally:
+        db.close()
+
+
+def test_auditoria_nao_desativa_quando_listing_salvo_nao_volta_na_busca(monkeypatch):
+    """Ausência de evidência não é prova de conflito: o anúncio salvo não
+    voltou na busca → UNRESOLVED, mantém ativo, não desativa."""
+    offer_id = _seed_product_with_offer(listing_id="999999")
+    _seed_feed_row()
+    monkeypatch.setattr(audit_module, "search_product_offers", lambda keyword, limit=20: [VALID_SHOPEE_NODE])
+
+    db = SessionLocal()
+    try:
+        result = audit_active_shopee_offers(db, deactivate_conflicts=True)
+    finally:
+        db.close()
+
+    assert result.conflict == 0
+    assert result.unresolved == 1
+    assert result.deactivated == 0
+    assert result.items[0].decision == "unresolved"
+    assert result.items[0].reason == "saved_listing_not_returned_in_search"
+
+    db = SessionLocal()
+    try:
+        assert db.get(MarketplaceOffer, offer_id).active is True
+    finally:
+        db.close()
+
+
+def test_auditoria_dry_run_nao_grava_nada(monkeypatch):
+    offer_id = _seed_product_with_offer(listing_id=str(WRONG_SHOPEE_NODE["itemId"]))
+    _seed_feed_row()
+    monkeypatch.setattr(audit_module, "search_product_offers", lambda keyword, limit=20: [WRONG_SHOPEE_NODE])
+
+    db = SessionLocal()
+    try:
+        result = audit_active_shopee_offers(db, deactivate_conflicts=True, dry_run=True)
+    finally:
+        db.close()
+
+    assert result.conflict == 1
+    assert result.deactivated == 0
+    assert GTIN in result.resync_gtins
+
+    db = SessionLocal()
+    try:
+        assert db.get(MarketplaceOffer, offer_id).active is True
     finally:
         db.close()
 

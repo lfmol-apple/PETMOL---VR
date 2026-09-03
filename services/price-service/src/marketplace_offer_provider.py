@@ -192,9 +192,19 @@ class MarketplaceOfferProvider:
             # mesmo com price=None (ver commerce_provider.CommerceEngine).
             allow_without_price=not fresh,
             merchant_product_name=offer.merchant_title,
-            match_decision=(live_match_result.decision.value if live_match_result is not None else offer.match_decision) or "HIGH_CONFIDENCE",
-            match_confidence=live_match_result.confidence if live_match_result is not None else (offer.match_confidence if offer.match_confidence is not None else 0.75),
-            match_reasons=match_reasons or ["PREVALIDATED_MARKETPLACE_OFFER"],
+            # Sempre a decisão da validação de identidade FEITA AGORA (a
+            # oferta só chega aqui se _select_valid_marketplace_offer a
+            # aceitou). Nunca inventar "HIGH_CONFIDENCE"/0.75 pra preencher
+            # NULL — dado legado sem validação não vira confiável de graça.
+            match_decision=(
+                live_match_result.decision.value if live_match_result is not None
+                else (offer.match_decision or "UNVERIFIED")
+            ),
+            match_confidence=(
+                live_match_result.confidence if live_match_result is not None
+                else offer.match_confidence
+            ),
+            match_reasons=match_reasons or ["MARKETPLACE_OFFER_IDENTITY_VALIDATED"],
             match_attributes=match_attributes,
         )
 
@@ -272,15 +282,25 @@ def _select_valid_marketplace_offer(
         )
         .order_by(MarketplaceOffer.price.is_(None), MarketplaceOffer.price.asc(), MarketplaceOffer.verified_at.desc())
     ))
+    # IDENTIDADE PRIMEIRO, PREÇO DEPOIS. Percorre da mais barata pra mais
+    # cara e devolve a PRIMEIRA cuja identidade está COMPROVADA
+    # (result.accepted). Oferta sem título/GTIN — identidade não
+    # verificável — ou com conflito NÃO é servida: continua `active` pra
+    # revalidação/enriquecimento pela auditoria, mas não aparece pro tutor
+    # sem evidência. A Cobasi cobre a tela enquanto isso. Antes o código
+    # era fail-open (`result is None` também retornava) e servia às cegas
+    # a oferta mais barata do despejo legado — variante/linha errada.
     for row in rows:
         result = _validate_marketplace_offer_identity(identity, row)
-        if result is None or result.accepted:
+        if result is not None and result.accepted:
             return row, result
     return None, None
 
 
 def _validate_marketplace_offer_identity(identity: ProductIdentity, offer: MarketplaceOffer) -> Optional[IdentityMatchResult]:
     if not offer.merchant_title and not offer.merchant_gtin:
+        # Sem título nem GTIN do anúncio → identidade NÃO verificável aqui.
+        # `None` = UNRESOLVED: quem chama não serve, mas também não desativa.
         return None
     return evaluate_identity(
         identity,

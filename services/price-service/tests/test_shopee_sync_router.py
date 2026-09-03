@@ -234,7 +234,7 @@ def test_run_awin_feed_all_usa_linha_do_feed_para_criar_catalogo(monkeypatch, cl
         progress_callback=None,
     ):
         audits.append((source_merchants, deactivate_invalid, max_rows))
-        result = ShopeeOfferAuditResult(total=3, valid=1, invalid=2, deactivated=2)
+        result = ShopeeOfferAuditResult(total=3, valid=1, conflict=2, deactivated=2)
         if progress_callback:
             progress_callback(0, ShopeeOfferAuditResult(total=3))
             progress_callback(3, result)
