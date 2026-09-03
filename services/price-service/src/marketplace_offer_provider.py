@@ -102,6 +102,15 @@ class MarketplaceOfferProvider:
         if not query:
             return None
 
+        # O peso do plano do tutor é discriminante de variante: "Urinary
+        # Small Dog" existe em 2kg E 7,5kg. Sem levar o peso pro candidato,
+        # a busca textual casava as duas e servia a mais barata (a 2kg num
+        # plano de 7,5kg). Com o peso no título do candidato, o Identity
+        # Engine derruba a variante de peso errado (WEIGHT_KG_CONFLICT).
+        candidate_title = query
+        if context.weight_kg:
+            candidate_title = f"{query} {str(context.weight_kg).replace('.', ',')}kg"
+
         best: Optional[tuple[float, ProductCatalog]] = None
         catalog_query = re.sub(r"\bs\s*/?\s*o\b", " ", query, flags=re.IGNORECASE)
         for product in search_catalog_by_text(self._db, q=catalog_query, category="food", limit=10):
@@ -109,7 +118,7 @@ class MarketplaceOfferProvider:
                 continue
             result = evaluate_identity(
                 ProductIdentity.from_catalog(product),
-                MerchantCandidate.build(merchant=self.merchant, title=query, brand=context.brand),
+                MerchantCandidate.build(merchant=self.merchant, title=candidate_title, brand=context.brand),
             )
             if not result.accepted:
                 continue

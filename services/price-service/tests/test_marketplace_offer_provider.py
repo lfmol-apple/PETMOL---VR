@@ -455,6 +455,38 @@ async def test_finds_offer_by_text_when_context_has_no_gtin(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_text_resolution_picks_the_weight_variant_of_the_plan(monkeypatch):
+    # Bug real (ração do Baby): "Urinary Small Dog" existe em 2kg e 7,5kg.
+    # Plano de 7,5kg, request sem GTIN → servia a oferta de 2kg (mais
+    # barata). Com o peso do plano, tem que resolver a variante certa.
+    _enable_shopee(monkeypatch)
+    name = "Ração Royal Canin Veterinary Diet Urinary Small Dog para Cães de Porte Pequeno com Cálculos Urinários"
+    p2 = _register_product(gtin="7896181298083", name=f"{name} 2kg", brand="Royal Canin")
+    p75 = _register_product(gtin="7896181298090", name=f"{name} 7,5kg", brand="Royal Canin")
+    for pid, kg in ((p2, 2.0), (p75, 7.5)):
+        db = SessionLocal()
+        try:
+            prod = db.get(ProductCatalog, pid)
+            prod.category = "food"
+            prod.weight_kg = kg
+            db.commit()
+        finally:
+            db.close()
+    _register_offer(p2, price=140.99, merchant_title=f"{name} 2kg", merchant_gtin=None)
+    _register_offer(p75, price=339.90, merchant_title=f"{name} 7,5kg", merchant_gtin=None)
+
+    db = SessionLocal()
+    try:
+        offer = await MarketplaceOfferProvider(db, "shopee").find_offer(ProductContext(
+            query=name, weight_kg=7.5,
+        ))
+        assert offer is not None
+        assert offer.price == 339.90
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
 async def test_offer_without_price_never_invents_one(monkeypatch):
     """find_offer() retorna a oferta com price=None tal como está — quem
     descarta oferta sem preço é o CommerceEngine (commerce_provider.py).
