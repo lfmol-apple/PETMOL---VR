@@ -201,55 +201,80 @@ def test_match_confiavel_grava_multiplas_ofertas_e_remove_outlier(monkeypatch):
         db.close()
 
 
-def test_anchor_price_resgata_anuncio_de_texto_fraco_mesma_marca_e_peso(monkeypatch):
-    _register_product()
-    weak = {
-        "itemId": 77001,
-        "productName": "Soma Standard 15kg",  # marca+peso, texto pobre → abaixo do corte
-        "shopName": "Loja Enxuta",
-        "price": "77.0",
-        "offerLink": "https://s.shopee.com.br/8AVT6ssWK1",
-        "productLink": "https://shopee.com.br/product/1/77001",
-    }
-    monkeypatch.setattr(sync_module, "search_product_offers", lambda keyword, limit=10: [weak])
-
-    # sem âncora: não casa
-    assert sync_shopee_offer_for_gtin(SessionLocal(), GTIN).matched is False
-    # com âncora (preço Cobasi ao vivo do mesmo GTIN): resgata
-    result = sync_shopee_offer_for_gtin(SessionLocal(), GTIN, anchor_price=79.9)
-    assert result.matched is True
-    db = SessionLocal()
-    try:
-        row = db.scalar(select(MarketplaceOffer).where(MarketplaceOffer.external_listing_id == "77001"))
-        assert row is not None and row.active is True
-        assert "ANCHOR_PRICE_BAND" in (row.match_reasons_json or "")
-    finally:
-        db.close()
+def _mk_result(decision, confidence, reasons, attrs):
+    from src.product_identity import AttributeComparison, AttributeStatus, IdentityMatchResult
+    comps = tuple(
+        AttributeComparison(name, None, observed, status, f"{name.upper()}_{status.value}")
+        for name, observed, status in attrs
+    )
+    return IdentityMatchResult(decision, confidence, tuple(reasons), comps)
 
 
-def test_anchor_price_nao_resgata_preco_fora_da_banda(monkeypatch):
-    _register_product()
-    cheap = {
-        "itemId": 77002, "productName": "Soma Standard 15kg", "shopName": "X",
-        "price": "19.9",  # 0,25x da âncora → fora da banda
-        "offerLink": "https://s.shopee.com.br/8AVT6ssWK2",
-        "productLink": "https://shopee.com.br/product/1/77002",
-    }
-    monkeypatch.setattr(sync_module, "search_product_offers", lambda keyword, limit=10: [cheap])
-    assert sync_shopee_offer_for_gtin(SessionLocal(), GTIN, anchor_price=79.9).matched is False
+def test_anchor_price_rescue_so_promove_quase_match_com_familia_e_discriminador():
+    from src.product_identity import AttributeStatus, IdentityDecision, ProductIdentity
+    from src.shopee_offer_sync import _anchor_price_rescues
+
+    exp = ProductIdentity.build(canonical_name="Ração Soma Nutrição Carne Adulto Cão 15kg", brand="Soma", weight_kg=15.0)
+
+    near = _mk_result(
+        IdentityDecision.NO_MATCH, 0.54,
+        ["INSUFFICIENT_IDENTITY_EVIDENCE", "BRAND_MATCH", "FAMILY_MATCH", "WEIGHT_KG_MATCH"],
+        [("brand", "soma", AttributeStatus.MATCH), ("weight_kg", 15.0, AttributeStatus.MATCH)],
+    )
+    assert _anchor_price_rescues(near, 77.0, exp, 79.9, "Soma Nutricao Carne Caes Adultos 15kg") is True
+
+    # confiança baixa demais (lixo) — preço não converte
+    trash = _mk_result(
+        IdentityDecision.NO_MATCH, 0.24,
+        ["INSUFFICIENT_IDENTITY_EVIDENCE", "BRAND_MATCH"],
+        [("brand", "soma", AttributeStatus.MATCH)],
+    )
+    assert _anchor_price_rescues(trash, 77.0, exp, 79.9, "Soma 15kg") is False
+
+    # sem FAMILY_MATCH
+    no_family = _mk_result(
+        IdentityDecision.NO_MATCH, 0.55,
+        ["INSUFFICIENT_IDENTITY_EVIDENCE", "BRAND_MATCH", "WEIGHT_KG_MATCH"],
+        [("brand", "soma", AttributeStatus.MATCH), ("weight_kg", 15.0, AttributeStatus.MATCH)],
+    )
+    assert _anchor_price_rescues(no_family, 77.0, exp, 79.9, "Soma Carne 15kg") is False
+
+    # peso pinado no PETMOL mas UNKNOWN no anúncio → não resgata (2kg x 15kg)
+    weight_unknown = _mk_result(
+        IdentityDecision.NO_MATCH, 0.55,
+        ["INSUFFICIENT_IDENTITY_EVIDENCE", "BRAND_MATCH", "FAMILY_MATCH", "LIFE_STAGE_MATCH"],
+        [("brand", "soma", AttributeStatus.MATCH), ("life_stage", "adult", AttributeStatus.MATCH)],
+    )
+    assert _anchor_price_rescues(weight_unknown, 77.0, exp, 79.9, "Soma Nutricao Carne Adulto") is False
+
+    # preço fora da banda estreita
+    assert _anchor_price_rescues(near, 40.0, exp, 79.9, "Soma Nutricao Carne Caes Adultos 15kg") is False
+    # qualquer CONFLICT veta
+    conflicted = _mk_result(
+        IdentityDecision.NO_MATCH, 0.55,
+        ["INSUFFICIENT_IDENTITY_EVIDENCE", "BRAND_MATCH", "FAMILY_MATCH"],
+        [("brand", "soma", AttributeStatus.MATCH), ("flavor", "frango", AttributeStatus.CONFLICT)],
+    )
+    assert _anchor_price_rescues(conflicted, 77.0, exp, 79.9, "Soma Frango 15kg") is False
 
 
-def test_anchor_price_nunca_resgata_conflito_de_identidade(monkeypatch):
-    _register_product(name="Ração Soma Nutrição Carne Adulto Cão 15kg", brand="Soma")
-    conflito = {
-        "itemId": 77003,
-        "productName": "Ração Soma Nutrição Frango Adulto Cão 3kg",  # peso conflita (3 vs 15)
-        "shopName": "X", "price": "78.0",
-        "offerLink": "https://s.shopee.com.br/8AVT6ssWK3",
-        "productLink": "https://shopee.com.br/product/1/77003",
-    }
-    monkeypatch.setattr(sync_module, "search_product_offers", lambda keyword, limit=10: [conflito])
-    assert sync_shopee_offer_for_gtin(SessionLocal(), GTIN, anchor_price=79.9).matched is False
+def test_anchor_price_rescue_respeita_product_line_pinada():
+    from src.product_identity import AttributeStatus, IdentityDecision, ProductIdentity
+    from src.shopee_offer_sync import _anchor_price_rescues
+
+    exp = ProductIdentity.build(
+        canonical_name="Ração Royal Canin Veterinary Urinary Small Dog 7,5kg",
+        brand="Royal Canin", weight_kg=7.5,
+    )
+    near = _mk_result(
+        IdentityDecision.NO_MATCH, 0.55,
+        ["INSUFFICIENT_IDENTITY_EVIDENCE", "BRAND_MATCH", "FAMILY_MATCH", "WEIGHT_KG_MATCH"],
+        [("brand", "royal canin", AttributeStatus.MATCH), ("weight_kg", 7.5, AttributeStatus.MATCH)],
+    )
+    # anúncio de outra linha da mesma marca/peso/preço → line tokens ausentes
+    assert _anchor_price_rescues(near, 450.0, exp, 457.81, "Royal Canin Mini Indoor Adult 7,5kg") is False
+    # anúncio que nomeia a linha → passa
+    assert _anchor_price_rescues(near, 450.0, exp, 457.81, "Royal Canin Veterinary Urinary Small Dog 7,5kg") is True
 
 
 def test_sync_usa_feed_awin_como_identidade_forte_quando_catalogo_e_generico(monkeypatch):

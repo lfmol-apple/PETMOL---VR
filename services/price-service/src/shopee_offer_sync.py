@@ -194,32 +194,73 @@ def _median(values: list[float]) -> Optional[float]:
     return (ordered[mid - 1] + ordered[mid]) / 2
 
 
+_RESCUE_DISCRIMINATORS = (
+    "weight_kg", "volume_ml", "length_cm", "pack_count",
+    "animal_weight_range", "life_stage", "breed_size", "flavor", "species",
+)
+_HARD_DIMENSIONS = ("weight_kg", "volume_ml", "length_cm")
+
+
+def _norm_txt(text: str) -> str:
+    import unicodedata
+
+    text = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode("ascii")
+    return text.lower()
+
+
 def _anchor_price_rescues(
     result: IdentityMatchResult,
     price: Optional[float],
     expected_identity: ProductIdentity,
     anchor_price: Optional[float],
+    candidate_title: str,
 ) -> bool:
-    """Preço Cobasi ao vivo do MESMO GTIN é âncora forte. Um anúncio de
-    mesma marca, mesmo peso (ou peso não pinado dos dois lados), SEM
-    nenhum conflito de atributo, e com preço numa banda estreita em torno
-    do preço Cobasi → é o mesmo produto, mesmo que o score de texto tenha
-    ficado abaixo do corte. Nunca resgata quem tem CONFLITO."""
+    """Preço NUNCA cria identidade. Ele só empurra pra dentro um candidato
+    que JÁ está quase provado por texto+estrutura: marca certa, família
+    certa, product_line compatível, pelo menos um discriminador real
+    batendo, zero conflito, confiança já perto do corte, preço numa banda
+    ESTREITA (±25-30%) em torno do preço Cobasi ao vivo do MESMO GTIN.
+    Fora disso não resgata. (revisão pós-review do ChatGPT)"""
     if anchor_price is None or anchor_price <= 0 or price is None:
         return False
     if result.decision == IdentityDecision.CONFLICT:
         return False
-    if not (anchor_price * 0.62 <= price <= anchor_price * 1.55):
-        return False
-    attrs = {a.attribute: a for a in result.attributes}
-    brand = attrs.get("brand")
-    if brand is None or brand.status != AttributeStatus.MATCH:
-        return False
     if any(a.status == AttributeStatus.CONFLICT for a in result.attributes):
         return False
-    weight = attrs.get("weight_kg")
-    if expected_identity.weight_kg is not None and (weight is None or weight.status != AttributeStatus.MATCH):
+    if not (anchor_price * 0.75 <= price <= anchor_price * 1.30):
         return False
+    if result.confidence < 0.50:
+        return False
+    reasons = set(result.reasons)
+    if "BRAND_MATCH" not in reasons or "FAMILY_MATCH" not in reasons:
+        return False
+
+    attrs = {a.attribute: a for a in result.attributes}
+    has_real_discriminator = any(
+        attrs.get(name) is not None and attrs[name].status == AttributeStatus.MATCH
+        for name in _RESCUE_DISCRIMINATORS
+    )
+    if not has_real_discriminator:
+        return False
+
+    # Dimensão dura pinada no PETMOL → tem que ser MATCH, não pode ficar só
+    # UNKNOWN (senão 2kg x 7,5kg passa).
+    for name in _HARD_DIMENSIONS:
+        if getattr(expected_identity, name, None) is not None:
+            a = attrs.get(name)
+            if a is None or a.status != AttributeStatus.MATCH:
+                return False
+
+    # product_line pinada (ex: "urinary small", "mini indoor") → todos os
+    # tokens significativos têm que aparecer no título do anúncio, senão é
+    # outra linha da mesma marca no mesmo peso/preço.
+    line = getattr(expected_identity, "product_line", None)
+    if line:
+        title_norm = _norm_txt(candidate_title)
+        tokens = [t for t in _norm_txt(line).split() if len(t) > 2]
+        if tokens and not all(t in title_norm for t in tokens):
+            return False
+
     return True
 
 
@@ -262,11 +303,11 @@ def _confident_matches(
             min_confidence=min_confidence,
         )
         if not result.accepted:
-            if _anchor_price_rescues(result, price, expected_identity, anchor_price):
+            if _anchor_price_rescues(result, price, expected_identity, anchor_price, node.get("productName") or ""):
                 result = IdentityMatchResult(
                     IdentityDecision.HIGH_CONFIDENCE,
                     max(result.confidence, min_confidence),
-                    (*result.reasons, "ANCHOR_PRICE_BAND", "BRAND_MATCH"),
+                    (*result.reasons, "ANCHOR_PRICE_BAND"),
                     result.attributes,
                 )
             else:
@@ -315,17 +356,19 @@ def _has_ambiguous_sku_identity(
             if getattr(expected_identity, name, None) is not None:
                 pinned.add(name)
 
-    explicit_signatures: set[tuple] = set()
+    # Pergunta certa (pós-review): numa dimensão NÃO pinada, existem dois
+    # valores explícitos incompatíveis entre os candidatos aceitos? Compara
+    # dimensão a dimensão, não tupla heterogênea — assim "500ml + 1 pack"
+    # vs "500ml" não conta como ambíguo (só um lado declarou o pack).
+    def _hashable(value):
+        return tuple(value) if isinstance(value, (list, tuple)) else value
+
+    by_dimension: dict[str, set] = {}
     for _confidence, _price, _node, result in scored:
-        attrs = {item.attribute: item for item in result.attributes}
-        signature = tuple(
-            attrs[name].observed
-            for name in _SKU_DISCRIMINATORS
-            if name not in pinned and name in attrs and attrs[name].observed is not None
-        )
-        if signature:
-            explicit_signatures.add(signature)
-    return len(explicit_signatures) > 1
+        for item in result.attributes:
+            if item.attribute in _SKU_DISCRIMINATORS and item.attribute not in pinned and item.observed is not None:
+                by_dimension.setdefault(item.attribute, set()).add(_hashable(item.observed))
+    return any(len(values) > 1 for values in by_dimension.values())
 
 
 def _best_awin_identity_for_gtin(db: Session, gtin: str) -> tuple[Optional[str], Optional[str]]:
@@ -502,6 +545,12 @@ def sync_shopee_offer_for_gtin(
         reason = "offerLink inválido" if invalid_links else "nenhum candidato confiável na busca"
         return ShopeeSyncResult(gtin=gtin_normalized, matched=False, reason=reason)
 
+    # Mesma epistemologia do audit tri-state: ausência de um listing nesta
+    # busca NÃO prova que ele morreu. Só aposenta (a) legado sem identidade
+    # comprovada, agora que temos substituto positivo, ou (b) o que já era
+    # CONFLICT. Um listing que já foi EXACT/HIGH_CONFIDENCE e só não voltou
+    # nesta busca vira stale pra revalidar — não desativa. (pós-review)
+    _VALIDATED = {"EXACT", "HIGH_CONFIDENCE"}
     for stale in db.scalars(
         select(MarketplaceOffer).where(
             MarketplaceOffer.product_id == product.id,
@@ -509,11 +558,17 @@ def sync_shopee_offer_for_gtin(
             MarketplaceOffer.active.is_(True),
         )
     ):
-        if stale.external_listing_id not in valid_listing_ids:
-            stale.active = False
-            stale.is_available = False
-            stale.verified_at = now
+        if stale.external_listing_id in valid_listing_ids:
+            continue
+        prev = (stale.match_decision or "").upper()
+        if prev in _VALIDATED:
+            stale.price_refresh_status = "stale_unconfirmed"
             stale.last_checked_at = now
+            continue
+        stale.active = False
+        stale.is_available = False
+        stale.verified_at = now
+        stale.last_checked_at = now
 
     db.commit()
     return ShopeeSyncResult(gtin=gtin_normalized, matched=True, offer_id=offer_ids[0], offer_ids=offer_ids)
