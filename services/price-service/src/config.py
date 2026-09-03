@@ -361,8 +361,10 @@ class Settings(BaseSettings):
     shopee_miss_retry_hours: int = 12
     # Job noturno (source=active_products): teto de produtos por execução
     # e pausa entre chamadas à API. Se bater o teto, para limpo e a
-    # próxima madrugada continua pelos mais antigos.
-    shopee_sync_max_products_per_run: int = 400
+    # próxima madrugada continua pelos mais antigos. 900 = backlog de
+    # ~10-11k cicla em ~12 noites (era ~27 com 400); a 0,4s + variantes
+    # dá ~1-1,5h de execução, dentro da janela noturna.
+    shopee_sync_max_products_per_run: int = 900
     shopee_sync_request_delay_seconds: float = 0.4
 
     # Token dedicado pra disparar/acompanhar o lote de sync via HTTPS

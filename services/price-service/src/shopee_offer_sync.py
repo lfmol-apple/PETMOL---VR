@@ -20,6 +20,7 @@ busca não deve derrubar uma oferta boa.
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -915,9 +916,12 @@ def iter_unified_awin_feed_products_by_gtin(
 
 
 def iter_active_shopee_offer_gtins(db: Session) -> list[str]:
-    """PRIORIDADE A do job noturno — toda oferta Shopee ativa hoje, do
-    preço confirmado mais antigo pro mais novo, pra revalidar/reprecificar
-    primeiro o que está mais defasado."""
+    """Backlog do job noturno — GTINs com oferta Shopee ativa. Ordem:
+    primeiro o que JÁ está validado (EXACT/HIGH_CONFIDENCE) e mais
+    defasado — refresh de preço do que funciona vence re-tentar o que
+    nunca casou —, depois o resto, sempre do `last_checked_at` mais
+    antigo pro mais novo (rotação natural)."""
+    validated = ("EXACT", "HIGH_CONFIDENCE")
     rows = db.execute(
         select(ProductCatalog.barcode_normalized)
         .join(MarketplaceOffer, MarketplaceOffer.product_id == ProductCatalog.id)
@@ -926,7 +930,11 @@ def iter_active_shopee_offer_gtins(db: Session) -> list[str]:
             MarketplaceOffer.active.is_(True),
             ProductCatalog.barcode_normalized.isnot(None),
         )
-        .order_by(MarketplaceOffer.last_checked_at.is_(None).desc(), MarketplaceOffer.last_checked_at.asc())
+        .order_by(
+            MarketplaceOffer.match_decision.in_(validated).desc(),
+            MarketplaceOffer.last_checked_at.is_(None).desc(),
+            MarketplaceOffer.last_checked_at.asc(),
+        )
     ).all()
     seen: set[str] = set()
     out: list[str] = []
@@ -935,6 +943,34 @@ def iter_active_shopee_offer_gtins(db: Session) -> list[str]:
         if g and g not in seen:
             seen.add(g)
             out.append(g)
+    return out
+
+
+def iter_active_plan_gtins(db: Session) -> list[str]:
+    """GTINs de itens em plano de alimentação ativo — é o que o tutor vai
+    ver quando o lembrete de recompra disparar. Fica no tier 1 junto com
+    os scan events."""
+    from .health.models import FeedingPlan
+
+    rows = db.execute(
+        select(FeedingPlan.items_json).where(
+            FeedingPlan.enabled.is_(True),
+            FeedingPlan.deleted_at.is_(None),
+            FeedingPlan.items_json.isnot(None),
+        )
+    ).all()
+    seen: set[str] = set()
+    out: list[str] = []
+    for (items_json,) in rows:
+        try:
+            items = json.loads(items_json) if items_json else []
+        except (ValueError, TypeError):
+            continue
+        for item in items:
+            g = normalize_gtin(str((item or {}).get("barcode") or ""))
+            if g and g not in seen:
+                seen.add(g)
+                out.append(g)
     return out
 
 
@@ -971,10 +1007,12 @@ def iter_launch_coverage_queue(
     feed_merchants: tuple[str, ...] = _DEFAULT_AWIN_SHOPEE_SOURCE_MERCHANTS,
 ) -> tuple[list[tuple[str, Optional[str], Optional[str]]], int]:
     """Fila noturna determinística em prioridades:
-      A — GTINs realmente usados pelos tutores (scan events) — é o que
-          aparece na tela; tem que estar sempre fresco. Conjunto pequeno.
-      B — o resto das ofertas Shopee ativas (backlog, mais antigas
-          primeiro) — produto que ninguém abriu ainda; esquenta sob
+      A — GTINs que o tutor DE FATO vê: scan events + itens de plano de
+          alimentação ativo (o que aparece quando o lembrete de recompra
+          dispara). Tem que estar sempre fresco. Conjunto pequeno.
+      B — o resto das ofertas Shopee ativas (backlog) — validadas e mais
+          defasadas primeiro (refresh do que funciona), rotação por
+          `last_checked_at`. Produto que ninguém abriu ainda; esquenta sob
           demanda quando alguém escaneia (entra em A na noite seguinte).
       C — catálogo Awin fresco (Cobasi + Zee Now + Zee Dog), só o que
           ainda não tem oferta Shopee.
@@ -999,6 +1037,8 @@ def iter_launch_coverage_queue(
         queue.append((g, name, brand))
 
     for g in iter_active_product_gtins(db):
+        _add(g)
+    for g in iter_active_plan_gtins(db):
         _add(g)
     for g in iter_active_shopee_offer_gtins(db):
         _add(g)

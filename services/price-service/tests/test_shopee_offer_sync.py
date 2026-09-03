@@ -812,3 +812,79 @@ def test_launch_coverage_queue_backlog_ordena_pela_oferta_mais_antiga():
         assert iter_active_shopee_offer_gtins(db) == [older, newer]
     finally:
         db.close()
+
+
+def test_launch_queue_inclui_gtin_de_plano_ativo_no_tier_A():
+    """Item de plano de alimentação ativo entra no tier A (antes do
+    backlog) — é o que o tutor vê quando o lembrete de recompra dispara."""
+    import json as _json
+    from src.pets.models import Pet
+    from src.health.models import FeedingPlan
+    from src.shopee_offer_sync import iter_launch_coverage_queue
+
+    plan_gtin = "7896666666663"   # só em plano, nunca escaneado, sem oferta
+    backlog_gtin = "7897777777770"  # só backlog de oferta ativa
+
+    db = SessionLocal()
+    try:
+        pp = ProductCatalog(barcode=plan_gtin, barcode_normalized=plan_gtin, name="Ração do Plano 15kg", brand="M", category="food")
+        pb = ProductCatalog(barcode=backlog_gtin, barcode_normalized=backlog_gtin, name="Ração Backlog", brand="M", category="food")
+        db.add_all([pp, pb])
+        db.commit()
+        db.refresh(pb)
+        db.add(Pet(id="pet-plan", user_id="u1", name="Rex", species="dog"))
+        db.flush()
+        db.add(FeedingPlan(
+            id="fp-1", pet_id="pet-plan", species="dog", country_code="BR", enabled=True,
+            items_json=_json.dumps([
+                {"id": "i1", "label": "Ração do Plano", "barcode": plan_gtin, "is_primary": True},
+                {"id": "i2", "label": "sem barcode", "barcode": "", "is_primary": False},
+            ]),
+        ))
+        db.add(MarketplaceOffer(
+            product_id=pb.id, merchant="shopee", affiliate_url="https://s.shopee.com.br/bk",
+            price=50.0, is_available=True, active=True,
+        ))
+        db.commit()
+
+        queue, _total = iter_launch_coverage_queue(db, max_products=10)
+        gtins = [g for g, _n, _b in queue]
+        assert plan_gtin in gtins
+        assert gtins.index(plan_gtin) < gtins.index(backlog_gtin)  # tier A antes de B
+    finally:
+        db.close()
+
+
+def test_backlog_prioriza_oferta_validada_sobre_nunca_casada():
+    """No backlog: refresh de preço do que JÁ está validado
+    (EXACT/HIGH_CONFIDENCE) vem antes de re-tentar o que nunca casou,
+    mesmo que a nunca-casada esteja mais defasada."""
+    from datetime import datetime, timedelta, timezone
+    from src.shopee_offer_sync import iter_active_shopee_offer_gtins
+
+    validated = "7898888888887"
+    never = "7899999999994"
+    db = SessionLocal()
+    try:
+        pv = ProductCatalog(barcode=validated, barcode_normalized=validated, name="Ração Validada", brand="M", category="food")
+        pn = ProductCatalog(barcode=never, barcode_normalized=never, name="Ração Nunca", brand="M", category="food")
+        db.add_all([pv, pn])
+        db.commit()
+        db.refresh(pv)
+        db.refresh(pn)
+        now = datetime.now(timezone.utc)
+        db.add(MarketplaceOffer(
+            product_id=pv.id, merchant="shopee", affiliate_url="https://s.shopee.com.br/v",
+            price=10.0, is_available=True, active=True,
+            match_decision="HIGH_CONFIDENCE", last_checked_at=now - timedelta(hours=2),
+        ))
+        db.add(MarketplaceOffer(
+            product_id=pn.id, merchant="shopee", affiliate_url="https://s.shopee.com.br/n",
+            price=10.0, is_available=True, active=True,
+            match_decision=None, last_checked_at=now - timedelta(days=20),
+        ))
+        db.commit()
+
+        assert iter_active_shopee_offer_gtins(db) == [validated, never]
+    finally:
+        db.close()
