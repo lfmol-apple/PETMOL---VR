@@ -153,7 +153,18 @@ Event-driven (fora do cron): tutor escaneia produto novo →
 `schedule_shopee_discovery` na hora. Deploy que muda o matcher → enfileira
 só o segmento afetado.
 
-Ajuste imediato: cap 400 → ~800-1000/noite (backlog cicla em ~2 semanas).
+**Implementado (`4a1dc29`):**
+- `iter_active_plan_gtins` — item de `feeding_plan` ativo entra no tier A
+  junto com scan events.
+- `iter_active_shopee_offer_gtins` — backlog ordena oferta já validada
+  (EXACT/HIGH_CONFIDENCE) e mais defasada primeiro, depois o resto por
+  `last_checked_at`.
+- `shopee_sync_max_products_per_run` 400 → 900 (backlog cicla em ~12
+  noites).
+
+**Ainda não** (precisa de tráfego real pra calibrar): ponderar tier 2 por
+cliques de commerce; tier 3 explícito (`stale_unconfirmed`/`unresolved`);
+tier 4 com cooldown por `consecutive_no_match_count`.
 
 ---
 
