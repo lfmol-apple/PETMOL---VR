@@ -31,7 +31,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .affiliate_links import MarketplaceOffer
-from .product_identity import IdentityMatchResult, MerchantCandidate, ProductIdentity, evaluate_identity
+from .product_identity import (
+    AttributeStatus,
+    IdentityDecision,
+    IdentityMatchResult,
+    MerchantCandidate,
+    ProductIdentity,
+    evaluate_identity,
+)
 from .product_catalog_lookup import ProductCatalog, normalize_gtin
 from .shopee_affiliate_client import ShopeeAffiliateError, search_product_offers
 from .shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
@@ -187,6 +194,35 @@ def _median(values: list[float]) -> Optional[float]:
     return (ordered[mid - 1] + ordered[mid]) / 2
 
 
+def _anchor_price_rescues(
+    result: IdentityMatchResult,
+    price: Optional[float],
+    expected_identity: ProductIdentity,
+    anchor_price: Optional[float],
+) -> bool:
+    """Preço Cobasi ao vivo do MESMO GTIN é âncora forte. Um anúncio de
+    mesma marca, mesmo peso (ou peso não pinado dos dois lados), SEM
+    nenhum conflito de atributo, e com preço numa banda estreita em torno
+    do preço Cobasi → é o mesmo produto, mesmo que o score de texto tenha
+    ficado abaixo do corte. Nunca resgata quem tem CONFLITO."""
+    if anchor_price is None or anchor_price <= 0 or price is None:
+        return False
+    if result.decision == IdentityDecision.CONFLICT:
+        return False
+    if not (anchor_price * 0.62 <= price <= anchor_price * 1.55):
+        return False
+    attrs = {a.attribute: a for a in result.attributes}
+    brand = attrs.get("brand")
+    if brand is None or brand.status != AttributeStatus.MATCH:
+        return False
+    if any(a.status == AttributeStatus.CONFLICT for a in result.attributes):
+        return False
+    weight = attrs.get("weight_kg")
+    if expected_identity.weight_kg is not None and (weight is None or weight.status != AttributeStatus.MATCH):
+        return False
+    return True
+
+
 def _confident_matches(
     nodes: list[dict],
     expected_name: str,
@@ -196,6 +232,7 @@ def _confident_matches(
     expected_volume_ml: Optional[float],
     min_confidence: float,
     expected_length_cm: Optional[float] = None,
+    anchor_price: Optional[float] = None,
 ) -> list[tuple[dict, IdentityMatchResult]]:
     expected_identity = ProductIdentity.build(
         canonical_name=expected_name,
@@ -212,25 +249,33 @@ def _confident_matches(
             continue
         if listing_id:
             seen_listing_ids.add(listing_id)
+        price = _parse_price(node.get("price"))
         result = evaluate_identity(
             expected_identity,
             MerchantCandidate.build(
                 merchant="shopee",
                 title=node.get("productName") or "",
                 brand=node.get("brand"),
-                price=_parse_price(node.get("price")),
+                price=price,
                 external_id=listing_id,
             ),
             min_confidence=min_confidence,
         )
         if not result.accepted:
-            continue
-        price = _parse_price(node.get("price"))
+            if _anchor_price_rescues(result, price, expected_identity, anchor_price):
+                result = IdentityMatchResult(
+                    IdentityDecision.HIGH_CONFIDENCE,
+                    max(result.confidence, min_confidence),
+                    (*result.reasons, "ANCHOR_PRICE_BAND", "BRAND_MATCH"),
+                    result.attributes,
+                )
+            else:
+                continue
         if price is None:
             continue
         scored.append((result.confidence, price, node, result))
 
-    if _has_ambiguous_sku_identity(scored):
+    if _has_ambiguous_sku_identity(scored, expected_identity):
         return []
 
     median_price = _median([price for _score, price, _node, _result in scored])
@@ -248,19 +293,35 @@ def _confident_matches(
     return [(node, result) for _score, _price, node, result in scored]
 
 
-def _has_ambiguous_sku_identity(scored: list[tuple[float, float, dict, IdentityMatchResult]]) -> bool:
+_SKU_DISCRIMINATORS = ("weight_kg", "volume_ml", "length_cm", "pack_count", "animal_weight_range")
+
+
+def _has_ambiguous_sku_identity(
+    scored: list[tuple[float, float, dict, IdentityMatchResult]],
+    expected_identity: Optional[ProductIdentity] = None,
+) -> bool:
     if len(scored) < 2:
         return False
-    # If PETMOL has no structured SKU discriminator and Shopee returned
-    # multiple plausible candidates with explicit different sizes, refuse to
-    # publish any. Price is not allowed to choose identity.
+    # Só é ambíguo numa dimensão que a gente NÃO consegue fixar. Se o
+    # produto esperado já tem peso/volume/comprimento/pack, o Identity
+    # Engine só deixou passar candidato compatível com aquele valor —
+    # variação explícita diferente já teria dado CONFLICT e caído fora do
+    # `scored`. Antes, um esperado de 7,5kg com dois anúncios "7,5kg" +
+    # um "7,5kg 2un" derrubava os três. Agora só as dimensões abertas
+    # contam pra ambiguidade; preço nunca escolhe identidade.
+    pinned = set()
+    if expected_identity is not None:
+        for name in _SKU_DISCRIMINATORS:
+            if getattr(expected_identity, name, None) is not None:
+                pinned.add(name)
+
     explicit_signatures: set[tuple] = set()
     for _confidence, _price, _node, result in scored:
         attrs = {item.attribute: item for item in result.attributes}
         signature = tuple(
             attrs[name].observed
-            for name in ("weight_kg", "volume_ml", "length_cm", "pack_count", "animal_weight_range")
-            if name in attrs and attrs[name].observed is not None
+            for name in _SKU_DISCRIMINATORS
+            if name not in pinned and name in attrs and attrs[name].observed is not None
         )
         if signature:
             explicit_signatures.add(signature)
@@ -301,10 +362,16 @@ def sync_shopee_offer_for_gtin(
     expected_weight_kg: Optional[float] = None,
     expected_name: Optional[str] = None,
     expected_brand: Optional[str] = None,
+    anchor_price: Optional[float] = None,
 ) -> ShopeeSyncResult:
     """Busca, casa e faz upsert de UMA oferta Shopee pro produto do GTIN
     dado. Idempotente: reexecutar atualiza a mesma linha (chave:
-    product_id + merchant + external_listing_id), nunca duplica."""
+    product_id + merchant + external_listing_id), nunca duplica.
+
+    `anchor_price` (preço Cobasi ao vivo do MESMO GTIN, opcional) libera o
+    resgate por banda de preço em _confident_matches — mesmo produto de
+    marca/peso batendo e preço em torno do preço Cobasi, quando o texto
+    ficou abaixo do corte."""
     gtin_normalized = normalize_gtin(gtin)
     if not gtin_normalized:
         return ShopeeSyncResult(gtin=gtin, matched=False, reason="GTIN inválido")
@@ -356,6 +423,7 @@ def sync_shopee_offer_for_gtin(
         expected_weight_kg=expected_weight_kg,
         expected_length_cm=expected_length_cm,
         min_confidence=min_confidence,
+        anchor_price=anchor_price,
     )
     if not matches:
         return ShopeeSyncResult(gtin=gtin_normalized, matched=False, reason="nenhum candidato confiável na busca")
