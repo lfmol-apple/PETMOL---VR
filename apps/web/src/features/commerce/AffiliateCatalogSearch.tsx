@@ -301,7 +301,18 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
               window.setTimeout(() => e.target.scrollIntoView({ block: 'start', behavior: 'smooth' }), 200);
             }}
             placeholder="Buscar produto..."
-            className="min-w-0 flex-1 border-0 bg-transparent py-3.5 text-[16px] font-medium text-slate-900 outline-none placeholder:text-slate-400"
+            // `outline-none` sozinho não basta no Safari/iOS: o navegador
+            // desenha seu próprio contorno azul de foco no <input> por cima
+            // do `outline: transparent` do Tailwind — é o "-webkit-appearance"
+            // nativo do campo de texto, não um ring/border/box-shadow nosso
+            // (o único ring daqui é o esmeralda do <label>, focus-within,
+            // umas linhas acima). `appearance-none` remove esse estilo
+            // nativo do campo; `WebkitTapHighlightColor: transparent` tira
+            // o retângulo de destaque que o WebKit pisca ao tocar. Os dois
+            // só afetam este input — nenhum outro campo do app usa esta
+            // classe.
+            className="min-w-0 flex-1 appearance-none border-0 bg-transparent py-3.5 text-[16px] font-medium text-slate-900 outline-none placeholder:text-slate-400"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
           />
         </label>
       </div>
