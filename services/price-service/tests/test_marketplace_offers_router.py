@@ -6,21 +6,28 @@ shopee_link_validator.py); nunca reescreve a URL aceita.
 import pytest
 
 from src.admin.deps import get_current_admin, get_current_admin_or_readonly_key
+from src.config import get_settings
 from src.db import SessionLocal
 from src.main import app
 from src.product_catalog_lookup import ProductCatalog
 
 GTIN = "7891234567890"
-OFFICIAL_URL = "https://s.shopee.com.br/3AbCdEfGh"
+# Link longo com o rastreio da conta (não link.curto): validate_manual_
+# shopee_affiliate_url passa sem precisar resolver redirect de verdade
+# (ver shopee_link_validator.py — link curto exige rede de verdade).
+OFFICIAL_URL = "https://shopee.com.br/produto-i.1.2?utm_source=an_18392191175"
 
 
 @pytest.fixture(autouse=True)
-def _admin_auth_override():
+def _admin_auth_override(monkeypatch):
+    monkeypatch.setenv("SHOPEE_AFFILIATE_APP_ID", "18392191175")
+    get_settings.cache_clear()
     app.dependency_overrides[get_current_admin] = lambda: ("fake-user", "fake-admin")
     app.dependency_overrides[get_current_admin_or_readonly_key] = lambda: ("fake-user", "fake-admin")
     yield
     app.dependency_overrides.pop(get_current_admin, None)
     app.dependency_overrides.pop(get_current_admin_or_readonly_key, None)
+    get_settings.cache_clear()
 
 
 def _register_product(gtin: str = GTIN) -> int:

@@ -230,19 +230,61 @@ def _count(db: Session, status: str) -> int:
 RETRIABLE_REASONS = ("never_searched", "has_unverified_offer", "api_error")
 
 
+def category_commission_stats(db: Session) -> dict[str, float]:
+    """Comissão média (0..1) por categoria, calculada sobre as ofertas
+    Shopee ATIVAS já resolvidas — usada como estimativa pra priorizar
+    produtos que ainda não têm oferta (nunca dá pra saber a comissão real
+    de um gap antes de buscar; a média da categoria é o melhor sinal que
+    temos, e reflete achados reais desta sessão: brinquedo costuma pagar
+    bem mais que ração terapêutica, por exemplo)."""
+    rows = db.execute(text("""
+        select p.category, avg(mo.commission_rate) as avg_rate
+        from marketplace_offers mo
+        join products_catalog p on p.id = mo.product_id
+        where mo.merchant = 'shopee' and mo.active and mo.commission_rate is not null
+        group by p.category
+    """)).fetchall()
+    return {cat: float(rate) for cat, rate in rows if cat and rate is not None}
+
+
+def _estimated_commission_value(price: Optional[float], category: Optional[str], stats: dict[str, float]) -> float:
+    """Comissão estimada em R$ = preço × comissão média da categoria.
+    0 quando falta preço ou não há histórico de comissão pra categoria —
+    nesses casos o item só perde prioridade, nunca é descartado."""
+    if not price or not category:
+        return 0.0
+    return price * stats.get(category, 0.0)
+
+
 def iter_coverage_gap_queue(db: Session, *, max_products: int) -> tuple[list[str], int]:
     """Fila enxuta pro source=coverage_gaps do sync: só os GTINs onde uma
-    nova busca pode de fato resolver o gap (`RETRIABLE_REASONS`), tutores
-    vistos primeiro. Muito menor que a fila geral (active_products) porque
-    não inclui refresh de ofertas já boas nem catálogo Awin sem prioridade
-    — é o "trabalho de verdade" atrás da tela /admin/shopee-coverage.
+    nova busca pode de fato resolver o gap (`RETRIABLE_REASONS`). Muito
+    menor que a fila geral (active_products) porque não inclui refresh de
+    ofertas já boas nem catálogo Awin sem prioridade — é o "trabalho de
+    verdade" atrás da tela /admin/shopee-coverage.
+
+    Prioridade: tutor visto primeiro (sempre — é quem pode comprar agora),
+    e DENTRO de cada grupo (visto / não visto), por comissão estimada
+    decrescente (preço × comissão média da categoria) — busca primeiro o
+    que tem mais chance de valer a pena, não só o que está na fila há mais
+    tempo.
     """
     placeholders = ",".join(f":r{i}" for i in range(len(RETRIABLE_REASONS)))
     params = {f"r{i}": r for i, r in enumerate(RETRIABLE_REASONS)}
     rows = db.execute(text(f"""
-        select gtin from shopee_coverage_gaps
+        select gtin, seen_by_tutor, cobasi_price, category, last_seen_at
+        from shopee_coverage_gaps
         where status = 'open' and reason in ({placeholders})
-        order by seen_by_tutor desc, last_seen_at asc
     """), params).fetchall()
-    gtins = [r[0] for r in rows if r[0]]
+
+    stats = category_commission_stats(db)
+    ranked = sorted(
+        rows,
+        key=lambda r: (
+            not r[1],  # seen_by_tutor desc (False ordena depois de True)
+            -_estimated_commission_value(r[2], r[3], stats),
+            r[4] or "",  # last_seen_at asc como desempate final
+        ),
+    )
+    gtins = [r[0] for r in ranked if r[0]]
     return gtins[:max_products], len(gtins)

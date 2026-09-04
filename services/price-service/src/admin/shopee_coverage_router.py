@@ -21,8 +21,12 @@ from sqlalchemy.orm import Session
 from ..affiliate_links import MarketplaceOffer
 from ..db import get_db
 from ..product_catalog_lookup import ProductCatalog, normalize_gtin
-from ..shopee_coverage_gaps import ShopeeCoverageGap, rebuild_shopee_coverage_gaps
-from ..shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
+from ..shopee_coverage_gaps import (
+    ShopeeCoverageGap,
+    category_commission_stats,
+    rebuild_shopee_coverage_gaps,
+)
+from ..shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_manual_shopee_affiliate_url
 from .deps import get_current_admin
 
 router = APIRouter(prefix="/v1/admin/shopee-coverage", tags=["Admin Shopee Coverage"])
@@ -40,6 +44,10 @@ class GapOut(BaseModel):
     cobasi_price: Optional[float]
     cobasi_title: Optional[str]
     cobasi_image_url: Optional[str]
+    # Estimativa (preço × comissão média da categoria) — não é a comissão
+    # real, o produto ainda não tem oferta Shopee. Serve pra priorizar.
+    category_avg_commission_rate: Optional[float]
+    estimated_commission: Optional[float]
     reason: str
     reason_detail: Optional[str]
     suggestion: Optional[str]
@@ -70,11 +78,24 @@ class BulkRequest(BaseModel):
     note: Optional[str] = None
 
 
-def _to_out(g: ShopeeCoverageGap) -> GapOut:
+def _estimated_commission(g: ShopeeCoverageGap, commission_by_category: dict[str, float]) -> tuple[Optional[float], Optional[float]]:
+    """(comissão média da categoria, comissão estimada em R$) — None quando
+    falta preço ou não há histórico de comissão pra categoria."""
+    rate = commission_by_category.get(g.category or "")
+    if rate is None:
+        return None, None
+    if not g.cobasi_price:
+        return rate, None
+    return rate, g.cobasi_price * rate
+
+
+def _to_out(g: ShopeeCoverageGap, commission_by_category: Optional[dict[str, float]] = None) -> GapOut:
+    avg_rate, estimated = _estimated_commission(g, commission_by_category or {})
     return GapOut(
         id=g.id, gtin=g.gtin, product_id=g.product_id, product_name=g.product_name,
         category=g.category, cobasi_price=g.cobasi_price, cobasi_title=g.cobasi_title,
         cobasi_image_url=g.cobasi_image_url,
+        category_avg_commission_rate=avg_rate, estimated_commission=estimated,
         reason=g.reason, reason_detail=g.reason_detail, suggestion=g.suggestion,
         seen_by_tutor=g.seen_by_tutor, discovery_attempts=g.discovery_attempts,
         status=g.status, resolved_note=g.resolved_note,
@@ -105,6 +126,11 @@ def _query(db: Session, *, status, reason, category, seen_by_tutor, q, min_price
         stmt = stmt.order_by(ShopeeCoverageGap.cobasi_price.is_(None), ShopeeCoverageGap.cobasi_price.desc())
     elif sort == "price_asc":
         stmt = stmt.order_by(ShopeeCoverageGap.cobasi_price.is_(None), ShopeeCoverageGap.cobasi_price.asc())
+    elif sort == "commission_desc":
+        # Comissão estimada depende da categoria (join em Python, ver
+        # list_gaps) — aqui só evita que a ordem do banco atrapalhe o
+        # re-sort que vem depois.
+        stmt = stmt.order_by(ShopeeCoverageGap.seen_by_tutor.desc())
     else:  # relevância: tutor primeiro, depois mais caro
         stmt = stmt.order_by(ShopeeCoverageGap.seen_by_tutor.desc(), ShopeeCoverageGap.cobasi_price.desc().nullslast())
     return stmt
@@ -130,8 +156,23 @@ def list_gaps(
     stmt = _query(db, status=None if status == "all" else status, reason=reason, category=category,
                   seen_by_tutor=seen_by_tutor, q=q, min_price=min_price, max_price=max_price, sort=sort)
     total = db.scalar(select(text("count(*)")).select_from(stmt.subquery())) or 0
-    items = list(db.scalars(stmt.limit(limit).offset(offset)))
-    return GapListOut(total=int(total), items=[_to_out(g) for g in items])
+    # Sempre calculada (é uma query leve) — o card mostra a comissão média
+    # da categoria mesmo quando a lista não está ordenada por ela.
+    commission_by_category = category_commission_stats(db)
+
+    if sort == "commission_desc":
+        # Comissão estimada = preço × comissão média da categoria — não dá
+        # pra ordenar isso em SQL sem join dinâmico; a lista de gaps é
+        # pequena o bastante (milhares, não milhões) pra ordenar em Python.
+        all_items = list(db.scalars(stmt))
+        all_items.sort(
+            key=lambda g: (_estimated_commission(g, commission_by_category)[1] or 0.0),
+            reverse=True,
+        )
+        items = all_items[offset:offset + limit]
+    else:
+        items = list(db.scalars(stmt.limit(limit).offset(offset)))
+    return GapListOut(total=int(total), items=[_to_out(g, commission_by_category) for g in items])
 
 
 @router.get("/summary")
@@ -231,7 +272,12 @@ def _resolve_one(db: Session, gap: ShopeeCoverageGap, req: ResolveRequest) -> No
         if not req.affiliate_url:
             raise HTTPException(400, "affiliate_url é obrigatório pra register_offer")
         try:
-            validate_shopee_affiliate_url(req.affiliate_url)
+            # Validação reforçada: um humano pode colar QUALQUER link da
+            # Shopee que achou navegando (ex: página comum do produto, sem
+            # rastreio nenhum) — diferente dos links que o sync gera
+            # sozinho via API, que já nascem monetizados. Ver
+            # shopee_link_validator.validate_manual_shopee_affiliate_url.
+            validate_manual_shopee_affiliate_url(req.affiliate_url)
         except InvalidShopeeAffiliateUrlError as exc:
             raise HTTPException(400, str(exc))
         product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == normalize_gtin(gap.gtin)))
