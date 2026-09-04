@@ -43,6 +43,13 @@ export interface ReorderCard {
   packageSizeKg?: number;
   /** GTIN/EAN conhecido, quando domain='food' — ver PetCareReminder.gtin. */
   gtin?: string;
+  /**
+   * Dias a partir de hoje (ver PetCareReminder.diff) — a mesma sentinela
+   * >=9000 marca "sem prazo" (petisco/item avulso). Só existe pra permitir
+   * agrupar/ordenar a Loja do Pet por urgência no frontend, sem duplicar
+   * nem reinterpretar o cálculo canônico feito em petCareDomain.ts.
+   */
+  diff: number;
 }
 
 function formatUrgencyText(domain: CareReminderDomain, diff: number): string {
@@ -94,7 +101,63 @@ export function buildReorderCards(reminders: PetCareReminder[]): ReorderCard[] {
       domain: r.domain,
       packageSizeKg: r.packageSizeKg,
       gtin: r.gtin,
+      diff: r.diff,
     }));
+}
+
+// ── Agrupamento por urgência (Loja do Pet) ─────────────────────────────────
+// Reorganiza a MESMA lista de reorderCards em 3 blocos de intenção, sem
+// nenhum cálculo novo de data/prazo — só lê `diff`, que já vem pronto do
+// cálculo canônico (petCareDomain.ts). Puro frontend, nada gravado.
+export type ReorderUrgencyGroup = 'anytime' | 'soon' | 'later';
+
+/**
+ * Corte entre "vai precisar em breve" e "mais para frente", em dias.
+ *
+ * Não existe hoje uma janela de "quando comprar" já definida em nenhum
+ * outro lugar do app pra reaproveitar (o que existe é a janela de ALERTA/
+ * notificação — ex. reminder_days=7 de coleira/vermífugo em
+ * parasite_models.py — que é sobre quando AVISAR, não sobre até quando um
+ * prazo ainda conta como "breve" pra fins de compra). Então este número é
+ * uma decisão de apresentação, só aqui:
+ *
+ *   60 dias ≈ 2 meses. Cobre o ciclo de recompra mais comum do app hoje —
+ *   ração (semanas) e antipulgas/coleira mensal a bimestral — deixando de
+ *   fora produtos de ciclo mais longo (vermífugo trimestral, coleira
+ *   semestral tipo Scalibor ~90-120 dias), que ganham mais com "não
+ *   competir visualmente agora" do que com alerta antecipado.
+ *
+ * Só isso muda quem a interface. Nenhuma regra de negócio, notificação ou
+ * dado gravado depende deste número.
+ */
+export const REORDER_SOON_THRESHOLD_DAYS = 60;
+
+export function reorderUrgencyGroupFor(diff: number): ReorderUrgencyGroup {
+  if (diff >= 9000) return 'anytime'; // mesma sentinela de "Comprar quando quiser"
+  if (diff <= REORDER_SOON_THRESHOLD_DAYS) return 'soon'; // inclui vencido/hoje — o mais urgente de todos
+  return 'later';
+}
+
+export interface GroupedReorderCards {
+  anytime: ReorderCard[];
+  soon: ReorderCard[];
+  later: ReorderCard[];
+}
+
+/** Agrupa e ordena por proximidade dentro de cada grupo temporal (mais perto primeiro). */
+export function groupReorderCardsByUrgency(cards: ReorderCard[]): GroupedReorderCards {
+  const anytime: ReorderCard[] = [];
+  const soon: ReorderCard[] = [];
+  const later: ReorderCard[] = [];
+  for (const card of cards) {
+    const group = reorderUrgencyGroupFor(card.diff);
+    if (group === 'anytime') anytime.push(card);
+    else if (group === 'soon') soon.push(card);
+    else later.push(card);
+  }
+  soon.sort((a, b) => a.diff - b.diff);
+  later.sort((a, b) => a.diff - b.diff);
+  return { anytime, soon, later };
 }
 
 function speciesQueryLabel(species: PetSpecies): string {
