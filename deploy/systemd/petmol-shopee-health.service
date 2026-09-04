@@ -1,0 +1,16 @@
+[Unit]
+Description=PETMOL — relatório diário de saúde da Loja (Cobasi + Shopee)
+After=network.target petmol-api.service
+Wants=petmol-api.service
+
+[Service]
+Type=oneshot
+User=petmol
+Group=petmol
+WorkingDirectory=/opt/petmol/current/services/price-service
+EnvironmentFile=/opt/petmol/shared/env/api.env
+# Read-only no banco. Confere jobs noturnos + contadores de oferta +
+# conversões Shopee (24h) e manda 1 e-mail curto pra OPS_DAILY_REPORT_EMAIL
+# (fallback leonardofmol@gmail.com) com veredito TUDO BEM / ATENÇÃO /
+# PROBLEMA. Sempre grava em /opt/petmol/logs/shopee_health.log.
+ExecStart=/opt/petmol/current/services/price-service/.venv/bin/python scripts/daily_shopee_health.py

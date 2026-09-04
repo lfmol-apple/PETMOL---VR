@@ -294,8 +294,10 @@ o preço.
   / lixo de UPC**, ~10 vistos por tutor, todos com Cobasi menos 2 itens
   menores.
 - Risco de preço errado com flag ON: **eliminado** (só serve comprovado).
-- Recomendação: **pronto pra ligar** após merge do #186. Decisão do
-  usuário (impacto visível na vitrine).
+- **LIGADO em 2026-09-04** (`MARKETPLACE_STRICT_IDENTITY_SERVING=true` no
+  fim de `/opt/petmol/shared/env/api.env`). Verificado em 5 GTINs: ofertas
+  validadas mantidas, legado não-verificado sumiu (Cobasi cobre).
+  Reverter: remover a linha + `systemctl restart petmol-api`.
 
 ### Steady state
 
