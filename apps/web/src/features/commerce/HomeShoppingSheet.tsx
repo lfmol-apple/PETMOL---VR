@@ -23,7 +23,7 @@ import {
   type HomeShoppingPartnerId,
 } from './homeShoppingPartners';
 import { AffiliateCatalogSearch } from './AffiliateCatalogSearch';
-import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerOriginLabel, offerPriceLabel, type CommerceOffer, type PetzDirectLink } from './productPricing';
+import { fetchPetzDirectLink, formatBRLPrice, hasReliablePrice, merchantLabel, offerOriginLabel, offerPriceLabel, preferCobasiOffer, type CommerceOffer, type PetzDirectLink } from './productPricing';
 import { useCommerceOffers } from './useCommerceOffers';
 import {
   buildReorderCards,
@@ -451,8 +451,18 @@ interface ReorderCardItemProps {
 // MedicationItemSheet.tsx "onde comprar") — mesma lógica de preço/picker já
 // validada aqui, sem duplicar useCommerceOffers numa segunda cópia.
 export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy, onPetzBuy }: ReorderCardItemProps) {
-  const { offers, loading } = useCommerceOffers(card.searchQuery, card.packageSizeKg, card.gtin);
+  const { offers: offersByPrice, loading } = useCommerceOffers(card.searchQuery, card.packageSizeKg, card.gtin);
+  // Loja preferida nos cards de "produtos cadastrados do pet": Cobasi
+  // primeiro quando tiver preço confiável, mesmo que outra loja seja mais
+  // barata (ver preferCobasiOffer). offersByPrice continua a ordem crua
+  // por preço do backend — usada abaixo só pra saber se o preço mostrado
+  // é de fato o mais barato (rótulo "A partir de").
+  const offers = useMemo(() => preferCobasiOffer(offersByPrice), [offersByPrice]);
   const offer = offers[0] ?? null;
+  const cheapestReliableOffer = offersByPrice.find(hasReliablePrice) ?? null;
+  const isShowingCheapest = Boolean(
+    offer && cheapestReliableOffer && offer.merchant === cheapestReliableOffer.merchant && offer.price === cheapestReliableOffer.price,
+  );
   const [imageFailed, setImageFailed] = useState(false);
   const [petzLink, setPetzLink] = useState<PetzDirectLink | null>(null);
 
@@ -482,10 +492,11 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
   // então usa a primeira com imagem em vez de travar na foto só da mais barata.
   const imageUrl = offers.find((o) => o.image_url)?.image_url ?? null;
   const hasPetz = Boolean(petzLink?.available && petzLink.url);
-  // offers já vem ordenado por preço crescente (CommerceEngine) — offer é
-  // sempre o mais barato. Quando mais de uma opção de compra existe pro
-  // mesmo GTIN (mais de um provider com preço, e/ou Petz confirmada),
-  // oferece escolha de loja em vez de comprar direto sem avisar (ver
+  // `offers` (Cobasi-primeiro) já reordenou offersByPrice — offer NEM
+  // SEMPRE é o mais barato agora (ver preferCobasiOffer/isShowingCheapest
+  // acima). Quando mais de uma opção de compra existe pro mesmo GTIN
+  // (mais de um provider com preço, e/ou Petz confirmada), oferece
+  // escolha de loja em vez de comprar direto sem avisar (ver
   // OfferPickerRow abaixo).
   const totalBuyOptions = offers.length + (hasPetz ? 1 : 0);
   const hasMultipleOffers = totalBuyOptions > 1;
@@ -565,7 +576,7 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
             <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[12px] font-bold leading-tight">
               <span className={priceReliable ? 'text-emerald-800' : 'text-emerald-700'}>
                 {priceReliable
-                  ? `${hasMultipleOffers ? 'A partir de ' : ''}${formatBRLPrice(offer.price as number)}`
+                  ? `${hasMultipleOffers && isShowingCheapest ? 'A partir de ' : ''}${formatBRLPrice(offer.price as number)}`
                   : offerPriceLabel(offer)}
               </span>
               {priceReliable && <span className="text-emerald-700">· {merchantLabel(offer.merchant)}</span>}

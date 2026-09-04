@@ -98,6 +98,31 @@ export function offerOriginLabel(offer: CommerceOffer): string | null {
   return null;
 }
 
+/**
+ * Reordena `offers` pra Cobasi aparecer primeiro quando ela tiver preço
+ * confiável — mesmo que outra loja (ex: Shopee) seja mais barata. Sem
+ * Cobasi (ausente do resultado, ou presente mas sem preço confiável —
+ * stale ou sem preço), a ordem que já veio do backend (preço crescente,
+ * ver CommerceEngine.get_offers) é mantida como está: nunca inventa,
+ * nunca descarta oferta, só reordena.
+ *
+ * Decisão de produto (04/09/2026), escopo deliberadamente estreito: só
+ * os cards de "produtos cadastrados do pet" na Loja do Pet (comprar de
+ * novo / vai precisar em breve / mais para frente) usam isso — a Cobasi
+ * é a loja preferida pra aparecer como preço principal aí, não
+ * necessariamente a mais barata. O CommerceEngine (backend) e as demais
+ * telas de oferta (busca "Procurar outro produto", comparação de preço)
+ * continuam ordenando só por preço, intocados.
+ */
+export function preferCobasiOffer<T extends Pick<CommerceOffer, 'merchant' | 'price' | 'price_is_stale'>>(
+  offers: T[],
+): T[] {
+  const cobasiIndex = offers.findIndex((offer) => offer.merchant === 'cobasi' && hasReliablePrice(offer));
+  if (cobasiIndex <= 0) return offers;
+  const cobasi = offers[cobasiIndex];
+  return [cobasi, ...offers.slice(0, cobasiIndex), ...offers.slice(cobasiIndex + 1)];
+}
+
 function normalizeOfferUrl(url: string): string {
   if (url.startsWith('/commerce/awin-click')) {
     return `${API_BASE_URL}${url}`;
