@@ -72,8 +72,9 @@ export function OperationsSection() {
           tone={sp?.error ? 'bad' : 'default'} />
       </div>
       {sp?.error && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] text-rose-700">{sp.error}</div>}
-      <a href="/admin/shopee-coverage" className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] font-semibold text-slate-700 hover:border-blue-300">
-        📋 Cobertura Shopee × Cobasi — produtos sem oferta Shopee, motivo e normalização manual →
+      <a href="/admin/shopee-coverage" className="flex items-center justify-between gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-[13px] font-semibold text-[#0056D2] hover:border-blue-400">
+        <span>📋 Cobertura Shopee × Cobasi — produtos sem oferta Shopee, motivo e normalização manual</span>
+        <span aria-hidden>→</span>
       </a>
       <p className="text-[11px] text-slate-400">
         Esta aba atualiza a cada 20s. As demais abas (BI histórico) só recarregam quando você troca o filtro.

@@ -382,6 +382,13 @@ export function CommerceSection({ filter }: { filter: GlobalFilter }) {
 
   return (
     <div className="space-y-4">
+      <a
+        href="/admin/shopee-coverage"
+        className="flex items-center justify-between gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-[13px] font-semibold text-[#0056D2] hover:border-blue-400"
+      >
+        <span>📋 Cobertura Shopee × Cobasi — produtos que aparecem na Cobasi e não na Shopee, com motivo e normalização manual</span>
+        <span aria-hidden>→</span>
+      </a>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Abriram a Loja" value={numberFmt(data.store_opened_users)} sub="usuários únicos" />
         <StatCard label="Ofertas vistas" value={numberFmt(data.offer_viewed)} sub={`${numberFmt(data.offer_viewed_users)} usuários`} />
