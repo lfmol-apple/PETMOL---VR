@@ -637,6 +637,9 @@ function HomePageInner() {
     characteristics: string | null; public_slug: string | null;
   };
   const [nearbyAlerts, setNearbyAlerts] = useState<NearbyAlert[]>([]);
+  // Cartaz ampliado do alerta — abre na hora com os dados que já temos,
+  // sem carregar página nova (o /pet-perdido é server-render e demora).
+  const [alertCard, setAlertCard] = useState<NearbyAlert | null>(null);
 
   const DISMISS_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
 
@@ -2144,9 +2147,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                 : 'Desaparecido recentemente';
               const alertPhotoUrl = getPhotoUrl(alert.photo_url);
               const descricao = [alert.breed, alert.characteristics].filter(Boolean).join(' · ');
-              const cardHref = alert.public_slug
-                ? `/pet-perdido/${alert.public_slug}`
-                : `/achei-um-pet?id=${alert.id}`;
               return (
                 <div
                   key={alert.id}
@@ -2157,16 +2157,16 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                         tutor gerou pra compartilhar). Sem foto → emoji. */}
                     <button
                       type="button"
-                      onClick={() => router.push(cardHref)}
+                      onClick={() => setAlertCard(alert)}
                       aria-label={`Ver cartaz de ${alert.pet_name}`}
-                      className="relative flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/20 text-2xl active:scale-95 transition-transform"
+                      className="relative flex h-[104px] w-[104px] flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/20 text-4xl ring-2 ring-white/40 active:scale-95 transition-transform"
                     >
                       {alertPhotoUrl ? (
                         <img src={alertPhotoUrl} alt={alert.pet_name} className="h-full w-full object-cover" />
                       ) : (
                         <span>{alert.species === 'cat' ? '🐱' : '🐶'}</span>
                       )}
-                      <span className="absolute bottom-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/45 text-[9px] leading-none text-white">⤢</span>
+                      <span className="absolute bottom-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/50 text-[11px] leading-none text-white">⤢</span>
                     </button>
                     <div className="min-w-0 flex-1">
                       <p className="text-[11px] font-bold uppercase tracking-wider text-rose-100">
@@ -2203,7 +2203,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                   <div className="mt-3 flex gap-2">
                     <button
                       type="button"
-                      onClick={() => router.push(cardHref)}
+                      onClick={() => setAlertCard(alert)}
                       className="flex-1 rounded-xl bg-white/15 py-2.5 text-[13px] font-bold text-white active:scale-95 transition-transform"
                     >
                       Ver cartaz
@@ -2985,6 +2985,73 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           </div>
         </div>
       )}
+
+      {/* Cartaz ampliado do alerta de pet sumido — abre instantâneo com os
+          dados que já vieram no /my-alerts. "Voltar" fecha e volta pra home. */}
+      {alertCard && (() => {
+        const cardPhoto = getPhotoUrl(alertCard.photo_url);
+        const desc = [alertCard.breed, alertCard.characteristics].filter(Boolean).join(' · ');
+        const missing = alertCard.missing_date
+          ? `Desaparecido em ${alertCard.missing_date}${alertCard.missing_time ? ' às ' + alertCard.missing_time : ''}`
+          : 'Desaparecido recentemente';
+        return (
+          <div
+            className="fixed inset-0 z-[85] flex flex-col bg-black/85 backdrop-blur-sm"
+            onClick={() => setAlertCard(null)}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="flex items-center justify-between px-4 pt-[max(12px,env(safe-area-inset-top))] pb-2">
+              <button
+                type="button"
+                onClick={() => setAlertCard(null)}
+                className="flex items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-2 text-[13px] font-bold text-white active:scale-95 transition-transform"
+              >
+                ← Voltar
+              </button>
+              <span className="rounded-full bg-rose-600 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-white">
+                Desaparecido
+              </span>
+            </div>
+            <div className="mt-auto overflow-y-auto rounded-t-[28px] bg-[#0F0D0B] pb-[max(20px,env(safe-area-inset-bottom))]" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-center pt-3"><div className="h-1 w-10 rounded-full bg-white/20" /></div>
+              <div className="relative w-full bg-black" style={{ maxHeight: '52dvh' }}>
+                {cardPhoto ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={cardPhoto} alt={alertCard.pet_name} className="mx-auto max-h-[52dvh] w-full object-contain" />
+                ) : (
+                  <div className="flex h-48 items-center justify-center text-6xl">{alertCard.species === 'cat' ? '🐱' : '🐶'}</div>
+                )}
+              </div>
+              <div className="px-5 pt-4">
+                <h2 className="text-[22px] font-black leading-tight text-white">{alertCard.pet_name}</h2>
+                {desc && <p className="mt-1 text-[13px] font-medium text-white/75">{desc}</p>}
+                {alertCard.last_seen_location && (
+                  <p className="mt-2.5 text-[13px] text-white/85"><span className="text-white/50">Visto em: </span>{alertCard.last_seen_location}</p>
+                )}
+                <p className="mt-1 text-[12px] text-white/55">{missing}</p>
+
+                <button
+                  type="button"
+                  onClick={() => { setAlertCard(null); router.push(`/achei-um-pet?id=${alertCard.id}`); }}
+                  className="mt-5 w-full rounded-2xl bg-rose-600 py-3.5 text-[15px] font-black text-white active:scale-95 transition-transform"
+                >
+                  Encontrei este pet
+                </button>
+                {alertCard.public_slug && (
+                  <button
+                    type="button"
+                    onClick={() => { setAlertCard(null); router.push(`/pet-perdido/${alertCard.public_slug}`); }}
+                    className="mt-2 w-full rounded-2xl bg-white/10 py-3 text-[13px] font-bold text-white/85 active:scale-95 transition-transform"
+                  >
+                    Abrir cartaz pra compartilhar
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );
