@@ -2150,29 +2150,41 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
               return (
                 <div
                   key={alert.id}
-                  className="rounded-2xl border border-rose-300 bg-gradient-to-br from-rose-500 to-rose-600 p-4 shadow-lg shadow-rose-900/20"
+                  className="relative overflow-hidden rounded-2xl border border-rose-300 bg-gradient-to-br from-rose-500 to-rose-600 shadow-lg shadow-rose-900/20"
                 >
-                  <div className="flex items-start gap-3">
-                    {/* Foto do pet — toque abre o cartaz completo (o card que o
-                        tutor gerou pra compartilhar). Sem foto → emoji. */}
+                  <button
+                    type="button"
+                    aria-label="Dispensar alerta"
+                    onClick={() => {
+                      writeDismissedId(alert.id);
+                      setHandledAlertIds(prev => [...new Set([...prev, alert.id])]);
+                      setNearbyAlerts(prev => prev.filter(a => a.id !== alert.id));
+                    }}
+                    className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/30 text-sm font-bold text-white/90 active:scale-90 transition-transform"
+                  >
+                    ×
+                  </button>
+                  <div className="flex items-stretch">
+                    {/* Foto do pet — ~metade do alerta. Toque abre o cartaz. */}
                     <button
                       type="button"
                       onClick={() => setAlertCard(alert)}
                       aria-label={`Ver cartaz de ${alert.pet_name}`}
-                      className="relative flex h-[104px] w-[104px] flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/20 text-4xl ring-2 ring-white/40 active:scale-95 transition-transform"
+                      className="relative flex w-[45%] flex-shrink-0 items-center justify-center self-stretch overflow-hidden bg-white/15 text-5xl active:opacity-90 transition-opacity"
+                      style={{ minHeight: 168 }}
                     >
                       {alertPhotoUrl ? (
-                        <img src={alertPhotoUrl} alt={alert.pet_name} className="h-full w-full object-cover" />
+                        <img src={alertPhotoUrl} alt={alert.pet_name} className="absolute inset-0 h-full w-full object-cover" />
                       ) : (
                         <span>{alert.species === 'cat' ? '🐱' : '🐶'}</span>
                       )}
-                      <span className="absolute bottom-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/50 text-[11px] leading-none text-white">⤢</span>
+                      <span className="absolute bottom-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-[12px] leading-none text-white">⤢</span>
                     </button>
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 p-4">
                       <p className="text-[11px] font-bold uppercase tracking-wider text-rose-100">
                         Alerta · {speciesLabel} desaparecido
                       </p>
-                      <h3 className="mt-0.5 text-[17px] font-black leading-tight text-white">
+                      <h3 className="mt-0.5 text-[16px] font-black leading-tight text-white">
                         {alert.pet_name} pode estar na sua região!
                       </h3>
                       {descricao && (
@@ -2181,26 +2193,14 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                         </p>
                       )}
                       {alert.last_seen_location && (
-                        <p className="mt-1 text-[12px] font-medium text-rose-100">
+                        <p className="mt-1 text-[12px] font-medium text-rose-100 line-clamp-2">
                           Visto em: {alert.last_seen_location}
                         </p>
                       )}
                       <p className="mt-0.5 text-[11px] text-rose-200">{missingInfo}</p>
                     </div>
-                    <button
-                      type="button"
-                      aria-label="Dispensar alerta"
-                      onClick={() => {
-                        writeDismissedId(alert.id);
-                        setHandledAlertIds(prev => [...new Set([...prev, alert.id])]);
-                        setNearbyAlerts(prev => prev.filter(a => a.id !== alert.id));
-                      }}
-                      className="flex-shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-white/80 text-sm font-bold active:scale-90 transition-transform"
-                    >
-                      ×
-                    </button>
                   </div>
-                  <div className="mt-3 flex gap-2">
+                  <div className="flex gap-2 px-4 pb-4 pt-1">
                     <button
                       type="button"
                       onClick={() => setAlertCard(alert)}
