@@ -352,6 +352,31 @@ def test_active_products_classifica_refresh_new_miss_e_respeita_o_teto(monkeypat
     assert final["error"] is None
 
 
+def test_coverage_gaps_usa_a_fila_enxuta_e_respeita_o_teto(monkeypatch, client):
+    _enable_token(monkeypatch)
+    queue = [("111", None, None), ("222", None, None)]
+    monkeypatch.setattr(
+        sync_router, "iter_coverage_gap_queue",
+        lambda db, *, max_products: (queue, 9),
+    )
+    monkeypatch.setattr(sync_router, "has_active_shopee_offer_for_gtin", lambda db, g: False)
+    monkeypatch.setattr(sync_router, "should_attempt_discovery", lambda db, g: True)
+    monkeypatch.setattr(sync_router, "record_attempt", lambda db, g, r: None)
+    monkeypatch.setattr(sync_router, "sync_shopee_offer_for_gtin", lambda db, g, limit=10, min_confidence=0.5: _fake_result(g, True))
+    monkeypatch.setattr(sync_router.time, "sleep", lambda _s: None)
+
+    headers = {"X-Sync-Token": TOKEN}
+    r = client.post("/v1/admin/shopee-sync/run", json={"source": "coverage_gaps"}, headers=headers)
+    assert r.json()["started"] is True
+    final = _wait_until_finished(client, headers)
+
+    assert final["total"] == 2
+    assert final["processed"] == 2
+    assert final["new_matches"] == 2
+    assert final["remaining_after_cap"] == 7
+    assert final["error"] is None
+
+
 def test_active_products_pula_gtin_em_cooldown_sem_chamar_a_api(monkeypatch, client):
     _enable_token(monkeypatch)
     queue = [("111", None, None), ("222", None, None), ("333", None, None)]

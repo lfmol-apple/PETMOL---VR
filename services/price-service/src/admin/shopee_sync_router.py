@@ -42,6 +42,7 @@ from ..shopee_offer_sync import (
 )
 from ..shopee_offer_audit import audit_active_shopee_offers
 from ..shopee_discovery_attempt import record_attempt, should_attempt_discovery
+from ..shopee_coverage_gaps import iter_coverage_gap_queue
 from .deps import get_current_admin_or_readonly_key
 from .shopee_sync_state import STATE
 
@@ -53,7 +54,7 @@ DEFAULT_CATEGORIES = ["food", "antiparasite", "medication", "hygiene", "dewormer
 # "active_products": fila noturna em prioridades (ofertas Shopee ativas →
 # GTINs usados pelos tutores → catálogo Awin fresco), deduplicada por GTIN,
 # com teto por execução. É o source do job da madrugada a partir do RC 1.0.
-ALLOWED_SOURCES = {"categories", "awin_feed", "awin_feed_all", "active_products"}
+ALLOWED_SOURCES = {"categories", "awin_feed", "awin_feed_all", "active_products", "coverage_gaps"}
 DEFAULT_AUDIT_MAX_ROWS = 500
 
 
@@ -66,6 +67,14 @@ class RunRequest(BaseModel):
     #   cria a entrada em products_catalog quando ainda não existir).
     # "awin_feed_all": catálogo unificado Cobasi + Zee Now + Zee Dog,
     #   deduplicado por GTIN e incremental por padrão.
+    # "active_products": fila noturna em prioridades (tutor → backlog de
+    #   ofertas ativas pra refresh → catálogo Awin fresco). É o source do
+    #   timer da madrugada — cobre bem mais que só gaps de cobertura.
+    # "coverage_gaps": só os GTINs de shopee_coverage_gaps onde uma nova
+    #   busca pode de fato resolver (never_searched, has_unverified_offer,
+    #   api_error — nunca no_confident_match/only_conflicting, que só
+    #   resolvem com ação manual). Fila bem menor e alvo direto da tela
+    #   /admin/shopee-coverage — ver iter_coverage_gap_queue.
     source: str = "categories"
     feed_merchant: str = "cobasi"
     feed_merchants: Optional[list[str]] = None
@@ -203,6 +212,13 @@ def _run_sync(
                 feed_merchants=source_merchants,
             )
             remaining_after_cap = max(total_available - len(items), 0)
+        elif source == "coverage_gaps":
+            gtins, total_available = iter_coverage_gap_queue(
+                db,
+                max_products=max(settings.shopee_sync_max_products_per_run, 1),
+            )
+            items = [(g, None, None) for g in gtins]
+            remaining_after_cap = max(total_available - len(items), 0)
         else:
             rows = db.query(ProductCatalog.barcode_normalized).filter(
                 ProductCatalog.category.in_(categories),
@@ -226,7 +242,7 @@ def _run_sync(
             STATE.finished_at = None
             STATE.phase = "syncing"
 
-        if source == "active_products":
+        if source in ("active_products", "coverage_gaps"):
             started_monotonic = time.monotonic()
             delay_seconds = max(settings.shopee_sync_request_delay_seconds, 0.0)
             for gtin, _name, _brand in items:
@@ -286,7 +302,7 @@ def _run_sync(
                     f"processed={STATE.processed} remaining={STATE.remaining_after_cap} "
                     f"duration_seconds={duration}"
                 )
-            logger.info("shopee sync (active_products) concluído: %s", summary)
+            logger.info("shopee sync (%s) concluído: %s", source, summary)
             return
 
         sync_from_feed_source = source in {"awin_feed", "awin_feed_all"}
@@ -328,9 +344,12 @@ def _run_sync(
             STATE.finished_at = datetime.now(timezone.utc).isoformat()
 
 
-@router.post("/run")
-def run_sync(payload: RunRequest, x_sync_token: Optional[str] = Header(default=None, alias="X-Sync-Token")):
-    _require_token(x_sync_token)
+def start_sync_run(payload: RunRequest) -> dict:
+    """Valida, monta a fila e dispara a thread do sync. Reaproveitado pelo
+    endpoint com token (`/run`, cron/VPS) e pelo endpoint com sessão de
+    admin (`/v1/admin/shopee-coverage/sync-now`, botão da tela) — mesmo
+    STATE, mesma barra de progresso nos dois casos.
+    """
     if payload.source not in ALLOWED_SOURCES:
         raise HTTPException(status_code=400, detail=f"source inválido: {payload.source}")
     source_merchants = tuple(payload.feed_merchants or ["cobasi", "zeenow", "zeedog"])
@@ -381,6 +400,12 @@ def run_sync(payload: RunRequest, x_sync_token: Optional[str] = Header(default=N
         "deactivate_invalid_shopee": payload.deactivate_invalid_shopee,
         "audit_max_rows": payload.audit_max_rows,
     }
+
+
+@router.post("/run")
+def run_sync(payload: RunRequest, x_sync_token: Optional[str] = Header(default=None, alias="X-Sync-Token")):
+    _require_token(x_sync_token)
+    return start_sync_run(payload)
 
 
 @router.get("/status")

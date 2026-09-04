@@ -370,6 +370,10 @@ def run_pg_migrations(engine: Engine) -> None:
         # base da rede + comissão do vendedor, 0..1. Usada como desempate
         # entre ofertas válidas de preço parecido (ver marketplace_offer_provider).
         _pg_add_column_if_missing(conn, "marketplace_offers", "commission_rate", "DOUBLE PRECISION")
+        # Miniatura do produto na tela /admin/shopee-coverage (catálogo ou
+        # feed Cobasi) — a tabela em si já existe via Base.metadata.create_all
+        # (shopee_coverage_gaps.py), só a coluna nova precisa de ALTER.
+        _pg_add_column_if_missing(conn, "shopee_coverage_gaps", "cobasi_image_url", "TEXT")
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_match_decision ON marketplace_offers (match_decision)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_price_refresh ON marketplace_offers (price_refresh_status, last_checked_at)"))
 
@@ -976,6 +980,7 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "price_refresh_status", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "price_refresh_error", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "commission_rate", "REAL")
+        changed |= _sqlite_add_column_if_missing(conn, "shopee_coverage_gaps", "cobasi_image_url", "TEXT")
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_match_decision ON marketplace_offers (match_decision)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_price_refresh ON marketplace_offers (price_refresh_status, last_checked_at)"))
 

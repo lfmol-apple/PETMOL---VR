@@ -1,4 +1,6 @@
 """Relatório 'Cobasi sem Shopee' + tela admin de normalização."""
+from datetime import datetime, timezone
+
 import pytest
 
 from src.admin.deps import get_current_admin
@@ -7,7 +9,7 @@ from src.affiliate_links import MarketplaceOffer
 from src.db import SessionLocal
 from src.main import app
 from src.product_catalog_lookup import ProductCatalog
-from src.shopee_coverage_gaps import ShopeeCoverageGap, rebuild_shopee_coverage_gaps
+from src.shopee_coverage_gaps import ShopeeCoverageGap, iter_coverage_gap_queue, rebuild_shopee_coverage_gaps
 
 
 @pytest.fixture(autouse=True)
@@ -169,3 +171,66 @@ def test_admin_bulk_cobasi_only(client):
     assert r.status_code == 200
     assert r.json()["done"] == len(ids)
     assert client.get("/v1/admin/shopee-coverage?status=open").json()["total"] == 0
+
+
+def test_iter_coverage_gap_queue_so_traz_motivos_retentaveis_e_tutor_primeiro():
+    db = SessionLocal()
+    try:
+        specs = [
+            # gtin, reason, seen_by_tutor, status
+            ("7890000000101", "never_searched", False, "open"),
+            ("7890000000102", "has_unverified_offer", True, "open"),
+            ("7890000000103", "api_error", False, "open"),
+            ("7890000000104", "no_confident_match", True, "open"),  # NUNCA entra — não retentável
+            ("7890000000105", "only_conflicting", True, "open"),  # NUNCA entra — não retentável
+            ("7890000000106", "never_searched", False, "cobasi_only"),  # NUNCA entra — não é 'open'
+        ]
+        now = datetime.now(timezone.utc)
+        for gtin, reason, tutor, status in specs:
+            db.add(ShopeeCoverageGap(
+                gtin=gtin, reason=reason, status=status, seen_by_tutor=tutor,
+                first_seen_at=now, last_seen_at=now,
+            ))
+        db.commit()
+
+        queue, total = iter_coverage_gap_queue(db, max_products=100)
+        assert set(queue) == {"7890000000101", "7890000000102", "7890000000103"}
+        assert total == 3
+        # visto por tutor (102) vem antes dos não vistos
+        assert queue.index("7890000000102") < queue.index("7890000000101")
+        assert queue.index("7890000000102") < queue.index("7890000000103")
+    finally:
+        db.close()
+
+
+def test_sync_now_dispara_com_source_coverage_gaps(client, monkeypatch):
+    import src.admin.shopee_coverage_router as coverage_router
+    calls = []
+
+    def _fake_start(payload):
+        calls.append(payload.source)
+        return {"started": True, "source": payload.source}
+
+    monkeypatch.setattr("src.admin.shopee_sync_router.start_sync_run", _fake_start)
+    r = client.post("/v1/admin/shopee-coverage/sync-now")
+    assert r.status_code == 200
+    assert r.json() == {"started": True, "source": "coverage_gaps"}
+    assert calls == ["coverage_gaps"]
+
+
+def test_iter_coverage_gap_queue_respeita_o_teto():
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        for i in range(5):
+            db.add(ShopeeCoverageGap(
+                gtin=f"789000000020{i}", reason="never_searched", status="open",
+                seen_by_tutor=False, first_seen_at=now, last_seen_at=now,
+            ))
+        db.commit()
+
+        queue, total = iter_coverage_gap_queue(db, max_products=2)
+        assert len(queue) == 2
+        assert total == 5
+    finally:
+        db.close()
