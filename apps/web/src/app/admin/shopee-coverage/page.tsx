@@ -13,6 +13,8 @@ type Gap = {
   cobasi_price: number | null;
   cobasi_title: string | null;
   cobasi_image_url: string | null;
+  category_avg_commission_rate: number | null;
+  estimated_commission: number | null;
   reason: string;
   reason_detail: string | null;
   suggestion: string | null;
@@ -291,6 +293,11 @@ export default function ShopeeCoveragePage() {
                 já foram buscados e não resolvem com mais tentativas — aí é você quem decide: cola o link certo se achar,
                 ou marca &quot;só tem na Cobasi mesmo&quot; pra tirar da lista.
               </p>
+              <p style={{ margin: '0 0 8px' }}>
+                O botão <b>&quot;🔍 Buscar agora&quot;</b> já busca primeiro o que tem mais chance de valer a pena: produtos
+                vistos por um tutor sempre vêm primeiro, e dentro disso, os de <b>maior comissão estimada</b> (preço ×
+                a comissão média que a categoria do produto costuma pagar) — sem precisar você escolher nada.
+              </p>
               <p style={{ margin: 0 }}>Nada aqui é automático demais: toda ação em massa pede confirmação antes de gravar.</p>
             </div>
           )}
@@ -410,6 +417,7 @@ export default function ShopeeCoveragePage() {
           <Field label="Ordenar por">
             <select value={sort} onChange={e => setSort(e.target.value)} style={sel}>
               <option value="relevance">Relevância (tutor primeiro)</option>
+              <option value="commission_desc">💰 Maior comissão estimada</option>
               <option value="price_desc">Maior preço</option>
               <option value="price_asc">Menor preço</option>
             </select>
@@ -565,6 +573,11 @@ function GapCard({ g, selected, busy, onToggle, onRegister, onCobasiOnly, onRetr
           <p style={{ margin: '4px 0 0', fontSize: 15, fontWeight: 800, color: '#1f2328' }}>
             {g.cobasi_price != null ? `R$ ${g.cobasi_price.toFixed(2)}` : 'preço não informado'}
           </p>
+          {g.estimated_commission != null && (
+            <p style={{ margin: '2px 0 0', fontSize: 11.5, color: '#1a7f37', fontWeight: 600 }}>
+              💰 ~R$ {g.estimated_commission.toFixed(2)} de comissão estimada
+            </p>
+          )}
         </div>
       </div>
 
@@ -573,6 +586,9 @@ function GapCard({ g, selected, busy, onToggle, onRegister, onCobasiOnly, onRetr
           <span style={pill(info.color, info.bg)}>{info.label}</span>
           <span style={pill(statusInfo.color, '#f6f8fa')}>{statusInfo.label}</span>
           {g.seen_by_tutor && <span style={pill('#1a7f37', '#f0fff4')}>👁️ visto por tutor</span>}
+          {g.category_avg_commission_rate != null && (
+            <span style={pill('#1a7f37', '#f0fff4')}>categoria paga ~{(g.category_avg_commission_rate * 100).toFixed(0)}%</span>
+          )}
         </div>
         <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: '#3a4149' }}>{info.explanation}</p>
         {g.discovery_attempts > 0 && (
