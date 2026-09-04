@@ -386,7 +386,7 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
       tabIndex={canAct ? 0 : undefined}
       onClick={handlePrimaryAction}
       onKeyDown={handleKeyDown}
-      className={`rounded-2xl border bg-white p-3 shadow-[0_6px_22px_-8px_rgba(15,23,42,0.18)] transition-all duration-200 motion-reduce:transition-none motion-reduce:transform-none ${canAct ? 'cursor-pointer hover:border-emerald-200 hover:shadow-[0_10px_28px_-8px_rgba(15,23,42,0.24)] active:scale-[0.99]' : ''} ${hasDiscount ? 'border-orange-200/90' : 'border-slate-200'}`}
+      className={`rounded-2xl border bg-white p-3 shadow-[0_6px_22px_-8px_rgba(15,23,42,0.18)] transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 motion-reduce:transition-none motion-reduce:transform-none ${canAct ? 'cursor-pointer hover:border-emerald-200 hover:shadow-[0_10px_28px_-8px_rgba(15,23,42,0.24)] active:scale-[0.99]' : ''} ${hasDiscount ? 'border-orange-200/90' : 'border-slate-200'}`}
     >
       <div className="flex items-center gap-3">
         <div className="grid h-12 w-12 flex-shrink-0 place-items-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50/80 p-1">
