@@ -41,7 +41,6 @@ interface AppleControlButtonsProps {
   alertGrooming?: boolean;
   alertFood?: boolean;
   alertMedicacao?: boolean;
-  alertShopping?: boolean;
   alertVaccines?: boolean;
 
   colorHealth?: 'neutral' | 'ok' | 'warning' | 'critical';
@@ -49,7 +48,6 @@ interface AppleControlButtonsProps {
   colorFood?: 'neutral' | 'ok' | 'warning' | 'critical';
   colorMedicacao?: 'neutral' | 'ok' | 'warning' | 'critical';
   colorVaccines?: 'neutral' | 'ok' | 'warning' | 'critical';
-  colorShopping?: 'neutral' | 'ok' | 'warning' | 'critical';
 
   inactiveControls?: HomeInactiveEligibleControlId[];
   onDeactivateControl?: (controlId: HomeInactiveEligibleControlId) => void;
@@ -93,11 +91,9 @@ export function AppleControlButtons({
   alertHealth,
   alertFood,
   alertVaccines,
-  alertShopping,
   colorHealth,
   colorFood,
   colorVaccines,
-  colorShopping,
 }: AppleControlButtonsProps) {
   const { t } = useI18n();
   const [showEmergencyChoice, setShowEmergencyChoice] = useState(false);
@@ -210,13 +206,15 @@ export function AppleControlButtons({
               o Saúde, indo até ciano pra não colidir com indigo/violet) e
               sombra mais forte que os outros 3. É a fonte de renda dedicada
               do app agora, então chama mais atenção que Ração/Saúde/
-              Caderneta de propósito. */}
+              Caderneta de propósito. SEM bolinha de alerta (decisão de
+              produto, 04/09/2026): removida — o card de loja não deve
+              piscar/parecer urgente, isso é para os cards de cuidado
+              (Saúde/Vacina/Ração), não pra este. */}
           <button
             type="button"
             onClick={onShoppingClick}
             className="group relative min-h-[84px] overflow-hidden rounded-xl border-2 border-blue-500 bg-gradient-to-br from-blue-100 via-blue-200 to-cyan-200 p-2.5 shadow-md shadow-blue-900/15 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-95 min-[390px]:min-h-[96px] min-[390px]:rounded-2xl min-[390px]:p-3"
           >
-            {shouldShowAlert(colorShopping, alertShopping) && <AlertDot tone={colorShopping} />}
             <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${shoppingIsDense ? 'right-0.5 top-0.5 h-10 w-10 opacity-80 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-12 min-[390px]:w-12' : 'right-1 top-1 h-12 w-12 opacity-95 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-14 min-[390px]:w-14'}`}>
               <img
                 src="/loja-cart-ossos.webp"
