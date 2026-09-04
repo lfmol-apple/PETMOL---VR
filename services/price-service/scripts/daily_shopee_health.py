@@ -98,7 +98,9 @@ def db_counters() -> dict:
               count(*) filter (where merchant='shopee' and active and match_decision in ('EXACT','HIGH_CONFIDENCE')) as validadas,
               count(distinct product_id) filter (where merchant='shopee' and active and match_decision in ('EXACT','HIGH_CONFIDENCE')) as produtos_validados,
               count(*) filter (where merchant='shopee' and active and match_decision is null) as sem_decisao,
-              count(*) filter (where merchant='shopee' and match_decision='CONFLICT') as conflitos
+              count(*) filter (where merchant='shopee' and match_decision='CONFLICT') as conflitos,
+              round((avg(commission_rate) filter (where merchant='shopee' and active and match_decision in ('EXACT','HIGH_CONFIDENCE')))::numeric, 4) as comissao_media,
+              count(*) filter (where merchant='shopee' and active and match_decision in ('EXACT','HIGH_CONFIDENCE') and commission_rate is not null) as com_comissao
             from marketplace_offers
         """)).one()
         clicks = db.execute(text("""
@@ -108,7 +110,10 @@ def db_counters() -> dict:
         """)).scalar() or 0
         return {
             "shopee_ativas": r[0], "validadas": r[1], "produtos_validados": r[2],
-            "sem_decisao": r[3], "conflitos": r[4], "clicks_24h": int(clicks),
+            "sem_decisao": r[3], "conflitos": r[4],
+            "comissao_media": float(r[5]) if r[5] is not None else None,
+            "ofertas_com_comissao": r[6],
+            "clicks_24h": int(clicks),
         }
     finally:
         db.close()
@@ -193,6 +198,8 @@ def build_report() -> tuple[str, str, str]:
         d_pv = counters.get("produtos_validados", 0) - prev_c.get("produtos_validados", 0)
         lines.append(f"  produtos com Shopee validada : {counters.get('produtos_validados','?')}  ({d_pv:+d} vs ontem)")
         lines.append(f"  ofertas validadas            : {counters.get('validadas','?')}")
+        cm = counters.get("comissao_media")
+        lines.append(f"  comissão média (validadas)   : {f'{cm*100:.1f}%' if cm is not None else '—'}  ({counters.get('ofertas_com_comissao','?')} com dado)")
         lines.append(f"  ofertas ativas (total)       : {counters.get('shopee_ativas','?')}")
         lines.append(f"  ofertas sem decisão          : {counters.get('sem_decisao','?')}")
         lines.append(f"  cliques de compra (24h)      : {counters.get('clicks_24h','?')}")

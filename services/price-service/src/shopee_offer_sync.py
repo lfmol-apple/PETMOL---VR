@@ -210,6 +210,20 @@ def _brand_for_matching(title: str, brand: Optional[str]) -> Optional[str]:
     return None
 
 
+def _parse_commission_rate(raw: object) -> Optional[float]:
+    """commissionRate da Shopee vem string "0.07" (fração 0..1). Defensivo:
+    se vier "7" (percentual) normaliza; fora de [0, 0.9] descarta."""
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if v > 1:
+        v = v / 100.0
+    if v < 0 or v > 0.9:
+        return None
+    return round(v, 4)
+
+
 def _median(values: list[float]) -> Optional[float]:
     if not values:
         return None
@@ -356,7 +370,19 @@ def _confident_matches(
             if item[1] >= median_price * 0.60 or item[0] >= 0.95
         ]
 
-    scored.sort(key=lambda item: (item[1], -item[0]))
+    # Preço competitivo primeiro; entre ofertas de preço PARECIDO (até 12%
+    # acima da mais barata), a de MAIOR COMISSÃO. Assim offer_ids[0] (a
+    # oferta "primária" gravada) já é a de melhor retorno pro PETMOL.
+    cheapest = min((p for _s, p, _n, _r in scored), default=None)
+    band = cheapest * 1.12 if cheapest else None
+
+    def _rank(item):
+        _score, price, node, _r = item
+        comm = _parse_commission_rate(node.get("commissionRate")) or 0.0
+        within = band is not None and price <= band
+        return (0 if within else 1, -comm if within else 0.0, price, -_score)
+
+    scored.sort(key=_rank)
     return [(node, result) for _score, _price, node, result in scored]
 
 
@@ -512,6 +538,7 @@ def sync_shopee_offer_for_gtin(
             continue
 
         price = _parse_price(match.get("price"))
+        commission = _parse_commission_rate(match.get("commissionRate"))
         external_listing_id = str(match.get("itemId")) if match.get("itemId") is not None else None
         if external_listing_id:
             valid_listing_ids.add(external_listing_id)
@@ -530,6 +557,7 @@ def sync_shopee_offer_for_gtin(
             existing.merchant_title = match.get("productName")
             existing.merchant_gtin = gtin_normalized if gtin_normalized in str(match.get("productName") or "") else None
             existing.price = price
+            existing.commission_rate = commission if commission is not None else existing.commission_rate
             existing.is_available = True
             existing.active = True
             existing.verified_at = now
@@ -552,6 +580,7 @@ def sync_shopee_offer_for_gtin(
                 affiliate_url=offer_link,
                 direct_url=match.get("productLink"),
                 price=price,
+                commission_rate=commission,
                 is_available=True,
                 active=True,
                 verified_at=now,

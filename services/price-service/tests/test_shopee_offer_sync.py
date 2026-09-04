@@ -888,3 +888,36 @@ def test_backlog_prioriza_oferta_validada_sobre_nunca_casada():
         assert iter_active_shopee_offer_gtins(db) == [validated, never]
     finally:
         db.close()
+
+
+def test_parse_commission_rate():
+    from src.shopee_offer_sync import _parse_commission_rate
+    assert _parse_commission_rate("0.07") == 0.07
+    assert _parse_commission_rate("0.185") == 0.185
+    assert _parse_commission_rate("7") == 0.07        # percentual → fração
+    assert _parse_commission_rate("0.95") is None     # fora de faixa
+    assert _parse_commission_rate(None) is None
+    assert _parse_commission_rate("abc") is None
+
+
+def test_sync_grava_commission_rate_e_prioriza_maior_comissao(monkeypatch):
+    _register_product()
+    a = {"itemId": 801, "productName": "Ração Soma Nutrição Carne Adulto Cão 15kg", "shopName": "Loja A",
+         "price": "100.0", "commissionRate": "0.03", "offerLink": "https://s.shopee.com.br/8A", "productLink": "https://shopee.com.br/product/1/801"}
+    b = {"itemId": 802, "productName": "Ração Soma Nutrição Carne Adulto Cão 15kg", "shopName": "Loja B",
+         "price": "106.0", "commissionRate": "0.12", "offerLink": "https://s.shopee.com.br/8B", "productLink": "https://shopee.com.br/product/1/802"}
+    monkeypatch.setattr(sync_module, "search_product_offers", lambda keyword, limit=10: [a, b])
+
+    r = sync_shopee_offer_for_gtin(SessionLocal(), GTIN)
+    assert r.matched is True
+
+    db = SessionLocal()
+    try:
+        rows = {row.external_listing_id: row for row in db.scalars(
+            select(MarketplaceOffer).where(MarketplaceOffer.merchant == "shopee")).all()}
+        assert rows["801"].commission_rate == 0.03
+        assert rows["802"].commission_rate == 0.12
+        # a "primária" (offer_ids[0]) é a de maior comissão dentro da banda de preço
+        assert r.offer_ids[0] == rows["802"].id
+    finally:
+        db.close()

@@ -688,3 +688,34 @@ async def test_ml_product_without_affiliate_offer_invisible(monkeypatch):
         assert offer is None
     finally:
         db.close()
+
+
+@pytest.mark.asyncio
+async def test_prefere_maior_comissao_entre_ofertas_de_preco_parecido(monkeypatch):
+    _enable_shopee(monkeypatch)
+    pid = _register_product(name="Ração Teste 15kg", brand="Marca Teste")
+    # mesmo produto, preço quase igual, comissões diferentes
+    _register_offer(pid, price=100.0, merchant_gtin=GTIN, commission_rate=0.03, external_listing_id="a")
+    _register_offer(pid, price=105.0, merchant_gtin=GTIN, commission_rate=0.12, external_listing_id="b")
+    db = SessionLocal()
+    try:
+        offer = await MarketplaceOfferProvider(db, "shopee").find_offer(ProductContext(gtin=GTIN))
+        assert offer is not None
+        assert offer.price == 105.0  # a de 12%, dentro dos 12% de banda
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_preco_manda_quando_diferenca_passa_da_banda(monkeypatch):
+    _enable_shopee(monkeypatch)
+    pid = _register_product(name="Ração Teste 15kg", brand="Marca Teste")
+    _register_offer(pid, price=100.0, merchant_gtin=GTIN, commission_rate=0.03, external_listing_id="a")
+    _register_offer(pid, price=140.0, merchant_gtin=GTIN, commission_rate=0.35, external_listing_id="b")
+    db = SessionLocal()
+    try:
+        offer = await MarketplaceOfferProvider(db, "shopee").find_offer(ProductContext(gtin=GTIN))
+        assert offer is not None
+        assert offer.price == 100.0  # 40% mais cara não vale a comissão
+    finally:
+        db.close()
