@@ -49,6 +49,22 @@ export interface ProductCollection {
 
 const TAPETE_GUIDE = 'como-escolher-tapete-higienico-cachorro';
 
+/**
+ * Produtos que se relacionam com um guia específico (via `relatedGuideSlug`),
+ * para o bloco contextual no fim de `/guias/[slug]`. Limitado a `max` itens —
+ * é um apoio ao conteúdo, não uma vitrine. Retorna [] quando não há relação
+ * editorial de verdade.
+ */
+export function getProductsForGuide(slug: string, max = 3): ProductPick[] {
+  const matches: ProductPick[] = [];
+  for (const collection of PRODUCT_COLLECTIONS) {
+    for (const item of collection.items) {
+      if (item.relatedGuideSlug === slug) matches.push(item);
+    }
+  }
+  return matches.slice(0, max);
+}
+
 export const PRODUCT_COLLECTIONS: readonly ProductCollection[] = Object.freeze([
   {
     id: 'caes',

@@ -26,13 +26,26 @@ const ALL: Guide[] = [
   ...primeirosCuidadosGuides,
 ];
 
-// Ordem editorial do índice /guias — os que resolvem dúvidas de compra
-// primeiro, com as ferramentas em destaque.
+// "Comece por aqui" no índice /guias — pontos de entrada fortes, variados
+// entre temas (não três da mesma categoria).
 const FEATURED_SLUGS = [
   'como-escolher-racao-ideal-cachorro',
-  'quanto-tempo-dura-saco-de-racao',
   'quanto-custa-alimentar-cachorro-por-mes',
   'coleira-ou-peitoral-qual-escolher',
+  'checklist-adotou-cachorro',
+];
+
+// "Guias de compra" — os guias cujo trabalho é dar critério para escolher
+// um produto ("o que observar antes de comprar"). Ordem editorial fixa.
+const BUYING_GUIDE_SLUGS = [
+  'como-escolher-racao-ideal-cachorro',
+  'coleira-ou-peitoral-qual-escolher',
+  'como-escolher-tapete-higienico-cachorro',
+  'como-escolher-tamanho-cama-cachorro',
+  'como-escolher-comedouro-cachorro',
+  'brinquedos-para-caes-como-escolher-com-seguranca',
+  'como-escolher-caixa-transporte-cachorro',
+  'bebedouro-automatico-cachorro-vale-a-pena',
 ];
 
 /** Ordena por data de atualização (mais recente primeiro), com desempate estável por slug. */
@@ -57,6 +70,11 @@ export function getGuidesByCategory(category: GuideCategoryId): Guide[] {
 
 export function getFeaturedGuides(): Guide[] {
   return FEATURED_SLUGS.map((slug) => getGuideBySlug(slug)).filter((g): g is Guide => Boolean(g));
+}
+
+/** Guias de compra — dão critério para escolher um produto. Seção própria no índice. */
+export function getBuyingGuides(): Guide[] {
+  return BUYING_GUIDE_SLUGS.map((slug) => getGuideBySlug(slug)).filter((g): g is Guide => Boolean(g));
 }
 
 export function getRecentGuides(limit = 6): Guide[] {
