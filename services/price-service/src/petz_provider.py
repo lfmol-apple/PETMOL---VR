@@ -55,17 +55,21 @@ def is_petz_publicly_servable() -> bool:
     mesmo padrão de petz_affiliate_enabled) — produção ativava as duas
     explicitamente via env.
 
-    DESATIVADO 2026-08-30 (decisão de produto): a Petz não oferece deep
-    link de produto pra parceiros, então "Ver na Petz" só levava o cliente
-    à busca do site — e a própria página de busca da Petz tem bugs fora do
-    nosso controle (o link da foto abre outro produto / o app). Sem
-    cooperação da Petz não dá pra fazer melhor.
+    REATIVADO 04/09/2026 (default True/True/False → tudo ligado). Histórico:
+    desativado em 2026-08-30 porque "Ver na Petz" só levava o cliente à
+    busca/produto do site da Petz, que tem bugs fora do nosso controle (o
+    link da foto abre outro produto / o app). O PR #210 mudou o frontend
+    (openPetzPartnerStore) pra SEMPRE abrir a Loja Parceira fixa
+    (/parceiro/pettmol) em qualquer clique em "Petz" — nunca mais busca ou
+    produto, não importa o que este endpoint devolva. Isso elimina o
+    motivo original: a página com bugs não é mais alcançável a partir do
+    app, então "Ver na Petz" por produto específico pôde voltar (copia
+    PETTMOL + abre a Loja Parceira, igual ao card da grade).
 
-    Kill-switch: `petz_publicly_disabled` (default True) desliga tudo sem
-    mexer no env do VPS. Pra REATIVAR: flip o default pra False em
-    config.py (ou PETZ_PUBLICLY_DISABLED=false no env). Todo o resto do
-    caminho Petz (ponte /go/petz, openPetzPartnerStore, busca curada,
-    PETZ_CURATED_SEARCH) continua no lugar, dormente."""
+    Kill-switch: `petz_publicly_disabled` (default False desde 04/09/2026)
+    ainda existe pra desligar tudo rápido sem mexer no env do VPS, se
+    precisar — flip pra True em config.py (ou PETZ_PUBLICLY_DISABLED=true
+    no env)."""
     settings = get_settings()
     if settings.petz_publicly_disabled:
         return False

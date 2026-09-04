@@ -377,35 +377,36 @@ class Settings(BaseSettings):
 
     # ── Petz (aprendizado por produto) ──────────────────────────────────
     # Master gate — mesmo papel de shopee_affiliate_enabled/
-    # mercadolivre_affiliate_enabled. Padrão False (diferente da Shopee):
-    # o programa próprio da Petz ainda está pending (CNAE em tratamento,
-    # ver docs/AFFILIATES.md §Petz) e a Awin também está pending sem
-    # feed — nenhum caminho comercial confirmado ainda. Ligar isto
-    # sozinho não expõe nada: PetzProvider só serve o que já existir em
-    # ProductAffiliateLink(merchant="petz"), e nenhuma linha é criada
-    # sem confirmação humana explícita via admin/petz_router.py.
-    petz_affiliate_enabled: bool = False
+    # mercadolivre_affiliate_enabled. Ligado por padrão desde 04/09/2026
+    # (ver petz_publicly_disabled abaixo pro histórico completo). Ligar
+    # isto sozinho não expõe nada além do necessário: PetzProvider só
+    # serve o que já existir em ProductAffiliateLink(merchant="petz"), e
+    # nenhuma linha é criada sem confirmação humana explícita via
+    # admin/petz_router.py.
+    petz_affiliate_enabled: bool = True
     # Prova comercial SEPARADA do gate acima (25/08/2026) — distingue
     # "produto confirmado no catálogo Petz" (petz_mapping.match_status)
-    # de "o cupom PETTMOL realmente atribui comissão ao PETMOL quando o
-    # tutor chega direto na URL comum do produto". A segunda coisa ainda
-    # NUNCA foi provada com uma compra real testada e confirmada no
-    # painel da Petz (ver docs/PETZ_COMMISSION_VALIDATION.md) — até lá,
-    # tratar a URL comum do produto como link monetizado seria presumir,
-    # não comprovar. Padrão False: nenhum caminho público Petz (nem
-    # PetzProvider nem /commerce/petz-direct-link) serve nada enquanto
-    # isto não for explicitamente virado True, e só deve virar True
-    # depois de um teste de compra real documentado confirmar a
-    # atribuição — nunca "porque parece razoável que funcione assim".
-    petz_coupon_attribution_verified: bool = False
-    # Kill-switch de produto (2026-08-30): desliga TODO caminho público
-    # Petz (is_petz_publicly_servable → False), independente das flags
-    # acima. Motivo: a Petz não oferece deep link de produto pra
-    # parceiros e a página de busca do site tem bugs fora do nosso
-    # controle — "Ver na Petz" não tinha como ficar bom sem cooperação da
-    # Petz. O código do caminho Petz continua todo no lugar; pra reativar,
-    # flip pra False aqui (ou PETZ_PUBLICLY_DISABLED=false no env).
-    petz_publicly_disabled: bool = True
+    # de "o cupom PETTMOL realmente atribui comissão ao PETMOL". A
+    # segunda coisa FOI provada com uma compra real testada e confirmada
+    # no painel da Petz em 29/08/2026 (ver
+    # docs/PETZ_COMMISSION_VALIDATION.md — cookie petzPartner + cupom
+    # PETTMOL, 10% aplicado, "loja pettmol do Parceiro Petz" no
+    # carrinho). Ligado por padrão desde 04/09/2026 com base nessa prova
+    # já documentada — nunca "porque parece razoável que funcione assim".
+    petz_coupon_attribution_verified: bool = True
+    # Kill-switch de produto: histórico —
+    #   2026-08-30: desligado (default True) porque "Ver na Petz" só
+    #   levava pra busca/produto do site da Petz, que tem bugs fora do
+    #   nosso controle (link da foto abre outro produto/o app).
+    #   2026-09-04 (PR #210): o frontend (openPetzPartnerStore) passou a
+    #   SEMPRE abrir a Loja Parceira fixa (/parceiro/pettmol) pra
+    #   qualquer clique em "Petz" — nunca mais busca ou produto,
+    #   independente do que este endpoint devolver. Isso elimina o motivo
+    #   original do kill-switch: a página de busca com bugs não é mais
+    #   alcançável a partir do app. Reativado (default False) — "Ver na
+    #   Petz" por produto específico volta a aparecer (copia PETTMOL +
+    #   abre a Loja Parceira, igual ao card da grade).
+    petz_publicly_disabled: bool = False
 
     @field_validator("debug", mode="before")
     @classmethod

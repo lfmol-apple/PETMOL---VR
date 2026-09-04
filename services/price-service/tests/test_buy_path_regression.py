@@ -34,6 +34,14 @@ def _reset_settings(monkeypatch):
     monkeypatch.setenv("COBASI_AFFILIATE_MODE", "disabled")
     monkeypatch.setenv("SHOPEE_AFFILIATE_ENABLED", "false")
     monkeypatch.setenv("AWIN_ENABLED", "false")
+    # Petz vem LIGADA por padrão desde 04/09/2026 (petz_publicly_disabled
+    # default False — ver config.py/docs/PETZ_COMMISSION_VALIDATION.md).
+    # Este teste é o contrato "tudo desligado nunca vaza buy-path" — os
+    # delenv acima já bastavam pros outros dois gates da Petz caírem no
+    # default, mas o kill-switch específico precisa ser forçado aqui
+    # também pra manter o cenário "absolutamente tudo off" que o teste se
+    # propõe a cobrir.
+    monkeypatch.setenv("PETZ_PUBLICLY_DISABLED", "true")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

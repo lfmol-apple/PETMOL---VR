@@ -22,10 +22,15 @@ Petz (a maioria), que não ganha o pré-preenchimento automático do
 cookie (ver "Caminho A" abaixo).
 
 `/commerce/petz-direct-link` (o "Ver na Petz" por PRODUTO específico —
-recompra, resultado de busca) segue atrás do kill-switch
-`petz_publicly_disabled=True` em `config.py`: continua dormente até a
-Petz oferecer algo melhor que a busca genérica por produto. Pra
-reativar: ver `petz_provider.is_petz_publicly_servable`.
+card de recompra, resultado de busca, item sheets) **também reativado
+em 04/09/2026**: `petz_affiliate_enabled`, `petz_coupon_attribution_verified`
+e `petz_publicly_disabled` agora vêm True/True/False por padrão em
+`config.py` — nenhuma das três precisa de env var no VPS. Isso só foi
+seguro DEPOIS de `openPetzPartnerStore` (frontend) passar a ignorar
+`direct_product_url`/`search_url` e sempre abrir a Loja Parceira — o
+endpoint pode continuar devolvendo produto/busca (`url`), mas o cliente
+nunca chega lá; só serve pra decidir SE o botão "Ver na Petz" aparece
+(`available`), não PRA ONDE ele leva. Ver `petz_provider.is_petz_publicly_servable`.
 
 Histórico (`PETZ_COUPON_ATTRIBUTION_VERIFIED=true` em produção 29–30/08/2026,
 reativado como Loja Parceira fixa em 04/09/2026):

@@ -10,8 +10,9 @@ Lançamento **2026-08-30**. Lojas ativas:
   listing_id. Ver §7 e `docs/PRODUCT_IDENTITY.md`.
 
 Mercado Livre e Amazon entram depois. Petz foi desativada no lançamento
-e **reativada em 04/09/2026** (PR #210) como card de Loja Parceira fixa
-— ver `docs/AFFILIATES.md` §Petz e `docs/PETZ_COMMISSION_VALIDATION.md`.
+e **reativada em 04/09/2026**: primeiro como card de Loja Parceira fixa
+(PR #210), depois "Ver na Petz" por produto específico também (mesmo
+dia) — ver `docs/AFFILIATES.md` §Petz e `docs/PETZ_COMMISSION_VALIDATION.md`.
 O restante deste doc registra o estado no dia do lançamento (histórico).
 
 Este doc é o runbook de go-live da parte comercial. Deploy geral: ver

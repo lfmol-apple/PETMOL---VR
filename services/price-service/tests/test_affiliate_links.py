@@ -85,12 +85,18 @@ def test_monetized_offer_store_context_cobasi_has_storefront(client):
     assert offer["link_type"] == "affiliate_store"
 
 
-def test_monetized_offer_store_context_petz_blocked_without_commercial_proof(client):
+def test_monetized_offer_store_context_petz_blocked_without_commercial_proof(client, monkeypatch):
     """Diferente da Cobasi (acima): Petz tem um gate próprio adicional
-    (petz_provider.is_petz_publicly_servable) porque a atribuição por
-    cupom PETTMOL ainda não foi validada com uma compra real — ver
-    docs/PETZ_COMMISSION_VALIDATION.md e tests/test_petz_integration.py
-    pros testes completos do gate (desligado/parcial/ligado)."""
+    (petz_provider.is_petz_publicly_servable). A atribuição por cupom
+    PETTMOL FOI validada com uma compra real em 29/08/2026 (ver
+    docs/PETZ_COMMISSION_VALIDATION.md) e o gate vem LIGADO por padrão
+    desde 04/09/2026 — este teste cobre o kill-switch
+    (petz_publicly_disabled) explicitamente ligado, defesa em
+    profundidade. Ver tests/test_petz_integration.py pros testes
+    completos do gate (desligado/parcial/ligado, incluindo o novo
+    default)."""
+    monkeypatch.setenv("PETZ_PUBLICLY_DISABLED", "true")
+    get_settings.cache_clear()
     r = client.get("/commerce/monetized-offer", params={"merchant": "petz", "context": "store"})
     assert r.status_code == 200
     assert r.json()["offer"] is None
