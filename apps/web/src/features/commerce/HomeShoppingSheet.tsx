@@ -290,16 +290,19 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
       <div
         ref={sheetRef}
         className="relative isolate flex w-full max-w-md flex-col overflow-hidden rounded-t-[28px] bg-[#f5f6f8]/82 shadow-[0_-8px_60px_-6px_rgba(15,23,42,0.45)] ring-1 ring-white/40 backdrop-blur-2xl sm:mb-4 sm:rounded-[28px]"
-        // A view de loja (poucos cards) fica com altura de conteúdo, capada
-        // em 88dvh. A view de busca é diferente: com 0-1 resultado ela tem
-        // muito menos conteúdo que o cap, então a sheet "encolhe" e sobra um
-        // vão cinza enorme entre o topo da tela e o cabeçalho — exatamente
-        // o espaço que o tutor pediu pra aproveitar. Usando `height` (fixo)
-        // em vez de `maxHeight` só nessa view, a sheet sempre ocupa o mesmo
-        // tanto de tela (quase cheia), o campo de busca sobe pra perto do
-        // topo, e a lista de resultados ganha a altura toda pra rolar —
-        // sem mudar nada na view de loja.
-        style={view === 'search' ? { height: 'min(94dvh, 100%)' } : { maxHeight: 'min(88dvh, 100%)' }}
+        // A view de loja usa `maxHeight` (cresce com o conteúdo — poucos
+        // itens não deixam vão vazio embaixo), mas o CAP subiu de 88dvh
+        // pra 96dvh (decisão de produto, 04/09/2026): exceção deliberada
+        // ao padrão mais contido dos outros sheets do app — com busca +
+        // 3 seções + lojas parceiras + aviso, o conteúdo real passou a
+        // bater no teto com frequência, cortando "Ou visite uma loja
+        // parceira"/o aviso de afiliados sem indicar claramente que dava
+        // pra rolar mais. Foi até quase o topo da tela de propósito, pra
+        // mostrar o que ficava faltando embaixo. A view de busca é
+        // diferente: com 0-1 resultado ela tem bem menos conteúdo que
+        // qualquer cap, então usa `height` fixo (94dvh) — sem isso a
+        // sheet "encolhe" e sobra um vão cinza enorme acima do campo.
+        style={view === 'search' ? { height: 'min(94dvh, 100%)' } : { maxHeight: 'min(96dvh, 100%)' }}
         onClick={(e) => e.stopPropagation()}
         onFocusCapture={() => { lastFocusInsideAt.current = Date.now(); }}
       >
@@ -355,11 +358,19 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                 <span className="text-[15px] font-medium text-slate-400">Buscar produto...</span>
               </button>
 
+              {/* Títulos das 3 seções de produto (decisão de produto,
+                  04/09/2026): maiores, centralizados e num cinza escuro
+                  de verdade (slate-700, não mais o slate-400 quase
+                  ilegível de antes) — texto de seção, não mais um rótulo
+                  discreto de canto. mb-3.5 (era 2.5) descola mais dos
+                  cards abaixo. Só as 3 seções de produto — "Ou visite uma
+                  loja parceira" mantém o estilo de rótulo utilitário
+                  anterior, propositalmente. */}
               {/* Comprar de novo — produtos recorrentes sem prazo definido
                   (ex: petisco). Intenção livre, o tutor compra quando quiser. */}
               {grouped.anytime.length > 0 && (
                 <div>
-                  <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Comprar de novo</p>
+                  <p className="mb-3.5 text-center text-[15px] font-black uppercase tracking-[0.06em] text-slate-700">Comprar de novo</p>
                   <div className="space-y-2.5">{renderReorderCards(grouped.anytime)}</div>
                 </div>
               )}
@@ -369,7 +380,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                   em petStoreContent.ts), ordenado do mais próximo pro mais longe. */}
               {grouped.soon.length > 0 && (
                 <div>
-                  <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Vai precisar em breve</p>
+                  <p className="mb-3.5 text-center text-[15px] font-black uppercase tracking-[0.06em] text-slate-700">Vai precisar em breve</p>
                   <div className="space-y-2.5">{renderReorderCards(grouped.soon)}</div>
                 </div>
               )}
@@ -381,7 +392,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                   accordion/collapse. */}
               {grouped.later.length > 0 && (
                 <div>
-                  <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Mais para frente</p>
+                  <p className="mb-3.5 text-center text-[15px] font-black uppercase tracking-[0.06em] text-slate-700">Mais para frente</p>
                   <div className="space-y-2.5">{renderReorderCards(grouped.later)}</div>
                 </div>
               )}
