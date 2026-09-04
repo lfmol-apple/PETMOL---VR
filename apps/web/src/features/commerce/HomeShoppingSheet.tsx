@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
-import { petO } from '@/lib/petGender';
+import { petDo, petO } from '@/lib/petGender';
 import { SheetAvatar, SheetHeader } from '@/components/ui/sheet';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { trackClick } from '@/lib/analytics/click';
@@ -28,6 +28,7 @@ import { useCommerceOffers } from './useCommerceOffers';
 import {
   buildReorderCards,
   buildPetStoreTitle,
+  groupReorderCardsByUrgency,
   QUICK_BUY_PARTNERS,
   type ReorderCard,
 } from './petStoreContent';
@@ -39,12 +40,25 @@ interface HomeShoppingSheetProps {
   buyableReminders: PetCareReminder[];
 }
 
+type ShoppingView = 'store' | 'search';
+
 // Tela enxuta de propósito: "Comprar novamente" (com preço real quando
 // disponível) é a seção que importa de verdade — uma tela mais longa com
 // categorias genéricas e promoções não-personalizadas só cansava o tutor
 // antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
+//
+// Reorganizada por urgência (ver petStoreContent.groupReorderCardsByUrgency):
+// Comprar de novo (sem prazo) → Vai precisar em breve → Mais para frente
+// (recolhido) → Procurar outro produto (abre a view de busca) → lojas
+// parceiras. O pet vem antes do merchant — cada card mostra produto e
+// prazo primeiro, loja só na hora de comprar.
 export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
+  const [view, setView] = useState<ShoppingView>('store');
+  // "Mais para frente" começa recolhido de propósito (ver spec da tela) —
+  // produtos muito distantes não devem competir visualmente com os
+  // próximos, mas continuam a um toque de distância, nunca escondidos.
+  const [laterExpanded, setLaterExpanded] = useState(false);
   // Mantém a sheet colada ao viewport visível quando o teclado abre (busca) —
   // sem isso o campo de busca fica atrás do teclado no iOS.
   const kbViewportRef = useKeyboardSheetViewport(open);
@@ -67,14 +81,30 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   }
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
+  const grouped = useMemo(() => groupReorderCardsByUrgency(reorderCards), [reorderCards]);
 
   useEffect(() => {
     if (!open) {
       setQuickBuyFor(null);
+      setView('store');
+      setLaterExpanded(false);
       return;
     }
     void trackClick({ source: 'home', cta_type: 'shop_sheet_view', pet_id: currentPet.pet_id });
     void trackClick({ source: 'home', cta_type: 'store_opened', pet_id: currentPet.pet_id });
+    // "Visão" das seções personalizadas — a tela abre nelas por padrão
+    // (sem rolagem necessária pra a primeira dobra), então contam como
+    // vistas assim que a Loja abre, uma vez por abertura.
+    if (grouped.anytime.length > 0) {
+      void trackClick({ source: 'home', cta_type: 'shop_reorder_section_view', pet_id: currentPet.pet_id, metadata: { count: grouped.anytime.length } });
+    }
+    if (grouped.soon.length > 0) {
+      void trackClick({ source: 'home', cta_type: 'shop_upcoming_section_view', pet_id: currentPet.pet_id, metadata: { count: grouped.soon.length } });
+    }
+    if (grouped.later.length > 0) {
+      void trackClick({ source: 'home', cta_type: 'shop_later_section_view', pet_id: currentPet.pet_id, metadata: { count: grouped.later.length, expanded: false } });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentPet.pet_id]);
 
   const visibleStorePartners = useMemo(() => HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea), []);
@@ -106,7 +136,15 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   }
 
   function handleStorePartnerOpen(partner: HomeShoppingPartner) {
-    const searchQuery = 'produtos pet';
+    // Sem pré-busca: os cards de loja parceira levam à vitrine/storefront
+    // da loja, nunca a uma busca genérica tipo "produtos pet" — o tutor
+    // escolheu "quero navegar direto na loja", não "busque algo pra mim"
+    // (isso já existe na seção de busca). Pra Cobasi e Shopee hoje isso já
+    // não fazia diferença na prática (storefrontAffiliateUrl/shortlink
+    // fixos ignoram o parâmetro), mas resolvePartnerUrl(query, ...) pode
+    // futuramente montar uma URL de busca real com esse texto — string
+    // vazia garante que nenhuma pré-busca nasça aqui por engano.
+    const searchQuery = '';
     const url = resolvePartnerUrl(partner, searchQuery, '');
     void trackClick({
       source: 'home',
@@ -128,6 +166,76 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
     navigateToPartnerUrl(url);
   }
 
+  function handleSearchEntry() {
+    void trackClick({ source: 'home', cta_type: 'shop_search_entry_click', pet_id: currentPet.pet_id });
+    setView('search');
+  }
+
+  function handleToggleLater() {
+    const next = !laterExpanded;
+    setLaterExpanded(next);
+    void trackClick({ source: 'home', cta_type: 'shop_later_expand', pet_id: currentPet.pet_id, metadata: { count: grouped.later.length, expanded: next } });
+  }
+
+  function renderReorderCards(cards: ReorderCard[]) {
+    return cards.map((card) => {
+      const pickerKey = `reorder:${card.id}`;
+      return (
+        <ReorderCardItem
+          key={card.id}
+          card={card}
+          isPickerOpen={quickBuyFor === pickerKey}
+          visibleQuickBuyPartners={visibleQuickBuyPartners}
+          onTogglePicker={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
+          onQuickBuy={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, gtin: card.gtin ?? undefined })}
+          onDirectBuy={(offer) => {
+            if (offer.url) navigateToPartnerUrl(offer.url);
+            void trackClick({
+              source: 'home',
+              cta_type: 'shop_reorder_buy_direct',
+              target: offer.merchant,
+              link_type: offer.link_type,
+              pet_id: currentPet.pet_id,
+              metadata: {
+                domain: card.domain,
+                merchant: offer.merchant,
+                gtin: card.gtin ?? undefined,
+                price_shown: typeof offer.price === 'number' && !offer.price_is_stale ? offer.price : null,
+                link_type: offer.link_type,
+                screen: 'loja',
+                price_is_stale: Boolean(offer.price_is_stale),
+              },
+            });
+          }}
+          onPetzBuy={(petzLink) => {
+            void openPetzPartnerStore({
+              productUrl: petzLink.direct_product_url,
+              searchUrl: petzLink.search_url,
+              productName: card.label,
+            });
+            void trackClick({
+              source: 'home',
+              cta_type: 'shop_reorder_buy_petz',
+              target: 'petz',
+              link_type: 'affiliate_store',
+              pet_id: currentPet.pet_id,
+              metadata: {
+                domain: card.domain,
+                merchant: 'petz',
+                monetization_mode: 'coupon_attribution_verified',
+                destination_type: 'partner_store',
+                coupon: PETZ_COUPON_CODE,
+                gtin: card.gtin ?? undefined,
+                link_type: 'affiliate_store',
+                screen: 'loja',
+              },
+            });
+          }}
+        />
+      );
+    });
+  }
+
   return (
     <div
       ref={kbViewportRef}
@@ -145,103 +253,101 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
         onFocusCapture={() => { lastFocusInsideAt.current = Date.now(); }}
       >
         {/* Cabeçalho petmol compartilhado — mesma variante usada nos demais
-            sheets do pet (SheetHeader tone="petmol"). */}
-        <SheetHeader
-          tone="petmol"
-          withHandle
-          title={title}
-          subtitle={`Tudo que ${petO(currentPet)} ${petName || 'seu pet'} precisa`}
-          media={
-            <SheetAvatar
-              src={petPhotoSrc}
-              alt={petName || 'Pet'}
-              fallback={currentPet.species === 'cat' ? '🐱' : '🐶'}
-            />
-          }
-          onClose={onClose}
-        />
+            sheets do pet (SheetHeader tone="petmol"). Na view de busca vira
+            "← Voltar" pra loja + X continua fechando a sheet inteira. */}
+        {view === 'search' ? (
+          <SheetHeader
+            tone="petmol"
+            withHandle
+            title="Buscar produto"
+            subtitle={`Na Loja ${petDo(currentPet)} ${petName || 'seu pet'}`}
+            onBack={() => setView('store')}
+            onClose={onClose}
+          />
+        ) : (
+          <SheetHeader
+            tone="petmol"
+            withHandle
+            title={title}
+            subtitle={`Tudo que ${petO(currentPet)} ${petName || 'seu pet'} precisa`}
+            media={
+              <SheetAvatar
+                src={petPhotoSrc}
+                alt={petName || 'Pet'}
+                fallback={currentPet.species === 'cat' ? '🐱' : '🐶'}
+              />
+            }
+            onClose={onClose}
+          />
+        )}
 
         {/* Scrollable content */}
         <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-          {/* 🐾 Busca — sobe pro topo da tela (era o botão verde "Comprar de
-              novo"). Catálogo Awin; busca por texto ou código de barras. */}
-          <div>
-            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Buscar produto</p>
-            <AffiliateCatalogSearch petId={currentPet.pet_id} />
-          </div>
+          {view === 'search' ? (
+            <AffiliateCatalogSearch petId={currentPet.pet_id} autoFocus />
+          ) : (
+            <>
+              {/* Comprar de novo — produtos recorrentes sem prazo definido
+                  (ex: petisco). Intenção livre, o tutor compra quando quiser. */}
+              {grouped.anytime.length > 0 && (
+                <div>
+                  <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Comprar de novo</p>
+                  <div className="space-y-2.5">{renderReorderCards(grouped.anytime)}</div>
+                </div>
+              )}
 
-          {/* Comprar de novo — os produtos ficam sempre visíveis (sem o
-              botão verde recolhível que existia antes). */}
-          {reorderCards.length > 0 && (
-            <div>
-              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Comprar de novo</p>
-              <div className="space-y-2.5">
-                {reorderCards.map((card) => {
-                  const pickerKey = `reorder:${card.id}`;
-                  return (
-                    <ReorderCardItem
-                      key={card.id}
-                      card={card}
-                      isPickerOpen={quickBuyFor === pickerKey}
-                      visibleQuickBuyPartners={visibleQuickBuyPartners}
-                      onTogglePicker={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
-                      onQuickBuy={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, gtin: card.gtin ?? undefined })}
-                      onDirectBuy={(offer) => {
-                        if (offer.url) navigateToPartnerUrl(offer.url);
-                        void trackClick({
-                          source: 'home',
-                          cta_type: 'shop_reorder_buy_direct',
-                          target: offer.merchant,
-                          link_type: offer.link_type,
-                          pet_id: currentPet.pet_id,
-                          metadata: {
-                            domain: card.domain,
-                            merchant: offer.merchant,
-                            gtin: card.gtin ?? undefined,
-                            price_shown: typeof offer.price === 'number' && !offer.price_is_stale ? offer.price : null,
-                            link_type: offer.link_type,
-                            screen: 'loja',
-                            price_is_stale: Boolean(offer.price_is_stale),
-                          },
-                        });
-                      }}
-                      onPetzBuy={(petzLink) => {
-                        void openPetzPartnerStore({
-                          productUrl: petzLink.direct_product_url,
-                          searchUrl: petzLink.search_url,
-                          productName: card.label,
-                        });
-                        void trackClick({
-                          source: 'home',
-                          cta_type: 'shop_reorder_buy_petz',
-                          target: 'petz',
-                          link_type: 'affiliate_store',
-                          pet_id: currentPet.pet_id,
-                          metadata: {
-                            domain: card.domain,
-                            merchant: 'petz',
-                            monetization_mode: 'coupon_attribution_verified',
-                            destination_type: 'partner_store',
-                            coupon: PETZ_COUPON_CODE,
-                            gtin: card.gtin ?? undefined,
-                            link_type: 'affiliate_store',
-                            screen: 'loja',
-                          },
-                        });
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
+              {/* Vai precisar em breve — inclui vencido/hoje (o mais urgente)
+                  até o limiar de apresentação (ver REORDER_SOON_THRESHOLD_DAYS
+                  em petStoreContent.ts), ordenado do mais próximo pro mais longe. */}
+              {grouped.soon.length > 0 && (
+                <div>
+                  <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Vai precisar em breve</p>
+                  <div className="space-y-2.5">{renderReorderCards(grouped.soon)}</div>
+                </div>
+              )}
+
+              {/* Mais para frente — recolhido por padrão: produtos distantes
+                  não competem visualmente com os próximos, mas continuam
+                  acessíveis a um toque, nunca escondidos de verdade. */}
+              {grouped.later.length > 0 && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleToggleLater}
+                    className="flex w-full items-center justify-between rounded-xl px-0.5 py-1 text-left active:scale-[0.99] transition-all"
+                    aria-expanded={laterExpanded}
+                  >
+                    <span className="text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Mais para frente</span>
+                    <span className="flex items-center gap-1 text-[12px] font-semibold text-slate-500">
+                      {grouped.later.length} produto{grouped.later.length > 1 ? 's' : ''} {petDo(currentPet)} {petName || 'seu pet'}
+                      <ChevronDown className={`h-3.5 w-3.5 flex-shrink-0 transition-transform duration-200 ${laterExpanded ? 'rotate-180' : ''}`} strokeWidth={2.5} />
+                    </span>
+                  </button>
+                  {laterExpanded && (
+                    <div className="mt-2.5 space-y-2.5">{renderReorderCards(grouped.later)}</div>
+                  )}
+                </div>
+              )}
+
+              {/* Procurar outro produto — saída explícita pra busca genérica.
+                  Fica DEPOIS das seções personalizadas, nunca dominando o topo. */}
+              <button
+                type="button"
+                onClick={handleSearchEntry}
+                className="flex w-full items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-left shadow-[0_2px_10px_-6px_rgba(15,23,42,0.15)] transition-all active:scale-[0.99] outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+              >
+                <Search className="h-[17px] w-[17px] flex-shrink-0 text-slate-400" strokeWidth={2.2} />
+                <span className="text-[14px] font-bold text-slate-700">Procurar outro produto</span>
+              </button>
+
+              <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
+
+              <p className="pt-1 text-center text-[10px] leading-relaxed text-slate-400">
+                Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
+                A disponibilidade, preço, pagamento e entrega são de responsabilidade da loja escolhida.
+              </p>
+            </>
           )}
-
-          <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
-
-          <p className="pt-1 text-center text-[10px] leading-relaxed text-slate-400">
-            Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
-            A disponibilidade, preço, pagamento e entrega são de responsabilidade da loja escolhida.
-          </p>
         </div>
       </div>
     </div>

@@ -32,6 +32,13 @@ interface AffiliateCatalogSearchProps {
   petId: string;
   initialQuery?: string;
   merchantFilter?: HomeShoppingPartnerId;
+  /**
+   * Foca o campo (e abre o teclado) assim que este componente monta.
+   * Default false — a Loja do Pet NÃO deve abrir com o teclado em cima da
+   * tela. Só usar quando o próprio tutor pediu explicitamente pra buscar
+   * (ex: tocou em "Procurar outro produto"), nunca na tela inicial.
+   */
+  autoFocus?: boolean;
 }
 
 type ResolvedOffers = CommerceOffer[] | 'loading' | 'error';
@@ -57,7 +64,7 @@ type BarcodeLookupState = 'idle' | 'loading' | 'done' | 'not_found' | 'error';
 // URL web final do produto com `awc`; isso evita o OneLink abrir a home/app
 // da Cobasi em vez do produto.
 
-export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilter }: AffiliateCatalogSearchProps) {
+export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilter, autoFocus = false }: AffiliateCatalogSearchProps) {
   const [query, setQuery] = useState(initialQuery);
   // Escanear/código de barras: ocultos por enquanto (feedback do tutor —
   // deixar só a busca por texto, maior e mais direta). Estado e handlers
@@ -286,6 +293,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             enterKeyHint="search"
+            autoFocus={autoFocus}
             onFocus={(e) => {
               // font-size >= 16px evita o zoom automático do Safari iOS. O
               // campo é sticky, então basta trazer o topo dele pra vista —
@@ -323,7 +331,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
       )}
 
       {visibleResults.length > 0 && (
-        <div className="mt-2.5 space-y-2.5">
+        <div className="mt-3 space-y-3">
           {visibleResults.map((item) => {
             const resolved = offersByGtin[item.gtin];
             const petzResolved = petzByGtin[item.gtin];
@@ -357,10 +365,10 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                 tabIndex={canOpen ? 0 : undefined}
                 onClick={canOpen ? handleResultTap : undefined}
                 onKeyDown={canOpen ? handleResultKeyDown : undefined}
-                className={`p-3 bg-white rounded-2xl ring-1 ring-black/5 shadow-[0_4px_16px_-8px_rgba(15,23,42,0.18)] transition-all ${canOpen ? 'cursor-pointer hover:ring-emerald-200 active:scale-[0.99]' : ''}`}
+                className={`p-3.5 bg-white rounded-2xl ring-1 ring-black/5 shadow-[0_4px_16px_-8px_rgba(15,23,42,0.18)] transition-all outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 ${canOpen ? 'cursor-pointer hover:ring-emerald-200 active:scale-[0.99]' : ''}`}
               >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-50 border border-gray-100 flex-shrink-0 flex items-center justify-center">
+                <div className="flex items-center gap-4">
+                  <div className="w-[92px] h-[92px] rounded-xl overflow-hidden bg-gray-50 border border-gray-100 flex-shrink-0 flex items-center justify-center">
                     {item.image_url && !failedImageGtins.has(item.gtin) ? (
                       <img
                         src={item.image_url}
@@ -370,16 +378,16 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                         onError={() => setFailedImageGtins((prev) => new Set(prev).add(item.gtin))}
                       />
                     ) : (
-                      <span className="text-2xl">🛍️</span>
+                      <span className="text-3xl">🛍️</span>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[14px] font-bold text-gray-900 leading-tight line-clamp-2">{item.title}</p>
+                    <p className="text-[15px] font-bold text-gray-900 leading-snug line-clamp-2">{item.title}</p>
                     {typeof item.price === 'number' && (
-                      <p className="text-[13px] font-bold text-emerald-700 mt-1">
+                      <p className="text-[14px] font-bold text-emerald-700 mt-1.5">
                         {item.offer_count > 1 ? 'A partir de ' : ''}{formatBRLPrice(item.price)}
                         {item.offer_count > 1 && (
-                          <span className="block mt-0.5 text-[10px] font-black uppercase tracking-wide text-blue-600 whitespace-nowrap">
+                          <span className="block mt-1 text-[11px] font-black uppercase tracking-wide text-blue-600 whitespace-nowrap">
                             {merchantLabel(item.merchant)} · +{item.offer_count - 1} loja{item.offer_count - 1 > 1 ? 's' : ''}
                           </span>
                         )}
@@ -394,16 +402,16 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                         event.stopPropagation();
                         handleResultTap();
                       }}
-                      className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[11px] font-bold px-3 py-1.5 active:scale-95 transition-all"
+                      className="flex-shrink-0 rounded-full bg-emerald-500 text-white text-[11.5px] font-bold px-3.5 py-2 active:scale-95 transition-all outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2"
                     >
                       🛒 Lojas
                     </button>
                   ) : unavailable ? (
-                    <span className="flex-shrink-0 rounded-full bg-gray-100 text-gray-400 text-[11px] font-bold px-3 py-1.5">
+                    <span className="flex-shrink-0 rounded-full bg-gray-100 text-gray-400 text-[11.5px] font-bold px-3.5 py-2">
                       Sem loja
                     </span>
                   ) : (
-                    <span className="flex-shrink-0 rounded-full bg-gray-100 text-gray-400 text-[11px] font-bold px-3 py-1.5">
+                    <span className="flex-shrink-0 rounded-full bg-gray-100 text-gray-400 text-[11.5px] font-bold px-3.5 py-2">
                       Buscando
                     </span>
                   )}
