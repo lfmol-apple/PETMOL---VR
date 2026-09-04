@@ -359,18 +359,24 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
               </button>
 
               {/* Títulos das 3 seções de produto (decisão de produto,
-                  04/09/2026): maiores, centralizados e num cinza escuro
-                  de verdade (slate-700, não mais o slate-400 quase
-                  ilegível de antes) — texto de seção, não mais um rótulo
-                  discreto de canto. mb-3.5 (era 2.5) descola mais dos
-                  cards abaixo. Só as 3 seções de produto — "Ou visite uma
-                  loja parceira" mantém o estilo de rótulo utilitário
-                  anterior, propositalmente. */}
+                  04/09/2026): maiores, centralizados, mb-3.5 (era 2.5,
+                  descola mais dos cards abaixo) — texto de seção, não
+                  mais um rótulo discreto de canto. Cor branca (não
+                  slate-700 como na primeira tentativa): o fundo real
+                  aqui não é branco — é o bg-[#f5f6f8]/82 translúcido da
+                  sheet por cima do backdrop escuro/blur (bg-slate-950/55)
+                  — então QUALQUER cinza escuro fica com contraste ruim
+                  contra esse cinza-escuro composto, por mais que pareça
+                  óbvio "texto escuro em fundo claro" olhando só o valor
+                  hex do fundo. Branco puro (títulos) / branco 70%
+                  ("Ou visite uma loja parceira", só rótulo utilitário,
+                  mais discreto) / branco 60% (aviso de afiliados, fine
+                  print) — mesma cor, hierarquia só por opacidade. */}
               {/* Comprar de novo — produtos recorrentes sem prazo definido
                   (ex: petisco). Intenção livre, o tutor compra quando quiser. */}
               {grouped.anytime.length > 0 && (
                 <div>
-                  <p className="mb-3.5 text-center text-[15px] font-black uppercase tracking-[0.06em] text-slate-700">Comprar de novo</p>
+                  <p className="mb-3.5 text-center text-[15px] font-black uppercase tracking-[0.06em] text-white">Comprar de novo</p>
                   <div className="space-y-2.5">{renderReorderCards(grouped.anytime)}</div>
                 </div>
               )}
@@ -380,7 +386,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                   em petStoreContent.ts), ordenado do mais próximo pro mais longe. */}
               {grouped.soon.length > 0 && (
                 <div>
-                  <p className="mb-3.5 text-center text-[15px] font-black uppercase tracking-[0.06em] text-slate-700">Vai precisar em breve</p>
+                  <p className="mb-3.5 text-center text-[15px] font-black uppercase tracking-[0.06em] text-white">Vai precisar em breve</p>
                   <div className="space-y-2.5">{renderReorderCards(grouped.soon)}</div>
                 </div>
               )}
@@ -392,14 +398,14 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                   accordion/collapse. */}
               {grouped.later.length > 0 && (
                 <div>
-                  <p className="mb-3.5 text-center text-[15px] font-black uppercase tracking-[0.06em] text-slate-700">Mais para frente</p>
+                  <p className="mb-3.5 text-center text-[15px] font-black uppercase tracking-[0.06em] text-white">Mais para frente</p>
                   <div className="space-y-2.5">{renderReorderCards(grouped.later)}</div>
                 </div>
               )}
 
               <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
 
-              <p className="pt-1 text-center text-[10px] leading-relaxed text-slate-400">
+              <p className="pt-1 text-center text-[10px] leading-relaxed text-white/60">
                 Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
                 A disponibilidade, preço, pagamento e entrega são de responsabilidade da loja escolhida.
               </p>
@@ -422,7 +428,7 @@ function PartnerStoreGrid({
 
   return (
     <div>
-      <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Ou visite uma loja parceira</p>
+      <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-white/70">Ou visite uma loja parceira</p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {partners.map((partner) => (
           <button
