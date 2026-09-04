@@ -1,0 +1,104 @@
+name: Clone parasite control record between pets
+
+# One-off utility: clona um parasite_control_records (coleira, vermífugo etc.)
+# de um pet pra outro, mesmo produto/dosagem, com data de aplicação e custo
+# próprios pro destino — ver deploy/scripts/clone_parasite_record.py. Rode
+# primeiro sem `record_id` pra listar os registros candidatos de origem; rode
+# de novo com `record_id` + `commit: true` pra gravar de verdade.
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_pet_name:
+        description: "Nome do pet de origem"
+        required: true
+        default: "Baby"
+      from_pet_id:
+        description: "ID exato do pet de origem (desambigua se o nome bater em mais de um)"
+        required: false
+        default: ""
+      to_pet_name:
+        description: "Nome do pet de destino"
+        required: true
+        default: "Frida"
+      to_pet_id:
+        description: "ID exato do pet de destino (desambigua se o nome bater em mais de um)"
+        required: false
+        default: ""
+      record_type:
+        description: "Tipo do registro (collar | dewormer | flea_tick | heartworm | leishmaniasis)"
+        required: false
+        default: "collar"
+      record_id:
+        description: "ID do registro de origem a clonar (deixe vazio pra só listar as opções)"
+        required: false
+        default: ""
+      date_applied:
+        description: "Data de aplicação no pet de destino (YYYY-MM-DD)"
+        required: false
+        default: ""
+      cost:
+        description: "Custo no pet de destino (ex: 71.90)"
+        required: false
+        default: ""
+      commit:
+        description: "Gravar de verdade? (false = dry-run)"
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  clone:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload script to VPS
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          VPS_PORT="${VPS_PORT:-22}"
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+          scp -i ~/.ssh/deploy_key -o Port="$VPS_PORT" -o StrictHostKeyChecking=no \
+            deploy/scripts/clone_parasite_record.py \
+            "$VPS_USER@$VPS_IP:/tmp/clone_parasite_record.py"
+
+      - name: Run on VPS
+        env:
+          VPS_IP: ${{ secrets.VPS_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          FROM_PET_NAME: ${{ github.event.inputs.from_pet_name }}
+          FROM_PET_ID: ${{ github.event.inputs.from_pet_id }}
+          TO_PET_NAME: ${{ github.event.inputs.to_pet_name }}
+          TO_PET_ID: ${{ github.event.inputs.to_pet_id }}
+          RECORD_TYPE: ${{ github.event.inputs.record_type }}
+          RECORD_ID: ${{ github.event.inputs.record_id }}
+          DATE_APPLIED: ${{ github.event.inputs.date_applied }}
+          COST: ${{ github.event.inputs.cost }}
+          COMMIT_FLAG: ${{ github.event.inputs.commit }}
+        run: |
+          VPS_PORT="${VPS_PORT:-22}"
+          SSH="ssh -i ~/.ssh/deploy_key -o Port=$VPS_PORT -o StrictHostKeyChecking=no $VPS_USER@$VPS_IP"
+
+          ARGS="--from-pet-name \"$FROM_PET_NAME\" --to-pet-name \"$TO_PET_NAME\""
+          [ -n "$FROM_PET_ID" ] && ARGS="$ARGS --from-pet-id \"$FROM_PET_ID\""
+          [ -n "$TO_PET_ID" ] && ARGS="$ARGS --to-pet-id \"$TO_PET_ID\""
+          [ -n "$RECORD_TYPE" ] && ARGS="$ARGS --record-type \"$RECORD_TYPE\""
+          [ -n "$RECORD_ID" ] && ARGS="$ARGS --record-id \"$RECORD_ID\""
+          [ -n "$DATE_APPLIED" ] && ARGS="$ARGS --date-applied \"$DATE_APPLIED\""
+          [ -n "$COST" ] && ARGS="$ARGS --cost \"$COST\""
+          [ "$COMMIT_FLAG" = "true" ] && ARGS="$ARGS --commit"
+
+          $SSH "
+            cd /opt/petmol/current/services/price-service
+            .venv/bin/python /tmp/clone_parasite_record.py $ARGS
+          "
