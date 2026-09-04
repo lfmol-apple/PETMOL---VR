@@ -286,7 +286,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
         {/* Lupa em flex (não absoluta) — nunca encavala com o texto digitado,
             mesmo no iOS quando o campo rola o conteúdo. */}
         <label className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white pl-4 pr-3 shadow-[0_4px_16px_-6px_rgba(15,23,42,0.18)] transition-all duration-150 focus-within:border-emerald-400 focus-within:ring-4 focus-within:ring-emerald-500/10">
-          <Search className="h-[18px] w-[18px] flex-shrink-0 text-slate-400" strokeWidth={2.2} />
+          <Search className="h-5 w-5 flex-shrink-0 text-slate-400" strokeWidth={2.2} />
           <input
             ref={searchInputRef}
             type="text"
@@ -317,7 +317,14 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
             // <label>, focus-within, some acima — só o retângulo azul global
             // é suprimido, e só neste campo (nenhuma outra regra de foco do
             // app é tocada).
-            className="min-w-0 flex-1 appearance-none border-0 bg-transparent py-3.5 text-[16px] font-medium text-slate-900 outline-none focus-visible:outline-none placeholder:text-slate-400"
+            //
+            // Fonte grande ("zoom", pedido do tutor) — mesma ideia dos
+            // painéis de e-mail/senha do cadastro inicial (app/register/page.tsx,
+            // texto a 28px numa tela dedicada): esta view de busca já É a
+            // tela dedicada (nada mais aparece nela além do campo e dos
+            // resultados), então o texto fica bem maior que o normal do
+            // app pra facilitar ler o que foi digitado.
+            className="min-w-0 flex-1 appearance-none border-0 bg-transparent py-4 text-[22px] font-medium text-slate-900 outline-none focus-visible:outline-none placeholder:text-slate-300"
             style={{ WebkitTapHighlightColor: 'transparent', outline: 'none' }}
           />
         </label>
