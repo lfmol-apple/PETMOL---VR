@@ -243,7 +243,16 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
       <div
         ref={sheetRef}
         className="relative isolate flex w-full max-w-md flex-col overflow-hidden rounded-t-[28px] bg-[#f5f6f8]/82 shadow-[0_-8px_60px_-6px_rgba(15,23,42,0.45)] ring-1 ring-white/40 backdrop-blur-2xl sm:mb-4 sm:rounded-[28px]"
-        style={{ maxHeight: 'min(88dvh, 100%)' }}
+        // A view de loja (poucos cards) fica com altura de conteúdo, capada
+        // em 88dvh. A view de busca é diferente: com 0-1 resultado ela tem
+        // muito menos conteúdo que o cap, então a sheet "encolhe" e sobra um
+        // vão cinza enorme entre o topo da tela e o cabeçalho — exatamente
+        // o espaço que o tutor pediu pra aproveitar. Usando `height` (fixo)
+        // em vez de `maxHeight` só nessa view, a sheet sempre ocupa o mesmo
+        // tanto de tela (quase cheia), o campo de busca sobe pra perto do
+        // topo, e a lista de resultados ganha a altura toda pra rolar —
+        // sem mudar nada na view de loja.
+        style={view === 'search' ? { height: 'min(94dvh, 100%)' } : { maxHeight: 'min(88dvh, 100%)' }}
         onClick={(e) => e.stopPropagation()}
         onFocusCapture={() => { lastFocusInsideAt.current = Date.now(); }}
       >

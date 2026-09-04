@@ -301,18 +301,24 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
               window.setTimeout(() => e.target.scrollIntoView({ block: 'start', behavior: 'smooth' }), 200);
             }}
             placeholder="Buscar produto..."
-            // `outline-none` sozinho não basta no Safari/iOS: o navegador
-            // desenha seu próprio contorno azul de foco no <input> por cima
-            // do `outline: transparent` do Tailwind — é o "-webkit-appearance"
-            // nativo do campo de texto, não um ring/border/box-shadow nosso
-            // (o único ring daqui é o esmeralda do <label>, focus-within,
-            // umas linhas acima). `appearance-none` remove esse estilo
-            // nativo do campo; `WebkitTapHighlightColor: transparent` tira
-            // o retângulo de destaque que o WebKit pisca ao tocar. Os dois
-            // só afetam este input — nenhum outro campo do app usa esta
-            // classe.
-            className="min-w-0 flex-1 appearance-none border-0 bg-transparent py-3.5 text-[16px] font-medium text-slate-900 outline-none placeholder:text-slate-400"
-            style={{ WebkitTapHighlightColor: 'transparent' }}
+            // O retângulo azul não era o -webkit-appearance nativo (isso já
+            // tinha sido corrigido) — é a regra global de acessibilidade
+            // "Brand focus state" em globals.css: `*:focus-visible { outline:
+            // 2px solid #0056D2 }`. Ela empata em especificidade CSS com o
+            // `.outline-none` do Tailwind (ambas são um seletor + 0 classes
+            // reais de peso) e, num empate, vence quem aparece depois no CSS
+            // compilado — que é essa regra global, não a nossa. `appearance-
+            // none` + `WebkitTapHighlightColor` continuam aqui (tiram o
+            // destaque nativo do WebKit), mas quem resolve o retângulo azul é
+            // o variant `focus-visible:outline-none`: por ter uma classe +
+            // um pseudo-seletor, tem especificidade maior que `*:focus-
+            // visible` e vence sempre, não importa a ordem no arquivo. O
+            // campo continua com feedback de foco — o ring esmeralda do
+            // <label>, focus-within, some acima — só o retângulo azul global
+            // é suprimido, e só neste campo (nenhuma outra regra de foco do
+            // app é tocada).
+            className="min-w-0 flex-1 appearance-none border-0 bg-transparent py-3.5 text-[16px] font-medium text-slate-900 outline-none focus-visible:outline-none placeholder:text-slate-400"
+            style={{ WebkitTapHighlightColor: 'transparent', outline: 'none' }}
           />
         </label>
       </div>
