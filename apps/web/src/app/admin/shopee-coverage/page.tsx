@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PremiumScreenShell } from '@/components/premium';
 import { getToken } from '@/lib/auth-token';
 import { useAdmin } from '@/hooks/useAdmin';
@@ -26,6 +26,32 @@ type Summary = {
   tutor_open: number;
   by_category: { category: string; n: number }[];
   last_rebuild: string | null;
+};
+
+type SyncProgress = {
+  running: boolean;
+  phase: string;
+  total: number;
+  processed: number;
+  matched: number;
+  percent: number;
+  remaining: number;
+  match_rate: number;
+  refreshed_existing: number;
+  new_matches: number;
+  misses: number;
+  errors: number;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+};
+
+const PHASE_LABEL: Record<string, string> = {
+  starting: 'Iniciando…',
+  auditing: 'Auditando ofertas existentes…',
+  syncing: 'Buscando na Shopee…',
+  finished: 'Concluído',
+  error: 'Erro',
 };
 
 const REASON_LABEL: Record<string, string> = {
@@ -110,6 +136,47 @@ export default function ShopeeCoveragePage() {
 
   useEffect(() => { if (isAdmin) load(); }, [isAdmin, load]);
 
+  // Sincronização Shopee em andamento — barra de progresso ao vivo. Poll
+  // curto (5s) enquanto está rodando pra sensação de "tempo real"; poll mais
+  // espaçado (30s) quando parado, só pra notar se alguém iniciar de fora
+  // desta tela (ex: timer noturno, ou o comando manual na VPS).
+  const [sync, setSync] = useState<SyncProgress | null>(null);
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    let timer: number;
+    const poll = async () => {
+      let nextDelay = 30000;
+      try {
+        const s = await adminFetch<SyncProgress>('/shopee-sync/progress');
+        if (cancelled) return;
+        setSync(s);
+        // Sync terminou desde a última checagem — os dados de cobertura
+        // podem ter mudado (o sync já regenera o rebuild sozinho no fim),
+        // então recarrega a lista/summary automaticamente.
+        if (wasRunning.current && !s.running) load();
+        wasRunning.current = s.running;
+        nextDelay = s.running ? 5000 : 30000;
+      } catch {
+        // silencioso — não interrompe a tela por causa do polling de progresso
+      } finally {
+        if (!cancelled) timer = window.setTimeout(poll, nextDelay);
+      }
+    };
+    poll();
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [isAdmin, load]);
+
+  // Além do sync em si, mantém a lista/summary sempre frescos mesmo sem
+  // nenhuma ação do admin — a tela pediu pra ser "dinâmica, sempre se
+  // atualizando".
+  useEffect(() => {
+    if (!isAdmin) return;
+    const t = window.setInterval(() => load(), 30000);
+    return () => window.clearInterval(t);
+  }, [isAdmin, load]);
+
   async function act(id: number, action: string, extra: Record<string, unknown> = {}) {
     setBusy(true);
     try {
@@ -167,6 +234,42 @@ export default function ShopeeCoveragePage() {
       backHref="/admin/dashboard"
     >
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14, fontSize: 13 }}>
+
+        {sync && (sync.running || sync.phase === 'error' || (sync.finished_at && sync.started_at)) && (
+          <div style={{
+            border: `1px solid ${sync.error ? '#cf222e' : sync.running ? '#0969da' : '#2da44e'}`,
+            background: sync.error ? '#fff1f0' : sync.running ? '#eef6ff' : '#f0fff4',
+            borderRadius: 10, padding: '10px 14px',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+              <b>
+                {sync.running ? '🔄 Sincronizando com a Shopee…' : sync.error ? '⚠️ Sync terminou com erro' : '✅ Última sincronização concluída'}
+                {' '}<span style={{ fontWeight: 400, color: '#57606a' }}>{PHASE_LABEL[sync.phase] ?? sync.phase}</span>
+              </b>
+              <span style={{ color: '#57606a', fontSize: 12 }}>
+                {sync.processed}/{sync.total || '?'} produtos · {sync.matched} casados
+                {sync.errors > 0 ? ` · ${sync.errors} erros` : ''}
+              </span>
+            </div>
+            {sync.total > 0 && (
+              <div style={{ marginTop: 8, height: 8, borderRadius: 4, background: '#d0d7de', overflow: 'hidden' }}>
+                <div style={{
+                  width: `${Math.min(100, sync.percent)}%`, height: '100%',
+                  background: sync.error ? '#cf222e' : sync.running ? '#0969da' : '#2da44e',
+                  transition: 'width 0.6s ease',
+                }} />
+              </div>
+            )}
+            <div style={{ marginTop: 4, color: '#57606a', fontSize: 11.5 }}>
+              {sync.running
+                ? `${sync.percent.toFixed(0)}% · índice de casamento ${sync.match_rate.toFixed(1)}%`
+                : sync.finished_at
+                  ? `Terminou em ${new Date(sync.finished_at).toLocaleString('pt-BR')} — a lista abaixo já reflete esse resultado.`
+                  : null}
+              {sync.error && <span style={{ color: '#cf222e' }}> — {sync.error}</span>}
+            </div>
+          </div>
+        )}
 
         {summary && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
