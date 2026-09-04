@@ -311,6 +311,17 @@ def _run_sync(
             STATE.error = str(exc)
     finally:
         db.close()
+        # Regenera o relatório "Cobasi sem Shopee" (tela admin de cobertura).
+        # Best-effort: nunca derruba o job.
+        try:
+            from ..shopee_coverage_gaps import rebuild_shopee_coverage_gaps
+            gap_db = SessionLocal()
+            try:
+                rebuild_shopee_coverage_gaps(gap_db)
+            finally:
+                gap_db.close()
+        except Exception:  # noqa: BLE001
+            logger.exception("shopee sync: falha ao regenerar coverage gaps")
         with STATE.lock:
             STATE.running = False
             STATE.phase = "finished" if STATE.error is None else "error"
