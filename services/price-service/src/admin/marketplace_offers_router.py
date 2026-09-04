@@ -15,7 +15,7 @@ from ..affiliate_links import MarketplaceOffer
 from ..db import get_db
 from ..mercadolivre_link_validator import InvalidMercadoLivreAffiliateUrlError, validate_mercadolivre_affiliate_url
 from ..product_catalog_lookup import ProductCatalog, normalize_gtin
-from ..shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
+from ..shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_manual_shopee_affiliate_url
 from .deps import get_current_admin, get_current_admin_or_readonly_key
 from .schemas import (
     DeletedOut,
@@ -32,7 +32,10 @@ router = APIRouter(prefix="/v1/admin/marketplace-offers", tags=["Admin Marketpla
 # merchant sem validador aqui é rejeitado explicitamente (nunca aceita
 # "qualquer https://" só porque não temos allowlist pronta ainda).
 _LINK_VALIDATORS: dict[str, Callable[[str], str]] = {
-    "shopee": validate_shopee_affiliate_url,
+    # Manual/admin CRUD — nunca chamado pelo sync automático (esse grava
+    # direto via SQLAlchemy) — por isso usa a validação mais rigorosa, que
+    # exige prova de rastreio da nossa conta, não só o domínio.
+    "shopee": validate_manual_shopee_affiliate_url,
     "mercadolivre": validate_mercadolivre_affiliate_url,
 }
 

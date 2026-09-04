@@ -6,17 +6,26 @@ import pytest
 from src.admin.deps import get_current_admin
 from src.affiliate_feed import AffiliateFeedOffer
 from src.affiliate_links import MarketplaceOffer
+from src.config import get_settings
 from src.db import SessionLocal
 from src.main import app
 from src.product_catalog_lookup import ProductCatalog
 from src.shopee_coverage_gaps import ShopeeCoverageGap, iter_coverage_gap_queue, rebuild_shopee_coverage_gaps
 
+# Link longo com o rastreio da conta — validate_manual_shopee_affiliate_url
+# (a validação mais rigorosa usada no "Cadastrar link") passa sem precisar
+# resolver redirect de verdade. Ver test_shopee_link_validator.py.
+VALID_MANUAL_LINK = "https://shopee.com.br/produto-i.1.2?utm_source=an_18392191175"
+
 
 @pytest.fixture(autouse=True)
-def _admin_auth():
+def _admin_auth(monkeypatch):
+    monkeypatch.setenv("SHOPEE_AFFILIATE_APP_ID", "18392191175")
+    get_settings.cache_clear()
     app.dependency_overrides[get_current_admin] = lambda: ("u", "a")
     yield
     app.dependency_overrides.pop(get_current_admin, None)
+    get_settings.cache_clear()
 
 
 def _cobasi_feed(db, gtin, title="Ração Teste 15kg", price=100.0):
@@ -121,7 +130,7 @@ def test_admin_register_offer_resolve(client):
 
     gid = client.get("/v1/admin/shopee-coverage?status=open").json()["items"][0]["id"]
     r = client.post(f"/v1/admin/shopee-coverage/{gid}/resolve", json={
-        "action": "register_offer", "affiliate_url": "https://s.shopee.com.br/ABC123", "price": 99.9,
+        "action": "register_offer", "affiliate_url": VALID_MANUAL_LINK, "price": 99.9,
     })
     assert r.status_code == 200
     assert r.json()["status"] == "resolved"
@@ -129,7 +138,7 @@ def test_admin_register_offer_resolve(client):
     db = SessionLocal()
     try:
         off = db.query(MarketplaceOffer).filter_by(product_id=db.query(ProductCatalog).filter_by(barcode_normalized="7890000000055").one().id).one()
-        assert off.affiliate_url == "https://s.shopee.com.br/ABC123"
+        assert off.affiliate_url == VALID_MANUAL_LINK
         assert off.match_decision == "HIGH_CONFIDENCE"
     finally:
         db.close()
@@ -150,6 +159,36 @@ def test_admin_register_offer_rejeita_link_invalido(client):
         "action": "register_offer", "affiliate_url": "https://golpe.com/xyz",
     })
     assert r.status_code == 400
+
+
+def test_admin_register_offer_rejeita_pagina_comum_de_produto_sem_rastreio(client):
+    """Regressão do caso real: colar a URL de um produto (achada em
+    'Procurar manualmente na Shopee ↗') sem link de afiliado nenhum não
+    pode virar 'resolvido' — isso gravaria um produto não monetizado."""
+    db = SessionLocal()
+    try:
+        p = ProductCatalog(barcode="7890000000079", barcode_normalized="7890000000079", name="W", category="food")
+        db.add(p); db.commit()
+        _cobasi_feed(db, "7890000000079")
+        db.commit()
+        rebuild_shopee_coverage_gaps(db)
+    finally:
+        db.close()
+    gid = client.get("/v1/admin/shopee-coverage?status=open").json()["items"][0]["id"]
+    r = client.post(f"/v1/admin/shopee-coverage/{gid}/resolve", json={
+        "action": "register_offer",
+        "affiliate_url": "https://shopee.com.br/Produto-i.1194006916.22693494739?extraParams=%7B%22display_model_id%22%3A209600309974%7D",
+    })
+    assert r.status_code == 400
+    assert "rastreio" in r.json()["detail"]
+    # nada foi gravado
+    db = SessionLocal()
+    try:
+        assert db.query(MarketplaceOffer).filter_by(
+            product_id=db.query(ProductCatalog).filter_by(barcode_normalized="7890000000079").one().id,
+        ).count() == 0
+    finally:
+        db.close()
 
 
 def test_admin_bulk_cobasi_only(client):

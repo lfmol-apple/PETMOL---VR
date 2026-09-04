@@ -22,7 +22,7 @@ from ..affiliate_links import MarketplaceOffer
 from ..db import get_db
 from ..product_catalog_lookup import ProductCatalog, normalize_gtin
 from ..shopee_coverage_gaps import ShopeeCoverageGap, rebuild_shopee_coverage_gaps
-from ..shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
+from ..shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_manual_shopee_affiliate_url
 from .deps import get_current_admin
 
 router = APIRouter(prefix="/v1/admin/shopee-coverage", tags=["Admin Shopee Coverage"])
@@ -231,7 +231,12 @@ def _resolve_one(db: Session, gap: ShopeeCoverageGap, req: ResolveRequest) -> No
         if not req.affiliate_url:
             raise HTTPException(400, "affiliate_url é obrigatório pra register_offer")
         try:
-            validate_shopee_affiliate_url(req.affiliate_url)
+            # Validação reforçada: um humano pode colar QUALQUER link da
+            # Shopee que achou navegando (ex: página comum do produto, sem
+            # rastreio nenhum) — diferente dos links que o sync gera
+            # sozinho via API, que já nascem monetizados. Ver
+            # shopee_link_validator.validate_manual_shopee_affiliate_url.
+            validate_manual_shopee_affiliate_url(req.affiliate_url)
         except InvalidShopeeAffiliateUrlError as exc:
             raise HTTPException(400, str(exc))
         product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == normalize_gtin(gap.gtin)))
