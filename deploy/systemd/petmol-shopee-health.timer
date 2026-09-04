@@ -1,0 +1,13 @@
+[Unit]
+Description=PETMOL — relatório diário de saúde da Loja (06:00 BRT)
+
+[Timer]
+# 09:00 UTC = 06:00 America/Sao_Paulo — depois de TODOS os jobs noturnos
+# (shopee-sync 05:00, quality 06:30, identity 07:15 UTC). Persistent: se a
+# VPS estiver desligada na hora, roda ao voltar.
+OnCalendar=*-*-* 09:00:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target
