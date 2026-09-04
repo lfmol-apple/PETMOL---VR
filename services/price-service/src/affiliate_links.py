@@ -235,6 +235,8 @@ class MarketplaceOffer(Base):
     match_attributes_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     price_refresh_status: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     price_refresh_error: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    # Taxa de comissão do anúncio (0..1) — Shopee productOfferV2.commissionRate.
+    commission_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     last_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

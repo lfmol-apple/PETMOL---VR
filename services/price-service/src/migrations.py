@@ -366,6 +366,10 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "marketplace_offers", "match_attributes_json", "TEXT")
         _pg_add_column_if_missing(conn, "marketplace_offers", "price_refresh_status", "VARCHAR(32)")
         _pg_add_column_if_missing(conn, "marketplace_offers", "price_refresh_error", "VARCHAR(160)")
+        # Taxa de comissão do anúncio (Shopee productOfferV2.commissionRate):
+        # base da rede + comissão do vendedor, 0..1. Usada como desempate
+        # entre ofertas válidas de preço parecido (ver marketplace_offer_provider).
+        _pg_add_column_if_missing(conn, "marketplace_offers", "commission_rate", "DOUBLE PRECISION")
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_match_decision ON marketplace_offers (match_decision)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_price_refresh ON marketplace_offers (price_refresh_status, last_checked_at)"))
 
@@ -971,6 +975,7 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "match_attributes_json", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "price_refresh_status", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "price_refresh_error", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "marketplace_offers", "commission_rate", "REAL")
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_match_decision ON marketplace_offers (match_decision)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_marketplace_offers_price_refresh ON marketplace_offers (price_refresh_status, last_checked_at)"))
 

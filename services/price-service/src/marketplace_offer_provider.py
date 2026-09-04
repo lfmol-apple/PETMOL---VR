@@ -43,6 +43,11 @@ _LINK_VALIDATORS = {
     "mercadolivre": validate_mercadolivre_affiliate_url,
 }
 
+# Entre ofertas VÁLIDAS do mesmo produto, as que estão até 12% acima da
+# mais barata contam como "preço parecido" e aí a comissão desempata.
+# Acima disso, preço volta a mandar (não vale mostrar caro por comissão).
+_COMMISSION_TIEBREAK_BAND = 1.12
+
 
 def is_marketplace_merchant_publicly_servable(merchant: str) -> bool:
     """Único ponto de decisão pra 'este marketplace pode gerar uma oferta
@@ -291,12 +296,10 @@ def _select_valid_marketplace_offer(
         )
         .order_by(MarketplaceOffer.price.is_(None), MarketplaceOffer.price.asc(), MarketplaceOffer.verified_at.desc())
     ))
-    # IDENTIDADE PRIMEIRO, PREÇO DEPOIS. Percorre da mais barata pra mais
-    # cara e devolve a PRIMEIRA cuja identidade está COMPROVADA
-    # (result.accepted). Oferta sem título/GTIN — identidade não
-    # verificável — ou com conflito NÃO é servida: continua `active` pra
-    # revalidação/enriquecimento pela auditoria, mas não aparece pro tutor
-    # sem evidência. A Cobasi cobre a tela enquanto isso.
+    # IDENTIDADE PRIMEIRO. Depois: PREÇO COMPETITIVO, e entre ofertas de
+    # preço parecido, a de MAIOR COMISSÃO. Antes ordenava só por preço e
+    # servia a 1ª válida — podia mostrar um vendedor de 3% quando o mesmo
+    # produto tinha 12% quase pelo mesmo preço.
     #
     # Atrás de marketplace_strict_identity_serving (OFF por padrão): o
     # despejo de agosto tem ~60k linhas sem título; ligar o modo estrito
@@ -304,14 +307,35 @@ def _select_valid_marketplace_offer(
     # OFF mantém o comportamento antigo (fail-open) mas NUNCA serve uma
     # oferta em conflito comprovado.
     strict = get_settings().marketplace_strict_identity_serving
+
+    valid: list[tuple[MarketplaceOffer, IdentityMatchResult]] = []
+    fallback: Optional[MarketplaceOffer] = None
     for row in rows:
         result = _validate_marketplace_offer_identity(identity, row)
         if result is not None and result.decision == IdentityDecision.CONFLICT:
             continue
         if result is not None and result.accepted:
-            return row, result
-        if not strict and result is None:
-            return row, None
+            valid.append((row, result))
+        elif not strict and result is None and fallback is None:
+            fallback = row
+
+    if valid:
+        prices = [o.price for o, _ in valid if o.price is not None]
+        band = min(prices) * _COMMISSION_TIEBREAK_BAND if prices else None
+
+        def _rank(item: tuple[MarketplaceOffer, IdentityMatchResult]) -> tuple:
+            offer = item[0]
+            price = offer.price if offer.price is not None else float("inf")
+            comm = offer.commission_rate or 0.0
+            within = band is not None and price <= band
+            # dentro da banda: maior comissão primeiro; fora: preço primeiro
+            return (0 if within else 1, -comm if within else 0.0, price)
+
+        valid.sort(key=_rank)
+        return valid[0]
+
+    if fallback is not None:
+        return fallback, None
     return None, None
 
 
