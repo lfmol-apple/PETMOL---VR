@@ -47,11 +47,15 @@ type ShoppingView = 'store' | 'search';
 // categorias genéricas e promoções não-personalizadas só cansava o tutor
 // antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
 //
-// Reorganizada por urgência (ver petStoreContent.groupReorderCardsByUrgency):
-// Comprar de novo (sem prazo) → Vai precisar em breve → Mais para frente →
-// Procurar outro produto (abre a view de busca) → lojas parceiras. O pet
-// vem antes do merchant — cada card mostra produto e prazo primeiro, loja
-// só na hora de comprar.
+// Ordem da tela (decisão de produto, 04/09/2026 — revisada): campo de
+// busca PRIMEIRO (antes de qualquer produto do pet — melhor achar a busca
+// de cara) → Comprar de novo (sem prazo) → Vai precisar em breve → Mais
+// para frente → lojas parceiras. Ver petStoreContent.groupReorderCardsByUrgency
+// pro agrupamento por urgência. O pet vem antes do merchant — cada card
+// mostra produto e prazo primeiro, loja só na hora de comprar. Tocar no
+// campo de busca abre a view dedicada (AffiliateCatalogSearch) — nela SÓ
+// aparece o resultado da busca, os produtos do pet somem enquanto o
+// tutor está procurando algo novo.
 //
 // As 3 seções de produto ficam SEMPRE visíveis (decisão de produto,
 // 04/09/2026): a Loja do Pet tem poucos itens e todos são personalizados
@@ -334,6 +338,23 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
             <AffiliateCatalogSearch petId={currentPet.pet_id} autoFocus />
           ) : (
             <>
+              {/* Campo de busca — PRIMEIRO item da tela, antes dos produtos
+                  do pet (decisão de produto, 04/09/2026: melhor experiência
+                  é achar a busca de cara, sem rolar a tela toda). Visual de
+                  campo de busca de verdade (mesmo estilo do campo real em
+                  AffiliateCatalogSearch), mas é um <button> — o toque leva
+                  pra view de busca dedicada em vez de abrir teclado aqui em
+                  cima; lá o campo tem fonte grande ("zoom", igual ao
+                  cadastro inicial) pra facilitar digitar/ler. */}
+              <button
+                type="button"
+                onClick={handleSearchEntry}
+                className="flex w-full items-center gap-2.5 rounded-2xl border border-slate-200 bg-white pl-4 pr-4 py-3.5 text-left shadow-[0_4px_16px_-6px_rgba(15,23,42,0.18)] transition-all active:scale-[0.99] outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+              >
+                <Search className="h-[18px] w-[18px] flex-shrink-0 text-slate-400" strokeWidth={2.2} />
+                <span className="text-[15px] font-medium text-slate-400">Buscar produto...</span>
+              </button>
+
               {/* Comprar de novo — produtos recorrentes sem prazo definido
                   (ex: petisco). Intenção livre, o tutor compra quando quiser. */}
               {grouped.anytime.length > 0 && (
@@ -364,17 +385,6 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                   <div className="space-y-2.5">{renderReorderCards(grouped.later)}</div>
                 </div>
               )}
-
-              {/* Procurar outro produto — saída explícita pra busca genérica.
-                  Fica DEPOIS das seções personalizadas, nunca dominando o topo. */}
-              <button
-                type="button"
-                onClick={handleSearchEntry}
-                className="flex w-full items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-left shadow-[0_2px_10px_-6px_rgba(15,23,42,0.15)] transition-all active:scale-[0.99] outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
-              >
-                <Search className="h-[17px] w-[17px] flex-shrink-0 text-slate-400" strokeWidth={2.2} />
-                <span className="text-[14px] font-bold text-slate-700">Procurar outro produto</span>
-              </button>
 
               <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
 
