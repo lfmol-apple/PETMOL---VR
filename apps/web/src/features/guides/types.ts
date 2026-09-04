@@ -17,7 +17,8 @@ export type GuideCategoryId =
   | 'higiene'
   | 'casa-e-conforto'
   | 'passeio-e-transporte'
-  | 'primeiros-cuidados';
+  | 'primeiros-cuidados'
+  | 'gatos';
 
 export interface GuideCategory {
   id: GuideCategoryId;
@@ -42,6 +43,8 @@ export type GuideBlock =
       rows: string[][];
     }
   | { type: 'checklist'; title?: string; items: string[] }
+  /** Caixa "Leia também" no meio do corpo — links internos para outros guias PETMOL. */
+  | { type: 'links'; title?: string; items: { slug: string; label: string }[] }
   /** Âncora pra montar a ferramenta interativa (calculadora) daquele guia. */
   | { type: 'tool'; tool: GuideToolId };
 
@@ -90,4 +93,6 @@ export interface Guide {
   relatedSlugs: string[];
   /** true quando o assunto tangencia saúde — mostra o aviso de veterinário. */
   vetContext?: boolean;
+  /** Palavras-chave para a busca editorial interna. Não são meta keywords. */
+  searchTerms?: string[];
 }

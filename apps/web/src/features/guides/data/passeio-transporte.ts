@@ -463,5 +463,130 @@ export const passeioTransporteGuides: Guide[] = [
     sources: [],
     relatedSlugs: ['o-que-levar-viagem-com-cachorro', 'como-escolher-caixa-transporte-cachorro', 'coleira-ou-peitoral-qual-escolher'],
     vetContext: true,
+    searchTerms: ['kit carro', 'viagem de carro', 'cinto de segurança', 'porta-malas', 'organizador'],
+  },
+
+  {
+    slug: 'como-escolher-guia-para-cachorro',
+    title: 'Como escolher uma guia para cachorro',
+    category: 'passeio-e-transporte',
+    description:
+      'Para o dia a dia urbano, guia fixa de 1,2 a 1,5 m, material resistente e mosquetão firme. Guia retrátil tem usos específicos e riscos. Veja como decidir.',
+    summary:
+      'A guia mais segura para o passeio urbano é a fixa, de 1,2 a 1,5 m, presa ao peitoral. Ela dá controle previsível perto de ruas e outros cães. A guia retrátil serve para espaços abertos e sem trânsito, mas reduz o controle e o cabo fino pode causar corte — não é a guia do dia a dia na cidade.',
+    publishedAt: '2026-09-04',
+    updatedAt: '2026-09-04',
+    readingTimeMinutes: 6,
+    blocks: [
+      {
+        type: 'p',
+        text: 'A guia é o item de passeio que parece o mais simples e é onde muita gente erra logo na primeira compra, indo direto na retrátil porque "dá mais liberdade". Para o passeio urbano do dia a dia, a escolha certa costuma ser a mais básica.',
+      },
+      { type: 'h2', text: 'A resposta rápida', id: 'resposta-rapida' },
+      {
+        type: 'p',
+        text: 'Guia fixa, de 1,2 a 1,5 metro, de nylon ou couro resistente, com mosquetão de trava firme, presa ao peitoral. Esse é o equipamento que dá controle previsível em calçada, ao atravessar a rua e ao cruzar com outro cão. Tudo o mais — retrátil, guia longa de adestramento, guia dupla — resolve situações específicas, não o passeio comum.',
+      },
+      { type: 'h2', text: 'Comprimento: por que 1,2 a 1,5 m', id: 'comprimento' },
+      {
+        type: 'p',
+        text: 'Nesse comprimento o cão tem folga para cheirar e andar ao lado, mas você consegue trazê-lo para perto num movimento só quando passa um ciclista, outro cão ou um carro manobrando. Guias muito curtas (menos de 1 m) deixam o cão colado e tensionam a caminhada; guias muito longas na cidade dão ao cão tempo de alcançar a rua ou outro cão antes de você reagir.',
+      },
+      { type: 'h2', text: 'Guia fixa x retrátil', id: 'fixa-x-retratil' },
+      {
+        type: 'table',
+        caption: 'Onde cada tipo funciona',
+        headers: ['', 'Guia fixa', 'Guia retrátil'],
+        rows: [
+          ['Passeio urbano (calçada, travessia)', 'Ideal — controle imediato', 'Ruim — o cão fica longe demais para você reagir'],
+          ['Campo aberto, praia sem gente, trilha larga', 'Limita a exploração', 'Funciona — dá alcance sem soltar'],
+          ['Cão que puxa', 'Melhor — não recompensa o puxão com mais cabo', 'Piora — o cão aprende que puxar "estica" a guia'],
+          ['Risco de acidente', 'Baixo', 'Corte na mão/perna pelo cabo fino, queimadura, falha da trava, susto quando a caixa cai no chão'],
+        ],
+      },
+      {
+        type: 'callout',
+        tone: 'tip',
+        text: 'Se usar retrátil em área aberta, trave o cabo no comprimento que quiser em vez de deixar correndo livre, e nunca use retrátil de cabo tipo corda com cão que dá arrancada — é o formato que mais causa corte.',
+      },
+      { type: 'h2', text: 'Material e ferragens', id: 'material' },
+      {
+        type: 'ul',
+        items: [
+          'Fita de nylon: leve, barata, resistente, seca rápido. A escolha padrão. Largura maior distribui melhor o tranco de um cão grande.',
+          'Couro: dura anos e fica macio com o uso, mas exige um mínimo de cuidado e pesa mais. Boa opção para cães grandes.',
+          'Corda (rope): confortável na mão e forte, mas a versão fina em retrátil é a que mais corta a pele numa passada rápida.',
+          'Mosquetão: é o ponto que mais falha. Prefira o de trava tipo rosca ou trigger com mola forte; teste abrindo e fechando. Evite mosquetão pequeno de metal fino em cão grande.',
+          'Costuras e rebites: reforçados e sem fios soltos. É por ali que a guia arrebenta.',
+        ],
+      },
+      { type: 'h2', text: 'Onde prender a guia', id: 'onde-prender' },
+      {
+        type: 'p',
+        text: 'Sempre no peitoral, não na coleira, para cães que puxam, filhotes e raças de focinho curto — a tração repetida no pescoço é prejudicial. Um peitoral com engate frontal ajuda no manejo de quem puxa enquanto o treino de guia frouxa avança. A coleira segue sendo o lugar da plaquinha de identificação.',
+      },
+      {
+        type: 'links',
+        title: 'Leia também',
+        items: [
+          { slug: 'coleira-ou-peitoral-qual-escolher', label: 'Coleira ou peitoral: qual escolher' },
+          { slug: 'kit-viajar-de-carro-com-cachorro', label: 'Kit para viajar de carro com cachorro' },
+        ],
+      },
+      { type: 'h2', text: 'Erros comuns', id: 'erros' },
+      {
+        type: 'ul',
+        items: [
+          'Usar retrátil em calçada movimentada — o cão alcança a rua antes de você reagir.',
+          'Guia muito curta, que mantém o cão sempre tensionado.',
+          'Prender a guia na coleira de um cão que puxa.',
+          'Confiar num mosquetão pequeno e frágil em cão grande.',
+          'Enrolar a guia várias vezes na mão — num tranco forte machuca os dedos; segure a alça e faça uma laçada solta.',
+        ],
+      },
+      {
+        type: 'checklist',
+        title: 'Antes de comprar a guia',
+        items: [
+          'É fixa, de 1,2 a 1,5 m, para o uso urbano?',
+          'O material aguenta o porte e a força do cão?',
+          'O mosquetão tem trava firme e é proporcional ao cão?',
+          'As costuras e rebites são reforçados?',
+          'Vou prendê-la ao peitoral (e deixar a identificação na coleira)?',
+        ],
+      },
+      { type: 'h2', text: 'Conclusão', id: 'conclusao' },
+      {
+        type: 'p',
+        text: 'Para o dia a dia, guia fixa de 1,2 a 1,5 m, material e ferragens à altura do cão, presa ao peitoral. A retrátil é ferramenta de espaço aberto, não de calçada. E nenhuma guia substitui o treino de guia frouxa se o cão puxa.',
+      },
+    ],
+    faq: [
+      {
+        question: 'Guia retrátil é proibida?',
+        answer:
+          'Não é proibida, mas várias cidades e a maioria dos adestradores desaconselham o uso em vias públicas movimentadas pelo risco de acidente e pela falta de controle. Em parques e áreas abertas sem trânsito, usada com o cabo travado, ela tem seu lugar.',
+      },
+      {
+        question: 'Qual a diferença de uma guia de adestramento?',
+        answer:
+          'A guia longa de adestramento (5 a 15 m) é usada em treino de recall e comandos à distância, em área segura e cercada, sempre com o tutor gerenciando a sobra do cabo. Não é guia de passeio — é ferramenta de treino específica.',
+      },
+      {
+        question: 'Guia com absorção de impacto (bungee) vale a pena?',
+        answer:
+          'O trecho elástico amortece trancos e é confortável para corrida com o cão (canicross) e para cães que dão arrancadas. Para o passeio comum não é necessário, e o elástico pode dar ao cão a sensação de que puxar "funciona".',
+      },
+    ],
+    sources: [
+      {
+        label: 'Orientações sobre equipamentos de contenção e bem-estar animal',
+        publisher: 'Conselho Federal de Medicina Veterinária (CFMV)',
+        url: 'https://www.cfmv.gov.br/',
+      },
+    ],
+    relatedSlugs: ['coleira-ou-peitoral-qual-escolher', 'como-escolher-caixa-transporte-cachorro', 'kit-viajar-de-carro-com-cachorro'],
+    vetContext: true,
+    searchTerms: ['guia', 'guia retrátil', 'guia fixa', 'coleira de passeio', 'peitoral', 'mosquetão', 'passear'],
   },
 ];

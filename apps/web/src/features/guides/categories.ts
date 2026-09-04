@@ -42,6 +42,12 @@ export const GUIDE_CATEGORIES: Record<GuideCategoryId, GuideCategory> = {
     description: 'O básico pra quem acabou de adotar: o que comprar primeiro e o que pode esperar.',
     icon: '🐾',
   },
+  gatos: {
+    id: 'gatos',
+    label: 'Gatos',
+    description: 'O que muda para gatos: areia, caixa, arranhador e transporte — com os critérios que importam.',
+    icon: '🐱',
+  },
 };
 
 export const GUIDE_CATEGORY_ORDER: GuideCategoryId[] = [
@@ -51,6 +57,7 @@ export const GUIDE_CATEGORY_ORDER: GuideCategoryId[] = [
   'casa-e-conforto',
   'higiene',
   'primeiros-cuidados',
+  'gatos',
 ];
 
 export function getGuideCategory(id: GuideCategoryId): GuideCategory {

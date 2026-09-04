@@ -89,7 +89,7 @@ export function GuidesCollectionJsonLd({ count }: { count: number }) {
           '@type': 'CollectionPage',
           name: 'Guias PETMOL',
           description:
-            'Guias práticos para tutores de cães: como escolher ração, comparar produtos por custo real, transporte, casa e primeiros cuidados.',
+            'Guias práticos para tutores de cães e gatos: como escolher ração, comparar produtos por custo real, alimentação, higiene, casa, passeio, transporte, primeiros cuidados e cuidados com gatos.',
           url: `${SITE_URL}/guias`,
           inLanguage: 'pt-BR',
           isPartOf: { '@type': 'WebSite', name: 'PETMOL', url: SITE_URL },

@@ -11,6 +11,7 @@ import { passeioTransporteGuides } from './data/passeio-transporte';
 import { casaConfortoGuides } from './data/casa-conforto';
 import { higieneGuides } from './data/higiene';
 import { primeirosCuidadosGuides } from './data/primeiros-cuidados';
+import { gatosGuides } from './data/gatos';
 import { GUIDE_CATEGORIES, GUIDE_CATEGORY_ORDER, getGuideCategory } from './categories';
 import type { Guide, GuideCategoryId } from './types';
 
@@ -24,15 +25,18 @@ const ALL: Guide[] = [
   ...casaConfortoGuides,
   ...higieneGuides,
   ...primeirosCuidadosGuides,
+  ...gatosGuides,
 ];
 
-// "Comece por aqui" no índice /guias — pontos de entrada fortes, variados
-// entre temas (não três da mesma categoria).
+// "Comece por aqui" no índice /guias — pontos de entrada fortes, um de cada
+// tema, para o visitante perceber em segundos a amplitude editorial.
 const FEATURED_SLUGS = [
   'como-escolher-racao-ideal-cachorro',
-  'quanto-custa-alimentar-cachorro-por-mes',
   'coleira-ou-peitoral-qual-escolher',
   'checklist-adotou-cachorro',
+  'como-escolher-tapete-higienico-cachorro',
+  'como-escolher-tamanho-cama-cachorro',
+  'como-escolher-areia-higienica-para-gatos',
 ];
 
 // "Guias de compra" — os guias cujo trabalho é dar critério para escolher
@@ -40,13 +44,39 @@ const FEATURED_SLUGS = [
 const BUYING_GUIDE_SLUGS = [
   'como-escolher-racao-ideal-cachorro',
   'coleira-ou-peitoral-qual-escolher',
+  'como-escolher-guia-para-cachorro',
   'como-escolher-tapete-higienico-cachorro',
   'como-escolher-tamanho-cama-cachorro',
   'como-escolher-comedouro-cachorro',
   'brinquedos-para-caes-como-escolher-com-seguranca',
   'como-escolher-caixa-transporte-cachorro',
   'bebedouro-automatico-cachorro-vale-a-pena',
+  'como-escolher-areia-higienica-para-gatos',
+  'como-escolher-arranhador-para-gatos',
 ];
+
+/**
+ * "Assuntos mais procurados" — atalhos para destinos REAIS (guia, categoria
+ * ou ferramenta). Nada de link morto.
+ */
+export interface PopularTopic {
+  label: string;
+  href: string;
+}
+const POPULAR_TOPICS: PopularTopic[] = [
+  { label: 'Ração', href: '/guias/como-escolher-racao-ideal-cachorro' },
+  { label: 'Quanto o cão come por dia', href: '/guias/quanto-meu-cachorro-deve-comer-por-dia' },
+  { label: 'Tapete higiênico', href: '/guias/como-escolher-tapete-higienico-cachorro' },
+  { label: 'Coleira ou peitoral', href: '/guias/coleira-ou-peitoral-qual-escolher' },
+  { label: 'Transporte no carro', href: '/guias/kit-viajar-de-carro-com-cachorro' },
+  { label: 'Areia para gatos', href: '/guias/como-escolher-areia-higienica-para-gatos' },
+  { label: 'Adotei um pet', href: '/guias/checklist-adotou-cachorro' },
+  { label: 'Calculadoras', href: '/guias#ferramentas' },
+];
+
+export function getPopularTopics(): PopularTopic[] {
+  return POPULAR_TOPICS;
+}
 
 /** Ordena por data de atualização (mais recente primeiro), com desempate estável por slug. */
 function byUpdatedDesc(a: Guide, b: Guide): number {
@@ -84,6 +114,32 @@ export function getRecentGuides(limit = 6): Guide[] {
 /** Guias que contêm uma calculadora — usados na seção "Ferramentas" do índice. */
 export function getToolGuides(): Guide[] {
   return ALL.filter((g) => Boolean(g.tool)).sort(byUpdatedDesc);
+}
+
+export type { GuideSearchRecord, GuideSearchHit } from './search';
+export { searchInIndex } from './search';
+import { searchInIndex as _searchInIndex, type GuideSearchRecord } from './search';
+
+/**
+ * Índice leve para a busca editorial no cliente — só os campos necessários,
+ * sem o corpo dos guias. É o que o índice /guias passa para o Client
+ * Component de busca (evita mandar todo o conteúdo para o navegador).
+ */
+export function buildSearchIndex(): GuideSearchRecord[] {
+  return getAllGuides().map((g) => ({
+    slug: g.slug,
+    title: g.title,
+    description: g.description,
+    categoryId: g.category,
+    categoryLabel: GUIDE_CATEGORIES[g.category]?.label ?? '',
+    hasTool: Boolean(g.tool),
+    terms: [g.summary, ...(g.searchTerms ?? [])],
+  }));
+}
+
+/** Busca editorial no servidor (testes, uso interno). */
+export function searchGuides(rawQuery: string, limit = 8) {
+  return _searchInIndex(buildSearchIndex(), rawQuery, limit);
 }
 
 export function getRelatedGuides(slug: string): Guide[] {
@@ -141,6 +197,15 @@ export function validateGuides(): string[] {
   for (const g of ALL) {
     for (const rel of g.relatedSlugs) {
       if (!slugs.has(rel)) errors.push(`${g.slug}: relatedSlug inexistente "${rel}"`);
+    }
+    for (const b of g.blocks) {
+      if (b.type === 'links') {
+        if (b.items.length === 0) errors.push(`${g.slug}: bloco links vazio`);
+        for (const it of b.items) {
+          if (it.slug === g.slug) errors.push(`${g.slug}: bloco links aponta para o próprio guia`);
+          if (!slugs.has(it.slug)) errors.push(`${g.slug}: bloco links aponta para slug inexistente "${it.slug}"`);
+        }
+      }
     }
     for (const src of g.sources ?? []) {
       if (!/^https:\/\//.test(src.url)) errors.push(`${g.slug}: fonte "${src.label}" com URL não-https`);

@@ -86,17 +86,17 @@ export async function ProductSelectionSection() {
   if (collections.length === 0) return null;
 
   return (
-    <section aria-labelledby="produtos-selecionados" className="mt-12">
+    <section aria-labelledby="produtos-selecionados" className="mt-14 border-t border-slate-200 pt-10">
       <h2
         id="produtos-selecionados"
         className="text-[13px] font-black uppercase tracking-wide text-slate-400"
       >
-        Produtos selecionados pelo PETMOL
+        Produtos relacionados aos nossos guias
       </h2>
       <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-slate-500">
-        Complemento aos guias: uma lista curta de produtos que ajudam na rotina com cães e gatos,
-        organizada por necessidade. A escolha do que entra aqui segue os critérios dos guias — os
-        links levam à Amazon.com.br e nada nesta seção muda a conclusão de um texto.
+        Alguns guias incluem produtos relacionados aos critérios explicados no conteúdo. Links para
+        lojas parceiras podem gerar comissão para o PETMOL sem custo adicional para você. Nada nesta
+        seção muda a conclusão de um guia.
       </p>
       <div className="mt-4">
         <AmazonDisclosure />

@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import type { GuideBlock } from '@/features/guides';
+import { getGuideBySlug } from '@/features/guides';
 import { GuideTool } from './calculators/GuideTool';
 
 /**
@@ -125,6 +127,29 @@ function BlockView({ block }: { block: GuideBlock }) {
           </ul>
         </div>
       );
+
+    case 'links': {
+      const items = block.items
+        .map((it) => ({ ...it, guide: getGuideBySlug(it.slug) }))
+        .filter((it) => it.guide);
+      if (items.length === 0) return null;
+      return (
+        <aside className="rounded-2xl border border-blue-100 bg-blue-50/50 px-4 py-3">
+          <p className="mb-1.5 text-[11px] font-black uppercase tracking-wide text-blue-500">
+            {block.title ?? 'Leia também'}
+          </p>
+          <ul className="space-y-1">
+            {items.map((it) => (
+              <li key={it.slug} className="text-[13.5px] leading-snug">
+                <Link href={`/guias/${it.slug}`} className="font-semibold text-blue-700 hover:underline">
+                  {it.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      );
+    }
 
     case 'tool':
       return (
