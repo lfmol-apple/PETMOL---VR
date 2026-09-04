@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { PremiumScreenShell } from '@/components/premium';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdmin } from '@/hooks/useAdmin';
@@ -28,6 +29,15 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
 
 const PERIODS = [
   { label: '7d', v: 7 }, { label: '30d', v: 30 }, { label: '90d', v: 90 }, { label: 'Tudo', v: undefined },
+];
+
+/** Telas admin completas (fora do BI) — atalhos fixos no topo do painel. */
+const ADMIN_TOOLS: { href: string; label: string; highlight?: boolean }[] = [
+  { href: '/admin/shopee-coverage', label: '📋 Cobertura Shopee × Cobasi', highlight: true },
+  { href: '/admin/establishments', label: '🏪 Estabelecimentos' },
+  { href: '/admin/accounts', label: '👤 Contas' },
+  { href: '/admin/pets', label: '🐾 Pets' },
+  { href: '/admin/notifications', label: '🔔 Notificações' },
 ];
 
 export default function AdminDashboardPage() {
@@ -71,6 +81,23 @@ export default function AdminDashboardPage() {
                 section === s.key ? 'bg-[#0056D2] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
               {s.label}
             </button>
+          ))}
+        </div>
+
+        {/* atalhos para as telas admin completas (fora do BI) */}
+        <div className="mb-4 flex flex-wrap gap-1.5">
+          {ADMIN_TOOLS.map((t) => (
+            <Link
+              key={t.href}
+              href={t.href}
+              className={`rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+                t.highlight
+                  ? 'border-blue-300 bg-blue-50 text-[#0056D2] hover:border-blue-400'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700'
+              }`}
+            >
+              {t.label}
+            </Link>
           ))}
         </div>
 
