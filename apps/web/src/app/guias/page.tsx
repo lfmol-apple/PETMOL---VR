@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
+  buildSearchIndex,
   getAllGuides,
   getBuyingGuides,
   getCategoriesWithGuides,
@@ -13,6 +14,9 @@ import { GuideCard } from '@/components/guides/GuideCard';
 import { GuidesCollectionJsonLd } from '@/components/guides/JsonLd';
 import { AffiliateDisclosure } from '@/components/guides/AffiliateDisclosure';
 import { ProductSelectionSection } from '@/components/guides/ProductSelectionSection';
+import { NeedsNav } from '@/components/guides/NeedsNav';
+import { EditorialSearch } from '@/components/guides/EditorialSearch';
+import { PopularTopics } from '@/components/guides/PopularTopics';
 import { PUBLIC_GUIDES_PAGE_ENABLED } from '../publicCommercePages';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
@@ -67,10 +71,8 @@ export default function GuiasIndexPage() {
             Decisões práticas para cuidar melhor do seu pet
           </h1>
           <p className="max-w-2xl text-[15px] leading-relaxed text-slate-500">
-            Guias, comparações e ferramentas próprias para ajudar tutores de cães e gatos a escolher
-            melhor produtos, organizar a rotina e entender o custo dos cuidados. Conteúdo editorial do
-            PETMOL, com fontes citadas e critério de decisão em cada texto. Acesso livre, sem
-            cadastro.
+            Guias, comparações e ferramentas para ajudar tutores de cães e gatos a escolher produtos,
+            organizar a rotina e entender melhor o custo dos cuidados.
           </p>
           <p className="text-[12px] text-slate-400">
             {all.length} guias · {tools.length} calculadoras ·{' '}
@@ -80,14 +82,21 @@ export default function GuiasIndexPage() {
           </p>
         </header>
 
+        <NeedsNav />
+
+        <EditorialSearch index={buildSearchIndex()} />
+
         {/* Destaques */}
-        <section aria-labelledby="destaques" className="mt-10">
-          <h2 id="destaques" className="mb-4 text-[13px] font-black uppercase tracking-wide text-slate-400">
+        <section aria-labelledby="destaques" className="mt-12">
+          <h2 id="destaques" className="mb-1 text-[13px] font-black uppercase tracking-wide text-slate-400">
             Comece por aqui
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <p className="mb-4 text-[13px] text-slate-500">
+            Um guia de cada tema, para você ver rápido o que o PETMOL cobre.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {featured.map((guide) => (
-              <GuideCard key={guide.slug} guide={guide} featured />
+              <GuideCard key={guide.slug} guide={guide} />
             ))}
           </div>
         </section>
@@ -145,6 +154,8 @@ export default function GuiasIndexPage() {
             </ul>
           </section>
         )}
+
+        <PopularTopics />
 
         {/* Recentes */}
         <section aria-labelledby="recentes" className="mt-12">

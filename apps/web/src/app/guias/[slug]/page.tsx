@@ -9,9 +9,10 @@ import {
 } from '@/features/guides';
 import { GuideBlocks } from '@/components/guides/GuideBlocks';
 import { GuideHero } from '@/components/guides/GuideHero';
-import { GuideCard } from '@/components/guides/GuideCard';
 import { EditorialByline } from '@/components/guides/EditorialByline';
 import { SourcesList } from '@/components/guides/SourcesList';
+import { ReadAlso } from '@/components/guides/ReadAlso';
+import { ClusterNav } from '@/components/guides/ClusterNav';
 import { GuideRelatedProducts } from '@/components/guides/GuideRelatedProducts';
 import { AffiliateDisclosure } from '@/components/guides/AffiliateDisclosure';
 import { GuideArticleJsonLd } from '@/components/guides/JsonLd';
@@ -133,7 +134,7 @@ export default async function GuidePage({ params }: GuidePageProps) {
 
         {guide.vetContext && (
           <p className="mt-7 rounded-xl bg-amber-50 px-4 py-3 text-[12.5px] leading-relaxed text-amber-900">
-            <strong>Saúde do cão:</strong> este conteúdo é informativo e não substitui a avaliação de
+            <strong>Saúde do pet:</strong> este conteúdo é informativo e não substitui a avaliação de
             um médico-veterinário. Mudança de comportamento, sintoma persistente ou qualquer condição
             individual devem ser avaliados por um profissional.
           </p>
@@ -145,18 +146,9 @@ export default async function GuidePage({ params }: GuidePageProps) {
           </div>
         )}
 
-        {related.length > 0 && (
-          <section aria-labelledby="relacionados" className="mt-10">
-            <h2 id="relacionados" className="mb-3 text-[13px] font-black uppercase tracking-wide text-slate-400">
-              Continue por aqui
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {related.map((g) => (
-                <GuideCard key={g.slug} guide={g} />
-              ))}
-            </div>
-          </section>
-        )}
+        <ClusterNav slug={guide.slug} />
+
+        <ReadAlso guides={related} />
 
         <GuideRelatedProducts slug={guide.slug} />
 

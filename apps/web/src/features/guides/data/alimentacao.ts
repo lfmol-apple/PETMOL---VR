@@ -341,5 +341,281 @@ export const alimentacaoGuides: Guide[] = [
     ],
     relatedSlugs: ['quanto-tempo-dura-saco-de-racao', 'comparar-racoes-custo-diario', 'economizar-produtos-pet-sem-so-menor-preco'],
     vetContext: true,
+    searchTerms: ['custo', 'gasto mensal', 'orçamento', 'quanto gasta', 'preço ração', 'economia'],
+  },
+
+  {
+    slug: 'quanto-meu-cachorro-deve-comer-por-dia',
+    title: 'Quanto o meu cachorro deve comer por dia?',
+    category: 'alimentacao',
+    description:
+      'A quantidade certa vem da tabela da embalagem pelo peso do cão, ajustada pela condição corporal e pelo nível de atividade — não do apetite dele nem do "olho".',
+    summary:
+      'O ponto de partida é a tabela de porção da própria ração, na linha do peso ideal do cão, somando todas as refeições do dia. A partir daí, ajusta-se para cima ou para baixo conforme o cão está magro, no peso ou acima — reavaliando a cada duas ou três semanas. Petisco entra na conta.',
+    publishedAt: '2026-09-04',
+    updatedAt: '2026-09-04',
+    readingTimeMinutes: 6,
+    blocks: [
+      {
+        type: 'p',
+        text: 'Essa é a pergunta que mais gera erro na alimentação de cães — quase sempre para mais. Medir "no olho" com um copo, seguir o apetite do cão ou repetir a quantidade que o tutor anterior dava são as três formas mais comuns de errar. A conta certa é simples e você refaz a cada troca de ração.',
+      },
+      { type: 'h2', text: 'A resposta rápida', id: 'resposta-rapida' },
+      {
+        type: 'p',
+        text: 'Comece pela tabela de porção impressa na embalagem da ração, na linha correspondente ao peso do cão. Essa tabela já considera a densidade calórica daquela ração específica — por isso rações diferentes indicam gramagens diferentes para o mesmo cão. Some as porções de todas as refeições do dia: o número da tabela é o total diário, não o de cada refeição.',
+      },
+      {
+        type: 'callout',
+        tone: 'tip',
+        text: 'Use o peso IDEAL do cão na tabela, não o peso atual, se ele está acima do peso. Alimentar um cão gordo pela linha do peso que ele tem hoje mantém o excesso.',
+      },
+      { type: 'h2', text: 'Por que a tabela é só o ponto de partida', id: 'tabela-ponto-de-partida' },
+      {
+        type: 'p',
+        text: 'A tabela é calculada para um cão adulto, castrado ou não conforme a marca, com atividade média. O seu cão pode gastar bem mais ou bem menos que essa média:',
+      },
+      {
+        type: 'ul',
+        items: [
+          'Cão muito ativo (corre solto todo dia, faz esporte canino, trabalha): pode precisar de 20% a 40% a mais.',
+          'Cão de apartamento com passeios curtos, cão idoso, cão castrado com tendência a engordar: costuma precisar de 10% a 20% a menos.',
+          'Filhote em crescimento: usa tabela própria de filhote, que muda conforme ele ganha peso — reajuste mensal.',
+          'Fêmea gestante ou lactante: a necessidade sobe muito e é orientada pelo veterinário.',
+        ],
+      },
+      { type: 'h2', text: 'O ajuste que realmente define a porção: condição corporal', id: 'condicao-corporal' },
+      {
+        type: 'p',
+        text: 'A balança sozinha não diz se o cão está no peso — um labrador de 30 kg pode estar magro ou obeso. O que define é o escore de condição corporal, uma avaliação de tato e visão que qualquer tutor aprende a fazer:',
+      },
+      {
+        type: 'ul',
+        items: [
+          'Costelas: você deve senti-las com uma leve pressão da mão, como sente os ossos das costas da própria mão. Se precisa apertar para achar, o cão está acima do peso.',
+          'Cintura: visto de cima, o cão deve ter uma "cinturinha" atrás das costelas. Visto de lado, o abdômen deve subir da caixa torácica para a virilha.',
+          'Sem cintura e abdômen reto ou caído: sobrepeso. Costelas, vértebras e ossos do quadril muito aparentes: abaixo do peso.',
+        ],
+      },
+      {
+        type: 'callout',
+        tone: 'vet',
+        text: 'Ganho ou perda de peso rápidos, ou um cão que come bem e continua magro, pedem avaliação veterinária — pode não ser só questão de porção.',
+      },
+      { type: 'h2', text: 'Como ajustar na prática', id: 'como-ajustar' },
+      {
+        type: 'ol',
+        items: [
+          'Comece pela porção da tabela (peso ideal), dividida nas refeições do dia.',
+          'Pese a porção numa balança de cozinha por uma semana — depois você já sabe o volume de olho, mas a calibragem inicial precisa ser por peso.',
+          'Reavalie a condição corporal a cada 2 a 3 semanas. Se o cão está engordando, reduza cerca de 10%. Se está emagrecendo sem querer, aumente 10%.',
+          'Repita até estabilizar no peso ideal. A partir daí, a porção é aquela — só muda se a atividade ou a fase de vida mudar.',
+        ],
+      },
+      {
+        type: 'p',
+        text: 'Depois de acertar a porção, a mesma medida serve para calcular quanto tempo o saco dura e quanto custa alimentar o cão por mês. As duas calculadoras do PETMOL usam exatamente esse número de gramas por dia.',
+      },
+      {
+        type: 'links',
+        title: 'Faça as contas com a porção certa',
+        items: [
+          { slug: 'quanto-tempo-dura-saco-de-racao', label: 'Quanto tempo dura um saco de ração (calculadora)' },
+          { slug: 'quanto-custa-alimentar-cachorro-por-mes', label: 'Quanto custa alimentar um cão por mês (calculadora)' },
+        ],
+      },
+      { type: 'h2', text: 'Petisco conta — e conta muito', id: 'petisco' },
+      {
+        type: 'p',
+        text: 'A regra prática da nutrição veterinária é que petiscos e "agrados" não devem passar de 10% das calorias do dia. Na prática, um punhado de biscoitos, pedaços de queijo e sobras somam rápido e desregulam a porção sem o tutor perceber. Se você usa petisco no adestramento, tire esse volume da ração do dia — ou use a própria ração e pedacinhos de cenoura ou maçã como recompensa.',
+      },
+      { type: 'h2', text: 'Erros comuns', id: 'erros' },
+      {
+        type: 'ul',
+        items: [
+          'Medir com copo ou "colher de sopa" em vez de pesar — o mesmo copo cabe pesos diferentes conforme o formato do croquete.',
+          'Seguir a porção da ração antiga ao trocar de marca.',
+          'Deixar comida à vontade o dia todo — dificulta perceber queda de apetite, que é sinal precoce de doença.',
+          'Não descontar o petisco da ração.',
+          'Alimentar pelo peso atual de um cão que precisa emagrecer.',
+        ],
+      },
+      {
+        type: 'checklist',
+        title: 'Para acertar a porção',
+        items: [
+          'Peguei a porção na tabela da ração atual, pelo peso ideal?',
+          'Somei todas as refeições do dia?',
+          'Pesei a porção numa balança pela primeira semana?',
+          'Sei avaliar as costelas e a cintura do meu cão?',
+          'Vou reavaliar a condição corporal a cada 2 ou 3 semanas?',
+          'Estou descontando o petisco da ração?',
+        ],
+      },
+      { type: 'h2', text: 'Conclusão', id: 'conclusao' },
+      {
+        type: 'p',
+        text: 'A porção certa é a tabela da ração como ponto de partida e a condição corporal como ajuste fino, reavaliada a cada poucas semanas até o cão estabilizar no peso ideal. Depois disso, a alimentação vira rotina — e o resto das contas (duração do saco, custo mensal) sai desse mesmo número.',
+      },
+    ],
+    faq: [
+      {
+        question: 'Meu cão parece sempre com fome. Estou dando pouco?',
+        answer:
+          'Muitos cães, principalmente raças como labrador e beagle, pedem comida por comportamento, não por fome real. Se a condição corporal está boa (costelas palpáveis, cintura visível) e o peso é estável, a porção está certa mesmo que o cão peça mais. Ajuda dividir em mais refeições, usar comedouro lento e oferecer enriquecimento. Se o apetite aumentou de repente junto com perda de peso ou muita sede, aí é caso para o veterinário.',
+      },
+      {
+        question: 'Quantas refeições por dia?',
+        answer:
+          'Para a maioria dos cães adultos, duas refeições por dia. Filhotes precisam de três a quatro. Cães de raças grandes e de peito profundo se beneficiam de duas ou mais refeições menores em vez de uma única grande. O total diário é o mesmo — muda só a divisão.',
+      },
+      {
+        question: 'Posso confiar na tabela da embalagem?',
+        answer:
+          'Como ponto de partida, sim: ela é calculada para a densidade calórica daquela ração. Mas é uma média populacional. O ajuste pela condição corporal do seu cão é o que torna a porção correta para ele.',
+      },
+    ],
+    sources: [
+      {
+        label: 'Guias de nutrição e ferramentas de condição corporal',
+        publisher: 'WSAVA (World Small Animal Veterinary Association)',
+        url: 'https://wsava.org/committees/global-nutrition-committee/',
+      },
+      {
+        label: 'Body Condition Score para cães',
+        publisher: 'WSAVA Global Nutrition Committee',
+        url: 'https://wsava.org/global-guidelines/global-nutrition-guidelines/',
+      },
+    ],
+    relatedSlugs: ['como-escolher-racao-ideal-cachorro', 'quanto-tempo-dura-saco-de-racao', 'quanto-custa-alimentar-cachorro-por-mes'],
+    vetContext: true,
+    searchTerms: ['porção', 'quantidade', 'gramas por dia', 'quanto comer', 'condição corporal', 'peso ideal', 'obesidade'],
+  },
+
+  {
+    slug: 'como-armazenar-racao-depois-de-aberta',
+    title: 'Como armazenar ração depois de aberta',
+    category: 'alimentacao',
+    description:
+      'Ração perde qualidade pelo contato com ar, luz, calor e umidade. Mantenha no saco original, dentro de um recipiente fechado, em local fresco — e consuma em 4 a 6 semanas.',
+    summary:
+      'A gordura da ração oxida (rança) quando exposta ao ar, à luz e ao calor, e a umidade favorece fungos. O jeito certo é deixar a ração no saco original, fechar bem o saco, guardá-lo dentro de um pote ou balde com tampa, num lugar fresco e seco, e terminar em 4 a 6 semanas. Isso também orienta que tamanho de saco comprar.',
+    publishedAt: '2026-09-04',
+    updatedAt: '2026-09-04',
+    readingTimeMinutes: 5,
+    blocks: [
+      {
+        type: 'p',
+        text: 'Ração é um alimento gorduroso e, depois de aberto o saco, começa a se degradar. Não de um dia para o outro — mas em semanas o cheiro muda, as vitaminas se perdem e o cão pode passar a recusar. Guardar direito custa quase nada e faz o saco render com qualidade até o fim.',
+      },
+      { type: 'h2', text: 'O que estraga a ração', id: 'o-que-estraga' },
+      {
+        type: 'ul',
+        items: [
+          'Ar: o oxigênio oxida a gordura (rancidez). É o principal fator — por isso o saco precisa ficar bem fechado entre as refeições.',
+          'Calor: acelera a oxidação. Ração perto do fogão, em cima da geladeira ou numa lavanderia quente estraga mais rápido.',
+          'Luz: a luz também degrada gorduras e vitaminas. Recipiente opaco é melhor que transparente.',
+          'Umidade: favorece mofo e a proliferação de ácaros e fungos. Cozinha e área de serviço úmidas são lugares ruins.',
+        ],
+      },
+      { type: 'h2', text: 'O jeito certo de guardar', id: 'jeito-certo' },
+      {
+        type: 'ol',
+        items: [
+          'Mantenha a ração no saco original. A embalagem do fabricante tem barreira contra gordura e luz, e traz o lote e a validade — informação que você precisa se houver recall ou problema.',
+          'Feche o saco a cada uso: enrole a parte de cima e prenda com um clipe grande, ou use um saco com zip se ele tiver.',
+          'Coloque o saco fechado dentro de um recipiente com tampa (pote hermético grande ou balde com tampa de pressão). O recipiente protege de umidade, luz e pragas; o saco por dentro protege do contato com o plástico e guarda os dados do lote.',
+          'Guarde num lugar fresco, seco e ao abrigo da luz — um armário longe do fogão, não a lavanderia quente nem a garagem.',
+          'Não transfira a ração direto para o pote sem o saco: a gordura gruda nas paredes, rança e contamina a próxima leva. Se fizer isso, lave e seque o pote muito bem a cada saco novo.',
+        ],
+      },
+      {
+        type: 'callout',
+        tone: 'info',
+        text: 'Ração seca não vai à geladeira (a umidade da condensação favorece mofo). Ração úmida (lata ou sachê) aberta, sim: tampe e use em 2 a 3 dias.',
+      },
+      { type: 'h2', text: 'Quanto tempo depois de aberta', id: 'prazo' },
+      {
+        type: 'p',
+        text: 'A recomendação geral é consumir a ração seca em até 4 a 6 semanas depois de aberto o saco, guardada corretamente. Depois disso, mesmo sem estar "vencida" pela data impressa, ela já perdeu parte das vitaminas e do sabor. Anote a data de abertura no próprio saco com caneta — é a forma mais simples de não perder a conta.',
+      },
+      {
+        type: 'links',
+        title: 'Isso muda que saco comprar',
+        items: [
+          { slug: 'quanto-tempo-dura-saco-de-racao', label: 'Quanto tempo dura um saco de ração (calculadora)' },
+          { slug: 'como-escolher-racao-ideal-cachorro', label: 'Como escolher a ração ideal para o seu cachorro' },
+        ],
+      },
+      { type: 'h2', text: 'Como isso define o tamanho do saco', id: 'tamanho-do-saco' },
+      {
+        type: 'p',
+        text: 'Se a ração deve ser consumida em 4 a 6 semanas, o tamanho de saco certo é o que o seu cão come nesse período. Um cão pequeno que come 80 g por dia leva mais de 90 dias para terminar um saco de 7,5 kg — dois terços dele vão ser consumidos já sem frescor. Nesse caso, o saco de 3 kg, mesmo com preço por quilo maior, entrega melhor. Cães grandes normalmente conseguem aproveitar sacos grandes dentro do prazo.',
+      },
+      {
+        type: 'table',
+        caption: 'Quanto o cão precisa comer por dia para terminar o saco em ~5 semanas (35 dias)',
+        headers: ['Tamanho do saco', 'Consumo mínimo p/ render bem'],
+        rows: [
+          ['3 kg', '~85 g/dia'],
+          ['7,5 kg', '~215 g/dia'],
+          ['15 kg', '~430 g/dia'],
+        ],
+      },
+      { type: 'h2', text: 'Erros comuns', id: 'erros' },
+      {
+        type: 'ul',
+        items: [
+          'Despejar a ração no pote e jogar o saco fora — perde o lote/validade e a gordura velha contamina a próxima leva.',
+          'Deixar o saco aberto, só dobrado, sem fechar de verdade.',
+          'Guardar perto do fogão, em cima da geladeira ou na garagem quente.',
+          'Comprar o saco maior "porque compensa" sem checar se o cão termina em 4 a 6 semanas.',
+          'Não anotar a data de abertura.',
+        ],
+      },
+      {
+        type: 'checklist',
+        title: 'Armazenamento correto',
+        items: [
+          'A ração está no saco original, bem fechado?',
+          'O saco está dentro de um recipiente com tampa?',
+          'O local é fresco, seco e sem luz direta — longe do fogão?',
+          'Anotei a data de abertura no saco?',
+          'O tamanho do saco é compatível com terminar em 4 a 6 semanas?',
+        ],
+      },
+      { type: 'h2', text: 'Conclusão', id: 'conclusao' },
+      {
+        type: 'p',
+        text: 'Saco original bem fechado, dentro de um pote com tampa, em local fresco e escuro, consumido em 4 a 6 semanas. É simples, preserva o valor nutricional que você pagou e ainda ajuda a decidir que tamanho de embalagem comprar da próxima vez.',
+      },
+    ],
+    faq: [
+      {
+        question: 'Posso congelar ração para durar mais?',
+        answer:
+          'Dá para congelar ração seca em porções bem fechadas por alguns meses, mas na prática raramente vale a pena: ocupa espaço no freezer e, ao descongelar, a condensação traz umidade. Para a maioria das casas, comprar o tamanho de saco certo resolve melhor.',
+      },
+      {
+        question: 'A ração está com um cheiro diferente. Posso dar?',
+        answer:
+          'Cheiro de tinta, de óleo velho ou azedo indica rancidez — descarte. Ração rançosa não costuma causar intoxicação grave, mas o cão tende a recusar e, se comer, pode ter desconforto digestivo. Mofo visível ou presença de insetos é descarte imediato.',
+      },
+      {
+        question: 'Recipiente de plástico ou de metal?',
+        answer:
+          'Os dois funcionam se forem opacos, com tampa que veda bem e higienizados entre um saco e outro. O mais importante é manter a ração no saco original dentro do recipiente, em vez de despejar solta.',
+      },
+    ],
+    sources: [
+      {
+        label: 'Armazenamento seguro de alimentos e petiscos para animais',
+        publisher: 'FDA — U.S. Food and Drug Administration',
+        url: 'https://www.fda.gov/animal-veterinary/animal-health-literacy/proper-storage-pet-food-treats',
+      },
+    ],
+    relatedSlugs: ['quanto-tempo-dura-saco-de-racao', 'como-escolher-racao-ideal-cachorro', 'economizar-produtos-pet-sem-so-menor-preco'],
+    vetContext: true,
+    searchTerms: ['armazenar', 'guardar ração', 'pote', 'conservar', 'rançar', 'estragar', 'validade', 'recipiente'],
   },
 ];
