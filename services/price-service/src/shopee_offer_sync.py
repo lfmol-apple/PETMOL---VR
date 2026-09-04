@@ -20,6 +20,7 @@ busca não deve derrubar uma oferta boa.
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -31,7 +32,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .affiliate_links import MarketplaceOffer
-from .product_identity import IdentityMatchResult, MerchantCandidate, ProductIdentity, evaluate_identity
+from .product_identity import (
+    AttributeStatus,
+    IdentityDecision,
+    IdentityMatchResult,
+    MerchantCandidate,
+    ProductIdentity,
+    evaluate_identity,
+)
 from .product_catalog_lookup import ProductCatalog, normalize_gtin
 from .shopee_affiliate_client import ShopeeAffiliateError, search_product_offers
 from .shopee_link_validator import InvalidShopeeAffiliateUrlError, validate_shopee_affiliate_url
@@ -143,6 +151,30 @@ def _build_keyword_variants(product: ProductCatalog, expected_weight_kg: Optiona
             " ".join(part for part in (brand, "Urinary Small Dog", weight) if part),
             " ".join(part for part in (brand, "Veterinary Canine Urinary S/O Small", weight) if part),
         ])
+
+    # Escada orientada pela identidade enriquecida: cada discriminador real
+    # (linha/sabor/porte/faixa de peso do animal/comprimento) vira uma
+    # busca marca + discriminador [+ peso]. Só amplia discovery — o matcher
+    # continua validando tudo. (sugestão do review)
+    try:
+        _ident = ProductIdentity.build(canonical_name=name, brand=brand or None, weight_kg=expected_weight_kg)
+        _disc: list[str] = []
+        if _ident.product_line:
+            _disc.append(_ident.product_line)
+        if _ident.flavor:
+            _disc.append(_ident.flavor)
+        if _ident.breed_size:
+            _disc.append(_ident.breed_size.replace("_", " "))
+        if _ident.animal_weight_range:
+            lo, hi = _ident.animal_weight_range
+            _disc.append(f"{lo:g} a {hi:g}kg")
+        if _ident.length_cm:
+            _disc.append(f"{_ident.length_cm:g}cm")
+        for term in _disc:
+            raw_variants.append(" ".join(part for part in (brand, term, weight) if part))
+            raw_variants.append(" ".join(part for part in (brand, term) if part))
+    except Exception:  # noqa: BLE001 — keyword é best-effort
+        pass
     variants: list[str] = []
     seen: set[str] = set()
     for variant in raw_variants:
@@ -152,7 +184,8 @@ def _build_keyword_variants(product: ProductCatalog, expected_weight_kg: Optiona
             continue
         seen.add(key)
         variants.append(normalized)
-    return variants
+    # teto de buscas por GTIN — respeita o rate limit (~0,4s/chamada).
+    return variants[:9]
 
 
 def _brand_for_matching(title: str, brand: Optional[str]) -> Optional[str]:
@@ -187,6 +220,76 @@ def _median(values: list[float]) -> Optional[float]:
     return (ordered[mid - 1] + ordered[mid]) / 2
 
 
+_RESCUE_DISCRIMINATORS = (
+    "weight_kg", "volume_ml", "length_cm", "pack_count",
+    "animal_weight_range", "life_stage", "breed_size", "flavor", "species",
+)
+_HARD_DIMENSIONS = ("weight_kg", "volume_ml", "length_cm")
+
+
+def _norm_txt(text: str) -> str:
+    import unicodedata
+
+    text = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode("ascii")
+    return text.lower()
+
+
+def _anchor_price_rescues(
+    result: IdentityMatchResult,
+    price: Optional[float],
+    expected_identity: ProductIdentity,
+    anchor_price: Optional[float],
+    candidate_title: str,
+) -> bool:
+    """Preço NUNCA cria identidade. Ele só empurra pra dentro um candidato
+    que JÁ está quase provado por texto+estrutura: marca certa, família
+    certa, product_line compatível, pelo menos um discriminador real
+    batendo, zero conflito, confiança já perto do corte, preço numa banda
+    ESTREITA (±25-30%) em torno do preço Cobasi ao vivo do MESMO GTIN.
+    Fora disso não resgata. (revisão pós-review do ChatGPT)"""
+    if anchor_price is None or anchor_price <= 0 or price is None:
+        return False
+    if result.decision == IdentityDecision.CONFLICT:
+        return False
+    if any(a.status == AttributeStatus.CONFLICT for a in result.attributes):
+        return False
+    if not (anchor_price * 0.75 <= price <= anchor_price * 1.30):
+        return False
+    if result.confidence < 0.50:
+        return False
+    reasons = set(result.reasons)
+    if "BRAND_MATCH" not in reasons or "FAMILY_MATCH" not in reasons:
+        return False
+
+    attrs = {a.attribute: a for a in result.attributes}
+    has_real_discriminator = any(
+        attrs.get(name) is not None and attrs[name].status == AttributeStatus.MATCH
+        for name in _RESCUE_DISCRIMINATORS
+    )
+    if not has_real_discriminator:
+        return False
+
+    # Dimensão dura pinada no PETMOL → tem que ser MATCH, não pode ficar só
+    # UNKNOWN (senão 2kg x 7,5kg passa).
+    for name in _HARD_DIMENSIONS:
+        if getattr(expected_identity, name, None) is not None:
+            a = attrs.get(name)
+            if a is None or a.status != AttributeStatus.MATCH:
+                return False
+
+    # product_line pinada (ex: "urinary small", "mini indoor") → todos os
+    # tokens significativos têm que aparecer no título do anúncio, senão é
+    # outra linha da mesma marca no mesmo peso/preço.
+    line = getattr(expected_identity, "product_line", None)
+    if line:
+        title_norm = _norm_txt(candidate_title)
+        tokens = [t for t in _norm_txt(line).split() if len(t) > 2]
+        if tokens and not all(t in title_norm for t in tokens):
+            return False
+
+    return True
+
+
 def _confident_matches(
     nodes: list[dict],
     expected_name: str,
@@ -196,6 +299,7 @@ def _confident_matches(
     expected_volume_ml: Optional[float],
     min_confidence: float,
     expected_length_cm: Optional[float] = None,
+    anchor_price: Optional[float] = None,
 ) -> list[tuple[dict, IdentityMatchResult]]:
     expected_identity = ProductIdentity.build(
         canonical_name=expected_name,
@@ -212,25 +316,33 @@ def _confident_matches(
             continue
         if listing_id:
             seen_listing_ids.add(listing_id)
+        price = _parse_price(node.get("price"))
         result = evaluate_identity(
             expected_identity,
             MerchantCandidate.build(
                 merchant="shopee",
                 title=node.get("productName") or "",
                 brand=node.get("brand"),
-                price=_parse_price(node.get("price")),
+                price=price,
                 external_id=listing_id,
             ),
             min_confidence=min_confidence,
         )
         if not result.accepted:
-            continue
-        price = _parse_price(node.get("price"))
+            if _anchor_price_rescues(result, price, expected_identity, anchor_price, node.get("productName") or ""):
+                result = IdentityMatchResult(
+                    IdentityDecision.HIGH_CONFIDENCE,
+                    max(result.confidence, min_confidence),
+                    (*result.reasons, "ANCHOR_PRICE_BAND"),
+                    result.attributes,
+                )
+            else:
+                continue
         if price is None:
             continue
         scored.append((result.confidence, price, node, result))
 
-    if _has_ambiguous_sku_identity(scored):
+    if _has_ambiguous_sku_identity(scored, expected_identity):
         return []
 
     median_price = _median([price for _score, price, _node, _result in scored])
@@ -248,23 +360,41 @@ def _confident_matches(
     return [(node, result) for _score, _price, node, result in scored]
 
 
-def _has_ambiguous_sku_identity(scored: list[tuple[float, float, dict, IdentityMatchResult]]) -> bool:
+_SKU_DISCRIMINATORS = ("weight_kg", "volume_ml", "length_cm", "pack_count", "animal_weight_range")
+
+
+def _has_ambiguous_sku_identity(
+    scored: list[tuple[float, float, dict, IdentityMatchResult]],
+    expected_identity: Optional[ProductIdentity] = None,
+) -> bool:
     if len(scored) < 2:
         return False
-    # If PETMOL has no structured SKU discriminator and Shopee returned
-    # multiple plausible candidates with explicit different sizes, refuse to
-    # publish any. Price is not allowed to choose identity.
-    explicit_signatures: set[tuple] = set()
+    # Só é ambíguo numa dimensão que a gente NÃO consegue fixar. Se o
+    # produto esperado já tem peso/volume/comprimento/pack, o Identity
+    # Engine só deixou passar candidato compatível com aquele valor —
+    # variação explícita diferente já teria dado CONFLICT e caído fora do
+    # `scored`. Antes, um esperado de 7,5kg com dois anúncios "7,5kg" +
+    # um "7,5kg 2un" derrubava os três. Agora só as dimensões abertas
+    # contam pra ambiguidade; preço nunca escolhe identidade.
+    pinned = set()
+    if expected_identity is not None:
+        for name in _SKU_DISCRIMINATORS:
+            if getattr(expected_identity, name, None) is not None:
+                pinned.add(name)
+
+    # Pergunta certa (pós-review): numa dimensão NÃO pinada, existem dois
+    # valores explícitos incompatíveis entre os candidatos aceitos? Compara
+    # dimensão a dimensão, não tupla heterogênea — assim "500ml + 1 pack"
+    # vs "500ml" não conta como ambíguo (só um lado declarou o pack).
+    def _hashable(value):
+        return tuple(value) if isinstance(value, (list, tuple)) else value
+
+    by_dimension: dict[str, set] = {}
     for _confidence, _price, _node, result in scored:
-        attrs = {item.attribute: item for item in result.attributes}
-        signature = tuple(
-            attrs[name].observed
-            for name in ("weight_kg", "volume_ml", "length_cm", "pack_count", "animal_weight_range")
-            if name in attrs and attrs[name].observed is not None
-        )
-        if signature:
-            explicit_signatures.add(signature)
-    return len(explicit_signatures) > 1
+        for item in result.attributes:
+            if item.attribute in _SKU_DISCRIMINATORS and item.attribute not in pinned and item.observed is not None:
+                by_dimension.setdefault(item.attribute, set()).add(_hashable(item.observed))
+    return any(len(values) > 1 for values in by_dimension.values())
 
 
 def _best_awin_identity_for_gtin(db: Session, gtin: str) -> tuple[Optional[str], Optional[str]]:
@@ -301,10 +431,16 @@ def sync_shopee_offer_for_gtin(
     expected_weight_kg: Optional[float] = None,
     expected_name: Optional[str] = None,
     expected_brand: Optional[str] = None,
+    anchor_price: Optional[float] = None,
 ) -> ShopeeSyncResult:
     """Busca, casa e faz upsert de UMA oferta Shopee pro produto do GTIN
     dado. Idempotente: reexecutar atualiza a mesma linha (chave:
-    product_id + merchant + external_listing_id), nunca duplica."""
+    product_id + merchant + external_listing_id), nunca duplica.
+
+    `anchor_price` (preço Cobasi ao vivo do MESMO GTIN, opcional) libera o
+    resgate por banda de preço em _confident_matches — mesmo produto de
+    marca/peso batendo e preço em torno do preço Cobasi, quando o texto
+    ficou abaixo do corte."""
     gtin_normalized = normalize_gtin(gtin)
     if not gtin_normalized:
         return ShopeeSyncResult(gtin=gtin, matched=False, reason="GTIN inválido")
@@ -356,6 +492,7 @@ def sync_shopee_offer_for_gtin(
         expected_weight_kg=expected_weight_kg,
         expected_length_cm=expected_length_cm,
         min_confidence=min_confidence,
+        anchor_price=anchor_price,
     )
     if not matches:
         return ShopeeSyncResult(gtin=gtin_normalized, matched=False, reason="nenhum candidato confiável na busca")
@@ -434,6 +571,12 @@ def sync_shopee_offer_for_gtin(
         reason = "offerLink inválido" if invalid_links else "nenhum candidato confiável na busca"
         return ShopeeSyncResult(gtin=gtin_normalized, matched=False, reason=reason)
 
+    # Mesma epistemologia do audit tri-state: ausência de um listing nesta
+    # busca NÃO prova que ele morreu. Só aposenta (a) legado sem identidade
+    # comprovada, agora que temos substituto positivo, ou (b) o que já era
+    # CONFLICT. Um listing que já foi EXACT/HIGH_CONFIDENCE e só não voltou
+    # nesta busca vira stale pra revalidar — não desativa. (pós-review)
+    _VALIDATED = {"EXACT", "HIGH_CONFIDENCE"}
     for stale in db.scalars(
         select(MarketplaceOffer).where(
             MarketplaceOffer.product_id == product.id,
@@ -441,11 +584,17 @@ def sync_shopee_offer_for_gtin(
             MarketplaceOffer.active.is_(True),
         )
     ):
-        if stale.external_listing_id not in valid_listing_ids:
-            stale.active = False
-            stale.is_available = False
-            stale.verified_at = now
+        if stale.external_listing_id in valid_listing_ids:
+            continue
+        prev = (stale.match_decision or "").upper()
+        if prev in _VALIDATED:
+            stale.price_refresh_status = "stale_unconfirmed"
             stale.last_checked_at = now
+            continue
+        stale.active = False
+        stale.is_available = False
+        stale.verified_at = now
+        stale.last_checked_at = now
 
     db.commit()
     return ShopeeSyncResult(gtin=gtin_normalized, matched=True, offer_id=offer_ids[0], offer_ids=offer_ids)
@@ -767,9 +916,12 @@ def iter_unified_awin_feed_products_by_gtin(
 
 
 def iter_active_shopee_offer_gtins(db: Session) -> list[str]:
-    """PRIORIDADE A do job noturno — toda oferta Shopee ativa hoje, do
-    preço confirmado mais antigo pro mais novo, pra revalidar/reprecificar
-    primeiro o que está mais defasado."""
+    """Backlog do job noturno — GTINs com oferta Shopee ativa. Ordem:
+    primeiro o que JÁ está validado (EXACT/HIGH_CONFIDENCE) e mais
+    defasado — refresh de preço do que funciona vence re-tentar o que
+    nunca casou —, depois o resto, sempre do `last_checked_at` mais
+    antigo pro mais novo (rotação natural)."""
+    validated = ("EXACT", "HIGH_CONFIDENCE")
     rows = db.execute(
         select(ProductCatalog.barcode_normalized)
         .join(MarketplaceOffer, MarketplaceOffer.product_id == ProductCatalog.id)
@@ -778,7 +930,11 @@ def iter_active_shopee_offer_gtins(db: Session) -> list[str]:
             MarketplaceOffer.active.is_(True),
             ProductCatalog.barcode_normalized.isnot(None),
         )
-        .order_by(MarketplaceOffer.last_checked_at.is_(None).desc(), MarketplaceOffer.last_checked_at.asc())
+        .order_by(
+            MarketplaceOffer.match_decision.in_(validated).desc(),
+            MarketplaceOffer.last_checked_at.is_(None).desc(),
+            MarketplaceOffer.last_checked_at.asc(),
+        )
     ).all()
     seen: set[str] = set()
     out: list[str] = []
@@ -787,6 +943,34 @@ def iter_active_shopee_offer_gtins(db: Session) -> list[str]:
         if g and g not in seen:
             seen.add(g)
             out.append(g)
+    return out
+
+
+def iter_active_plan_gtins(db: Session) -> list[str]:
+    """GTINs de itens em plano de alimentação ativo — é o que o tutor vai
+    ver quando o lembrete de recompra disparar. Fica no tier 1 junto com
+    os scan events."""
+    from .health.models import FeedingPlan
+
+    rows = db.execute(
+        select(FeedingPlan.items_json).where(
+            FeedingPlan.enabled.is_(True),
+            FeedingPlan.deleted_at.is_(None),
+            FeedingPlan.items_json.isnot(None),
+        )
+    ).all()
+    seen: set[str] = set()
+    out: list[str] = []
+    for (items_json,) in rows:
+        try:
+            items = json.loads(items_json) if items_json else []
+        except (ValueError, TypeError):
+            continue
+        for item in items:
+            g = normalize_gtin(str((item or {}).get("barcode") or ""))
+            if g and g not in seen:
+                seen.add(g)
+                out.append(g)
     return out
 
 
@@ -823,10 +1007,12 @@ def iter_launch_coverage_queue(
     feed_merchants: tuple[str, ...] = _DEFAULT_AWIN_SHOPEE_SOURCE_MERCHANTS,
 ) -> tuple[list[tuple[str, Optional[str], Optional[str]]], int]:
     """Fila noturna determinística em prioridades:
-      A — GTINs realmente usados pelos tutores (scan events) — é o que
-          aparece na tela; tem que estar sempre fresco. Conjunto pequeno.
-      B — o resto das ofertas Shopee ativas (backlog, mais antigas
-          primeiro) — produto que ninguém abriu ainda; esquenta sob
+      A — GTINs que o tutor DE FATO vê: scan events + itens de plano de
+          alimentação ativo (o que aparece quando o lembrete de recompra
+          dispara). Tem que estar sempre fresco. Conjunto pequeno.
+      B — o resto das ofertas Shopee ativas (backlog) — validadas e mais
+          defasadas primeiro (refresh do que funciona), rotação por
+          `last_checked_at`. Produto que ninguém abriu ainda; esquenta sob
           demanda quando alguém escaneia (entra em A na noite seguinte).
       C — catálogo Awin fresco (Cobasi + Zee Now + Zee Dog), só o que
           ainda não tem oferta Shopee.
@@ -851,6 +1037,8 @@ def iter_launch_coverage_queue(
         queue.append((g, name, brand))
 
     for g in iter_active_product_gtins(db):
+        _add(g)
+    for g in iter_active_plan_gtins(db):
         _add(g)
     for g in iter_active_shopee_offer_gtins(db):
         _add(g)

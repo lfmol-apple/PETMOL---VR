@@ -295,7 +295,10 @@ def evaluate_identity(
         )
 
     missing = [item.attribute for item in unknown if item.attribute in _SKU_ATTRIBUTES and getattr(expected, item.attribute, None) is not None]
-    reasons = ["INSUFFICIENT_IDENTITY_EVIDENCE"]
+    # Mesmo sem evidência suficiente pra aceitar, carrega o que DE FATO
+    # bateu (marca/família/discriminador). Quem chama — ex: resgate por
+    # banda de preço no sync — precisa saber se é um quase-match ou lixo.
+    reasons = ["INSUFFICIENT_IDENTITY_EVIDENCE", *identity_reasons]
     if missing:
         reasons.extend(f"MISSING_{name.upper()}" for name in missing)
     return IdentityMatchResult(IdentityDecision.NO_MATCH, confidence, _dedupe(tuple(reasons)), tuple(comparisons))
