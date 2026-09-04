@@ -62,13 +62,25 @@ def admin_client(client):
 def _enable_petz(monkeypatch) -> None:
     """Liga as DUAS flags do gate único (is_petz_publicly_servable) — o
     rollout técnico E a prova comercial (nunca confundir "produto
-    confirmado" com "comissão comprovada", ver petz_provider.py)."""
+    confirmado" com "comissão comprovada", ver petz_provider.py).
+
+    Desde 04/09/2026 as três flags já vêm True/True/False (ligado) por
+    padrão em config.py, então isto é redundante na maioria dos testes —
+    mantido explícito mesmo assim, tanto pra documentar a intenção de
+    cada teste quanto pra continuar funcionando se o default mudar nesta
+    suíte específica (setenv sempre vence sobre o default do Settings)."""
     monkeypatch.setenv("PETZ_AFFILIATE_ENABLED", "true")
     monkeypatch.setenv("PETZ_COUPON_ATTRIBUTION_VERIFIED", "true")
-    # Petz está desligada em produção pelo kill-switch petz_publicly_disabled
-    # (default True desde 2026-08-30); estes testes cobrem o comportamento
-    # QUANDO ligada.
     monkeypatch.setenv("PETZ_PUBLICLY_DISABLED", "false")
+    get_settings.cache_clear()
+
+
+def _disable_petz(monkeypatch) -> None:
+    """Força o gate único DESLIGADO, explicitamente — usado pelos testes
+    que verificam o kill-switch em si (defesa em profundidade), já que
+    desde 04/09/2026 "ligado" é o default e não pode mais ser presumido
+    sem monkeypatch."""
+    monkeypatch.setenv("PETZ_PUBLICLY_DISABLED", "true")
     get_settings.cache_clear()
 
 
@@ -661,8 +673,12 @@ def test_petz_master_gate_blocks_direct_link_even_with_confirmed_product(client,
     """Regressão do bug real: /commerce/petz-direct-link chegou a ficar no
     ar em produção servindo product_url pra qualquer produto confirmado,
     sem checar NENHUMA flag — nem petz_affiliate_enabled, nem prova
-    comercial. Com as duas flags no padrão (False), nada pode ser
+    comercial. Desde 04/09/2026 o gate vem LIGADO por padrão (ver
+    test_petz_direct_link_served_by_default_since_04_09_2026 abaixo) —
+    este teste passou a cobrir o outro lado: com o kill-switch
+    explicitamente ligado (defesa em profundidade), nada pode ser
     servido, mesmo com um mapping totalmente confirmado."""
+    _disable_petz(monkeypatch)
     product_id = _register_product(gtin="9990000000006")
     db = SessionLocal()
     try:
@@ -676,6 +692,31 @@ def test_petz_master_gate_blocks_direct_link_even_with_confirmed_product(client,
     resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000006"})
     assert resp.status_code == 200
     _assert_petz_unavailable_payload(resp.json())
+
+
+def test_petz_direct_link_served_by_default_since_04_09_2026(client):
+    """O gate único (is_petz_publicly_servable) vem LIGADO por padrão
+    desde 04/09/2026 (PR de reativação) — SEM nenhum monkeypatch, um
+    produto confirmado já serve o destino. A prova comercial
+    (petz_coupon_attribution_verified) foi documentada com uma compra
+    real em 29/08/2026 (docs/PETZ_COMMISSION_VALIDATION.md), não é mais
+    uma suposição — por isso o default virou True."""
+    product_id = _register_product(gtin="9990000000009")
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, product_id, petz_product_id="100229",
+            product_url="https://www.petz.com.br/produto/racao-100229",
+        )
+    finally:
+        db.close()
+
+    resp = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000009"})
+    body = resp.json()
+    assert body["available"] is True
+    assert body["direct_product_url"] == "https://www.petz.com.br/produto/racao-100229"
+    assert body["coupon_code"] == PETZ_COUPON_CODE
+    assert body["partner_store_url"] == PETZ_PARTNER_STORE_URL
 
 
 def test_petz_confirmed_product_is_not_automatically_commercially_verified(client, monkeypatch):
@@ -726,10 +767,15 @@ def test_petz_coupon_verified_mode_allows_product_url(client, monkeypatch):
     assert body["affiliate_program"] == PETZ_AFFILIATE_PROGRAM
 
 
-def test_petz_monetized_offer_store_context_respects_master_gate(client):
+def test_petz_monetized_offer_store_context_respects_master_gate(client, monkeypatch):
     """GET /commerce/monetized-offer?merchant=petz&context=store também
     respeita is_petz_publicly_servable() — não é um caminho paralelo com
-    regra própria (ver affiliate_links.get_monetized_offer)."""
+    regra própria (ver affiliate_links.get_monetized_offer). O gate vem
+    LIGADO por padrão desde 04/09/2026 (ver
+    test_petz_monetized_offer_store_context_works_once_verified abaixo,
+    que cobre isso sem monkeypatch nenhum) — este teste passou a cobrir
+    o kill-switch explicitamente ligado."""
+    _disable_petz(monkeypatch)
     resp = client.get("/commerce/monetized-offer", params={"merchant": "petz", "context": "store"})
     assert resp.json()["offer"] is None
 

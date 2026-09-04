@@ -32,16 +32,27 @@ def _reset_settings(monkeypatch):
     get_settings.cache_clear()
 
 
-def test_handoff_shop_petz_blocked_without_master_gate(client):
+def test_handoff_shop_petz_blocked_without_master_gate(client, monkeypatch):
+    """O gate único vem LIGADO por padrão desde 04/09/2026 (ver
+    test_handoff_shop_petz_works_by_default abaixo, sem monkeypatch
+    nenhum) — este teste passou a cobrir o kill-switch
+    (petz_publicly_disabled) explicitamente ligado, defesa em
+    profundidade."""
+    monkeypatch.setenv("PETZ_PUBLICLY_DISABLED", "true")
+    get_settings.cache_clear()
+
     resp = client.get("/handoff/shop", params={"partner": "petz"}, follow_redirects=False)
     assert resp.status_code == 503
     assert resp.json()["error"] == "partner_url_not_configured"
 
 
-def test_handoff_shop_petz_ignores_dest_open_redirect(client):
+def test_handoff_shop_petz_ignores_dest_open_redirect(client, monkeypatch):
     """Regressão: `dest` já foi um open redirect. Mesmo passando um alvo
-    arbitrário, sem o gate ligado o resultado continua sendo 503 — nunca
-    um redirect pro valor de `dest`."""
+    arbitrário, com o gate explicitamente desligado o resultado continua
+    sendo 503 — nunca um redirect pro valor de `dest`."""
+    monkeypatch.setenv("PETZ_PUBLICLY_DISABLED", "true")
+    get_settings.cache_clear()
+
     resp = client.get(
         "/handoff/shop",
         params={"partner": "petz", "dest": "https://evil.example/phish"},
@@ -50,11 +61,19 @@ def test_handoff_shop_petz_ignores_dest_open_redirect(client):
     assert resp.status_code == 503
 
 
+def test_handoff_shop_petz_works_by_default(client):
+    """Desde 04/09/2026 as três flags do gate único já vêm ligadas por
+    padrão (ver config.py/docs/PETZ_COMMISSION_VALIDATION.md — prova
+    comercial documentada com compra real em 29/08/2026) — SEM nenhum
+    monkeypatch, o handoff já funciona."""
+    resp = client.get("/handoff/shop", params={"partner": "petz"}, follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "https://www.petz.com.br/parceiro/pettmol"
+
+
 def test_handoff_shop_petz_works_once_gate_verified(client, monkeypatch):
     monkeypatch.setenv("PETZ_AFFILIATE_ENABLED", "true")
     monkeypatch.setenv("PETZ_COUPON_ATTRIBUTION_VERIFIED", "true")
-    # Petz desligada em prod pelo kill-switch petz_publicly_disabled
-    # (default True, 2026-08-30) — este teste cobre o caminho ligado.
     monkeypatch.setenv("PETZ_PUBLICLY_DISABLED", "false")
     get_settings.cache_clear()
 

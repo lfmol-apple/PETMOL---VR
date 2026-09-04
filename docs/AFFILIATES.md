@@ -48,7 +48,7 @@ rollback).
 |---|---|---|
 | Cobasi | **ativa** — discovery de preço + storefront MAIS/UTM (7%, confirmado) | `cobasi_affiliate_mode="utm"` (default); frontend `affiliateStatus: 'active'` |
 | Shopee | **ativa** — vitrine (shortlink afiliado) + ofertas por produto | `shopee_affiliate_enabled=True` (default; ficou `False` por ~1 dia no lançamento, voltou após o projeto de precisão #120); frontend `affiliateStatus: 'active'` |
-| Petz | **ativa (reativada 04/09/2026)** — só card de Loja Parceira fixa (`/parceiro/pettmol`) + cupom; "Ver na Petz" por produto específico segue desativado | frontend `affiliateStatus: 'active'`; backend `petz_publicly_disabled=True` (segue derrubando `/commerce/petz-direct-link`, não afeta o card) |
+| Petz | **ativa (reativada 04/09/2026)** — card de Loja Parceira fixa (`/parceiro/pettmol`) + cupom, E "Ver na Petz" por produto específico (recompra, busca, item sheets) | frontend `affiliateStatus: 'active'`; backend `petz_publicly_disabled=False` (default desde 04/09/2026, junto com `petz_affiliate_enabled=True` e `petz_coupon_attribution_verified=True`) |
 | Mercado Livre | **desativado** (entra depois) | `mercadolivre_affiliate_enabled=False` + `mercadolivre_public_offers_enabled=False` + frontend `affiliateStatus: 'disabled'` |
 | Amazon | **desativado** (entra depois) | sem `amazon_associate_tag`; nunca reintroduzido nas superfícies |
 
@@ -65,7 +65,7 @@ abaixo).
 | Cobasi | MAIS/UTM (7%, confirmado) + Awin (advertiser 17870, approved, 8,5% nominal) | API pública VTEX (dinâmico) + Awin feed (GTIN exato) | `route=awin` preferida desde 14/08/2026 (decisão de produto, comissão Awin ainda não validada por venda real); `route=mais` é o fallback e **sempre** vence quando há link cadastrado manualmente (`is_manually_cached`), independente de preferência | sim, 8.398 produtos sincronizados | monetização real ligada; exposição ainda depende de `AWIN_ENABLED=true` em produção |
 | Zee Now | Awin (advertiser 127557, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116779, 13.835 produtos observados; 13.605 GTINs válidos diretos, 152 UPC-11 corrigíveis, 78 inválidos e 9 grupos duplicados em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeenow`, exposição depende dos gates Awin |
 | Zee Dog | Awin (advertiser 127555, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116649, 1.799 produtos observados, 100% GTIN válido/único em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeedog`, exposição depende dos gates Awin |
-| Petz | Awin (advertiser 127553, pending) + programa próprio "Loja Parceira" | `PetzProductMapping` — aprendizado por produto, confirmação humana (ver §Petz) | **ATIVA (card de Loja Parceira fixa, reativada 04/09/2026, PR #210)** — comissão via cookie `petzPartner` (grava ao abrir `/parceiro/pettmol`) + cupom `PETTMOL`; "Ver na Petz" por produto específico segue **desativado** (`petz_publicly_disabled=True`), Petz não expõe deep link de produto pra parceiros | não | card ativo; discovery por produto (`/commerce/petz-direct-link`) dormente, reativação = flip do kill-switch |
+| Petz | Awin (advertiser 127553, pending) + programa próprio "Loja Parceira" | `PetzProductMapping` — aprendizado por produto, confirmação humana (ver §Petz) | **ATIVA (card de Loja Parceira + "Ver na Petz" por produto, reativados 04/09/2026, PR #210 e PR de reativação do gate)** — comissão via cookie `petzPartner` (grava ao abrir `/parceiro/pettmol`, sempre o destino, não importa o que `/commerce/petz-direct-link` devolva) + cupom `PETTMOL` | não | tudo ativo; `petz_affiliate_enabled`/`petz_coupon_attribution_verified`/`petz_publicly_disabled` = True/True/False por padrão |
 | Shopee | Shopee Affiliates | `MarketplaceOffer`/`MarketplaceOfferProvider` (busca textual + GTIN como 1ª keyword — API não tem lookup por GTIN) + discovery on-demand por GTIN quando o tutor abre a Loja (background, cooldown por GTIN) | **ATIVA** — vitrine (shortlink) + ofertas por produto. `shopee_affiliate_enabled=True`. Rede de segurança: oferta >36h → sem preço-número ("Conferir preço na loja"), link afiliado preservado. Sync noturno `source=active_products` descobre/revalida ofertas; refresh de preço roda separado em `petmol-commerce-price-refresh.timer` e nunca troca `external_listing_id`. Ver `docs/LAUNCH.md` §7 e `docs/PRODUCT_IDENTITY.md` | n/a | Product Identity Engine ativo; conflito de variação bloqueia preço/oferta em vez de escolher pelo menor preço |
 | Mercado Livre | ML Afiliados | `MarketplaceOffer`/`mercadolivre_link_validator.py` — ponte manual controlada | **nenhuma — FORA DO LANÇAMENTO** (`mercadolivre_affiliate_enabled=false`, `mercadolivre_public_offers_enabled=false`, frontend `disabled`); entra depois | n/a | shadow mode; bridge manual pronta (`export_ml_link_candidates.py`/`import_ml_offers.py`); ver PR #56 |
 | Amazon | Amazon Associates encerrado em 22/08/2026 (`petmol-20`) | nenhum | nenhum; integração temporariamente removida das superfícies públicas | n/a | disabled — reativação proibida até nova aprovação e nova tag válida |
@@ -922,18 +922,20 @@ Uma `product_url` confirmada **nunca** vira `affiliate_product_url` sozinha — 
 > PRODUTO na tela também; a versão atual não tenta isso, então two-hop e
 > `/produto/*` nunca entram em jogo.
 >
-> **"Ver na Petz" por produto específico (recompra, resultado de busca)
-> segue DESATIVADO.** `is_petz_publicly_servable()` retorna `False`
-> (kill-switch `petz_publicly_disabled`, default `True`), então
-> `/commerce/petz-direct-link` não serve nada e esses botões não
-> aparecem — mas `openPetzPartnerStore` (a mesma função do card) já foi
-> ajustada pra, se um dia forem reativados, também ir sempre pra Loja
-> Parceira em vez de busca/produto. Motivo de continuarem desativados: a
-> Petz não oferece deep link de produto pra parceiros e a página de
-> busca do site tem bugs fora do nosso controle (o link da foto abre
-> outro produto / o app). Pra reativar: flip `petz_publicly_disabled`.
-> O restante desta seção fica como registro do que foi
-> investigado/construído (inclui a busca genérica, hoje sem uso).
+> **"Ver na Petz" por produto específico (recompra, resultado de busca,
+> item sheets) TAMBÉM REATIVADO 04/09/2026.** `petz_affiliate_enabled` /
+> `petz_coupon_attribution_verified` / `petz_publicly_disabled` viraram
+> True/True/False por padrão em `config.py` — `is_petz_publicly_servable()`
+> agora retorna `True` sem precisar de env var. Isso só ficou seguro
+> DEPOIS que `openPetzPartnerStore` (a mesma função do card, PR #210)
+> passou a ignorar `direct_product_url`/`search_url` e sempre ir pra Loja
+> Parceira: `/commerce/petz-direct-link` continua podendo devolver
+> produto/busca no campo `url` (histórico abaixo), mas isso só decide SE
+> o botão "Ver na Petz" aparece (`available`), nunca PRA ONDE ele leva —
+> os bugs da página de busca da Petz (motivo original da desativação em
+> 30/08) não são mais alcançáveis a partir do app. O restante desta
+> seção fica como registro do que foi investigado/construído (inclui a
+> busca genérica, hoje sem efeito prático no destino).
 
 **Como o Parceiro Petz realmente atribui e aplica o desconto** (verificado
 no painel `parceiropetz.com.br/manager` e no checkout `www.petz.com.br`,
