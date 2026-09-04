@@ -443,14 +443,32 @@ export function petzBridgeUrl(target: string, productName?: string): string {
  * documentar/comprovar um deep link seguro, é aqui que ele voltaria a
  * decidir o `target`.
  *
- * Copia o cupom `PETTMOL` pro clipboard — é o que garante os 10% + a
- * comissão do Parceiro Petz quando o cliente cola no carrinho. Se o
- * clipboard falhar (comum em WebView sem gesto), a Petz abre do mesmo
- * jeito — o cupom nunca bloqueia a navegação — e o toast troca pra avisar
- * o tutor a colar o cupom manualmente; a ponte /go/petz também mostra o
- * código pra copiar lá, como segunda chance.
+ * Por que SEMPRE `/parceiro/pettmol` também é o que dá o cupom automático
+ * (investigação real no navegador, 29/08/2026 — ver
+ * docs/PETZ_COMMISSION_VALIDATION.md): abrir essa URL por navegação
+ * top-level grava um cookie first-party `petzPartner` em
+ * www.petz.com.br (~30min, renovado a cada visita). Com o cookie:
+ *  - cliente JÁ LOGADO na Petz: o campo de cupom no carrinho vem
+ *    PRÉ-PREENCHIDO com PETTMOL e os 10% são aplicados automaticamente —
+ *    zero ação do cliente, o clipboard nem chega a ser necessário;
+ *  - cliente DESLOGADO (maioria): a atribuição/comissão do Parceiro Petz
+ *    já fica garantida pelo cookie mesmo assim, mas o campo de cupom NÃO
+ *    vem pré-preenchido — precisa ser colado. É pra esse caso que existe
+ *    o clipboard abaixo: copiar PETTMOL aqui faz o "auto-fill" ser um
+ *    Cmd+V no carrinho em vez de digitar o código na mão.
+ * Não existe parâmetro de URL oficial que force login/pré-preenchimento —
+ * o cookie só nasce da navegação pra essa URL exata; qualquer outro path
+ * (busca, produto) NÃO grava esse cookie.
  *
- * Sempre via a ponte `/go/petz` (redirect JS). Vale igual em web, PWA e
+ * Copia o cupom `PETTMOL` pro clipboard — cobre o caso deslogado acima e
+ * serve de reserva mesmo quando logado. Se o clipboard falhar (comum em
+ * WebView sem gesto), a Petz abre do mesmo jeito — o cupom nunca bloqueia
+ * a navegação — e o toast troca pra avisar o tutor a colar o cupom
+ * manualmente; a ponte /go/petz também mostra o código pra copiar lá,
+ * como segunda chance.
+ *
+ * Sempre via a ponte `/go/petz` (redirect JS — preserva a navegação
+ * top-level que grava o cookie). Vale igual em web, PWA e
  * Capacitor. Retorna `true`/`false` conforme o cupom foi mesmo copiado —
  * quem chama usa isso pra registrar `coupon_copied` na analítica (nunca
  * assumido, sempre o que de fato aconteceu no clique).
