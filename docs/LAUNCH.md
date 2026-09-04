@@ -9,7 +9,10 @@ Lançamento **2026-08-30**. Lojas ativas:
   Merchant Match e Price; preço nunca escolhe variação; refresh não troca
   listing_id. Ver §7 e `docs/PRODUCT_IDENTITY.md`.
 
-Mercado Livre e Amazon entram depois. Petz foi desativada.
+Mercado Livre e Amazon entram depois. Petz foi desativada no lançamento
+e **reativada em 04/09/2026** (PR #210) como card de Loja Parceira fixa
+— ver `docs/AFFILIATES.md` §Petz e `docs/PETZ_COMMISSION_VALIDATION.md`.
+O restante deste doc registra o estado no dia do lançamento (histórico).
 
 Este doc é o runbook de go-live da parte comercial. Deploy geral: ver
 `docs/DEPLOYMENT.md`.

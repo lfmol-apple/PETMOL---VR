@@ -1,16 +1,34 @@
 # Validação de comissão — Parceiro Petz (cupom PETTMOL)
 
-Status: **DESATIVADA em produção 2026-08-30** (kill-switch
-`petz_publicly_disabled=True` em `config.py` + `affiliateStatus: 'disabled'`
-no frontend). A comissão via cupom foi comprovada (abaixo), mas a Petz
-não oferece deep link de produto pra parceiros e a página de busca do
-site tem bugs fora do nosso controle (link da foto abre outro produto /
-o app) — "Ver na Petz" não tinha como ficar bom sem cooperação da Petz.
-Todo o código do caminho Petz (ponte `/go/petz`, `openPetzPartnerStore`,
-`PETZ_CURATED_SEARCH`) continua no lugar, dormente. Pra reativar: ver
-`petz_provider.is_petz_publicly_servable`.
+Status: **REATIVADA em produção 04/09/2026** (PR #210) como card "Loja
+Parceira" na grade "Ou visite uma loja parceira" da Loja do Pet —
+`affiliateStatus: 'active'` no frontend. Arquitetura final, simplificada
+em relação a tudo que este documento registra abaixo: **SEMPRE**
+`https://www.petz.com.br/parceiro/pettmol` — nunca busca, nunca produto,
+nunca two-hop. Essa é exatamente a "Caminho A" descrita abaixo, sem as
+complicações que a fizeram ser abandonada em 29/08 (essas complicações
+eram todas sobre tentar mostrar o PRODUTO na tela também — como a versão
+atual não tenta isso, elas não se aplicam mais):
+- não precisa do two-hop (que quebrava em PWA/app) porque não há 2º hop;
+- não corre risco de cair em `/produto/*` (AASA da Petz) porque nunca
+  navega pra lá.
 
-Histórico (`PETZ_COUPON_ATTRIBUTION_VERIFIED=true` em produção 29–30/08/2026):
+Isso volta a garantir a comissão automática (via cookie `petzPartner` —
+ver "Caminho A" abaixo) em 100% dos toques em "Petz", em qualquer
+plataforma (web, PWA, app nativo), o que a versão anterior (busca com
+cupom copiado) não garantia sozinha. `openPetzPartnerStore` continua
+copiando o cupom PETTMOL pro clipboard — cobre o cliente deslogado na
+Petz (a maioria), que não ganha o pré-preenchimento automático do
+cookie (ver "Caminho A" abaixo).
+
+`/commerce/petz-direct-link` (o "Ver na Petz" por PRODUTO específico —
+recompra, resultado de busca) segue atrás do kill-switch
+`petz_publicly_disabled=True` em `config.py`: continua dormente até a
+Petz oferecer algo melhor que a busca genérica por produto. Pra
+reativar: ver `petz_provider.is_petz_publicly_servable`.
+
+Histórico (`PETZ_COUPON_ATTRIBUTION_VERIFIED=true` em produção 29–30/08/2026,
+reativado como Loja Parceira fixa em 04/09/2026):
 
 ## Mecanismo real (investigação no navegador do painel + checkout, 29/08/2026)
 
@@ -36,11 +54,18 @@ top-level), a Petz grava um cookie first-party:
 
 Com esse cookie presente, no carrinho (`/checkout`):
 - aparece **"Você está comprando na loja pettmol do Parceiro Petz"**
-  (atribuição ativa — vale mesmo sem login);
-- o campo "Cupom de desconto" vem **pré-preenchido com `PETTMOL`** e
-  validado (✓);
-- o desconto de **10% é aplicado automaticamente** (testado em produto
-  sem promoção: R$ 99,99 → −R$ 10,00).
+  (atribuição ativa — vale mesmo sem login, é só o cookie);
+- **cliente logado na Petz**: o campo "Cupom de desconto" vem
+  **pré-preenchido com `PETTMOL`** e validado (✓), e o desconto de
+  **10% é aplicado automaticamente** (testado em produto sem promoção:
+  R$ 99,99 → −R$ 10,00) — zero ação do cliente;
+- **cliente deslogado (maioria dos casos reais)**: a atribuição/comissão
+  do cookie continua valendo, mas o campo de cupom **não** vem
+  pré-preenchido — precisa digitar/colar `PETTMOL` pra ganhar os 10%. É
+  por isso que `openPetzPartnerStore` (frontend) copia `PETTMOL` pro
+  clipboard nesse mesmo clique: transforma "digitar o código" em "colar",
+  que é o mais próximo de automático que dá pra garantir sem depender do
+  cliente estar logado.
 
 **Não existe deep link oficial de produto.** O painel (Divulgação) só
 oferece: cupom `PETTMOL`, código de convite `PETTMOL` e o link fixo
