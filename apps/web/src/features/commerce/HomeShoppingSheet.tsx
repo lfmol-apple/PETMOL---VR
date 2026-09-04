@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { ChevronDown, ChevronRight, Search } from 'lucide-react';
+import { ChevronRight, Search } from 'lucide-react';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
 import { petDo, petO } from '@/lib/petGender';
 import { SheetAvatar, SheetHeader } from '@/components/ui/sheet';
@@ -48,17 +48,19 @@ type ShoppingView = 'store' | 'search';
 // antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
 //
 // Reorganizada por urgência (ver petStoreContent.groupReorderCardsByUrgency):
-// Comprar de novo (sem prazo) → Vai precisar em breve → Mais para frente
-// (recolhido) → Procurar outro produto (abre a view de busca) → lojas
-// parceiras. O pet vem antes do merchant — cada card mostra produto e
-// prazo primeiro, loja só na hora de comprar.
+// Comprar de novo (sem prazo) → Vai precisar em breve → Mais para frente →
+// Procurar outro produto (abre a view de busca) → lojas parceiras. O pet
+// vem antes do merchant — cada card mostra produto e prazo primeiro, loja
+// só na hora de comprar.
+//
+// As 3 seções de produto ficam SEMPRE visíveis (decisão de produto,
+// 04/09/2026): a Loja do Pet tem poucos itens e todos são personalizados
+// pro pet atual — nenhum produto recorrente conhecido deve ficar oculto
+// por padrão. REORDER_SOON_THRESHOLD_DAYS classifica em qual seção um
+// produto cai, nunca se ele aparece ou não.
 export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
   const [view, setView] = useState<ShoppingView>('store');
-  // "Mais para frente" começa recolhido de propósito (ver spec da tela) —
-  // produtos muito distantes não devem competir visualmente com os
-  // próximos, mas continuam a um toque de distância, nunca escondidos.
-  const [laterExpanded, setLaterExpanded] = useState(false);
   // Mantém a sheet colada ao viewport visível quando o teclado abre (busca) —
   // sem isso o campo de busca fica atrás do teclado no iOS.
   const kbViewportRef = useKeyboardSheetViewport(open);
@@ -87,7 +89,6 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
     if (!open) {
       setQuickBuyFor(null);
       setView('store');
-      setLaterExpanded(false);
       return;
     }
     void trackClick({ source: 'home', cta_type: 'shop_sheet_view', pet_id: currentPet.pet_id });
@@ -102,7 +103,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
       void trackClick({ source: 'home', cta_type: 'shop_upcoming_section_view', pet_id: currentPet.pet_id, metadata: { count: grouped.soon.length } });
     }
     if (grouped.later.length > 0) {
-      void trackClick({ source: 'home', cta_type: 'shop_later_section_view', pet_id: currentPet.pet_id, metadata: { count: grouped.later.length, expanded: false } });
+      void trackClick({ source: 'home', cta_type: 'shop_later_section_view', pet_id: currentPet.pet_id, metadata: { count: grouped.later.length } });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentPet.pet_id]);
@@ -169,12 +170,6 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   function handleSearchEntry() {
     void trackClick({ source: 'home', cta_type: 'shop_search_entry_click', pet_id: currentPet.pet_id });
     setView('search');
-  }
-
-  function handleToggleLater() {
-    const next = !laterExpanded;
-    setLaterExpanded(next);
-    void trackClick({ source: 'home', cta_type: 'shop_later_expand', pet_id: currentPet.pet_id, metadata: { count: grouped.later.length, expanded: next } });
   }
 
   function renderReorderCards(cards: ReorderCard[]) {
@@ -306,26 +301,15 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                 </div>
               )}
 
-              {/* Mais para frente — recolhido por padrão: produtos distantes
-                  não competem visualmente com os próximos, mas continuam
-                  acessíveis a um toque, nunca escondidos de verdade. */}
+              {/* Mais para frente — SEMPRE visível, igual às outras duas
+                  seções (decisão de produto, 04/09/2026): poucos produtos,
+                  todos personalizados pro pet, nenhum fica oculto por
+                  padrão. Só classificação visual (mais distante), nunca
+                  accordion/collapse. */}
               {grouped.later.length > 0 && (
                 <div>
-                  <button
-                    type="button"
-                    onClick={handleToggleLater}
-                    className="flex w-full items-center justify-between rounded-xl px-0.5 py-1 text-left active:scale-[0.99] transition-all"
-                    aria-expanded={laterExpanded}
-                  >
-                    <span className="text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Mais para frente</span>
-                    <span className="flex items-center gap-1 text-[12px] font-semibold text-slate-500">
-                      {grouped.later.length} produto{grouped.later.length > 1 ? 's' : ''} {petDo(currentPet)} {petName || 'seu pet'}
-                      <ChevronDown className={`h-3.5 w-3.5 flex-shrink-0 transition-transform duration-200 ${laterExpanded ? 'rotate-180' : ''}`} strokeWidth={2.5} />
-                    </span>
-                  </button>
-                  {laterExpanded && (
-                    <div className="mt-2.5 space-y-2.5">{renderReorderCards(grouped.later)}</div>
-                  )}
+                  <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.13em] text-slate-400">Mais para frente</p>
+                  <div className="space-y-2.5">{renderReorderCards(grouped.later)}</div>
                 </div>
               )}
 
