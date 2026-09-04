@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   getAllGuides,
+  getBuyingGuides,
   getCategoriesWithGuides,
   getFeaturedGuides,
   getRecentGuides,
@@ -19,7 +20,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 export const metadata: Metadata = {
   title: 'Guias PETMOL — decisões práticas para cães e gatos',
   description:
-    'Guias práticos sobre alimentação, higiene, comportamento, passeio, transporte, casa e rotina de cães e gatos. Direto ao ponto, com ferramentas e calculadoras quando elas ajudam. Acesso livre, sem cadastro.',
+    'Guias, comparações e calculadoras próprias para tutores de cães e gatos: como escolher ração, comparar produtos por custo real, alimentação, higiene, casa, passeio, transporte e primeiros cuidados. Conteúdo editorial com fontes citadas. Acesso livre, sem cadastro.',
   alternates: { canonical: `${SITE_URL}/guias` },
   openGraph: {
     title: 'Guias PETMOL — cães e gatos',
@@ -44,6 +45,7 @@ export default function GuiasIndexPage() {
   const featured = getFeaturedGuides();
   const recent = getRecentGuides(4);
   const tools = getToolGuides();
+  const buyingGuides = getBuyingGuides();
   const categories = getCategoriesWithGuides();
 
   return (
@@ -65,10 +67,16 @@ export default function GuiasIndexPage() {
             Decisões práticas para cuidar melhor do seu pet
           </h1>
           <p className="max-w-2xl text-[15px] leading-relaxed text-slate-500">
-            Central editorial do PETMOL para tutores de cães e gatos. Cada guia responde uma dúvida
-            concreta — que ração escolher, quanto custa alimentar o pet, coleira ou peitoral, o que
-            levar numa viagem, como organizar a higiene em casa. Direto ao ponto, com calculadoras
-            onde elas ajudam. Sem login, sem newsletter, sem enrolação.
+            Guias, comparações e ferramentas próprias para ajudar tutores de cães e gatos a escolher
+            melhor produtos, organizar a rotina e entender o custo dos cuidados. Conteúdo editorial do
+            PETMOL, com fontes citadas e critério de decisão em cada texto. Acesso livre, sem
+            cadastro.
+          </p>
+          <p className="text-[12px] text-slate-400">
+            {all.length} guias · {tools.length} calculadoras ·{' '}
+            <Link href="/politica-editorial" className="underline hover:text-slate-600">
+              como são produzidos
+            </Link>
           </p>
         </header>
 
@@ -88,10 +96,11 @@ export default function GuiasIndexPage() {
         {tools.length > 0 && (
           <section aria-labelledby="ferramentas" className="mt-12 rounded-3xl border border-emerald-200 bg-emerald-50/50 p-6">
             <h2 id="ferramentas" className="text-[16px] font-black text-slate-900">
-              🧮 Calculadoras
+              🧮 Ferramentas PETMOL
             </h2>
             <p className="mt-1 text-[13px] text-slate-500">
-              Ferramentas simples para planejar o gasto com ração. Não guardam nenhum dado.
+              Faça as contas antes de escolher. Calculadoras próprias do PETMOL, feitas para planejar
+              o gasto com ração e comparar opções — rodam no seu navegador e não guardam nenhum dado.
             </p>
             <ul className="mt-3 grid gap-2 sm:grid-cols-2">
               {tools.map((guide) => (
@@ -104,6 +113,32 @@ export default function GuiasIndexPage() {
                     <span aria-hidden className="text-emerald-600">
                       →
                     </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Guias de compra */}
+        {buyingGuides.length > 0 && (
+          <section aria-labelledby="guias-de-compra" className="mt-12">
+            <h2 id="guias-de-compra" className="text-[13px] font-black uppercase tracking-wide text-slate-400">
+              Guias de compra
+            </h2>
+            <p className="mb-4 mt-1 max-w-2xl text-[13px] text-slate-500">
+              O que observar antes de escolher produtos para o seu pet — critérios, o que comparar e
+              os erros mais comuns. Sem &ldquo;mais vendido&rdquo; e sem nota inventada.
+            </p>
+            <ul className="grid gap-2 sm:grid-cols-2">
+              {buyingGuides.map((guide) => (
+                <li key={guide.slug}>
+                  <Link
+                    href={`/guias/${guide.slug}`}
+                    className="block rounded-xl border border-slate-200 bg-white px-4 py-3 hover:border-blue-300 hover:bg-blue-50/40"
+                  >
+                    <p className="text-[14px] font-bold leading-snug text-slate-900">{guide.title}</p>
+                    <p className="mt-0.5 text-[12px] leading-snug text-slate-500">{guide.description}</p>
                   </Link>
                 </li>
               ))}

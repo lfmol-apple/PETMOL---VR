@@ -12,6 +12,7 @@ import { GuideHero } from '@/components/guides/GuideHero';
 import { GuideCard } from '@/components/guides/GuideCard';
 import { EditorialByline } from '@/components/guides/EditorialByline';
 import { SourcesList } from '@/components/guides/SourcesList';
+import { GuideRelatedProducts } from '@/components/guides/GuideRelatedProducts';
 import { AffiliateDisclosure } from '@/components/guides/AffiliateDisclosure';
 import { GuideArticleJsonLd } from '@/components/guides/JsonLd';
 import { PUBLIC_GUIDE_DETAIL_PAGE_ENABLED } from '../../publicCommercePages';
@@ -156,6 +157,8 @@ export default async function GuidePage({ params }: GuidePageProps) {
             </div>
           </section>
         )}
+
+        <GuideRelatedProducts slug={guide.slug} />
 
         <div className="mt-10 space-y-5">
           <AffiliateDisclosure variant="compact" />

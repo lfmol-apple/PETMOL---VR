@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { PRODUCT_COLLECTIONS, type ProductCollection, type ProductPick } from '@/features/guides/productCollections';
 import { getGuideBySlug } from '@/features/guides';
 import { isNativeAppUserAgent } from '@/lib/nativeApp';
-import { AffiliateDisclosure } from './AffiliateDisclosure';
+import { AffiliateDisclosure, AmazonDisclosure } from './AffiliateDisclosure';
 
 /**
  * "Produtos selecionados pelo PETMOL" — seção editorial dos Guias.
@@ -94,10 +94,13 @@ export async function ProductSelectionSection() {
         Produtos selecionados pelo PETMOL
       </h2>
       <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-slate-500">
-        Além dos nossos guias, selecionamos produtos que podem facilitar a rotina com cães e gatos.
-        As recomendações são organizadas por necessidade e aparecem junto ao conteúdo editorial
-        relacionado.
+        Complemento aos guias: uma lista curta de produtos que ajudam na rotina com cães e gatos,
+        organizada por necessidade. A escolha do que entra aqui segue os critérios dos guias — os
+        links levam à Amazon.com.br e nada nesta seção muda a conclusão de um texto.
       </p>
+      <div className="mt-4">
+        <AmazonDisclosure />
+      </div>
       <div className="mt-3">
         <AffiliateDisclosure variant="compact" />
       </div>

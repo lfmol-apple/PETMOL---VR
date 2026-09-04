@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GUIDE_CATEGORIES,
   getAllGuides,
+  getBuyingGuides,
   getFeaturedGuides,
   getGuideBySlug,
   getRelatedGuides,
@@ -82,10 +83,18 @@ describe('conteúdo dos guias — integridade estrutural', () => {
     }
   });
 
-  it('destaques do índice existem', () => {
+  it('destaques do índice existem e cobrem mais de uma categoria', () => {
     const featured = getFeaturedGuides();
     expect(featured.length).toBeGreaterThanOrEqual(3);
     for (const f of featured) expect(getGuideBySlug(f.slug)).toBeDefined();
+    expect(new Set(featured.map((f) => f.category)).size).toBeGreaterThanOrEqual(2);
+  });
+
+  it('guias de compra existem, são únicos e todos reais', () => {
+    const buying = getBuyingGuides();
+    expect(buying.length).toBeGreaterThanOrEqual(5);
+    expect(new Set(buying.map((g) => g.slug)).size).toBe(buying.length);
+    for (const g of buying) expect(getGuideBySlug(g.slug)).toBeDefined();
   });
 });
 

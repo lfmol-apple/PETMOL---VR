@@ -65,22 +65,41 @@ export default function TransparenciaPage() {
           Esse conjunto muda ao longo do tempo conforme parcerias são firmadas ou encerradas.
         </p>
 
+        <h2>Programa de Associados da Amazon — Brasil (Guias PETMOL)</h2>
+        <p>
+          Na área <Link href="/guias">Guias PETMOL</Link>, na web, o PETMOL participa do{' '}
+          <strong>Programa de Associados da Amazon</strong> (Amazon.com.br). Na seção
+          &ldquo;Produtos selecionados pelo PETMOL&rdquo; e nos blocos de produtos ao final de alguns
+          guias, os links levam à Amazon.com.br e podem gerar comissão sobre compras qualificadas,
+          sem custo adicional para você.
+          {amazonActive && (
+            <>
+              {' '}
+              A frase exigida pela Amazon — <em>&ldquo;{amazonDisclosure.requiredStatement}&rdquo;</em>{' '}
+              — aparece junto a esses links.
+            </>
+          )}
+        </p>
+        <p>
+          Essa participação vale <strong>apenas na versão web</strong> dos Guias. No{' '}
+          <strong>app nativo (iOS/Android)</strong> a seção de produtos Amazon não é exibida, por
+          política da própria Amazon para aplicativos. A conclusão de cada guia não depende desses
+          links: o conteúdo é escrito para ser útil mesmo se todos fossem removidos.
+        </p>
+
         <h2>Programa de Associados da Amazon (Amazon Associates US)</h2>
         <p>
-          O PETMOL participa do <strong>Amazon Associates US</strong> apenas na página pública e
-          editorial <Link href="/recommendations">PETMOL Recommendations</Link>, em inglês, onde
-          lista produtos que considera úteis ou interessantes. Nessa página o PETMOL pode receber
-          uma comissão sobre compras qualificadas (<em>commission on qualifying purchases</em>),
-          sem custo adicional para você. A frase exigida pela Amazon — <em>&ldquo;As an Amazon
-          Associate I earn from qualifying purchases.&rdquo;</em> — aparece junto aos links naquela
-          página.
+          Separadamente, o PETMOL participa do <strong>Amazon Associates US</strong> apenas na página
+          pública e editorial <Link href="/recommendations">PETMOL Recommendations</Link>, em inglês,
+          onde lista produtos que considera úteis ou interessantes. Nessa página o PETMOL pode receber
+          uma comissão sobre compras qualificadas (<em>commission on qualifying purchases</em>), sem
+          custo adicional para você. A frase exigida pela Amazon — <em>&ldquo;As an Amazon Associate I
+          earn from qualifying purchases.&rdquo;</em> — aparece junto aos links naquela página.
         </p>
         <p>
-          Fora dessa página, <strong>a Amazon não está ativa no PETMOL</strong>: não há links da
-          Amazon no aplicativo, na comparação de preços, na tela de compras do tutor nem no app
-          nativo (iOS/Android).
+          Fora dessas áreas, <strong>a Amazon não está ativa no PETMOL</strong>: não há links da
+          Amazon na comparação de preços, na tela de compras do tutor nem no app nativo (iOS/Android).
         </p>
-        {amazonActive && <p>{amazonDisclosure.requiredStatement}</p>}
 
         <h2>Dúvidas</h2>
         <p>
