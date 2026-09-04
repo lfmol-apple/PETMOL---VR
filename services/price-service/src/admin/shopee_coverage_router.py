@@ -39,6 +39,7 @@ class GapOut(BaseModel):
     category: Optional[str]
     cobasi_price: Optional[float]
     cobasi_title: Optional[str]
+    cobasi_image_url: Optional[str]
     reason: str
     reason_detail: Optional[str]
     suggestion: Optional[str]
@@ -73,6 +74,7 @@ def _to_out(g: ShopeeCoverageGap) -> GapOut:
     return GapOut(
         id=g.id, gtin=g.gtin, product_id=g.product_id, product_name=g.product_name,
         category=g.category, cobasi_price=g.cobasi_price, cobasi_title=g.cobasi_title,
+        cobasi_image_url=g.cobasi_image_url,
         reason=g.reason, reason_detail=g.reason_detail, suggestion=g.suggestion,
         seen_by_tutor=g.seen_by_tutor, discovery_attempts=g.discovery_attempts,
         status=g.status, resolved_note=g.resolved_note,
@@ -168,6 +170,18 @@ def categories(_admin=Depends(get_current_admin), db: Session = Depends(get_db))
 @router.post("/rebuild")
 def rebuild(_admin=Depends(get_current_admin), db: Session = Depends(get_db)):
     return rebuild_shopee_coverage_gaps(db)
+
+
+@router.post("/sync-now")
+def sync_now(_admin=Depends(get_current_admin)):
+    """Dispara na hora uma busca real na Shopee, só pros GTINs que uma nova
+    tentativa pode de fato resolver (`source=coverage_gaps` — ver
+    iter_coverage_gap_queue). Botão da tela, sem precisar do token de
+    cron/VPS: mesmo STATE/thread do sync noturno, então a barra de
+    progresso (GET /v1/admin/shopee-sync/progress) já funciona sozinha.
+    """
+    from .shopee_sync_router import RunRequest, start_sync_run
+    return start_sync_run(RunRequest(source="coverage_gaps"))
 
 
 @router.get("/export.csv")

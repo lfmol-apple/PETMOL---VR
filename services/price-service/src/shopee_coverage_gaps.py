@@ -55,6 +55,7 @@ class ShopeeCoverageGap(Base):
     category = Column(String(64), nullable=True, index=True)
     cobasi_price = Column(Float, nullable=True)
     cobasi_title = Column(Text, nullable=True)
+    cobasi_image_url = Column(Text, nullable=True)
     reason = Column(String(32), nullable=False, index=True)
     reason_detail = Column(Text, nullable=True)
     suggestion = Column(Text, nullable=True)
@@ -183,6 +184,8 @@ def rebuild_shopee_coverage_gaps(db: Session, *, limit: Optional[int] = None) ->
         gap.category = category
         gap.cobasi_price = getattr(feed, "price", None)
         gap.cobasi_title = getattr(feed, "title", None)
+        # catálogo primeiro (mais consistente entre fontes), feed como reserva.
+        gap.cobasi_image_url = getattr(product, "thumbnail_url", None) or getattr(feed, "image_url", None)
         gap.reason = reason
         gap.reason_detail = detail
         gap.suggestion = REASON_SUGGESTION.get(reason)
@@ -217,3 +220,29 @@ def _count(db: Session, status: str) -> int:
     return db.execute(text(
         "select count(*) from shopee_coverage_gaps where status = :s"
     ), {"s": status}).scalar() or 0
+
+
+# Motivos que uma NOVA tentativa de busca na Shopee pode de fato resolver.
+# `no_confident_match` e `only_conflicting` já foram buscados e o matcher
+# decidiu que não há prova suficiente — rodar de novo dá o mesmo resultado
+# (a não ser que a lógica do matcher mude); esses só resolvem com ação
+# manual do admin na tela (cadastrar link) ou marcando cobasi_only.
+RETRIABLE_REASONS = ("never_searched", "has_unverified_offer", "api_error")
+
+
+def iter_coverage_gap_queue(db: Session, *, max_products: int) -> tuple[list[str], int]:
+    """Fila enxuta pro source=coverage_gaps do sync: só os GTINs onde uma
+    nova busca pode de fato resolver o gap (`RETRIABLE_REASONS`), tutores
+    vistos primeiro. Muito menor que a fila geral (active_products) porque
+    não inclui refresh de ofertas já boas nem catálogo Awin sem prioridade
+    — é o "trabalho de verdade" atrás da tela /admin/shopee-coverage.
+    """
+    placeholders = ",".join(f":r{i}" for i in range(len(RETRIABLE_REASONS)))
+    params = {f"r{i}": r for i, r in enumerate(RETRIABLE_REASONS)}
+    rows = db.execute(text(f"""
+        select gtin from shopee_coverage_gaps
+        where status = 'open' and reason in ({placeholders})
+        order by seen_by_tutor desc, last_seen_at asc
+    """), params).fetchall()
+    gtins = [r[0] for r in rows if r[0]]
+    return gtins[:max_products], len(gtins)
