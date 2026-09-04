@@ -147,6 +147,45 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
     // vazia garante que nenhuma pré-busca nasça aqui por engano.
     const searchQuery = '';
     const url = resolvePartnerUrl(partner, searchQuery, '');
+
+    if (partner.id === 'petz') {
+      // Petz é Loja Parceira + cupom, não busca — a analítica só sai
+      // DEPOIS da tentativa de copiar o cupom, porque coupon_copied
+      // precisa ser o que de fato aconteceu no clique, não uma suposição.
+      if (!url) {
+        void trackClick({
+          source: 'home',
+          cta_type: 'shop_partner_store_click',
+          target: partner.id,
+          link_type: partnerGenericLinkType(partner.id),
+          pet_id: currentPet.pet_id,
+          metadata: { opened: false, surface: 'store_grid', search_query: searchQuery },
+        });
+        return;
+      }
+      void (async () => {
+        const copied = await openPetzPartnerStore({});
+        void trackClick({
+          source: 'home',
+          cta_type: 'shop_partner_store_click',
+          target: partner.id,
+          link_type: partnerGenericLinkType(partner.id),
+          pet_id: currentPet.pet_id,
+          metadata: {
+            opened: true,
+            surface: 'store_grid',
+            search_query: searchQuery,
+            merchant: 'petz',
+            destination_type: 'partner_store',
+            coupon: PETZ_COUPON_CODE,
+            coupon_copied: copied,
+            monetization_mode: 'partner_store_plus_coupon',
+          },
+        });
+      })();
+      return;
+    }
+
     void trackClick({
       source: 'home',
       cta_type: 'shop_partner_store_click',
@@ -160,10 +199,6 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
       },
     });
     if (!url) return;
-    if (partner.id === 'petz') {
-      void openPetzPartnerStore({});
-      return;
-    }
     navigateToPartnerUrl(url);
   }
 
@@ -203,28 +238,36 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
             });
           }}
           onPetzBuy={(petzLink) => {
-            void openPetzPartnerStore({
-              productUrl: petzLink.direct_product_url,
-              searchUrl: petzLink.search_url,
-              productName: card.label,
-            });
-            void trackClick({
-              source: 'home',
-              cta_type: 'shop_reorder_buy_petz',
-              target: 'petz',
-              link_type: 'affiliate_store',
-              pet_id: currentPet.pet_id,
-              metadata: {
-                domain: card.domain,
-                merchant: 'petz',
-                monetization_mode: 'coupon_attribution_verified',
-                destination_type: 'partner_store',
-                coupon: PETZ_COUPON_CODE,
-                gtin: card.gtin ?? undefined,
+            // openPetzPartnerStore SEMPRE abre a Loja Parceira (nunca
+            // busca/produto — ver comentário na função); productUrl/
+            // searchUrl continuam mandados só pro nome do produto exibido
+            // na ponte. coupon_copied é o que de fato aconteceu no clique
+            // (nunca assumido) — por isso a analítica espera o retorno.
+            void (async () => {
+              const copied = await openPetzPartnerStore({
+                productUrl: petzLink.direct_product_url,
+                searchUrl: petzLink.search_url,
+                productName: card.label,
+              });
+              void trackClick({
+                source: 'home',
+                cta_type: 'shop_reorder_buy_petz',
+                target: 'petz',
                 link_type: 'affiliate_store',
-                screen: 'loja',
-              },
-            });
+                pet_id: currentPet.pet_id,
+                metadata: {
+                  domain: card.domain,
+                  merchant: 'petz',
+                  monetization_mode: 'partner_store_plus_coupon',
+                  destination_type: 'partner_store',
+                  coupon: PETZ_COUPON_CODE,
+                  coupon_copied: copied,
+                  gtin: card.gtin ?? undefined,
+                  link_type: 'affiliate_store',
+                  screen: 'loja',
+                },
+              });
+            })();
           }}
         />
       );
