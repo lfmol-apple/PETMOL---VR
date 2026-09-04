@@ -148,16 +148,16 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     // checkout — nunca embutido na URL. Deve espelhar o mesmo valor de
     // STOREFRONT_AFFILIATE_URLS["petz"] em affiliate_links.py (backend).
     //
-    // DESATIVADA 2026-08-30 (decisão de produto): a Petz não oferece deep
-    // link de produto pra parceiros e a página de busca do site tem bugs
-    // fora do nosso controle — "Ver na Petz" não tinha como ficar bom sem
-    // cooperação da Petz. Backend: kill-switch petz_publicly_disabled
-    // (petz_provider.py) já derruba /commerce/petz-direct-link e o
-    // handoff. Aqui: 'disabled' tira a Petz da grade de lojas e da busca.
-    // Pra REATIVAR: 'disabled' → 'active' aqui E flip petz_publicly_disabled
-    // no backend. Todo o resto (ponte /go/petz, openPetzPartnerStore,
-    // busca curada) continua no lugar.
-    affiliateStatus: 'disabled',
+    // REATIVADA 04/09/2026 (decisão de produto) como Loja Parceira +
+    // cupom: a grade "Ou visite uma loja parceira" leva SEMPRE pra
+    // https://www.petz.com.br/parceiro/pettmol (nunca busca/produto —
+    // ver openPetzPartnerStore) e copia o cupom PETTMOL antes de abrir.
+    // Isso não depende de /commerce/petz-direct-link nem do kill-switch
+    // petz_publicly_disabled no backend (esse endpoint só alimenta o
+    // "Ver na Petz" por produto específico, que continua desligado/
+    // dormant até o programa oferecer deep link comprovadamente seguro —
+    // ver PETZ_PARTNER_STORE_URL e openPetzPartnerStore abaixo).
+    affiliateStatus: 'active',
     merchantType: 'retailer',
     affiliateMode: 'fixed_store',
     supportsProductDeepLink: false,
@@ -429,23 +429,31 @@ export function petzBridgeUrl(target: string, productName?: string): string {
 }
 
 /**
- * Clique "Ver na Petz". Leva o cliente pra ONDE O PRODUTO APARECE, sem
- * cair no app da Petz:
- *  - `searchUrl` (`/busca?q=...`): a busca da Petz já com o termo — o
- *    produto aparece nos resultados (1º, pra produto mapeado). É o
- *    caminho padrão: `/busca` NÃO está na AASA da Petz, então o iOS não
- *    entrega ao app.
- *  - sem `searchUrl` utilizável → a Loja Parceira `/parceiro/pettmol`.
+ * Clique "Ver na Petz" / "Petz" (grade de lojas parceiras ou por produto).
  *
- * `productUrl` (`/produto/...`) **não é usado como destino** — esse path
- * está na AASA da Petz e o iOS o entrega ao app (tela "DETALHES"
- * quebrada). Fica na assinatura só pra o backend continuar mandando.
+ * SEMPRE abre a Loja Parceira — `PETZ_PARTNER_STORE_URL`
+ * (`/parceiro/pettmol`) — nunca `/busca?q=` nem `/produto/...` (decisão de
+ * produto, 04/09/2026: reduzir ao máximo o risco de perder comissão). A
+ * Petz não documenta oficialmente nenhum parâmetro de cupom/rastreio pra
+ * busca ou produto, e não há prova de que esses caminhos preservem a
+ * atribuição do Parceiro Petz — só a Loja Parceira é um destino confirmado.
+ * `productUrl`/`searchUrl` continuam na assinatura (quem chama — "Ver na
+ * Petz" por produto — ainda manda esses dados) só pra alimentar o nome do
+ * produto exibido na ponte; nunca decidem o destino. Se um dia a Petz
+ * documentar/comprovar um deep link seguro, é aqui que ele voltaria a
+ * decidir o `target`.
  *
  * Copia o cupom `PETTMOL` pro clipboard — é o que garante os 10% + a
- * comissão do Parceiro Petz quando o cliente cola no carrinho.
+ * comissão do Parceiro Petz quando o cliente cola no carrinho. Se o
+ * clipboard falhar (comum em WebView sem gesto), a Petz abre do mesmo
+ * jeito — o cupom nunca bloqueia a navegação — e o toast troca pra avisar
+ * o tutor a colar o cupom manualmente; a ponte /go/petz também mostra o
+ * código pra copiar lá, como segunda chance.
  *
  * Sempre via a ponte `/go/petz` (redirect JS). Vale igual em web, PWA e
- * Capacitor.
+ * Capacitor. Retorna `true`/`false` conforme o cupom foi mesmo copiado —
+ * quem chama usa isso pra registrar `coupon_copied` na analítica (nunca
+ * assumido, sempre o que de fato aconteceu no clique).
  */
 export async function openPetzPartnerStore(
   opts: {
@@ -453,23 +461,31 @@ export async function openPetzPartnerStore(
     productName?: string | null;
     searchUrl?: string | null;
   } = {},
-): Promise<void> {
+): Promise<boolean> {
   const productName = (opts.productName ?? '').trim();
-  const searchUrl = (opts.searchUrl ?? '').trim();
+  // Não decidem mais o destino (ver comentário acima) — mantidos na
+  // assinatura só por compatibilidade com quem ainda os manda.
+  void opts.productUrl;
+  void opts.searchUrl;
 
-  // `/busca?q=` (fora da AASA da Petz) → senão a Loja Parceira.
-  const target = isSafePetzTarget(searchUrl) ? searchUrl : PETZ_PARTNER_STORE_URL;
+  const target = PETZ_PARTNER_STORE_URL;
 
   // Cupom no tempo do gesto (onClick) — melhor chance no WebView do iOS.
   const copied = await copyText(PETZ_COUPON_CODE).catch(() => false);
   if (copied) {
-    showAppToast(`Cupom ${PETZ_COUPON_CODE} copiado — cole no carrinho da Petz pra 10% de desconto.`, {
+    showAppToast(`Cupom ${PETZ_COUPON_CODE} copiado — 10% OFF na Petz`, {
       tone: 'success',
+      durationMs: 6000,
+    });
+  } else {
+    showAppToast(`Use o cupom ${PETZ_COUPON_CODE} para 10% OFF`, {
+      tone: 'neutral',
       durationMs: 6000,
     });
   }
 
   navigateToPartnerUrl(petzBridgeUrl(target, productName || undefined));
+  return copied;
 }
 
 /**

@@ -12,7 +12,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
     ]);
   });
 
-  it('LANÇAMENTO (2026-08-30): só Cobasi e Shopee visíveis; Petz e Mercado Livre desativados', async () => {
+  it('Petz reativada (04/09/2026) como Loja Parceira; só Mercado Livre segue fora do lançamento', async () => {
     const {
       HOME_SHOPPING_PARTNERS,
       isPartnerVisibleForSearch,
@@ -21,16 +21,25 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
 
     expect(HOME_SHOPPING_PARTNERS.map((partner) => partner.affiliateStatus)).toEqual([
       'active',    // cobasi
-      'disabled',  // petz — desativada
+      'active',    // petz — Loja Parceira + cupom PETTMOL
       'disabled',  // mercadolivre — fora do lançamento, entra depois
       'active',    // shopee
     ]);
+    // Área geral "Lojas" (grade de parceiros): Petz aparece.
     expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
       'cobasi',
+      'petz',
       'shopee',
     ]);
+    // QuickBuyRow (recompra rápida por busca de texto) continua só
+    // Cobasi/Shopee — QUICK_BUY_PARTNERS (petStoreContent.ts) não inclui
+    // Petz; isPartnerVisibleForSearch por si só não filtra por essa lista,
+    // só por affiliateStatus/affiliate-only, então com Petz ativa ela
+    // também passa a aparecer aqui — quem restringe pra ['cobasi','shopee']
+    // é QUICK_BUY_PARTNERS, testado em petStoreContent.test.ts.
     expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
       'cobasi',
+      'petz',
       'shopee',
     ]);
   });
@@ -130,12 +139,16 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(shopee && resolvePartnerUrl(shopee, 'ração pet', '')).toBe('https://s.shopee.com.br/4AzW1leQcW');
       expect(mercadoLivre && resolvePartnerUrl(mercadoLivre, 'ração pet', '')).toBe('https://meli.la/2ftAKx5');
       expect(petz && resolvePartnerUrl(petz, 'ração pet', '')).toContain('petz.com.br/parceiro/pettmol');
+      // Petz tem storefrontAffiliateUrl confirmada → conta como afiliado
+      // mesmo em affiliate-only, então aparece junto de Cobasi/Shopee.
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
         'cobasi',
+        'petz',
         'shopee',
       ]);
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
         'cobasi',
+        'petz',
         'shopee',
       ]);
     } finally {
@@ -168,6 +181,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(partnerGenericLinkType('shopee')).toBe('affiliate_search');
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
         'cobasi',
+        'petz',
         'shopee',
       ]);
     } finally {
@@ -204,6 +218,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(HOME_SHOPPING_PARTNERS.map((partner) => partner.id)).not.toContain('zeedog');
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleInStoreArea).map((partner) => partner.id)).toEqual([
         'cobasi',
+        'petz',
         'shopee',
       ]);
     } finally {

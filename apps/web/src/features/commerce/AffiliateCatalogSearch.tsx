@@ -485,27 +485,35 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          void openPetzPartnerStore({
-                            productUrl: typeof petzResolved === 'object' ? petzResolved.direct_product_url : undefined,
-                            searchUrl: typeof petzResolved === 'object' ? petzResolved.search_url : undefined,
-                            productName: item.title ?? undefined,
-                          });
                           setStoreChoicesForGtin(null);
-                          void trackClick({
-                            source: 'home',
-                            cta_type: 'shop_awin_search_buy',
-                            target: 'petz',
-                            link_type: 'affiliate_store',
-                            pet_id: petId,
-                            metadata: {
-                              merchant: 'petz',
-                              gtin: item.gtin,
-                              coupon: PETZ_COUPON_CODE,
-                              destination_type: 'partner_store',
+                          // openPetzPartnerStore SEMPRE abre a Loja
+                          // Parceira (nunca busca/produto). coupon_copied
+                          // é o que de fato aconteceu no clique — por isso
+                          // a analítica espera o retorno em vez de assumir.
+                          void (async () => {
+                            const copied = await openPetzPartnerStore({
+                              productUrl: typeof petzResolved === 'object' ? petzResolved.direct_product_url : undefined,
+                              searchUrl: typeof petzResolved === 'object' ? petzResolved.search_url : undefined,
+                              productName: item.title ?? undefined,
+                            });
+                            void trackClick({
+                              source: 'home',
+                              cta_type: 'shop_awin_search_buy',
+                              target: 'petz',
                               link_type: 'affiliate_store',
-                              screen: 'loja',
-                            },
-                          });
+                              pet_id: petId,
+                              metadata: {
+                                merchant: 'petz',
+                                gtin: item.gtin,
+                                coupon: PETZ_COUPON_CODE,
+                                coupon_copied: copied,
+                                destination_type: 'partner_store',
+                                monetization_mode: 'partner_store_plus_coupon',
+                                link_type: 'affiliate_store',
+                                screen: 'loja',
+                              },
+                            });
+                          })();
                         }}
                         className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 hover:bg-white hover:border-blue-300 px-3 py-2 transition-all active:scale-[0.98]"
                       >

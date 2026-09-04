@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Capacitor (app nativo PETMOL): "Ver na Petz" abre a ponte /go/petz no
-// navegador do sistema (SFSafariViewController / Chrome Custom Tab) via
-// @capacitor/browser. A ponte redireciona por JS pra a BUSCA da Petz
-// (`/busca?q=`) — nunca `/produto/...`, que a AASA da Petz reivindica e o
-// iOS entrega ao app. O cupom PETTMOL vai pro clipboard antes.
+// Capacitor (app nativo PETMOL): "Ver na Petz" / card "Petz" abre a ponte
+// /go/petz no navegador do sistema (SFSafariViewController / Chrome
+// Custom Tab) via @capacitor/browser. A ponte SEMPRE redireciona por JS
+// pra a Loja Parceira (`/parceiro/pettmol`) — nunca `/busca?q=` nem
+// `/produto/...` (decisão de produto, 04/09/2026: reduzir ao máximo o
+// risco de perder comissão). O cupom PETTMOL vai pro clipboard antes.
 // Ver docs/AFFILIATES.md §Petz.
 
 const browserOpen = vi.fn().mockResolvedValue(undefined);
@@ -29,7 +30,7 @@ describe('openPetzPartnerStore — Capacitor', () => {
     vi.unstubAllGlobals();
   });
 
-  it('mesmo com productUrl (/produto/), a ponte vai pra a BUSCA — nunca /produto/', async () => {
+  it('mesmo com productUrl (/produto/) e searchUrl (/busca), a ponte vai pra a Loja Parceira — nunca /produto/ ou /busca', async () => {
     const openSpy = vi.fn();
     vi.stubGlobal('open', openSpy);
 
@@ -41,19 +42,20 @@ describe('openPetzPartnerStore — Capacitor', () => {
     expect(browserOpen).toHaveBeenCalledTimes(1);
     const url = new URL(browserOpen.mock.calls[0][0].url as string);
     expect(url.pathname).toBe('/go/petz');
-    expect(url.searchParams.get('to')).toBe(SEARCH_URL);
+    expect(url.searchParams.get('to')).toBeNull();
     expect(url.href).not.toContain('/produto/');
+    expect(url.href).not.toContain('/busca');
     expect(writeText).toHaveBeenCalledWith('PETTMOL');
   });
 
-  it('produto sem mapping: ponte /go/petz?to=<busca>', async () => {
+  it('produto sem mapping (só searchUrl): ponte /go/petz sem ?to= — vai pra Loja Parceira', async () => {
     vi.stubGlobal('open', vi.fn());
     const { openPetzPartnerStore } = await import('./homeShoppingPartners');
     await openPetzPartnerStore({ searchUrl: SEARCH_URL, productName: 'Ração Golden' });
     await vi.waitFor(() => expect(browserOpen).toHaveBeenCalled());
 
     const url = new URL(browserOpen.mock.calls[0][0].url as string);
-    expect(url.searchParams.get('to')).toBe(SEARCH_URL);
+    expect(url.searchParams.get('to')).toBeNull();
   });
 
   it('sem produto nem busca: ponte /go/petz sem ?to=', async () => {
