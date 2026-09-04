@@ -633,6 +633,8 @@ function HomePageInner() {
     id: string; pet_name: string; species: string | null;
     last_seen_location: string | null; missing_date: string | null;
     missing_time: string | null; created_at: string | null; user_id: string;
+    photo_url: string | null; breed: string | null;
+    characteristics: string | null; public_slug: string | null;
   };
   const [nearbyAlerts, setNearbyAlerts] = useState<NearbyAlert[]>([]);
 
@@ -2140,15 +2142,32 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
               const missingInfo = alert.missing_date
                 ? `Desaparecido em ${alert.missing_date}${alert.missing_time ? ' às ' + alert.missing_time : ''}`
                 : 'Desaparecido recentemente';
+              const alertPhotoUrl = getPhotoUrl(alert.photo_url);
+              const descricao = [alert.breed, alert.characteristics].filter(Boolean).join(' · ');
+              const cardHref = alert.public_slug
+                ? `/pet-perdido/${alert.public_slug}`
+                : `/achei-um-pet?id=${alert.id}`;
               return (
                 <div
                   key={alert.id}
                   className="rounded-2xl border border-rose-300 bg-gradient-to-br from-rose-500 to-rose-600 p-4 shadow-lg shadow-rose-900/20"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-white/20 text-2xl">
-                      {alert.species === 'cat' ? '🐱' : '🐶'}
-                    </div>
+                    {/* Foto do pet — toque abre o cartaz completo (o card que o
+                        tutor gerou pra compartilhar). Sem foto → emoji. */}
+                    <button
+                      type="button"
+                      onClick={() => router.push(cardHref)}
+                      aria-label={`Ver cartaz de ${alert.pet_name}`}
+                      className="relative flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/20 text-2xl active:scale-95 transition-transform"
+                    >
+                      {alertPhotoUrl ? (
+                        <img src={alertPhotoUrl} alt={alert.pet_name} className="h-full w-full object-cover" />
+                      ) : (
+                        <span>{alert.species === 'cat' ? '🐱' : '🐶'}</span>
+                      )}
+                      <span className="absolute bottom-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/45 text-[9px] leading-none text-white">⤢</span>
+                    </button>
                     <div className="min-w-0 flex-1">
                       <p className="text-[11px] font-bold uppercase tracking-wider text-rose-100">
                         Alerta · {speciesLabel} desaparecido
@@ -2156,6 +2175,11 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       <h3 className="mt-0.5 text-[17px] font-black leading-tight text-white">
                         {alert.pet_name} pode estar na sua região!
                       </h3>
+                      {descricao && (
+                        <p className="mt-1 text-[12px] font-medium text-white/90 line-clamp-2">
+                          {descricao}
+                        </p>
+                      )}
                       {alert.last_seen_location && (
                         <p className="mt-1 text-[12px] font-medium text-rose-100">
                           Visto em: {alert.last_seen_location}
@@ -2176,13 +2200,22 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       ×
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/achei-um-pet?id=${alert.id}`)}
-                    className="mt-3 w-full rounded-xl bg-white py-2.5 text-[14px] font-black text-rose-600 shadow-sm active:scale-95 transition-transform"
-                  >
-                    Encontrei este pet
-                  </button>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => router.push(cardHref)}
+                      className="flex-1 rounded-xl bg-white/15 py-2.5 text-[13px] font-bold text-white active:scale-95 transition-transform"
+                    >
+                      Ver cartaz
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/achei-um-pet?id=${alert.id}`)}
+                      className="flex-1 rounded-xl bg-white py-2.5 text-[13px] font-black text-rose-600 shadow-sm active:scale-95 transition-transform"
+                    >
+                      Encontrei este pet
+                    </button>
+                  </div>
                 </div>
               );
             })}
