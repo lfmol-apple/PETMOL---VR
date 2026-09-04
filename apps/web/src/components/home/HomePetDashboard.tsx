@@ -255,20 +255,6 @@ export function HomePetDashboard({
 
   const [showShoppingSheet, setShowShoppingSheet] = useState(false);
 
-  // Bolinha de alerta no card "Loja" — acende quando algo que o pet consome
-  // (ração, antiparasitário, vermífugo, remédio) está pra acabar/vencer, para
-  // o tutor abrir a Loja já sabendo por quê. Deriva dos MESMOS lembretes já
-  // calculados; ignora a sentinela de petisco (diff 9999). Some quando não há
-  // nada pendente — não é propaganda, é eco do que o tutor cadastrou.
-  const shoppingTone: CardTone = useMemo(() => {
-    const buyable = reminders.filter(
-      (r) => (r.domain === 'food' || r.domain === 'parasite' || r.domain === 'medication') && r.diff < 9000,
-    );
-    if (buyable.some((r) => r.diff <= 0)) return 'critical';
-    if (buyable.some((r) => r.diff > 0 && r.diff <= 7)) return 'warning';
-    return 'neutral';
-  }, [reminders]);
-
   useEffect(() => {
     onUpcomingCountChange?.(allUpcomingReminders.length, allUpcomingReminders);
   }, [allUpcomingReminders, onUpcomingCountChange]);
@@ -384,7 +370,6 @@ export function HomePetDashboard({
         colorFood={colorFood}
         colorMedicacao={colorMedicacao}
         colorVaccines={colorVacinas}
-        colorShopping={shoppingTone}
       />
       <HomeShoppingSheet
         open={showShoppingSheet}
