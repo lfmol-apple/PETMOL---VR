@@ -35,6 +35,31 @@ Desde 01/09/2026, essa separação é codificada explicitamente em
 
 Detalhes operacionais: `docs/PRODUCT_IDENTITY.md`.
 
+## Shopee só vitrine — decisão de produto 05/09/2026 (ativa, reversível)
+
+**Decidido e implementado em 05/09/2026, vale até nova ordem.** A Shopee
+fica **só como card no rodapé da Loja do Pet** ("Ou visite uma loja
+parceira"), **desvinculada da busca e dos preços dos produtos do pet**:
+- **fora dos cards de recompra** e do "Escolha a loja" —
+  `fetchCommerceOffers` (`productPricing.ts`) descarta `merchant ===
+  'shopee'` da lista servida ao frontend; `QUICK_BUY_PARTNERS`
+  (`petStoreContent.ts`) = `['cobasi']`;
+- **fora da busca** ("Procurar outro produto") — a busca já era
+  Cobasi-only (Awin feed); a resolução de loja por resultado usa o
+  mesmo `fetchCommerceOffers` filtrado.
+- **`shopee_affiliate_enabled` continua `True`** — o card da vitrine e o
+  shortlink afiliado do rodapé funcionam normal; o backend segue
+  calculando a oferta Shopee (o filtro é 100% frontend, um ponto só,
+  fácil de reverter).
+
+Racional: quem compra na Shopee quer barato e pesquisa lá sozinho; o
+único ponto de monetização Shopee que faz sentido é o card da vitrine.
+**Cobasi não muda** — segue na busca e nos preços por produto.
+
+**Como reverter:** tirar o `.filter((offer) => offer.merchant !==
+'shopee')` de `fetchCommerceOffers` e devolver `'shopee'` a
+`QUICK_BUY_PARTNERS`.
+
 ## Lançamento (2026-08-30): **Cobasi + Shopee**
 
 O app lança com **Cobasi** e **Shopee** como lojas ativas. **Petz**

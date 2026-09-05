@@ -31,12 +31,12 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       'petz',
       'shopee',
     ]);
-    // QuickBuyRow (recompra rápida por busca de texto) continua só
-    // Cobasi/Shopee — QUICK_BUY_PARTNERS (petStoreContent.ts) não inclui
-    // Petz; isPartnerVisibleForSearch por si só não filtra por essa lista,
-    // só por affiliateStatus/affiliate-only, então com Petz ativa ela
-    // também passa a aparecer aqui — quem restringe pra ['cobasi','shopee']
-    // é QUICK_BUY_PARTNERS, testado em petStoreContent.test.ts.
+    // isPartnerVisibleForSearch (gate por affiliateStatus/affiliate-only)
+    // continua deixando Cobasi/Petz/Shopee passarem — mas quem restringe
+    // o QuickBuyRow dos produtos do pet é QUICK_BUY_PARTNERS
+    // (petStoreContent.ts), hoje só ['cobasi'] (Shopee virou só vitrine,
+    // 05/09/2026). Este gate também é usado pela vitrine do rodapé, então
+    // Shopee segue aqui.
     expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([
       'cobasi',
       'petz',

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { hasReliablePrice, preferCobasiOffer, type CommerceOffer } from './productPricing';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fetchCommerceOffers, hasReliablePrice, preferCobasiOffer, type CommerceOffer } from './productPricing';
 
 function offer(overrides: Partial<CommerceOffer> & { merchant: string }): CommerceOffer {
   return {
@@ -88,5 +88,36 @@ describe('preferCobasiOffer — Cobasi primeiro nos cards da Loja do Pet (produt
     const result = preferCobasiOffer(offers);
     expect(result).toHaveLength(offers.length);
     expect(new Set(result.map((o) => o.merchant))).toEqual(new Set(offers.map((o) => o.merchant)));
+  });
+});
+
+describe('fetchCommerceOffers — Shopee só vitrine (05/09/2026)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('descarta ofertas da Shopee; mantém as demais lojas', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        offers: [
+          { merchant: 'cobasi', url: 'https://cobasi.com.br/x', price: 80, is_available: true },
+          { merchant: 'shopee', url: 'https://s.shopee.com.br/x', price: 50, is_available: true },
+          { merchant: 'mercadolivre', url: 'https://ml.com/x', price: 70, is_available: true },
+        ],
+      }),
+    }));
+
+    const result = await fetchCommerceOffers('racao', undefined, '7890000000001');
+    expect(result.map((o) => o.merchant)).toEqual(['cobasi', 'mercadolivre']);
+    expect(result.some((o) => o.merchant === 'shopee')).toBe(false);
+  });
+
+  it('só Shopee no backend → nenhuma oferta por produto', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ offers: [{ merchant: 'shopee', url: 'https://s.shopee.com.br/x', price: 50, is_available: true }] }),
+    }));
+    expect(await fetchCommerceOffers('racao')).toEqual([]);
   });
 });

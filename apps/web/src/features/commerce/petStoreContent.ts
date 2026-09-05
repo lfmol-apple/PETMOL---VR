@@ -23,12 +23,14 @@ export function buildPetStoreTitle(pet: { sex?: 'male' | 'female' | null; pet_na
 // inventado. Só os domínios que correspondem a algo que se compra de novo.
 const BUYABLE_DOMAINS: CareReminderDomain[] = ['food', 'parasite', 'medication'];
 
-// Lojas permitidas no app no lançamento (2026-08-30): só Cobasi e Shopee.
-// Petz foi desativada e Mercado Livre / Amazon entram depois — ver
-// affiliateStatus em homeShoppingPartners.ts. A recompra prioriza ofertas
-// monetizadas do CommerceEngine; este fallback só mostra lojas desta
-// lista, e ainda passa por isPartnerVisibleForSearch (defesa em profundidade).
-export const QUICK_BUY_PARTNERS: HomeShoppingPartnerId[] = ['cobasi', 'shopee'];
+// Lojas no "Escolha a loja" / QuickBuyRow dos produtos do pet (fallback
+// quando não há oferta monetizada exata). Só Cobasi: a Shopee saiu daqui
+// em 05/09/2026 (decisão de produto, reversível — "Shopee só vitrine",
+// ver docs/AFFILIATES.md e fetchCommerceOffers em productPricing.ts). A
+// Shopee continua como card no rodapé da Loja do Pet, fora da busca e
+// dos preços por produto. Petz é caminho separado; ML/Amazon entram
+// depois. Ainda passa por isPartnerVisibleForSearch (defesa em profundidade).
+export const QUICK_BUY_PARTNERS: HomeShoppingPartnerId[] = ['cobasi'];
 
 export interface ReorderCard {
   id: string;
