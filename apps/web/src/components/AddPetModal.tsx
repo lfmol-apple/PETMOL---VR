@@ -3,10 +3,10 @@
 import { getToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, Plus, X } from 'lucide-react';
+import { Camera, PawPrint, Plus } from 'lucide-react';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { PetPhotoPicker } from './PetPhotoPicker';
-import { ModalPortal } from '@/components/ModalPortal';
+import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
 import { localTodayISO } from '@/lib/localDate';
 import { sanitizePetName } from '@/lib/petName';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
@@ -502,28 +502,17 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
   };
 
   return (
-    <ModalPortal>
-      <>
-        {showPhotoPicker && (
-          <PetPhotoPicker initialSrc={petPhoto || null} onConfirm={handlePhotoPickerConfirm} onCancel={() => setShowPhotoPicker(false)} />
-        )}
+    <>
+      <SheetShell open onClose={onClose} size="md" hideHandle z={90}>
+            <SheetHeader
+              tone="petmol"
+              withHandle
+              title="Novo pet"
+              onClose={onClose}
+              media={<SheetIcon tone="onPetmol"><PawPrint className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+            />
 
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-fadeIn">
-          <div className="flex max-h-[96dvh] w-full flex-col bg-white sm:max-w-sm rounded-[32px] animate-scaleIn overflow-hidden shadow-2xl">
-
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100">
-              <div>
-                <p className="text-base font-bold text-slate-900">Novo pet</p>
-                <p className="text-[13px] text-slate-400 font-medium">Preencha os dados abaixo</p>
-              </div>
-              <button type="button" onClick={onClose}
-                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 active:scale-95 transition-all">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-5 space-y-5">
+            <SheetShell.Body className="space-y-5">
 
               {/* Foto */}
               <div className="flex flex-col items-center gap-2">
@@ -622,22 +611,26 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
                   {error}
                 </div>
               )}
-            </div>
+            </SheetShell.Body>
 
             {/* Footer */}
-            <div className="border-t border-slate-100 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-3">
-              <button type="button" onClick={onClose}
-                className="flex-1 py-3.5 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white active:scale-[0.98] transition-all">
-                Cancelar
-              </button>
-              <button type="button" onClick={handleSubmit} disabled={loading || !canSubmit}
-                className="flex-1 py-3.5 rounded-2xl bg-[#0056D2] text-white text-sm font-semibold active:scale-[0.98] transition-all disabled:opacity-40 shadow-md shadow-blue-600/20">
-                {loading ? 'Salvando…' : 'Adicionar pet'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </>
-    </ModalPortal>
+            <SheetShell.Footer>
+              <div className="flex gap-3">
+                <button type="button" onClick={onClose}
+                  className="flex-1 py-3.5 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white active:scale-[0.98] transition-all">
+                  Cancelar
+                </button>
+                <button type="button" onClick={handleSubmit} disabled={loading || !canSubmit}
+                  className="flex-1 py-3.5 rounded-2xl bg-[#0056D2] text-white text-sm font-semibold active:scale-[0.98] transition-all disabled:opacity-40 shadow-md shadow-blue-600/20">
+                  {loading ? 'Salvando…' : 'Adicionar pet'}
+                </button>
+              </div>
+            </SheetShell.Footer>
+      </SheetShell>
+
+      {showPhotoPicker && (
+        <PetPhotoPicker initialSrc={petPhoto || null} onConfirm={handlePhotoPickerConfirm} onCancel={() => setShowPhotoPicker(false)} />
+      )}
+    </>
   );
 }

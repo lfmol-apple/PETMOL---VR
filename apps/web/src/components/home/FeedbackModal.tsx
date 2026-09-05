@@ -1,7 +1,9 @@
 'use client';
 
 import type { Dispatch, SetStateAction } from 'react';
+import { Wrench } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
+import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
 import type { VaccineRecord } from '@/lib/petHealth';
 
 type FeedbackFormData = {
@@ -35,26 +37,23 @@ export function FeedbackModal({
   handleSubmitFeedback,
 }: FeedbackModalProps) {
   const { t, locale } = useI18n();
+  const close = () => {
+    setShowFeedbackModal(false);
+    setFeedbackVaccine(null);
+  };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-[90]">
-      <div className="p-4 sm:p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 overflow-hidden">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold flex items-center gap-2">🔧 Reportar Problema</h3>
-          <button
-            onClick={() => {
-              setShowFeedbackModal(false);
-              setFeedbackVaccine(null);
-            }}
-            className="text-gray-500 hover:text-gray-700 text-2xl"
-          >
-            ✕
-          </button>
-        </div>
+    <SheetShell open onClose={close} tone="grey" size="md" z={90}>
+      <SheetHeader
+        title="Reportar problema"
+        media={<SheetIcon tone="amber"><Wrench className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+        onClose={close}
+      />
 
-        <p className="text-sm text-gray-600 mb-4">{t('feedback.help_improve')}</p>
+      <SheetShell.Body className="space-y-4">
+        <p className="text-sm text-gray-600">{t('feedback.help_improve')}</p>
 
-        <div className="bg-gray-50 p-3 rounded-lg mb-4">
+        <div className="bg-white border border-slate-200 p-3 rounded-2xl">
           <p className="text-sm font-medium text-gray-700">
             {t('feedback.vaccine_label')} <span className="font-bold">{feedbackVaccine.vaccine_name}</span>
           </p>
@@ -102,7 +101,7 @@ export function FeedbackModal({
                   corrected_value: '',
                 }));
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
               <option value="name">{t('feedback.field_vaccine_name')}</option>
               <option value="brand">{t('feedback.field_brand')}</option>
@@ -133,7 +132,7 @@ export function FeedbackModal({
               type={feedbackFormData.field_corrected.includes('date') ? 'date' : 'text'}
               value={feedbackFormData.corrected_value}
               onChange={(e) => setFeedbackFormData((prev) => ({ ...prev, corrected_value: e.target.value }))}
-              className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder={t('feedback.placeholder_correct')}
               required
             />
@@ -146,34 +145,34 @@ export function FeedbackModal({
             <textarea
               value={feedbackFormData.user_comment}
               onChange={(e) => setFeedbackFormData((prev) => ({ ...prev, user_comment: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 resize-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
               rows={3}
               placeholder={t('feedback.placeholder_comment')}
             />
           </div>
         </div>
 
-        <div className="flex gap-3 mt-6">
+        <p className="text-xs text-gray-500 text-center">{t('feedback.help_all_users')}</p>
+      </SheetShell.Body>
+
+      <SheetShell.Footer tone="grey">
+        <div className="flex gap-3">
           <button
-            onClick={() => {
-              setShowFeedbackModal(false);
-              setFeedbackVaccine(null);
-            }}
-            className="flex-1 px-4 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-colors"
+            type="button"
+            onClick={close}
+            className="flex-1 rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-semibold text-slate-700 transition-all active:scale-[0.98]"
           >
             {t('common.cancel')}
           </button>
           <button
+            type="button"
             onClick={handleSubmitFeedback}
-            className="flex-1 px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#0056D2] py-3.5 text-sm font-semibold text-white shadow-md shadow-blue-600/20 transition-all active:scale-[0.98]"
           >
-            <span>🚀</span>
-            <span>{t('feedback.send_correction')}</span>
+            {t('feedback.send_correction')}
           </button>
         </div>
-
-        <p className="text-xs text-gray-500 mt-4 text-center">{t('feedback.help_all_users')}</p>
-      </div>
-    </div>
+      </SheetShell.Footer>
+    </SheetShell>
   );
 }
