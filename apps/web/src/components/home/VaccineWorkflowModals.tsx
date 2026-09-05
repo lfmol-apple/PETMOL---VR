@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { ModalPortal } from '@/components/ModalPortal';
+import { Camera, Check, Syringe } from 'lucide-react';
+import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
 import { VaccineCardUpload } from '@/components/VaccineCardUpload';
 import { useI18n } from '@/lib/I18nContext';
 import type { VaccineCardOcrRecord, VaccineCardOcrResponse } from '@/lib/vaccineOcr';
@@ -108,41 +109,34 @@ export function VaccineWorkflowModals({
   }
 
   return (
-    <ModalPortal>
+    <>
       {/* Toast */}
       {toast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 rounded-2xl bg-amber-50 border border-amber-200 shadow-lg text-sm font-semibold text-amber-800 max-w-sm w-full flex items-center gap-2">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[120] px-4 py-3 rounded-2xl bg-amber-50 border border-amber-200 shadow-lg text-sm font-semibold text-amber-800 max-w-sm w-full flex items-center gap-2">
           <span className="flex-1">{toast}</span>
           <button onClick={() => setToast(null)} className="text-[11px] font-bold text-amber-700 underline">OK</button>
         </div>
       )}
       {showVaccineForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-[80]">
-          <div className="p-4 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 overflow-hidden">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold flex items-center gap-2">
-                💉 {editingVaccine ? t('health.vaccines.form.title.edit') : t('health.vaccines.form.title.new')}
-              </h3>
-              <div className="flex items-center gap-2">
-                {!editingVaccine && (
-                  <button
-                    onClick={onOpenAIUpload}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg hover:from-purple-600 hover:to-[#0056D2] transition-all text-sm font-medium shadow-lg"
-                  >
-                    <span className="text-lg">🤖</span>
-                    {t('health.vaccines.form.read_card')}
-                  </button>
-                )}
-                <button
-                  onClick={resetVaccineForm}
-                  className="text-gray-500 hover:text-gray-700 text-2xl"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
+        <SheetShell open onClose={resetVaccineForm} tone="grey" size="lg" hideHandle z={80}>
+          <SheetHeader
+            tone="petmol"
+            withHandle
+            title={editingVaccine ? t('health.vaccines.form.title.edit') : t('health.vaccines.form.title.new')}
+            onClose={resetVaccineForm}
+            media={<SheetIcon tone="onPetmol"><Syringe className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+            action={!editingVaccine ? (
+              <button
+                type="button"
+                onClick={onOpenAIUpload}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[12px] font-semibold text-white transition-colors hover:bg-white/25 active:scale-95"
+              >
+                🤖 {t('health.vaccines.form.read_card')}
+              </button>
+            ) : undefined}
+          />
 
-            <div className="space-y-4">
+          <SheetShell.Body className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   {t('vaccine_form.vaccine_type')} *
@@ -284,52 +278,46 @@ export function VaccineWorkflowModals({
                 onTimeChange={v => setVaccineFormData(prev => ({ ...prev, reminder_time: v }))}
               />
 
-              <div className="sticky bottom-0 bg-white z-10 pt-3 pb-3 -mx-4 px-4 border-t border-gray-100 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] flex gap-3">
-                <button
-                  onClick={async () => {
-                    await handleSaveVaccine();
-                    onAfterSave?.();
-                  }}
-                  disabled={vaccineFormSaving}
-                  className={`flex-1 bg-green-600 text-white px-4 py-3 rounded-xl font-semibold transition-colors text-base ${vaccineFormSaving ? 'opacity-60 cursor-not-allowed' : 'hover:bg-green-700'}`}
-                >
-                  {vaccineFormSaving ? '⏳ Salvando...' : editingVaccine ? `✅ ${t('common.save')}` : `➕ ${t('vaccine_form.add_vaccine')}`}
-                </button>
-                <button
-                  onClick={resetVaccineForm}
-                  className="px-6 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-medium text-base"
-                >
-                  {t('common.cancel')}
-                </button>
-              </div>
-
               {editingVaccine && (
-                <div className="text-xs text-gray-500 pt-2 border-t">
-                  Edite os campos e clique em “Salvar Alterações”.
+                <div className="text-xs text-gray-500 pt-2 border-t border-gray-100">
+                  Edite os campos e salve quando terminar.
                 </div>
               )}
+          </SheetShell.Body>
+
+          <SheetShell.Footer tone="grey">
+            <div className="flex gap-3">
+              <button
+                onClick={resetVaccineForm}
+                className="rounded-2xl border border-slate-200 bg-white px-6 py-3 text-base font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                onClick={async () => {
+                  await handleSaveVaccine();
+                  onAfterSave?.();
+                }}
+                disabled={vaccineFormSaving}
+                className={`flex-1 rounded-2xl bg-emerald-500 px-4 py-3 text-base font-semibold text-white transition-colors ${vaccineFormSaving ? 'opacity-60 cursor-not-allowed' : 'hover:bg-emerald-600'}`}
+              >
+                {vaccineFormSaving ? 'Salvando…' : editingVaccine ? t('common.save') : t('vaccine_form.add_vaccine')}
+              </button>
             </div>
-          </div>
-        </div>
+          </SheetShell.Footer>
+        </SheetShell>
       )}
 
       {showAIUpload && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-[85]">
-          <div className="p-4 sm:p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 overflow-hidden">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold flex items-center gap-2">
-                📷 Leitura de Carteirinha com IA
-              </h3>
-              <button
-                onClick={onCloseAIUpload}
-                className="w-11 h-11 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 text-xl transition-colors"
-                aria-label="Fechar"
-              >
-                ✕
-              </button>
-            </div>
+        <SheetShell open onClose={onCloseAIUpload} tone="grey" size="lg" z={85}>
+          <SheetHeader
+            title="Ler carteirinha por foto"
+            media={<SheetIcon tone="blue"><Camera className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+            onClose={onCloseAIUpload}
+          />
 
-            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+          <SheetShell.Body className="space-y-6">
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
               <p className="text-amber-900 text-sm font-semibold mb-1">💡 Dica importante</p>
               <p className="text-amber-800 text-sm">Funciona melhor com carteiras <strong>impressas</strong>. Carteiras manuscritas podem ter leitura parcial. Sempre revise os dados extraídos antes de salvar.</p>
             </div>
@@ -377,53 +365,43 @@ export function VaccineWorkflowModals({
               }}
               onCancel={onCloseAIUpload}
             />
-          </div>
-        </div>
+          </SheetShell.Body>
+        </SheetShell>
       )}
 
       {(cardAnalysis || justImported) && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-[70]">
-          <div className="p-4 sm:p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 overflow-hidden">
-
-            {/* SUCCESS SCREEN */}
-            {justImported ? (
-              <div className="py-6 flex flex-col items-center gap-5 text-center">
-                <div className="text-5xl">✅</div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-1">Vacinas importadas!</h3>
-                  <p className="text-sm text-gray-500">O prontuário do pet foi atualizado.</p>
-                </div>
-                <button
-                  onClick={() => { onGoHome(); }}
-                  className="w-full rounded-2xl bg-blue-600 py-3.5 text-[15px] font-black text-white shadow-md shadow-blue-500/20 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                  </svg>
-                  Ir para a home
-                </button>
-                <button
-                  onClick={() => { setJustImported(false); closeCardAnalysis(); }}
-                  className="text-sm text-gray-400 underline"
-                >
-                  Ver prontuário de vacinas
-                </button>
-              </div>
-            ) : (
-            <>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold">
-                {reviewRegistros.length} vacina{reviewRegistros.length !== 1 ? 's' : ''} encontrada{reviewRegistros.length !== 1 ? 's' : ''}
-              </h3>
+        justImported ? (
+          <SheetShell open onClose={() => { setJustImported(false); closeCardAnalysis(); }} tone="grey" variant="center" size="md" z={70}>
+            <SheetHeader
+              title="Vacinas importadas"
+              media={<SheetIcon tone="emerald"><Check className="h-5 w-5" strokeWidth={2.5} /></SheetIcon>}
+              onClose={() => { setJustImported(false); closeCardAnalysis(); }}
+            />
+            <SheetShell.Body className="flex flex-col items-center gap-5 py-4 text-center">
+              <p className="text-sm text-gray-500">O prontuário do pet foi atualizado.</p>
               <button
-                onClick={closeCardAnalysis}
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+                onClick={() => { onGoHome(); }}
+                className="w-full rounded-2xl bg-[#0056D2] py-3.5 text-[15px] font-bold text-white shadow-md shadow-blue-600/20 transition-all active:scale-[0.97]"
               >
-                ✕
+                Ir para a home
               </button>
-            </div>
+              <button
+                onClick={() => { setJustImported(false); closeCardAnalysis(); }}
+                className="text-sm text-gray-400 underline"
+              >
+                Ver prontuário de vacinas
+              </button>
+            </SheetShell.Body>
+          </SheetShell>
+        ) : (
+          <SheetShell open onClose={closeCardAnalysis} tone="grey" size="lg" z={70}>
+            <SheetHeader
+              title={`${reviewRegistros.length} vacina${reviewRegistros.length !== 1 ? 's' : ''} encontrada${reviewRegistros.length !== 1 ? 's' : ''}`}
+              subtitle="Revise antes de importar"
+              onClose={closeCardAnalysis}
+            />
 
-            <div className="space-y-4">
+            <SheetShell.Body className="space-y-4">
               {cardAnalysis && !cardAnalysis.leitura_confiavel && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
                   ⚠️ Leitura parcial — revise os dados antes de importar.
@@ -643,8 +621,16 @@ export function VaccineWorkflowModals({
                   <div className="text-xs text-slate-500">A importação só fica disponível após a revisão.</div>
                 </div>
               </label>
+            </SheetShell.Body>
 
+            <SheetShell.Footer tone="grey">
               <div className="flex gap-3">
+                <button
+                  onClick={closeCardAnalysis}
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  {t('common.cancel')}
+                </button>
                 <button
                   onClick={async () => {
                     const success = await handleImportAnalyzedVaccines();
@@ -653,27 +639,19 @@ export function VaccineWorkflowModals({
                     }
                   }}
                   disabled={importVaccineLoading || !reviewConfirmed || reviewRegistros.some((record) => !record.data_aplicacao)}
-                  className={`flex-1 px-4 py-3 rounded-xl font-semibold text-sm ${
+                  className={`flex-1 rounded-2xl px-4 py-3 text-sm font-semibold ${
                     importVaccineLoading || !reviewConfirmed || reviewRegistros.some((record) => !record.data_aplicacao)
                       ? 'bg-slate-300 text-slate-600 cursor-not-allowed'
-                      : 'bg-blue-600 text-white'
+                      : 'bg-[#0056D2] text-white shadow-md shadow-blue-600/20'
                   }`}
                 >
-                  {importVaccineLoading ? '⏳ Importando...' : 'Importar vacinas'}
-                </button>
-                <button
-                  onClick={closeCardAnalysis}
-                  className="px-5 py-3 border border-gray-300 rounded-xl text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  {t('common.cancel')}
+                  {importVaccineLoading ? 'Importando…' : 'Importar vacinas'}
                 </button>
               </div>
-            </div>
-            </>
-            )}
-          </div>
-        </div>
+            </SheetShell.Footer>
+          </SheetShell>
+        )
       )}
-    </ModalPortal>
+    </>
   );
 }
