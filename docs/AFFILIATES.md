@@ -35,6 +35,22 @@ Desde 01/09/2026, essa separação é codificada explicitamente em
 
 Detalhes operacionais: `docs/PRODUCT_IDENTITY.md`.
 
+## PENDENTE — decisão de produto 05/09/2026: Shopee só vitrine
+
+Ainda **não implementado** (provável junto do trabalho de commerce /
+"Comprar × Registrar"). Mudança de premissa: **a Shopee fica só como
+card no rodapé da Loja do Pet** ("Ou visite uma loja parceira"),
+**desvinculada da busca e dos preços dos produtos do pet**:
+- fora de `AffiliateCatalogSearch` (resultado e resolução de loja);
+- fora dos cards de recompra (`/commerce/offers` para de servir oferta
+  Shopee; `QUICK_BUY_PARTNERS` em `petStoreContent.ts` perde `'shopee'`);
+- **sem** desligar `shopee_affiliate_enabled` inteiro — a vitrine/shortlink
+  do rodapé continua.
+
+Racional: quem compra na Shopee quer barato e pesquisa lá sozinho; o
+único ponto de monetização Shopee que faz sentido é o card da vitrine.
+**Cobasi não muda** — segue na busca e nos preços por produto.
+
 ## Lançamento (2026-08-30): **Cobasi + Shopee**
 
 O app lança com **Cobasi** e **Shopee** como lojas ativas. **Petz**
