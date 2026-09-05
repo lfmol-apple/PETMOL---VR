@@ -1,9 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { Zap } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
 import type { VaccineType } from '@/lib/petHealth';
-import { ModalPortal } from '@/components/ModalPortal';
+import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
 
 type QuickAddData = {
   vaccine_type: VaccineType;
@@ -71,92 +72,84 @@ export function QuickAddVaccineModal({
   };
 
   return (
-    <ModalPortal>
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[90] animate-fadeIn">
-      <div className="bg-slate-50 rounded-[32px] shadow-2xl w-full max-w-md flex flex-col max-h-[96dvh] animate-scaleIn overflow-hidden">
+    <SheetShell open onClose={onClose} tone="grey" size="md" z={90}>
+      <SheetHeader
+        title="Registro rápido"
+        subtitle="Vacina em poucos toques"
+        media={<SheetIcon tone="blue"><Zap className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+        onClose={onClose}
+      />
 
-        <div className="flex items-center justify-between px-5 pt-2 pb-4 border-b border-slate-100 bg-white sticky top-0 z-10">
-          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 tracking-tight">
-            ⚡ Registro rápido
-          </h3>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 active:scale-95 transition-all"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
-          {!selectedVaccine ? (
-            <div>
-              <p className="text-sm text-gray-600 mb-3">
-                Escolha a vacina com 1 toque.
-              </p>
-              <div className="grid grid-cols-2 gap-2.5">
-                {quickChoices.map((vac, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setSelectedVaccine(vac)}
-                    className="p-4 rounded-2xl text-left transition-all bg-white border border-slate-200 hover:border-sky-300 hover:bg-sky-50 shadow-sm active:scale-95"
-                  >
-                    <div className="text-2xl mb-2">{vac.icon}</div>
-                    <div className="text-sm font-bold text-slate-900 leading-tight">
-                      {vac.name === 'V10' ? 'V10 / V8' : vac.name}
-                    </div>
-                  </button>
-                ))}
-              </div>
+      <SheetShell.Body className="space-y-5">
+        {!selectedVaccine ? (
+          <div>
+            <p className="text-sm text-gray-600 mb-3">
+              Escolha a vacina com 1 toque.
+            </p>
+            <div className="grid grid-cols-2 gap-2.5">
+              {quickChoices.map((vac, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setSelectedVaccine(vac)}
+                  className="p-4 rounded-2xl text-left transition-all bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50 shadow-sm active:scale-95"
+                >
+                  <div className="text-2xl mb-2">{vac.icon}</div>
+                  <div className="text-sm font-bold text-slate-900 leading-tight">
+                    {vac.name === 'V10' ? 'V10 / V8' : vac.name}
+                  </div>
+                </button>
+              ))}
             </div>
-          ) : (
-            <div>
-              <p className="text-sm text-gray-600 mb-3">Quando foi?</p>
-              <div className="space-y-2.5">
-                <button
-                  onClick={() => handleWhen('today')}
-                  disabled={saving}
-                  className="w-full py-3.5 rounded-2xl bg-sky-600 text-white font-semibold hover:bg-sky-700 disabled:opacity-60"
-                >
-                  Hoje
-                </button>
-                <button
-                  onClick={() => handleWhen('this_month')}
-                  disabled={saving}
-                  className="w-full py-3.5 rounded-2xl bg-white border border-slate-300 text-slate-800 font-semibold hover:bg-slate-50 disabled:opacity-60"
-                >
-                  Esse mês
-                </button>
-                <button
-                  onClick={() => handleWhen('unknown')}
-                  disabled={saving}
-                  className="w-full py-3.5 rounded-2xl bg-white border border-slate-300 text-slate-800 font-semibold hover:bg-slate-50 disabled:opacity-60"
-                >
-                  Não lembro
-                </button>
-              </div>
-              <p className="text-xs text-slate-500 mt-3">
-                Se não lembrar a data, salvamos uma referência para você revisar depois.
-              </p>
+          </div>
+        ) : (
+          <div>
+            <p className="text-sm text-gray-600 mb-3">Quando foi?</p>
+            <div className="space-y-2.5">
+              <button
+                onClick={() => handleWhen('today')}
+                disabled={saving}
+                className="w-full py-3.5 rounded-2xl bg-[#0056D2] text-white font-semibold hover:bg-[#0047ad] disabled:opacity-60 shadow-md shadow-blue-600/20"
+              >
+                Hoje
+              </button>
+              <button
+                onClick={() => handleWhen('this_month')}
+                disabled={saving}
+                className="w-full py-3.5 rounded-2xl bg-white border border-slate-300 text-slate-800 font-semibold hover:bg-slate-50 disabled:opacity-60"
+              >
+                Esse mês
+              </button>
+              <button
+                onClick={() => handleWhen('unknown')}
+                disabled={saving}
+                className="w-full py-3.5 rounded-2xl bg-white border border-slate-300 text-slate-800 font-semibold hover:bg-slate-50 disabled:opacity-60"
+              >
+                Não lembro
+              </button>
             </div>
-          )}
-        </div>
+            <p className="text-xs text-slate-500 mt-3">
+              Se não lembrar a data, salvamos uma referência para você revisar depois.
+            </p>
+          </div>
+        )}
+      </SheetShell.Body>
 
-        <div className="flex gap-3 px-5 py-4 pb-8 sm:pb-4 border-t border-slate-100 bg-white/90 backdrop-blur-md sticky bottom-0">
+      <SheetShell.Footer tone="grey">
+        <div className="flex gap-3">
           <button
             onClick={selectedVaccine ? () => setSelectedVaccine(null) : onClose}
-            className="flex-1 px-4 py-3.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-2xl font-semibold transition-all active:scale-[0.98]"
+            className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 font-semibold text-slate-700 transition-all hover:bg-slate-50 active:scale-[0.98]"
           >
             {selectedVaccine ? 'Voltar' : t('common.cancel')}
           </button>
           <button
             onClick={onOpenFullForm}
-            className="flex-1 px-4 py-3.5 bg-brand-DEFAULT hover:bg-brand-dark text-white rounded-2xl font-semibold transition-all active:scale-[0.98] shadow-md shadow-brand-DEFAULT/20"
+            className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 font-semibold text-[#0056D2] transition-all hover:bg-slate-50 active:scale-[0.98]"
           >
-            ➕ {t('health.full_form')}
+            {t('health.full_form')}
           </button>
         </div>
-      </div>
-    </div>
-    </ModalPortal>
+      </SheetShell.Footer>
+    </SheetShell>
   );
 }
