@@ -56,6 +56,34 @@ describe('SheetHeader', () => {
     expect(back.className).toContain('bg-white/15');
   });
 
+  it('subtítulo + status: empilhados, nome do pet numa linha própria (não some pra caber o status)', () => {
+    const { container } = render(
+      <SheetHeader
+        tone="petmol"
+        withHandle
+        title="Vacinas"
+        subtitle="Baby"
+        status={{ label: 'Próxima dose em 310 dias', tone: 'warn' }}
+        onClose={() => {}}
+      />,
+    );
+    // o nome do pet aparece inteiro (não truncado dentro de uma linha
+    // dividida com o status)
+    const petLine = Array.from(container.querySelectorAll('p')).find((p) => p.textContent === 'Baby');
+    expect(petLine).toBeTruthy();
+    expect(petLine!.className).toContain('truncate');
+    // o status vai numa linha separada, com a bolinha e podendo truncar
+    expect(container.textContent).toContain('Próxima dose em 310 dias');
+  });
+
+  it('só subtítulo (sem status): fica numa linha só, inline', () => {
+    const { container } = render(
+      <SheetHeader tone="petmol" title="Vacinas" subtitle="Baby" onClose={() => {}} />,
+    );
+    expect(container.querySelectorAll('p').length).toBe(0); // sem o par empilhado
+    expect(container.textContent).toContain('Baby');
+  });
+
   it('wrapTitle deixa o título quebrar (sem truncate)', () => {
     const { container } = render(
       <SheetHeader tone="petmol" wrapTitle title="Continue os cuidados da Nine Mol" onClose={() => {}} />,

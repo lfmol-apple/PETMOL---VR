@@ -92,11 +92,18 @@ export function SheetHeader({
     ? `text-[17px] font-black leading-[1.15] tracking-[-0.01em] text-white ${wrapTitle ? '[overflow-wrap:anywhere]' : 'truncate'}`
     : `text-[17px] font-bold leading-[1.15] tracking-[-0.01em] text-slate-900 ${wrapTitle ? '[overflow-wrap:anywhere]' : 'truncate'}`;
 
-  const subtitleWrapCls = isPetmol
-    ? 'mt-0.5 flex min-w-0 items-center gap-2 text-[12px] font-semibold uppercase leading-tight tracking-[0.1em] text-white/75'
-    : 'mt-0.5 flex min-w-0 items-center gap-2 text-[13px] font-medium leading-tight text-slate-600';
+  const subtitleTextCls = isPetmol
+    ? 'text-[12px] font-semibold uppercase leading-tight tracking-[0.1em] text-white/75'
+    : 'text-[13px] font-medium leading-tight text-slate-600';
 
   const dotMap = isPetmol ? STATUS_DOT_ON_PETMOL : STATUS_DOT;
+
+  const statusNode = status && (
+    <span className="inline-flex min-w-0 items-center gap-1.5">
+      <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${dotMap[status.tone ?? 'neutral']}`} />
+      <span className="truncate">{status.label}</span>
+    </span>
+  );
 
   return (
     <div className={`relative z-10 flex-shrink-0 ${toneBg}`}>
@@ -114,18 +121,19 @@ export function SheetHeader({
         {media && <div className="flex-shrink-0">{media}</div>}
         <div className={`min-w-0 flex-1 ${wrapTitle ? 'pt-0.5' : ''}`}>
           <h2 className={titleCls}>{title}</h2>
-          {(subtitle || status) && (
-            <div className={subtitleWrapCls}>
-              {subtitle && <span className="truncate">{subtitle}</span>}
-              {subtitle && status && <span className={isPetmol ? 'text-white/40' : 'text-slate-300'}>·</span>}
-              {status && (
-                <span className="inline-flex flex-shrink-0 items-center gap-1.5">
-                  <span className={`h-1.5 w-1.5 rounded-full ${dotMap[status.tone ?? 'neutral']}`} />
-                  {status.label}
-                </span>
-              )}
+          {/* subtítulo + status: numa linha só quando há um deles; empilhados
+              (subtítulo em cima, status embaixo) quando há os dois — assim o
+              nome do pet nunca é cortado pra caber um status longo. */}
+          {subtitle && status ? (
+            <div className={`mt-0.5 min-w-0 space-y-0.5 ${subtitleTextCls}`}>
+              <p className="truncate">{subtitle}</p>
+              <p className="min-w-0">{statusNode}</p>
             </div>
-          )}
+          ) : (subtitle || status) ? (
+            <div className={`mt-0.5 flex min-w-0 items-center gap-2 ${subtitleTextCls}`}>
+              {subtitle ? <span className="truncate">{subtitle}</span> : statusNode}
+            </div>
+          ) : null}
         </div>
         {action && <div className={`flex-shrink-0 ${wrapTitle ? 'mt-0.5' : ''}`}>{action}</div>}
         {onClose && (
