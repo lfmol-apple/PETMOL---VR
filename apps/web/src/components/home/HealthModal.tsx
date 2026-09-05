@@ -24,8 +24,7 @@ import type {
   VetHistoryDocument,
 } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
-import { ModalPortal } from '@/components/ModalPortal';
-import { PETMOL_HEADER_BG } from '@/components/ui/sheet';
+import { PETMOL_HEADER_BG, SheetShell } from '@/components/ui/sheet';
 type VaccineCardOcrRecord = {
   tipo_vacina?: string | null; nome_comercial: string | null;
   data_aplicacao: string | null; data_revacina: string | null;
@@ -287,12 +286,12 @@ export function HealthModal({
   ].sort((a, b) => Number(b.urgent) - Number(a.urgent));
 
   return (
-    <ModalPortal>
-    <>
-        <div className="fixed inset-0 bg-slate-950/55 backdrop-blur-2xl flex items-center justify-center sm:p-4 z-50 animate-fadeIn">
-          <div className="bg-slate-50 rounded-[28px] shadow-premium w-full max-w-3xl max-h-[100dvh] sm:max-h-[92dvh] overflow-hidden flex flex-col animate-scaleIn border border-slate-200/50">
-            {/* Header do Modal — bloco azul PETMOL, mesma linguagem dos sheets do pet */}
-            <div className={`sticky top-0 z-50 ${PETMOL_HEADER_BG} shadow-[0_6px_20px_-10px_rgba(0,66,126,0.7)]`}>
+    <SheetShell open onClose={handleClose} tone="grey" size="lg" hideHandle z={90}>
+            {/* Header do Modal — bloco azul PETMOL, mesma linguagem dos sheets
+                do pet. Header próprio (não SheetHeader) porque tem 3 ações
+                extras — voltar/compartilhar/início — e a barra de abas, que
+                o SheetHeader não comporta. */}
+            <div className={`relative z-10 flex-shrink-0 ${PETMOL_HEADER_BG} shadow-[0_6px_20px_-10px_rgba(0,66,126,0.7)]`}>
               {/* Conteúdo do Header */}
               <div className="relative">
                 {/* Barra Superior Minimalista */}
@@ -629,10 +628,6 @@ export function HealthModal({
                 </div>
               </div>
             )}
-          </div>
-        </div>
-
-    </>
-    </ModalPortal>
+    </SheetShell>
   );
 }
