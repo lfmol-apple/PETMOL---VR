@@ -2,12 +2,12 @@
 import { getToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Camera, Plus, X, Save } from 'lucide-react';
+import { Camera, Plus, Save } from 'lucide-react';
 import { PetSpecies } from '@/lib/petTaxonomy';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { isPetProfileCompleted, trackV1Metric } from '@/lib/v1Metrics';
 import { PetPhotoPicker } from './PetPhotoPicker';
-import { ModalPortal } from '@/components/ModalPortal';
+import { SheetAvatar, SheetHeader, SheetShell } from '@/components/ui/sheet';
 import { resolveBackendPetPhoto } from '@/lib/backendPetProfile';
 import { localTodayISO } from '@/lib/localDate';
 import { sanitizePetName } from '@/lib/petName';
@@ -550,24 +550,24 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
   };
 
   return (
-    <ModalPortal>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-fadeIn">
-        <div className="flex max-h-[96dvh] w-full flex-col bg-white sm:max-w-sm rounded-[32px] shadow-2xl overflow-hidden animate-scaleIn">
-
-          {/* Header */}
-          <div className="flex-shrink-0 flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100">
-            <div>
-              <p className="text-base font-bold text-slate-900">Editar pet</p>
-              <p className="text-[13px] text-slate-400 font-medium">Preencha os dados abaixo</p>
-            </div>
-            <button type="button" onClick={onClose}
-              className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 active:scale-95 transition-all">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+    <>
+    <SheetShell open onClose={onClose} size="md" hideHandle z={90}>
+          <SheetHeader
+            tone="petmol"
+            withHandle
+            title={`Editar ${pet.pet_name || pet.name || 'pet'}`}
+            onClose={onClose}
+            media={
+              <SheetAvatar
+                src={petPhotoUrl}
+                alt={formData.name || 'Pet'}
+                fallback={pet.species === 'cat' ? '🐱' : '🐶'}
+              />
+            }
+          />
 
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-            <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-5 py-5 space-y-5">
+            <SheetShell.Body className="space-y-5">
 
               {/* Foto */}
               <div className="flex flex-col items-center gap-2">
@@ -672,10 +672,11 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
                   {error}
                 </div>
               )}
-            </div>
+            </SheetShell.Body>
 
             {/* Footer */}
-            <div className="flex-shrink-0 border-t border-slate-100 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-2">
+            <SheetShell.Footer>
+              <div className="space-y-2">
               {confirmDelete ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 space-y-2">
                   <p className="text-sm font-semibold text-rose-700 text-center">Excluir {formData.name || 'este pet'} permanentemente?</p>
@@ -711,18 +712,18 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
                   )}
                 </>
               )}
-            </div>
+              </div>
+            </SheetShell.Footer>
           </form>
-        </div>
-      </div>
+    </SheetShell>
 
-      {showPhotoPicker && (
-        <PetPhotoPicker
-          initialSrc={petPhotoUrl}
-          onConfirm={handlePhotoPickerConfirm}
-          onCancel={() => setShowPhotoPicker(false)}
-        />
-      )}
-    </ModalPortal>
+    {showPhotoPicker && (
+      <PetPhotoPicker
+        initialSrc={petPhotoUrl}
+        onConfirm={handlePhotoPickerConfirm}
+        onCancel={() => setShowPhotoPicker(false)}
+      />
+    )}
+    </>
   );
 }
