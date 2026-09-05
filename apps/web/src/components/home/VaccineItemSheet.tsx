@@ -4,8 +4,8 @@ import React, { useEffect, useRef, useState, type ChangeEvent, type Dispatch, ty
 import type { VaccineRecord, VaccineType } from '@/lib/petHealth';
 import type { VaccineFormData } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
-import { Check, Home } from 'lucide-react';
-import { SheetAvatar, SheetHeader, SheetShell } from '@/components/ui/sheet';
+import { Camera, Check, Home } from 'lucide-react';
+import { SheetAvatar, SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
 import { localTodayISO } from '@/lib/localDate';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { CoachMark } from '@/components/CoachMark';
@@ -490,7 +490,7 @@ export function VaccineItemSheet({
               >
                 <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-base flex-shrink-0">📷</div>
                 <div className="text-left flex-1">
-                  <p className="text-[12px] font-semibold text-gray-600">Tentar ler carteirinha com IA</p>
+                  <p className="text-[12px] font-semibold text-gray-600">Ler carteirinha por foto</p>
                   <p className="text-[10px] text-gray-400">Funciona melhor com cartões impressos — revise os dados após</p>
                 </div>
                 <span className="text-gray-300 text-base">›</span>
@@ -549,33 +549,28 @@ export function VaccineItemSheet({
         </div>
 
       {showImportModal && (
-        <div
-          className="fixed inset-0 z-[70] bg-slate-950/55 backdrop-blur-md flex items-end sm:items-center justify-center"
-          onClick={() => { if (!importingCard) { setShowImportModal(false); setPendingCardFiles([]); } }}
+        <SheetShell
+          open
+          onClose={() => { if (!importingCard) { setShowImportModal(false); setPendingCardFiles([]); } }}
+          dismissOnBackdrop={!importingCard}
+          tone="grey"
+          size="lg"
+          z={70}
         >
-          <div
-            className="bg-white rounded-t-[32px] sm:rounded-[32px] w-full max-w-lg p-5 sm:p-6 shadow-xl"
-            onClick={e => e.stopPropagation()}
-          >
+          <SheetHeader
+            title={
+              pendingCardFiles.length > 0 && !importingCard
+                ? `${pendingCardFiles.length} foto${pendingCardFiles.length > 1 ? 's' : ''} — o que fazer?`
+                : 'Ler carteirinha por foto'
+            }
+            media={<SheetIcon tone="blue"><Camera className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+            onClose={importingCard ? undefined : () => { setShowImportModal(false); setPendingCardFiles([]); }}
+          />
+
+          <SheetShell.Body className="space-y-3">
             {/* Hidden file inputs */}
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" multiple onChange={handleFilesSelectedAppend} disabled={importingCard} className="hidden" />
             <input ref={galleryInputRef} type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.bmp,.tiff,.tif,.avif,image/*" multiple onChange={handleFilesSelectedAppend} disabled={importingCard} className="hidden" />
-
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-gray-900">
-                {pendingCardFiles.length > 0 && !importingCard
-                  ? `${pendingCardFiles.length} foto${pendingCardFiles.length > 1 ? 's' : ''} — o que fazer?`
-                  : '📷 Ler carteirinha com IA'}
-              </h3>
-              {!importingCard && (
-                <button
-                  onClick={() => { setShowImportModal(false); setPendingCardFiles([]); }}
-                  className="w-9 h-9 flex items-center justify-center bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
 
             {/* STATE: no photos yet */}
             {pendingCardFiles.length === 0 && !importingCard && (
@@ -583,14 +578,14 @@ export function VaccineItemSheet({
                 <button
                   type="button"
                   onClick={() => cameraInputRef.current?.click()}
-                  className="w-full py-5 rounded-2xl bg-sky-600 active:bg-sky-700 text-white font-bold text-base flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
+                  className="w-full py-5 rounded-2xl bg-[#0056D2] active:bg-[#0047ad] text-white font-bold text-base flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-md shadow-blue-600/20"
                 >
                   <span className="text-2xl">📸</span> Abrir câmera
                 </button>
                 <button
                   type="button"
                   onClick={() => galleryInputRef.current?.click()}
-                  className="w-full py-3 rounded-2xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 active:scale-[0.98] transition-all"
+                  className="w-full py-3 rounded-2xl border border-slate-200 bg-white text-gray-600 text-sm font-medium hover:bg-gray-50 active:scale-[0.98] transition-all"
                 >
                   🖼️ Escolher da galeria
                 </button>
@@ -609,21 +604,21 @@ export function VaccineItemSheet({
                     await handleProcessCards(pendingCardFiles);
                     setShowImportModal(false);
                   }}
-                  className="w-full py-4 rounded-2xl bg-sky-700 active:bg-sky-800 text-white font-bold text-base flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-md shadow-sky-500/20"
+                  className="w-full py-4 rounded-2xl bg-[#0056D2] active:bg-[#0047ad] text-white font-bold text-base flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-md shadow-blue-600/20"
                 >
                   🔍 Ler agora
                 </button>
                 <button
                   type="button"
                   onClick={() => cameraInputRef.current?.click()}
-                  className="w-full py-3 rounded-2xl border border-sky-200 text-sky-700 bg-sky-50 text-sm font-medium flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                  className="w-full py-3 rounded-2xl border border-blue-200 text-[#0056D2] bg-blue-50 text-sm font-medium flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
                 >
                   📸 Tirar mais fotos
                 </button>
                 <button
                   type="button"
                   onClick={() => galleryInputRef.current?.click()}
-                  className="w-full py-3 rounded-2xl border border-gray-200 text-gray-600 text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                  className="w-full py-3 rounded-2xl border border-slate-200 bg-white text-gray-600 text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
                 >
                   + Adicionar da galeria
                 </button>
@@ -640,9 +635,9 @@ export function VaccineItemSheet({
             {/* STATE: analyzing */}
             {importingCard && (
               <div className="py-8 text-center">
-                <div className="animate-spin w-10 h-10 border-4 border-sky-200 border-t-sky-700 rounded-full mx-auto mb-4" />
-                <div className="font-semibold text-sky-900 mb-1">Analisando com IA...</div>
-                <div className="text-sm text-sky-600 mb-4">Pode levar alguns segundos</div>
+                <div className="animate-spin w-10 h-10 border-4 border-blue-200 border-t-[#0056D2] rounded-full mx-auto mb-4" />
+                <div className="font-semibold text-slate-900 mb-1">Lendo a carteirinha…</div>
+                <div className="text-sm text-slate-500 mb-4">Pode levar alguns segundos</div>
                 {cancelProcessCards && (
                   <button
                     type="button"
@@ -654,8 +649,8 @@ export function VaccineItemSheet({
                 )}
               </div>
             )}
-          </div>
-        </div>
+          </SheetShell.Body>
+        </SheetShell>
       )}
     </SheetShell>
   );
