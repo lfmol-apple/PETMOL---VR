@@ -5,7 +5,7 @@
 
 import { AuthenticatedDocumentImage } from '@/components/AuthenticatedDocumentImage';
 import { useI18n } from '@/lib/I18nContext';
-import { ModalPortal } from '@/components/ModalPortal';
+import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
 import type { VaccineRecord } from '@/lib/petHealth';
 import type { PetEventRecord } from '@/lib/petEvents';
 import type { DocFolderModalState, VetHistoryDocument } from '@/lib/types/homeForms';
@@ -53,45 +53,33 @@ export function VetHistoryModal({
   if (!currentPet) return null;
 
   return (
-    <ModalPortal>
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-50 animate-fadeIn">
-      <div className="w-full max-w-4xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden overflow-x-hidden flex flex-col bg-white/95 backdrop-blur-xl rounded-[32px] shadow-premium border border-white/60 animate-scaleIn">
-        <div className="bg-white border-b border-violet-100 p-3 sm:p-4 flex-shrink-0">
-          <div className="flex items-center justify-between mb-2 sm:mb-3">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-violet-100">
-                <span className="text-xl sm:text-2xl">📓</span>
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-base sm:text-xl font-bold truncate text-slate-900">Caderneta de {currentPet?.pet_name}</h2>
-                <p className="text-slate-500 text-xs sm:text-sm truncate">Documentos e histórico de saúde</p>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="w-11 h-11 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-500 text-xl transition-colors"
-              aria-label="Fechar"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setHistoricoTab('resumo')}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${historicoTab === 'resumo' ? 'bg-violet-50 text-violet-700 shadow-sm border border-violet-200' : 'text-slate-500 hover:bg-slate-50'}`}
-            >
-              📋 {t('hist.tab_summary')}
-            </button>
-            <button
-              onClick={() => setHistoricoTab('detalhado')}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${historicoTab === 'detalhado' ? 'bg-violet-50 text-violet-700 shadow-sm border border-violet-200' : 'text-slate-500 hover:bg-slate-50'}`}
-            >
-              🗂 {t('hist.tab_detailed')}
-            </button>
-          </div>
+    <SheetShell open onClose={onClose} tone="grey" size="lg" hideHandle z={70}>
+        <SheetHeader
+          tone="petmol"
+          withHandle
+          media={<SheetIcon tone="onPetmol"><span className="text-xl">📓</span></SheetIcon>}
+          title={`Caderneta ${currentPet?.pet_name ? `de ${currentPet.pet_name}` : ''}`.trim()}
+          subtitle="Documentos e histórico"
+          onClose={onClose}
+        />
+
+        {/* Abas — logo abaixo do header, fora da área rolável */}
+        <div className="flex flex-shrink-0 gap-2 border-b border-black/5 bg-white px-4 py-2.5">
+          <button
+            onClick={() => setHistoricoTab('resumo')}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${historicoTab === 'resumo' ? 'bg-violet-50 text-violet-700 shadow-sm border border-violet-200' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            📋 {t('hist.tab_summary')}
+          </button>
+          <button
+            onClick={() => setHistoricoTab('detalhado')}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${historicoTab === 'detalhado' ? 'bg-violet-50 text-violet-700 shadow-sm border border-violet-200' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            🗂 {t('hist.tab_detailed')}
+          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden pb-20">
+        <SheetShell.Body pad={false} className="overflow-x-hidden">
           {historicoTab === 'resumo' && (() => {
             const grAll = groomingRecords.map((g: GroomingRecord) => ({ date: g.date, label: g.type === 'bath' ? t('grooming.bath') : g.type === 'grooming' ? t('grooming.grooming') : t('grooming.bath_plus_grooming'), icon: '🛁' }));
             const vcAll = vaccines.filter((v) => v.date_administered).map((v) => ({ date: v.date_administered, label: v.vaccine_name || t('common.vaccine'), icon: '💉' }));
@@ -553,9 +541,7 @@ export function VetHistoryModal({
               })()}
             </div>
           )}
-        </div>
-      </div>
-    </div>
-    </ModalPortal>
+        </SheetShell.Body>
+    </SheetShell>
   );
 }

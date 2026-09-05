@@ -130,10 +130,21 @@ export function SheetShell({
   );
 }
 
-function Body({ children, className = '' }: { children: ReactNode; className?: string }) {
+function Body({
+  children,
+  className = '',
+  pad = true,
+}: {
+  children: ReactNode;
+  className?: string;
+  /** padding horizontal + topo padrão (default true). `false` para conteúdo
+   *  que gerencia o próprio padding (listas, timelines) — mantém só o
+   *  scroll e a safe-area inferior. */
+  pad?: boolean;
+}) {
   return (
     <div
-      className={`flex-1 overflow-y-auto overscroll-contain px-5 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] ${className}`}
+      className={`flex-1 overflow-y-auto overscroll-contain pb-[calc(1.5rem+env(safe-area-inset-bottom))] ${pad ? 'px-5 pt-4' : ''} ${className}`}
     >
       {children}
     </div>
