@@ -68,20 +68,33 @@ describe('SheetHeader', () => {
       />,
     );
     // o nome do pet aparece inteiro (não truncado dentro de uma linha
-    // dividida com o status)
+    // dividida com o status) e NÃO em caixa alta ("BABY" parecia grito)
     const petLine = Array.from(container.querySelectorAll('p')).find((p) => p.textContent === 'Baby');
     expect(petLine).toBeTruthy();
     expect(petLine!.className).toContain('truncate');
-    // o status vai numa linha separada, com a bolinha e podendo truncar
+    expect(petLine!.className).not.toContain('uppercase');
+    // o status vai numa linha separada, com a bolinha, em caixa alta (eyebrow)
     expect(container.textContent).toContain('Próxima dose em 310 dias');
+    const statusLine = Array.from(container.querySelectorAll('p')).find((p) => p.textContent?.includes('Próxima dose'));
+    expect(statusLine!.className).toContain('uppercase');
   });
 
-  it('só subtítulo (sem status): fica numa linha só, inline', () => {
+  it('só subtítulo (sem status): linha única, sem caixa alta', () => {
     const { container } = render(
       <SheetHeader tone="petmol" title="Vacinas" subtitle="Baby" onClose={() => {}} />,
     );
-    expect(container.querySelectorAll('p').length).toBe(0); // sem o par empilhado
-    expect(container.textContent).toContain('Baby');
+    const petLine = Array.from(container.querySelectorAll('p')).find((p) => p.textContent === 'Baby');
+    expect(petLine).toBeTruthy();
+    expect(petLine!.className).not.toContain('uppercase');
+  });
+
+  it('só status (sem subtítulo): linha única, em caixa alta', () => {
+    const { container } = render(
+      <SheetHeader tone="petmol" title="Vacinas" status={{ label: 'Em dia', tone: 'good' }} onClose={() => {}} />,
+    );
+    const statusLine = Array.from(container.querySelectorAll('p')).find((p) => p.textContent?.includes('Em dia'));
+    expect(statusLine).toBeTruthy();
+    expect(statusLine!.className).toContain('uppercase');
   });
 
   it('wrapTitle deixa o título quebrar (sem truncate)', () => {

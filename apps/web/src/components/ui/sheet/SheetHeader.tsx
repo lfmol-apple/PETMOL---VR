@@ -92,8 +92,13 @@ export function SheetHeader({
     ? `text-[17px] font-black leading-[1.15] tracking-[-0.01em] text-white ${wrapTitle ? '[overflow-wrap:anywhere]' : 'truncate'}`
     : `text-[17px] font-bold leading-[1.15] tracking-[-0.01em] text-slate-900 ${wrapTitle ? '[overflow-wrap:anywhere]' : 'truncate'}`;
 
-  const subtitleTextCls = isPetmol
+  // Status = "eyebrow" (caixa alta, tracking). Subtítulo/nome do pet = texto
+  // normal — nome em CAIXA ALTA parecia grito ("BABY").
+  const statusTextCls = isPetmol
     ? 'text-[12px] font-semibold uppercase leading-tight tracking-[0.1em] text-white/75'
+    : 'text-[12px] font-semibold uppercase leading-tight tracking-[0.1em] text-slate-500';
+  const subtitleTextCls = isPetmol
+    ? 'text-[13px] font-semibold leading-tight text-white/80'
     : 'text-[13px] font-medium leading-tight text-slate-600';
 
   const dotMap = isPetmol ? STATUS_DOT_ON_PETMOL : STATUS_DOT;
@@ -125,14 +130,14 @@ export function SheetHeader({
               (subtítulo em cima, status embaixo) quando há os dois — assim o
               nome do pet nunca é cortado pra caber um status longo. */}
           {subtitle && status ? (
-            <div className={`mt-0.5 min-w-0 space-y-0.5 ${subtitleTextCls}`}>
-              <p className="truncate">{subtitle}</p>
-              <p className="min-w-0">{statusNode}</p>
+            <div className="mt-0.5 min-w-0 space-y-0.5">
+              <p className={`truncate ${subtitleTextCls}`}>{subtitle}</p>
+              <p className={`min-w-0 ${statusTextCls}`}>{statusNode}</p>
             </div>
-          ) : (subtitle || status) ? (
-            <div className={`mt-0.5 flex min-w-0 items-center gap-2 ${subtitleTextCls}`}>
-              {subtitle ? <span className="truncate">{subtitle}</span> : statusNode}
-            </div>
+          ) : subtitle ? (
+            <p className={`mt-0.5 truncate ${subtitleTextCls}`}>{subtitle}</p>
+          ) : status ? (
+            <p className={`mt-0.5 min-w-0 ${statusTextCls}`}>{statusNode}</p>
           ) : null}
         </div>
         {action && <div className={`flex-shrink-0 ${wrapTitle ? 'mt-0.5' : ''}`}>{action}</div>}
