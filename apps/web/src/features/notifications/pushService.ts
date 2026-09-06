@@ -7,6 +7,22 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
+/** ID estável por instalação — o backend usa pra saber que dois endpoints
+ * (o antigo rotacionado + o novo) são o MESMO aparelho e não mandar push 2x. */
+export function getDeviceId(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    let id = localStorage.getItem('petmol_device_id');
+    if (!id) {
+      id = (crypto?.randomUUID?.() ?? `d-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      localStorage.setItem('petmol_device_id', id);
+    }
+    return id;
+  } catch {
+    return '';
+  }
+}
+
 async function _getLocSilently(): Promise<{ lat: number; lng: number } | null> {
   try {
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return null;
@@ -55,7 +71,7 @@ export async function subscribeToPush(token: string): Promise<boolean> {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ subscription: subscription.toJSON(), ...loc }),
+    body: JSON.stringify({ subscription: subscription.toJSON(), device_id: getDeviceId(), ...loc }),
   });
 
   return true;
@@ -125,7 +141,7 @@ export async function refreshSubscription(token: string): Promise<boolean> {
   await fetch(`${API_BASE}/notifications/subscribe`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ subscription: subscription.toJSON(), ...loc }),
+    body: JSON.stringify({ subscription: subscription.toJSON(), device_id: getDeviceId(), ...loc }),
   });
 
   return true;

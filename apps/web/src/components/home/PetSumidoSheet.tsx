@@ -112,6 +112,8 @@ export function PetSumidoSheet({
   const [cardDataUrl, setCardDataUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Trava: um toque duplo / re-render não pode disparar o alerta 2x.
+  const submitInFlightRef = useRef(false);
   const [alertSent, setAlertSent] = useState(false);
   const [alertBlocked, setAlertBlocked] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -201,6 +203,8 @@ export function PetSumidoSheet({
   // apareceu na tela. Antes ficava na frente do desenho do cartaz e ainda
   // esperava o backend disparar todos os web-pushes → "cartaz demora demais".
   const submitAlert = useCallback(async () => {
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
     let geoLat: number | undefined;
     let geoLng: number | undefined;
     try {
@@ -269,11 +273,15 @@ export function PetSumidoSheet({
         if (checkRes.status === 409) {
           setAlertBlocked(true);
           setStep('form');
+          submitInFlightRef.current = false; // deixa o dono corrigir e tentar de novo
           return;
         }
         if (checkRes.ok) setAlertSent(true);
       }
-    } catch { /* silent */ }
+    } catch {
+      // Falha de rede: libera a trava para permitir nova tentativa manual.
+      submitInFlightRef.current = false;
+    }
   }, [pet, petPhotoUrl, photoPreview, contact, lastSeenLocation, characteristics, missingDate, missingTime, liveRadius, isEditMode, editAlertId]);
 
   const generateCard = useCallback(async () => {
