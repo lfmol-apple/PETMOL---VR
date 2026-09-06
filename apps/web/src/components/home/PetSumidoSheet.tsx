@@ -68,14 +68,16 @@ function wrapText(
 }
 
 function calcAutoRadius(missingDate: string, missingTime: string, species: string) {
+  // Raio livre pela velocidade de caminhada da espécie (cão 5 km/h, gato
+  // 3 km/h), mínimo 2 km, SEM teto — cresce sozinho com o tempo desde o
+  // desaparecimento. O backend recalcula o mesmo on-read a cada disparo.
   try {
     const [yr, mo, dy] = missingDate.split('-').map(Number);
     const [hh, mm] = (missingTime || '00:00').split(':').map(Number);
     const missingAt = new Date(yr, mo - 1, dy, hh, mm);
     const hoursElapsed = Math.max(0, (Date.now() - missingAt.getTime()) / 3600000);
     const speedKmh = species === 'cat' ? 3 : 5;
-    const maxKm = species === 'cat' ? 20 : 50;
-    const rawKm = Math.min(maxKm, Math.max(2, Math.ceil(hoursElapsed * speedKmh)));
+    const rawKm = Math.max(2, Math.ceil(hoursElapsed * speedKmh));
     return { km: rawKm, hoursElapsed: Math.round(hoursElapsed * 10) / 10, speedKmh };
   } catch {
     return { km: 2, hoursElapsed: 0, speedKmh: 5 };
