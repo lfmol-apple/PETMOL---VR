@@ -6,7 +6,7 @@ import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
 import { extractMedicationBarcode } from '@/lib/petCareDomain';
 import { Check, Home, Trash2 } from 'lucide-react';
-import { SheetAvatar, SheetHeader, SheetShell } from '@/components/ui/sheet';
+import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { buildRemindAt, listReminders, deleteReminder, createReminder, refreshSubscription } from '@/features/notifications/pushService';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
@@ -574,7 +574,7 @@ export function MedicationItemSheet({
   const nextActive = active[0] ?? null;
 
   return (
-    <SheetShell open onClose={onClose} hideHandle z={100}>
+    <SheetShell open onClose={onClose} hideHandle z={SHEET_Z.top}>
         {/* Success overlay */}
         {justSaved && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-white p-8 text-center">

@@ -7,7 +7,7 @@ import { PetSpecies } from '@/lib/petTaxonomy';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { isPetProfileCompleted, trackV1Metric } from '@/lib/v1Metrics';
 import { PetPhotoPicker } from './PetPhotoPicker';
-import { SheetAvatar, SheetHeader, SheetShell } from '@/components/ui/sheet';
+import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { resolveBackendPetPhoto } from '@/lib/backendPetProfile';
 import { localTodayISO } from '@/lib/localDate';
 import { sanitizePetName } from '@/lib/petName';
@@ -551,7 +551,7 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
 
   return (
     <>
-    <SheetShell open onClose={onClose} size="md" hideHandle z={90}>
+    <SheetShell open onClose={onClose} size="md" hideHandle z={SHEET_Z.nested}>
           <SheetHeader
             tone="petmol"
             withHandle

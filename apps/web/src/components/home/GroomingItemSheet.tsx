@@ -5,7 +5,7 @@ import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import type { GroomingRecord, GroomingType } from '@/lib/types/home';
 import { Check, Home, Trash2 } from 'lucide-react';
-import { SheetAvatar, SheetHeader, SheetShell } from '@/components/ui/sheet';
+import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
@@ -362,12 +362,12 @@ export function GroomingItemSheet({
   }
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
-  const inputCls = 'w-full min-w-0 border border-[#E5E5EA] rounded-xl px-3 py-3 text-[15px] text-[#1C1C1E] bg-white focus:outline-none focus:ring-2 focus:ring-[#5856D6]/30 placeholder:text-[#C7C7CC]';
+  const inputCls = 'w-full min-w-0 border border-[#E5E5EA] rounded-xl px-3 py-3 text-[15px] text-[#1C1C1E] bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 placeholder:text-[#C7C7CC]';
   const labelCls = 'block text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider mb-1.5';
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <SheetShell open onClose={onClose} hideHandle tone="grey" z={50}>
+    <SheetShell open onClose={onClose} hideHandle tone="grey" z={SHEET_Z.base}>
         {/* Success overlay */}
         {justSaved && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-5 bg-[#f2f2f7] p-8 text-center">
@@ -485,7 +485,7 @@ export function GroomingItemSheet({
                                 href={`https://www.google.com/search?tbm=shop&q=${encodeURIComponent(productName + ' pet')}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-[14px] font-medium text-[#5856D6] truncate max-w-[55%] text-right"
+                                className="text-[14px] font-medium text-emerald-700 truncate max-w-[55%] text-right"
                               >
                                 {productName}
                               </a>
@@ -536,7 +536,7 @@ export function GroomingItemSheet({
               <div className="space-y-2 pt-1">
                 <button
                   onClick={startAdd}
-                  className="w-full py-[14px] rounded-[14px] bg-[#5856D6] text-white text-[16px] font-semibold shadow-sm active:opacity-80 transition-opacity"
+                  className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-[15px] font-black shadow-lg shadow-emerald-500/25 active:scale-[0.98] transition-all"
                 >
                   Registrar banho/tosa
                 </button>
@@ -544,7 +544,7 @@ export function GroomingItemSheet({
                   <button
                     onClick={() => nextEditableRecord && startEdit(nextEditableRecord)}
                     disabled={!nextEditableRecord}
-                    className="w-full py-3 text-[15px] font-medium text-[#5856D6] disabled:opacity-30 active:opacity-60 transition-opacity"
+                    className="w-full py-3 text-[15px] font-medium text-emerald-600 disabled:opacity-30 active:opacity-60 transition-opacity"
                   >
                     Editar próximo agendamento
                   </button>
@@ -710,7 +710,7 @@ export function GroomingItemSheet({
               <button
                 onClick={handleAdd}
                 disabled={saving || !addForm.date}
-                className="w-full py-[14px] rounded-[14px] bg-[#5856D6] text-white text-[16px] font-semibold shadow-sm disabled:opacity-40 active:opacity-80 transition-opacity"
+                className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-[15px] font-black shadow-lg shadow-emerald-500/25 active:scale-[0.98] transition-all disabled:opacity-40"
               >
                 {saving ? 'Salvando...' : 'Confirmar serviço'}
               </button>
@@ -818,7 +818,7 @@ export function GroomingItemSheet({
               <button
                 onClick={handleSaveEdit}
                 disabled={saving}
-                className="w-full py-3.5 rounded-[14px] bg-[#5856D6] text-white text-[15px] font-semibold shadow-sm disabled:opacity-40 active:opacity-80 transition-opacity"
+                className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-[15px] font-black shadow-lg shadow-emerald-500/25 active:scale-[0.98] transition-all disabled:opacity-40"
               >
                 {saving ? 'Salvando...' : 'Salvar alterações'}
               </button>
@@ -844,7 +844,7 @@ export function GroomingItemSheet({
               </button>
               <button
                 onClick={() => setConfirmDeleteId(null)}
-                className="w-full py-3.5 text-[16px] font-semibold text-[#5856D6] active:opacity-60 transition-opacity"
+                className="w-full py-3.5 text-[16px] font-semibold text-emerald-600 active:opacity-60 transition-opacity"
               >
                 Cancelar
               </button>

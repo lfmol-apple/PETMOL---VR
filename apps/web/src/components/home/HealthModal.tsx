@@ -24,7 +24,7 @@ import type {
   VetHistoryDocument,
 } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
-import { PETMOL_HEADER_BG, SheetShell } from '@/components/ui/sheet';
+import { PETMOL_HEADER_BG, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 type VaccineCardOcrRecord = {
   tipo_vacina?: string | null; nome_comercial: string | null;
   data_aplicacao: string | null; data_revacina: string | null;
@@ -286,7 +286,7 @@ export function HealthModal({
   ].sort((a, b) => Number(b.urgent) - Number(a.urgent));
 
   return (
-    <SheetShell open onClose={handleClose} tone="grey" size="lg" hideHandle z={90}>
+    <SheetShell open onClose={handleClose} tone="grey" size="lg" hideHandle z={SHEET_Z.nested}>
             {/* Header do Modal — bloco azul PETMOL, mesma linguagem dos sheets
                 do pet. Header próprio (não SheetHeader) porque tem 3 ações
                 extras — voltar/compartilhar/início — e a barra de abas, que

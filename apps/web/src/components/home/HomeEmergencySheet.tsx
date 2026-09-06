@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronRight, Hospital, Siren, Stethoscope } from 'lucide-react';
-import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 
 interface HomeEmergencySheetProps {
   open: boolean;
@@ -12,7 +12,7 @@ export function HomeEmergencySheet({ open, onClose }: HomeEmergencySheetProps) {
   if (!open) return null;
 
   return (
-    <SheetShell open={open} onClose={onClose} variant="center" size="sm" z={90}>
+    <SheetShell open={open} onClose={onClose} variant="center" size="sm" z={SHEET_Z.nested}>
       <SheetHeader
         title="Emergência Veterinária"
         subtitle="Atendimento mais próximo de você"

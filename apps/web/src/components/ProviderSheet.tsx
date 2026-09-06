@@ -2,7 +2,7 @@
 
 import { ChevronRight, Navigation } from 'lucide-react'
 import { API_BASE_URL } from '@/lib/api'
-import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet'
+import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet'
 
 interface ProviderSheetProps {
   isOpen: boolean
@@ -47,7 +47,7 @@ export default function ProviderSheet({
   if (!isOpen) return null
 
   return (
-    <SheetShell open={isOpen} onClose={onClose} size="md" z={50}>
+    <SheetShell open={isOpen} onClose={onClose} size="md" z={SHEET_Z.base}>
       <SheetHeader
         title="Abrir rota"
         subtitle={placeName}

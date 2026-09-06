@@ -3,7 +3,7 @@
 import { Folder } from 'lucide-react';
 import { AuthenticatedDocumentImage } from '@/components/AuthenticatedDocumentImage';
 import type { DocFolderModalState, VetHistoryDocument } from '@/lib/types/homeForms';
-import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 
 // Pasta de documentos — SOMENTE LEITURA do acervo legado. O PETMOL não
 // recebe documentos novos; aqui o tutor apenas visualiza ou remove o que já
@@ -36,7 +36,7 @@ export function HistoryDocumentFolderModal({
   const docs = docFolderModal.docs;
 
   return (
-    <SheetShell open onClose={onClose} tone="grey" size="lg" z={90}>
+    <SheetShell open onClose={onClose} tone="grey" size="lg" z={SHEET_Z.nested}>
       <SheetHeader
         title={docFolderModal.title}
         subtitle={`${docs.length} ${docs.length === 1 ? 'arquivo' : 'arquivos'}`}

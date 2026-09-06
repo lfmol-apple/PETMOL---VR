@@ -5,7 +5,7 @@ import { Check, ChevronRight, PawPrint, Utensils, Syringe, Bug, Pill, ArrowLeft 
 import { petDo } from '@/lib/petGender';
 import { trackV1Metric, type V1MetricEvent } from '@/lib/v1Metrics';
 import type { FeedingPlanEntry } from '@/lib/types/homeForms';
-import { SheetAvatar, SheetHeader, SheetShell } from '@/components/ui/sheet';
+import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import {
   deriveOnboardingProgress,
   setOnboardingActiveFlag,
@@ -139,7 +139,7 @@ export function OnboardingChecklistCard({
       setStoreTick((t) => t + 1);
     };
     return (
-      <SheetShell open={!suppressed} onClose={finish} tone="grey" variant="center" size="sm" z={70} hideHandle>
+      <SheetShell open={!suppressed} onClose={finish} tone="grey" variant="center" size="sm" z={SHEET_Z.raised} hideHandle>
         <SheetHeader
           tone="petmol"
           wrapTitle
@@ -255,7 +255,7 @@ export function OnboardingChecklistCard({
   const pct = Math.round((progress.doneCount / progress.total) * 100);
 
   return (
-    <SheetShell open={!suppressed} onClose={dismissCard} tone="grey" variant="center" size="sm" z={70} hideHandle>
+    <SheetShell open={!suppressed} onClose={dismissCard} tone="grey" variant="center" size="sm" z={SHEET_Z.raised} hideHandle>
       <SheetHeader
         tone="petmol"
         wrapTitle

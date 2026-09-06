@@ -8,7 +8,7 @@ import type { ParasiteControl } from '@/lib/types/home';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { MonetizedOffersList } from '@/features/commerce/MonetizedOffersList';
 import { AffiliateCatalogSearch } from '@/features/commerce/AffiliateCatalogSearch';
-import { SheetAvatar, SheetHeader, SheetShell } from '@/components/ui/sheet';
+import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { scheduleUniqueReminder, buildRemindAt } from '@/features/notifications/pushService';
@@ -469,7 +469,7 @@ export function ParasiteItemSheet({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <SheetShell open onClose={onClose} hideHandle tone="cream" z={50}>
+    <SheetShell open onClose={onClose} hideHandle tone="cream" z={SHEET_Z.base}>
       {/* Success overlay */}
       {justSaved && (
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-[#fbfaf7] p-8 text-center">

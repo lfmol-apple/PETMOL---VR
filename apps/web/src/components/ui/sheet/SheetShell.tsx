@@ -45,6 +45,29 @@ const SIZE_MAX: Record<Size, string> = {
   lg: 'max-w-lg',
 };
 
+/**
+ * Escala de empilhamento dos sheets. Use SEMPRE um destes nomes na prop `z`
+ * em vez de um número solto — assim a ordem entre camadas fica explícita.
+ *
+ *   base   (50)  sheet primário aberto sobre a Home (ItemSheets, ProviderSheet)
+ *   raised (70)  sheet/sub-modal que abre sobre outro conteúdo modal
+ *   high   (80)  sheet de fluxo que pode receber um sheet aninhado por cima
+ *   nested (90)  sheet aninhado sobre um `high`, e modais de sistema
+ *                (editar/novo pet, HealthModal, ações rápidas)
+ *   top   (100)  alertas que precisam vencer qualquer sheet (push, atenção do dia)
+ *
+ * Fora desta escala, por convenção:
+ *   toasts .............. z-[120] inline (acima de todo sheet)
+ *   takeover full-screen  z-[200]+ inline (câmera / scanner / seletor de pet)
+ */
+export const SHEET_Z = {
+  base: 50,
+  raised: 70,
+  high: 80,
+  nested: 90,
+  top: 100,
+} as const;
+
 interface SheetShellProps {
   open?: boolean;
   onClose: () => void;
@@ -57,7 +80,7 @@ interface SheetShellProps {
   /** clique no backdrop fecha (default true) */
   dismissOnBackdrop?: boolean;
   className?: string;
-  /** z-index base — alguns sheets empilham sobre outros */
+  /** z-index base — use um valor de `SHEET_Z` (base/raised/high/nested/top) */
   z?: number;
   /** não desenha o "puxador" do bottom-sheet — use quando o SheetHeader
    *  petmol renderiza o próprio (evita faixa branca entre puxador e header) */

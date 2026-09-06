@@ -3,7 +3,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { Wrench } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
-import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import type { VaccineRecord } from '@/lib/petHealth';
 
 type FeedbackFormData = {
@@ -43,7 +43,7 @@ export function FeedbackModal({
   };
 
   return (
-    <SheetShell open onClose={close} tone="grey" size="md" z={90}>
+    <SheetShell open onClose={close} tone="grey" size="md" z={SHEET_Z.nested}>
       <SheetHeader
         title="Reportar problema"
         media={<SheetIcon tone="amber"><Wrench className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}

@@ -12,7 +12,7 @@ import { Check, MessageCircleHeart, Send } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { trackV1Metric } from '@/lib/v1Metrics';
-import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 
 const SUGGESTION =
   'Tenho uma sugestão para o Petmol: ';
@@ -76,7 +76,7 @@ export function TalkToPetmolSheet({ open, onClose, source = 'home' }: Props) {
   if (!open) return null;
 
   return (
-    <SheetShell open onClose={handleClose} tone="grey" variant="center" size="sm" z={80}>
+    <SheetShell open onClose={handleClose} tone="grey" variant="center" size="sm" z={SHEET_Z.high}>
       <SheetHeader
         tone="petmol"
         withHandle

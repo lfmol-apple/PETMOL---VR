@@ -1,7 +1,7 @@
 'use client';
 
 import { Building2, ChevronRight, Store } from 'lucide-react';
-import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 
 const MAPS = (q: string) => `https://www.google.com/maps/search/${encodeURIComponent(q)}`;
 
@@ -14,7 +14,7 @@ const MAPS = (q: string) => `https://www.google.com/maps/search/${encodeURICompo
 export function PetShopsNearbySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null;
   return (
-    <SheetShell open onClose={onClose} tone="glassSheer" variant="center" size="sm" z={90}>
+    <SheetShell open onClose={onClose} tone="glassSheer" variant="center" size="sm" z={SHEET_Z.nested}>
       <SheetHeader
         tone="petmol"
         withHandle
