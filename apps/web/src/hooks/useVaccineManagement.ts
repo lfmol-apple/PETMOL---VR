@@ -116,7 +116,6 @@ export function useVaccineManagement({
   const [vaccineFormSaving, setVaccineFormSaving] = useState(false);
   const [importVaccineLoading, setImportVaccineLoading] = useState(false);
   const [showQuickAddVaccine, setShowQuickAddVaccine] = useState(false);
-  const [showAllVaccinesGuide, setShowAllVaccinesGuide] = useState(false);
   const [showAIUpload, setShowAIUpload] = useState(false);
   const [editingVaccine, setEditingVaccine] = useState<VaccineRecord | null>(null);
 
@@ -146,14 +145,6 @@ export function useVaccineManagement({
     const date = createLocalDate(dateApplied);
     date.setDate(date.getDate() + frequencyDays);
     return dateToLocalISO(date);
-  };
-
-  const getRecentVets = () => {
-    const vets = (vaccines || [])
-      .map((v) => v.veterinarian)
-      .filter((v, i, arr) => Boolean(v) && arr.indexOf(v) === i)
-      .slice(0, 5);
-    return vets.length > 0 ? vets : [''];
   };
 
   // ── loadVaccines ─────────────────────────────────────────────────────────
@@ -1043,8 +1034,6 @@ export function useVaccineManagement({
     setImportVaccineLoading,
     showQuickAddVaccine,
     setShowQuickAddVaccine,
-    showAllVaccinesGuide,
-    setShowAllVaccinesGuide,
     showAIUpload,
     setShowAIUpload,
     editingVaccine,
@@ -1062,7 +1051,6 @@ export function useVaccineManagement({
     loadVaccines,
     resetVaccineForm,
     calculateNextDose,
-    getRecentVets,
     handleSaveVaccine,
     handleEditVaccine,
     handleDeleteVaccine,

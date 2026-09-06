@@ -49,23 +49,17 @@ describe('Home — reorganização (Plano de Saúde / PetShops / Fale com o PETM
     renderWithI18n(
       <HomeNavigationModals
         currentPet={{ pet_id: 'p1', pet_name: 'Baby', species: 'dog' } as never}
-        showServiceTypeModal={false}
-        onCloseServiceTypeModal={() => {}}
         showHealthOptionsModal
         onCloseHealthOptionsModal={() => {}}
         onOpenHealthOptionsModal={() => {}}
         showEventTypeModal={false}
         onOpenEventTypeModal={() => {}}
         onCloseEventTypeModal={() => {}}
-        showVetOptionsModal={false}
-        onCloseVetOptionsModal={() => {}}
         alertVaccinesValue={false}
         alertParasitesValue={false}
         alertMedicationValue={false}
         onOpenHealthTab={() => {}}
         onStartEventRegistration={() => {}}
-        onOpenEditPet={() => {}}
-        getRecentVets={() => []}
       />,
     );
     expect(screen.getByText('Cuidados')).toBeTruthy();
