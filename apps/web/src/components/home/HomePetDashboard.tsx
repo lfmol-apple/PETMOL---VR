@@ -209,19 +209,16 @@ export function HomePetDashboard({
     currentPet.species === 'dog' && (!hasLeishmaniaseProtection || isInLeishmaniaseEndemicRegion);
 
   // A pet with ZERO vaccine history ('neutral' — never registered) is a
-  // real gap worth the red dot, same as an actually-overdue one — treated
-  // as 'critical' here specifically for vaccine (per explicit feedback;
-  // vermífugo/antipulgas/ração intentionally stay untouched, since
-  // treating "no data" as critical for every domain was what caused the
-  // earlier false-positive household count). Without this, a pet with no
-  // vaccines but an otherwise-fine health card resolved to colorHealth=
-  // 'ok', and the dot never showed — shouldShowAlert only checks the tone
-  // string, so alertVacinas being true didn't matter on its own. Coleira
-  // gets the same "neutral -> critical" override, gated on
-  // needsLeishmaniaseAwareness, for the same reason.
+  // real gap worth the red dot on the Vacina card itself — treated as
+  // 'critical' here. This used to also bleed into colorHealth (Cuidados)
+  // below, on the reasoning that Vacina didn't have its own always-visible
+  // card yet — it does now, so folding it into Cuidados just made that
+  // card blink red for pets with a perfectly fine vermífugo/antipulgas/
+  // banho history (real case: Marley, Mingau — nothing wrong except no
+  // vaccine logged yet). Kept scoped to colorVaccines only.
   const effectiveVaccineTone: CardTone = (colorVacinas === 'neutral' || colorVacinas === undefined) ? 'critical' : colorVacinas;
   const effectiveColeiraTone: CardTone = needsLeishmaniaseAwareness ? 'critical' : (colorColeira ?? 'neutral');
-  const healthTones = [effectiveVaccineTone, colorVermifugo, colorAntipulgas, effectiveColeiraTone, colorMedicacao, colorGrooming];
+  const healthTones = [colorVermifugo, colorAntipulgas, effectiveColeiraTone, colorMedicacao, colorGrooming];
   const colorHealth: CardTone = healthTones.includes('critical')
     ? 'critical'
     : healthTones.includes('warning')
@@ -229,7 +226,7 @@ export function HomePetDashboard({
       : healthTones.includes('ok')
         ? 'ok'
         : 'neutral';
-  const alertHealth = colorHealth === 'warning' || colorHealth === 'critical' || alertVacinas || alertVermifugo || alertAntipulgas || alertColeira || alertMedicacao || alertGrooming || needsLeishmaniaseAwareness;
+  const alertHealth = colorHealth === 'warning' || colorHealth === 'critical' || alertVermifugo || alertAntipulgas || alertColeira || alertMedicacao || alertGrooming || needsLeishmaniaseAwareness;
   const reminders = useMemo(() => {
     if (!currentPet?.pet_id) return [];
     return buildPetCareReminders({
@@ -265,14 +262,24 @@ export function HomePetDashboard({
     () => allUpcomingReminders.find((r) => r.domain === 'vaccine') ?? null,
     [allUpcomingReminders],
   );
-  // Sem lembrete vencendo — sempre cai no texto caloroso/personalizado
-  // padrão do card (AppleControlButtons), com ou sem histórico de vacina
-  // já cadastrado. "Vacinas em dia" desapareceu de propósito: pro tutor de
-  // um pet saudável (o caso comum), o card ficava preso numa frase de
-  // status técnico quando já tinha calor humano disponível.
-  const vaccineHeadline = vaccineReminder && vaccineReminder.diff <= NEAR_TERM_REMINDER_DAYS
-    ? formatReminderHeadline(vaccineReminder)
-    : undefined;
+  // Sem lembrete vencendo e com histórico real — cai no texto caloroso/
+  // personalizado padrão do card (AppleControlButtons). "Vacinas em dia"
+  // desapareceu de propósito: pro tutor de um pet saudável (o caso comum),
+  // o card ficava preso numa frase de status técnico quando já tinha calor
+  // humano disponível. Pet sem NENHUMA vacina registrada é um caso
+  // diferente — não é "tudo tranquilo", é um alerta real (mesmo que ainda
+  // não vença nada), então tem texto e cor (effectiveVaccineTone) próprios.
+  // hasVaccineData é checado ANTES de vaccineReminder de propósito:
+  // buildPetCareReminders sintetiza um lembrete fantasma "Nenhuma vacina
+  // registrada" (diff: -9999, ver petCareDomain.ts) pra pet sem histórico
+  // nenhum, pro sino/badge não tratarem isso como "tudo em dia" — mas essa
+  // label genérica não pode vencer o texto específico deste card.
+  const hasVaccineData = vaccines.length > 0;
+  const vaccineHeadline = !hasVaccineData
+    ? `Mantenha ${currentPet.pet_name || 'seu pet'} protegido${currentPet.sex === 'female' ? 'a' : ''} de doenças`
+    : vaccineReminder && vaccineReminder.diff <= NEAR_TERM_REMINDER_DAYS
+      ? formatReminderHeadline(vaccineReminder)
+      : undefined;
 
   // Card de Saúde: entre remédio/antiparasitário/vermífugo/banho (vacina já
   // tem card próprio, ração também), pega o de maior gravidade real
@@ -369,7 +376,7 @@ export function HomePetDashboard({
         colorGrooming={colorGrooming}
         colorFood={colorFood}
         colorMedicacao={colorMedicacao}
-        colorVaccines={colorVacinas}
+        colorVaccines={effectiveVaccineTone}
       />
       <HomeShoppingSheet
         open={showShoppingSheet}
