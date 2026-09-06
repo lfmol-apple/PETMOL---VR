@@ -902,6 +902,24 @@ function HomePageInner() {
   };
   const [foundReports, setFoundReports] = useState<FoundReportItem[]>([]);
   const [confirmedPetIds, setConfirmedPetIds] = useState<string[]>([]);
+  // Marcar "encontrado" é irreversível (encerra o alerta e avisa todo mundo).
+  // Pede um segundo toque de confirmação — nunca dispara no primeiro clique.
+  const [confirmFoundFor, setConfirmFoundFor] = useState<string | null>(null);
+  const armFoundConfirm = useCallback((missingPetId: string) => {
+    setConfirmFoundFor(missingPetId);
+    // A confirmação "esfria" sozinha em 5s — não fica um botão armado
+    // esperando um toque acidental mais tarde.
+    setTimeout(() => setConfirmFoundFor(cur => (cur === missingPetId ? null : cur)), 5000);
+  }, []);
+  const markPetFound = useCallback(async (missingPetId: string) => {
+    const token = getToken();
+    if (!token) return;
+    await fetch(`${API_BASE_URL}/missing-pets/${missingPetId}/found`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setConfirmFoundFor(null);
+  }, []);
   const fetchFoundReports = useCallback(async () => {
     try {
       const token = getToken();
@@ -1971,12 +1989,11 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     <button
                       type="button"
                       onClick={async () => {
-                        const token = getToken();
-                        if (!token) return;
-                        await fetch(`${API_BASE_URL}/missing-pets/${rep.missing_pet_id}/found`, {
-                          method: 'PATCH',
-                          headers: { Authorization: `Bearer ${token}` },
-                        });
+                        if (confirmFoundFor !== rep.missing_pet_id) {
+                          armFoundConfirm(rep.missing_pet_id);
+                          return;
+                        }
+                        await markPetFound(rep.missing_pet_id);
                         setConfirmedPetIds(ids => [...ids, rep.missing_pet_id]);
                         setTimeout(() => {
                           fetchFoundReports();
@@ -1984,9 +2001,13 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                           fetchOwnMissingAlerts();
                         }, 3500);
                       }}
-                      className="flex-1 rounded-xl bg-white/20 border border-white/40 py-2.5 text-center text-[13px] font-black text-white shadow-sm active:scale-95 transition-transform"
+                      className={`flex-1 rounded-xl border py-2.5 text-center text-[13px] font-black shadow-sm active:scale-95 transition-transform ${
+                        confirmFoundFor === rep.missing_pet_id
+                          ? 'bg-white text-emerald-700 border-white'
+                          : 'bg-white/20 text-white border-white/40'
+                      }`}
                     >
-                      É meu pet
+                      {confirmFoundFor === rep.missing_pet_id ? `Confirmar: ${rep.pet_name} foi encontrado` : 'É meu pet'}
                     </button>
                   </div>
 
@@ -2133,7 +2154,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       onClick={() => router.push(`/achei-um-pet?id=${alert.id}`)}
                       className="flex-1 rounded-xl bg-white py-2.5 text-[13px] font-black text-rose-600 shadow-sm active:scale-95 transition-transform"
                     >
-                      Encontrei este pet
+                      Vi este pet
                     </button>
                   </div>
                   {/* Ação secundária DELIBERADA de ocultar (não é o "recolher"):
@@ -2212,19 +2233,22 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                           <button
                             type="button"
                             onClick={async () => {
-                              const token = getToken();
-                              if (!token) return;
-                              await fetch(`${API_BASE_URL}/missing-pets/${missingAlert.id}/found`, {
-                                method: 'PATCH',
-                                headers: { Authorization: `Bearer ${token}` },
-                              });
+                              if (confirmFoundFor !== missingAlert.id) {
+                                armFoundConfirm(missingAlert.id);
+                                return;
+                              }
+                              await markPetFound(missingAlert.id);
                               fetchOwnMissingAlerts();
                               fetchFoundReports();
                               fetchNearbyAlerts();
                             }}
-                            className="flex-1 rounded-xl border border-white/30 bg-white/10 py-2 text-center text-[13px] font-semibold text-white/80 active:scale-95 transition-transform"
+                            className={`flex-1 rounded-xl border py-2 text-center text-[13px] active:scale-95 transition-transform ${
+                              confirmFoundFor === missingAlert.id
+                                ? 'bg-white text-emerald-700 border-white font-black'
+                                : 'bg-white/10 text-white/80 border-white/30 font-semibold'
+                            }`}
                           >
-                            Encontrei meu pet
+                            {confirmFoundFor === missingAlert.id ? `Confirmar: ${currentPet.pet_name} foi encontrado` : 'Encontrei meu pet'}
                           </button>
                         </div>
                       </div>
@@ -2931,7 +2955,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                   onClick={() => { setAlertCard(null); router.push(`/achei-um-pet?id=${alertCard.id}`); }}
                   className="mt-5 w-full rounded-2xl bg-rose-600 py-3.5 text-[15px] font-black text-white active:scale-95 transition-transform"
                 >
-                  Encontrei este pet
+                  Vi ou encontrei este pet
                 </button>
                 {alertCard.public_slug && (
                   <button

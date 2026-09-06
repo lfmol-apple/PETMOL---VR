@@ -894,7 +894,7 @@ function AcheiUmPetInner() {
             </div>
             <div className="min-w-0 flex-1">
               <h1 className="text-[21px] font-black text-white leading-tight">
-                Encontrou um pet?
+                Viu ou encontrou um pet?
               </h1>
               <p className="text-[13px] text-white/55 mt-1 leading-relaxed">
                 Tire uma foto e a IA procura os alertas mais parecidos para você.
@@ -1359,19 +1359,17 @@ function PetCard({
                 onClick={onOpenReport}
                 className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-emerald-500 text-white font-black text-[14px] active:scale-[0.98] transition-all shadow-md shadow-green-900/30"
               >
-                Enviar informação ao tutor
+                Vi ou encontrei este pet
               </button>
-              <button
-                type="button"
-                onClick={reportingOpen ? onCancelReport : onOpenReport}
-                className={`px-4 py-3 rounded-2xl text-[13px] font-bold active:scale-[0.98] transition-all border ${
-                  reportingOpen
-                    ? 'bg-white/10 border-white/20 text-white/40'
-                    : 'bg-white/8 border-white/10 text-white/60'
-                }`}
-              >
-                {reportingOpen ? 'Cancelar' : '✓ Encontrei'}
-              </button>
+              {reportingOpen && (
+                <button
+                  type="button"
+                  onClick={onCancelReport}
+                  className="px-4 py-3 rounded-2xl text-[13px] font-bold active:scale-[0.98] transition-all border bg-white/10 border-white/20 text-white/40"
+                >
+                  Cancelar
+                </button>
+              )}
             </div>
 
             {/* Inline report form */}
