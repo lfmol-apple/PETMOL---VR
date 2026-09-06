@@ -75,7 +75,6 @@ import {
 } from '@/lib/types/home';
 import type {
   ParasiteFormData,
-  VetHistoryDocument,
 } from '@/lib/types/homeForms';
 import { 
   type PetHealthProfile,
@@ -448,7 +447,6 @@ function HomePageInner() {
     quickMarkSaving, setQuickMarkSaving,
     quickMarkToast, setQuickMarkToast,
   } = useQuickMark();
-  const [vetHistoryDocs, setVetHistoryDocs] = useState<VetHistoryDocument[]>([]);
   const [showHealthOptionsModal, setShowHealthOptionsModal] = useState(false);
   const [eventTypeLocked, setEventTypeLocked] = useState(false);
   const [showPetSelector, setShowPetSelector] = useState(false);
@@ -1136,25 +1134,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     window.addEventListener('petmol:feeding-plan-updated', onFoodPlanUpdated as EventListener);
     return () => window.removeEventListener('petmol:feeding-plan-updated', onFoodPlanUpdated as EventListener);
   }, [fetchFeedingPlan, selectedPetId]);
-
-  // Carregar documentos ao abrir a aba de eventos (para exibir docs vinculados)
-  useEffect(() => {
-    if (healthActiveTab === 'eventos' && selectedPetId) {
-      const token = getToken();
-      if (!token) return;
-      fetch(`${API_BASE_URL}/pets/${selectedPetId}/documents`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then(r => r.ok ? r.json() : [])
-        .then(data => setVetHistoryDocs(Array.isArray(data) ? data : []))
-        .catch(() => {
-          setPossiblyStale(true);
-          setHomePossiblyStale(true);
-          showAppToast('Erro ao sincronizar', { tone: 'warning' });
-        });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [healthActiveTab, selectedPetId]);
 
   // Carregar vacinas e antiparasitários automaticamente ao selecionar um pet (garante que o estado
   // esteja populado antes de qualquer modal abrir)
@@ -2367,7 +2346,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           handleDeleteEvent={handleDeleteEvent}
           fetchPetEvents={fetchPetEvents}
           openEditEvent={openEditEvent}
-          vetHistoryDocs={vetHistoryDocs}
         />
       )}
 
