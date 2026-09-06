@@ -46,7 +46,7 @@ export default function LandingPage() {
           Sem anúncios
         </div>
         <h1 className="text-[32px] font-black text-slate-900 leading-[1.15] tracking-tight text-balance">
-          O PETMOL<br className="sm:hidden" />conhece<br />o seu pet.
+          O PETMOL <br className="sm:hidden" />conhece<br />o seu pet.
         </h1>
         <p className="mt-4 text-base text-slate-500 leading-relaxed font-medium max-w-xs mx-auto">
           Acompanha a alimentação, as vacinas, os remédios e a proteção — e mostra o que vem a seguir, na hora certa.
