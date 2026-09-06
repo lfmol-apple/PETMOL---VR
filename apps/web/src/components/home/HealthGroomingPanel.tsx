@@ -74,7 +74,7 @@ export function HealthGroomingPanel({
     <PremiumPanelShell title={t('health.grooming')} icon="🛁" subtitle={petName}>
       <div className="space-y-4 sm:space-y-6">
         {/* Formulário de Registro */}
-        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-4 sm:p-6 border border-blue-200">
+        <div className="bg-gradient-to-br from-cyan-50 to-sky-50 rounded-xl p-4 sm:p-6 border border-cyan-200">
           {/* Banner de lembretes pendentes */}
           {groomingDueAlerts.length > 0 && (
             <div className="mb-3 p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-2">
@@ -93,7 +93,7 @@ export function HealthGroomingPanel({
           )}
 
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base font-bold text-blue-900 flex items-center gap-1.5">
+            <h3 className="text-base font-bold text-cyan-900 flex items-center gap-1.5">
               <span className="text-xl">🛁</span>
               {editingGrooming ? t('grooming.edit_service') : t('grooming.new_service')}
             </h3>
@@ -140,7 +140,7 @@ export function HealthGroomingPanel({
                     onClick={() => setGroomingFormData((prev) => ({ ...prev, type: option.value, frequency_days: option.frequency }))}
                     className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border-2 transition-all ${
                       groomingFormData.type === option.value
-                        ? 'border-[#0056D2] bg-blue-50 text-[#0047ad]'
+                        ? 'border-[#0056D2] bg-cyan-50 text-[#0047ad]'
                         : 'border-gray-200 hover:border-gray-300 text-gray-700'
                     }`}
                   >
@@ -206,7 +206,7 @@ export function HealthGroomingPanel({
                       key={place.place_id}
                       type="button"
                       onClick={() => selectPlace(place)}
-                      className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-colors"
+                      className="w-full text-left px-4 py-3 hover:bg-cyan-50 border-b border-gray-100 last:border-b-0 transition-colors"
                     >
                       <div className="font-semibold text-gray-800 flex items-center gap-2">
                         🏪 {place.name}
@@ -222,7 +222,7 @@ export function HealthGroomingPanel({
               )}
 
               {searchingPlaces && (
-                <div className="absolute right-3 top-10 text-blue-500">
+                <div className="absolute right-3 top-10 text-cyan-500">
                   <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -231,8 +231,8 @@ export function HealthGroomingPanel({
               )}
 
               {groomingFormData.location_address && (
-                <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="text-sm font-medium text-blue-900 mb-1">✓ Estabelecimento selecionado</div>
+                <div className="mt-2 p-3 bg-cyan-50 rounded-lg border border-cyan-200">
+                  <div className="text-sm font-medium text-cyan-900 mb-1">✓ Estabelecimento selecionado</div>
                   <div className="text-xs text-[#0047ad]">📍 {groomingFormData.location_address}</div>
                   {groomingFormData.location_phone && (
                     <div className="text-xs text-[#0047ad] mt-1">📞 {groomingFormData.location_phone}</div>
@@ -291,7 +291,7 @@ export function HealthGroomingPanel({
             </div>
 
             {/* Lembrete */}
-            <div className="bg-white border border-blue-200 rounded-lg p-3 space-y-2">
+            <div className="bg-white border border-cyan-200 rounded-lg p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-800">🔔 Lembrete de próximo serviço</span>
                 <div className="flex items-center gap-2">
@@ -309,7 +309,7 @@ export function HealthGroomingPanel({
                 <select
                   value={groomingFormData.alert_days_before}
                   onChange={(e) => setGroomingFormData((prev) => ({ ...prev, alert_days_before: parseInt(e.target.value, 10) }))}
-                  className="w-full p-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-[#0056D2] bg-white text-sm"
+                  className="w-full p-2 border border-cyan-200 rounded-lg focus:ring-2 focus:ring-[#0056D2] bg-white text-sm"
                 >
                   <option value={1}>1 dia antes</option>
                   <option value={2}>2 dias antes</option>
@@ -421,7 +421,7 @@ export function HealthGroomingPanel({
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleEditGrooming(record)}
-                          className="px-3 py-1 bg-blue-100 text-[#0047ad] rounded-lg hover:bg-blue-200 text-sm font-medium transition-colors"
+                          className="px-3 py-1 bg-cyan-100 text-[#0047ad] rounded-lg hover:bg-cyan-200 text-sm font-medium transition-colors"
                           title={t('common.edit')}
                         >
                           ✏️ {t('common.edit')}
@@ -435,7 +435,7 @@ export function HealthGroomingPanel({
                         </button>
                       </div>
                       {!isGroomHistory && record.next_recommended_date && (
-                        <div className="text-xs text-blue-600 font-medium">
+                        <div className="text-xs text-cyan-600 font-medium">
                           🔔 {nextTypeLabel[record.type]}: {createLocalDate(record.next_recommended_date).toLocaleDateString('pt-BR')}
                           {record.scheduled_time ? ` às ${record.scheduled_time}` : ''}
                         </div>

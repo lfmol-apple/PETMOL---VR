@@ -9,7 +9,10 @@ import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/s
 import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
+import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
 import { scheduleUniqueReminder, buildRemindAt, subtractDays } from '@/features/notifications/pushService';
+
+const PRIMARY_BTN = 'bg-[#0056D2] hover:bg-[#004ab8] active:bg-[#003f9e] text-white shadow-lg shadow-blue-500/25';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function groomingLabel(type: string): { icon: string; label: string } {
@@ -88,11 +91,13 @@ function resolveRemindAt(nextDateStr: string, daysBefore: number, time: string):
 
 function computeStatus(nextDate?: string | null) {
   const diff = diffDays(nextDate);
-  if (diff === null) return { label: 'Sem agendamento', bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400' };
-  if (diff < 0)      return { label: `Precisa de atenção · atrasado há ${Math.abs(diff)} dia${Math.abs(diff) !== 1 ? 's' : ''}`, bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500' };
-  if (diff === 0)    return { label: 'hoje', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
-  if (diff <= 7)     return { label: `em ${diff} dia${diff !== 1 ? 's' : ''}`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' };
-  return { label: `em ${diff} dias`, bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' };
+  const key = careStateFromDaysUntilDue(diff);
+  const s = CARE_STATE[key];
+  let label = diff === null ? 'Sem agendamento' : s.label;
+  if (diff != null && diff < 0) label = `Atrasado há ${Math.abs(diff)} dia${Math.abs(diff) !== 1 ? 's' : ''}`;
+  else if (diff === 0) label = 'Hoje';
+  else if (diff != null && diff > 0) label = `Em ${diff} dia${diff !== 1 ? 's' : ''}`;
+  return { key, label, bg: s.chip, text: s.chipText, dot: s.dot };
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -362,7 +367,7 @@ export function GroomingItemSheet({
   }
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
-  const inputCls = 'w-full min-w-0 border border-[#E5E5EA] rounded-xl px-3 py-3 text-[15px] text-[#1C1C1E] bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 placeholder:text-[#C7C7CC]';
+  const inputCls = 'w-full min-w-0 border border-[#E5E5EA] rounded-xl px-3 py-3 text-[15px] text-[#1C1C1E] bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/30 placeholder:text-[#C7C7CC]';
   const labelCls = 'block text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider mb-1.5';
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -417,7 +422,7 @@ export function GroomingItemSheet({
           subtitle={petName || undefined}
           status={{
             label: nextDate ? status.label.charAt(0).toUpperCase() + status.label.slice(1) : 'Sem agendamento',
-            tone: status.dot === 'bg-rose-500' ? 'danger' : status.dot === 'bg-amber-500' ? 'warn' : status.dot === 'bg-emerald-500' ? 'good' : 'neutral',
+            tone: status.key === "critical" ? "danger" : status.key === "attention" ? "warn" : status.key === "ok" ? "good" : "neutral",
           }}
           media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpecies === 'cat' ? '🐱' : '🐶'} />}
           onClose={onClose}
@@ -485,7 +490,7 @@ export function GroomingItemSheet({
                                 href={`https://www.google.com/search?tbm=shop&q=${encodeURIComponent(productName + ' pet')}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-[14px] font-medium text-emerald-700 truncate max-w-[55%] text-right"
+                                className="text-[14px] font-medium text-cyan-700 truncate max-w-[55%] text-right"
                               >
                                 {productName}
                               </a>
@@ -536,7 +541,7 @@ export function GroomingItemSheet({
               <div className="space-y-2 pt-1">
                 <button
                   onClick={startAdd}
-                  className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-[15px] font-black shadow-lg shadow-emerald-500/25 active:scale-[0.98] transition-all"
+                  className={`w-full py-3.5 rounded-2xl text-[15px] font-black active:scale-[0.98] transition-all ${PRIMARY_BTN}`}
                 >
                   Registrar banho/tosa
                 </button>
@@ -544,7 +549,7 @@ export function GroomingItemSheet({
                   <button
                     onClick={() => nextEditableRecord && startEdit(nextEditableRecord)}
                     disabled={!nextEditableRecord}
-                    className="w-full py-3 text-[15px] font-medium text-emerald-600 disabled:opacity-30 active:opacity-60 transition-opacity"
+                    className="w-full py-3 text-[15px] font-medium text-slate-500 disabled:opacity-30 active:opacity-60 transition-opacity"
                   >
                     Editar próximo agendamento
                   </button>
@@ -710,7 +715,7 @@ export function GroomingItemSheet({
               <button
                 onClick={handleAdd}
                 disabled={saving || !addForm.date}
-                className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-[15px] font-black shadow-lg shadow-emerald-500/25 active:scale-[0.98] transition-all disabled:opacity-40"
+                className={`w-full py-3.5 rounded-2xl text-[15px] font-black active:scale-[0.98] transition-all disabled:opacity-40 ${PRIMARY_BTN}`}
               >
                 {saving ? 'Salvando...' : 'Confirmar serviço'}
               </button>
@@ -818,7 +823,7 @@ export function GroomingItemSheet({
               <button
                 onClick={handleSaveEdit}
                 disabled={saving}
-                className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-[15px] font-black shadow-lg shadow-emerald-500/25 active:scale-[0.98] transition-all disabled:opacity-40"
+                className={`w-full py-3.5 rounded-2xl text-[15px] font-black active:scale-[0.98] transition-all disabled:opacity-40 ${PRIMARY_BTN}`}
               >
                 {saving ? 'Salvando...' : 'Salvar alterações'}
               </button>
@@ -844,7 +849,7 @@ export function GroomingItemSheet({
               </button>
               <button
                 onClick={() => setConfirmDeleteId(null)}
-                className="w-full py-3.5 text-[16px] font-semibold text-emerald-600 active:opacity-60 transition-opacity"
+                className="w-full py-3.5 text-[16px] font-semibold text-slate-500 active:opacity-60 transition-opacity"
               >
                 Cancelar
               </button>
