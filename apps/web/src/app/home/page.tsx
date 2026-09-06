@@ -15,7 +15,6 @@ import { PetTabs } from '@/components/PetTabs';
 // Modais e sheets — carregados sob demanda (só quando o usuário abre)
 const EditPetModal = dynamic(() => import('@/components/EditPetModal').then(m => ({ default: m.EditPetModal })), { ssr: false });
 const AddPetModal = dynamic(() => import('../../components/AddPetModal').then(m => ({ default: m.AddPetModal })), { ssr: false });
-const VaccineCardUpload = dynamic(() => import('@/components/VaccineCardUpload').then(m => ({ default: m.VaccineCardUpload })), { ssr: false });
 const HealthModal = dynamic(() => import('@/components/home/HealthModal').then(m => ({ default: m.HealthModal })), { ssr: false });
 const VaccineWorkflowModals = dynamic(() => import('@/components/home/VaccineWorkflowModals').then(m => ({ default: m.VaccineWorkflowModals })), { ssr: false });
 const FeedbackModal = dynamic(() => import('@/components/home/FeedbackModal').then(m => ({ default: m.FeedbackModal })), { ssr: false });
