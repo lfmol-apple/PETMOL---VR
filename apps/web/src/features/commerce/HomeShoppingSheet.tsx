@@ -47,15 +47,18 @@ type ShoppingView = 'store' | 'search';
 // categorias genéricas e promoções não-personalizadas só cansava o tutor
 // antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
 //
-// Ordem da tela (decisão de produto, 04/09/2026 — revisada): campo de
-// busca PRIMEIRO (antes de qualquer produto do pet — melhor achar a busca
-// de cara) → Comprar de novo (sem prazo) → Vai precisar em breve → Mais
-// para frente → lojas parceiras. Ver petStoreContent.groupReorderCardsByUrgency
-// pro agrupamento por urgência. O pet vem antes do merchant — cada card
-// mostra produto e prazo primeiro, loja só na hora de comprar. Tocar no
-// campo de busca abre a view dedicada (AffiliateCatalogSearch) — nela SÓ
-// aparece o resultado da busca, os produtos do pet somem enquanto o
-// tutor está procurando algo novo.
+// Ordem da tela (checklist PETMOL 1.0, item 3 — 06/09/2026): a tela
+// pergunta "o que o meu pet precisa?", então ABRE nos produtos do pet —
+// Comprar de novo (sem prazo) → Vai precisar em breve → Mais para frente.
+// A busca e as lojas parceiras vêm DEPOIS, num bloco "Explorar a loja"
+// visualmente recuado: explorar é secundário, não pode competir com a
+// recompra. (Isso revê a ordem de 04/09, que punha a busca em 1º.)
+// Ver petStoreContent.groupReorderCardsByUrgency pro agrupamento por
+// urgência. O pet vem antes do merchant — cada card mostra produto e
+// prazo primeiro, loja só na hora de comprar. Tocar no campo de busca
+// abre a view dedicada (AffiliateCatalogSearch) — nela SÓ aparece o
+// resultado da busca, os produtos do pet somem enquanto o tutor está
+// procurando algo novo.
 //
 // As 3 seções de produto ficam SEMPRE visíveis (decisão de produto,
 // 04/09/2026): a Loja do Pet tem poucos itens e todos são personalizados
@@ -88,6 +91,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
   const grouped = useMemo(() => groupReorderCardsByUrgency(reorderCards), [reorderCards]);
+  const hasReorderCards = reorderCards.length > 0;
 
   useEffect(() => {
     if (!open) {
@@ -341,37 +345,20 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
             <AffiliateCatalogSearch petId={currentPet.pet_id} autoFocus />
           ) : (
             <>
-              {/* Campo de busca — PRIMEIRO item da tela, antes dos produtos
-                  do pet (decisão de produto, 04/09/2026: melhor experiência
-                  é achar a busca de cara, sem rolar a tela toda). Visual de
-                  campo de busca de verdade (mesmo estilo do campo real em
-                  AffiliateCatalogSearch), mas é um <button> — o toque leva
-                  pra view de busca dedicada em vez de abrir teclado aqui em
-                  cima; lá o campo tem fonte grande ("zoom", igual ao
-                  cadastro inicial) pra facilitar digitar/ler. */}
-              <button
-                type="button"
-                onClick={handleSearchEntry}
-                className="flex w-full items-center gap-2.5 rounded-2xl border border-slate-200 bg-white pl-4 pr-4 py-3.5 text-left shadow-[0_4px_16px_-6px_rgba(15,23,42,0.18)] transition-all active:scale-[0.99] outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
-              >
-                <Search className="h-[18px] w-[18px] flex-shrink-0 text-slate-400" strokeWidth={2.2} />
-                <span className="text-[15px] font-medium text-slate-400">Buscar produto...</span>
-              </button>
+              {/* Produtos do pet PRIMEIRO (checklist PETMOL 1.0, item 3):
+                  a Loja abre respondendo "o que o meu pet precisa?". A busca
+                  e as lojas parceiras vão pro bloco "Explorar a loja" logo
+                  abaixo — explorar é secundário, não compete com a recompra.
 
-              {/* Títulos das 3 seções de produto (decisão de produto,
-                  04/09/2026): maiores, centralizados, mb-3.5 (era 2.5,
-                  descola mais dos cards abaixo) — texto de seção, não
-                  mais um rótulo discreto de canto. Cor branca (não
-                  slate-700 como na primeira tentativa): o fundo real
-                  aqui não é branco — é o bg-[#f5f6f8]/82 translúcido da
-                  sheet por cima do backdrop escuro/blur (bg-slate-950/55)
-                  — então QUALQUER cinza escuro fica com contraste ruim
-                  contra esse cinza-escuro composto, por mais que pareça
-                  óbvio "texto escuro em fundo claro" olhando só o valor
-                  hex do fundo. Branco puro (títulos) / branco 70%
-                  ("Ou visite uma loja parceira", só rótulo utilitário,
-                  mais discreto) / branco 60% (aviso de afiliados, fine
-                  print) — mesma cor, hierarquia só por opacidade. */}
+                  Títulos das 3 seções: maiores, centralizados, mb-3.5 — texto
+                  de seção, não rótulo de canto. Cor branca (não slate-700): o
+                  fundo real aqui não é branco — é o bg-[#f5f6f8]/82 translúcido
+                  da sheet sobre o backdrop escuro/blur (bg-slate-950/55) — então
+                  qualquer cinza escuro fica com contraste ruim contra esse
+                  cinza-escuro composto. Branco puro (títulos) / branco 70%
+                  ("Explorar a loja", "Ou visite uma loja parceira") / branco
+                  60% (aviso de afiliados) — mesma cor, hierarquia só por
+                  opacidade. */}
               {/* Comprar de novo — produtos recorrentes sem prazo definido
                   (ex: petisco). Intenção livre, o tutor compra quando quiser. */}
               {grouped.anytime.length > 0 && (
@@ -403,7 +390,26 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                 </div>
               )}
 
-              <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
+              {/* Explorar a loja — busca + parceiros. Recuado: só aparece o
+                  eyebrow quando há produtos do pet acima pra recuar EM RELAÇÃO
+                  a quê; o campo de busca é um <button> discreto (glassy, não
+                  card branco) que leva pra view de busca dedicada, onde o
+                  campo real tem fonte grande pra digitar/ler. */}
+              <div className="space-y-3 pt-1">
+                {hasReorderCards && (
+                  <p className="text-center text-[11px] font-bold uppercase tracking-[0.14em] text-white/60">Explorar a loja</p>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSearchEntry}
+                  className="flex w-full items-center gap-2.5 rounded-2xl border border-white/30 bg-white/[0.14] px-4 py-3 text-left backdrop-blur-sm transition-all active:scale-[0.99] outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+                >
+                  <Search className="h-[18px] w-[18px] flex-shrink-0 text-white/70" strokeWidth={2.2} />
+                  <span className="text-[15px] font-medium text-white/75">Buscar produto...</span>
+                </button>
+
+                <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
+              </div>
 
               <p className="pt-1 text-center text-[10px] leading-relaxed text-white/60">
                 Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
