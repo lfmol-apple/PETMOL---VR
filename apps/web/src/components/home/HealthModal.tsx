@@ -10,7 +10,6 @@ import { HealthParasiteControlPanel } from '@/components/home/HealthParasiteCont
 import { HealthGroomingPanel } from '@/components/home/HealthGroomingPanel';
 import { HealthMedicationPanel } from '@/components/home/HealthMedicationPanel';
 import { HealthVaccinesPanel } from '@/components/home/HealthVaccinesPanel';
-import { PetShareExportPanel } from '@/components/PetShareExportPanel';
 import { useHomeMedicationActions } from '@/features/interactions/useHomeMedicationActions';
 import { type PetEventRecord } from '@/lib/petEvents';
 import type { EventFormState } from '@/hooks/usePetEventManagement';
@@ -19,7 +18,6 @@ import type { GroomingRecord, ParasiteControl, PlaceDetails } from '@/lib/types/
 import type {
   GroomingFormData,
   ParasiteFormData,
-  VetHistoryDocument,
 } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
 import { PETMOL_HEADER_BG, SheetShell, SHEET_Z } from '@/components/ui/sheet';
@@ -124,7 +122,7 @@ interface HealthModalProps {
   // Props legadas do HealthEventPanel (desativado) — remover junto com HealthEventPanel em page.tsx quando feature for oficialmente descontinuada
   setCreatedEventId: (id: string | null) => void;
   handleDeleteEvent: (eventId: string) => void;
-  fetchPetEvents: (petId: string) => void; openEditEvent: (event: PetEventRecord) => void; vetHistoryDocs: VetHistoryDocument[];
+  fetchPetEvents: (petId: string) => void; openEditEvent: (event: PetEventRecord) => void;
 }
 
 export function HealthModal({
@@ -138,13 +136,12 @@ export function HealthModal({
   showPlaceSuggestions, setShowPlaceSuggestions, searchingPlaces, placeSuggestions, searchPlaces, selectPlace, fetchFeedingPlan,
   petEvents, eventsLoading, editingEventId, setEditingEventId, eventFormData, setEventFormData,
   eventSaving, setEventSaving,
-  handleDeleteEvent, fetchPetEvents, openEditEvent, vetHistoryDocs,
+  handleDeleteEvent, fetchPetEvents, openEditEvent,
 }: HealthModalProps) {
   const { t } = useI18n();
 
   const [showCloseWarning, setShowCloseWarning] = useState(false);
   const [pendingAction, setPendingAction] = useState<'close' | 'back' | null>(null);
-  const [showShareOverlay, setShowShareOverlay] = useState(false);
 
   const hasUnsavedForm =
     showParasiteForm ||
@@ -358,19 +355,8 @@ export function HealthModal({
                     </div>
                   </div>
 
-                  {/* Direita: Compartilhar + Início + Fechar */}
+                  {/* Direita: Início + Fechar */}
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {currentPet && (
-                      <button
-                        onClick={() => setShowShareOverlay(v => !v)}
-                        className={`group flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl transition-all duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0056D2] sm:h-10 sm:w-10 ${showShareOverlay ? 'bg-white text-[#0056D2]' : 'bg-white/15 text-white hover:bg-white/25'}`}
-                        aria-label="Compartilhar histórico do pet"
-                      >
-                        <svg className="w-4 h-4 sm:w-5 sm:h-5 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                        </svg>
-                      </button>
-                    )}
                     {onGoHome && (
                       <button
                         onClick={onGoHome}
@@ -432,28 +418,6 @@ export function HealthModal({
             {/* Conteúdo do Modal - Área de scroll otimizada */}
             <div className="p-3 sm:p-5 overflow-y-auto flex-1 bg-gray-50">
               <p className="text-[11.5px] font-medium text-slate-500 text-center mb-3">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
-              {/* Painel de Compartilhamento — acessível pelo botão ↗ no header */}
-              {showShareOverlay && currentPet && (
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold text-slate-700">Compartilhar histórico de {currentPet.pet_name}</h3>
-                    <button
-                      onClick={() => setShowShareOverlay(false)}
-                      className="text-xs text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-1 rounded-xl transition-colors"
-                    >
-                      Fechar
-                    </button>
-                  </div>
-                  <PetShareExportPanel
-                    pet={currentPet}
-                    vaccines={vaccines}
-                    petEvents={petEvents}
-                    documents={vetHistoryDocs}
-                    parasiteControls={parasiteControls}
-                    groomingRecords={groomingRecords}
-                  />
-                </div>
-              )}
 
               {/* Aba Vacinas */}
               {healthActiveTab === 'vaccines' && (
@@ -471,7 +435,6 @@ export function HealthModal({
                     currentVaccines={currentVaccines}
                     onOpenVaccineCenter={onOpenVaccineCenter}
                   />
-                  {/* PetShareExportPanel movido para o botão ↗ no header — acessível em todos os tabs */}
                 </div>
               )}
 
