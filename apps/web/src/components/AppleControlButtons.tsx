@@ -88,6 +88,8 @@ export function AppleControlButtons({
   foodTitle,
   foodHeadline,
   foodSubline,
+  vaccineHeadline,
+  healthHeadline,
   alertHealth,
   alertFood,
   alertVaccines,
@@ -101,11 +103,28 @@ export function AppleControlButtons({
   const foodHeadlineText = !hasFoodData
     ? 'Cuidado em aberto'
     : (foodHeadline || t('home.food.desc'));
-  // Subtexto fixo por pedido — o card externo só sinaliza problema via
-  // AlertDot (bolinha vermelha/âmbar), nunca troca esse texto por um
-  // resumo do problema (isso fica só dentro do modal de Cuidados/Vacina).
-  const healthHeadlineText = `Cuidados ${petDo({ sex: petSex })} ${petName || 'seu pet'}`;
-  const vaccineHeadlineText = `Vacinas ${petDo({ sex: petSex })} ${petName || 'seu pet'}`;
+  // Subtexto = ESTADO do cuidado, não repetição do título (checklist
+  // PETMOL 1.0, item 6: "a Home responde 'Como está meu pet hoje?'").
+  // Antes o texto era fixo ("Cuidados de Ted") e só a bolinha avisava
+  // problema. Agora: o lembrete real quando há um vencendo (o dado já é
+  // calculado em HomePetDashboard e passado como healthHeadline/
+  // vaccineHeadline) → senão "Precisa de atenção" / "Está tudo em dia" /
+  // "Sem registro ainda" pelo tom. A bolinha (AlertDot) continua.
+  const careStatusText = (
+    headline: string | undefined,
+    tone: ControlTone | undefined,
+    alert: boolean | undefined,
+    emptyText: string,
+  ) =>
+    headline
+      ? headline
+      : shouldShowAlert(tone, alert)
+        ? 'Precisa de atenção'
+        : tone === 'ok'
+          ? 'Está tudo em dia'
+          : emptyText;
+  const healthHeadlineText = careStatusText(healthHeadline, colorHealth, alertHealth, 'Toque para revisar');
+  const vaccineHeadlineText = careStatusText(vaccineHeadline, colorVaccines, alertVaccines, 'Sem vacina registrada');
   const foodIsDense = isDenseCardCopy(foodTitle || t('home.food.title'), foodHeadlineText, foodSubline);
   const healthIsDense = isDenseCardCopy('Cuidados', healthHeadlineText);
   const vaccineIsDense = isDenseCardCopy('Vacina', vaccineHeadlineText);
