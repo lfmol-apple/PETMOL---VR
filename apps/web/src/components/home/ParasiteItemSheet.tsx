@@ -15,8 +15,17 @@ import { scheduleUniqueReminder, buildRemindAt } from '@/features/notifications/
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import type { ProductCategory, ScannedProduct } from '@/lib/productScanner';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
+import { CARE_AREA_THEME } from '@/lib/careAreaTheme';
+import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
+
+// CTA primário do sistema cromático PETMOL (Modelo C): sempre azul
+// institucional, nunca a cor da área.
+const PRIMARY_BTN =
+  'bg-[#0056D2] hover:bg-[#004ab8] active:bg-[#003f9e] text-white shadow-sm';
 
 // ── Config por tipo ──────────────────────────────────────────────────────────
+// As cores da área vêm de CARE_AREA_THEME[type] (type já é 'dewormer' |
+// 'flea_tick' | 'collar', que são chaves diretas do tema).
 const CONFIG = {
   dewormer: {
     title: 'Vermífugo',
@@ -27,11 +36,6 @@ const CONFIG = {
     defaultFrequency: 90,
     applicationForm: 'oral' as const,
     productHint: 'Ex: Drontal, Milbemax, Verm-X',
-    colorBtn: 'bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-800 border border-emerald-200',
-    colorAccent: 'text-emerald-700',
-    colorLight: 'bg-emerald-50',
-    colorBorder: 'border-emerald-200',
-    colorRing: 'focus:ring-emerald-300',
   },
   flea_tick: {
     title: 'Antipulgas / Carrapatos',
@@ -42,11 +46,6 @@ const CONFIG = {
     defaultFrequency: 30,
     applicationForm: 'topical' as const,
     productHint: 'Ex: Bravecto, Nexgard, Simparica',
-    colorBtn: 'bg-orange-50 hover:bg-orange-100 active:bg-orange-200 text-orange-800 border border-orange-200',
-    colorAccent: 'text-orange-700',
-    colorLight: 'bg-orange-50',
-    colorBorder: 'border-orange-200',
-    colorRing: 'focus:ring-orange-300',
   },
   collar: {
     title: 'Coleira Antiparasitária',
@@ -57,11 +56,6 @@ const CONFIG = {
     defaultFrequency: 120,
     applicationForm: 'collar' as const,
     productHint: 'Ex: Seresto, Scalibor, Foresto',
-    colorBtn: 'bg-violet-50 hover:bg-violet-100 active:bg-violet-200 text-violet-800 border border-violet-200',
-    colorAccent: 'text-violet-700',
-    colorLight: 'bg-violet-50',
-    colorBorder: 'border-violet-200',
-    colorRing: 'focus:ring-violet-300',
   },
 } as const;
 
@@ -108,16 +102,28 @@ function hasLaterParasiteRecord(records: ParasiteControl[], record: ParasiteCont
 
 function computeStatus(nextDate?: string | null) {
   const diff = diffDays(nextDate);
-  if (diff === null) return { label: 'Sem dados', bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400', isOverdue: false, overdueDays: 0 };
-  if (diff < 0) {
-    const days = Math.abs(diff);
-    const label = days > 90 ? 'REVISÃO RECOMENDADA' : `ATRASADO ${days} dia${days !== 1 ? 's' : ''}`;
-    return { label, bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500', isOverdue: true, overdueDays: days };
+  const key = careStateFromDaysUntilDue(diff);
+  const s = CARE_STATE[key];
+  let label = s.label;
+  let overdueDays = 0;
+  if (diff != null && diff < 0) {
+    overdueDays = Math.abs(diff);
+    label = overdueDays > 90 ? 'Revisão recomendada' : `Atrasado ${overdueDays} dia${overdueDays !== 1 ? 's' : ''}`;
+  } else if (diff === 0) {
+    label = 'Hoje';
+  } else if (diff != null && diff > 0) {
+    label = `Em ${diff} dias`;
   }
-  if (diff === 0)    return { label: 'HOJE', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', isOverdue: false, overdueDays: 0 };
-  if (diff <= 7)     return { label: 'EM BREVE', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', isOverdue: false, overdueDays: 0 };
-  if (diff <= 14)    return { label: `Em ${diff} dias`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500', isOverdue: false, overdueDays: 0 };
-  return { label: `Em ${diff} dias`, bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', isOverdue: false, overdueDays: 0 };
+  return {
+    key,
+    label,
+    chip: s.chip,
+    chipText: s.chipText,
+    dot: s.dot,
+    row: s.row,
+    isOverdue: key === 'critical',
+    overdueDays,
+  };
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -151,6 +157,7 @@ export function ParasiteItemSheet({
   initialMode,
 }: ParasiteItemSheetProps) {
   const cfg = CONFIG[type];
+  const theme = CARE_AREA_THEME[type];
   const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
   const [mode, setMode] = useState<ViewMode>(initialMode === 'buy' ? 'buy' : 'view');
   const [saving, setSaving] = useState(false);
@@ -464,7 +471,7 @@ export function ParasiteItemSheet({
   }
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
-  const inputCls = `w-full min-w-0 prime-input text-gray-800 ${cfg.colorRing}`;
+  const inputCls = `w-full min-w-0 prime-input text-gray-800 ${theme.focusRing}`;
   const labelCls = 'block text-[10px] font-black text-gray-400 uppercase tracking-[0.16em] mb-1.5 ml-1';
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -499,8 +506,8 @@ export function ParasiteItemSheet({
         title={cfg.title}
         subtitle={petName || undefined}
         status={{
-          label: status.label.charAt(0) + status.label.slice(1).toLowerCase(),
-          tone: status.dot === 'bg-rose-500' ? 'danger' : status.dot === 'bg-amber-500' ? 'warn' : status.dot === 'bg-emerald-500' ? 'good' : 'neutral',
+          label: status.label,
+          tone: status.key === 'critical' ? 'danger' : status.key === 'attention' ? 'warn' : status.key === 'ok' ? 'good' : 'neutral',
         }}
         media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpecies === 'cat' ? '🐱' : '🐶'} />}
         onClose={onClose}
@@ -530,16 +537,8 @@ export function ParasiteItemSheet({
 
               {/* Active product card */}
               {current && (() => {
-                const urgentBorder =
-                  status.dot === 'bg-rose-500' ? 'border-rose-200 bg-rose-50' :
-                  status.dot === 'bg-amber-500' ? 'border-amber-200 bg-amber-50' :
-                  status.dot === 'bg-yellow-500' ? 'border-yellow-200 bg-yellow-50' :
-                  `${cfg.colorBorder} ${cfg.colorLight}`;
-                const statusPill =
-                  status.dot === 'bg-rose-500' ? 'bg-rose-100 text-rose-700' :
-                  status.dot === 'bg-amber-500' ? 'bg-amber-100 text-amber-700' :
-                  status.dot === 'bg-yellow-500' ? 'bg-yellow-100 text-yellow-700' :
-                  'bg-emerald-100 text-emerald-700';
+                const urgentBorder = status.key === 'ok' ? `${theme.accentBorder} ${theme.accentBg}` : status.row;
+                const statusPill = `${status.chip} ${status.chipText}`;
                 return (
                   <div className={`flex items-start gap-2.5 px-3 py-2 rounded-xl border ${urgentBorder}`}>
                     <div className="w-8 h-8 rounded-lg bg-white/80 flex items-center justify-center text-base flex-shrink-0">
@@ -547,7 +546,7 @@ export function ParasiteItemSheet({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Produto atual</p>
-                      <p className={`text-[13px] font-bold ${cfg.colorAccent} leading-tight break-words`}>{current.product_name}</p>
+                      <p className={`text-[13px] font-bold ${theme.accentText} leading-tight break-words`}>{current.product_name}</p>
                       <p className="text-[11px] text-gray-500 leading-tight">
                         Aplicado {fmtDate(current.date_applied)}
                       </p>
@@ -558,7 +557,7 @@ export function ParasiteItemSheet({
                                 <span className="font-semibold text-rose-700">Era para aplicar em {fmtDate(nextDate)}</span>
                                 {status.overdueDays <= 90 && <> · <span className="text-rose-600">atrasado há {status.overdueDays} dia{status.overdueDays !== 1 ? 's' : ''}</span></>}
                               </>
-                            : <>Próxima {type === 'collar' ? 'troca' : 'aplicação'} <span className={`font-semibold ${status.text}`}>· {fmtDate(nextDate)}</span></>
+                            : <>Próxima {type === 'collar' ? 'troca' : 'aplicação'} <span className={`font-semibold ${status.chipText}`}>· {fmtDate(nextDate)}</span></>
                           : 'Sem próxima data definida'}
                       </p>
                     </div>
@@ -584,15 +583,14 @@ export function ParasiteItemSheet({
               <div className="flex gap-2">
                 <button
                   onClick={() => setMode('apply')}
-                  className={`flex-1 py-2.5 rounded-xl text-[13px] font-semibold active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${cfg.colorBtn}`}
+                  className={`flex-1 py-2.5 rounded-xl text-[13px] font-semibold active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${PRIMARY_BTN}`}
                 >
-                  <span>✅</span>
                   Registrar
                 </button>
                 {current && (
                   <button
                     onClick={() => startEdit(current)}
-                    className={`px-4 py-2.5 rounded-xl text-[13px] font-semibold active:scale-[0.98] transition-all ${cfg.colorBtn}`}
+                    className="px-4 py-2.5 rounded-xl text-[13px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] transition-all"
                   >
                     Editar
                   </button>
@@ -623,7 +621,7 @@ export function ParasiteItemSheet({
                           key={rec.id}
                           className="flex items-center gap-3 px-4 py-2.5"
                         >
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${!isHistory ? cfg.colorLight : 'bg-gray-100'}`}>
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0 ${!isHistory ? theme.accentBg : 'bg-gray-100'}`}>
                             {!isHistory ? cfg.icon : '·'}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -690,7 +688,7 @@ export function ParasiteItemSheet({
               <h3 className="text-[16px] font-bold text-gray-900">{cfg.ctaLabel}</h3>
 
               {!showManualForm && (
-                <div className={`rounded-2xl border p-4 space-y-3 ${cfg.colorBorder} ${cfg.colorLight}`}>
+                <div className={`rounded-2xl border p-4 space-y-3 ${theme.accentBorder} ${theme.accentBg}`}>
                   <div>
                     <h3 className="text-[18px] font-black text-gray-900 leading-tight">Identifique o produto</h3>
                     <p className="text-[13px] text-gray-600 mt-1">Busque pelo nome ou marca — código de barras também funciona, se preferir.</p>
@@ -773,7 +771,7 @@ export function ParasiteItemSheet({
                   <button
                     onClick={handleApply}
                     disabled={saving || !applyForm.date || !applyForm.product_name.trim()}
-                    className={`w-full py-4 rounded-2xl text-[15px] font-bold shadow-sm disabled:opacity-50 ${cfg.colorBtn}`}
+                    className={`w-full py-4 rounded-2xl text-[15px] font-bold shadow-sm disabled:opacity-50 ${PRIMARY_BTN}`}
                   >
                     {saving ? 'Salvando...' : '✅ Confirmar registro'}
                   </button>
@@ -843,7 +841,7 @@ export function ParasiteItemSheet({
               <button
                 onClick={handleSaveEdit}
                 disabled={saving}
-                className={`w-full py-3.5 rounded-2xl text-[15px] font-bold shadow-sm disabled:opacity-50 ${cfg.colorBtn}`}
+                className={`w-full py-3.5 rounded-2xl text-[15px] font-bold shadow-sm disabled:opacity-50 ${PRIMARY_BTN}`}
               >
                 {saving ? 'Salvando...' : '✅ Salvar alterações'}
               </button>
@@ -899,7 +897,7 @@ export function ParasiteItemSheet({
 
               <button
                 onClick={() => setMode('apply')}
-                className={`w-full py-3 rounded-xl text-sm font-semibold shadow-sm ${cfg.colorBtn}`}
+                className={`w-full py-3 rounded-xl text-sm font-semibold shadow-sm ${PRIMARY_BTN}`}
               >
                 ✅ Já comprei — registrar aplicação
               </button>
