@@ -20,6 +20,12 @@ export function HomeEmergencySheet({ open, onClose }: HomeEmergencySheetProps) {
         onClose={onClose}
       />
       <SheetShell.Body className="space-y-3">
+        <div className="rounded-2xl border border-rose-100 bg-rose-50/60 px-4 py-3">
+          <p className="text-[12px] leading-relaxed text-rose-900/80">
+            Se parece grave, ligue antes para avisar que está a caminho. Tenha em mãos a
+            idade e o peso do pet e o que aconteceu — isso agiliza o atendimento.
+          </p>
+        </div>
         <a
           href="https://www.google.com/maps/search/clinica+veterinaria+24+horas+perto+de+mim"
           target="_blank"
@@ -53,7 +59,8 @@ export function HomeEmergencySheet({ open, onClose }: HomeEmergencySheetProps) {
         </a>
 
         <p className="pt-1 text-center text-[11px] leading-relaxed text-slate-400">
-          Abre o Google Maps com estabelecimentos próximos a você.
+          Cada opção abre o Google Maps com os locais mais próximos de você. O PETMOL não
+          faz o atendimento — ele te leva mais rápido a quem faz.
         </p>
       </SheetShell.Body>
     </SheetShell>
