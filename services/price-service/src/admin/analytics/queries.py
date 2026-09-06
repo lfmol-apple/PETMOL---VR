@@ -25,7 +25,6 @@ from ...pets.grooming_models import GroomingRecord
 from ...pets.models import Pet
 from ...pets.parasite_models import ParasiteControlRecord
 from ...pets.vaccine_models import VaccineRecord
-from ...services.models import RGPublic
 from ...support.models import SupportFeedback
 from ...user_auth.models import User
 from .filters import AnalyticsFilters
@@ -472,13 +471,6 @@ def _pet_feature_states(
         else:
             latest = max(x for x in (_aware(r[1]), _aware(r[2])) if x is not None)
             states[pid]["vet_visit"] = classify_by_recency(latest, now=now, active_days=210)
-
-    # ── rg (public) ──
-    rg_pet_ids = {
-        r[0] for r in db.query(RGPublic.pet_id).filter(RGPublic.is_public.is_(True)).all()
-    }
-    for pid in all_pet_ids:
-        states[pid]["rg"] = FeatureState.ACTIVE if pid in rg_pet_ids else FeatureState.NEVER_CONFIGURED
 
     return states
 

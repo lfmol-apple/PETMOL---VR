@@ -236,36 +236,3 @@ class QRScan(Base):
     __table_args__ = (
         Index('idx_qr_scans_establishment_date', 'establishment_id', 'created_at'),
     )
-
-
-class RGPublic(Base):
-    """
-    RG público do pet para compartilhamento viral.
-    Página curta petmol.com/p/<pet_public_id>
-    """
-    __tablename__ = "rg_public"
-
-    pet_public_id: Mapped[str] = mapped_column(String(20), primary_key=True)  # ID curto e amigável
-    
-    # Referência interna (não expor no frontend)
-    owner_user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
-    pet_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
-    
-    # Configurações de privacidade
-    is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    contact_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="handoff_only")  # qr_only, handoff_only
-    
-    # Metadados do RG
-    template: Mapped[str] = mapped_column(String(50), nullable=False, default="default")
-    pet_name: Mapped[str] = mapped_column(String(120), nullable=False)
-    pet_species: Mapped[str] = mapped_column(String(24), nullable=False)
-    pet_photo_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    
-    # Analytics
-    view_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    share_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    
-    # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    last_viewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

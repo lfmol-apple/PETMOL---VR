@@ -508,6 +508,11 @@ def run_pg_migrations(engine: Engine) -> None:
         conn.execute(text("DROP TABLE IF EXISTS pet_documents CASCADE"))
         _wipe_pet_documents_dir()
 
+        # 2026-09: "RG do pet" (página pública compartilhável) descontinuado
+        # junto com o compartilhamento de histórico — rg/ router + RGPublic
+        # apagados. A página pública /p/[id] e /v/[token] também.
+        conn.execute(text("DROP TABLE IF EXISTS rg_public CASCADE"))
+
 
 def _migrate_push_subscriptions_from_json(conn) -> None:
     """One-time import of the legacy push_subscriptions.json (file-based,
@@ -1042,10 +1047,12 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "affiliate_feed_sync_runs", "duplicate_gtin_groups", "INTEGER DEFAULT 0")
         changed |= _sqlite_add_column_if_missing(conn, "affiliate_feed_sync_runs", "ambiguous_gtin_groups", "INTEGER DEFAULT 0")
 
-        # 2026-09: "cofre de documentos" descontinuado — ver run_pg_migrations.
+        # 2026-09: "cofre de documentos" + "RG do pet" descontinuados —
+        # ver run_pg_migrations.
         conn.execute(text("DROP TABLE IF EXISTS pet_document_imports"))
         conn.execute(text("DROP TABLE IF EXISTS pet_documents"))
         _wipe_pet_documents_dir()
+        conn.execute(text("DROP TABLE IF EXISTS rg_public"))
 
         # `changed` is intentionally unused; kept for potential logging later.
         _ = changed

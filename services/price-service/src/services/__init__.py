@@ -6,7 +6,6 @@ from .models import (
     AnalyticsClick,
     Establishment,
     QRScan,
-    RGPublic,
 )
 
 __all__ = [
@@ -16,5 +15,4 @@ __all__ = [
     "AnalyticsClick",
     "Establishment",
     "QRScan",
-    "RGPublic",
 ]

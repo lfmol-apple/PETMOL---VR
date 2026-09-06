@@ -480,10 +480,6 @@ app.include_router(vaccine_suggestions_router)
 from .services.router import router as services_router
 app.include_router(services_router)
 
-# SLICE 2: Include RG router (pet ID card viral sharing)
-from .rg.router import router as rg_router
-app.include_router(rg_router)
-
 # SLICE 3: Include Establishments portal router
 from .establishments import router as establishments_router
 app.include_router(establishments_router)
