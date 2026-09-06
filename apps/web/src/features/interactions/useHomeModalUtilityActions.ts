@@ -18,9 +18,7 @@ interface UseHomeModalUtilityActionsInput {
   setShowArrivalAlert: (value: boolean) => void;
   setShowAttendanceOptions: (value: boolean) => void;
   setShowHealthOptionsModal: (value: boolean) => void;
-  setShowServiceTypeModal: (value: boolean) => void;
   setShowEventTypeModal: (value: boolean) => void;
-  setShowVetOptionsModal: (value: boolean) => void;
   setShowAddPetModal: (value: boolean) => void;
   setShowEditModal: (value: boolean) => void;
   setShowPetSelector: (value: boolean) => void;
@@ -45,9 +43,7 @@ export function useHomeModalUtilityActions({
   setShowArrivalAlert,
   setShowAttendanceOptions,
   setShowHealthOptionsModal,
-  setShowServiceTypeModal,
   setShowEventTypeModal,
-  setShowVetOptionsModal,
   setShowAddPetModal,
   setShowEditModal,
   setShowPetSelector,
@@ -118,10 +114,6 @@ export function useHomeModalUtilityActions({
     navigateToPetHealthTab(router, selectedPetId, tab);
   }, [router, selectedPetId, setShowHealthOptionsModal]);
 
-  const closeServiceTypeModal = useCallback(() => {
-    setShowServiceTypeModal(false);
-  }, [setShowServiceTypeModal]);
-
   const closeHealthOptionsModal = useCallback(() => {
     setShowHealthOptionsModal(false);
   }, [setShowHealthOptionsModal]);
@@ -133,10 +125,6 @@ export function useHomeModalUtilityActions({
   const closeEventTypeModal = useCallback(() => {
     setShowEventTypeModal(false);
   }, [setShowEventTypeModal]);
-
-  const closeVetOptionsModal = useCallback(() => {
-    setShowVetOptionsModal(false);
-  }, [setShowVetOptionsModal]);
 
   const openHealthTab = useCallback((tab: string) => {
     setHealthModalMode('health');
@@ -231,11 +219,9 @@ export function useHomeModalUtilityActions({
     openArrivalVaccineForm,
     navigateToSaudeFromArrival,
     navigateToSaudeFromHealthOptions,
-    closeServiceTypeModal,
     closeHealthOptionsModal,
     openEventTypeModal,
     closeEventTypeModal,
-    closeVetOptionsModal,
     openHealthTab,
     selectHealthTab,
     closeHealthModal,

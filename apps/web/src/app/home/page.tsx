@@ -17,12 +17,9 @@ const EditPetModal = dynamic(() => import('@/components/EditPetModal').then(m =>
 const AddPetModal = dynamic(() => import('../../components/AddPetModal').then(m => ({ default: m.AddPetModal })), { ssr: false });
 const VaccineCardUpload = dynamic(() => import('@/components/VaccineCardUpload').then(m => ({ default: m.VaccineCardUpload })), { ssr: false });
 const HealthModal = dynamic(() => import('@/components/home/HealthModal').then(m => ({ default: m.HealthModal })), { ssr: false });
-const VaccineGuide = dynamic(() => import('@/components/home/VaccineGuide').then(m => ({ default: m.VaccineGuide })), { ssr: false });
 const VaccineWorkflowModals = dynamic(() => import('@/components/home/VaccineWorkflowModals').then(m => ({ default: m.VaccineWorkflowModals })), { ssr: false });
 const FeedbackModal = dynamic(() => import('@/components/home/FeedbackModal').then(m => ({ default: m.FeedbackModal })), { ssr: false });
 const QuickAddVaccineModal = dynamic(() => import('@/components/home/QuickAddVaccineModal').then(m => ({ default: m.QuickAddVaccineModal })), { ssr: false });
-const VetHistoryModal = dynamic(() => import('@/components/home/VetHistoryModal').then(m => ({ default: m.VetHistoryModal })), { ssr: false });
-const HistoryDocumentsOverlay = dynamic(() => import('@/components/home/HistoryDocumentsOverlay').then(m => ({ default: m.HistoryDocumentsOverlay })), { ssr: false });
 const HomeNavigationModals = dynamic(() => import('@/components/home/HomeNavigationModals').then(m => ({ default: m.HomeNavigationModals })), { ssr: false });
 const HomeEmergencySheet = dynamic(() => import('@/components/home/HomeEmergencySheet').then(m => ({ default: m.HomeEmergencySheet })), { ssr: false });
 const PushActionSheet = dynamic(() => import('@/components/PushActionSheet').then(m => ({ default: m.PushActionSheet })), { ssr: false });
@@ -41,7 +38,6 @@ import type { PetInteractionItem } from '@/features/interactions/types';
 import { openHomeContextualCommerce, resolvePushActionSheetCommerceIntent } from '@/features/commerce/homeContextualCommerce';
 // resolveAlertAction / navigateToPetHealthTab removidos — handleTopAttentionSelect abre sheets diretamente
 import { useHomeItemSheetActions } from '@/features/interactions/useHomeItemSheetActions';
-import { useHomeHistoryActions } from '@/features/interactions/useHomeHistoryActions';
 import { resolveHomeDeepLinkDestination, resolveScannedProductDestination, resolveTopAttentionDestination, type HomeSurfaceResolution } from '@/features/interactions/homeModalRouting';
 import { useHomeModalUtilityActions } from '@/features/interactions/useHomeModalUtilityActions';
 import { useHomeSurfaceActions } from '@/features/interactions/useHomeSurfaceActions';
@@ -58,7 +54,7 @@ import { useGroomingManagement } from '@/hooks/useGroomingManagement';
 import { useFoodPlanSync } from '@/hooks/useFoodPlanSync';
 import { useQuickMark } from '@/hooks/useQuickMark';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
-import { vaccineInfo, commonVaccines } from '@/data/vaccineInfo';
+import { commonVaccines } from '@/data/vaccineInfo';
 
 import { hasCompletedOnboarding } from '@/lib/ownerProfile';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
@@ -78,7 +74,6 @@ import {
   type ParasiteControlType,
 } from '@/lib/types/home';
 import type {
-  DocFolderModalState,
   ParasiteFormData,
   VetHistoryDocument,
 } from '@/lib/types/homeForms';
@@ -453,12 +448,7 @@ function HomePageInner() {
     quickMarkSaving, setQuickMarkSaving,
     quickMarkToast, setQuickMarkToast,
   } = useQuickMark();
-  const [showVetHistoryModal, setShowVetHistoryModal] = useState(false);
-  const [historicoTab, setHistoricoTab] = useState<'resumo' | 'detalhado'>('detalhado');
   const [vetHistoryDocs, setVetHistoryDocs] = useState<VetHistoryDocument[]>([]);
-  const [docFolderModal, setDocFolderModal] = useState<DocFolderModalState>(null);
-  const [showVetOptionsModal, setShowVetOptionsModal] = useState(false);
-  const [showServiceTypeModal, setShowServiceTypeModal] = useState(false);
   const [showHealthOptionsModal, setShowHealthOptionsModal] = useState(false);
   const [showEventTypeModal, setShowEventTypeModal] = useState(false);
   const [eventTypeLocked, setEventTypeLocked] = useState(false);
@@ -474,9 +464,6 @@ function HomePageInner() {
   const closeAllTransientModals = useCallback(() => {
     setShowHealthModal(false);
     setShowEmergencySheet(false);
-    setShowVetHistoryModal(false);
-    setShowVetOptionsModal(false);
-    setShowServiceTypeModal(false);
     setShowHealthOptionsModal(false);
     setShowEventTypeModal(false);
     setPushActionSheet(null);
@@ -500,7 +487,6 @@ function HomePageInner() {
     selectedPetId,
     healthActiveTab,
     setHealthActiveTab,
-    setShowVetHistoryModal,
     setShowHealthModal,
     setEventTypeLocked,
   });
@@ -556,7 +542,6 @@ function HomePageInner() {
     vaccineFormSaving, setVaccineFormSaving,
     importVaccineLoading, setImportVaccineLoading,
     showQuickAddVaccine, setShowQuickAddVaccine,
-    showAllVaccinesGuide, setShowAllVaccinesGuide,
     showAIUpload, setShowAIUpload,
     editingVaccine, setEditingVaccine,
     showFeedbackModal, setShowFeedbackModal,
@@ -567,7 +552,6 @@ function HomePageInner() {
     loadVaccines,
     resetVaccineForm,
     calculateNextDose,
-    getRecentVets,
     handleSaveVaccine,
     handleEditVaccine,
     handleDeleteVaccine,
@@ -1466,11 +1450,9 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     openArrivalVaccineForm,
     navigateToSaudeFromArrival,
     navigateToSaudeFromHealthOptions,
-    closeServiceTypeModal,
     closeHealthOptionsModal,
     openEventTypeModal,
     closeEventTypeModal,
-    closeVetOptionsModal,
     openHealthTab,
     selectHealthTab,
     closeHealthModal,
@@ -1487,9 +1469,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     setShowArrivalAlert,
     setShowAttendanceOptions,
     setShowHealthOptionsModal,
-    setShowServiceTypeModal,
     setShowEventTypeModal,
-    setShowVetOptionsModal,
     setShowAddPetModal,
     setShowEditModal,
     setShowPetSelector,
@@ -1507,26 +1487,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     setPhotoTimestamps,
   });
 
-  const {
-    closeVetHistoryModal,
-    openHealthOptionsFromVetHistory,
-    openGroomingFromVetHistory,
-    openFoodFromVetHistory,
-    openHealthTabFromVetHistory,
-    openVetHistoryDocumentFolder,
-    closeVetHistoryDocumentFolder,
-    removeDocumentFromVetHistoryFolder,
-    navigateToSaudeFromVetHistory,
-  } = useHomeHistoryActions({
-    router,
-    selectedPetId,
-    setShowVetHistoryModal,
-    setShowHealthOptionsModal,
-    setShowHealthModal,
-    setHealthModalMode,
-    setHealthActiveTab,
-    setDocFolderModal,
-  });
 
   // ?addPet=1 — vindo do /welcome ("Adicionar meu pet") e do /register-pet
   // (que agora só redireciona pra cá). Abre o AddPetModal real, sem
@@ -1810,32 +1770,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     router.replace('/home', { scroll: false });
   }, [applyFoodPushAction, applyHomeSurfaceResolution, pets, selectedPetId, searchParams, router, deepLinkTrigger]);
 
-
-  // Fetch documents when vet history modal opens
-  useEffect(() => {
-    if (!showVetHistoryModal || !currentPet) return;
-    const token = getToken();
-    if (!token) return;
-    fetch(`${API_BASE_URL}/pets/${currentPet.pet_id}/documents`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.ok ? r.json() : [])
-      .then((data) => setVetHistoryDocs(Array.isArray(data) ? data : []))
-      .catch(() => {
-        setPossiblyStale(true);
-        setHomePossiblyStale(true);
-        showAppToast('Erro ao sincronizar', { tone: 'warning' });
-      });
-    // Refrescar vacinas ao abrir o histórico
-    loadVaccines();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showVetHistoryModal, currentPet?.pet_id]);
-
-  useEffect(() => {
-    if (showVetHistoryModal) {
-      setHistoricoTab('detalhado');
-    }
-  }, [showVetHistoryModal]);
 
   if (isLoading || isChecking) {
     return (
@@ -2472,8 +2406,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           eventSaving={eventSaving}
           setEventSaving={setEventSaving}
           setCreatedEventId={setCreatedEventId}
-          docFolderModal={docFolderModal}
-          setDocFolderModal={setDocFolderModal}
           handleDeleteEvent={handleDeleteEvent}
           fetchPetEvents={fetchPetEvents}
           openEditEvent={openEditEvent}
@@ -2481,13 +2413,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         />
       )}
 
-      {/* Modal: Guia Completo de Vacinas */}
-      {showAllVaccinesGuide && (
-        <VaccineGuide
-          vaccineInfo={vaccineInfo}
-          setShowAllVaccinesGuide={setShowAllVaccinesGuide}
-        />
-      )}
 
       {/* Modal Formulário de Vacina */}
       {(showVaccineForm || showAIUpload || cardAnalysis) && (
@@ -2534,36 +2459,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         />
       )}
 
-      {/* Modal Histórico Veterinário Completo */}
-      {showVetHistoryModal && currentPet && (
-        <VetHistoryModal
-          currentPet={currentPet}
-          historicoTab={historicoTab}
-          setHistoricoTab={setHistoricoTab}
-          vaccines={vaccines}
-          parasiteControls={parasiteControls}
-          groomingRecords={groomingRecords}
-          petEvents={petEvents}
-          vetHistoryDocs={vetHistoryDocs}
-          onClose={closeVetHistoryModal}
-          onOpenHealthOptions={openHealthOptionsFromVetHistory}
-          onOpenGrooming={openGroomingFromVetHistory}
-          onOpenFood={openFoodFromVetHistory}
-          onOpenHealthTab={openHealthTabFromVetHistory}
-          onOpenDocumentFolder={openVetHistoryDocumentFolder}
-          onNavigateToSaude={navigateToSaudeFromVetHistory}
-        />
-      )}
-
-      {/* Acervo legado de documentos — somente leitura/exclusão */}
-      <HistoryDocumentsOverlay
-        currentPet={currentPet}
-        setVetHistoryDocs={setVetHistoryDocs}
-        docFolderModal={docFolderModal}
-        onCloseDocFolder={closeVetHistoryDocumentFolder}
-        onRemoveDocFromFolder={removeDocumentFromVetHistoryFolder}
-      />
-
       {/* Modal de Feedback/Correção */}
       {showFeedbackModal && feedbackVaccine && (
         <FeedbackModal
@@ -2589,16 +2484,12 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
       <HomeNavigationModals
         currentPet={currentPet}
-        showServiceTypeModal={showServiceTypeModal}
-        onCloseServiceTypeModal={closeServiceTypeModal}
         showHealthOptionsModal={showHealthOptionsModal}
         onCloseHealthOptionsModal={closeHealthOptionsModal}
         onOpenHealthOptionsModal={() => setShowHealthOptionsModal(true)}
         showEventTypeModal={showEventTypeModal}
         onOpenEventTypeModal={openEventTypeModal}
         onCloseEventTypeModal={closeEventTypeModal}
-        showVetOptionsModal={showVetOptionsModal}
-        onCloseVetOptionsModal={closeVetOptionsModal}
         alertVaccinesValue={alertVaccinesValue}
         alertParasitesValue={alertParasitesValue}
         alertMedicationValue={alertMedicationValue}
@@ -2611,8 +2502,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         colorGroomingValue={selectedPetCardColors.grooming}
         onOpenHealthTab={openHealthTab}
         onStartEventRegistration={startEventRegistration}
-        onOpenEditPet={openEditPetModal}
-        getRecentVets={getRecentVets}
         onNavigateToSaude={navigateToSaudeFromHealthOptions}
         onOpenVaccines={handleOpenVaccines}
         onOpenVermifugo={handleOpenVermifugo}

@@ -1,7 +1,6 @@
 'use client';
 
 // RESPONSABILIDADE: gestão ativa de saúde e rotina (WRITE).
-// VetHistoryModal = timeline histórica somente leitura (READ). Modais complementares, não duplicados.
 
 import { useState, useEffect, useCallback, type Dispatch, type SetStateAction } from 'react';
 import { useDraftAutosave, loadDraft, clearDraft } from '@/hooks/useDraftAutosave';
@@ -18,7 +17,6 @@ import type { EventFormState } from '@/hooks/usePetEventManagement';
 import type { PetHealthProfile, VaccineRecord } from '@/lib/petHealth';
 import type { GroomingRecord, ParasiteControl, PlaceDetails } from '@/lib/types/home';
 import type {
-  DocFolderModalState,
   GroomingFormData,
   ParasiteFormData,
   VetHistoryDocument,
@@ -125,7 +123,7 @@ interface HealthModalProps {
   eventFormData: EventFormState; setEventFormData: Dispatch<SetStateAction<EventFormState>>; eventSaving: boolean; setEventSaving: (v: boolean) => void;
   // Props legadas do HealthEventPanel (desativado) — remover junto com HealthEventPanel em page.tsx quando feature for oficialmente descontinuada
   setCreatedEventId: (id: string | null) => void;
-  docFolderModal: DocFolderModalState; setDocFolderModal: Dispatch<SetStateAction<DocFolderModalState>>; handleDeleteEvent: (eventId: string) => void;
+  handleDeleteEvent: (eventId: string) => void;
   fetchPetEvents: (petId: string) => void; openEditEvent: (event: PetEventRecord) => void; vetHistoryDocs: VetHistoryDocument[];
 }
 
@@ -140,7 +138,6 @@ export function HealthModal({
   showPlaceSuggestions, setShowPlaceSuggestions, searchingPlaces, placeSuggestions, searchPlaces, selectPlace, fetchFeedingPlan,
   petEvents, eventsLoading, editingEventId, setEditingEventId, eventFormData, setEventFormData,
   eventSaving, setEventSaving,
-  docFolderModal: _docFolderModal, setDocFolderModal: _setDocFolderModal,
   handleDeleteEvent, fetchPetEvents, openEditEvent, vetHistoryDocs,
 }: HealthModalProps) {
   const { t } = useI18n();
@@ -598,8 +595,7 @@ export function HealthModal({
               )}
 
               {/* appointments e exams removidos — não implementados, risco de rejeição nas lojas */}
-              {/* HealthEventPanel + useHomeEventActions removidos junto com o Cofre de Documentos.
-                  docFolderModal/setDocFolderModal seguem apenas para a visualização do acervo legado. */}
+              {/* HealthEventPanel + useHomeEventActions removidos junto com o Cofre de Documentos. */}
             </div>
 
             {/* Guard: confirmação antes de fechar com formulário em andamento */}

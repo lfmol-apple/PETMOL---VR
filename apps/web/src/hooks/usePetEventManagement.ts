@@ -35,7 +35,6 @@ interface UsePetEventManagementParams {
   selectedPetId: string | null;
   healthActiveTab: string;
   setHealthActiveTab: (tab: string) => void;
-  setShowVetHistoryModal: (value: boolean) => void;
   setShowHealthModal: (value: boolean) => void;
   setEventTypeLocked: (value: boolean) => void;
 }
@@ -84,7 +83,6 @@ export function usePetEventManagement({
   selectedPetId,
   healthActiveTab,
   setHealthActiveTab,
-  setShowVetHistoryModal,
   setShowHealthModal,
   setEventTypeLocked,
 }: UsePetEventManagementParams): UsePetEventManagementResult {
@@ -243,14 +241,13 @@ export function usePetEventManagement({
     });
     setEditingEventId(event.id);
     setEventTypeLocked(false);
-    setShowVetHistoryModal(false);
     setShowHealthModal(true);
     if (event.type === 'medicacao' || event.type === 'medication') {
       setHealthActiveTab('medication');
     } else {
       setHealthActiveTab('eventos');
     }
-  }, [setEventTypeLocked, setHealthActiveTab, setShowHealthModal, setShowVetHistoryModal]);
+  }, [setEventTypeLocked, setHealthActiveTab, setShowHealthModal]);
 
   useEffect(() => {
     if (selectedPetId) {
