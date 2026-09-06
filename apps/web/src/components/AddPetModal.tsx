@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, PawPrint, Plus } from 'lucide-react';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { PetPhotoPicker } from './PetPhotoPicker';
-import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { localTodayISO } from '@/lib/localDate';
 import { sanitizePetName } from '@/lib/petName';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
@@ -503,7 +503,7 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
 
   return (
     <>
-      <SheetShell open onClose={onClose} size="md" hideHandle z={90}>
+      <SheetShell open onClose={onClose} size="md" hideHandle z={SHEET_Z.nested}>
             <SheetHeader
               tone="petmol"
               withHandle

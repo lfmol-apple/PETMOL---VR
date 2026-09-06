@@ -1,7 +1,7 @@
 'use client';
 
 import { CalendarClock } from 'lucide-react';
-import { SheetHeader, SheetIcon, SheetSectionLabel, SheetShell } from '@/components/ui/sheet';
+import { SheetHeader, SheetIcon, SheetSectionLabel, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import type { PetCareReminder } from '@/lib/petCareDomain';
 
 interface Props {
@@ -71,7 +71,7 @@ export function UpcomingEventsSheet({ open, onClose, reminders, petName, onSelec
   groups.sort((a, b) => groupOrder(a.items[0].diff) - groupOrder(b.items[0].diff));
 
   return (
-    <SheetShell open={open} onClose={onClose} hideHandle size="md" z={70}>
+    <SheetShell open={open} onClose={onClose} hideHandle size="md" z={SHEET_Z.raised}>
       <SheetHeader
         tone="petmol"
         withHandle

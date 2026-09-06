@@ -5,7 +5,7 @@
 
 import { AuthenticatedDocumentImage } from '@/components/AuthenticatedDocumentImage';
 import { useI18n } from '@/lib/I18nContext';
-import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import type { VaccineRecord } from '@/lib/petHealth';
 import type { PetEventRecord } from '@/lib/petEvents';
 import type { DocFolderModalState, VetHistoryDocument } from '@/lib/types/homeForms';
@@ -53,7 +53,7 @@ export function VetHistoryModal({
   if (!currentPet) return null;
 
   return (
-    <SheetShell open onClose={onClose} tone="grey" size="lg" hideHandle z={70}>
+    <SheetShell open onClose={onClose} tone="grey" size="lg" hideHandle z={SHEET_Z.raised}>
         <SheetHeader
           tone="petmol"
           withHandle

@@ -1,4 +1,4 @@
-export { SheetShell, SHEET_TONE_RING_OFFSET } from './SheetShell';
+export { SheetShell, SHEET_TONE_RING_OFFSET, SHEET_Z } from './SheetShell';
 export {
   SheetHeader,
   SheetAvatar,

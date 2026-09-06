@@ -5,7 +5,7 @@ import type { VaccineRecord, VaccineType } from '@/lib/petHealth';
 import type { VaccineFormData } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
 import { Camera, Check, Home } from 'lucide-react';
-import { SheetAvatar, SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { SheetAvatar, SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { localTodayISO } from '@/lib/localDate';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { CoachMark } from '@/components/CoachMark';
@@ -253,7 +253,7 @@ export function VaccineItemSheet({
   }
 
   return (
-    <SheetShell open onClose={onClose} hideHandle z={50}>
+    <SheetShell open onClose={onClose} hideHandle z={SHEET_Z.base}>
         {/* Success overlay */}
         {justSaved && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-white p-8 text-center">
@@ -555,7 +555,7 @@ export function VaccineItemSheet({
           dismissOnBackdrop={!importingCard}
           tone="grey"
           size="lg"
-          z={70}
+          z={SHEET_Z.raised}
         >
           <SheetHeader
             title={

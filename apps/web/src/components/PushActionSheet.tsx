@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Bath, Check, ChevronRight, Loader2, Pill, ShieldCheck, ShoppingCart, Syringe, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api';
-import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { getToken as getAuthToken } from '@/lib/auth-token';
 import { trackReminderActionCompleted, trackV1Metric } from '@/lib/v1Metrics';
 import { localTodayISO } from '@/lib/localDate';
@@ -173,7 +173,7 @@ export function PushActionSheet({
 
   if (done) {
     return (
-      <SheetShell open onClose={onClose} variant="center" size="sm" z={100}>
+      <SheetShell open onClose={onClose} variant="center" size="sm" z={SHEET_Z.top}>
         <div className="px-6 py-8 text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
             <Check className="h-6 w-6" strokeWidth={2.5} />
@@ -186,7 +186,7 @@ export function PushActionSheet({
   }
 
   return (
-    <SheetShell open onClose={onClose} variant="center" size="sm" z={100}>
+    <SheetShell open onClose={onClose} variant="center" size="sm" z={SHEET_Z.top}>
       <SheetHeader
         title={`${title} — ${petName}`}
         subtitle={itemName}

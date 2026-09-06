@@ -2,7 +2,7 @@
 
 import type { Dispatch, SetStateAction } from 'react';
 import { useI18n } from '@/lib/I18nContext';
-import { SheetHeader, SheetShell } from '@/components/ui/sheet';
+import { SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 
 interface VaccineGuideInfo {
   importance: string;
@@ -21,7 +21,7 @@ export function VaccineGuide({ vaccineInfo, setShowAllVaccinesGuide }: VaccineGu
   const close = () => setShowAllVaccinesGuide(false);
 
   return (
-    <SheetShell open onClose={close} tone="grey" hideHandle z={80}>
+    <SheetShell open onClose={close} tone="grey" hideHandle z={SHEET_Z.high}>
       <SheetHeader
         tone="petmol"
         withHandle

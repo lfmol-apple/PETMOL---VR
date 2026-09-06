@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Zap } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
 import type { VaccineType } from '@/lib/petHealth';
-import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 
 type QuickAddData = {
   vaccine_type: VaccineType;
@@ -72,7 +72,7 @@ export function QuickAddVaccineModal({
   };
 
   return (
-    <SheetShell open onClose={onClose} tone="grey" size="md" z={90}>
+    <SheetShell open onClose={onClose} tone="grey" size="md" z={SHEET_Z.nested}>
       <SheetHeader
         title="Registro rápido"
         subtitle="Vacina em poucos toques"

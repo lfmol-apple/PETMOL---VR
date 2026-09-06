@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Siren } from 'lucide-react';
-import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { getToken } from '@/lib/auth-token';
 
@@ -470,7 +470,7 @@ export function PetSumidoSheet({
   const missingParts = [!hasPhoto && 'foto', !hasContact && 'WhatsApp'].filter(Boolean) as string[];
 
   return (
-    <SheetShell open onClose={onClose} z={70}>
+    <SheetShell open onClose={onClose} z={SHEET_Z.raised}>
       <SheetHeader
         title="Pet Sumido"
         subtitle={step === 'form' ? 'Fluxo independente de emergência' : 'Card gerado · compartilhe agora'}

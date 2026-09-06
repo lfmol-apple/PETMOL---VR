@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Bath, Bug, CalendarDays, Check, Pill, ShieldCheck, Syringe, UtensilsCrossed, type LucideIcon } from 'lucide-react';
-import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import type { PetEventRecord } from '@/lib/petEvents';
 import { localTodayISO } from '@/lib/localDate';
 import { getToken } from '@/lib/auth-token';
@@ -130,7 +130,7 @@ export function HealthQuickActionSheet({
 
   if (done) {
     return (
-      <SheetShell open onClose={onClose} variant="center" size="sm" z={90}>
+      <SheetShell open onClose={onClose} variant="center" size="sm" z={SHEET_Z.nested}>
         <div className="px-6 py-8 text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
             <Check className="h-6 w-6" strokeWidth={2.5} />
@@ -145,7 +145,7 @@ export function HealthQuickActionSheet({
   // ── Main render ───────────────────────────────────────────────────────────
 
   return (
-    <SheetShell open onClose={onClose} size="sm" z={90}>
+    <SheetShell open onClose={onClose} size="sm" z={SHEET_Z.nested}>
       <SheetHeader
         title={item.label}
         status={{ label: statusLabel, tone: statusTone }}

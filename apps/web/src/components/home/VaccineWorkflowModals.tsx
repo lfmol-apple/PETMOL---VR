@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { Camera, Check, Syringe } from 'lucide-react';
-import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { VaccineCardUpload } from '@/components/VaccineCardUpload';
 import { useI18n } from '@/lib/I18nContext';
 import type { VaccineCardOcrRecord, VaccineCardOcrResponse } from '@/lib/vaccineOcr';
@@ -118,7 +118,7 @@ export function VaccineWorkflowModals({
         </div>
       )}
       {showVaccineForm && (
-        <SheetShell open onClose={resetVaccineForm} tone="grey" size="lg" hideHandle z={80}>
+        <SheetShell open onClose={resetVaccineForm} tone="grey" size="lg" hideHandle z={SHEET_Z.high}>
           <SheetHeader
             tone="petmol"
             withHandle
@@ -309,7 +309,7 @@ export function VaccineWorkflowModals({
       )}
 
       {showAIUpload && (
-        <SheetShell open onClose={onCloseAIUpload} tone="grey" size="lg" z={85}>
+        <SheetShell open onClose={onCloseAIUpload} tone="grey" size="lg" z={SHEET_Z.nested}>
           <SheetHeader
             title="Ler carteirinha por foto"
             media={<SheetIcon tone="blue"><Camera className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
@@ -371,7 +371,7 @@ export function VaccineWorkflowModals({
 
       {(cardAnalysis || justImported) && (
         justImported ? (
-          <SheetShell open onClose={() => { setJustImported(false); closeCardAnalysis(); }} tone="grey" variant="center" size="md" z={70}>
+          <SheetShell open onClose={() => { setJustImported(false); closeCardAnalysis(); }} tone="grey" variant="center" size="md" z={SHEET_Z.raised}>
             <SheetHeader
               title="Vacinas importadas"
               media={<SheetIcon tone="emerald"><Check className="h-5 w-5" strokeWidth={2.5} /></SheetIcon>}
@@ -394,7 +394,7 @@ export function VaccineWorkflowModals({
             </SheetShell.Body>
           </SheetShell>
         ) : (
-          <SheetShell open onClose={closeCardAnalysis} tone="grey" size="lg" z={70}>
+          <SheetShell open onClose={closeCardAnalysis} tone="grey" size="lg" z={SHEET_Z.raised}>
             <SheetHeader
               title={`${reviewRegistros.length} vacina${reviewRegistros.length !== 1 ? 's' : ''} encontrada${reviewRegistros.length !== 1 ? 's' : ''}`}
               subtitle="Revise antes de importar"

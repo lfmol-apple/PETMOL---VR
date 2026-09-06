@@ -2,7 +2,7 @@
 
 import { AlertTriangle } from 'lucide-react';
 import type { PetInteractionItem } from '@/features/interactions/types';
-import { SheetHeader, SheetIcon, SheetShell } from '@/components/ui/sheet';
+import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 
 interface HomeAttentionOverlaysProps {
   showTopAttentionModal: boolean;
@@ -24,7 +24,7 @@ export function HomeAttentionOverlays({
   const visibleAlerts = topAttentionAlerts.filter((alert) => alert.category !== 'grooming');
 
   return (
-    <SheetShell open onClose={onCloseTopAttentionModal} tone="grey" variant="center" size="md" z={100}>
+    <SheetShell open onClose={onCloseTopAttentionModal} tone="grey" variant="center" size="md" z={SHEET_Z.top}>
       <SheetHeader
         title={topAttentionPetCount === 1 ? '1 pet precisa de atenção' : `${topAttentionPetCount} pets precisam de atenção`}
         media={<SheetIcon tone="rose"><AlertTriangle className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
