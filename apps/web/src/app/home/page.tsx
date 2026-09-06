@@ -657,6 +657,23 @@ function HomePageInner() {
     } catch { return []; }
   });
 
+  // Alertas RECOLHIDOS — o tutor tocou em "recolher" para o card ocupar menos
+  // espaço, mas o desaparecimento continua ativo e visível em forma compacta.
+  // Recolher NÃO é dispensar: nada some, nada vai pro localStorage de dismiss.
+  // Só um flag local de layout, persistido pra não "reabrir" a cada refresh.
+  const [collapsedAlertIds, setCollapsedAlertIds] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try { return JSON.parse(localStorage.getItem('petmol_alert_collapsed_ids') ?? '[]') as string[]; }
+    catch { return []; }
+  });
+  function setAlertCollapsed(id: string, collapsed: boolean): void {
+    setCollapsedAlertIds((prev) => {
+      const next = collapsed ? [...new Set([...prev, id])] : prev.filter((x) => x !== id);
+      try { localStorage.setItem('petmol_alert_collapsed_ids', JSON.stringify(next)); } catch { /* best effort */ }
+      return next;
+    });
+  }
+
   const fetchNearbyAlerts = useCallback(async () => {
     try {
       const token = getToken();
@@ -2016,6 +2033,28 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                 : 'Desaparecido recentemente';
               const alertPhotoUrl = getPhotoUrl(alert.photo_url);
               const descricao = [alert.breed, alert.characteristics].filter(Boolean).join(' · ');
+              const isCollapsed = collapsedAlertIds.includes(alert.id);
+
+              // ESTADO COMPACTO — o desaparecimento continua ativo; o card só
+              // ocupa menos espaço. Tocar reabre. "Recolher" NUNCA dispensa.
+              if (isCollapsed) {
+                return (
+                  <button
+                    key={alert.id}
+                    type="button"
+                    onClick={() => setAlertCollapsed(alert.id, false)}
+                    aria-label={`Ver alerta de ${alert.pet_name}`}
+                    className="flex w-full items-center gap-2.5 overflow-hidden rounded-2xl border border-rose-300 bg-rose-600 px-3.5 py-2.5 text-left shadow-md shadow-rose-900/20 active:opacity-90 transition-opacity"
+                  >
+                    <span className="flex-shrink-0 text-base" aria-hidden>🚨</span>
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-white">
+                      {alert.pet_name} continua desaparecido
+                    </span>
+                    <span className="flex-shrink-0 text-[11px] font-black uppercase tracking-wide text-white/90">Ver alerta ›</span>
+                  </button>
+                );
+              }
+
               return (
                 <div
                   key={alert.id}
@@ -2023,15 +2062,14 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                 >
                   <button
                     type="button"
-                    aria-label="Dispensar alerta"
-                    onClick={() => {
-                      writeDismissedId(alert.id);
-                      setHandledAlertIds(prev => [...new Set([...prev, alert.id])]);
-                      setNearbyAlerts(prev => prev.filter(a => a.id !== alert.id));
-                    }}
-                    className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/30 text-sm font-bold text-white/90 active:scale-90 transition-transform"
+                    aria-label="Recolher alerta"
+                    onClick={() => setAlertCollapsed(alert.id, true)}
+                    className="absolute right-2 top-2 z-10 flex h-7 items-center gap-1 rounded-full bg-black/30 pl-2.5 pr-2 text-[11px] font-bold text-white/90 active:scale-95 transition-transform"
                   >
-                    ×
+                    Recolher
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden>
+                      <path d="M18 15l-6-6-6 6" />
+                    </svg>
                   </button>
                   <div className="flex items-stretch">
                     {/* Foto do pet — ~metade do alerta. Toque abre o cartaz. */}
@@ -2069,7 +2107,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       <p className="mt-0.5 text-[11px] text-rose-200">{missingInfo}</p>
                     </div>
                   </div>
-                  <div className="flex gap-2 px-4 pb-4 pt-1">
+                  <div className="flex gap-2 px-4 pb-3 pt-1">
                     <button
                       type="button"
                       onClick={() => setAlertCard(alert)}
@@ -2085,6 +2123,20 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       Encontrei este pet
                     </button>
                   </div>
+                  {/* Ação secundária DELIBERADA de ocultar (não é o "recolher"):
+                      esconde o alerta da Home por um tempo. Continua acessível
+                      na área "Pets desaparecidos na região". Nunca um X ambíguo. */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      writeDismissedId(alert.id);
+                      setHandledAlertIds(prev => [...new Set([...prev, alert.id])]);
+                      setNearbyAlerts(prev => prev.filter(a => a.id !== alert.id));
+                    }}
+                    className="w-full border-t border-white/15 py-2 text-center text-[11px] font-semibold text-white/60 active:bg-black/10"
+                  >
+                    Não mostrar este alerta por enquanto
+                  </button>
                 </div>
               );
             })}
