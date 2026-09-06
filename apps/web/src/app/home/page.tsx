@@ -2496,6 +2496,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         <EditPetModal
           pet={currentPet}
           photoVersion={currentPet?.updated_at || (selectedPetId ? photoTimestamps[selectedPetId] : undefined)}
+          careSummary={{ ...selectedPetCardColors, medicacao: medicationCardStatus.color }}
           onClose={closeEditPetModal}
           onSave={handleSavePet}
           onDelete={handleDeletePet}
