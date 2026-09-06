@@ -163,7 +163,7 @@ export function HealthQuickActionSheet({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={onClose}
-                  className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-sky-600 hover:bg-sky-700 active:scale-[0.98] transition-all text-white font-black text-[15px] shadow-lg shadow-sky-500/20"
+                  className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-[#0056D2] hover:bg-[#004ab8] active:scale-[0.98] transition-all text-white font-black text-[15px] shadow-lg shadow-blue-500/20"
                 >
                   <span className="text-xl">📍</span>
                   <span>Procurar lugar para vacinar</span>
@@ -232,7 +232,7 @@ export function HealthQuickActionSheet({
                   type="button"
                   onClick={() => applyWithDate(localTodayISO())}
                   disabled={loading}
-                  className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] transition-all text-white font-black text-[16px] shadow-lg shadow-emerald-500/20 disabled:opacity-60"
+                  className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-[#0056D2] hover:bg-[#004ab8] active:scale-[0.98] transition-all text-white font-black text-[16px] shadow-lg shadow-blue-500/20 disabled:opacity-60"
                 >
                   <span className="text-xl">✔</span>
                   <span>{loading ? 'Registrando...' : 'Aplicar hoje'}</span>
@@ -272,7 +272,7 @@ export function HealthQuickActionSheet({
                   type="button"
                   onClick={() => applyWithDate(pickedDate)}
                   disabled={!pickedDate || loading}
-                  className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[16px] disabled:opacity-50 active:scale-[0.98] transition-all shadow-lg shadow-emerald-500/20"
+                  className="w-full py-4 rounded-2xl bg-[#0056D2] hover:bg-[#004ab8] text-white font-black text-[16px] disabled:opacity-50 active:scale-[0.98] transition-all shadow-lg shadow-blue-500/20"
                 >
                   {loading ? 'Registrando...' : 'Confirmar'}
                 </button>
@@ -301,7 +301,7 @@ export function HealthQuickActionSheet({
                   type="button"
                   onClick={() => { setShowDatePicker(false); onOpenDetails(); }}
                   disabled={!pickedDate}
-                  className="w-full py-4 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-black text-[16px] disabled:opacity-50 active:scale-[0.98] transition-all shadow-lg shadow-sky-500/20"
+                  className="w-full py-4 rounded-2xl bg-[#0056D2] hover:bg-[#004ab8] text-white font-black text-[16px] disabled:opacity-50 active:scale-[0.98] transition-all shadow-lg shadow-blue-500/20"
                 >
                   Registrar
                 </button>

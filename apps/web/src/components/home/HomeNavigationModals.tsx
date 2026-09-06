@@ -132,16 +132,16 @@ export function HomeNavigationModals({
             <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50">
               <div className="grid grid-cols-2 gap-3 mb-2">
                 {[
-                  { icon: '🪱', image: '/vermifugo-produto.webp', label: 'Vermífugo', gradient: 'from-orange-100 to-amber-200 border-amber-300', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
-                  { icon: '🛡️', image: '/cuidados-antipulgas.webp', label: 'Antipulgas', gradient: 'from-emerald-100 to-green-200 border-green-300', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
+                  { icon: '🪱', image: '/vermifugo-produto.webp', label: 'Vermífugo', gradient: 'bg-amber-50 border-amber-200', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
+                  { icon: '🛡️', image: '/cuidados-antipulgas.webp', label: 'Antipulgas', gradient: 'bg-emerald-50 border-emerald-200', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
                   // Coleira antiparasitária é uso específico de cães — outras espécies não usam
                   ...(currentPet?.species === 'dog'
-                    ? [{ icon: '📿', image: '/cuidados-coleira.webp', label: 'Coleira', gradient: 'from-teal-100 to-cyan-200 border-teal-300', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
+                    ? [{ icon: '📿', image: '/cuidados-coleira.webp', label: 'Coleira', gradient: 'bg-violet-50 border-violet-200', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
                     : []),
-                  { icon: '🛁', image: '/cuidados-pets-banho.webp', label: 'Banho e Tosa', gradient: 'from-sky-100 to-blue-200 border-sky-300', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
-                  { icon: '💊', image: '/cuidados-medicacao.webp', label: 'Medicação', gradient: 'from-purple-100 to-violet-200 border-purple-300', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
+                  { icon: '🛁', image: '/cuidados-pets-banho.webp', label: 'Banho e Tosa', gradient: 'bg-cyan-50 border-cyan-200', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
+                  { icon: '💊', image: '/cuidados-medicacao.webp', label: 'Medicação', gradient: 'bg-purple-50 border-purple-200', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
                   // Busca de estabelecimento (Maps) — saiu da Home, é mais um card aqui em Cuidados.
-                  { icon: '🏪', image: undefined, label: 'PetShops', gradient: 'from-slate-100 to-slate-200 border-slate-300', tab: 'petshops', alert: false, tone: undefined },
+                  { icon: '🏪', image: undefined, label: 'PetShops', gradient: 'bg-slate-50 border-slate-200', tab: 'petshops', alert: false, tone: undefined },
                 ].map(({ icon, image, label, gradient, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 
@@ -188,7 +188,7 @@ export function HomeNavigationModals({
                       onCloseHealthOptionsModal();
                       onOpenHealthTab(tab);
                     }}
-                    className={`group relative overflow-hidden bg-gradient-to-br ${gradient} border rounded-2xl p-4 h-[134px] transition-all duration-200 hover:shadow-lg hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-sm ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
+                    className={`group relative overflow-hidden ${gradient} border rounded-2xl p-4 h-[134px] transition-all duration-200 hover:shadow-lg hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-sm ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
                     {image ? (
