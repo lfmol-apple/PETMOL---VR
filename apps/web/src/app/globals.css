@@ -2,9 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Leaflet CSS */
-@import 'leaflet/dist/leaflet.css';
-
 :root {
   --foreground-rgb: 15, 23, 42; /* slate-900 */
   --background-rgb: 248, 250, 252; /* slate-50 - Fundo app-like suave */
