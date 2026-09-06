@@ -299,7 +299,7 @@ export function VaccineWorkflowModals({
                   onAfterSave?.();
                 }}
                 disabled={vaccineFormSaving}
-                className={`flex-1 rounded-2xl bg-emerald-500 px-4 py-3 text-base font-semibold text-white transition-colors ${vaccineFormSaving ? 'opacity-60 cursor-not-allowed' : 'hover:bg-emerald-600'}`}
+                className={`flex-1 rounded-2xl bg-[#0056D2] px-4 py-3 text-base font-semibold text-white transition-colors ${vaccineFormSaving ? 'opacity-60 cursor-not-allowed' : 'hover:bg-[#004ab8]'}`}
               >
                 {vaccineFormSaving ? 'Salvando…' : editingVaccine ? t('common.save') : t('vaccine_form.add_vaccine')}
               </button>

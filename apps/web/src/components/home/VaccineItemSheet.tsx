@@ -8,6 +8,10 @@ import { Camera, Check, Home } from 'lucide-react';
 import { SheetAvatar, SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { localTodayISO } from '@/lib/localDate';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
+import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
+
+// CTA primário — azul institucional PETMOL (Modelo C), nunca a cor da área.
+const PRIMARY_BTN = 'bg-[#0056D2] hover:bg-[#004ab8] active:bg-[#003f9e] text-white shadow-[0_8px_20px_-6px_rgba(0,86,210,0.4)]';
 import { CoachMark } from '@/components/CoachMark';
 import { AffiliateCatalogSearch } from '@/features/commerce/AffiliateCatalogSearch';
 
@@ -52,21 +56,22 @@ function fmtRelativeDays(diff: number | null): string {
 }
 
 function computeStatus(overdue: number, nextDiff: number | null) {
-  if (overdue > 0)
-    return {
-      label: `Pode estar na hora de revisar ${overdue} registro${overdue !== 1 ? 's' : ''}`,
-      bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500',
-    };
-  if (nextDiff === null)
-    return { label: 'Sem data de revisão definida', bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400' };
-  if (nextDiff === 0)
-    return { label: 'Dose hoje', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' };
-  if (nextDiff <= 7)
-    return { label: `Próxima dose em ${nextDiff} dia${nextDiff !== 1 ? 's' : ''}`, bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' };
-  return {
-    label: `Próxima dose em ${nextDiff} dias`,
-    bg: 'bg-sky-50', text: 'text-sky-700', dot: 'bg-sky-500',
-  };
+  let key: 'neutral' | 'ok' | 'attention' | 'critical';
+  let label: string;
+  if (overdue > 0) {
+    key = 'critical';
+    label = `Pode estar na hora de revisar ${overdue} registro${overdue !== 1 ? 's' : ''}`;
+  } else if (nextDiff === null) {
+    key = 'neutral';
+    label = 'Sem data de revisão definida';
+  } else {
+    key = careStateFromDaysUntilDue(nextDiff);
+    label = nextDiff === 0
+      ? 'Dose hoje'
+      : `Próxima dose em ${nextDiff} dia${nextDiff !== 1 ? 's' : ''}`;
+  }
+  const s = CARE_STATE[key];
+  return { key, label, bg: s.chip, text: s.chipText, dot: s.dot };
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -284,7 +289,7 @@ export function VaccineItemSheet({
           subtitle={petName || undefined}
           status={{
             label: status.label,
-            tone: status.dot === 'bg-rose-500' ? 'danger' : status.dot === 'bg-amber-500' ? 'warn' : status.dot === 'bg-sky-500' ? 'good' : 'neutral',
+            tone: status.key === 'critical' ? 'danger' : status.key === 'attention' ? 'warn' : status.key === 'ok' ? 'good' : 'neutral',
           }}
           media={<SheetAvatar src={petPhotoSrc} alt={petName || 'Pet'} fallback={petSpecies === 'cat' || petSpecies === 'cats' ? '🐱' : '🐶'} />}
           onClose={onClose}
