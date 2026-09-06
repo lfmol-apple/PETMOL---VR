@@ -104,6 +104,49 @@ def _mark_sighting_broadcast(mp_id: str) -> None:
     _save_mp_notified(data)
 
 
+# ── Raio de notificação ──────────────────────────────────────────────────────
+# Decisão de produto (06/09/2026): o raio cresce SOZINHO com o tempo, pela
+# velocidade de caminhada da espécie (cão 5 km/h, gato 3 km/h), a partir do
+# momento em que o pet sumiu. Mínimo 2 km, SEM teto máximo. Não depende de
+# cron nem de o tutor editar o alerta — é calculado on-read a cada broadcast.
+
+def _species_speed_kmh(species: str | None) -> float:
+    return 3.0 if (species or "").strip().lower() in ("cat", "gato") else 5.0
+
+
+# missing_date/missing_time vêm do formulário no horário LOCAL do tutor.
+# Lançamento é Brasil (America/Sao_Paulo = UTC-3, sem horário de verão desde
+# 2019), então interpretamos nesse fuso. Erro de 1 fuso ≈ 5 km de raio — não
+# crítico, e o `max(0, ...)` cobre um horário levemente no futuro.
+_BR_TZ = timezone(timedelta(hours=-3))
+
+
+def _missing_since(mp: "MissingPet") -> datetime | None:
+    if mp.missing_date:
+        try:
+            t = (mp.missing_time or "00:00")[:5]
+            dt = datetime.strptime(f"{mp.missing_date} {t}", "%Y-%m-%d %H:%M")
+            return dt.replace(tzinfo=_BR_TZ)
+        except Exception:
+            pass
+    created = mp.created_at
+    if created is not None and created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    return created
+
+
+def _effective_radius_km(mp: "MissingPet") -> float:
+    """Raio efetivo AGORA: o maior entre o valor guardado e o que o tempo
+    desde o desaparecimento já justifica. Mínimo 2 km, sem teto."""
+    base = float(mp.current_radius_km or 2.0)
+    since = _missing_since(mp)
+    if since is None:
+        return max(2.0, base)
+    hours = max(0.0, (datetime.now(timezone.utc) - since).total_seconds() / 3600.0)
+    grown = math.ceil(hours * _species_speed_kmh(mp.species))
+    return float(max(2.0, base, grown))
+
+
 # ── Geo helper ───────────────────────────────────────────────────────────────
 
 def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -514,7 +557,7 @@ def _broadcast_missing_pet(
     try:
         subs_by_user = _load_subscriptions_by_user()
         c_lat, c_lng = center if center is not None else (mp.lat, mp.lng)
-        radius = radius_km if radius_km is not None else (mp.current_radius_km or 2.0)
+        radius = radius_km if radius_km is not None else _effective_radius_km(mp)
         has_location = c_lat is not None and c_lng is not None
         if origin == "sighting":
             excluded = {str(mp.user_id)} if mp.user_id else set()
@@ -1557,7 +1600,7 @@ def alert_reach(
     subs_by_user = _load_subscriptions_by_user()
     notified_data = _load_mp_notified()
     already_notified_ids = set(notified_data.get(mp_id, {}).get("notified", []))
-    radius = mp.current_radius_km or 2.0
+    radius = _effective_radius_km(mp)
     has_location = mp.lat is not None and mp.lng is not None
 
     notified_active = 0   # PESSOAS que já receberam E ainda têm push ativo

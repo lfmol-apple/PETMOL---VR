@@ -245,6 +245,46 @@ def test_sighting_broadcast_does_not_exclude_already_notified(_isolate, monkeypa
     assert sent == ["https://push.example/u1-dev"]
 
 
+# ── PS-5: raio livre pela velocidade de caminhada ──────────────────────────
+
+def test_effective_radius_grows_with_time_no_cap(_isolate):
+    from datetime import datetime, timezone, timedelta
+    from src.missing_pets import _effective_radius_km
+
+    class _MP:
+        current_radius_km = 2.0
+        species = "dog"
+        missing_date = None
+        missing_time = None
+        created_at = datetime.now(timezone.utc) - timedelta(hours=40)
+
+    # 40h * 5 km/h = 200 km — sem teto (antes era limitado a 50)
+    assert _effective_radius_km(_MP()) >= 200
+
+    class _Cat(_MP):
+        species = "cat"
+        created_at = datetime.now(timezone.utc) - timedelta(hours=40)
+
+    # gato anda menos: 40h * 3 = 120
+    r = _effective_radius_km(_Cat())
+    assert 118 <= r <= 125
+
+
+def test_effective_radius_floor_is_stored_value(_isolate):
+    from datetime import datetime, timezone, timedelta
+    from src.missing_pets import _effective_radius_km
+
+    class _MP:
+        current_radius_km = 30.0
+        species = "dog"
+        missing_date = None
+        missing_time = None
+        created_at = datetime.now(timezone.utc) - timedelta(minutes=2)
+
+    # recém-criado: nunca abaixo do valor guardado, nunca abaixo de 2
+    assert _effective_radius_km(_MP()) == 30.0
+
+
 def test_should_sighting_broadcast_throttle(_isolate, monkeypatch):
     from src.missing_pets import _should_sighting_broadcast, _mark_sighting_broadcast
     store: dict = {}
