@@ -416,7 +416,7 @@ function HomePageInner() {
     tutorName, setTutorName,
     loggedUserId, setLoggedUserId,
     familyOwnerNames,
-    tutorCheckinDay, setTutorCheckinDay,
+    tutorCheckinDay,
     tutorCheckinHour, setTutorCheckinHour,
     tutorCheckinMinute, setTutorCheckinMinute,
     photoTimestamps, setPhotoTimestamps,
@@ -450,14 +450,10 @@ function HomePageInner() {
   } = useQuickMark();
   const [vetHistoryDocs, setVetHistoryDocs] = useState<VetHistoryDocument[]>([]);
   const [showHealthOptionsModal, setShowHealthOptionsModal] = useState(false);
-  const [showEventTypeModal, setShowEventTypeModal] = useState(false);
   const [eventTypeLocked, setEventTypeLocked] = useState(false);
   const [showPetSelector, setShowPetSelector] = useState(false);
 
   const [showTopAttentionModal, setShowTopAttentionModal] = useState(false);
-  const [showCheckinPicker, setShowCheckinPicker] = useState(false);
-  const [checkinDayDraft, setCheckinDayDraft] = useState<number>(5);
-  const [checkinPickerSaving, setCheckinPickerSaving] = useState(false);
 
   // Fecha modais transitórios antes de abrir outro via push/deep link.
   // Impede sobreposição de overlay quando uma notificação chega com modal aberto.
@@ -465,7 +461,6 @@ function HomePageInner() {
     setShowHealthModal(false);
     setShowEmergencySheet(false);
     setShowHealthOptionsModal(false);
-    setShowEventTypeModal(false);
     setPushActionSheet(null);
     setHealthQuickAction(null);
   }, []);
@@ -491,8 +486,6 @@ function HomePageInner() {
     setEventTypeLocked,
   });
   const {
-    showImportCard,
-    setShowImportCard,
     importingCard,
     setImportingCard,
     pendingCardFiles,
@@ -1441,8 +1434,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     closeTopAttentionModal,
     navigateToSaudeFromHealthOptions,
     closeHealthOptionsModal,
-    openEventTypeModal,
-    closeEventTypeModal,
     openHealthTab,
     selectHealthTab,
     closeHealthModal,
@@ -1457,7 +1448,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     selectedPetId,
     showPetSelector,
     setShowHealthOptionsModal,
-    setShowEventTypeModal,
     setShowAddPetModal,
     setShowEditModal,
     setShowPetSelector,
@@ -1545,25 +1535,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
       tone: 'warning',
     });
   }, [applyHomeSurfaceResolution, currentPet]);
-
-  const handleSaveCheckinPreference = useCallback(async () => {
-    setCheckinPickerSaving(true);
-    try {
-      const tok = getToken();
-      const res = await fetch(`${API_BASE_URL}/auth/me`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
-        credentials: 'include',
-        body: JSON.stringify({ monthly_checkin_day: checkinDayDraft }),
-      });
-      if (res.ok) {
-        setTutorCheckinDay(checkinDayDraft);
-        setShowCheckinPicker(false);
-      }
-    } finally {
-      setCheckinPickerSaving(false);
-    }
-  }, [checkinDayDraft]);
 
   const alertVaccinesValue = selectedPetCardAlerts.vacinas;
   const alertParasitesValue = selectedPetCardAlerts.vermifugo || selectedPetCardAlerts.antipulgas || selectedPetCardAlerts.coleira;
@@ -2474,9 +2445,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         showHealthOptionsModal={showHealthOptionsModal}
         onCloseHealthOptionsModal={closeHealthOptionsModal}
         onOpenHealthOptionsModal={() => setShowHealthOptionsModal(true)}
-        showEventTypeModal={showEventTypeModal}
-        onOpenEventTypeModal={openEventTypeModal}
-        onCloseEventTypeModal={closeEventTypeModal}
         alertVaccinesValue={alertVaccinesValue}
         alertParasitesValue={alertParasitesValue}
         alertMedicationValue={alertMedicationValue}
