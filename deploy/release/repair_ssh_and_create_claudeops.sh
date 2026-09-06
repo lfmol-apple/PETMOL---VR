@@ -27,11 +27,23 @@ systemctl status ssh --no-pager || true
 journalctl -u ssh.socket -u ssh -n 120 --no-pager || true
 ss -ltnp | grep -E ':(22|2222)\b' || true
 
-log "Clear active fail2ban bans for sshd, if fail2ban is installed"
+log "Clear active fail2ban bans for sshd + torna a jail sshd tolerante ao burst do deploy"
 if command -v fail2ban-client >/dev/null 2>&1; then
   fail2ban-client status || true
   fail2ban-client status sshd || true
   fail2ban-client unban --all || true
+  # O loop de retry do deploy-atomic.yml abre várias conexões seguidas
+  # quando o SSH está lento — sem isso a jail sshd banava o runner do
+  # GitHub no meio do deploy. ignoreself + janela/limite generosos.
+  install -d /etc/fail2ban/jail.d
+  cat >/etc/fail2ban/jail.d/petmol-sshd.local <<'EOF'
+[sshd]
+ignoreself = true
+findtime = 300
+maxretry = 20
+bantime = 600
+EOF
+  systemctl reload fail2ban 2>/dev/null || systemctl restart fail2ban 2>/dev/null || true
 else
   echo "fail2ban-client not installed"
 fi
@@ -91,7 +103,12 @@ EOF
 
 sshd -t
 systemctl daemon-reload
+# MASK (não só disable): o Ubuntu 24 tende a reativar o ssh.socket em
+# updates de pacote, e a socket-activation trava sob o burst do deploy.
+# Mask garante que só o ssh.service (listen direto em 22/2222) roda —
+# essa foi a causa raiz dos deploys que falhavam com "connection timed out".
 systemctl disable --now ssh.socket || true
+systemctl mask ssh.socket || true
 systemctl enable ssh
 systemctl restart ssh
 

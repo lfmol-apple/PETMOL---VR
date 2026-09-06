@@ -178,21 +178,23 @@ jobs:
             exit 1
           fi
 
-          # Retries here are for SSH connect/upload flakiness only — once
-          # activate.sh starts running, it runs exactly once (see its own
-          # lock). No retry wraps the activation command itself.
-          ssh_retry() {
-            local max_wait=180 elapsed=0 delay=10
-            until $SSH "$@"; do
+          # Retries here são só pra flakiness de conexão/upload — o
+          # activate.sh, uma vez rodando, roda exatamente uma vez (lock
+          # próprio). Nenhum retry envolve o comando de ativação em si.
+          # max_wait 300s: o SSH do VPS (Hostinger, ssh.socket do Ubuntu 24)
+          # já travou por >3min sob carga — ver deploy/release/repair_ssh_*.
+          retry() {
+            local max_wait=300 elapsed=0 delay=10
+            until "$@"; do
               elapsed=$((elapsed + delay))
-              [ "$elapsed" -ge "$max_wait" ] && { echo "SSH did not become ready after ${max_wait}s"; return 1; }
-              echo "SSH not ready yet; retrying in ${delay}s (${elapsed}/${max_wait}s)"
+              [ "$elapsed" -ge "$max_wait" ] && { echo "comando não completou após ${max_wait}s: $*"; return 1; }
+              echo "SSH/upload não pronto; nova tentativa em ${delay}s (${elapsed}/${max_wait}s)"
               sleep "$delay"
             done
           }
 
-          ssh_retry "mkdir -p /opt/petmol/incoming"
-          $SCP "$TARBALL" "$VPS_USER@$VPS_IP:/opt/petmol/incoming/petmol-${SHA}.tar.gz"
+          retry $SSH "mkdir -p /opt/petmol/incoming"
+          retry $SCP "$TARBALL" "$VPS_USER@$VPS_IP:/opt/petmol/incoming/petmol-${SHA}.tar.gz"
 
           $SSH "tar -xzOf /opt/petmol/incoming/petmol-${SHA}.tar.gz deploy/release/activate.sh > /tmp/activate-${SHA}.sh && \
                 PETMOL_DEPLOY_SHA='${SHA}' bash /tmp/activate-${SHA}.sh /opt/petmol/incoming/petmol-${SHA}.tar.gz && \
