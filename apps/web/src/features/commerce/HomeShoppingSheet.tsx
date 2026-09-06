@@ -486,10 +486,6 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
   // é de fato o mais barato (rótulo "A partir de").
   const offers = useMemo(() => preferCobasiOffer(offersByPrice), [offersByPrice]);
   const offer = offers[0] ?? null;
-  const cheapestReliableOffer = offersByPrice.find(hasReliablePrice) ?? null;
-  const isShowingCheapest = Boolean(
-    offer && cheapestReliableOffer && offer.merchant === cheapestReliableOffer.merchant && offer.price === cheapestReliableOffer.price,
-  );
   const [imageFailed, setImageFailed] = useState(false);
   const [petzLink, setPetzLink] = useState<PetzDirectLink | null>(null);
 
@@ -599,29 +595,22 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
             {card.urgencyText}
           </p>
           {loading && <p className="mt-0.5 text-[11px] font-medium text-slate-400">Buscando melhor preço...</p>}
+          {/* Primeiro nível do card = produto + prazo. A loja, o preço por
+              loja e a origem do preço só aparecem ao tocar "Comprar" (ver
+              OfferPickerRow) — merchant é meio de compra, não protagonista.
+              Aqui fica só o preço de referência do produto, sem nome de loja. */}
           {!loading && hasMonetizedOffer && offer && (
             <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[12px] font-bold leading-tight">
               <span className={priceReliable ? 'text-emerald-800' : 'text-emerald-700'}>
-                {priceReliable
-                  ? `${hasMultipleOffers && isShowingCheapest ? 'A partir de ' : ''}${formatBRLPrice(offer.price as number)}`
-                  : offerPriceLabel(offer)}
+                {priceReliable ? formatBRLPrice(offer.price as number) : offerPriceLabel(offer)}
               </span>
-              {priceReliable && <span className="text-emerald-700">· {merchantLabel(offer.merchant)}</span>}
               {hasDiscount && (
                 <span className="text-[10px] font-semibold text-slate-400 line-through">{formatBRLPrice(offer.list_price as number)}</span>
               )}
-              {priceReliable && hasMultipleOffers && totalBuyOptions - 1 > 0 && (
-                <span className="text-[10px] font-extrabold uppercase tracking-wide text-blue-600">
-                  +{totalBuyOptions - 1} loja{totalBuyOptions - 1 > 1 ? 's' : ''}
-                </span>
-              )}
             </p>
           )}
-          {!loading && hasMonetizedOffer && offer && offerOriginLabel(offer) && (
-            <p className="mt-0.5 text-[10px] font-medium leading-tight text-slate-400">{offerOriginLabel(offer)}</p>
-          )}
           {!loading && !hasMonetizedOffer && hasPetz && (
-            <p className="mt-0.5 text-[12px] font-bold leading-tight text-blue-700">Disponível na Petz · cupom {PETZ_COUPON_CODE} -10%</p>
+            <p className="mt-0.5 text-[12px] font-bold leading-tight text-blue-700">Disponível para compra</p>
           )}
           {!loading && noBuyOptionAtAll && (
             <p className="mt-0.5 text-[11px] font-medium text-slate-400">Buscando opções de compra...</p>
