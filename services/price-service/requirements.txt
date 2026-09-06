@@ -34,7 +34,7 @@ packaging==26.0
 passlib==1.7.4
 # petmol-price-service is installed from this directory
 # Use: pip install -e . (from services/price-service)
-pillow==11.3.0
+pillow==12.3.0
 propcache==0.4.1
 psycopg2-binary==2.9.11
 py-vapid==1.9.4
