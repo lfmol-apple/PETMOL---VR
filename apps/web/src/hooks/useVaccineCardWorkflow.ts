@@ -18,8 +18,6 @@ interface UseVaccineCardWorkflowParams {
 }
 
 interface UseVaccineCardWorkflowResult {
-  showImportCard: boolean;
-  setShowImportCard: Dispatch<SetStateAction<boolean>>;
   importingCard: boolean;
   setImportingCard: Dispatch<SetStateAction<boolean>>;
   pendingCardFiles: File[];
@@ -53,7 +51,6 @@ export function useVaccineCardWorkflow({
   ocrErrorMessage,
   ocrRetryMessage,
 }: UseVaccineCardWorkflowParams): UseVaccineCardWorkflowResult {
-  const [showImportCard, setShowImportCard] = useState(false);
   const [importingCard, setImportingCard] = useState(false);
   const [pendingCardFiles, setPendingCardFiles] = useState<File[]>([]);
   const [cardAnalysis, setCardAnalysis] = useState<VaccineCardAnalysis>(null);
@@ -162,7 +159,6 @@ export function useVaccineCardWorkflow({
       setRawRegistros(JSON.parse(JSON.stringify(uniqueRegistros)));
       setReviewRegistros(uniqueRegistros);
       setReviewExpectedCount(uniqueRegistros.length);
-      setShowImportCard(false);
     } catch (error) {
       // Both a user-initiated cancel and the 90s client-side timeout above
       // surface as AbortError — either way, skip the generic error dialog
@@ -195,8 +191,6 @@ export function useVaccineCardWorkflow({
   }, [aiImageLimit, ocrErrorMessage, ocrRetryMessage, petName]);
 
   return {
-    showImportCard,
-    setShowImportCard,
     importingCard,
     setImportingCard,
     pendingCardFiles,

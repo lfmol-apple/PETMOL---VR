@@ -52,9 +52,6 @@ describe('Home — reorganização (Plano de Saúde / PetShops / Fale com o PETM
         showHealthOptionsModal
         onCloseHealthOptionsModal={() => {}}
         onOpenHealthOptionsModal={() => {}}
-        showEventTypeModal={false}
-        onOpenEventTypeModal={() => {}}
-        onCloseEventTypeModal={() => {}}
         alertVaccinesValue={false}
         alertParasitesValue={false}
         alertMedicationValue={false}

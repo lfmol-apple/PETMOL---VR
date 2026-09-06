@@ -16,7 +16,6 @@ interface UseHomeModalUtilityActionsInput {
   selectedPetId: string | null;
   showPetSelector: boolean;
   setShowHealthOptionsModal: (value: boolean) => void;
-  setShowEventTypeModal: (value: boolean) => void;
   setShowAddPetModal: (value: boolean) => void;
   setShowEditModal: (value: boolean) => void;
   setShowPetSelector: (value: boolean) => void;
@@ -38,7 +37,6 @@ export function useHomeModalUtilityActions({
   selectedPetId,
   showPetSelector,
   setShowHealthOptionsModal,
-  setShowEventTypeModal,
   setShowAddPetModal,
   setShowEditModal,
   setShowPetSelector,
@@ -87,14 +85,6 @@ export function useHomeModalUtilityActions({
     setShowHealthOptionsModal(false);
   }, [setShowHealthOptionsModal]);
 
-  const openEventTypeModal = useCallback(() => {
-    setShowEventTypeModal(true);
-  }, [setShowEventTypeModal]);
-
-  const closeEventTypeModal = useCallback(() => {
-    setShowEventTypeModal(false);
-  }, [setShowEventTypeModal]);
-
   const openHealthTab = useCallback((tab: string) => {
     setHealthModalMode('health');
     setHealthActiveTab(tab);
@@ -111,17 +101,13 @@ export function useHomeModalUtilityActions({
     setEventTypeLocked(false);
   }, [setEventTypeLocked, setHealthModalMode, setShowHealthModal]);
 
-  const backFromHealthModal = useCallback((wasLocked: boolean) => {
+  const backFromHealthModal = useCallback(() => {
     setShowHealthModal(false);
     setEventTypeLocked(false);
     setTimeout(() => {
-      if (wasLocked) {
-        setShowEventTypeModal(true);
-      } else {
-        setShowHealthOptionsModal(true);
-      }
+      setShowHealthOptionsModal(true);
     }, 100);
-  }, [setEventTypeLocked, setShowEventTypeModal, setShowHealthModal, setShowHealthOptionsModal]);
+  }, [setEventTypeLocked, setShowHealthModal, setShowHealthOptionsModal]);
 
   const openVaccineCenterFromHealthModal = useCallback(() => {
     setShowHealthModal(false);
@@ -184,8 +170,6 @@ export function useHomeModalUtilityActions({
     closeTopAttentionModal,
     navigateToSaudeFromHealthOptions,
     closeHealthOptionsModal,
-    openEventTypeModal,
-    closeEventTypeModal,
     openHealthTab,
     selectHealthTab,
     closeHealthModal,

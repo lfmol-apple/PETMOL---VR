@@ -15,9 +15,6 @@ interface HomeNavigationModalsProps {
   showHealthOptionsModal: boolean;
   onCloseHealthOptionsModal: () => void;
   onOpenHealthOptionsModal: () => void;
-  showEventTypeModal: boolean;
-  onOpenEventTypeModal: () => void;
-  onCloseEventTypeModal: () => void;
   alertVaccinesValue: boolean;
   alertParasitesValue: boolean;
   alertMedicationValue: boolean;
@@ -71,9 +68,6 @@ export function HomeNavigationModals({
   showHealthOptionsModal,
   onCloseHealthOptionsModal,
   onOpenHealthOptionsModal,
-  showEventTypeModal,
-  onOpenEventTypeModal,
-  onCloseEventTypeModal,
   alertVaccinesValue,
   alertParasitesValue,
   alertMedicationValue,
@@ -238,7 +232,6 @@ export function HomeNavigationModals({
 
       <PetShopsNearbySheet open={showPetShopsNearby} onClose={() => setShowPetShopsNearby(false)} />
 
-      {/* EventTypeModal SILENCIADO: bloco legado de Consultas/Exames removido da UI */}
     </>
     </ModalPortal>
   );
