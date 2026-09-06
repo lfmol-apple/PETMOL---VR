@@ -707,17 +707,47 @@ def _create_found_report_from_sighting(
     sighting.compatibility_analysis = analysis
     db.commit()
 
+    distance_km = None
+    if all(v is not None for v in (mp.lat, mp.lng, sighting.lat, sighting.lng)):
+        distance_km = _haversine_km(mp.lat, mp.lng, sighting.lat, sighting.lng)
+    minutes_ago = None
+    if sighting.created_at:
+        try:
+            created = sighting.created_at
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            minutes_ago = max(0, int((datetime.now(timezone.utc) - created).total_seconds() // 60))
+        except Exception:
+            minutes_ago = None
+
     if mp.user_id:
         threading.Thread(
             target=_push_owner_found,
-            args=(mp, contact, sighting.location_text, mp.id),
+            args=(mp, sighting.location_text, mp.id),
+            kwargs={"score": score, "minutes_ago": minutes_ago, "distance_km": distance_km},
             daemon=True,
         ).start()
-        threading.Thread(
-            target=_push_compat_score,
-            args=(score, analysis or "", mp.user_id, mp.pet_name, report.id),
-            daemon=True,
-        ).start()
+        # Avistamento forte (>=75%) — família e cuidadores também acompanham.
+        if score >= 75:
+            try:
+                fam_ids = _case_participant_user_ids(
+                    db, mp, include_finders=False, include_followers=False,
+                ) - {str(mp.user_id)}
+                if fam_ids:
+                    threading.Thread(
+                        target=_push_case,
+                        args=(fam_ids, {
+                            "title": f"🔎 Possível avistamento de {mp.pet_name}",
+                            "body": "Um avistamento compatível foi registrado. O tutor está avaliando.",
+                            "tag": f"found-report-fam-{mp.id}",
+                            "renotify": True,
+                            "icon": "/icons/icon-192x192.png",
+                            "data": {"url": "/pets-desaparecidos"},
+                        }),
+                        daemon=True,
+                    ).start()
+            except Exception as exc:
+                logger.warning(f"sighting family push failed: {exc}")
     return report
 
 
@@ -1416,26 +1446,27 @@ def mark_found(
     mp.found_at = datetime.now(timezone.utc)
     db.commit()
 
-    # Push de agradecimento para quem encontrou o pet (se tiver user_id e subscrição)
+    # Encerramento: todos que participaram de verdade da busca — família,
+    # cuidadores, quem enviou relato, quem acompanha e quem recebeu o alerta
+    # na região — recebem a boa notícia. Uma vez por usuário (dedup no
+    # _push_case), menos quem confirmou (já sabe).
     try:
-        report = (
-            db.query(FoundReport)
-            .filter(FoundReport.missing_pet_id == mp_id, FoundReport.dismissed != 1)
-            .order_by(FoundReport.created_at.desc())
-            .first()
+        participants = _case_participant_user_ids(db, mp, include_region=True)
+        _push_case(
+            participants,
+            {
+                "title": f"🎉 {mp.pet_name} foi encontrado!",
+                "body": "Obrigado a todos que ajudaram na busca. O alerta foi encerrado.",
+                "tag": f"found-closed-{mp_id}",
+                "renotify": False,
+                "requireInteraction": False,
+                "icon": "/icons/icon-192x192.png",
+                "data": {"url": "/pets-desaparecidos"},
+            },
+            exclude={str(current_user.id)},
         )
-        if report and report.finder_user_id:
-            push_to_user(report.finder_user_id, {
-                    "title": f"🎉 Você fez a diferença!",
-                    "body": f"O tutor de {mp.pet_name} confirmou que você encontrou o pet. Muito obrigado!",
-                    "tag": f"thanks-{mp_id}",
-                    "renotify": False,
-                    "requireInteraction": False,
-                    "icon": "/icons/icon-192x192.png",
-                    "data": {"url": "/home"},
-                })
     except Exception as e:
-        logger.error(f"Push agradecimento falhou: {e}")
+        logger.error(f"Push encerramento falhou: {e}")
 
     return {"status": "found"}
 
@@ -2321,41 +2352,114 @@ def _analyze_photo_compatibility(pet_photo_url, finder_photos_b64: list, charact
     return 0, ""
 
 
-def _push_compat_score(score: int, analysis: str, owner_user_id, pet_name: str, report_id: str) -> None:
-    """Envia push com % de compatibilidade ao dono quando o score já é conhecido (via pré-análise)."""
-    try:
-        if not owner_user_id:
-            return
-        emoji = "🔎" if score >= 90 else "⚠️" if score >= 75 else "❓"
-        label = _compatibility_label(score)
-        push_to_user(owner_user_id, {
-            "title": f"{emoji} Possível match para {pet_name}",
-            "body": f"{score}% - {label}. Confira as fotos antes de confirmar.",
-            "tag": f"compat-{report_id}",
-            "renotify": False,
-            "requireInteraction": False,
-            "icon": "/icons/icon-192x192.png",
-            "data": {"url": "/home"},
-        })
-    except Exception as e:
-        logger.error(f"Push compatibilidade falhou: {e}")
+def _case_participant_user_ids(
+    db: Session,
+    mp: MissingPet,
+    *,
+    include_finders: bool = True,
+    include_followers: bool = True,
+    include_region: bool = False,
+) -> set[str]:
+    """User IDs que 'entraram de forma relevante' num caso de pet sumido e
+    devem acompanhar os acontecimentos importantes até o encerramento:
+    dono + família + cuidadores (+ finders + followers + região notificada).
+    Nunca inclui None/vazio."""
+    ids: set[str] = set()
+    if mp.user_id:
+        ids.add(str(mp.user_id))
+
+    if mp.pet_id:
+        try:
+            from ..pets.caretaker_models import PetCaretaker
+            from ..pets.models import Pet
+            pet = db.query(Pet).filter(Pet.id == mp.pet_id).first()
+            if pet:
+                fam = (
+                    db.query(FamilyMember)
+                    .join(FamilyGroup, FamilyGroup.id == FamilyMember.group_id)
+                    .filter(FamilyGroup.owner_id == str(pet.user_id))
+                    .all()
+                )
+                ids.update(str(m.user_id) for m in fam)
+            for c in db.query(PetCaretaker).filter(PetCaretaker.pet_id == mp.pet_id).all():
+                ids.add(str(c.user_id))
+        except Exception as exc:
+            logger.warning(f"case participants (family/caretaker) failed: {exc}")
+
+    if include_finders:
+        for r in db.query(FoundReport).filter(FoundReport.missing_pet_id == mp.id).all():
+            if r.finder_user_id:
+                ids.add(str(r.finder_user_id))
+
+    if include_followers:
+        for f in db.query(MissingPetFollower).filter(MissingPetFollower.missing_pet_id == mp.id).all():
+            if f.finder_user_id:
+                ids.add(str(f.finder_user_id))
+
+    if include_region:
+        rec = _load_mp_notified().get(mp.id, {})
+        ids.update(str(u) for u in rec.get("notified", []))
+
+    ids.discard("")
+    ids.discard("None")
+    return ids
 
 
-def _push_owner_found(mp: MissingPet, finder_contact: str, finder_location: str | None, mp_id: str) -> None:
-    """Envia push imediato ao dono quando alguém reporta possível localização do pet."""
+def _push_case(user_ids, payload: dict, *, exclude: set | None = None) -> int:
+    """Push para um conjunto de usuários de um caso — uma vez por usuário
+    (push_to_user já cobre todos os aparelhos do usuário). Uma única leitura
+    de subscriptions para o lote todo, dedup por user_id."""
+    excluded = {str(x) for x in (exclude or set())}
+    subs_by_user = _load_subscriptions_by_user()
+    sent = 0
+    for uid in {str(u) for u in user_ids} - excluded:
+        try:
+            if push_to_user(uid, payload, subs_by_user) > 0:
+                sent += 1
+        except Exception as exc:
+            logger.warning(f"_push_case to {uid[:8]} failed: {exc}")
+    return sent
+
+
+def _owner_found_body(score: int | None, minutes_ago: int | None, distance_km: float | None) -> str:
+    """Corpo do push ao tutor: relato, nunca o contato do achador (§privacidade)."""
+    parts: list[str] = []
+    if minutes_ago is not None:
+        parts.append("agora mesmo" if minutes_ago < 2 else f"há {minutes_ago} min")
+    if distance_km is not None and distance_km >= 0:
+        parts.append(f"a {distance_km:.1f} km do último ponto" if distance_km >= 0.1 else "bem perto do último ponto")
+    when_where = " · ".join(parts)
+    if score is not None:
+        tail = f"{score}% — {_compatibility_label(score)}"
+    else:
+        tail = "Abra o app para ver o relato e confirmar com cuidado."
+    return f"{when_where}. {tail}".strip(" .·") + "."
+
+
+def _push_owner_found(
+    mp: MissingPet,
+    finder_location: str | None,
+    mp_id: str,
+    *,
+    score: int | None = None,
+    minutes_ago: int | None = None,
+    distance_km: float | None = None,
+) -> None:
+    """Push ao dono quando surge um possível avistamento/relato do pet.
+    Uma notificação só (relato + %, quando conhecido), sem expor contato."""
     try:
         if not mp.user_id:
             return
-        loc = f" em {finder_location}" if finder_location else ""
+        emoji = "🔎" if score is None or score >= 90 else "⚠️" if score >= 75 else "❓"
         push_to_user(mp.user_id, {
-            "title": f"🔎 Possível localização de {mp.pet_name}",
-            "body": f"Alguém enviou um pet parecido{loc}. Contato: {finder_contact}. Confira antes de confirmar.",
+            "title": f"{emoji} Possível avistamento de {mp.pet_name}",
+            "body": _owner_found_body(score, minutes_ago, distance_km),
             "tag": f"found-report-{mp_id}",
             "renotify": True,
             "requireInteraction": True,
             "vibrate": [300, 150, 300, 150, 300],
             "icon": "/icons/icon-192x192.png",
-            "data": {"url": f"/home"},
+            "data": {"url": "/home"},
         })
     except Exception as e:
         logger.error(f"Push ao tutor falhou: {e}")
@@ -2377,19 +2481,20 @@ def _analyze_and_save(report_id: str, mp_photo_url: str, finder_photos: list, ow
                 db.commit()
         finally:
             db.close()
-        # Segundo push com a triagem de compatibilidade
+        # Atualiza a MESMA notificação do avistamento (tag found-report-*) com o
+        # % de compatibilidade — não empilha uma segunda notificação no dono.
         try:
             if owner_user_id:
                 emoji = "🔎" if score >= 90 else "⚠️" if score >= 75 else "❓"
                 label = _compatibility_label(score)
                 push_to_user(owner_user_id, {
-                    "title": f"{emoji} Possível match para {pet_name}",
-                    "body": f"{score}% - {label}. Confira as fotos antes de confirmar.",
-                    "tag": f"compat-{report_id}",
-                    "renotify": False,
-                    "requireInteraction": False,
+                    "title": f"{emoji} Possível avistamento de {pet_name}",
+                    "body": f"{score}% — {label}. Abra o app para ver o relato e confirmar com cuidado.",
+                    "tag": f"found-report-{mp_id}",
+                    "renotify": True,
+                    "requireInteraction": True,
                     "icon": "/icons/icon-192x192.png",
-                    "data": {"url": f"/home"},
+                    "data": {"url": "/home"},
                 })
         except Exception as e:
             logger.error(f"Push compatibilidade falhou: {e}")
@@ -2506,26 +2611,73 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
     )
     db.add(report)
     _store_found_report_photo_fingerprints(db, report, photo_hashes)
+
+    # Quem enviou um relato passa a acompanhar o caso (recebe o encerramento).
+    if body.finder_user_id:
+        exists = (
+            db.query(MissingPetFollower)
+            .filter(
+                MissingPetFollower.missing_pet_id == mp_id,
+                MissingPetFollower.finder_user_id == body.finder_user_id,
+            )
+            .first()
+        )
+        if not exists:
+            db.add(MissingPetFollower(
+                id=str(uuid.uuid4()),
+                missing_pet_id=mp_id,
+                finder_user_id=body.finder_user_id,
+                finder_contact=body.finder_contact.strip(),
+                source="report_found",
+                created_at=datetime.now(timezone.utc),
+            ))
     db.commit()
     report_id = report.id
 
-    # Push IMEDIATO para o dono (antes de qualquer análise)
+    # Uma notificação ao dono — com o % quando já conhecido, sem expor contato.
     if mp.user_id:
         threading.Thread(
             target=_push_owner_found,
-            args=(mp, body.finder_contact.strip(), body.finder_location, mp_id),
+            args=(mp, body.finder_location, mp_id),
+            kwargs={"score": body.pre_score if has_pre_score else None},
+            daemon=True,
+        ).start()
+        # Família e cuidadores acompanham um relato novo (já passou por vídeo +
+        # frase-desafio, então é sinal real) — sem o detalhe/contato do dono.
+        fam_ids = _case_participant_user_ids(
+            db, mp, include_finders=False, include_followers=False,
+        ) - {str(mp.user_id)}
+        if fam_ids:
+            threading.Thread(
+                target=_push_case,
+                args=(fam_ids, {
+                    "title": f"🔎 Novo aviso sobre {mp.pet_name}",
+                    "body": "Alguém enviou um possível avistamento. O tutor está avaliando.",
+                    "tag": f"found-report-fam-{mp_id}",
+                    "renotify": True,
+                    "icon": "/icons/icon-192x192.png",
+                    "data": {"url": "/pets-desaparecidos"},
+                }),
+                daemon=True,
+            ).start()
+
+    # Confirmação de recebimento para quem enviou (se for usuário logado).
+    if body.finder_user_id:
+        threading.Thread(
+            target=push_to_user,
+            args=(body.finder_user_id, {
+                "title": f"Recebemos seu aviso sobre {mp.pet_name}",
+                "body": "O tutor foi notificado e vai avaliar. Obrigado por ajudar.",
+                "tag": f"report-ack-{report_id}",
+                "renotify": False,
+                "icon": "/icons/icon-192x192.png",
+                "data": {"url": f"/achei-um-pet?id={mp_id}"},
+            }),
             daemon=True,
         ).start()
 
-    if has_pre_score and mp.user_id:
-        # Score já conhecido — envia push com % imediatamente
-        threading.Thread(
-            target=_push_compat_score,
-            args=(body.pre_score, body.pre_analysis or "", mp.user_id, mp.pet_name, report_id),
-            daemon=True,
-        ).start()
-    elif body.finder_photos and mp.photo_url:
-        # Sem pré-análise — roda Gemini em background
+    if not has_pre_score and body.finder_photos and mp.photo_url:
+        # Sem pré-análise — roda Gemini em background e atualiza a notificação.
         threading.Thread(
             target=_analyze_and_save,
             args=(report_id, mp.photo_url, body.finder_photos, mp.user_id, mp.pet_name, mp_id, mp.characteristics),
