@@ -13,7 +13,14 @@ from src.db import SessionLocal, Base, engine
 from src.notifications import PushSubscription
 import src.notifications as notif
 import src.missing_pets as mp_mod
-from src.missing_pets import MissingPet, _broadcast_missing_pet
+from src.missing_pets import (
+    MissingPet,
+    FoundReport,
+    MissingPetFollower,
+    _broadcast_missing_pet,
+    _case_participant_user_ids,
+    mark_found,
+)
 
 
 def _sub(db, user_id, tag, lat=None, lng=None):
@@ -49,6 +56,8 @@ def _isolate(monkeypatch):
     with SessionLocal() as db:
         db.query(PushSubscription).delete()
         db.query(MissingPet).delete()
+        db.query(FoundReport).delete()
+        db.query(MissingPetFollower).delete()
         db.commit()
 
 
@@ -136,3 +145,62 @@ def test_reach_counts_people_not_subscriptions(client, _isolate, monkeypatch):
 
     # 2 pessoas no raio (u1, u2) — não 3 subscriptions
     assert out["notified_active"] + out["new_in_radius"] == 2
+
+
+# ── PS-3: matriz de push ─────────────────────────────────────────────────────
+
+def test_case_participants_dono_finder_follower(_isolate):
+    with SessionLocal() as db:
+        mp = _make_mp(db, owner_id="owner")
+        db.add(FoundReport(
+            id=str(uuid.uuid4()), missing_pet_id=mp.id,
+            finder_contact="c", finder_user_id="finder1",
+        ))
+        db.add(MissingPetFollower(
+            id=str(uuid.uuid4()), missing_pet_id=mp.id, finder_user_id="follower1",
+        ))
+        db.commit()
+        ids = _case_participant_user_ids(db, mp)
+        ids_no_finder = _case_participant_user_ids(db, mp, include_finders=False, include_followers=False)
+
+    assert ids == {"owner", "finder1", "follower1"}
+    assert ids_no_finder == {"owner"}
+    assert "" not in ids and "None" not in ids
+
+
+def test_mark_found_notifies_all_participants_except_confirmer(_isolate, monkeypatch):
+    sent = _isolate
+    monkeypatch.setattr(mp_mod, "_ensure_missing_pet_access", lambda *a, **k: None)
+    # região: um usuário que recebeu o alerta original
+    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: {"MP_ID": {"notified": ["regionUser"]}})
+
+    class _U:
+        id = "owner"
+
+    with SessionLocal() as db:
+        _sub(db, "owner", "owner-dev")
+        _sub(db, "finder1", "finder-dev")
+        _sub(db, "follower1", "follower-dev")
+        _sub(db, "regionUser", "region-dev")
+        mp = MissingPet(
+            id="MP_ID", user_id="owner", pet_id=None, pet_name="Rex", contact="x",
+            status="active", current_radius_km=2.0,
+        )
+        db.add(mp)
+        db.add(FoundReport(id=str(uuid.uuid4()), missing_pet_id="MP_ID", finder_contact="c", finder_user_id="finder1"))
+        db.add(MissingPetFollower(id=str(uuid.uuid4()), missing_pet_id="MP_ID", finder_user_id="follower1"))
+        db.commit()
+
+        db2 = SessionLocal()
+        try:
+            out = mark_found("MP_ID", db=db2, current_user=_U())
+        finally:
+            db2.close()
+
+    assert out == {"status": "found"}
+    # dono confirmou -> não recebe; todos os outros participantes recebem 1x
+    assert set(sent) == {
+        "https://push.example/finder-dev",
+        "https://push.example/follower-dev",
+        "https://push.example/region-dev",
+    }
