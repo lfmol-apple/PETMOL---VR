@@ -40,13 +40,13 @@ export default function LandingPage() {
       </header>
 
       {/* Hero */}
-      <section className="px-6 pt-14 pb-12 text-center bg-gradient-to-b from-blue-50 to-white">
+      <section className="px-5 pt-14 pb-12 text-center bg-gradient-to-b from-blue-50 to-white">
         <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wider mb-6">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           Sem anúncios
         </div>
-        <h1 className="text-[32px] font-black text-slate-900 leading-[1.15] tracking-tight">
-          O PETMOL conhece<br />o seu pet.
+        <h1 className="text-[32px] font-black text-slate-900 leading-[1.15] tracking-tight text-balance">
+          O PETMOL<br />conhece<br />o seu pet.
         </h1>
         <p className="mt-4 text-base text-slate-500 leading-relaxed font-medium max-w-xs mx-auto">
           Acompanha a alimentação, as vacinas, os remédios e a proteção — e mostra o que vem a seguir, na hora certa.
@@ -99,14 +99,14 @@ export default function LandingPage() {
       </section>
 
       {/* CTA final */}
-      <section className="px-5 pb-12 text-center">
+      <section className="px-5 pb-12 flex flex-col items-center text-center">
         <h2 className="text-2xl font-black text-slate-900">Comece agora.</h2>
         <p className="mt-2 text-sm text-slate-500 font-medium">Crie a conta e adicione o seu pet.</p>
         <Link href="/register"
-          className="mt-6 inline-block w-full max-w-xs rounded-2xl bg-[#0056D2] px-6 py-4 text-base font-black text-white shadow-lg shadow-blue-500/25 active:scale-[0.98]">
+          className="mt-6 block w-full max-w-xs rounded-2xl bg-[#0056D2] px-6 py-4 text-base font-black text-white shadow-lg shadow-blue-500/25 active:scale-[0.98]">
           Criar conta
         </Link>
-        <Link href="/login" className="mt-3 inline-block text-sm text-slate-400 font-semibold">
+        <Link href="/login" className="mt-3 text-sm text-slate-400 font-semibold">
           Já tenho conta
         </Link>
       </section>
