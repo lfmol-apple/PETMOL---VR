@@ -589,9 +589,14 @@ def _broadcast_missing_pet(
     - origin="sighting": NOVO ponto de interesse — um avistamento plausível
       longe do ponto original. Centrado em `center`, raio `radius_km`, e
       NÃO exclui quem já recebeu (a graça é re-alertar a região nova).
-      Nunca altera mp.lat/lng.
+      Nunca altera mp.lat/lng. Usa a MESMA tag do alerta (substitui a
+      notificação em vez de empilhar uma segunda).
+    - origin="rebroadcast": nudge "ainda desaparecido" nas primeiras horas —
+      mesma mensagem, mas renotify=False (não vibra/re-alerta de novo; se o
+      usuário já tem a notificação na tela, ela só é atualizada em silêncio).
     - Geo filter por usuário: qualquer aparelho no raio notifica o usuário.
     """
+    quiet = origin == "rebroadcast"
     try:
         subs_by_user = _load_subscriptions_by_user()
         c_lat, c_lng = center if center is not None else (mp.lat, mp.lng)
@@ -613,7 +618,8 @@ def _broadcast_missing_pet(
             payload = {
                 "title": f"🔎 Avistamento de {mp.pet_name} perto de você",
                 "body": "Alguém viu um pet parecido nesta região. Toque para ajudar na busca.",
-                "tag": f"missing-pet-sighting-{mp.id}",
+                # MESMA tag do alerta: substitui a notificação em vez de somar uma segunda.
+                "tag": f"missing-pet-{mp.id}",
                 "renotify": True,
                 "requireInteraction": True,
                 "vibrate": [300, 150, 300, 150, 300],
@@ -627,9 +633,9 @@ def _broadcast_missing_pet(
                 "title": f"🚨 {mp.pet_name} pode estar na sua região!",
                 "body": f"{location_part}Desaparecido desde {mp.missing_date or 'hoje'} às {mp.missing_time or '??:??'}. Toque para ajudar.",
                 "tag": f"missing-pet-{mp.id}",
-                "renotify": True,
+                "renotify": not quiet,
                 "requireInteraction": True,
-                "vibrate": [300, 150, 300, 150, 300],
+                "vibrate": None if quiet else [300, 150, 300, 150, 300],
                 "icon": "/icons/icon-192x192.png",
                 "badge": "/icons/icon-72x72.png",
                 "data": {"url": f"/achei-um-pet?id={mp.id}"},
@@ -1053,11 +1059,12 @@ def create_missing_pet(
     else:
         existing_q = existing_q.filter(MissingPet.user_id == user_id, MissingPet.pet_name == pet_name)
 
-    if existing_q.first():
-        raise HTTPException(
-            status_code=409,
-            detail="Já existe um alerta ativo para este pet. Confirme que foi encontrado antes de criar um novo alerta.",
-        )
+    existing_active = existing_q.first()
+    if existing_active:
+        # Já existe alerta ativo pra este pet. Um segundo POST (toque duplo,
+        # retry do cliente numa request lenta) NÃO cria um novo alerta nem
+        # dispara um segundo broadcast — devolve o alerta que já existe.
+        return {"id": existing_active.id, "status": "already_active"}
 
     mp = MissingPet(
         id=str(uuid.uuid4()),
@@ -1901,7 +1908,7 @@ def _delayed_rebroadcast(mp_id: str, delay_seconds: int) -> None:
                 MissingPet.id == mp_id, MissingPet.status == "active"
             ).first()
             if mp:
-                sent = _broadcast_missing_pet(mp)
+                sent = _broadcast_missing_pet(mp, origin="rebroadcast")
                 print(f"[rebroadcast] delay={delay_seconds//3600}h pet={mp_id[:8]} sent={sent}", flush=True)
         finally:
             db.close()

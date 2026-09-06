@@ -16,6 +16,7 @@ import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
 import { registerNativePush } from '@/features/notifications/nativePushService';
+import { getDeviceId } from '@/features/notifications/pushService';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -88,7 +89,7 @@ async function postSubscription(sub: PushSubscription): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/notifications/subscribe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeader() },
-    body: JSON.stringify({ subscription: serializeSubscription(sub), ...loc }),
+    body: JSON.stringify({ subscription: serializeSubscription(sub), device_id: getDeviceId(), ...loc }),
   });
   if (!res.ok) {
     throw new Error(await readErrorMessage(res, 'Erro ao registrar subscription'));

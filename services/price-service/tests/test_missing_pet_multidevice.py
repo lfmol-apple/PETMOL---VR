@@ -408,3 +408,68 @@ def test_risk_level_from_flags(_isolate):
     assert _risk_level_from_flags(["repeated_contact"]) == "attention"
     assert _risk_level_from_flags(["possible_generated_image"]) == "review"
     assert _risk_level_from_flags(["reused_photo", "repeated_contact"]) == "review"
+
+
+# ── Push duplicado: dedup de subscription por aparelho ──────────────────────
+
+def _subscribe_call(endpoint, device_id, user_id="u1"):
+    """Chama o endpoint /subscribe direto, sem HTTP."""
+    from src.notifications import subscribe, SubscribeRequest
+
+    class _U:
+        id = user_id
+
+    body = SubscribeRequest(
+        subscription={
+            "endpoint": endpoint,
+            "keys": {"p256dh": "k", "auth": "a"},
+        },
+        device_id=device_id,
+    )
+    return subscribe(body, current_user=_U())
+
+
+def test_subscribe_disables_old_endpoint_of_same_device(_isolate):
+    # Mesmo aparelho re-inscreve com endpoint novo (rotação do FCM/APNs).
+    # A linha antiga NÃO pode continuar ativa — senão o push chega 2x.
+    _subscribe_call("https://push.example/old", device_id="dev-A")
+    _subscribe_call("https://push.example/new", device_id="dev-A")
+
+    with SessionLocal() as db:
+        rows = db.query(PushSubscription).filter_by(user_id="u1").all()
+        by_ep = {r.endpoint: r for r in rows}
+        assert by_ep["https://push.example/old"].disabled_at is not None
+        assert by_ep["https://push.example/new"].disabled_at is None
+
+
+def test_subscribe_keeps_other_real_devices(_isolate):
+    # Aparelhos diferentes (celular + notebook) continuam ativos.
+    _subscribe_call("https://push.example/phone", device_id="dev-phone")
+    _subscribe_call("https://push.example/laptop", device_id="dev-laptop")
+
+    with SessionLocal() as db:
+        active = db.query(PushSubscription).filter(
+            PushSubscription.user_id == "u1",
+            PushSubscription.disabled_at.is_(None),
+        ).count()
+    assert active == 2
+
+
+def test_rebroadcast_is_quiet(_isolate, monkeypatch):
+    # origin="rebroadcast" mantém a mesma tag do alerta e não re-vibra.
+    captured: dict = {}
+
+    def fake_send(subscription, payload):
+        captured.update(payload)
+        return (True, False)
+
+    monkeypatch.setattr(notif, "_send_push", fake_send)
+
+    with SessionLocal() as db:
+        _sub(db, "u1", "phone")
+        mp = _make_mp(db, owner_id="owner")
+        _broadcast_missing_pet(mp, origin="rebroadcast")
+
+    assert captured["tag"] == f"missing-pet-{mp.id}"
+    assert captured["renotify"] is False
+    assert not captured["vibrate"]

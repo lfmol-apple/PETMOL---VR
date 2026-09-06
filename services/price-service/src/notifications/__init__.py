@@ -7,7 +7,7 @@ scheduler (1 min) detecta remind_at <= now → envia push via VAPID.
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -478,6 +478,7 @@ class SubscribeRequest(BaseModel):
     subscription: dict
     lat: Optional[float] = None
     lng: Optional[float] = None
+    device_id: Optional[str] = None
 
 
 class UnsubscribeRequest(BaseModel):
@@ -540,6 +541,7 @@ def subscribe(body: SubscribeRequest, current_user=Depends(get_current_user)):
     try:
         now = datetime.now(timezone.utc)
         user_id = str(current_user.id)
+        device_id = (body.device_id or "").strip()[:64] or None
         existing = (
             db.query(PushSubscription)
             .filter(PushSubscription.user_id == user_id, PushSubscription.endpoint == endpoint)
@@ -552,13 +554,36 @@ def subscribe(body: SubscribeRequest, current_user=Depends(get_current_user)):
             existing.lng = body.lng
             existing.last_seen_at = now
             existing.disabled_at = None
+            if device_id:
+                existing.device_id = device_id
         else:
             db.add(PushSubscription(
                 user_id=user_id, endpoint=endpoint,
                 p256dh=keys["p256dh"], auth=keys["auth"],
-                lat=body.lat, lng=body.lng,
+                lat=body.lat, lng=body.lng, device_id=device_id,
                 created_at=now, last_seen_at=now,
             ))
+
+        # Anti-duplicata: o cliente re-inscreve a cada abertura do app. Se
+        # há OUTRAS subscriptions ativas do mesmo usuário para o mesmo
+        # aparelho (mesmo device_id) ou que não dão sinal há > 24h (endpoint
+        # rotacionado / PWA desinstalada), desativa — senão o mesmo celular
+        # recebe o push 2x.
+        stale_cutoff = now - timedelta(hours=24)
+        cleanup = db.query(PushSubscription).filter(
+            PushSubscription.user_id == user_id,
+            PushSubscription.endpoint != endpoint,
+            PushSubscription.disabled_at.is_(None),
+        )
+        if device_id:
+            cleanup = cleanup.filter(
+                (PushSubscription.device_id == device_id)
+                | (PushSubscription.last_seen_at < stale_cutoff)
+            )
+        else:
+            cleanup = cleanup.filter(PushSubscription.last_seen_at < stale_cutoff)
+        cleanup.update({PushSubscription.disabled_at: now}, synchronize_session=False)
+
         db.commit()
         return {"status": "subscribed"}
     finally:

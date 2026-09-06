@@ -1824,36 +1824,34 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           )}
         </div>
       </div>
-      <div className="mx-auto max-w-2xl px-2 py-3 min-[390px]:px-3 sm:px-4 sm:py-4">
-        {/* Fixed-height slot, always mounted while there's a pet — the pill
-            INSIDE still mounts/unmounts on sync-state changes, but the slot
-            itself never does, so the pet card and everything below it never
-            shifts when the pill appears/disappears (confirmed real
-            complaint: "Sincronizado" showing up was moving the screen). */}
-        {pets.length > 0 && (
-          <div className="mb-3 flex h-9 items-center justify-center">
-            {(syncStatus === 'offline' || syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale || justSynced) && (
-              <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-sm ${
+      <div className="relative mx-auto max-w-2xl px-2 py-3 min-[390px]:px-3 sm:px-4 sm:py-4">
+        {/* Pílula de status de sync — FLUTUA sobre o topo (absolute), não
+            reserva espaço próprio. Antes era um slot fixo de h-9 sempre
+            montado → 48px de vazio permanente entre o header e o card do pet
+            quando não havia nada a mostrar. Como é overlay, aparecer/sumir
+            também não empurra mais o card. */}
+        {pets.length > 0 && (syncStatus === 'offline' || syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale || justSynced) && (
+          <div className="pointer-events-none absolute inset-x-0 top-1 z-20 flex justify-center">
+            <div className={`pointer-events-auto inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-sm ${
+              syncStatus === 'offline'
+                ? 'border-rose-200 bg-rose-50 text-rose-700'
+                : syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale
+                  ? 'border-amber-200 bg-amber-50 text-amber-800'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+            }`}>
+              <span className={`h-2 w-2 rounded-full ${
                 syncStatus === 'offline'
-                  ? 'border-rose-200 bg-rose-50 text-rose-700'
+                  ? 'bg-rose-500'
                   : syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale
-                    ? 'border-amber-200 bg-amber-50 text-amber-800'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-              }`}>
-                <span className={`h-2 w-2 rounded-full ${
-                  syncStatus === 'offline'
-                    ? 'bg-rose-500'
-                    : syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale
-                      ? 'bg-amber-500'
-                      : 'bg-emerald-500'
-                }`} />
-                {syncStatus === 'offline'
-                  ? 'Sem conexão'
-                  : syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale
-                    ? 'Tentando reconectar'
-                    : 'Sincronizado'}
-              </div>
-            )}
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-500'
+              }`} />
+              {syncStatus === 'offline'
+                ? 'Sem conexão'
+                : syncStatus === 'reconnecting' || possiblyStale || homePossiblyStale
+                  ? 'Tentando reconectar'
+                  : 'Sincronizado'}
+            </div>
           </div>
         )}
 
@@ -2496,6 +2494,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         <EditPetModal
           pet={currentPet}
           photoVersion={currentPet?.updated_at || (selectedPetId ? photoTimestamps[selectedPetId] : undefined)}
+          careSummary={{ ...selectedPetCardColors, medicacao: medicationCardStatus.color }}
           onClose={closeEditPetModal}
           onSave={handleSavePet}
           onDelete={handleDeletePet}

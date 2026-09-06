@@ -423,9 +423,13 @@ const getPhotoUrl = (photoPath: string | undefined | null, version?: string): st
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
+type CareTone = 'neutral' | 'ok' | 'warning' | 'critical';
+
 interface EditPetModalProps {
   pet: PetHealthProfile & { id?: string; name?: string; weight?: number; is_neutered?: boolean; insurance_provider?: string };
   photoVersion?: string | number;
+  /** Estado atual de cada cuidado — vem pronto da Home (mesmos tons dos cards). */
+  careSummary?: Partial<Record<'vacinas' | 'vermifugo' | 'antipulgas' | 'coleira' | 'grooming' | 'food' | 'medicacao', CareTone>>;
   onClose: () => void;
   onSave: (updatedPet: Partial<PetHealthProfile> & {
     pet_id: string;
@@ -445,9 +449,43 @@ function resolvePetPhoto(pet: EditPetModalProps['pet'], override?: string): stri
   return [override, resolveBackendPetPhoto(pet)].find(v => Boolean(v?.trim())) || null;
 }
 
+const CARE_LABELS: Record<string, string> = {
+  vacinas: 'Vacinas', vermifugo: 'Vermífugo', antipulgas: 'Antipulgas',
+  coleira: 'Coleira', grooming: 'Banho e tosa', food: 'Alimentação', medicacao: 'Medicação',
+};
+
+/** Bloco read-only "estado atual do pet" — só lê os tons que a Home já calculou. */
+function PetCareStatus({ summary, petName }: { summary: NonNullable<EditPetModalProps['careSummary']>; petName: string }) {
+  const entries = Object.entries(summary).filter(([, t]) => t) as [string, CareTone][];
+  if (entries.length === 0) return null;
+  const emDia = entries.filter(([, t]) => t === 'ok').map(([k]) => CARE_LABELS[k] ?? k);
+  const atencao = entries.filter(([, t]) => t === 'warning' || t === 'critical').map(([k]) => CARE_LABELS[k] ?? k);
+  const semRegistro = entries.filter(([, t]) => t === 'neutral').map(([k]) => CARE_LABELS[k] ?? k);
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-2.5">
+      <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Como {petName} está</p>
+      {atencao.length > 0 && (
+        <p className="text-[13px] leading-relaxed text-slate-700">
+          <span className="font-bold text-amber-700">Precisa de atenção:</span> {atencao.join(', ')}.
+        </p>
+      )}
+      {emDia.length > 0 && (
+        <p className="text-[13px] leading-relaxed text-slate-700">
+          <span className="font-bold text-teal-700">Em dia:</span> {emDia.join(', ')}.
+        </p>
+      )}
+      {semRegistro.length > 0 && (
+        <p className="text-[12px] leading-relaxed text-slate-400">
+          Ainda sem registro: {semRegistro.join(', ')}.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: EditPetModalProps) {
+export function EditPetModal({ pet, photoVersion, careSummary, onClose, onSave, onDelete }: EditPetModalProps) {
   const [formData, setFormData] = useState({
     name:        pet.pet_name || pet.name || '',
     species:     (pet.species || 'dog') as PetSpecies,
@@ -568,6 +606,9 @@ export function EditPetModal({ pet, photoVersion, onClose, onSave, onDelete }: E
 
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
             <SheetShell.Body className="space-y-5">
+
+              {/* Estado atual do pet — read-only, reusa os tons dos cards da Home */}
+              {careSummary && <PetCareStatus summary={careSummary} petName={pet.pet_name || pet.name || 'o pet'} />}
 
               {/* Foto */}
               <div className="flex flex-col items-center gap-2">
