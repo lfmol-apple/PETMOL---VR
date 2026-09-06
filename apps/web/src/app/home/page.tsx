@@ -2023,8 +2023,10 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
             aqui (esse caso já tem o card certo "Baby está com alerta
             ativo" logo abaixo, ver ownMissingAlerts). */}
         {(() => {
-          const visibleAlerts = nearbyAlerts.filter(a => !handledAlertIds.includes(a.id) && a.user_id !== loggedUserId);
-          return visibleAlerts.length > 0 && (
+          const regionAlerts = nearbyAlerts.filter(a => a.user_id !== loggedUserId);
+          const visibleAlerts = regionAlerts.filter(a => !handledAlertIds.includes(a.id));
+          if (regionAlerts.length === 0) return null;
+          return (
           <div className="mb-3 space-y-2">
             {visibleAlerts.map((alert) => {
               const speciesLabel = alert.species === 'cat' ? 'Gato' : alert.species === 'dog' ? 'Cachorro' : 'Pet';
@@ -2140,6 +2142,16 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                 </div>
               );
             })}
+            {/* Entrada para a área recuperável — visível sempre que houver
+                alerta ativo na região, inclusive quando todos foram
+                recolhidos/ocultados. Um alerta sério nunca depende só do card. */}
+            <button
+              type="button"
+              onClick={() => router.push('/pets-desaparecidos')}
+              className="w-full py-1.5 text-center text-[12px] font-bold text-rose-600 active:opacity-70"
+            >
+              Ver todos os pets desaparecidos na região ›
+            </button>
           </div>
           );
         })()}
