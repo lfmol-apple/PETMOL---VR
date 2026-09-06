@@ -37,9 +37,12 @@ Detalhes operacionais: `docs/PRODUCT_IDENTITY.md`.
 
 ## Shopee só vitrine — decisão de produto 05/09/2026 (ativa, reversível)
 
-**Decidido e implementado em 05/09/2026, vale até nova ordem.** A Shopee
-fica **só como card no rodapé da Loja do Pet** ("Ou visite uma loja
-parceira"), **desvinculada da busca e dos preços dos produtos do pet**:
+**Decidido em 05/09/2026, vale até nova ordem.** A Shopee fica **só como
+card no rodapé da Loja do Pet** ("Ou visite uma loja parceira"),
+**desvinculada da busca e dos preços dos produtos do pet**.
+
+### Fase 1 (05/09, PR #226) — filtro no frontend
+
 - **fora dos cards de recompra** e do "Escolha a loja" —
   `fetchCommerceOffers` (`productPricing.ts`) descarta `merchant ===
   'shopee'` da lista servida ao frontend; `QUICK_BUY_PARTNERS`
@@ -47,18 +50,33 @@ parceira"), **desvinculada da busca e dos preços dos produtos do pet**:
 - **fora da busca** ("Procurar outro produto") — a busca já era
   Cobasi-only (Awin feed); a resolução de loja por resultado usa o
   mesmo `fetchCommerceOffers` filtrado.
-- **`shopee_affiliate_enabled` continua `True`** — o card da vitrine e o
-  shortlink afiliado do rodapé funcionam normal; o backend segue
-  calculando a oferta Shopee (o filtro é 100% frontend, um ponto só,
-  fácil de reverter).
+
+### Fase 2 (05/09, mesma decisão) — desliga o backend também
+
+- **`shopee_affiliate_enabled` voltou a `False`** (default em
+  `config.py`). `MarketplaceOfferProvider` não serve nem agenda
+  discovery (`find_offer`/`monetize` já checavam
+  `is_marketplace_merchant_publicly_servable`); é defesa em profundidade
+  atrás do filtro de frontend da Fase 1.
+- **Sync noturno vira no-op** — `start_sync_run`
+  (`admin/shopee_sync_router.py`) responde
+  `{"started": false, "reason": "shopee_affiliate_disabled"}` quando a
+  flag está `False`. O `petmol-shopee-sync.timer` pode continuar armado
+  no VPS; ele só não gasta mais rede/banco. (Opcional: `systemctl
+  disable --now petmol-shopee-sync.timer petmol-shopee-health.timer`.)
+- **O card da vitrine NÃO depende de nada disso** — é um shortlink
+  afiliado estático no frontend (`homeShoppingPartners.ts`,
+  `DEFAULT_SHOPEE_AFFILIATE_URL` / `NEXT_PUBLIC_AFFILIATE_SHOPEE`),
+  `affiliateStatus: 'active'`. Continua aparecendo e monetizando.
 
 Racional: quem compra na Shopee quer barato e pesquisa lá sozinho; o
 único ponto de monetização Shopee que faz sentido é o card da vitrine.
 **Cobasi não muda** — segue na busca e nos preços por produto.
 
-**Como reverter:** tirar o `.filter((offer) => offer.merchant !==
-'shopee')` de `fetchCommerceOffers` e devolver `'shopee'` a
-`QUICK_BUY_PARTNERS`.
+**Como reverter:** `SHOPEE_AFFILIATE_ENABLED=true` no env do VPS (ou
+`True` em `config.py`) religa serving + sync; tirar o `.filter((offer)
+=> offer.merchant !== 'shopee')` de `fetchCommerceOffers` e devolver
+`'shopee'` a `QUICK_BUY_PARTNERS` religa busca/preços no frontend.
 
 ## Lançamento (2026-08-30): **Cobasi + Shopee**
 
@@ -72,7 +90,7 @@ rollback).
 | Loja | No lançamento | Gate |
 |---|---|---|
 | Cobasi | **ativa** — discovery de preço + storefront MAIS/UTM (7%, confirmado) | `cobasi_affiliate_mode="utm"` (default); frontend `affiliateStatus: 'active'` |
-| Shopee | **ativa** — vitrine (shortlink afiliado) + ofertas por produto | `shopee_affiliate_enabled=True` (default; ficou `False` por ~1 dia no lançamento, voltou após o projeto de precisão #120); frontend `affiliateStatus: 'active'` |
+| Shopee | **só vitrine** (05/09/2026) — card de storefront no rodapé (shortlink afiliado estático); **sem** ofertas por produto, **sem** busca | `shopee_affiliate_enabled=False` (default desde 05/09/2026 — winding-down; serving + sync desligados); frontend `affiliateStatus: 'active'` mantém só o card. Ver §"Shopee só vitrine" |
 | Petz | **ativa (reativada 04/09/2026)** — card de Loja Parceira fixa (`/parceiro/pettmol`) + cupom, E "Ver na Petz" por produto específico (recompra, busca, item sheets) | frontend `affiliateStatus: 'active'`; backend `petz_publicly_disabled=False` (default desde 04/09/2026, junto com `petz_affiliate_enabled=True` e `petz_coupon_attribution_verified=True`) |
 | Mercado Livre | **desativado** (entra depois) | `mercadolivre_affiliate_enabled=False` + `mercadolivre_public_offers_enabled=False` + frontend `affiliateStatus: 'disabled'` |
 | Amazon | **desativado** (entra depois) | sem `amazon_associate_tag`; nunca reintroduzido nas superfícies |
@@ -91,7 +109,7 @@ abaixo).
 | Zee Now | Awin (advertiser 127557, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116779, 13.835 produtos observados; 13.605 GTINs válidos diretos, 152 UPC-11 corrigíveis, 78 inválidos e 9 grupos duplicados em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeenow`, exposição depende dos gates Awin |
 | Zee Dog | Awin (advertiser 127555, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116649, 1.799 produtos observados, 100% GTIN válido/único em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeedog`, exposição depende dos gates Awin |
 | Petz | Awin (advertiser 127553, pending) + programa próprio "Loja Parceira" | `PetzProductMapping` — aprendizado por produto, confirmação humana (ver §Petz) | **ATIVA (card de Loja Parceira + "Ver na Petz" por produto, reativados 04/09/2026, PR #210 e PR de reativação do gate)** — comissão via cookie `petzPartner` (grava ao abrir `/parceiro/pettmol`, sempre o destino, não importa o que `/commerce/petz-direct-link` devolva) + cupom `PETTMOL` | não | tudo ativo; `petz_affiliate_enabled`/`petz_coupon_attribution_verified`/`petz_publicly_disabled` = True/True/False por padrão |
-| Shopee | Shopee Affiliates | `MarketplaceOffer`/`MarketplaceOfferProvider` (busca textual + GTIN como 1ª keyword — API não tem lookup por GTIN) + discovery on-demand por GTIN quando o tutor abre a Loja (background, cooldown por GTIN) | **ATIVA** — vitrine (shortlink) + ofertas por produto. `shopee_affiliate_enabled=True`. Rede de segurança: oferta >36h → sem preço-número ("Conferir preço na loja"), link afiliado preservado. Sync noturno `source=active_products` descobre/revalida ofertas; refresh de preço roda separado em `petmol-commerce-price-refresh.timer` e nunca troca `external_listing_id`. Ver `docs/LAUNCH.md` §7 e `docs/PRODUCT_IDENTITY.md` | n/a | Product Identity Engine ativo; conflito de variação bloqueia preço/oferta em vez de escolher pelo menor preço |
+| Shopee | Shopee Affiliates | — (desligado 05/09/2026) | **SÓ VITRINE** (05/09/2026, winding-down) — só o card de storefront no rodapé da Loja do Pet (shortlink afiliado estático no frontend, independe do backend). **Sem** ofertas por produto, **sem** busca, **sem** sync. `shopee_affiliate_enabled=False`: `MarketplaceOfferProvider` não serve nem faz discovery; `start_sync_run` vira no-op. Ver §"Shopee só vitrine". Reverter: `SHOPEE_AFFILIATE_ENABLED=true` | n/a | código do matcher/Identity Engine intacto, só não é exercido enquanto a flag estiver `False` |
 | Mercado Livre | ML Afiliados | `MarketplaceOffer`/`mercadolivre_link_validator.py` — ponte manual controlada | **nenhuma — FORA DO LANÇAMENTO** (`mercadolivre_affiliate_enabled=false`, `mercadolivre_public_offers_enabled=false`, frontend `disabled`); entra depois | n/a | shadow mode; bridge manual pronta (`export_ml_link_candidates.py`/`import_ml_offers.py`); ver PR #56 |
 | Amazon | Amazon Associates encerrado em 22/08/2026 (`petmol-20`) | nenhum | nenhum; integração temporariamente removida das superfícies públicas | n/a | disabled — reativação proibida até nova aprovação e nova tag válida |
 | Petlove Produtos | — | nenhum | nenhuma | n/a | disabled deliberadamente |

@@ -30,6 +30,11 @@ TOKEN = "test-trigger-token-123"
 @pytest.fixture(autouse=True)
 def _reset_state_and_settings(monkeypatch):
     monkeypatch.setenv("SHOPEE_SYNC_TRIGGER_TOKEN", "")
+    # shopee_affiliate_enabled voltou a False por padrão (05/09/2026,
+    # winding-down) e start_sync_run agora vira no-op quando desligado —
+    # estes testes exercitam a mecânica do sync em si, então religam.
+    # test_run_noop_quando_shopee_desligada cobre o caminho desligado.
+    monkeypatch.setenv("SHOPEE_AFFILIATE_ENABLED", "true")
     get_settings.cache_clear()
     with sync_router.STATE.lock:
         sync_router.STATE.running = False
@@ -121,6 +126,25 @@ def test_sem_header_nenhum_recusa_com_401(monkeypatch, client):
     _enable_token(monkeypatch)
     r = client.get("/v1/admin/shopee-sync/status")
     assert r.status_code == 401
+
+
+def test_run_noop_quando_shopee_desligada(monkeypatch, client):
+    # Winding-down 05/09/2026: com SHOPEE_AFFILIATE_ENABLED=false o timer
+    # noturno ainda dispara, mas start_sync_run vira no-op — não gasta
+    # rede/banco cadastrando ofertas que nunca serão servidas.
+    _enable_token(monkeypatch)
+    monkeypatch.setenv("SHOPEE_AFFILIATE_ENABLED", "false")
+    get_settings.cache_clear()
+    r = client.post(
+        "/v1/admin/shopee-sync/run",
+        json={"source": "active_products"},
+        headers={"X-Sync-Token": TOKEN},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["started"] is False
+    assert body["reason"] == "shopee_affiliate_disabled"
+    assert sync_router.STATE.running is False
 
 
 def test_status_antes_de_qualquer_run_mostra_zerado(monkeypatch, client):

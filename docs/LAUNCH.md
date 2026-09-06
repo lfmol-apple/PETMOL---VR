@@ -2,12 +2,13 @@
 
 Lançamento **2026-08-30**. Lojas ativas:
 - **Cobasi** — completa (comparação de preço por produto + vitrine, UTM/MAIS 7%)
-- **Shopee** — vitrine (shortlink afiliado) **+ ofertas por produto**
-  (`shopee_affiliate_enabled=True`). Ficou `False` por ~1 dia no
-  lançamento e voltou depois do projeto de precisão (#120). Em 01/09/2026
-  recebeu Product Identity Engine: GTIN/campos canônicos separados de
-  Merchant Match e Price; preço nunca escolhe variação; refresh não troca
-  listing_id. Ver §7 e `docs/PRODUCT_IDENTITY.md`.
+- **Shopee** — **só vitrine desde 05/09/2026** (winding-down, decisão de
+  produto): apenas o card de storefront no rodapé da Loja do Pet
+  (shortlink afiliado estático). `shopee_affiliate_enabled=False` —
+  ofertas por produto, busca e sync noturno desligados. O código do
+  Product Identity Engine / matcher fica intacto, só não é exercido. Ver
+  `docs/AFFILIATES.md` §"Shopee só vitrine". Reverter:
+  `SHOPEE_AFFILIATE_ENABLED=true`.
 
 Mercado Livre e Amazon entram depois. Petz foi desativada no lançamento
 e **reativada em 04/09/2026**: primeiro como card de Loja Parceira fixa
@@ -47,7 +48,7 @@ presumir.**
 | `PETZ_PUBLICLY_DISABLED` | ausente ou `true` (default no código já é `True`) | se `false`, "Ver na Petz" volta |
 | `PETZ_AFFILIATE_ENABLED` | pode ficar como está — o kill-switch acima vence | — |
 | `COBASI_AFFILIATE_MODE` | `utm` (ou ausente — default é `utm`) | `disabled` → Cobasi não monetiza nem busca preço |
-| `SHOPEE_AFFILIATE_ENABLED` | ausente ou `true` (default no código voltou a `True` após o projeto de precisão #120) | `false` → Shopee vira só vitrine (ofertas por produto somem) |
+| `SHOPEE_AFFILIATE_ENABLED` | ausente (default no código voltou a `False` em 05/09/2026 — winding-down) | `true` → religa ofertas Shopee por produto + sync noturno |
 | `MERCADOLIVRE_AFFILIATE_ENABLED` | **ausente ou `false`** | `true` → ML pode vazar em superfícies |
 | `MERCADOLIVRE_PUBLIC_OFFERS_ENABLED` | **ausente ou `false`** | `true` (com afiliado on) → ofertas ML públicas |
 | `AMAZON_ASSOCIATE_TAG` | **ausente** | qualquer valor tenta reativar Amazon |

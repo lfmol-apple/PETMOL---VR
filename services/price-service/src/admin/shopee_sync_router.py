@@ -350,6 +350,12 @@ def start_sync_run(payload: RunRequest) -> dict:
     admin (`/v1/admin/shopee-coverage/sync-now`, botão da tela) — mesmo
     STATE, mesma barra de progresso nos dois casos.
     """
+    if not get_settings().shopee_affiliate_enabled:
+        # Shopee em winding-down desde 05/09/2026 (só o card da vitrine
+        # fica de pé — ver config.shopee_affiliate_enabled). O timer
+        # noturno continua disparando; aqui vira no-op em vez de gastar
+        # rede/banco cadastrando ofertas que nunca serão servidas.
+        return {"started": False, "reason": "shopee_affiliate_disabled"}
     if payload.source not in ALLOWED_SOURCES:
         raise HTTPException(status_code=400, detail=f"source inválido: {payload.source}")
     source_merchants = tuple(payload.feed_merchants or ["cobasi", "zeenow", "zeedog"])
