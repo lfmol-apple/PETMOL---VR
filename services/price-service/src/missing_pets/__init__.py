@@ -977,6 +977,21 @@ def _retro_match_recent_sightings_for_missing_pet_id(mp_id: str) -> None:
         db.close()
 
 
+def _broadcast_missing_pet_async(mp_id: str) -> None:
+    """Roda _broadcast_missing_pet fora do request. O endpoint de criação NÃO
+    espera N web-pushes — era o motivo de o cartaz demorar demais e, com o
+    cliente re-tentando uma request lenta, de o alerta sair duas vezes."""
+    db = SessionLocal()
+    try:
+        mp = db.query(MissingPet).filter(MissingPet.id == mp_id, MissingPet.status == "active").first()
+        if mp:
+            _broadcast_missing_pet(mp)
+    except Exception as exc:
+        logger.error(f"Async broadcast failed for {mp_id}: {exc}")
+    finally:
+        db.close()
+
+
 def _mark_finder_following_nearby_alerts(db: Session, report: FoundReport, mp: MissingPet) -> int:
     targets = _nearby_active_missing_pets(db, mp.lat, mp.lng, radius_km=30, days=30, limit=80)
     if not targets:
@@ -1068,16 +1083,16 @@ def create_missing_pet(
     db.add(mp)
     db.commit()
     db.refresh(mp)
-    notified_count = _broadcast_missing_pet(mp)
+    mp_id = mp.id
 
-    # Re-broadcasts nas primeiras 3 horas para maximizar o alcance
+    # Tudo em background: a resposta volta na hora (cartaz rápido) e uma
+    # request lenta re-tentada pelo cliente não dispara o alerta 2x.
+    threading.Thread(target=_broadcast_missing_pet_async, args=(mp_id,), daemon=True).start()
     for delay in [3600, 7200]:
-        t = threading.Thread(target=_delayed_rebroadcast, args=(mp.id, delay), daemon=True)
-        t.start()
+        threading.Thread(target=_delayed_rebroadcast, args=(mp_id, delay), daemon=True).start()
+    threading.Thread(target=_retro_match_recent_sightings_for_missing_pet_id, args=(mp_id,), daemon=True).start()
 
-    threading.Thread(target=_retro_match_recent_sightings_for_missing_pet_id, args=(mp.id,), daemon=True).start()
-
-    return {"id": mp.id, "status": "created", "notified_count": notified_count}
+    return {"id": mp_id, "status": "created"}
 
 
 @router.post("/public-report", status_code=201)
@@ -1146,7 +1161,7 @@ def create_public_missing_pet(
     db.commit()
     db.refresh(mp)
 
-    notified_count = _broadcast_missing_pet(mp)
+    threading.Thread(target=_broadcast_missing_pet_async, args=(mp.id,), daemon=True).start()
     threading.Thread(target=_retro_match_recent_sightings_for_missing_pet_id, args=(mp.id,), daemon=True).start()
 
     return {
@@ -1155,7 +1170,6 @@ def create_public_missing_pet(
         "access_token": token,
         "status_url": f"/reportar-pet-perdido?status={token}",
         "public_url": f"/pet-perdido/{mp.public_slug}",
-        "notified_count": notified_count,
     }
 
 
@@ -1595,6 +1609,11 @@ def mark_found(
 ):
     mp = db.query(MissingPet).filter(MissingPet.id == mp_id).first()
     _ensure_missing_pet_access(db, str(current_user.id), mp)
+    # Idempotente: se o alerta já foi encerrado, não roda o push de novo.
+    # (dois botões na Home chamam este endpoint + toque duplo — era o motivo
+    # do "🎉 foi encontrado" chegar várias vezes.)
+    if mp.status == "found":
+        return {"status": "found"}
     mp.status = "found"
     mp.found_at = datetime.now(timezone.utc)
     db.commit()
@@ -1605,19 +1624,19 @@ def mark_found(
     # _push_case), menos quem confirmou (já sabe).
     try:
         participants = _case_participant_user_ids(db, mp, include_region=True)
-        _push_case(
-            participants,
-            {
-                "title": f"🎉 {mp.pet_name} foi encontrado!",
-                "body": "Obrigado a todos que ajudaram na busca. O alerta foi encerrado.",
-                "tag": f"found-closed-{mp_id}",
-                "renotify": False,
-                "requireInteraction": False,
-                "icon": "/icons/icon-192x192.png",
-                "data": {"url": "/pets-desaparecidos"},
-            },
-            exclude={str(current_user.id)},
-        )
+        payload = {
+            "title": f"🎉 {mp.pet_name} foi encontrado!",
+            "body": "Obrigado a todos que ajudaram na busca. O alerta foi encerrado.",
+            "tag": f"found-closed-{mp_id}",
+            "renotify": False,
+            "requireInteraction": False,
+            "icon": "/icons/icon-192x192.png",
+            "data": {"url": "/pets-desaparecidos"},
+        }
+        confirmer = str(current_user.id)
+        threading.Thread(
+            target=_push_case, args=(participants, payload), kwargs={"exclude": {confirmer}}, daemon=True,
+        ).start()
     except Exception as e:
         logger.error(f"Push encerramento falhou: {e}")
 
@@ -1698,8 +1717,8 @@ def update_missing_pet(
     db.commit()
     db.refresh(mp)
 
-    newly_notified = _broadcast_missing_pet(mp)
-    return {"status": "updated", "newly_notified": newly_notified}
+    threading.Thread(target=_broadcast_missing_pet_async, args=(mp.id,), daemon=True).start()
+    return {"status": "updated"}
 
 
 @router.post("/upload-photo")

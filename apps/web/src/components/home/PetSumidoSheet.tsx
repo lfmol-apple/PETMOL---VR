@@ -114,7 +114,6 @@ export function PetSumidoSheet({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [alertSent, setAlertSent] = useState(false);
   const [alertBlocked, setAlertBlocked] = useState(false);
-  const [notifiedCount, setNotifiedCount] = useState<number | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [liveRadius, setLiveRadius] = useState(() => calcAutoRadius(initialMissingDate ?? todayISO(), initialMissingTime ?? nowTime(), pet.species || 'dog'));
   const [cep, setCep] = useState('');
@@ -198,18 +197,16 @@ export function PetSumidoSheet({
     reader.readAsDataURL(file);
   };
 
-  const generateCard = useCallback(async () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    setGenerating(true);
-    setAlertBlocked(false);
-
+  // Cria/atualiza o alerta — roda EM BACKGROUND depois que o cartaz já
+  // apareceu na tela. Antes ficava na frente do desenho do cartaz e ainda
+  // esperava o backend disparar todos os web-pushes → "cartaz demora demais".
+  const submitAlert = useCallback(async () => {
     let geoLat: number | undefined;
     let geoLng: number | undefined;
     try {
       if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
         const pos = await new Promise<GeolocationPosition>((res, rej) =>
-          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000, maximumAge: 60000 })
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 4000, maximumAge: 120000 })
         );
         geoLat = pos.coords.latitude;
         geoLng = pos.coords.longitude;
@@ -218,7 +215,6 @@ export function PetSumidoSheet({
 
     const _token = getToken();
 
-    // Se o dono fez upload de foto nova, salva no servidor antes de criar o alerta
     let resolvedPhotoUrl: string | null = petPhotoUrl && !petPhotoUrl.startsWith('data:') ? petPhotoUrl : null;
     if (photoPreview && photoPreview.startsWith('data:')) {
       try {
@@ -236,7 +232,6 @@ export function PetSumidoSheet({
 
     try {
       if (isEditMode && editAlertId) {
-        // Modo edição: PATCH no alerta existente
         const patchRes = await fetch(`/api/missing-pets/${editAlertId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', ...(_token ? { Authorization: `Bearer ${_token}` } : {}) },
@@ -249,21 +244,11 @@ export function PetSumidoSheet({
             radius_km: liveRadius.km,
           }),
         });
-        if (patchRes.ok) {
-          setAlertSent(true);
-          try {
-            const resData = await patchRes.json() as { newly_notified?: number };
-            if (resData.newly_notified != null) setNotifiedCount(resData.newly_notified);
-          } catch { /* silent */ }
-        }
+        if (patchRes.ok) setAlertSent(true);
       } else {
-        // Modo criação: POST
         const checkRes = await fetch('/api/missing-pets', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(_token ? { Authorization: `Bearer ${_token}` } : {}),
-          },
+          headers: { 'Content-Type': 'application/json', ...(_token ? { Authorization: `Bearer ${_token}` } : {}) },
           credentials: 'include',
           body: JSON.stringify({
             pet_id: pet.pet_id,
@@ -283,18 +268,19 @@ export function PetSumidoSheet({
         });
         if (checkRes.status === 409) {
           setAlertBlocked(true);
-          setGenerating(false);
+          setStep('form');
           return;
         }
-        if (checkRes.ok) {
-          setAlertSent(true);
-          try {
-            const resData = await checkRes.json() as { notified_count?: number };
-            if (resData.notified_count != null) setNotifiedCount(resData.notified_count);
-          } catch { /* silent */ }
-        }
+        if (checkRes.ok) setAlertSent(true);
       }
     } catch { /* silent */ }
+  }, [pet, petPhotoUrl, photoPreview, contact, lastSeenLocation, characteristics, missingDate, missingTime, liveRadius, isEditMode, editAlertId]);
+
+  const generateCard = useCallback(async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    setGenerating(true);
+    setAlertBlocked(false);
 
     const W = 1080;
     const H = 1350;
@@ -438,7 +424,10 @@ export function PetSumidoSheet({
     setCardDataUrl(canvas.toDataURL('image/png'));
     setGenerating(false);
     setStep('card');
-  }, [pet, petPhotoUrl, photoPreview, lastSeenLocation, characteristics, missingDate, missingTime, contact, isEditMode, editAlertId]);
+
+    // O cartaz já está na tela — cria/atualiza o alerta em background.
+    void submitAlert();
+  }, [pet, photoPreview, lastSeenLocation, characteristics, missingDate, missingTime, contact, submitAlert]);
 
   const handleShare = useCallback(async (target: 'native' | 'download') => {
     if (!cardDataUrl) return;
@@ -689,16 +678,8 @@ export function PetSumidoSheet({
                   <span className="text-xl flex-shrink-0">✅</span>
                   <p className="text-[13px] font-semibold text-emerald-700">
                     {isEditMode
-                      ? notifiedCount != null
-                        ? notifiedCount === 0
-                          ? 'Atualizado — todos no raio já foram notificados'
-                          : `${notifiedCount} nova${notifiedCount !== 1 ? 's' : ''} pessoa${notifiedCount !== 1 ? 's' : ''} notificada${notifiedCount !== 1 ? 's' : ''}!`
-                        : 'Alerta atualizado com sucesso'
-                      : notifiedCount != null
-                        ? notifiedCount === 0
-                          ? 'Alerta registrado — nenhum usuário com push na área agora'
-                          : `${notifiedCount} ${notifiedCount === 1 ? 'usuário notificado' : 'usuários notificados'} na sua região`
-                        : 'Alerta enviado para usuários PETMOL próximos'}
+                      ? 'Alerta atualizado — a comunidade na região está sendo avisada'
+                      : 'Alerta enviado — a comunidade PETMOL na região está sendo avisada'}
                   </p>
                 </div>
               )}

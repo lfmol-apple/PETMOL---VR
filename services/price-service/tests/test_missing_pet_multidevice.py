@@ -168,14 +168,10 @@ def test_case_participants_dono_finder_follower(_isolate):
     assert "" not in ids and "None" not in ids
 
 
-def test_mark_found_notifies_all_participants_except_confirmer(_isolate, monkeypatch):
+def test_push_case_notifies_all_participants_except_confirmer(_isolate, monkeypatch):
     sent = _isolate
-    monkeypatch.setattr(mp_mod, "_ensure_missing_pet_access", lambda *a, **k: None)
-    # região: um usuário que recebeu o alerta original
+    from src.missing_pets import _push_case
     monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: {"MP_ID": {"notified": ["regionUser"]}})
-
-    class _U:
-        id = "owner"
 
     with SessionLocal() as db:
         _sub(db, "owner", "owner-dev")
@@ -190,7 +186,33 @@ def test_mark_found_notifies_all_participants_except_confirmer(_isolate, monkeyp
         db.add(FoundReport(id=str(uuid.uuid4()), missing_pet_id="MP_ID", finder_contact="c", finder_user_id="finder1"))
         db.add(MissingPetFollower(id=str(uuid.uuid4()), missing_pet_id="MP_ID", finder_user_id="follower1"))
         db.commit()
+        participants = _case_participant_user_ids(db, mp, include_region=True)
+        _push_case(participants, {"title": "x", "body": "y"}, exclude={"owner"})
 
+    # dono confirmou -> não recebe; todos os outros participantes recebem 1x
+    assert set(sent) == {
+        "https://push.example/finder-dev",
+        "https://push.example/follower-dev",
+        "https://push.example/region-dev",
+    }
+
+
+def test_mark_found_is_idempotent(_isolate, monkeypatch):
+    """2 PATCH /found (dois botões + toque duplo) não re-disparam o push."""
+    sent = _isolate
+    monkeypatch.setattr(mp_mod, "_ensure_missing_pet_access", lambda *a, **k: None)
+    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: {"MP_ID": {"notified": ["regionUser"]}})
+
+    class _U:
+        id = "owner"
+
+    with SessionLocal() as db:
+        _sub(db, "regionUser", "region-dev")
+        db.add(MissingPet(
+            id="MP_ID", user_id="owner", pet_id=None, pet_name="Rex", contact="x",
+            status="found", current_radius_km=2.0,
+        ))
+        db.commit()
         db2 = SessionLocal()
         try:
             out = mark_found("MP_ID", db=db2, current_user=_U())
@@ -198,12 +220,7 @@ def test_mark_found_notifies_all_participants_except_confirmer(_isolate, monkeyp
             db2.close()
 
     assert out == {"status": "found"}
-    # dono confirmou -> não recebe; todos os outros participantes recebem 1x
-    assert set(sent) == {
-        "https://push.example/finder-dev",
-        "https://push.example/follower-dev",
-        "https://push.example/region-dev",
-    }
+    assert sent == []  # já estava "found" -> nenhum push
 
 
 # ── PS-4: novo ponto de interesse (avistamento) ─────────────────────────────
