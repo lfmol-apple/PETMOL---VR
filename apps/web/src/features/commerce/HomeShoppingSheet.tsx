@@ -47,24 +47,17 @@ type ShoppingView = 'store' | 'search';
 // categorias genéricas e promoções não-personalizadas só cansava o tutor
 // antes de ele chegar no que interessa. Serviços fica de fora por enquanto.
 //
-// Ordem da tela (checklist PETMOL 1.0, item 3 — 06/09/2026): a tela
-// pergunta "o que o meu pet precisa?", então ABRE nos produtos do pet —
-// Comprar de novo (sem prazo) → Vai precisar em breve → Mais para frente.
-// A busca e as lojas parceiras vêm DEPOIS, num bloco "Explorar a loja"
-// visualmente recuado: explorar é secundário, não pode competir com a
-// recompra. (Isso revê a ordem de 04/09, que punha a busca em 1º.)
-// Ver petStoreContent.groupReorderCardsByUrgency pro agrupamento por
-// urgência. O pet vem antes do merchant — cada card mostra produto e
-// prazo primeiro, loja só na hora de comprar. Tocar no campo de busca
-// abre a view dedicada (AffiliateCatalogSearch) — nela SÓ aparece o
-// resultado da busca, os produtos do pet somem enquanto o tutor está
-// procurando algo novo.
-//
-// As 3 seções de produto ficam SEMPRE visíveis (decisão de produto,
-// 04/09/2026): a Loja do Pet tem poucos itens e todos são personalizados
-// pro pet atual — nenhum produto recorrente conhecido deve ficar oculto
-// por padrão. REORDER_SOON_THRESHOLD_DAYS classifica em qual seção um
-// produto cai, nunca se ele aparece ou não.
+// Ordem da tela: campo de busca no topo → lista única de produtos do pet
+// ordenada por prazo (mais urgente primeiro; "comprar quando quiser" cai
+// no fim) → lojas parceiras. O dono pediu (06/09) pra tirar os 3 títulos
+// de seção ("Comprar de novo" / "Vai precisar em breve" / "Mais para
+// frente") — a prioridade agora é só a ordem + o texto de prazo de cada
+// card. O pet vem antes do merchant — cada card mostra produto e prazo
+// primeiro, loja só na hora de comprar. Tocar no campo de busca abre a
+// view dedicada (AffiliateCatalogSearch) — nela SÓ aparece o resultado da
+// busca, os produtos do pet somem enquanto o tutor está procurando algo
+// novo. `groupReorderCardsByUrgency` continua existindo só pra analítica
+// (composição do que está em tela), não pra layout.
 export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
   const [view, setView] = useState<ShoppingView>('store');
@@ -91,7 +84,15 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
   const reorderCards = useMemo(() => buildReorderCards(buyableReminders), [buyableReminders]);
   const grouped = useMemo(() => groupReorderCardsByUrgency(reorderCards), [reorderCards]);
-  const hasReorderCards = reorderCards.length > 0;
+  // Lista única, ordenada por prazo (mais urgente primeiro; "comprar quando
+  // quiser" tem diff-sentinela alto, então cai naturalmente no fim). O
+  // usuário pediu pra tirar os 3 títulos de seção — a prioridade é dada
+  // pela ordem + pelo texto de prazo em cada card. `grouped` continua só
+  // pra analítica (composição do que está em tela).
+  const sortedReorderCards = useMemo(
+    () => [...reorderCards].sort((a, b) => a.diff - b.diff),
+    [reorderCards],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -345,71 +346,30 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
             <AffiliateCatalogSearch petId={currentPet.pet_id} autoFocus />
           ) : (
             <>
-              {/* Produtos do pet PRIMEIRO (checklist PETMOL 1.0, item 3):
-                  a Loja abre respondendo "o que o meu pet precisa?". A busca
-                  e as lojas parceiras vão pro bloco "Explorar a loja" logo
-                  abaixo — explorar é secundário, não compete com a recompra.
-
-                  Títulos das 3 seções: maiores, centralizados, mb-3.5 — texto
-                  de seção, não rótulo de canto. Cor branca (não slate-700): o
-                  fundo real aqui não é branco — é o bg-[#f5f6f8]/82 translúcido
-                  da sheet sobre o backdrop escuro/blur (bg-slate-950/55) — então
-                  qualquer cinza escuro fica com contraste ruim contra esse
-                  cinza-escuro composto. Branco puro (títulos) / branco 70%
-                  ("Explorar a loja", "Ou visite uma loja parceira") / branco
-                  60% (aviso de afiliados) — mesma cor, hierarquia só por
-                  opacidade. */}
-              {/* Comprar de novo — produtos recorrentes sem prazo definido
-                  (ex: petisco). Intenção livre, o tutor compra quando quiser. */}
-              {grouped.anytime.length > 0 && (
-                <div>
-                  <p className="mb-3.5 text-center text-[15px] font-black uppercase tracking-[0.06em] text-white">Comprar de novo</p>
-                  <div className="space-y-2.5">{renderReorderCards(grouped.anytime)}</div>
-                </div>
-              )}
-
-              {/* Vai precisar em breve — inclui vencido/hoje (o mais urgente)
-                  até o limiar de apresentação (ver REORDER_SOON_THRESHOLD_DAYS
-                  em petStoreContent.ts), ordenado do mais próximo pro mais longe. */}
-              {grouped.soon.length > 0 && (
-                <div>
-                  <p className="mb-3.5 text-center text-[15px] font-black uppercase tracking-[0.06em] text-white">Vai precisar em breve</p>
-                  <div className="space-y-2.5">{renderReorderCards(grouped.soon)}</div>
-                </div>
-              )}
-
-              {/* Mais para frente — SEMPRE visível, igual às outras duas
-                  seções (decisão de produto, 04/09/2026): poucos produtos,
-                  todos personalizados pro pet, nenhum fica oculto por
-                  padrão. Só classificação visual (mais distante), nunca
-                  accordion/collapse. */}
-              {grouped.later.length > 0 && (
-                <div>
-                  <p className="mb-3.5 text-center text-[15px] font-black uppercase tracking-[0.06em] text-white">Mais para frente</p>
-                  <div className="space-y-2.5">{renderReorderCards(grouped.later)}</div>
-                </div>
-              )}
-
-              {/* Explorar a loja — busca + parceiros. Recuado: só aparece o
-                  eyebrow quando há produtos do pet acima pra recuar EM RELAÇÃO
-                  a quê; o campo de busca é um <button> discreto (glassy, não
-                  card branco) que leva pra view de busca dedicada, onde o
+              {/* Campo de busca — 1º item da tela (o dono preferiu a busca
+                  no topo). Visual de campo de busca de verdade, mas é um
+                  <button> — o toque leva pra view de busca dedicada, onde o
                   campo real tem fonte grande pra digitar/ler. */}
-              <div className="space-y-3 pt-1">
-                {hasReorderCards && (
-                  <p className="text-center text-[11px] font-bold uppercase tracking-[0.14em] text-white/60">Explorar a loja</p>
-                )}
-                <button
-                  type="button"
-                  onClick={handleSearchEntry}
-                  className="flex w-full items-center gap-2.5 rounded-2xl border border-white/30 bg-white/[0.14] px-4 py-3 text-left backdrop-blur-sm transition-all active:scale-[0.99] outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
-                >
-                  <Search className="h-[18px] w-[18px] flex-shrink-0 text-white/70" strokeWidth={2.2} />
-                  <span className="text-[15px] font-medium text-white/75">Buscar produto...</span>
-                </button>
+              <button
+                type="button"
+                onClick={handleSearchEntry}
+                className="flex w-full items-center gap-2.5 rounded-2xl border border-slate-200 bg-white pl-4 pr-4 py-3.5 text-left shadow-[0_4px_16px_-6px_rgba(15,23,42,0.18)] transition-all active:scale-[0.99] outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+              >
+                <Search className="h-[18px] w-[18px] flex-shrink-0 text-slate-400" strokeWidth={2.2} />
+                <span className="text-[15px] font-medium text-slate-400">Buscar produto...</span>
+              </button>
 
-                <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
-              </div>
+              {/* Produtos do pet — LISTA ÚNICA, ordenada por prazo (mais
+                  urgente primeiro; "comprar quando quiser" cai no fim).
+                  Decisão do dono (06/09): sem os 3 títulos de seção
+                  ("Comprar de novo" / "Vai precisar em breve" / "Mais para
+                  frente") — a prioridade é dada pela ordem e pelo texto de
+                  prazo de cada card. `grouped` fica só pra analítica. */}
+              {sortedReorderCards.length > 0 && (
+                <div className="space-y-2.5">{renderReorderCards(sortedReorderCards)}</div>
+              )}
+
+              <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
 
               <p className="pt-1 text-center text-[10px] leading-relaxed text-white/60">
                 Alguns links de compra podem gerar comissão para o PETMOL, sem custo adicional para você.
