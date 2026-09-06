@@ -132,17 +132,19 @@ export function HomeNavigationModals({
             <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50">
               <div className="grid grid-cols-2 gap-3 mb-2">
                 {[
-                  { icon: '🪱', image: '/vermifugo-produto.webp', label: 'Vermífugo', gradient: 'bg-amber-50 border-amber-200', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
-                  { icon: '🛡️', image: '/cuidados-antipulgas.webp', label: 'Antipulgas', gradient: 'bg-emerald-50 border-emerald-200', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
+                  // Cards vivos, na mesma linguagem da Home: borda saturada +
+                  // degradê forte + rótulo tingido. A arte .webp continua por cima.
+                  { icon: '🪱', image: '/vermifugo-produto.webp', label: 'Vermífugo', gradient: 'border-amber-400 bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-200 shadow-amber-900/10', text: 'text-amber-950', sub: 'text-amber-900/60', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
+                  { icon: '🛡️', image: '/cuidados-antipulgas.webp', label: 'Antipulgas', gradient: 'border-emerald-400 bg-gradient-to-br from-emerald-100 via-emerald-100 to-teal-200 shadow-emerald-900/10', text: 'text-emerald-950', sub: 'text-emerald-900/60', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
                   // Coleira antiparasitária é uso específico de cães — outras espécies não usam
                   ...(currentPet?.species === 'dog'
-                    ? [{ icon: '📿', image: '/cuidados-coleira.webp', label: 'Coleira', gradient: 'bg-violet-50 border-violet-200', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
+                    ? [{ icon: '📿', image: '/cuidados-coleira.webp', label: 'Coleira', gradient: 'border-violet-400 bg-gradient-to-br from-violet-100 via-purple-100 to-fuchsia-200 shadow-violet-900/10', text: 'text-violet-950', sub: 'text-violet-900/60', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
                     : []),
-                  { icon: '🛁', image: '/cuidados-pets-banho.webp', label: 'Banho e Tosa', gradient: 'bg-cyan-50 border-cyan-200', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
-                  { icon: '💊', image: '/cuidados-medicacao.webp', label: 'Medicação', gradient: 'bg-purple-50 border-purple-200', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
+                  { icon: '🛁', image: '/cuidados-pets-banho.webp', label: 'Banho e Tosa', gradient: 'border-cyan-400 bg-gradient-to-br from-cyan-100 via-sky-100 to-cyan-200 shadow-cyan-900/10', text: 'text-cyan-950', sub: 'text-cyan-900/60', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
+                  { icon: '💊', image: '/cuidados-medicacao.webp', label: 'Medicação', gradient: 'border-purple-400 bg-gradient-to-br from-purple-100 via-fuchsia-100 to-purple-200 shadow-purple-900/10', text: 'text-purple-950', sub: 'text-purple-900/60', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
                   // Busca de estabelecimento (Maps) — saiu da Home, é mais um card aqui em Cuidados.
-                  { icon: '🏪', image: undefined, label: 'PetShops', gradient: 'bg-slate-50 border-slate-200', tab: 'petshops', alert: false, tone: undefined },
-                ].map(({ icon, image, label, gradient, tab, alert, tone }) => {
+                  { icon: '🏪', image: undefined, label: 'PetShops', gradient: 'border-blue-400 bg-gradient-to-br from-blue-100 via-sky-100 to-blue-200 shadow-blue-900/10', text: 'text-blue-950', sub: 'text-blue-900/60', tab: 'petshops', alert: false, tone: undefined },
+                ].map(({ icon, image, label, gradient, text, sub, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 
                   return (
@@ -214,8 +216,8 @@ export function HomeNavigationModals({
                       <span className="pointer-events-none absolute right-2 top-2 h-6 w-6 rounded-full bg-red-300/35 blur-md animate-pulse" />
                     )}
                     <div className="relative">
-                      <span className={`text-[14px] font-bold leading-tight block ${isEmergency ? 'text-red-700' : 'text-slate-900'}`}>{label}</span>
-                      <span className={`text-[9px] font-black uppercase tracking-widest mt-0.5 block ${isEmergency ? 'text-red-500/80' : 'text-slate-600/60'}`}>{isEmergency ? 'Clínicas e hospitais 24h' : tab === 'petshops' ? 'Perto de você' : 'Gerenciar'}</span>
+                      <span className={`text-[14px] font-bold leading-tight block ${isEmergency ? 'text-red-700' : text}`}>{label}</span>
+                      <span className={`text-[9px] font-black uppercase tracking-widest mt-0.5 block ${isEmergency ? 'text-red-500/80' : sub}`}>{isEmergency ? 'Clínicas e hospitais 24h' : tab === 'petshops' ? 'Perto de você' : 'Gerenciar'}</span>
                     </div>
                   </button>
                 )})}
