@@ -4,7 +4,6 @@
  * Used by:
  * - VaccineItemSheet (status sheet)
  * - alertsEngine (badge + HomeAlertsPanel)
- * - ArrivalAlert (arrival prompt)
  * - home/page.tsx (OCR post-import alert)
  * - saude/[petId]/page.tsx (saúde page)
  * - petCareDomain.ts (canonical care domain)

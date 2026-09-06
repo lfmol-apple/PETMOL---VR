@@ -15,8 +15,6 @@ interface UseHomeModalUtilityActionsInput {
   router: AppRouterInstance;
   selectedPetId: string | null;
   showPetSelector: boolean;
-  setShowArrivalAlert: (value: boolean) => void;
-  setShowAttendanceOptions: (value: boolean) => void;
   setShowHealthOptionsModal: (value: boolean) => void;
   setShowEventTypeModal: (value: boolean) => void;
   setShowAddPetModal: (value: boolean) => void;
@@ -24,7 +22,6 @@ interface UseHomeModalUtilityActionsInput {
   setShowPetSelector: (value: boolean) => void;
   setShowTopAttentionModal: (value: boolean) => void;
   setShowHealthModal: (value: boolean) => void;
-  setShowVaccineForm: (value: boolean) => void;
   setShowVaccineSheet: (value: boolean) => void;
   setHealthModalMode: (value: 'full' | 'health' | 'grooming' | 'food') => void;
   setHealthActiveTab: (value: string) => void;
@@ -40,8 +37,6 @@ export function useHomeModalUtilityActions({
   router,
   selectedPetId,
   showPetSelector,
-  setShowArrivalAlert,
-  setShowAttendanceOptions,
   setShowHealthOptionsModal,
   setShowEventTypeModal,
   setShowAddPetModal,
@@ -49,7 +44,6 @@ export function useHomeModalUtilityActions({
   setShowPetSelector,
   setShowTopAttentionModal,
   setShowHealthModal,
-  setShowVaccineForm,
   setShowVaccineSheet,
   setHealthModalMode,
   setHealthActiveTab,
@@ -83,31 +77,6 @@ export function useHomeModalUtilityActions({
   const closeTopAttentionModal = useCallback(() => {
     setShowTopAttentionModal(false);
   }, [setShowTopAttentionModal]);
-
-  const closeArrivalFlow = useCallback(() => {
-    setShowArrivalAlert(false);
-    setShowAttendanceOptions(false);
-  }, [setShowArrivalAlert, setShowAttendanceOptions]);
-
-  const openArrivalAttendanceOptions = useCallback(() => {
-    setShowAttendanceOptions(true);
-  }, [setShowAttendanceOptions]);
-
-  const closeArrivalAttendanceOptions = useCallback(() => {
-    setShowAttendanceOptions(false);
-  }, [setShowAttendanceOptions]);
-
-  const openArrivalVaccineForm = useCallback(() => {
-    setShowArrivalAlert(false);
-    setShowAttendanceOptions(false);
-    setShowVaccineForm(true);
-  }, [setShowArrivalAlert, setShowAttendanceOptions, setShowVaccineForm]);
-
-  const navigateToSaudeFromArrival = useCallback((tab: string) => {
-    setShowArrivalAlert(false);
-    setShowAttendanceOptions(false);
-    navigateToPetHealthTab(router, selectedPetId, tab);
-  }, [router, selectedPetId, setShowArrivalAlert, setShowAttendanceOptions]);
 
   const navigateToSaudeFromHealthOptions = useCallback((tab: string) => {
     setShowHealthOptionsModal(false);
@@ -213,11 +182,6 @@ export function useHomeModalUtilityActions({
     closePetSelector,
     openTopAttentionModal,
     closeTopAttentionModal,
-    closeArrivalFlow,
-    openArrivalAttendanceOptions,
-    closeArrivalAttendanceOptions,
-    openArrivalVaccineForm,
-    navigateToSaudeFromArrival,
     navigateToSaudeFromHealthOptions,
     closeHealthOptionsModal,
     openEventTypeModal,

@@ -921,11 +921,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   const [medicationSheetInitialMode, setMedicationSheetInitialMode] = useState<'view' | 'buy'>('view');
   const [parasiteSheetInitialMode, setParasiteSheetInitialMode] = useState<'view' | 'buy'>('view');
 
-  // Estado para simulação de chegada em estabelecimento
-  const [showArrivalAlert, setShowArrivalAlert] = useState(false);
-  const [arrivalPlace, setArrivalPlace] = useState<{name: string, address: string, phone?: string, rating?: number, reviews?: number} | null>(null);
-  const [showAttendanceOptions, setShowAttendanceOptions] = useState(false);
-  
   // Helper para criar data local a partir de string YYYY-MM-DD
   // Evita problema de timezone onde new Date('2026-01-27') vira 2026-01-26
   const createLocalDate = (dateStr: string): Date => {
@@ -1444,11 +1439,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     closePetSelector,
     openTopAttentionModal,
     closeTopAttentionModal,
-    closeArrivalFlow,
-    openArrivalAttendanceOptions,
-    closeArrivalAttendanceOptions,
-    openArrivalVaccineForm,
-    navigateToSaudeFromArrival,
     navigateToSaudeFromHealthOptions,
     closeHealthOptionsModal,
     openEventTypeModal,
@@ -1466,8 +1456,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     router,
     selectedPetId,
     showPetSelector,
-    setShowArrivalAlert,
-    setShowAttendanceOptions,
     setShowHealthOptionsModal,
     setShowEventTypeModal,
     setShowAddPetModal,
@@ -1475,7 +1463,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     setShowPetSelector,
     setShowTopAttentionModal,
     setShowHealthModal,
-    setShowVaccineForm,
     setShowVaccineSheet,
     setHealthModalMode,
     setHealthActiveTab,
