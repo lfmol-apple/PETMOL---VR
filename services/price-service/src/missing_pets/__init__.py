@@ -83,6 +83,27 @@ def _mark_notified(mp_id: str, user_ids: list) -> None:
     _save_mp_notified(data)
 
 
+def _should_sighting_broadcast(mp_id: str, min_gap_hours: int = 6) -> bool:
+    """Evita re-alertar a região por avistamento mais de uma vez a cada
+    ~6h — vários relatos seguidos não devem virar vários pushes."""
+    rec = _load_mp_notified().get(mp_id, {})
+    last = rec.get("last_sighting_broadcast_at")
+    if not last:
+        return True
+    try:
+        return (datetime.now(timezone.utc) - datetime.fromisoformat(last)).total_seconds() >= min_gap_hours * 3600
+    except Exception:
+        return True
+
+
+def _mark_sighting_broadcast(mp_id: str) -> None:
+    data = _load_mp_notified()
+    rec = data.get(mp_id, {"notified": []})
+    rec["last_sighting_broadcast_at"] = datetime.now(timezone.utc).isoformat()
+    data[mp_id] = rec
+    _save_mp_notified(data)
+
+
 # ── Geo helper ───────────────────────────────────────────────────────────────
 
 def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -472,40 +493,66 @@ def _family_missing_pets_query(db: Session, user_id: str, status: str | None = N
     return q
 
 
-def _broadcast_missing_pet(mp: MissingPet) -> int:
+def _broadcast_missing_pet(
+    mp: MissingPet,
+    *,
+    center: tuple[float, float] | None = None,
+    radius_km: float | None = None,
+    origin: str = "initial",
+) -> int:
     """
     Push para usuários com subscrição ativa.
     - Nunca envia para o dono.
-    - Nunca renotifica quem já recebeu.
-    - Geo filter: se o alerta tem lat/lng e o subscriber tem lat/lng,
-      só notifica quem está dentro do raio.
-    - Sem localização: notifica todos (máx 50).
+    - origin="initial": alerta do desaparecimento, centrado no ponto do tutor
+      (mp.lat/lng), exclui quem já recebeu.
+    - origin="sighting": NOVO ponto de interesse — um avistamento plausível
+      longe do ponto original. Centrado em `center`, raio `radius_km`, e
+      NÃO exclui quem já recebeu (a graça é re-alertar a região nova).
+      Nunca altera mp.lat/lng.
+    - Geo filter por usuário: qualquer aparelho no raio notifica o usuário.
     """
     try:
         subs_by_user = _load_subscriptions_by_user()
-        excluded = _get_excluded_user_ids(mp.id, mp.user_id)
-        radius = mp.current_radius_km or 2.0
-        has_location = mp.lat is not None and mp.lng is not None
+        c_lat, c_lng = center if center is not None else (mp.lat, mp.lng)
+        radius = radius_km if radius_km is not None else (mp.current_radius_km or 2.0)
+        has_location = c_lat is not None and c_lng is not None
+        if origin == "sighting":
+            excluded = {str(mp.user_id)} if mp.user_id else set()
+        else:
+            excluded = _get_excluded_user_ids(mp.id, mp.user_id)
 
         print(
-            f"[broadcast] pet={mp.id} owner={mp.user_id or 'public'} raio={radius}km "
+            f"[broadcast] pet={mp.id} origin={origin} owner={mp.user_id or 'public'} raio={radius}km "
             f"has_location={has_location} users={len(subs_by_user)} "
             f"devices={sum(len(d) for d in subs_by_user.values())} excluded={len(excluded)}",
             flush=True,
         )
 
-        location_part = f"Visto em: {mp.last_seen_location}. " if mp.last_seen_location else ""
-        payload = {
-            "title": f"🚨 {mp.pet_name} pode estar na sua região!",
-            "body": f"{location_part}Desaparecido desde {mp.missing_date or 'hoje'} às {mp.missing_time or '??:??'}. Toque para ajudar.",
-            "tag": f"missing-pet-{mp.id}",
-            "renotify": True,
-            "requireInteraction": True,
-            "vibrate": [300, 150, 300, 150, 300],
-            "icon": "/icons/icon-192x192.png",
-            "badge": "/icons/icon-72x72.png",
-            "data": {"url": f"/achei-um-pet?id={mp.id}"},
-        }
+        if origin == "sighting":
+            payload = {
+                "title": f"🔎 Avistamento de {mp.pet_name} perto de você",
+                "body": "Alguém viu um pet parecido nesta região. Toque para ajudar na busca.",
+                "tag": f"missing-pet-sighting-{mp.id}",
+                "renotify": True,
+                "requireInteraction": True,
+                "vibrate": [300, 150, 300, 150, 300],
+                "icon": "/icons/icon-192x192.png",
+                "badge": "/icons/icon-72x72.png",
+                "data": {"url": f"/achei-um-pet?id={mp.id}"},
+            }
+        else:
+            location_part = f"Visto em: {mp.last_seen_location}. " if mp.last_seen_location else ""
+            payload = {
+                "title": f"🚨 {mp.pet_name} pode estar na sua região!",
+                "body": f"{location_part}Desaparecido desde {mp.missing_date or 'hoje'} às {mp.missing_time or '??:??'}. Toque para ajudar.",
+                "tag": f"missing-pet-{mp.id}",
+                "renotify": True,
+                "requireInteraction": True,
+                "vibrate": [300, 150, 300, 150, 300],
+                "icon": "/icons/icon-192x192.png",
+                "badge": "/icons/icon-72x72.png",
+                "data": {"url": f"/achei-um-pet?id={mp.id}"},
+            }
 
         newly_notified: list = []
         invalid_sub_ids: list = []
@@ -537,7 +584,7 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
                         continue
                     no_coord_sent += 1
                 else:
-                    nearest = min(_haversine_km(mp.lat, mp.lng, la, ln) for la, ln in coords)
+                    nearest = min(_haversine_km(c_lat, c_lng, la, ln) for la, ln in coords)
                     if nearest > radius:
                         print(f"[broadcast]   skip {user_id[:8]} dist={nearest:.1f}km > {radius}km", flush=True)
                         skipped += 1
@@ -553,9 +600,11 @@ def _broadcast_missing_pet(mp: MissingPet) -> int:
 
         _disable_subscriptions_by_id(invalid_sub_ids)
 
-        # Notifica cuidadores e familiares do pet sempre (sem filtro de geo)
+        # Notifica cuidadores e familiares do pet sempre (sem filtro de geo).
+        # No re-alerta por avistamento (origin="sighting") isso é feito à parte
+        # em _create_found_report_from_sighting — não repetir aqui.
         caretaker_sent = 0
-        if mp.pet_id:
+        if mp.pet_id and origin != "sighting":
             try:
                 from ..pets.caretaker_models import PetCaretaker
                 from ..pets.models import Pet
@@ -748,6 +797,26 @@ def _create_found_report_from_sighting(
                     ).start()
             except Exception as exc:
                 logger.warning(f"sighting family push failed: {exc}")
+
+    # NOVO PONTO DE INTERESSE — avistamento forte, com coordenadas, longe do
+    # ponto original (ou o original não tem coords): re-alerta a comunidade
+    # perto do AVISTAMENTO. Nunca altera mp.lat/lng (o ponto do tutor segue
+    # sendo "visto pela última vez pelo tutor"). No máx. 1 a cada ~6h.
+    if (
+        score >= 75
+        and sighting.lat is not None
+        and sighting.lng is not None
+        and (distance_km is None or distance_km > 3.0)
+        and _should_sighting_broadcast(mp.id)
+    ):
+        _mark_sighting_broadcast(mp.id)
+        threading.Thread(
+            target=_broadcast_missing_pet,
+            args=(mp,),
+            kwargs={"center": (sighting.lat, sighting.lng), "radius_km": 5.0, "origin": "sighting"},
+            daemon=True,
+        ).start()
+
     return report
 
 
