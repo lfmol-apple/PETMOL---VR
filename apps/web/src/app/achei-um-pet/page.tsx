@@ -426,9 +426,15 @@ function AcheiUmPetInner() {
         }
       } catch { /* JWT inválido — prossegue sem user_id */ }
 
+      const _authToken = getToken();
       const res = await fetch(`${API_BASE_URL}/missing-pets/${petId}/report-found`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // Manda o token quando o achador está logado — o backend usa o id
+          // do token (verificável) como finder, não o id enviado no corpo.
+          ...(_authToken ? { Authorization: `Bearer ${_authToken}` } : {}),
+        },
         body: JSON.stringify({
           finder_contact: reportContact.trim(),
           finder_location: reportLocation.trim() || null,
@@ -1405,6 +1411,14 @@ function PetCard({
                     rows={2}
                     className="w-full bg-white/8 border border-white/12 rounded-xl px-3 py-2.5 text-[14px] text-white placeholder-white/25 outline-none focus:border-white/30 transition-colors resize-none"
                   />
+                </div>
+
+                <div className="rounded-xl border border-amber-400/25 bg-amber-950/20 px-3 py-2.5">
+                  <p className="text-[11px] font-bold text-amber-300">Segurança PETMOL</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-amber-200/80">
+                    Nunca peça nem aceite dinheiro ou PIX para devolver um animal. O PETMOL não cobra por isso.
+                    Combine sempre um local público e seguro para a entrega.
+                  </p>
                 </div>
 
                 <button

@@ -821,6 +821,7 @@ function HomePageInner() {
     compatibility_score: number | null; compatibility_analysis: string | null;
     confidence_level?: string; confidence_label?: string; requires_human_confirmation?: boolean;
     risk_level?: string; risk_label?: string; risk_flags?: string[]; proof_verified?: boolean;
+    finder_identity?: string; finder_identity_label?: string;
     has_photos: boolean; photo_count: number; has_video?: boolean; video_url?: string | null; proof_challenge?: string | null;
   };
   type PhotosModalData = {
@@ -1907,9 +1908,19 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       <span>{rep.has_photos ? '✓ Fotos anexadas' : '• Sem fotos'}</span>
                       <span>{rep.risk_level === 'review' ? '⚠ Revisar risco' : '✓ Risco monitorado'}</span>
                     </div>
+                    <p className="mt-2 text-[11px] font-bold text-white/85">
+                      {rep.finder_identity === 'petmol_user' ? '• Usuário PETMOL (com conta)' : '• Relato não verificado (sem conta)'}
+                    </p>
                     {rep.risk_label && (
-                      <p className="mt-2 text-[11px] leading-snug text-white/70">{rep.risk_label}</p>
+                      <p className="mt-1 text-[11px] leading-snug text-white/70">{rep.risk_label}</p>
                     )}
+                  </div>
+
+                  <div className="mt-2 rounded-xl border border-white/25 bg-black/15 px-3 py-2">
+                    <p className="text-[11px] leading-relaxed text-white/85">
+                      <span className="font-black">Segurança:</span> não envie dinheiro nem PIX para receber {rep.pet_name} de volta.
+                      O PETMOL não cobra por isso. Confirme as informações e combine um local público.
+                    </p>
                   </div>
 
                   {/* Score de compatibilidade — destaque grande */}
