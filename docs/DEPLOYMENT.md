@@ -105,6 +105,34 @@ Ver [`deploy/release/health_check.sh`](../deploy/release/health_check.sh).
   a home do frontend responde 200/307/308.
 - **Não-essenciais (só warning):** `/suggest`, `sw.js`, VAPID key.
 
+## Deploy falhou com "ssh: connect to host … port 22: Connection timed out"
+
+Recorrente. **Não é o código** — o `deploy-atomic.yml` nunca chega a rodar o
+`activate.sh`; o loop de retry esgota (300s) tentando conectar. O **site
+continua no ar** no release anterior (nginx serve o `current` intocado).
+
+Causa: no Ubuntu 24 o `sshd` roda por **socket-activation** (`ssh.socket`) e
+ela trava sob o burst de conexões do deploy; às vezes soma com um ban do
+`fail2ban` no IP do runner do GitHub. `ss -ltnp | grep :22` no VPS não mostra
+nada quando isso acontece.
+
+**Conserto (console web da Hostinger, como root — não precisa de SSH):**
+
+```bash
+fail2ban-client unban --all 2>/dev/null || true
+systemctl disable --now ssh.socket 2>/dev/null || true
+systemctl mask ssh.socket                       # <- permanente: não volta em update
+systemctl enable --now ssh
+systemctl restart ssh
+ufw allow 22/tcp; ufw allow 2222/tcp
+ss -ltnp | grep -E ':(22|2222)'                 # confirma sshd escutando direto
+```
+
+`deploy/release/repair_ssh_and_create_claudeops.sh` faz isso + cria o usuário
+`claudeops` + endurece o `sshd_config` + escreve
+`/etc/fail2ban/jail.d/petmol-sshd.local` tolerante ao deploy. Depois:
+`gh run rerun <id do deploy> --failed`.
+
 ## Rollback
 
 Automático: já embutido em `activate.sh` (passo 5 acima).
