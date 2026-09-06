@@ -338,6 +338,14 @@ def run_pg_migrations(engine: Engine) -> None:
         ))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions (user_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_push_subscriptions_disabled_at ON push_subscriptions (disabled_at)"))
+        # device_id: identifica o aparelho para deduplicar subscriptions do mesmo
+        # dispositivo (endpoint rotaciona no iOS/FCM e deixava linha órfã ativa →
+        # push duplicado). Defensivo p/ tabelas criadas antes desta coluna.
+        _pg_add_column_if_missing(conn, "push_subscriptions", "device_id", "TEXT")
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_push_subscriptions_device_id "
+            "ON push_subscriptions (user_id, device_id)"
+        ))
 
         _migrate_push_subscriptions_from_json(conn)
 
