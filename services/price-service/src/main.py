@@ -379,11 +379,12 @@ def init_db():
         except Exception as _e:
             print(f"[PETMOL] ⚠️  Backup automático falhou (não crítico): {_e}")
 
-    # Ensure the master admin (settings.admin_master_email, hardcoded default
-    # leonardofmol@gmail.com) has an AdminUser row. If that account already
-    # exists (the normal app signup), we just grant the row — no password
-    # touched. Only create a brand-new User if one doesn't exist yet AND a
-    # password was explicitly provided for that bootstrap case.
+    # Ensure the master admin (settings.admin_master_email, set via
+    # ADMIN_MASTER_EMAIL — no default) has an AdminUser row. If that account
+    # already exists (the normal app signup), we just grant the row — no
+    # password touched. Only create a brand-new User if one doesn't exist yet
+    # AND a password was explicitly provided for that bootstrap case. No-op
+    # entirely when ADMIN_MASTER_EMAIL is unset (dev without a master admin).
     if settings.admin_master_email:
         db = SessionLocal()
         try:

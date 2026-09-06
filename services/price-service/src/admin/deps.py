@@ -46,10 +46,10 @@ def get_current_admin(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não encontrado")
 
     # The admin_users table alone is not enough to grant access — only the
-    # single hardcoded master email may ever pass, even if a stray row
-    # exists in admin_users for someone else.
+    # configured master email (ADMIN_MASTER_EMAIL) may ever pass, even if a
+    # stray row exists in admin_users for someone else.
     settings = get_settings()
-    if user.email.strip().lower() != settings.admin_master_email.strip().lower():
+    if not settings.admin_master_email or user.email.strip().lower() != settings.admin_master_email.strip().lower():
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso admin negado")
 
     admin = db.query(AdminUser).filter(AdminUser.user_id == user.id).first()

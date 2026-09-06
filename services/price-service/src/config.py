@@ -108,9 +108,10 @@ class Settings(BaseSettings):
     admin_bootstrap_secret: Optional[str] = None
 
     # Admin master: the ONLY email ever allowed through get_current_admin.
-    # Overridable via env var, but defaults to the real value so this holds
-    # even if the server's env file doesn't set it.
-    admin_master_email: str = "leonardofmol@gmail.com"
+    # No default — must be set via ADMIN_MASTER_EMAIL. validate_prod() blocks
+    # startup in prod if unset; get_current_admin/bootstrap_promote_admin
+    # deny everyone (never crash) if it's unset in dev.
+    admin_master_email: Optional[str] = None
     admin_master_password: Optional[str] = None
     admin_master_name: Optional[str] = None
     admin_master_role: str = "master"
@@ -497,6 +498,8 @@ class Settings(BaseSettings):
             errors.append("JWT_SECRET must be set to a strong random value in prod")
         if not self.database_url.startswith("postgresql"):
             errors.append("DATABASE_URL must be a PostgreSQL URL in prod (got non-postgres URL)")
+        if not self.admin_master_email or not self.admin_master_email.strip():
+            errors.append("ADMIN_MASTER_EMAIL must be set in prod")
         if self.storage_backend not in ("r2", "local"):
             errors.append(f"STORAGE_BACKEND must be 'r2' or 'local', got: {self.storage_backend!r}")
         if self.storage_backend == "r2":

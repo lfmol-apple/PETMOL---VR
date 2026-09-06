@@ -253,10 +253,10 @@ def bootstrap_promote_admin(
     db: Session = Depends(get_db),
     x_admin_bootstrap: Optional[str] = Header(default=None, alias="X-Admin-Bootstrap"),
 ):
-    # Only the hardcoded master email may ever be promoted — this endpoint
-    # exists purely to create the AdminUser row for that one account, not
-    # as a general "become admin" mechanism.
-    if payload.email.strip().lower() != settings.admin_master_email.strip().lower():
+    # Only the configured master email (ADMIN_MASTER_EMAIL) may ever be
+    # promoted — this endpoint exists purely to create the AdminUser row for
+    # that one account, not as a general "become admin" mechanism.
+    if not settings.admin_master_email or payload.email.strip().lower() != settings.admin_master_email.strip().lower():
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Apenas o e-mail master pode ser promovido")
 
     # If a secret is configured (especially in prod), require it.

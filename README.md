@@ -6,27 +6,33 @@ Fluxo principal: cadastrar pet → registrar alimentação e cuidados → recebe
 
 ## Branch de produção
 
-**`main` é a única branch que vai para produção.** Todo push em `main` roda o CI; se ele passar, o deploy dispara automaticamente via GitHub Actions ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)) para o VPS (`petmol.com.br`) — deploy não roda mais em paralelo com o CI, só depois dele ter passado.
+**`main` é a única branch que vai para produção.** Todo push em `main` roda o CI ([`ci.yml`](.github/workflows/ci.yml)); se ele passar, o deploy dispara automaticamente via GitHub Actions ([`.github/workflows/deploy-atomic.yml`](.github/workflows/deploy-atomic.yml)) para o VPS (`petmol.com.br`) — deploy não roda em paralelo com o CI, só depois dele ter passado.
+
+Pipeline: CI empacota um artefato único (`petmol-<sha>.tar.gz` + `manifest.json`) → `deploy-atomic.yml` baixa esse mesmo artefato, envia por SSH e roda `deploy/release/activate.sh` no VPS, que extrai a release em `/opt/petmol/releases/<sha>/`, troca o symlink `/opt/petmol/current` pra apontar pra ela e reinicia os serviços (ativação atômica — a troca do symlink em si é instantânea) e **só depois** roda os health checks essenciais. Se um health check essencial falhar, o rollback automático desfaz a troca — `/opt/petmol/current` volta pra release anterior e os serviços reiniciam de novo — sem intervenção manual. `deploy.yml` é o pipeline legado (rsync direto sobre `/opt/petmol/app`, sem release versionada nem rollback automático) — hoje só existe como `workflow_dispatch` manual, para emergência caso o atômico esteja indisponível; não é o caminho normal.
 
 > O branch "padrão" exibido na página inicial do GitHub pode não ser `main` — isso é só uma configuração de navegação (Settings → Branches), não afeta o que está em produção. Sempre trabalhe a partir de `main`; as demais branches (`v2-design`, `redesign/frontend-proposal`, `release/docs-viewer-mobile`, `feature/*`) são linhas de desenvolvimento paralelas/abandonadas que não estão no ar.
 
 ### Como verificar a versão instalada em produção
 
-O script de deploy grava o commit exato aplicado em `/opt/petmol/app/REVISION` no VPS:
+`activate.sh` grava o commit ativado em `/opt/petmol/REVISION` no VPS (o link legado `/opt/petmol/app/REVISION` aponta pra esse mesmo arquivo, mas não deve ser consultado diretamente — `/opt/petmol/app` é o layout legado, não a release servida):
 
 ```bash
-cat /opt/petmol/app/REVISION
-# sha=<commit completo>
-# branch=main
-# deployed_at=<timestamp UTC>
+cat /opt/petmol/REVISION
+# sha=<commit completo> activated_at=<timestamp UTC>
+
+readlink -f /opt/petmol/current
+# /opt/petmol/releases/<mesmo sha> — a release efetivamente servida
+
+curl -sS http://127.0.0.1:3000/version.json
+# {"v":"<mesmo sha>-<timestamp>"}
 ```
 
-Compare o `sha` com `git log -1 --format=%H main` localmente para confirmar que produção bate com o GitHub.
+Os três devem apontar pro mesmo `sha` — isso, e não a ponta da `main`, é a fonte de verdade sobre o que está no ar. `main` pode legitimamente estar à frente dessa release: `deploy-atomic.yml` só reativa quando o diff desde a release ativa contém algo além de docs/workflow (ver "Detect whether VPS deploy is needed" no workflow), então commits só de documentação/diagnóstico/CI não disparam uma ativação nova. Divergência entre os três indicadores é incidente; `main` mais à frente que eles, sozinho, não é — só investigue se os commits entre a release ativa e a ponta da `main` contiverem código que deveria ter sido implantado (ver [`docs/RUNBOOK.md`](docs/RUNBOOK.md)).
 
 ## Estrutura de pastas
 
 ```
-apps/web/                  Frontend — Next.js 14 (interface do tutor)
+apps/web/                  Frontend — Next.js 15 (interface do tutor)
 services/price-service/    Backend principal — FastAPI (API, auth, pets, notificações, etc.)
 services/product-suggest/  Módulo auxiliar (futuro)
 shared/                    Catálogos, regras e dados comuns ao frontend e backend
@@ -76,7 +82,7 @@ Copie [`.env.example`](.env.example) para os arquivos reais (`.env`, `apps/web/.
 
 Pontos que já causaram problema antes:
 - `apps/web/.env.local` sobrescreve `.env.production` no build local — confira qual está valendo antes de testar algo "como se fosse produção".
-- Em deploy real, `apply_on_vps.sh` remove `.env.local` do servidor de propósito, para não herdar overrides de desenvolvedor.
+- Em produção, `activate.sh` faz symlink de `/opt/petmol/shared/env/api.env` e `web.env.local` (persistentes, fora de cada release) pra dentro da release recém-ativada — segredos nunca vêm do artefato do CI nem de overrides de desenvolvedor. (O fallback legado `deploy.yml`/`apply_on_vps.sh` usa rsync preservando `.env` diretamente em `/opt/petmol/app`.)
 
 ## Banco de dados e migrations
 
@@ -96,8 +102,9 @@ O CI ([`ci.yml`](.github/workflows/ci.yml)) roda essa suíte a cada push.
 
 ## CI/CD
 
-- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda em todo push: typecheck + lint + build do frontend, compile-check do backend.
-- [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) roda depois que o CI passa em `main` (`workflow_run`, não em paralelo) — ou manualmente via `workflow_dispatch`, que pula essa checagem de propósito para deploys de emergência. Empacota o repo, envia para o VPS via SSH, aplica com [`deploy/sync/apply_on_vps.sh`](deploy/sync/apply_on_vps.sh) (rsync preservando `.env`/segredos, reinstala dependências se necessário, rebuild do Next.js, restart dos serviços via systemd, bateria de health checks pós-deploy) e roda um health check final em `https://petmol.com.br/api/health`.
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda em todo push: typecheck + lint + build do frontend, compile-check + pytest do backend, e empacota o artefato único (`petmol-<sha>.tar.gz` + `manifest.json`) usado pelo deploy — build não acontece de novo no VPS.
+- [`.github/workflows/deploy-atomic.yml`](.github/workflows/deploy-atomic.yml) é o **pipeline automático oficial**: dispara via `workflow_run` assim que o CI passa em `main` (mas pula a ativação se o diff desde a release ativa for só docs/workflow — commits desse tipo deixam `main` à frente da produção sem que isso seja incidente). Baixa o artefato já empacotado pelo CI, envia por SSH, extrai em `/opt/petmol/releases/<sha>/`, ativa a release trocando o symlink `/opt/petmol/current` (ativação atômica) e reinicia os serviços — e só então roda a bateria de health checks essenciais. Se um health check essencial falhar, faz rollback automático: desfaz a troca do symlink e reinicia de novo — sem intervenção manual.
+- [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) é o **fallback manual legado**: só roda via `workflow_dispatch`, aplica rsync direto sobre `/opt/petmol/app` (sem release versionada, sem rollback automático). Reservado para emergência caso o pipeline atômico esteja indisponível — não é o fluxo normal, e build direto no VPS não deve ser tratado como caminho padrão de deploy.
 
 ## Operação
 
