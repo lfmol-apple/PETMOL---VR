@@ -345,6 +345,71 @@ def test_rate_limit_blocks_after_max(_isolate):
     _enforce_rate_limit(_Req2(), "unit-bucket", max_requests=3, window_seconds=60)
 
 
+# ── PS-8: casos restantes do §18 ───────────────────────────────────────────
+
+def test_third_party_cannot_mark_found(_isolate, monkeypatch):
+    """§18 CASO 13 — terceiro (sem acesso ao pet) não encerra o alerta."""
+    from src.missing_pets import mark_found
+    from fastapi import HTTPException
+    # acesso NEGADO para qualquer um que não seja dono/família
+    monkeypatch.setattr(
+        mp_mod, "_ensure_missing_pet_access",
+        lambda db, uid, mp: (_ for _ in ()).throw(HTTPException(status_code=403, detail="Sem permissão")),
+    )
+
+    class _Stranger:
+        id = "stranger-999"
+
+    with SessionLocal() as db:
+        db.add(MissingPet(
+            id="MP_X", user_id="owner", pet_id=None, pet_name="Rex", contact="x",
+            status="active", current_radius_km=2.0,
+        ))
+        db.commit()
+        db2 = SessionLocal()
+        try:
+            with pytest.raises(HTTPException) as exc:
+                mark_found("MP_X", db=db2, current_user=_Stranger())
+        finally:
+            db2.close()
+    assert exc.value.status_code == 403
+    # o alerta continua ativo
+    with SessionLocal() as db:
+        assert db.query(MissingPet).filter_by(id="MP_X").one().status == "active"
+
+
+def test_rebroadcast_only_reaches_new_subscribers(_isolate, monkeypatch):
+    """§18 CASO 4 — quem entra na área depois recebe; quem já recebeu, não."""
+    sent = _isolate
+
+    with SessionLocal() as db:
+        _sub(db, "early", "early-dev")
+        mp = _make_mp(db, owner_id="owner")
+        n1 = _broadcast_missing_pet(mp)
+    assert n1 == 1 and sent == ["https://push.example/early-dev"]
+
+    # "early" agora está na lista de já-notificados; "late" entra depois
+    monkeypatch.setattr(
+        mp_mod, "_get_excluded_user_ids",
+        lambda mp_id, owner: {"early", str(owner or "")},
+    )
+    sent.clear()
+    with SessionLocal() as db:
+        _sub(db, "late", "late-dev")
+        mp = db.query(MissingPet).filter_by(id=mp.id).one()
+        n2 = _broadcast_missing_pet(mp)
+    assert n2 == 1 and sent == ["https://push.example/late-dev"]
+
+
+def test_risk_level_from_flags(_isolate):
+    """§18 CASO 9 — sinais de fraude sobem o nível de risco pro tutor."""
+    from src.missing_pets import _risk_level_from_flags
+    assert _risk_level_from_flags([]) == "normal"
+    assert _risk_level_from_flags(["repeated_contact"]) == "attention"
+    assert _risk_level_from_flags(["possible_generated_image"]) == "review"
+    assert _risk_level_from_flags(["reused_photo", "repeated_contact"]) == "review"
+
+
 # ── Push duplicado: dedup de subscription por aparelho ──────────────────────
 
 def _subscribe_call(endpoint, device_id, user_id="u1"):
