@@ -83,7 +83,7 @@ export default function TermsPage() {
 
           <h2>7. Estabelecimentos Parceiros, Comparação de Ofertas e Links de Afiliados</h2>
           <p>
-            O PETMOL pode listar estabelecimentos parceiros (petshops, clínicas, etc.) e exibir ofertas de produtos de lojas parceiras (como Cobasi, Petz, Mercado Livre e Shopee, entre outras que podem ser adicionadas ou removidas ao longo do tempo), com o objetivo de ajudar você a comparar preços disponíveis. Nesse contexto:
+            O PETMOL pode listar estabelecimentos parceiros (petshops, clínicas, etc.) e exibir ofertas de produtos de lojas parceiras (como Cobasi e Petz, entre outras que podem ser adicionadas ou removidas ao longo do tempo), com o objetivo de ajudar você a comparar preços disponíveis. Nesse contexto:
           </p>
           <ul>
             <li>Preços, estoque, condições de pagamento e prazos de entrega são definidos por cada loja parceira e podem mudar a qualquer momento, sem aviso prévio do PETMOL.</li>

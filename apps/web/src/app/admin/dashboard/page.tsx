@@ -33,7 +33,6 @@ const PERIODS = [
 
 /** Telas admin completas (fora do BI) — atalhos fixos no topo do painel. */
 const ADMIN_TOOLS: { href: string; label: string; highlight?: boolean }[] = [
-  { href: '/admin/shopee-coverage', label: '📋 Cobertura Shopee × Cobasi', highlight: true },
   { href: '/admin/establishments', label: '🏪 Estabelecimentos' },
   { href: '/admin/accounts', label: '👤 Contas' },
   { href: '/admin/pets', label: '🐾 Pets' },

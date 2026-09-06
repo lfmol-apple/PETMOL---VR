@@ -23,7 +23,6 @@ export const MERCHANT_LABELS: Record<string, string> = {
   cobasi: 'Cobasi',
   zeenow: 'Zee Now',
   zeedog: 'Zee Dog',
-  shopee: 'Shopee',
   mercadolivre: 'Mercado Livre',
   petz: 'Petz',
 };
@@ -40,7 +39,6 @@ export const MERCHANT_LOGOS: Record<string, string> = {
   cobasi: '/partner-logos/cobasi.png',
   zeenow: '/partner-logos/zeenow.png',
   zeedog: '/partner-logos/zeedog.png',
-  shopee: '/partner-logos/shopee.png',
   mercadolivre: '/partner-logos/mercadolivre.png',
   petz: '/partner-logos/petz.png',
 };
@@ -257,13 +255,11 @@ export async function fetchCommerceOffers(query: string, packageSizeKg?: number,
       ? data.offers
           .map((offer) => ({ ...offer, url: normalizeOfferUrl(offer.url) }))
           .filter((offer) => offer.is_available !== false && Boolean(offer.url))
-          // Shopee só vitrine (decisão de produto 05/09/2026, reversível —
-          // ver docs/AFFILIATES.md): a Shopee sai dos preços por produto
-          // (cards de recompra, "Escolha a loja", resolução de loja na
-          // busca). Continua só como card no rodapé da Loja do Pet, que
-          // NÃO passa por aqui (usa resolvePartnerUrl/shortlink). O
-          // backend segue calculando a oferta Shopee — filtro aqui é o
-          // ponto único e o mais fácil de reverter. Cobasi não muda.
+          // Shopee em remoção total (06/09/2026 — ver
+          // project_remover_shopee / docs/AFFILIATES.md). Enquanto os
+          // providers de backend não saem, este filtro garante que
+          // nenhuma oferta Shopee chegue aos preços por produto. Só o
+          // card estático do rodapé (resolvePartnerUrl/shortlink) fica.
           .filter((offer) => offer.merchant !== 'shopee')
       : [];
   } catch {
