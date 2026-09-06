@@ -8,6 +8,7 @@ import { extractMedicationBarcode } from '@/lib/petCareDomain';
 import { Check, Home, Trash2 } from 'lucide-react';
 import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
+import { CARE_STATE } from '@/lib/careState';
 import { buildRemindAt, listReminders, deleteReminder, createReminder, refreshSubscription } from '@/features/notifications/pushService';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import { IosSwitch } from '@/components/ui/IosSwitch';
@@ -738,7 +739,11 @@ export function MedicationItemSheet({
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
                               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                                appliedDates.includes(todayStr) ? 'bg-green-100 text-green-700' : daysLeft <= 3 ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'
+                                appliedDates.includes(todayStr)
+                                  ? `${CARE_STATE.ok.chip} ${CARE_STATE.ok.chipText}`
+                                  : daysLeft <= 3
+                                    ? `${CARE_STATE.attention.chip} ${CARE_STATE.attention.chipText}`
+                                    : 'bg-purple-50 text-purple-700 border border-purple-200'
                               }`}>
                                 {appliedDates.includes(todayStr) ? '✓ Hoje' : daysLeft === 0 ? 'Último' : intervalDays > 1 ? `${daysLeft} rest.` : `${daysLeft}d`}
                               </span>
@@ -900,7 +905,7 @@ export function MedicationItemSheet({
                 </button>
                 <button
                   onClick={() => setMode('buy')}
-                  className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-black shadow-md shadow-emerald-500/25 active:scale-95 transition-all"
+                  className="w-full py-3 rounded-2xl bg-[#0056D2] hover:bg-[#004ab8] text-white text-sm font-black shadow-md shadow-blue-500/25 active:scale-95 transition-all"
                 >
                   Comprar medicamento
                 </button>
@@ -1242,9 +1247,9 @@ export function MedicationItemSheet({
               <button
                 onClick={handleSave}
                 disabled={saving || !form.title.trim()}
-                className="w-full py-3.5 rounded-2xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-[15px] font-bold shadow-md disabled:opacity-50 transition-colors"
+                className="w-full py-3.5 rounded-2xl bg-[#0056D2] hover:bg-[#004ab8] active:bg-[#003f9e] text-white text-[15px] font-bold shadow-md disabled:opacity-50 transition-colors"
               >
-                {saving ? 'Salvando...' : '✅ Confirmar registro'}
+                {saving ? 'Salvando...' : 'Confirmar registro'}
               </button>
               </>
               )}
