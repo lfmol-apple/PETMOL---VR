@@ -1088,7 +1088,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
               </div>
               <button
                 onClick={() => onGoHome?.()}
-                className="w-full rounded-2xl bg-blue-600 py-3.5 text-[15px] font-black text-white shadow-md shadow-blue-500/20 active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                className="w-full rounded-2xl bg-[#0056D2] py-3.5 text-[15px] font-black text-white shadow-md shadow-blue-500/20 active:scale-[0.97] transition-all hover:bg-[#004ab8] flex items-center justify-center gap-2"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
                   <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
@@ -1574,7 +1574,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             type="button"
                             disabled={busy}
                             onClick={() => void handleAdjustDuration(isoPlus(selectedDays))}
-                            className="w-full py-4 rounded-2xl bg-blue-600 text-white text-[16px] font-black shadow-lg shadow-blue-500/25 hover:bg-blue-700 active:scale-[0.97] transition-all disabled:opacity-50"
+                            className="w-full py-4 rounded-2xl bg-[#0056D2] text-white text-[16px] font-black shadow-lg shadow-blue-500/25 hover:bg-[#004ab8] active:scale-[0.97] transition-all disabled:opacity-50"
                           >
                             {busy ? 'Ajustando…' : `Confirmar ${selectedDays} dia${selectedDays !== 1 ? 's' : ''}`}
                           </button>
