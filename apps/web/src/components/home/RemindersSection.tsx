@@ -9,6 +9,7 @@ import type { FeedingPlanEntry } from '@/lib/types/homeForms';
 import type { GroomingRecord, ParasiteControl } from '@/lib/types/home';
 import { buildPetCareReminders, resolveCareCTA } from '@/lib/petCareDomain';
 import { dateToLocalISO } from '@/lib/localDate';
+import { CARE_STATE } from '@/lib/careState';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const createLocalDate = (dateStr: string): Date => {
@@ -201,12 +202,13 @@ export function RemindersSection({
 
   if (sorted.length === 0 && treatments.length === 0 && simpleMeds.length === 0 && !quickMarkToast) return null;
 
+  // Escala ÚNICA de estado (CARE_STATE): vencido = crítico, ≤7 dias =
+  // atenção, resto = neutro. Antes usava azul pra "essa semana", que
+  // colidia com o azul institucional / o azul da Loja / o anel de foco.
   const urgencyStyle = (diff: number) => {
-    if (diff < 0)   return { row: 'border-red-300 bg-red-100/80', badge: 'bg-red-200 text-red-800', dot: 'bg-red-500' };
-    if (diff === 0) return { row: 'border-amber-300 bg-amber-100/80', badge: 'bg-amber-200 text-amber-800', dot: 'bg-amber-500' };
-    if (diff <= 3)  return { row: 'border-orange-300 bg-orange-100/75', badge: 'bg-orange-200 text-orange-800', dot: 'bg-orange-500' };
-    if (diff <= 7)  return { row: 'border-blue-200 bg-blue-100/70', badge: 'bg-blue-200 text-blue-700', dot: 'bg-blue-500' };
-    return { row: 'border-gray-200 bg-gray-50', badge: 'bg-gray-200 text-gray-600', dot: 'bg-gray-400' };
+    const key = diff < 0 ? 'critical' : diff <= 7 ? 'attention' : 'neutral';
+    const s = CARE_STATE[key];
+    return { row: s.row, badge: `${s.chip} ${s.chipText}`, dot: s.dot };
   };
   const badgeLabel = (diff: number) => {
     if (diff < 0) return `${Math.abs(diff)}d atrás`;
