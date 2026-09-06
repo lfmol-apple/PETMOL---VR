@@ -998,7 +998,7 @@ export default function ProfilePage() {
                 onClick={() => setSupportOpen((v) => !v)}
                 className={`${ROW} flex w-full items-center justify-between group`}
               >
-                <span className="text-[13px] font-bold text-slate-700 uppercase tracking-[0.08em] transition-colors group-hover:text-blue-600">Fale com o PETMOL</span>
+                <span className="text-[13px] font-bold text-slate-700 uppercase tracking-[0.08em] transition-colors group-hover:text-blue-600">Ajude a melhorar o PETMOL</span>
                 <span className={`text-slate-400 text-xs transition-transform ${supportOpen ? 'rotate-180 text-blue-600' : ''}`}>▾</span>
               </button>
 
@@ -1018,6 +1018,10 @@ export default function ProfilePage() {
                     </div>
                   ) : (
                     <>
+                      <p className="text-[12px] leading-relaxed text-slate-500">
+                        Você chegou no começo da história do PETMOL. O que você conta aqui ajuda a
+                        decidir o que vem a seguir.
+                      </p>
                       <div className="grid grid-cols-1 gap-2">
                         {([
                           { key: 'suggestion', label: 'Tenho uma sugestão' },
@@ -1044,11 +1048,12 @@ export default function ProfilePage() {
                           <textarea
                             value={supportMessage}
                             onChange={(e) => setSupportMessage(e.target.value)}
-                            placeholder="Conte com detalhes..."
+                            placeholder="Conte de forma curta e direta..."
                             rows={4}
-                            maxLength={4000}
+                            maxLength={600}
                             className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700 placeholder:text-slate-400 focus:border-blue-400 focus:outline-none"
                           />
+                          <p className="text-right text-[11px] text-slate-400">{supportMessage.length}/600</p>
                           <button
                             type="button"
                             onClick={() => void handleSubmitSupportFeedback()}
