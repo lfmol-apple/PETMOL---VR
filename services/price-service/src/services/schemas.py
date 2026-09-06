@@ -134,22 +134,6 @@ class EstablishmentOut(BaseModel):
         from_attributes = True
 
 
-# ===== RG Public =====
-
-class RGCreateRequest(BaseModel):
-    """Request para criar RG público."""
-    pet_id: str
-    template: str = "default"
-    is_public: bool = True
-    contact_mode: Literal["qr_only", "handoff_only"] = "handoff_only"
-
-
-class RGCreateResponse(BaseModel):
-    """Response da criação de RG."""
-    pet_public_id: str
-    public_url: str
-
-
 # ===== Analytics =====
 
 class AnalyticsClickCreate(BaseModel):
