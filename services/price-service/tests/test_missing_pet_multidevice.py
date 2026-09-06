@@ -204,3 +204,52 @@ def test_mark_found_notifies_all_participants_except_confirmer(_isolate, monkeyp
         "https://push.example/follower-dev",
         "https://push.example/region-dev",
     }
+
+
+# ── PS-4: novo ponto de interesse (avistamento) ─────────────────────────────
+
+def test_sighting_broadcast_reaches_new_area_and_not_owner(_isolate):
+    sent = _isolate
+    with SessionLocal() as db:
+        # dono no ponto original; um usuário longe do original mas perto do
+        # avistamento; um usuário longe de tudo
+        _sub(db, "owner", "owner-dev", lat=0.0, lng=0.0)
+        _sub(db, "newArea", "newarea-dev", lat=10.0, lng=10.0)
+        _sub(db, "elsewhere", "elsewhere-dev", lat=-20.0, lng=-20.0)
+        mp = _make_mp(db, owner_id="owner", lat=0.0, lng=0.0, radius=2.0)
+        n = _broadcast_missing_pet(
+            mp, center=(10.0, 10.0), radius_km=5.0, origin="sighting",
+        )
+
+    assert sent == ["https://push.example/newarea-dev"]
+    assert n == 1
+
+
+def test_sighting_broadcast_does_not_exclude_already_notified(_isolate, monkeypatch):
+    sent = _isolate
+    # "u1" já foi notificado do alerta original
+    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: {"MP": {"notified": ["u1"]}})
+    with SessionLocal() as db:
+        _sub(db, "u1", "u1-dev", lat=10.0, lng=10.0)
+        mp = MissingPet(
+            id="MP", user_id="owner", pet_id=None, pet_name="Rex", contact="x",
+            lat=0.0, lng=0.0, current_radius_km=2.0, status="active",
+        )
+        db.add(mp)
+        db.commit()
+        # initial: u1 é excluído (já notificado)
+        assert _broadcast_missing_pet(mp) == 0
+        sent.clear()
+        # sighting: u1 recebe de novo, é a região nova
+        assert _broadcast_missing_pet(mp, center=(10.0, 10.0), radius_km=5.0, origin="sighting") == 1
+    assert sent == ["https://push.example/u1-dev"]
+
+
+def test_should_sighting_broadcast_throttle(_isolate, monkeypatch):
+    from src.missing_pets import _should_sighting_broadcast, _mark_sighting_broadcast
+    store: dict = {}
+    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: store)
+    monkeypatch.setattr(mp_mod, "_save_mp_notified", lambda d: store.update(d))
+    assert _should_sighting_broadcast("case-x") is True
+    _mark_sighting_broadcast("case-x")
+    assert _should_sighting_broadcast("case-x") is False
