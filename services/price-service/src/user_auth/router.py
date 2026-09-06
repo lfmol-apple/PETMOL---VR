@@ -530,11 +530,8 @@ def delete_account(
         'grooming_records',
         'notification_pendencies',
         'parasite_control_records',
-        'pet_document_imports',
-        'pet_documents',
         'product_correction_events',
         'product_learning_events',
-        'rg_public',
         'user_monthly_checkins',
         'vaccine_records',
     ]

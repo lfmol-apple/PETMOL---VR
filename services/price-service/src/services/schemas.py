@@ -150,20 +150,6 @@ class RGCreateResponse(BaseModel):
     public_url: str
 
 
-class RGPublicOut(BaseModel):
-    """Dados públicos do RG para exibição."""
-    pet_public_id: str
-    pet_name: str
-    pet_species: str
-    pet_photo_url: Optional[str] = None
-    template: str
-    view_count: int
-    created_at: UtcInstant
-
-    class Config:
-        from_attributes = True
-
-
 # ===== Analytics =====
 
 class AnalyticsClickCreate(BaseModel):
