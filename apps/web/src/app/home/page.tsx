@@ -911,14 +911,24 @@ function HomePageInner() {
     // esperando um toque acidental mais tarde.
     setTimeout(() => setConfirmFoundFor(cur => (cur === missingPetId ? null : cur)), 5000);
   }, []);
+  // Dois botões chamam isso ("É meu pet" e "Encontrei meu pet") + o toque
+  // duplo. Sem trava, cada clique era um PATCH /found = um push "🎉 foi
+  // encontrado" pra todo mundo. Uma vez marcado, nunca mais dispara.
+  const foundInFlight = useRef<Set<string>>(new Set());
   const markPetFound = useCallback(async (missingPetId: string) => {
+    if (foundInFlight.current.has(missingPetId)) return;
     const token = getToken();
     if (!token) return;
-    await fetch(`${API_BASE_URL}/missing-pets/${missingPetId}/found`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    foundInFlight.current.add(missingPetId);
     setConfirmFoundFor(null);
+    try {
+      await fetch(`${API_BASE_URL}/missing-pets/${missingPetId}/found`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      foundInFlight.current.delete(missingPetId); // deixa tentar de novo
+    }
   }, []);
   const fetchFoundReports = useCallback(async () => {
     try {
