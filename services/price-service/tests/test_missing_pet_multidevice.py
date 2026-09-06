@@ -293,3 +293,36 @@ def test_should_sighting_broadcast_throttle(_isolate, monkeypatch):
     assert _should_sighting_broadcast("case-x") is True
     _mark_sighting_broadcast("case-x")
     assert _should_sighting_broadcast("case-x") is False
+
+
+# ── PS-6: anti-golpe ────────────────────────────────────────────────────────
+
+def test_finder_identity_payload_never_says_trusted(_isolate):
+    from src.missing_pets import _finder_identity_payload
+    authed = _finder_identity_payload("user-123")
+    anon = _finder_identity_payload(None)
+    assert authed["finder_identity"] == "petmol_user"
+    assert anon["finder_identity"] == "unverified"
+    for p in (authed, anon):
+        low = p["finder_identity_label"].lower()
+        assert "confiáv" not in low and "seguro" not in low and "verificado" not in low.replace("não verificado", "")
+
+
+def test_rate_limit_blocks_after_max(_isolate):
+    from src.missing_pets import _enforce_rate_limit
+    from fastapi import HTTPException
+
+    class _Req:
+        headers = {"X-Forwarded-For": "9.9.9.9"}
+        client = None
+
+    req = _Req()
+    for _ in range(3):
+        _enforce_rate_limit(req, "unit-bucket", max_requests=3, window_seconds=60)
+    with pytest.raises(HTTPException) as exc:
+        _enforce_rate_limit(req, "unit-bucket", max_requests=3, window_seconds=60)
+    assert exc.value.status_code == 429
+    # IP diferente não é afetado
+    class _Req2(_Req):
+        headers = {"X-Forwarded-For": "8.8.8.8"}
+    _enforce_rate_limit(_Req2(), "unit-bucket", max_requests=3, window_seconds=60)

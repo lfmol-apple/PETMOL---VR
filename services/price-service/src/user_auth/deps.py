@@ -34,3 +34,18 @@ def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não encontrado")
 
     return user
+
+
+def get_current_user_optional(
+    authorization: Optional[str] = Header(default=None),
+    token: Optional[str] = Cookie(default=None, alias=COOKIE_NAME),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """Como get_current_user, mas nunca levanta 401 — devolve None quando não
+    há credencial válida. Para endpoints públicos que só querem SABER se quem
+    chamou é um usuário logado (ex.: rotular 'Usuário PETMOL' vs 'Relato não
+    verificado' no Pet Sumido)."""
+    try:
+        return get_current_user(authorization=authorization, token=token, db=db)
+    except HTTPException:
+        return None

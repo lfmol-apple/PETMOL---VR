@@ -29,8 +29,9 @@ from sqlalchemy import Column, Integer, String, DateTime, Text, Float
 from sqlalchemy.orm import Session
 
 from ..db import Base, get_db, SessionLocal
-from ..user_auth.deps import get_current_user
+from ..user_auth.deps import get_current_user, get_current_user_optional
 from ..user_auth.models import User
+from ..rate_limit import rate_limiter
 from ..notifications import (
     _load_subscriptions_by_user,
     _disable_subscriptions_by_id,
@@ -43,6 +44,43 @@ from ..pets.access import accessible_pets_query, get_accessible_pet_or_404
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/missing-pets", tags=["Missing Pets"])
 sighting_router = APIRouter(prefix="/pet-sightings", tags=["Pet Sightings"])
+
+
+# ── Rate limit dos endpoints públicos do Pet Sumido ─────────────────────────
+# Sliding window em memória por (bucket, IP/client-id). Reaproveita o
+# _get_client_ip do rate_limiter global (CF-Connecting-IP > X-Forwarded-For >
+# ...). Não é distribuído, mas o serviço roda como um processo — suficiente
+# como barreira anti-abuso (spam de relatos, flood de match-photo, etc.).
+_rl_events: dict[str, list[float]] = {}
+
+
+def _enforce_rate_limit(request: Request, bucket: str, max_requests: int, window_seconds: int) -> None:
+    import time as _time
+    now = _time.time()
+    key = f"{bucket}:{rate_limiter._get_client_ip(request)}"
+    window_start = now - window_seconds
+    events = [t for t in _rl_events.get(key, []) if t > window_start]
+    if len(events) >= max_requests:
+        raise HTTPException(
+            status_code=429,
+            detail="Muitas tentativas em pouco tempo. Aguarde um pouco antes de tentar de novo.",
+            headers={"Retry-After": str(window_seconds)},
+        )
+    events.append(now)
+    _rl_events[key] = events
+    if len(_rl_events) > 5000:  # limpeza preguiçosa
+        for k in list(_rl_events.keys()):
+            _rl_events[k] = [t for t in _rl_events[k] if t > now - 3600]
+            if not _rl_events[k]:
+                del _rl_events[k]
+
+
+def _finder_identity_payload(finder_user_id: str | None) -> dict:
+    """§11: conta autenticada = identidade técnica mais rastreável — NUNCA
+    'confiável'/'seguro'/'verificado'. Sem conta = 'Relato não verificado'."""
+    if finder_user_id:
+        return {"finder_identity": "petmol_user", "finder_identity_label": "Usuário PETMOL"}
+    return {"finder_identity": "unverified", "finder_identity_label": "Relato não verificado"}
 
 # ── Notified tracking (evita renotificar quem já recebeu) ────────────────────
 
@@ -1213,8 +1251,9 @@ def list_missing_pets(include_found: bool = False, db: Session = Depends(get_db)
 
 
 @sighting_router.post("", status_code=201)
-def create_pet_sighting(body: PetSightingCreate, db: Session = Depends(get_db)):
+def create_pet_sighting(body: PetSightingCreate, request: Request, db: Session = Depends(get_db)):
     """Registro público de avistamento livre, sem escolher alerta específico."""
+    _enforce_rate_limit(request, "sighting", max_requests=8, window_seconds=3600)
     if not body.finder_photos:
         raise HTTPException(status_code=400, detail="Envie ao menos uma foto")
 
@@ -1308,6 +1347,7 @@ def my_found_reports(db: Session = Depends(get_db), current_user=Depends(get_cur
             "compatibility_analysis": r.compatibility_analysis,
             **_compatibility_payload(r.compatibility_score, r.compatibility_analysis),
             **_risk_payload(r),
+            **_finder_identity_payload(r.finder_user_id),
             "has_photos": bool(r.finder_photos),
             "photo_count": len(json.loads(r.finder_photos)) if r.finder_photos else 0,
             "has_video": bool(r.finder_video_url),
@@ -1421,6 +1461,7 @@ def get_found_report_photos(
         "compatibility_analysis": report.compatibility_analysis,
         **_compatibility_payload(report.compatibility_score, report.compatibility_analysis),
         **_risk_payload(report),
+        **_finder_identity_payload(report.finder_user_id),
     }
 
 
@@ -1690,8 +1731,9 @@ def upload_missing_pet_photo(body: PhotoUploadBody):
 
 
 @router.post("/match-photo")
-def match_missing_pets_by_photo(body: PhotoMatchBody, db: Session = Depends(get_db)):
+def match_missing_pets_by_photo(body: PhotoMatchBody, request: Request, db: Session = Depends(get_db)):
     """Compara fotos do achador contra alertas ativos e retorna os melhores candidatos."""
+    _enforce_rate_limit(request, "match-photo", max_requests=40, window_seconds=3600)
     if not body.finder_photos:
         raise HTTPException(status_code=400, detail="Envie ao menos uma foto")
 
@@ -1779,8 +1821,9 @@ def match_missing_pets_by_photo(body: PhotoMatchBody, db: Session = Depends(get_
 
 
 @router.post("/{mp_id}/proof-challenge")
-def create_found_pet_proof_challenge(mp_id: str, db: Session = Depends(get_db)):
+def create_found_pet_proof_challenge(mp_id: str, request: Request, db: Session = Depends(get_db)):
     """Emite um desafio dinâmico para vídeo antifraude do achador."""
+    _enforce_rate_limit(request, "proof-challenge", max_requests=20, window_seconds=3600)
     mp = db.query(MissingPet).filter(MissingPet.id == mp_id, MissingPet.status == "active").first()
     if not mp:
         raise HTTPException(status_code=404, detail="Alerta não encontrado ou pet já foi encontrado")
@@ -1802,8 +1845,9 @@ def create_found_pet_proof_challenge(mp_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{mp_id}/analyze-photo")
-def analyze_photo(mp_id: str, body: PhotoAnalysisBody, db: Session = Depends(get_db)):
+def analyze_photo(mp_id: str, body: PhotoAnalysisBody, request: Request, db: Session = Depends(get_db)):
     """Pré-análise de compatibilidade sem criar report — usado antes de enviar aviso."""
+    _enforce_rate_limit(request, "analyze-photo", max_requests=40, window_seconds=3600)
     mp = db.query(MissingPet).filter(MissingPet.id == mp_id, MissingPet.status == "active").first()
     if not mp or not mp.photo_url or not body.finder_photos:
         return {"score": None, "analysis": None}
@@ -2615,8 +2659,18 @@ def _analyze_and_save(report_id: str, mp_photo_url: str, finder_photos: list, ow
 
 
 @router.post("/{mp_id}/report-found", status_code=201)
-def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_db)):
+def report_found(
+    mp_id: str,
+    body: FoundReportCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     """Achador registra que encontrou o pet — sem autenticação necessária."""
+    _enforce_rate_limit(request, "report-found", max_requests=8, window_seconds=3600)
+    # §11: só confiamos no finder_user_id que vem de um token válido. Um id no
+    # corpo, sem Authorization, é ignorado (não dá pra verificar).
+    finder_user_id = str(current_user.id) if current_user else None
     mp = db.query(MissingPet).filter(MissingPet.id == mp_id, MissingPet.status == "active").first()
     if not mp:
         raise HTTPException(status_code=404, detail="Alerta não encontrado ou pet já foi encontrado")
@@ -2714,7 +2768,7 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
         proof_challenge=(body.proof_challenge or "").strip()[:160] or None,
         proof_challenge_id=body.proof_challenge_id,
         proof_verified=1 if proof_verified else 0,
-        finder_user_id=body.finder_user_id,
+        finder_user_id=finder_user_id,
         compatibility_score=body.pre_score if has_pre_score else None,
         compatibility_analysis=body.pre_analysis if has_pre_score else None,
         risk_level=risk_level,
@@ -2725,12 +2779,12 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
     _store_found_report_photo_fingerprints(db, report, photo_hashes)
 
     # Quem enviou um relato passa a acompanhar o caso (recebe o encerramento).
-    if body.finder_user_id:
+    if finder_user_id:
         exists = (
             db.query(MissingPetFollower)
             .filter(
                 MissingPetFollower.missing_pet_id == mp_id,
-                MissingPetFollower.finder_user_id == body.finder_user_id,
+                MissingPetFollower.finder_user_id == finder_user_id,
             )
             .first()
         )
@@ -2738,7 +2792,7 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
             db.add(MissingPetFollower(
                 id=str(uuid.uuid4()),
                 missing_pet_id=mp_id,
-                finder_user_id=body.finder_user_id,
+                finder_user_id=finder_user_id,
                 finder_contact=body.finder_contact.strip(),
                 source="report_found",
                 created_at=datetime.now(timezone.utc),
@@ -2774,10 +2828,10 @@ def report_found(mp_id: str, body: FoundReportCreate, db: Session = Depends(get_
             ).start()
 
     # Confirmação de recebimento para quem enviou (se for usuário logado).
-    if body.finder_user_id:
+    if finder_user_id:
         threading.Thread(
             target=push_to_user,
-            args=(body.finder_user_id, {
+            args=(finder_user_id, {
                 "title": f"Recebemos seu aviso sobre {mp.pet_name}",
                 "body": "O tutor foi notificado e vai avaliar. Obrigado por ajudar.",
                 "tag": f"report-ack-{report_id}",
