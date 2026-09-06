@@ -596,7 +596,6 @@ function HomePageInner() {
   const {
     groomingRecords, setGroomingRecords,
     editingGrooming, setEditingGrooming,
-    showEditGroomingModal, setShowEditGroomingModal,
     groomingDueAlerts, setGroomingDueAlerts,
     groomingFormData, setGroomingFormData,
     placeSuggestions, setPlaceSuggestions,

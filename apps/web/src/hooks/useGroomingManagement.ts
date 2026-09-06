@@ -46,7 +46,6 @@ export function useGroomingManagement({
 }: UseGroomingManagementParams) {
   const [groomingRecords, setGroomingRecords] = useState<GroomingRecord[]>([]);
   const [editingGrooming, setEditingGrooming] = useState<GroomingRecord | null>(null);
-  const [showEditGroomingModal, setShowEditGroomingModal] = useState(false);
   const [groomingDueAlerts, setGroomingDueAlerts] = useState<
     { petName: string; type: string; daysOverdue: number }[]
   >([]);
@@ -260,7 +259,6 @@ export function useGroomingManagement({
         await loadGroomingRecords();
         setGroomingFormData({ ...DEFAULT_FORM, date: localTodayISO() });
         setEditingGrooming(null);
-        setShowEditGroomingModal(false);
         if (selectedPetId) fetchPetEvents(selectedPetId);
       } else {
         showBlockingNotice(t('grooming.error_save'));
@@ -287,7 +285,6 @@ export function useGroomingManagement({
       reminder_enabled: record.reminder_enabled ?? true,
       alert_days_before: record.alert_days_before ?? 3,
     });
-    setShowEditGroomingModal(true);
   };
 
   const handleDeleteGrooming = async (record: GroomingRecord) => {
@@ -328,7 +325,6 @@ export function useGroomingManagement({
 
   const handleCancelEditGrooming = () => {
     setEditingGrooming(null);
-    setShowEditGroomingModal(false);
     setGroomingFormData({ ...DEFAULT_FORM, date: localTodayISO() });
   };
 
@@ -337,8 +333,6 @@ export function useGroomingManagement({
     setGroomingRecords,
     editingGrooming,
     setEditingGrooming,
-    showEditGroomingModal,
-    setShowEditGroomingModal,
     groomingDueAlerts,
     setGroomingDueAlerts,
     groomingFormData,
