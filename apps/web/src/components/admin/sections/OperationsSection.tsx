@@ -9,21 +9,16 @@ interface MC {
   growth: { total_users: number; total_pets: number };
   commerce: {
     cobasi: { availability: string };
-    shopee: { active_offers: number; stale_offers: number };
   };
   instrumentation: { events_total: number };
   attention: { state: string; alerts: { severity: string; message: string }[] };
 }
-interface ShopeeProgress {
-  running: boolean; percent: number; matched: number; match_rate: number; error: string | null;
-}
 
 const numberFmt = (n: number | null | undefined) => (typeof n === 'number' ? n.toLocaleString('pt-BR') : '—');
 
-/** Operação — saúde da API + sync Shopee. Atualiza a cada 20s (só esta aba). */
+/** Operação — saúde da API + commerce. Atualiza a cada 20s (só esta aba). */
 export function OperationsSection() {
   const [mc, setMc] = useState<MC | null>(null);
-  const [sp, setSp] = useState<ShopeeProgress | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -31,12 +26,11 @@ export function OperationsSection() {
     if (!token) return;
     const load = async () => {
       try {
-        const [a, b] = await Promise.all([
-          fetch('/api/v1/admin/mission-control', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }),
-          fetch('/handoff/shopee-sync-progress', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }),
-        ]);
+        const a = await fetch('/api/v1/admin/mission-control', {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
         if (a.ok) setMc(await a.json());
-        if (b.ok) setSp(await b.json());
         setErr(null);
       } catch (e) {
         setErr(String(e));
@@ -61,21 +55,12 @@ export function OperationsSection() {
         <b>{mc.attention.state === 'critical' ? 'Crítico' : mc.attention.state === 'attention' ? 'Atenção' : 'Normal'}</b>
         {' — '}{mc.attention.alerts[0]?.message ?? 'Nenhum alerta na janela.'}
       </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <StatCard label="API (60min)" value={mc.api.status === 'normal' ? 'Normal' : mc.api.status === 'attention' ? 'Atenção' : 'Sem dados'}
           sub={`${numberFmt(mc.api.requests)} req · ${mc.api.errors_5xx} 5xx · p95 ${mc.api.p95_ms ? `${mc.api.p95_ms}ms` : '—'}`} />
         <StatCard label="Eventos v2 (total)" value={numberFmt(mc.instrumentation.events_total)} />
-        <StatCard label="Shopee — ofertas ativas" value={numberFmt(mc.commerce.shopee.active_offers)}
-          sub={`${numberFmt(mc.commerce.shopee.stale_offers)} defasadas`} />
-        <StatCard label="Sync Shopee" value={sp ? (sp.running ? `${sp.percent.toFixed(0)}%` : sp.error ? 'Erro' : 'Parado') : '—'}
-          sub={sp ? `${numberFmt(sp.matched)} casados · índice ${sp.match_rate?.toFixed(1) ?? '—'}%` : undefined}
-          tone={sp?.error ? 'bad' : 'default'} />
+        <StatCard label="Cobasi" value={mc.commerce.cobasi.availability} />
       </div>
-      {sp?.error && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] text-rose-700">{sp.error}</div>}
-      <a href="/admin/shopee-coverage" className="flex items-center justify-between gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-[13px] font-semibold text-[#0056D2] hover:border-blue-400">
-        <span>📋 Cobertura Shopee × Cobasi — produtos sem oferta Shopee, motivo e normalização manual</span>
-        <span aria-hidden>→</span>
-      </a>
       <p className="text-[11px] text-slate-400">
         Esta aba atualiza a cada 20s. As demais abas (BI histórico) só recarregam quando você troca o filtro.
       </p>
