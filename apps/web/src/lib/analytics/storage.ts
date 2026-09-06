@@ -10,7 +10,7 @@ import { openDB, DBSchema, IDBPDatabase } from 'idb';
 export interface AnalyticsEvent {
   id: string;
   event_type: string;
-  event_category: 'handoff' | 'identitykit' | 'health' | 'event_engine' | 'share' | 'other';
+  event_category: 'handoff' | 'health' | 'event_engine' | 'share' | 'other';
   
   // Context
   pet_id?: string;
@@ -137,35 +137,6 @@ export async function trackHandoffEvent(
     },
     {
       placeId,
-      country: options?.country,
-      locale: options?.locale,
-    }
-  );
-}
-
-// ========================================
-// Identity Kit Events
-// ========================================
-
-export async function trackIdentityKitEvent(
-  action: 'generated' | 'shared',
-  artifactType: 'passport' | 'qr_card',
-  petId: string,
-  theme: string,
-  options?: {
-    country?: string;
-    locale?: string;
-  }
-): Promise<void> {
-  await trackEvent(
-    `identitykit_${action}`,
-    'identitykit',
-    {
-      artifact_type: artifactType,
-      theme,
-    },
-    {
-      petId,
       country: options?.country,
       locale: options?.locale,
     }
