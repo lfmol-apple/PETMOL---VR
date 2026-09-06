@@ -103,10 +103,6 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me"
     jwt_access_token_expire_minutes: int = 60 * 24 * 7
 
-    # HMAC secret signing the public pet-documents ZIP download link
-    # (see pets/export_router.py). Anyone holding this value can forge a
-    # valid download token for any pet_id without authenticating.
-    zip_hmac_secret: str = "change-me"
 
     # Admin bootstrap (used to promote first admin safely)
     admin_bootstrap_secret: Optional[str] = None
@@ -499,10 +495,6 @@ class Settings(BaseSettings):
         errors = []
         if not self.jwt_secret or self.jwt_secret.lower() in ("change-me", "changeme", ""):
             errors.append("JWT_SECRET must be set to a strong random value in prod")
-        if not self.zip_hmac_secret or self.zip_hmac_secret.lower() in (
-            "change-me", "changeme", "", "petmol-zip-dl-2024",
-        ):
-            errors.append("ZIP_HMAC_SECRET must be set to a strong random value in prod")
         if not self.database_url.startswith("postgresql"):
             errors.append("DATABASE_URL must be a PostgreSQL URL in prod (got non-postgres URL)")
         if self.storage_backend not in ("r2", "local"):

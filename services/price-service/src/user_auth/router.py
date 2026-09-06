@@ -504,17 +504,22 @@ def delete_account(
     # a linha do banco — sem isso o "direito ao apagamento" (LGPD) nao vale
     # de verdade, o arquivo fica orfao em uploads/pet_documents. Coleta os
     # caminhos antes do DELETE para poder remover os arquivos depois do commit.
-    storage_keys = [
-        row[0]
-        for row in db.execute(
-            text(
-                "SELECT storage_key FROM pet_documents "
-                "WHERE pet_id IN (SELECT id FROM pets WHERE user_id = :uid) "
-                "AND storage_key IS NOT NULL"
-            ),
-            {"uid": uid},
-        ).fetchall()
-    ]
+    # pet_documents foi removido (o PETMOL não guarda arquivos de tutor —
+    # ver PR de remoção). A tabela some via migração; até lá, ainda coletamos
+    # os caminhos dos arquivos legados para apagar do disco na exclusão.
+    storage_keys: list[str] = []
+    if "pet_documents" in _existing_tables:
+        storage_keys = [
+            row[0]
+            for row in db.execute(
+                text(
+                    "SELECT storage_key FROM pet_documents "
+                    "WHERE pet_id IN (SELECT id FROM pets WHERE user_id = :uid) "
+                    "AND storage_key IS NOT NULL"
+                ),
+                {"uid": uid},
+            ).fetchall()
+        ]
 
     # Tabelas com pet_id (ordem importa: filhas antes de pets).
     pet_child_tables = [
@@ -569,10 +574,10 @@ def delete_account(
     db.commit()
 
     if storage_keys:
-        from ..pets.document_router import DOCS_UPLOAD_DIR
+        _docs_dir = Path(__file__).resolve().parent.parent.parent / "uploads" / "pet_documents"
         for key in storage_keys:
             candidate = Path(key)
-            fpath = candidate if (candidate.is_absolute() and candidate.is_file()) else DOCS_UPLOAD_DIR / candidate.name
+            fpath = candidate if (candidate.is_absolute() and candidate.is_file()) else _docs_dir / candidate.name
             try:
                 fpath.unlink(missing_ok=True)
             except OSError:

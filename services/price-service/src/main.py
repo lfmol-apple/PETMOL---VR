@@ -263,11 +263,6 @@ app.include_router(product_lookup_router, prefix="/api")
 app.include_router(gtin_router)
 app.include_router(gtin_router, prefix="/api")
 
-# Pet Documents — acervo legado, SOMENTE leitura/exclusão (sem upload/import).
-# O PETMOL não é repositório de documentos; ver pets/document_router.py.
-from .pets.document_router import router as pet_documents_router
-app.include_router(pet_documents_router)
-
 # Vision AI (vaccine card OCR)
 from .vision.router import router as vision_router
 app.include_router(vision_router)
@@ -470,10 +465,6 @@ app.include_router(handoff_partner_router)
 # Include vaccine sync router
 from .pets.vaccine_router import router as vaccine_router
 app.include_router(vaccine_router)
-
-# Include PDF export router
-from .pets.export_router import router as pet_export_router
-app.include_router(pet_export_router)
 
 # Include parasite + grooming CRUD routers
 from .pets.parasite_router import router as parasite_router

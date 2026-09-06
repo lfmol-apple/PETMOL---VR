@@ -9,8 +9,20 @@ Keep migrations minimal, idempotent, and additive only.
 
 from __future__ import annotations
 
+import shutil
+from pathlib import Path
+
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+
+
+def _wipe_pet_documents_dir() -> None:
+    """Apaga a pasta de arquivos do 'cofre de documentos' descontinuado.
+    Best-effort e idempotente: depois da 1ª execução a pasta não existe
+    mais e vira no-op."""
+    docs_dir = Path(__file__).resolve().parent.parent / "uploads" / "pet_documents"
+    if docs_dir.is_dir():
+        shutil.rmtree(docs_dir, ignore_errors=True)
 
 
 def _sqlite_column_exists(conn, table: str, column: str) -> bool:
@@ -71,7 +83,6 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "parasite_control_records", "reminder_date", "DATE")
         _pg_add_column_if_missing(conn, "parasite_control_records", "reminder_time", "TEXT")
         _pg_add_column_if_missing(conn, "events", "deleted_at", "TIMESTAMPTZ")
-        _pg_add_column_if_missing(conn, "pet_documents", "deleted_at", "TIMESTAMPTZ")
         _pg_add_column_if_missing(conn, "feeding_plans", "deleted_at", "TIMESTAMPTZ")
         _pg_add_column_if_missing(conn, "feeding_plans", "items_json", "TEXT DEFAULT '[]'")
         _pg_add_column_if_missing(conn, "feeding_plans", "last_food_push_date", "DATE")
@@ -488,6 +499,15 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "affiliate_feed_sync_runs", "duplicate_gtin_groups", "INTEGER DEFAULT 0 NOT NULL")
         _pg_add_column_if_missing(conn, "affiliate_feed_sync_runs", "ambiguous_gtin_groups", "INTEGER DEFAULT 0 NOT NULL")
 
+        # 2026-09: PETMOL não guarda mais arquivos de tutor. O "cofre de
+        # documentos" (upload já removido antes) foi descontinuado por
+        # completo — router, models e schemas apagados. Dropar as tabelas
+        # apaga os registros; _wipe_pet_documents_dir() apaga os arquivos
+        # órfãos no disco (LGPD: erasure de verdade, não só a linha).
+        conn.execute(text("DROP TABLE IF EXISTS pet_document_imports CASCADE"))
+        conn.execute(text("DROP TABLE IF EXISTS pet_documents CASCADE"))
+        _wipe_pet_documents_dir()
+
 
 def _migrate_push_subscriptions_from_json(conn) -> None:
     """One-time import of the legacy push_subscriptions.json (file-based,
@@ -595,7 +615,6 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "parasite_control_records", "reminder_date", "DATE")
         changed |= _sqlite_add_column_if_missing(conn, "parasite_control_records", "reminder_time", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "events", "deleted_at", "DATETIME")
-        changed |= _sqlite_add_column_if_missing(conn, "pet_documents", "deleted_at", "DATETIME")
         changed |= _sqlite_add_column_if_missing(conn, "feeding_plans", "deleted_at", "DATETIME")
         changed |= _sqlite_add_column_if_missing(conn, "feeding_plans", "items_json", "TEXT DEFAULT '[]'")
         changed |= _sqlite_add_column_if_missing(conn, "feeding_plans", "last_food_push_date", "DATE")
@@ -677,54 +696,6 @@ def run_sqlite_migrations(engine: Engine) -> None:
             CREATE INDEX IF NOT EXISTS idx_product_name_code ON product_name_mappings (vaccine_code)
         """))
 
-        # pet_documents: cofre documental por pet
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS pet_documents (
-                id                TEXT PRIMARY KEY,
-                pet_id            TEXT NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
-                kind              TEXT NOT NULL DEFAULT 'file',
-                category          TEXT,
-                title             TEXT,
-                document_date     DATE,
-                notes             TEXT,
-                source            TEXT NOT NULL DEFAULT 'upload',
-                url_masked        TEXT,
-                url_raw           TEXT,
-                storage_key       TEXT,
-                mime_type         TEXT,
-                size_bytes        INTEGER,
-                establishment_name TEXT,
-                created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        """))
-        # Add establishment_name to existing tables (idempotent)
-        try:
-            conn.execute(text("ALTER TABLE pet_documents ADD COLUMN establishment_name TEXT"))
-        except Exception:
-            pass  # column already exists
-        conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS idx_pet_documents_pet_id ON pet_documents (pet_id)"
-        ))
-
-        # pet_document_imports: audit trail por sessão de importação
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS pet_document_imports (
-                id               TEXT PRIMARY KEY,
-                pet_id           TEXT NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
-                provider         TEXT NOT NULL DEFAULT 'generic',
-                status           TEXT NOT NULL DEFAULT 'queued',
-                url_masked       TEXT,
-                url_raw          TEXT,
-                discovered_count INTEGER,
-                imported_count   INTEGER,
-                last_error       TEXT,
-                created_at       DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        """))
-        conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS idx_pet_doc_imports_pet_id ON pet_document_imports (pet_id)"
-        ))
-
         # ── pet_places: locais pet do OSM (offline, sem Google) ─────────────
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS pet_places (
@@ -775,12 +746,6 @@ def run_sqlite_migrations(engine: Engine) -> None:
             CREATE INDEX IF NOT EXISTS idx_checkins_user_month
             ON user_monthly_checkins (user_id, month_ref)
         """))
-
-        # ── pet_documents.event_id ─────────────────────────────────────────
-        changed |= _sqlite_add_column_if_missing(conn, "pet_documents", "event_id", "TEXT")
-
-        # ── pet_documents.subcategory ──────────────────────────────────────
-        changed |= _sqlite_add_column_if_missing(conn, "pet_documents", "subcategory", "TEXT")
 
         # ── canonicalization fields: vaccine_records ────────────────────────
         changed |= _sqlite_add_column_if_missing(conn, "vaccine_records", "vaccine_name_raw", "TEXT")
@@ -1076,6 +1041,11 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "affiliate_feed_sync_runs", "rows_gtin_invalid", "INTEGER DEFAULT 0")
         changed |= _sqlite_add_column_if_missing(conn, "affiliate_feed_sync_runs", "duplicate_gtin_groups", "INTEGER DEFAULT 0")
         changed |= _sqlite_add_column_if_missing(conn, "affiliate_feed_sync_runs", "ambiguous_gtin_groups", "INTEGER DEFAULT 0")
+
+        # 2026-09: "cofre de documentos" descontinuado — ver run_pg_migrations.
+        conn.execute(text("DROP TABLE IF EXISTS pet_document_imports"))
+        conn.execute(text("DROP TABLE IF EXISTS pet_documents"))
+        _wipe_pet_documents_dir()
 
         # `changed` is intentionally unused; kept for potential logging later.
         _ = changed
