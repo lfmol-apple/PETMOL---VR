@@ -21,7 +21,6 @@ from ...health.models import FeedingPlan
 from ...missing_pets import MissingPet
 from ...notifications import NativePushToken, PushSubscription
 from ...pets.caretaker_models import PetCaretaker
-from ...pets.document_models import PetDocument
 from ...pets.grooming_models import GroomingRecord
 from ...pets.models import Pet
 from ...pets.parasite_models import ParasiteControlRecord
@@ -473,20 +472,6 @@ def _pet_feature_states(
         else:
             latest = max(x for x in (_aware(r[1]), _aware(r[2])) if x is not None)
             states[pid]["vet_visit"] = classify_by_recency(latest, now=now, active_days=210)
-
-    # ── documents ──
-    doc_rows = _scoped(
-        db.query(PetDocument.pet_id, func.max(PetDocument.created_at))
-        .filter(PetDocument.deleted_at.is_(None))
-        .group_by(PetDocument.pet_id),
-        PetDocument.pet_id,
-    ).all()
-    doc_map = {r[0]: _aware(r[1]) for r in doc_rows}
-    for pid in all_pet_ids:
-        if pid not in doc_map:
-            states[pid]["documents"] = FeatureState.NEVER_CONFIGURED
-        else:
-            states[pid]["documents"] = classify_by_recency(doc_map[pid], now=now, active_days=365)
 
     # ── rg (public) ──
     rg_pet_ids = {
@@ -979,9 +964,6 @@ def pet_detail(db: Session, pet_id: str) -> Optional[dict[str, Any]]:
     events = db.query(Event).filter(
         Event.pet_id == pet_id, Event.deleted_at.is_(None)
     ).order_by(Event.scheduled_at.desc()).limit(50).all()
-    documents = db.query(func.count(PetDocument.id)).filter(
-        PetDocument.pet_id == pet_id, PetDocument.deleted_at.is_(None)
-    ).scalar() or 0
     caretakers = db.query(func.count(PetCaretaker.id)).filter(PetCaretaker.pet_id == pet_id).scalar() or 0
 
     return {
@@ -1008,7 +990,7 @@ def pet_detail(db: Session, pet_id: str) -> Optional[dict[str, Any]]:
         "counts": {
             "vaccines": len(vaccines), "parasite_controls": len(parasites),
             "grooming": len(grooming), "events": len(events),
-            "documents": int(documents), "caretakers": int(caretakers),
+            "caretakers": int(caretakers),
         },
         "vaccines": [
             {"id": v.id, "name": v.vaccine_name, "applied": _iso(v.applied_date),

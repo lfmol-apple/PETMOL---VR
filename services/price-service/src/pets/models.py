@@ -36,4 +36,3 @@ class Pet(Base):
     parasite_control_records: Mapped[list["ParasiteControlRecord"]] = relationship("ParasiteControlRecord", back_populates="pet", cascade="all, delete-orphan")
     grooming_records: Mapped[list["GroomingRecord"]] = relationship("GroomingRecord", back_populates="pet", cascade="all, delete-orphan")
     feeding_plan: Mapped[Optional["FeedingPlan"]] = relationship("FeedingPlan", back_populates="pet", cascade="all, delete-orphan", uselist=False)
-    documents: Mapped[list["PetDocument"]] = relationship("PetDocument", back_populates="pet", cascade="all, delete-orphan", order_by="PetDocument.created_at.desc()")

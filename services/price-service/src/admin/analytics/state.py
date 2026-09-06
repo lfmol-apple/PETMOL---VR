@@ -171,8 +171,6 @@ FEATURE_REGISTRY: tuple[FeatureDef, ...] = (
                "pets.weight_value ou events type='weight_check'."),
     FeatureDef("vet_visit", "Consultas", "operational", "pet",
                "events type='vet_appointment' não deletados."),
-    FeatureDef("documents", "Cofre de documentos", "operational", "pet",
-               "pet_documents não deletados."),
     FeatureDef("rg", "RG do pet (público)", "operational", "pet",
                "rg_public com is_public=true."),
     FeatureDef("missing_pet", "Pet Sumido / SOS", "operational_user", "user",

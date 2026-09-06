@@ -32,7 +32,6 @@ from .product_catalog_lookup import (
     lookup_product_by_gtin,
     normalize_gtin,
 )
-from .pets.document_models import PetDocument, PetDocumentImport  # noqa: F401 - registers Pet.documents relationship
 from .pets.grooming_models import GroomingRecord  # noqa: F401 - registers Pet.grooming_records relationship
 from .pets.parasite_models import ParasiteControlRecord
 from .pets.vaccine_models import VaccineRecord  # noqa: F401 - registers Pet.vaccine_records relationship
