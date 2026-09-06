@@ -582,30 +582,25 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
 
         <div className="min-w-0 flex-1">
           {/* Nome do produto ocupa a largura toda da coluna — ele é o
-              protagonista do card. O selo "Oferta" foi pra linha do preço. */}
+              protagonista do card. */}
           <p className="line-clamp-2 text-[13.5px] font-bold leading-tight text-slate-950">
             {displayProductLabel}
           </p>
           <p className={`mt-0.5 text-[11.5px] font-semibold leading-tight ${card.urgencyTone === 'overdue' ? 'text-rose-600' : card.urgencyTone === 'today' ? 'text-amber-600' : 'text-slate-500'}`}>
             {card.urgencyText}
           </p>
-          {loading && <p className="mt-0.5 text-[11px] font-medium text-slate-400">Buscando melhor preço...</p>}
-          {/* Primeiro nível do card = produto + prazo. A loja, o preço por
-              loja e a origem do preço só aparecem ao tocar "Comprar" (ver
-              OfferPickerRow) — merchant é meio de compra, não protagonista.
-              Aqui fica só o preço de referência do produto, sem nome de loja. */}
+          {loading && <p className="mt-0.5 text-[11px] font-medium text-slate-400">Buscando opções de compra...</p>}
+          {/* Primeiro nível do card = produto + prazo + preço de referência.
+              O PETMOL informa, não "grita promoção": nada de selo de oferta
+              aqui. A loja, o preço por loja e a origem do preço só aparecem
+              ao tocar "Comprar" (ver OfferPickerRow). */}
           {!loading && hasMonetizedOffer && offer && (
             <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[12px] font-bold leading-tight">
               <span className={priceReliable ? 'text-emerald-800' : 'text-emerald-700'}>
                 {priceReliable ? formatBRLPrice(offer.price as number) : offerPriceLabel(offer)}
               </span>
               {hasDiscount && (
-                <>
-                  <span className="text-[10px] font-semibold text-slate-400 line-through">{formatBRLPrice(offer.list_price as number)}</span>
-                  <span className="inline-flex items-center rounded-full bg-orange-50 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-orange-700 ring-1 ring-orange-100">
-                    🔥 Oferta
-                  </span>
-                </>
+                <span className="text-[10px] font-semibold text-slate-400 line-through">{formatBRLPrice(offer.list_price as number)}</span>
               )}
             </p>
           )}
