@@ -317,7 +317,19 @@ class Settings(BaseSettings):
     # `scripts/audit_shopee_offers.py --deactivate-invalid` + revisão à
     # mão (docs/LAUNCH.md §7). Pra desligar de novo: flip pra False (ou
     # SHOPEE_AFFILIATE_ENABLED=false no env).
-    shopee_affiliate_enabled: bool = True
+    #
+    # DESLIGADO de novo (05/09/2026, decisão de produto): winding-down da
+    # Shopee. Quem compra na Shopee vai lá pesquisar sozinho — o único
+    # ponto de monetização Shopee que fica de pé é o card estático da
+    # vitrine no rodapé da Loja do Pet (shortlink de afiliado no
+    # frontend, `homeShoppingPartners.ts`, NÃO depende desta flag). Com
+    # isso False: MarketplaceOfferProvider não serve nem agenda discovery
+    # (defesa em profundidade — o frontend já filtra merchant=shopee de
+    # fetchCommerceOffers desde 05/09), e o gatilho do sync noturno
+    # (admin/shopee_sync_router.start_sync_run) responde no-op. Reverter:
+    # SHOPEE_AFFILIATE_ENABLED=true no env (ou True aqui). Ver
+    # docs/AFFILIATES.md §"Shopee só vitrine" e [[project_shopee_so_vitrine]].
+    shopee_affiliate_enabled: bool = False
     # Documentação de pendência externa, não uma flag de gate — setar isto
     # não aprova nada sozinho; é só pra não perder de vista qual mídia
     # estamos tentando confirmar no Portal do Afiliado.
