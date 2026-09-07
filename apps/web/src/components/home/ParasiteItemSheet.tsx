@@ -528,7 +528,7 @@ export function ParasiteItemSheet({
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
           {mode === 'view' && (
-            <p className="mx-4 mt-2 mb-0 text-[11.5px] font-medium text-slate-500 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
+            <p className="mx-4 mt-2 mb-0 text-[11.5px] font-medium text-slate-500 text-center">ℹ️ Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.</p>
           )}
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}

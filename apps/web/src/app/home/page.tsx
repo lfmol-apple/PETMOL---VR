@@ -164,7 +164,7 @@ function NoPetsCard({ onAddPet, onLogout }: { onAddPet: () => void; onLogout: ()
       </div>
 
       <h1 className="text-2xl font-black text-slate-900">Quem é o seu pet?</h1>
-      <p className="mt-2 text-sm font-medium text-slate-500">Cadastre o primeiro pet para começar os cuidados.</p>
+      <p className="mt-2 text-sm font-medium text-slate-500">Adicione o primeiro pet e o PETMOL começa a cuidar com você.</p>
 
       <button
         type="button"

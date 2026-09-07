@@ -417,7 +417,7 @@ export function HealthModal({
 
             {/* Conteúdo do Modal - Área de scroll otimizada */}
             <div className="p-3 sm:p-5 overflow-y-auto flex-1 bg-gray-50">
-              <p className="text-[11.5px] font-medium text-slate-500 text-center mb-3">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
+              <p className="text-[11.5px] font-medium text-slate-500 text-center mb-3">ℹ️ Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.</p>
 
               {/* Aba Vacinas */}
               {healthActiveTab === 'vaccines' && (
