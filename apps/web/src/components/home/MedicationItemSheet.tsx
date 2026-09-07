@@ -214,7 +214,7 @@ export function MedicationItemSheet({
       concentration: product.concentration || f.concentration,
       barcode: product.barcode,
     }));
-    if (!product.found) showToast('Não encontramos os dados. Preencha manualmente.');
+    if (!product.found) showToast('Não achamos os dados — você pode preencher à mão.');
   }
 
   useEffect(() => {

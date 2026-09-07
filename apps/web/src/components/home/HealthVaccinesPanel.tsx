@@ -99,7 +99,7 @@ export function HealthVaccinesPanel({
               <h4 className="font-semibold text-slate-900">Abrir fluxo atual</h4>
               <p className="text-sm text-slate-600 mt-1">
                 Use a central atual para importar o cartão, registrar vacinas, editar histórico e
-                gerenciar os lembretes sem duplicação.
+                acompanhar os lembretes sem duplicação.
               </p>
             </div>
             <button

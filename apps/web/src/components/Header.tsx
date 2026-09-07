@@ -20,7 +20,7 @@ export function Header() {
   const profileHref = '/profile';
   const helpHref = `https://wa.me/?text=${encodeURIComponent('Olá, preciso de ajuda com o PETMOL.')}`;
   const brandCaption = userLabel ? (pathname === '/home' ? 'você está na home' : 'voltar à home') : 'início';
-  const profileCaption = pathname === '/profile' ? 'configurações abertas' : 'abrir perfil';
+  const profileCaption = pathname === '/profile' ? 'perfil aberto' : 'abrir perfil';
 
   // Animação de entrada da logo
   useEffect(() => {
@@ -68,7 +68,7 @@ export function Header() {
               <div className="flex items-center gap-3">
                 <Link
                   href={profileHref}
-                  title="Abrir configurações do perfil"
+                  title="Abrir o perfil"
                   className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-[#0056D2] text-white text-sm font-bold hover:bg-[#0047ad] shadow-md transition-all active:scale-95"
                 >
                   <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-base">👤</span>
@@ -117,7 +117,7 @@ export function Header() {
               <div className="flex items-center gap-2">
                 <Link
                   href={profileHref}
-                  title="Abrir configurações do perfil"
+                  title="Abrir o perfil"
                   className="inline-flex items-center gap-2 h-10 px-3 rounded-xl bg-[#0056D2] text-white text-sm font-bold hover:bg-[#0047ad] shadow-md transition-all active:scale-95"
                   aria-label="Perfil"
                 >
