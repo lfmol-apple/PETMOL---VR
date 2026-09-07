@@ -293,6 +293,21 @@ def run_pg_migrations(engine: Engine) -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_public_missing_pet_submissions_ip ON public_missing_pet_submissions (ip_address)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_public_missing_pet_submissions_created ON public_missing_pet_submissions (created_at)"))
 
+        # missing_pet_abuse_reports: denúncia de alerta (App Store 1.2 — UGC) (Set 2026)
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS missing_pet_abuse_reports (
+                id               TEXT PRIMARY KEY,
+                missing_pet_id   TEXT NOT NULL,
+                reason           TEXT NOT NULL,
+                note             TEXT,
+                reporter_ip      TEXT,
+                reporter_user_id TEXT,
+                created_at       TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_missing_pet_abuse_reports_pet ON missing_pet_abuse_reports (missing_pet_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_missing_pet_abuse_reports_ip ON missing_pet_abuse_reports (reporter_ip)"))
+
         # pets: invite token for caretaker sharing (Jul 2026)
         _pg_add_column_if_missing(conn, "pets", "invite_token", "VARCHAR(64)")
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_pets_invite_token ON pets (invite_token)"))
@@ -922,6 +937,18 @@ def run_sqlite_migrations(engine: Engine) -> None:
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_public_missing_pet_submissions_ip ON public_missing_pet_submissions (ip_address)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_public_missing_pet_submissions_created ON public_missing_pet_submissions (created_at)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS missing_pet_abuse_reports (
+                id               TEXT PRIMARY KEY,
+                missing_pet_id   TEXT NOT NULL,
+                reason           TEXT NOT NULL,
+                note             TEXT,
+                reporter_ip      TEXT,
+                reporter_user_id TEXT,
+                created_at       DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_missing_pet_abuse_reports_pet ON missing_pet_abuse_reports (missing_pet_id)"))
 
         # analytics_events: distinguish monetized vs unmonetized clicks (Aug 2026)
         changed |= _sqlite_add_column_if_missing(conn, "analytics_events", "link_type", "TEXT")
