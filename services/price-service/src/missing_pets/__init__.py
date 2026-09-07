@@ -318,6 +318,22 @@ class PublicMissingPetSubmission(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
+class MissingPetAbuseReport(Base):
+    """Denúncia de um alerta de pet perdido — conteúdo impróprio, golpe, spam.
+    Exigência da App Store 1.2 (conteúdo gerado por usuário). 2+ denúncias de
+    IPs distintos derrubam o alerta (status='removed'), que some da lista
+    pública e dos broadcasts imediatamente, pendente de revisão do time."""
+    __tablename__ = "missing_pet_abuse_reports"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    missing_pet_id = Column(String(36), nullable=False, index=True)
+    reason = Column(String(40), nullable=False)
+    note = Column(Text, nullable=True)
+    reporter_ip = Column(String(80), nullable=True, index=True)
+    reporter_user_id = Column(String(36), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
 class MissingPetCreate(BaseModel):
@@ -334,6 +350,16 @@ class MissingPetCreate(BaseModel):
     missing_date: Optional[str] = None
     missing_time: Optional[str] = None
     photo_url: Optional[str] = None
+
+
+ABUSE_REASONS = {
+    "foto_impropria", "golpe_info_falsa", "spam", "nao_e_pet_perdido", "outro",
+}
+
+
+class AbuseReportCreate(BaseModel):
+    reason: str
+    note: Optional[str] = None
 
 
 class FoundReportCreate(BaseModel):
@@ -1268,7 +1294,58 @@ def list_missing_pets(include_found: bool = False, db: Session = Depends(get_db)
     q = db.query(MissingPet)
     if not include_found:
         q = q.filter(MissingPet.status == "active")
+    else:
+        # status='removed' (2+ denúncias) nunca volta pra lista pública
+        q = q.filter(MissingPet.status != "removed")
     return [_mp_to_public_dict(p) for p in q.order_by(MissingPet.created_at.desc()).limit(200).all()]
+
+
+@router.post("/{mp_id}/report", status_code=201)
+def report_missing_pet(
+    mp_id: str,
+    body: AbuseReportCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Denunciar um alerta de pet perdido (App Store 1.2 — UGC). Qualquer
+    pessoa que vê o alerta pode denunciar. 2+ denúncias de IPs distintos
+    derrubam o alerta na hora (status='removed'), pendente de revisão."""
+    _enforce_rate_limit(request, "report-abuse", max_requests=10, window_seconds=3600)
+    reason = (body.reason or "").strip()
+    if reason not in ABUSE_REASONS:
+        raise HTTPException(status_code=400, detail="Motivo inválido")
+
+    mp = db.query(MissingPet).filter(MissingPet.id == mp_id).first()
+    if not mp:
+        raise HTTPException(status_code=404, detail="Alerta não encontrado")
+
+    ip = rate_limiter._get_client_ip(request)
+    note = (body.note or "").strip()[:1000] or None
+
+    db.add(MissingPetAbuseReport(
+        missing_pet_id=mp.id,
+        reason=reason,
+        note=note,
+        reporter_ip=ip,
+        reporter_user_id=str(current_user.id) if current_user else None,
+    ))
+    db.flush()
+
+    distinct_reporters = (
+        db.query(MissingPetAbuseReport.reporter_ip)
+        .filter(MissingPetAbuseReport.missing_pet_id == mp.id)
+        .distinct()
+        .count()
+    )
+    hidden = False
+    if distinct_reporters >= 2 and mp.status == "active":
+        mp.status = "removed"
+        hidden = True
+        logging.warning("[missing-pet] alerta %s removido após %s denúncias", mp.id[:8], distinct_reporters)
+
+    db.commit()
+    return {"status": "received", "hidden": hidden}
 
 
 @sighting_router.post("", status_code=201)

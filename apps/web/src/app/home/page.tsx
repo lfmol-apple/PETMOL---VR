@@ -31,6 +31,7 @@ const GroomingItemSheet = dynamic(() => import('@/components/home/GroomingItemSh
 const OnboardingChecklistCard = dynamic(() => import('@/components/home/OnboardingChecklistCard').then(m => ({ default: m.OnboardingChecklistCard })), { ssr: false });
 const PetSumidoSheet = dynamic(() => import('@/components/home/PetSumidoSheet').then(m => ({ default: m.PetSumidoSheet })), { ssr: false });
 const UpcomingEventsSheet = dynamic(() => import('@/components/home/UpcomingEventsSheet').then(m => ({ default: m.UpcomingEventsSheet })), { ssr: false });
+const ReportAlertSheet = dynamic(() => import('@/components/home/ReportAlertSheet').then(m => ({ default: m.ReportAlertSheet })), { ssr: false });
 import type { PetCareReminder } from '@/lib/petCareDomain';
 import { useMultipetInteractions } from '@/features/interactions/useMultipetInteractions';
 import type { PetInteractionItem } from '@/features/interactions/types';
@@ -613,6 +614,7 @@ function HomePageInner() {
   // Cartaz ampliado do alerta — abre na hora com os dados que já temos,
   // sem carregar página nova (o /pet-perdido é server-render e demora).
   const [alertCard, setAlertCard] = useState<NearbyAlert | null>(null);
+  const [reportAlert, setReportAlert] = useState<NearbyAlert | null>(null);
 
   const DISMISS_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
 
@@ -2168,17 +2170,27 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                   {/* Ação secundária DELIBERADA de ocultar (não é o "recolher"):
                       esconde o alerta da Home por um tempo. Continua acessível
                       na área "Pets desaparecidos na região". Nunca um X ambíguo. */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      writeDismissedId(alert.id);
-                      setHandledAlertIds(prev => [...new Set([...prev, alert.id])]);
-                      setNearbyAlerts(prev => prev.filter(a => a.id !== alert.id));
-                    }}
-                    className="w-full border-t border-white/15 py-2 text-center text-[11px] font-semibold text-white/60 active:bg-black/10"
-                  >
-                    Não mostrar este alerta por enquanto
-                  </button>
+                  <div className="flex items-center border-t border-white/15">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        writeDismissedId(alert.id);
+                        setHandledAlertIds(prev => [...new Set([...prev, alert.id])]);
+                        setNearbyAlerts(prev => prev.filter(a => a.id !== alert.id));
+                      }}
+                      className="flex-1 py-2 text-center text-[11px] font-semibold text-white/60 active:bg-black/10"
+                    >
+                      Não mostrar por enquanto
+                    </button>
+                    <span className="text-white/20">·</span>
+                    <button
+                      type="button"
+                      onClick={() => setReportAlert(alert)}
+                      className="flex-1 py-2 text-center text-[11px] font-semibold text-white/60 active:bg-black/10"
+                    >
+                      Denunciar
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -2790,6 +2802,15 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         onClose={() => setShowEmergencySheet(false)}
       />
 
+      {reportAlert && (
+        <ReportAlertSheet
+          open
+          alertId={reportAlert.id}
+          petName={reportAlert.pet_name}
+          onClose={() => setReportAlert(null)}
+        />
+      )}
+
       {/* Modal de fotos do achador */}
       {(photosModal || photosModalLoading) && (
         <div className="fixed inset-0 z-[80] flex flex-col bg-black/80 backdrop-blur-sm" onClick={closePhotosModal}>
@@ -2975,6 +2996,13 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     Abrir cartaz pra compartilhar
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => { const a = alertCard; setAlertCard(null); setReportAlert(a); }}
+                  className="mt-3 w-full py-2 text-center text-[12px] font-semibold text-white/45 active:opacity-70"
+                >
+                  Denunciar este alerta
+                </button>
               </div>
             </div>
           </div>
