@@ -8,7 +8,7 @@ export default function PrivacyPage() {
       backHref="/"
     >
       <PremiumCard>
-        <p className="text-slate-500 text-xs mb-6">Última atualização: 25 de agosto de 2026</p>
+        <p className="text-slate-500 text-xs mb-6">Última atualização: 7 de setembro de 2026</p>
         <div className="prose prose-sm prose-slate max-w-none">
           <h2>1. Introdução</h2>
           <p>
@@ -45,8 +45,10 @@ export default function PrivacyPage() {
 
           <h3>2.4. Dados de Localização</h3>
           <ul>
-            <li>Localização aproximada para busca de estabelecimentos próximos (quando autorizado)</li>
-            <li>Endereço informado no cadastro</li>
+            <li>
+              <strong>Localização precisa</strong> (latitude/longitude), apenas quando você autoriza e enquanto o app está em uso — nunca em segundo plano, sem rastreamento contínuo. Usada em: (a) busca de estabelecimentos próximos (petshops, veterinários, emergência); (b) o fluxo &quot;Pet Sumido&quot; / &quot;Achei um pet&quot;, para registrar o último local visto e enviar alertas geolocalizados a quem está por perto; (c) ao ativar notificações, para direcionar alertas de pet perdido à sua região
+            </li>
+            <li>Endereço e/ou CEP informados por você no cadastro ou no perfil</li>
           </ul>
 
           <h2>3. Finalidade do Tratamento de Dados</h2>
@@ -59,6 +61,7 @@ export default function PrivacyPage() {
             <li>Enviar lembretes de vacinas, medicamentos e eventos</li>
             <li>Permitir busca de estabelecimentos próximos</li>
             <li>Gerar carteirinha digital de vacinação</li>
+            <li>Localizar um pet desaparecido e enviar alertas a tutores próximos (fluxo &quot;Pet Sumido&quot;)</li>
           </ul>
 
           <h3>3.2. Comunicação</h3>
