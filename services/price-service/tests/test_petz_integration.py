@@ -112,7 +112,7 @@ def _assert_petz_unavailable_payload(body: dict) -> None:
 
 def _assert_petz_search_fallback(body: dict) -> None:
     """Master gate LIGADO, produto sem mapping confirmado — "Ver na Petz"
-    ainda aparece, levando à busca do site da Petz + cupom PETTMOL."""
+    ainda aparece, levando à busca do site da Petz + cupom PETMOL."""
     assert body["available"] is True
     assert body["partner_program_active"] is True
     assert body["direct_product_url"] is None
@@ -148,7 +148,7 @@ def test_validator_rejects_bad_urls(bad_url):
 
 
 @pytest.mark.parametrize("bad_url", [
-    "https://www.petz.com.br/parceiro/pettmol",
+    "https://www.petz.com.br/parceiro/PETMOL",
     "https://www.petz.com.br/busca?q=racao",
     "https://www.petz.com.br/produto/racao-100223?utm_source=x",
     "https://www.petz.com.br/produto/racao-100223#cupom",
@@ -225,7 +225,7 @@ def test_confirm_rejects_non_product_url_before_persisting():
                 db,
                 product_id,
                 petz_product_id="100223",
-                product_url="https://www.petz.com.br/parceiro/pettmol",
+                product_url="https://www.petz.com.br/parceiro/PETMOL",
             )
         assert get_mapping(db, product_id) is None
     finally:
@@ -267,7 +267,7 @@ def test_admin_confirm_rejects_partner_or_mutated_urls(admin_client):
     _register_product(gtin="9990000000092")
 
     for bad_url in (
-        "https://www.petz.com.br/parceiro/pettmol",
+        "https://www.petz.com.br/parceiro/PETMOL",
         "https://www.petz.com.br/busca?q=vermifugo",
         "https://www.petz.com.br/produto/vermifugo-100292?utm_source=x",
     ):
@@ -479,7 +479,7 @@ async def test_commerce_engine_still_returns_empty_with_confirmed_petz_but_no_pr
 # ── GET /commerce/petz-direct-link ("Ver na Petz") ───────────────────────
 # Caminho deliberadamente separado do CommerceEngine (ver docstring do
 # endpoint em main.py). Retorna a URL real do produto confirmado,
-# separada da storefront fixa + cupom PETTMOL. Nunca lê nem inventa
+# separada da storefront fixa + cupom PETMOL. Nunca lê nem inventa
 # affiliate_product_url individual.
 
 def test_petz_direct_link_unknown_gtin_without_name_falls_back_to_partner_store(client, monkeypatch):
@@ -786,6 +786,6 @@ def test_petz_monetized_offer_store_context_works_once_verified(client, monkeypa
     offer = resp.json()["offer"]
     assert offer == {
         "merchant": "petz",
-        "url": "https://www.petz.com.br/parceiro/pettmol",
+        "url": "https://www.petz.com.br/parceiro/PETMOL",
         "link_type": "affiliate_store",
     }

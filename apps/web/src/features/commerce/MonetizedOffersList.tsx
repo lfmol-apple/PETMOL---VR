@@ -234,7 +234,7 @@ export function MonetizedOffersList({
 /**
  * Card no mesmo formato visual dos cards de oferta acima, mas em azul (não
  * emerald) pra nunca parecer "a mesma comparação de preço" — a Petz não
- * tem preço por produto, só a storefront fixa + cupom PETTMOL (10% off,
+ * tem preço por produto, só a storefront fixa + cupom PETMOL (10% off,
  * aplicado manualmente no checkout — ver docs/AFFILIATES.md §Petz). Nunca
  * renderiza nada até o backend confirmar que o produto existe no catálogo
  * Petz (petzLink.available); some sozinho se a chamada falhar/demorar.
@@ -255,7 +255,7 @@ function PetzStorefrontCard({ petzLink, productLabel, onClick }: { petzLink: Pet
           <p className="text-[12px] text-gray-500">Petz</p>
         </div>
         <div className="text-right flex-shrink-0">
-          <p className="text-[13px] font-black leading-tight text-blue-700">Cupom PETTMOL</p>
+          <p className="text-[13px] font-black leading-tight text-blue-700">Cupom PETMOL</p>
           <p className="text-[11px] text-gray-500">10% off no checkout</p>
         </div>
       </div>
@@ -263,7 +263,7 @@ function PetzStorefrontCard({ petzLink, productLabel, onClick }: { petzLink: Pet
         Ver na Petz ↗
       </span>
       <p className="mt-1.5 text-center text-[11px] font-semibold text-blue-700">
-        Aplique o cupom PETTMOL no carrinho antes de finalizar
+        Aplique o cupom PETMOL no carrinho antes de finalizar
       </p>
     </button>
   );

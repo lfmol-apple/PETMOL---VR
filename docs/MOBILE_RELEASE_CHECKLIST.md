@@ -16,7 +16,7 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 
 ## Commerce / afiliados
 
-- [x] Petz bloqueada publicamente em produção enquanto a atribuição de comissão do cupom PETTMOL não for comprovada por compra real (`petz_coupon_attribution_verified=false`, ver `docs/PETZ_COMMISSION_VALIDATION.md` — status: NÃO COMPROVADO) — `/api/handoff/shop?partner=petz`, `/commerce/petz-direct-link` e `/commerce/monetized-offer?merchant=petz` todos passam por `is_petz_publicly_servable()` e retornam vazio/503 até lá (25/08/2026, auditoria de monetização — corrigiu um P0 real em que `/commerce/petz-direct-link` servia URL sem checar nenhuma flag)
+- [x] Petz bloqueada publicamente em produção enquanto a atribuição de comissão do cupom PETMOL não for comprovada por compra real (`petz_coupon_attribution_verified=false`, ver `docs/PETZ_COMMISSION_VALIDATION.md` — status: NÃO COMPROVADO) — `/api/handoff/shop?partner=petz`, `/commerce/petz-direct-link` e `/commerce/monetized-offer?merchant=petz` todos passam por `is_petz_publicly_servable()` e retornam vazio/503 até lá (25/08/2026, auditoria de monetização — corrigiu um P0 real em que `/commerce/petz-direct-link` servia URL sem checar nenhuma flag)
 - [x] Links de afiliado no mobile abrem fora do WebView em plataforma nativa — `navigateToPartnerUrl` detecta `Capacitor.isNativePlatform()` e usa `@capacitor/browser`; comportamento em PWA/tab normal inalterado
 
 ## Responsividade / UX mobile

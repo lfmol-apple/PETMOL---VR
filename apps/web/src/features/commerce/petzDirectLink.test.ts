@@ -15,8 +15,8 @@ describe('fetchPetzDirectLink — "Ver na Petz" (caminho separado do CommerceEng
         url: 'https://www.petz.com.br/produto/x-100223',
         direct_product_url: 'https://www.petz.com.br/produto/x-100223',
         search_url: 'https://www.petz.com.br/busca?q=Ra%C3%A7%C3%A3o+X',
-        partner_store_url: 'https://www.petz.com.br/parceiro/pettmol',
-        coupon_code: 'PETTMOL',
+        partner_store_url: 'https://www.petz.com.br/parceiro/PETMOL',
+        coupon_code: 'PETMOL',
         affiliate_program: 'petz_partner',
         link_type: 'affiliate_store',
       }),
@@ -27,7 +27,7 @@ describe('fetchPetzDirectLink — "Ver na Petz" (caminho separado do CommerceEng
 
     expect(result.url).toBe('https://www.petz.com.br/produto/x-100223');
     expect(result.direct_product_url).toBe('https://www.petz.com.br/produto/x-100223');
-    expect(result.coupon_code).toBe('PETTMOL');
+    expect(result.coupon_code).toBe('PETMOL');
   });
 
   it('produto sem mapping confirmado → destino é a busca do site da Petz + passa o nome como q', async () => {
@@ -39,8 +39,8 @@ describe('fetchPetzDirectLink — "Ver na Petz" (caminho separado do CommerceEng
         url: 'https://www.petz.com.br/busca?q=Ra%C3%A7%C3%A3o+Golden',
         direct_product_url: null,
         search_url: 'https://www.petz.com.br/busca?q=Ra%C3%A7%C3%A3o+Golden',
-        partner_store_url: 'https://www.petz.com.br/parceiro/pettmol',
-        coupon_code: 'PETTMOL',
+        partner_store_url: 'https://www.petz.com.br/parceiro/PETMOL',
+        coupon_code: 'PETMOL',
         affiliate_program: 'petz_partner',
         link_type: 'affiliate_store',
       }),

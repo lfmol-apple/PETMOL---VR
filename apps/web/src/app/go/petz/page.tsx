@@ -17,7 +17,7 @@ import { copyText } from '@/lib/clipboard';
 //    esta página fica em petmol.com.br (sem AASA) e navega pra Petz por
 //    JS (location.replace) pra um path FORA da AASA da Petz
 //    (`/busca`, `/parceiro/*` — nunca `/`, `/produto/*`, `/colecao/*`).
-// 2. Entregar o cupom PETTMOL: no app (WKWebView) `navigator.clipboard`
+// 2. Entregar o cupom PETMOL: no app (WKWebView) `navigator.clipboard`
 //    é instável, mas AQUI a página roda no SFSafariViewController /
 //    navegador do sistema, onde `copyText` funciona SOB GESTO. Por isso
 //    o cupom é o herói da tela, com botão de copiar, e o "Ir pra a

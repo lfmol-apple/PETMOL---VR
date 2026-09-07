@@ -1541,7 +1541,7 @@ async def commerce_petz_direct_link(
     (prova comercial — compra real testada em 29/08/2026, ver
     docs/PETZ_COMMISSION_VALIDATION.md).
 
-    MECANISMO DE COMISSÃO (Parceiro Petz): é o CUPOM `PETTMOL` aplicado no
+    MECANISMO DE COMISSÃO (Parceiro Petz): é o CUPOM `PETMOL` aplicado no
     checkout — "7% em cima de todas as vendas no site/app utilizando o
     seu código" (doc oficial Petz). A URL de chegada NÃO importa para a
     atribuição. Por isso, quando o master gate está ligado, este endpoint

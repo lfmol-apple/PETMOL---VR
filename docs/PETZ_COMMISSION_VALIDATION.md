@@ -1,10 +1,18 @@
-# Validação de comissão — Parceiro Petz (cupom PETTMOL)
+# Validação de comissão — Parceiro Petz (cupom PETMOL)
+
+> **07/09/2026 — cupom e link mudaram.** O painel do Parceiro Petz passou a
+> emitir o cupom/código de convite **`PETMOL`** (antes `PETTMOL`) e o link
+> fixo **`https://www.petz.com.br/parceiro/PETMOL`** (antes `.../pettmol`).
+> Código + testes atualizados. As linhas de log datadas abaixo (29/08) são
+> históricas e ficam como estão — os testes daquele dia usaram `PETTMOL`.
+> **Pendente de reverificação:** abrir o novo link e confirmar que aparece
+> "loja PETMOL do Parceiro Petz" + cupom pré-preenchido/válido.
 
 Status: **REATIVADA em produção 04/09/2026** (PR #210) como card "Loja
 Parceira" na grade "Ou visite uma loja parceira" da Loja do Pet —
 `affiliateStatus: 'active'` no frontend. Arquitetura final, simplificada
 em relação a tudo que este documento registra abaixo: **SEMPRE**
-`https://www.petz.com.br/parceiro/pettmol` — nunca busca, nunca produto,
+`https://www.petz.com.br/parceiro/PETMOL` — nunca busca, nunca produto,
 nunca two-hop. Essa é exatamente a "Caminho A" descrita abaixo, sem as
 complicações que a fizeram ser abandonada em 29/08 (essas complicações
 eram todas sobre tentar mostrar o PRODUTO na tela também — como a versão
@@ -17,7 +25,7 @@ Isso volta a garantir a comissão automática (via cookie `petzPartner` —
 ver "Caminho A" abaixo) em 100% dos toques em "Petz", em qualquer
 plataforma (web, PWA, app nativo), o que a versão anterior (busca com
 cupom copiado) não garantia sozinha. `openPetzPartnerStore` continua
-copiando o cupom PETTMOL pro clipboard — cobre o cliente deslogado na
+copiando o cupom PETMOL pro clipboard — cobre o cliente deslogado na
 Petz (a maioria), que não ganha o pré-preenchimento automático do
 cookie (ver "Caminho A" abaixo).
 
@@ -47,42 +55,42 @@ líquido). Trecho da FAQ oficial do painel (`parceiropetz.com.br/manager`
 
 ### Caminho A — entrar pela Loja Parceira (recomendado)
 
-Ao abrir **`https://www.petz.com.br/parceiro/pettmol`** (navegação
+Ao abrir **`https://www.petz.com.br/parceiro/PETMOL`** (navegação
 top-level), a Petz grava um cookie first-party:
 
 | Cookie | `petzPartner` |
 |---|---|
 | Domínio / path | `www.petz.com.br` / `/` |
-| Conteúdo | JSON URL-encoded com `idPartner` + `pettmol` (~126 chars, legível por JS) |
+| Conteúdo | JSON URL-encoded com `idPartner` + `PETMOL` (~126 chars, legível por JS) |
 | SameSite / Secure / HttpOnly | `Lax` / não / não |
 | Expiração | **~30 minutos**, renovada a cada visita à loja parceira |
 
 Com esse cookie presente, no carrinho (`/checkout`):
-- aparece **"Você está comprando na loja pettmol do Parceiro Petz"**
+- aparece **"Você está comprando na loja PETMOL do Parceiro Petz"**
   (atribuição ativa — vale mesmo sem login, é só o cookie);
 - **cliente logado na Petz**: o campo "Cupom de desconto" vem
-  **pré-preenchido com `PETTMOL`** e validado (✓), e o desconto de
+  **pré-preenchido com `PETMOL`** e validado (✓), e o desconto de
   **10% é aplicado automaticamente** (testado em produto sem promoção:
   R$ 99,99 → −R$ 10,00) — zero ação do cliente;
 - **cliente deslogado (maioria dos casos reais)**: a atribuição/comissão
   do cookie continua valendo, mas o campo de cupom **não** vem
-  pré-preenchido — precisa digitar/colar `PETTMOL` pra ganhar os 10%. É
-  por isso que `openPetzPartnerStore` (frontend) copia `PETTMOL` pro
+  pré-preenchido — precisa digitar/colar `PETMOL` pra ganhar os 10%. É
+  por isso que `openPetzPartnerStore` (frontend) copia `PETMOL` pro
   clipboard nesse mesmo clique: transforma "digitar o código" em "colar",
   que é o mais próximo de automático que dá pra garantir sem depender do
   cliente estar logado.
 
 **Não existe deep link oficial de produto.** O painel (Divulgação) só
-oferece: cupom `PETTMOL`, código de convite `PETTMOL` e o link fixo
-`petz.com.br/parceiro/pettmol`. Testado e negado:
+oferece: cupom `PETMOL`, código de convite `PETMOL` e o link fixo
+`petz.com.br/parceiro/PETMOL`. Testado e negado:
 `/parceiro/pettmol/produto/<slug>` → 404; `?redirectUrl=` / `?url=` /
 `?q=` → ignorados. A loja parceira tem catálogo completo (mesmo do site)
 e busca própria — o cliente procura o produto lá dentro.
 
-### Caminho B — cupom PETTMOL digitado
+### Caminho B — cupom PETMOL digitado
 
 Também atribui, mas: **não acumula com promoção maior do produto**
-(ex: produto com 30% OFF → PETTMOL adiciona R$ 0). Serve de reserva
+(ex: produto com 30% OFF → PETMOL adiciona R$ 0). Serve de reserva
 quando o cookie do Caminho A expira.
 
 ## Consequência para o PETMOL — PRODUTO NA TELA + CUPOM (a partir de 29/08/2026, PR #110)
@@ -123,9 +131,9 @@ curadoria → deslug da própria URL do produto (`deslug_petz_product_url`).
   fica na resposta do backend mas o frontend ignora.
 - ponte faz `window.location.replace(to)` (redirect JS, nunca `<a href>`)
   pra um path fora da AASA. Vale em web, PWA e app.
-- **cupom `PETTMOL` copiado pro clipboard** — mecanismo de atribuição
+- **cupom `PETMOL` copiado pro clipboard** — mecanismo de atribuição
   (Caminho B da FAQ). A busca da Petz **não grava** `petzPartner`.
-- **10% / comissão dependem do cliente colar `PETTMOL` no carrinho.**
+- **10% / comissão dependem do cliente colar `PETMOL` no carrinho.**
   Não acumula com promoção maior do produto.
 
 **Trade-off aceito:** (a) comissão depende do cupom colado; (b) produto

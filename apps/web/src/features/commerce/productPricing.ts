@@ -205,7 +205,7 @@ export interface PetzDirectLink {
  * produto). Quando o programa Parceiro Petz está ativo, aparece para
  * QUALQUER produto: leva à página do produto confirmado quando existe,
  * senão à busca do site da Petz pelo nome — em ambos os casos a comissão
- * vem do cupom PETTMOL no checkout. Ver GET /commerce/petz-direct-link e
+ * vem do cupom PETMOL no checkout. Ver GET /commerce/petz-direct-link e
  * docs/PETZ_COMMISSION_VALIDATION.md.
  */
 export async function fetchPetzDirectLink(
