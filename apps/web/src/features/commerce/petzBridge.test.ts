@@ -60,7 +60,7 @@ describe('petzBridgeUrl / isRealPetzUrl / isPetzAppClaimedUrl', () => {
     expect(isPetzAppClaimedUrl('https://www.petz.com.br/colecao/gatos')).toBe(true);
     expect(isPetzAppClaimedUrl('https://www.petz.com.br/minhas-assinaturas/x')).toBe(true);
     expect(isPetzAppClaimedUrl('https://www.petz.com.br/busca?q=racao')).toBe(false);
-    expect(isPetzAppClaimedUrl('https://www.petz.com.br/parceiro/pettmol')).toBe(false);
+    expect(isPetzAppClaimedUrl('https://www.petz.com.br/parceiro/PETMOL')).toBe(false);
     expect(isPetzAppClaimedUrl('https://evil.com/produto/x')).toBe(false);
   });
 });

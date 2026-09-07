@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Capacitor (app nativo PETMOL): "Ver na Petz" / card "Petz" abre a ponte
 // /go/petz no navegador do sistema (SFSafariViewController / Chrome
 // Custom Tab) via @capacitor/browser. A ponte SEMPRE redireciona por JS
-// pra a Loja Parceira (`/parceiro/pettmol`) — nunca `/busca?q=` nem
+// pra a Loja Parceira (`/parceiro/PETMOL`) — nunca `/busca?q=` nem
 // `/produto/...` (decisão de produto, 04/09/2026: reduzir ao máximo o
-// risco de perder comissão). O cupom PETTMOL vai pro clipboard antes.
+// risco de perder comissão). O cupom PETMOL vai pro clipboard antes.
 // Ver docs/AFFILIATES.md §Petz.
 
 const browserOpen = vi.fn().mockResolvedValue(undefined);
@@ -45,7 +45,7 @@ describe('openPetzPartnerStore — Capacitor', () => {
     expect(url.searchParams.get('to')).toBeNull();
     expect(url.href).not.toContain('/produto/');
     expect(url.href).not.toContain('/busca');
-    expect(writeText).toHaveBeenCalledWith('PETTMOL');
+    expect(writeText).toHaveBeenCalledWith('PETMOL');
   });
 
   it('produto sem mapping (só searchUrl): ponte /go/petz sem ?to= — vai pra Loja Parceira', async () => {

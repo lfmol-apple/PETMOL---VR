@@ -10,7 +10,7 @@ Ver `docs/AFFILIATES.md` pro mecanismo técnico de cada um;
 |---|---|---|---|---|
 | Cobasi (MAIS) | Empreendedor MAIS — cadastro manual próprio | `ProductAffiliateLink` (cached) | Pausado por decisão de produto (`cobasi_affiliate_mode=disabled` desde 15/08/2026) | Documentado em `config.py` |
 | Cobasi (Awin) | Awin advertiser 17870 | Feed Awin + `AffiliateFeedOffer` | Autorização confirmada (`commercial_status=approved`) — visibilidade real depende de `awin_enabled` | `awin_advertisers.py` |
-| Petz | Programa próprio "Loja Parceira" (storefront + cupom PETTMOL) | `PetzProductMapping` + `is_petz_publicly_servable()` | Autorização de produto existe; **comissão NÃO comprovada** por compra real | `docs/PETZ_COMMISSION_VALIDATION.md` — status NÃO COMPROVADO |
+| Petz | Programa próprio "Loja Parceira" (storefront + cupom PETMOL) | `PetzProductMapping` + `is_petz_publicly_servable()` | Autorização de produto existe; **comissão NÃO comprovada** por compra real | `docs/PETZ_COMMISSION_VALIDATION.md` — status NÃO COMPROVADO |
 | Shopee | Portal do Afiliado Shopee | `MarketplaceOffer` | Ativo (`shopee_affiliate_enabled=true` por padrão) | Cadastro manual por link oficial |
 | Mercado Livre | Programa de Afiliados e Criadores (Gerador de Links) — sem API própria | `MarketplaceOffer` via CSV manual | Mecanismo comprovado por link; visibilidade pública desligada por decisão de rollout (`mercadolivre_affiliate_enabled=false`) | `docs/AFFILIATES.md` §ML |
 | Zee Now | Awin advertiser 127557 | Feed Awin | Autorização confirmada (`commercial_status=approved`) | `awin_advertisers.py` |

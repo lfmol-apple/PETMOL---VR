@@ -68,7 +68,7 @@ def test_handoff_shop_petz_works_by_default(client):
     monkeypatch, o handoff já funciona."""
     resp = client.get("/handoff/shop", params={"partner": "petz"}, follow_redirects=False)
     assert resp.status_code == 302
-    assert resp.headers["location"] == "https://www.petz.com.br/parceiro/pettmol"
+    assert resp.headers["location"] == "https://www.petz.com.br/parceiro/PETMOL"
 
 
 def test_handoff_shop_petz_works_once_gate_verified(client, monkeypatch):
@@ -79,7 +79,7 @@ def test_handoff_shop_petz_works_once_gate_verified(client, monkeypatch):
 
     resp = client.get("/handoff/shop", params={"partner": "petz"}, follow_redirects=False)
     assert resp.status_code == 302
-    assert resp.headers["location"] == "https://www.petz.com.br/parceiro/pettmol"
+    assert resp.headers["location"] == "https://www.petz.com.br/parceiro/PETMOL"
 
 
 def test_handoff_shop_cobasi_blocked_when_mode_disabled(client, monkeypatch):

@@ -9,7 +9,7 @@ Ele reconhece um PetzProductMapping confirmado e retorna a página real
 do produto como direct_url, sempre com price=None; o CommerceEngine
 descarta essa oferta antes de chamar monetize() (ver
 commerce_provider.py). A superfície pública "Ver na Petz" fica no
-endpoint separado /commerce/petz-direct-link, que copia o cupom PETTMOL
+endpoint separado /commerce/petz-direct-link, que copia o cupom PETMOL
 e não depende de affiliate_product_url individual.
 
 Registrado sempre em commerce_offers.build_default_engine() (mesmo
@@ -43,7 +43,7 @@ def is_petz_publicly_servable() -> bool:
 
     petz_affiliate_enabled = rollout/kill-switch técnico.
     petz_coupon_attribution_verified = prova comercial separada — "o
-    cupom PETTMOL realmente gera comissão" foi validado com uma compra
+    cupom PETMOL realmente gera comissão" foi validado com uma compra
     real em 29/08/2026 (ver docs/PETZ_COMMISSION_VALIDATION.md), então
     esta flag passou a ser ligada explicitamente em produção. Produto
     confirmado no catálogo (petz_mapping.match_status) NUNCA é, sozinho,
@@ -60,11 +60,11 @@ def is_petz_publicly_servable() -> bool:
     busca/produto do site da Petz, que tem bugs fora do nosso controle (o
     link da foto abre outro produto / o app). O PR #210 mudou o frontend
     (openPetzPartnerStore) pra SEMPRE abrir a Loja Parceira fixa
-    (/parceiro/pettmol) em qualquer clique em "Petz" — nunca mais busca ou
+    (/parceiro/PETMOL) em qualquer clique em "Petz" — nunca mais busca ou
     produto, não importa o que este endpoint devolva. Isso elimina o
     motivo original: a página com bugs não é mais alcançável a partir do
     app, então "Ver na Petz" por produto específico pôde voltar (copia
-    PETTMOL + abre a Loja Parceira, igual ao card da grade).
+    PETMOL + abre a Loja Parceira, igual ao card da grade).
 
     Kill-switch: `petz_publicly_disabled` (default False desde 04/09/2026)
     ainda existe pra desligar tudo rápido sem mexer no env do VPS, se
@@ -147,5 +147,5 @@ class PetzProvider:
             return None
 
         # Petz Partner usa storefront + cupom; a URL específica de produto
-        # é direta e só deve aparecer em superfícies que copiam PETTMOL.
+        # é direta e só deve aparecer em superfícies que copiam PETMOL.
         return offer.direct_url, "affiliate_store", "petz_partner", True

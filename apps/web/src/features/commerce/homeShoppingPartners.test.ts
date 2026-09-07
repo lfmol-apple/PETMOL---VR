@@ -21,7 +21,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
 
     expect(HOME_SHOPPING_PARTNERS.map((partner) => partner.affiliateStatus)).toEqual([
       'active',    // cobasi
-      'active',    // petz — Loja Parceira + cupom PETTMOL
+      'active',    // petz — Loja Parceira + cupom PETMOL
       'disabled',  // mercadolivre — fora do lançamento, entra depois
       'active',    // shopee
     ]);
@@ -138,7 +138,7 @@ describe('homeShoppingPartners — parceiros ativos no app', () => {
       expect(cobasi && resolvePartnerUrl(cobasi, 'ração pet', '')).toContain('minhaloja.cobasi.com.br');
       expect(shopee && resolvePartnerUrl(shopee, 'ração pet', '')).toBe('https://s.shopee.com.br/4AzW1leQcW');
       expect(mercadoLivre && resolvePartnerUrl(mercadoLivre, 'ração pet', '')).toBe('https://meli.la/2ftAKx5');
-      expect(petz && resolvePartnerUrl(petz, 'ração pet', '')).toContain('petz.com.br/parceiro/pettmol');
+      expect(petz && resolvePartnerUrl(petz, 'ração pet', '')).toContain('petz.com.br/parceiro/PETMOL');
       // Petz tem storefrontAffiliateUrl confirmada → conta como afiliado
       // mesmo em affiliate-only, então aparece junto de Cobasi/Shopee.
       expect(HOME_SHOPPING_PARTNERS.filter(isPartnerVisibleForSearch).map((partner) => partner.id)).toEqual([

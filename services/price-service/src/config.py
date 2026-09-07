@@ -394,11 +394,11 @@ class Settings(BaseSettings):
     petz_affiliate_enabled: bool = True
     # Prova comercial SEPARADA do gate acima (25/08/2026) — distingue
     # "produto confirmado no catálogo Petz" (petz_mapping.match_status)
-    # de "o cupom PETTMOL realmente atribui comissão ao PETMOL". A
+    # de "o cupom PETMOL realmente atribui comissão ao PETMOL". A
     # segunda coisa FOI provada com uma compra real testada e confirmada
     # no painel da Petz em 29/08/2026 (ver
     # docs/PETZ_COMMISSION_VALIDATION.md — cookie petzPartner + cupom
-    # PETTMOL, 10% aplicado, "loja pettmol do Parceiro Petz" no
+    # PETMOL, 10% aplicado, "loja PETMOL do Parceiro Petz" no
     # carrinho). Ligado por padrão desde 04/09/2026 com base nessa prova
     # já documentada — nunca "porque parece razoável que funcione assim".
     petz_coupon_attribution_verified: bool = True
@@ -407,12 +407,12 @@ class Settings(BaseSettings):
     #   levava pra busca/produto do site da Petz, que tem bugs fora do
     #   nosso controle (link da foto abre outro produto/o app).
     #   2026-09-04 (PR #210): o frontend (openPetzPartnerStore) passou a
-    #   SEMPRE abrir a Loja Parceira fixa (/parceiro/pettmol) pra
+    #   SEMPRE abrir a Loja Parceira fixa (/parceiro/PETMOL) pra
     #   qualquer clique em "Petz" — nunca mais busca ou produto,
     #   independente do que este endpoint devolver. Isso elimina o motivo
     #   original do kill-switch: a página de busca com bugs não é mais
     #   alcançável a partir do app. Reativado (default False) — "Ver na
-    #   Petz" por produto específico volta a aparecer (copia PETTMOL +
+    #   Petz" por produto específico volta a aparecer (copia PETMOL +
     #   abre a Loja Parceira, igual ao card da grade).
     petz_publicly_disabled: bool = False
 

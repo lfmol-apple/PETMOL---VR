@@ -167,7 +167,7 @@ def set_affiliate_link(
 ):
     """Endpoint legado/futuro para deep-link Petz oficial por produto.
     O modelo atual de lançamento é Petz Partner storefront + cupom
-    PETTMOL; este endpoint não é necessário para produto confirmado
+    PETMOL; este endpoint não é necessário para produto confirmado
     ficar pronto no caminho /commerce/petz-direct-link."""
     product = _resolve_product(db, gtin)
     mapping = get_mapping(db, product.id)

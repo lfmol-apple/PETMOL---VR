@@ -108,7 +108,7 @@ abaixo).
 | Cobasi | MAIS/UTM (7%, confirmado) + Awin (advertiser 17870, approved, 8,5% nominal) | API pública VTEX (dinâmico) + Awin feed (GTIN exato) | `route=awin` preferida desde 14/08/2026 (decisão de produto, comissão Awin ainda não validada por venda real); `route=mais` é o fallback e **sempre** vence quando há link cadastrado manualmente (`is_manually_cached`), independente de preferência | sim, 8.398 produtos sincronizados | monetização real ligada; exposição ainda depende de `AWIN_ENABLED=true` em produção |
 | Zee Now | Awin (advertiser 127557, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116779, 13.835 produtos observados; 13.605 GTINs válidos diretos, 152 UPC-11 corrigíveis, 78 inválidos e 9 grupos duplicados em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeenow`, exposição depende dos gates Awin |
 | Zee Dog | Awin (advertiser 127555, approved) | Awin feed (GTIN exato) | nenhuma até sync/exposição produtiva; quando houver linha válida usa `aw_deep_link`, nunca link direto | sim (fid 116649, 1.799 produtos observados, 100% GTIN válido/único em 22/08/2026) | aprovado; preparado para sync genérico `sync_awin_feed.py zeedog`, exposição depende dos gates Awin |
-| Petz | Awin (advertiser 127553, pending) + programa próprio "Loja Parceira" | `PetzProductMapping` — aprendizado por produto, confirmação humana (ver §Petz) | **ATIVA (card de Loja Parceira + "Ver na Petz" por produto, reativados 04/09/2026, PR #210 e PR de reativação do gate)** — comissão via cookie `petzPartner` (grava ao abrir `/parceiro/pettmol`, sempre o destino, não importa o que `/commerce/petz-direct-link` devolva) + cupom `PETTMOL` | não | tudo ativo; `petz_affiliate_enabled`/`petz_coupon_attribution_verified`/`petz_publicly_disabled` = True/True/False por padrão |
+| Petz | Awin (advertiser 127553, pending) + programa próprio "Loja Parceira" | `PetzProductMapping` — aprendizado por produto, confirmação humana (ver §Petz) | **ATIVA (card de Loja Parceira + "Ver na Petz" por produto, reativados 04/09/2026, PR #210 e PR de reativação do gate)** — comissão via cookie `petzPartner` (grava ao abrir `/parceiro/pettmol`, sempre o destino, não importa o que `/commerce/petz-direct-link` devolva) + cupom `PETMOL` | não | tudo ativo; `petz_affiliate_enabled`/`petz_coupon_attribution_verified`/`petz_publicly_disabled` = True/True/False por padrão |
 | Shopee | Shopee Affiliates | — (desligado 05/09/2026) | **SÓ VITRINE** (05/09/2026, winding-down) — só o card de storefront no rodapé da Loja do Pet (shortlink afiliado estático no frontend, independe do backend). **Sem** ofertas por produto, **sem** busca, **sem** sync. `shopee_affiliate_enabled=False`: `MarketplaceOfferProvider` não serve nem faz discovery; `start_sync_run` vira no-op. Ver §"Shopee só vitrine". Reverter: `SHOPEE_AFFILIATE_ENABLED=true` | n/a | código do matcher/Identity Engine intacto, só não é exercido enquanto a flag estiver `False` |
 | Mercado Livre | ML Afiliados | `MarketplaceOffer`/`mercadolivre_link_validator.py` — ponte manual controlada | **nenhuma — FORA DO LANÇAMENTO** (`mercadolivre_affiliate_enabled=false`, `mercadolivre_public_offers_enabled=false`, frontend `disabled`); entra depois | n/a | shadow mode; bridge manual pronta (`export_ml_link_candidates.py`/`import_ml_offers.py`); ver PR #56 |
 | Amazon | Amazon Associates encerrado em 22/08/2026 (`petmol-20`) | nenhum | nenhum; integração temporariamente removida das superfícies públicas | n/a | disabled — reativação proibida até nova aprovação e nova tag válida |
@@ -908,11 +908,11 @@ A camada A funcionar **não** significa que a oferta pode ser mostrada ao tutor 
 
 | Campo | Valor |
 |---|---|
-| program_name | programa próprio ("Loja Parceira", `https://petz.com.br/parceiro/pettmol`) + Awin (advertiser 127553, pending) |
+| program_name | programa próprio ("Loja Parceira", `https://petz.com.br/parceiro/PETMOL`) + Awin (advertiser 127553, pending) |
 | merchant_type | retailer |
 | status | comercial pending — PJ bloqueada por validação de CNAE (CNPJ já tem 7319-0/02, em tratamento); arquitetura de aprendizado por produto pronta (shadow mode) |
 | affiliate_mode | none confirmado ainda — nenhuma `ProductAffiliateLink(merchant="petz")` é criada automaticamente |
-| storefront_available | sim — `https://petz.com.br/parceiro/pettmol`, cadastrada em `STOREFRONT_AFFILIATE_URLS["petz"]` (confirmado pelo usuário como mecanismo real de atribuição em 25/08/2026 — ver "Ver na Petz" abaixo) |
+| storefront_available | sim — `https://petz.com.br/parceiro/PETMOL`, cadastrada em `STOREFRONT_AFFILIATE_URLS["petz"]` (confirmado pelo usuário como mecanismo real de atribuição em 25/08/2026 — ver "Ver na Petz" abaixo) |
 | product_deeplink_available | não via API/feed — só por confirmação manual, um produto de cada vez (ver abaixo) |
 | api_available | unknown — nenhuma API de catálogo/afiliados comprovada |
 | api_confirmed | não |
@@ -958,7 +958,7 @@ Uma `product_url` confirmada **nunca** vira `affiliate_product_url` sozinha — 
 > **Card de Loja Parceira: REATIVADO 04/09/2026 (PR #210).** Frontend
 > `affiliateStatus: 'active'`. Arquitetura final é mais simples que tudo
 > que este registro documenta abaixo: **sempre**
-> `https://www.petz.com.br/parceiro/pettmol` — nunca busca, nunca
+> `https://www.petz.com.br/parceiro/PETMOL` — nunca busca, nunca
 > produto, nunca two-hop (decisão de produto: reduzir ao máximo o risco
 > de perder comissão). Isso é a "Caminho A" abaixo, sem o problema que
 > fez ela ser abandonada em 29/08 — esse problema era tentar mostrar o
@@ -985,27 +985,27 @@ no painel `parceiropetz.com.br/manager` e no checkout `www.petz.com.br`,
 teste real até o carrinho, sem finalizar — ver
 `docs/PETZ_COMMISSION_VALIDATION.md`):
 
-- Abrir **`https://www.petz.com.br/parceiro/pettmol`** (navegação
+- Abrir **`https://www.petz.com.br/parceiro/PETMOL`** (navegação
   top-level) grava um cookie first-party **`petzPartner`** em
   `www.petz.com.br` (path `/`, SameSite=Lax, ~30 min, renovado a cada
   visita).
 - Com esse cookie, o carrinho mostra **"Você está comprando na loja
   pettmol do Parceiro Petz"** (atribuição — vale mesmo sem login), o
-  campo de cupom vem **pré-preenchido com `PETTMOL`** e o **desconto de
+  campo de cupom vem **pré-preenchido com `PETMOL`** e o **desconto de
   10% é aplicado automaticamente** (testado: R$ 99,99 → −R$ 10,00). Não
   acumula com promoção maior do produto.
 - **Não existe deep link oficial de produto pela loja parceira.** Painel →
-  Divulgação só dá cupom `PETTMOL` + link fixo `petz.com.br/parceiro/pettmol`.
+  Divulgação só dá cupom `PETMOL` + link fixo `petz.com.br/parceiro/PETMOL`.
   Negado: `/parceiro/pettmol/produto/<slug>` · `/busca` · `/c/<cat>` → 404;
   `?q` · `?query` · `?term` · `?keyword` · `?busca` · `#termo` → ignorados
   (abre a home); `/busca?q=X&parceiro=pettmol` · `&loja=pettmol` → não
   grava o cookie. **`/parceiro/pettmol` não faz NENHUMA chamada de backend
   de atribuição** — é 100% o `Set-Cookie: petzPartner` no header da
-  resposta HTML, **não** account-linked (a mensagem "loja pettmol" aparece
+  resposta HTML, **não** account-linked (a mensagem "loja PETMOL" aparece
   até deslogado).
 - **O desconto de 10% visível depende de login na Petz.** Logado: cupom
   pré-preenchido + 10% automático. **Deslogado (a maioria dos clientes):**
-  atribuição fica, mas o cliente precisa digitar `PETTMOL` no carrinho
+  atribuição fica, mas o cliente precisa digitar `PETMOL` no carrinho
   (aceito, aplica 10%).
 
 **Decisão de produto (29/08/2026, revisada) — PRODUTO NA TELA + CUPOM.**
@@ -1049,7 +1049,7 @@ Petz → tela **"DETALHES" quebrada** (bug real reproduzido no iPhone,
   open-redirect, sem path da AASA) e faz `window.location.replace(to)` —
   redirect JS, nunca `<a href>`. Vale igual em web, PWA e Capacitor
   (`@capacitor/browser` abre a ponte no navegador do sistema).
-- **Cupom `PETTMOL` copiado pro clipboard** no gesto do clique. Como o
+- **Cupom `PETMOL` copiado pro clipboard** no gesto do clique. Como o
   destino agora é sempre `/parceiro/pettmol`, o cookie `petzPartner` É
   gravado (garante a comissão de 7% sozinho, independente de login — ver
   "Caminho A" em `docs/PETZ_COMMISSION_VALIDATION.md`); o clipboard cobre
@@ -1076,14 +1076,14 @@ usada por "Ver na Petz" quando esse fluxo estiver ativo) passa por
   confirmado), `search_url` e o nome do produto.
 - Frontend: `openPetzPartnerStore({ productUrl, searchUrl, productName })`
   (`homeShoppingPartners.ts`) escolhe o destino (`productUrl` →
-  `searchUrl` → Loja Parceira), copia `PETTMOL` e navega pra
+  `searchUrl` → Loja Parceira), copia `PETMOL` e navega pra
   `petzBridgeUrl(target, productName)` → `/go/petz?to=<url petz>&q=<nome>`.
   Usado em `AffiliateCatalogSearch.tsx`, `HomeShoppingSheet.tsx`,
   `MonetizedOffersList.tsx`. Cobasi/Shopee/Mercado Livre **não** passam
   pela ponte.
 - `PETZ_PARTNER_STORE_URL` (`homeShoppingPartners.ts`) e
   `STOREFRONT_AFFILIATE_URLS["petz"]` (`affiliate_links.py`) espelham
-  `https://www.petz.com.br/parceiro/pettmol` (fallback quando não há
+  `https://www.petz.com.br/parceiro/PETMOL` (fallback quando não há
   produto nem busca).
 
 **Abordagem 3 — app nativo da Petz (investigada 29/08/2026, NÃO adotada,
@@ -1099,7 +1099,7 @@ guardada para retomar com aparelhos físicos):**
 - Sem SDK de deeplink de terceiros (Branch/AppsFlyer) nas páginas.
 - **Cookie de navegador NÃO é compartilhado com o app nativo** (regra do
   SO). Abrir o app = perder o cookie `petzPartner` → atribuição perdida.
-  No app a atribuição seria só digitar `PETTMOL` no checkout.
+  No app a atribuição seria só digitar `PETMOL` no checkout.
 - Falta teste físico completo iOS + Android (A–F) para descartar em
   definitivo.
 
@@ -1125,7 +1125,7 @@ nativo = rebuild + submissão (fora de escopo).
 `associated-domains` (sem AASA — conferido em
 `apps/web/ios/App/App/App.entitlements`), então `/go/petz` abre no
 navegador / navegador do sistema. A página (`app/go/petz/page.tsx`):
-1. mostra o cupom **`PETTMOL`** grande com botão **Copiar** — no app o
+1. mostra o cupom **`PETMOL`** grande com botão **Copiar** — no app o
    `navigator.clipboard` do WKWebView é instável, mas a ponte roda no
    SFSafariViewController, onde `copyText` funciona **sob gesto** (tap no
    cupom ou no "Ir pra a Petz", que copia antes de redirecionar);
@@ -1139,7 +1139,7 @@ navegador / navegador do sistema. A página (`app/go/petz/page.tsx`):
 `AppShell` esconde header/footer em `/go/petz`.
 
 **Limites residuais:** (a) a busca da Petz **não grava** o cookie
-`petzPartner` → comissão depende do cliente colar `PETTMOL` no carrinho;
+`petzPartner` → comissão depende do cliente colar `PETMOL` no carrinho;
 (b) se a *própria* página `/busca` da Petz mostrar um smart-banner que o
 cliente toque, aí o app abre — mas é toque do cliente, não interceptação
 automática; (c) produto mapeado abre a busca (1º resultado), não a página

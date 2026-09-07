@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // openPetzPartnerStore — clique "Ver na Petz" / card "Petz" da loja parceira.
 //
-// SEMPRE leva pra Loja Parceira (/parceiro/pettmol) — nunca pra
+// SEMPRE leva pra Loja Parceira (/parceiro/PETMOL) — nunca pra
 // `/busca?q=...` nem `/produto/...` (decisão de produto, 04/09/2026:
 // reduzir ao máximo o risco de perder comissão — só a Loja Parceira é um
 // destino comprovado). productUrl/searchUrl continuam aceitos na
-// assinatura, mas não decidem mais o destino. Cupom PETTMOL copiado.
+// assinatura, mas não decidem mais o destino. Cupom PETMOL copiado.
 // Sempre via a ponte /go/petz (redirect JS).
 
 const REAL_PRODUCT = 'https://www.petz.com.br/produto/kit-enxoval-modernpet-201842';
@@ -66,9 +66,9 @@ describe('openPetzPartnerStore', () => {
     expect(url.searchParams.get('to')).toBeNull();
   });
 
-  it('sempre copia o cupom PETTMOL (nunca o nome do produto)', async () => {
+  it('sempre copia o cupom PETMOL (nunca o nome do produto)', async () => {
     await callAndGetBridgeUrl({ searchUrl: SEARCH_URL, productName: 'Ração Golden Fórmula' });
-    expect(writeText).toHaveBeenCalledWith('PETTMOL');
+    expect(writeText).toHaveBeenCalledWith('PETMOL');
     expect(writeText).not.toHaveBeenCalledWith('Ração Golden Fórmula');
   });
 
@@ -123,7 +123,7 @@ describe('openPetzPartnerStore', () => {
 
     const { openPetzPartnerStore } = await import('./homeShoppingPartners');
     await openPetzPartnerStore({});
-    expect(toastSpy).toHaveBeenCalledWith('Cupom PETTMOL copiado — 10% OFF na Petz', expect.objectContaining({ tone: 'success' }));
+    expect(toastSpy).toHaveBeenCalledWith('Cupom PETMOL copiado — 10% OFF na Petz', expect.objectContaining({ tone: 'success' }));
 
     toastSpy.mockClear();
     vi.resetModules();
@@ -134,6 +134,6 @@ describe('openPetzPartnerStore', () => {
     vi.stubGlobal('open', vi.fn());
     const { openPetzPartnerStore: openAgain } = await import('./homeShoppingPartners');
     await openAgain({});
-    expect(toastSpy).toHaveBeenCalledWith('Use o cupom PETTMOL para 10% OFF', expect.objectContaining({ tone: 'neutral' }));
+    expect(toastSpy).toHaveBeenCalledWith('Use o cupom PETMOL para 10% OFF', expect.objectContaining({ tone: 'neutral' }));
   });
 });

@@ -33,14 +33,14 @@ from .config import get_settings
 # apps/web/src/features/commerce/homeShoppingPartners.ts para a Cobasi/Petz.
 #
 # Petz (29/08/2026): programa próprio "Loja Parceira" — URL fixa da
-# vitrine + cupom PETTMOL aplicado manualmente pelo tutor no checkout.
+# vitrine + cupom PETMOL aplicado manualmente pelo tutor no checkout.
 # Não é link afiliado por produto e não deve ser concatenado com /produto.
-PETZ_PARTNER_STORE_URL = "https://www.petz.com.br/parceiro/pettmol"
-PETZ_COUPON_CODE = "PETTMOL"
+PETZ_PARTNER_STORE_URL = "https://www.petz.com.br/parceiro/PETMOL"
+PETZ_COUPON_CODE = "PETMOL"
 PETZ_AFFILIATE_PROGRAM = "petz_partner"
 # Busca do site da Petz (plataforma VTEX — padrão /busca?q=). Usada como
 # fallback do "Ver na Petz" quando o produto ainda não tem mapping
-# confirmado: a comissão do Parceiro Petz vem do cupom PETTMOL aplicado
+# confirmado: a comissão do Parceiro Petz vem do cupom PETMOL aplicado
 # no checkout (ver docs/PETZ_COMMISSION_VALIDATION.md), então qualquer
 # página de chegada dentro de petz.com.br remunera igual — o importante
 # é levar o tutor ao produto certo e com o cupom no clipboard.

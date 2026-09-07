@@ -139,19 +139,19 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
   {
     id: 'petz',
     name: 'Petz',
-    description: 'Loja parceira PETMOL — cupom PETTMOL, 10% de desconto',
+    description: 'Loja parceira PETMOL — cupom PETMOL, 10% de desconto',
     logoSrc: '/partner-logos/petz.png',
     logoAlt: 'Petz',
     // Programa próprio "Loja Parceira" (25/08/2026) — URL FIXA da vitrine,
     // sem busca/deep-link por produto (confirmado: a Petz não expõe isso).
-    // Cupom PETTMOL (10% off) é aplicado manualmente pelo tutor no
+    // Cupom PETMOL (10% off) é aplicado manualmente pelo tutor no
     // checkout — nunca embutido na URL. Deve espelhar o mesmo valor de
     // STOREFRONT_AFFILIATE_URLS["petz"] em affiliate_links.py (backend).
     //
     // REATIVADA 04/09/2026 (decisão de produto) como Loja Parceira +
     // cupom: a grade "Ou visite uma loja parceira" leva SEMPRE pra
-    // https://www.petz.com.br/parceiro/pettmol (nunca busca/produto —
-    // ver openPetzPartnerStore) e copia o cupom PETTMOL antes de abrir.
+    // https://www.petz.com.br/parceiro/PETMOL (nunca busca/produto —
+    // ver openPetzPartnerStore) e copia o cupom PETMOL antes de abrir.
     // Isso não depende de /commerce/petz-direct-link nem do kill-switch
     // petz_publicly_disabled no backend (esse endpoint só alimenta o
     // "Ver na Petz" por produto específico, que continua desligado/
@@ -162,7 +162,7 @@ export const HOME_SHOPPING_PARTNERS: HomeShoppingPartner[] = [
     affiliateMode: 'fixed_store',
     supportsProductDeepLink: false,
     supportsStorefrontAffiliate: true,
-    storefrontAffiliateUrl: 'https://www.petz.com.br/parceiro/pettmol',
+    storefrontAffiliateUrl: 'https://www.petz.com.br/parceiro/PETMOL',
   },
   {
     id: 'mercadolivre',
@@ -222,7 +222,7 @@ const DIRECT_SEARCH_URLS: Record<HomeShoppingPartnerId, (q: string) => string> =
   cobasi:       (q) => `https://www.cobasi.com.br/busca?q=${encodeURIComponent(q)}`,
   // Petz não tem busca por produto — resolvePartnerUrl() sempre resolve
   // pela storefrontAffiliateUrl antes de chegar aqui; nunca de fato usado.
-  petz:         () => 'https://www.petz.com.br/parceiro/pettmol',
+  petz:         () => 'https://www.petz.com.br/parceiro/PETMOL',
   mercadolivre: (q) => `https://lista.mercadolivre.com.br/${encodeURIComponent(q)}`,
   shopee:       (q) => `https://shopee.com.br/search?keyword=${encodeURIComponent(q)}`,
 };
@@ -354,9 +354,9 @@ export function navigateToPartnerUrl(url: string): void {
   window.open(url, '_blank', 'noopener');
 }
 
-export const PETZ_COUPON_CODE = 'PETTMOL';
+export const PETZ_COUPON_CODE = 'PETMOL';
 
-export const PETZ_PARTNER_STORE_URL = 'https://www.petz.com.br/parceiro/pettmol';
+export const PETZ_PARTNER_STORE_URL = 'https://www.petz.com.br/parceiro/PETMOL';
 const PETZ_ALLOWED_HOSTS = ['petz.com.br', 'www.petz.com.br'];
 
 /** true só para uma URL https de petz.com.br (higiene / testes). */
@@ -432,7 +432,7 @@ export function petzBridgeUrl(target: string, productName?: string): string {
  * Clique "Ver na Petz" / "Petz" (grade de lojas parceiras ou por produto).
  *
  * SEMPRE abre a Loja Parceira — `PETZ_PARTNER_STORE_URL`
- * (`/parceiro/pettmol`) — nunca `/busca?q=` nem `/produto/...` (decisão de
+ * (`/parceiro/PETMOL`) — nunca `/busca?q=` nem `/produto/...` (decisão de
  * produto, 04/09/2026: reduzir ao máximo o risco de perder comissão). A
  * Petz não documenta oficialmente nenhum parâmetro de cupom/rastreio pra
  * busca ou produto, e não há prova de que esses caminhos preservem a
@@ -443,24 +443,24 @@ export function petzBridgeUrl(target: string, productName?: string): string {
  * documentar/comprovar um deep link seguro, é aqui que ele voltaria a
  * decidir o `target`.
  *
- * Por que SEMPRE `/parceiro/pettmol` também é o que dá o cupom automático
+ * Por que SEMPRE `/parceiro/PETMOL` também é o que dá o cupom automático
  * (investigação real no navegador, 29/08/2026 — ver
  * docs/PETZ_COMMISSION_VALIDATION.md): abrir essa URL por navegação
  * top-level grava um cookie first-party `petzPartner` em
  * www.petz.com.br (~30min, renovado a cada visita). Com o cookie:
  *  - cliente JÁ LOGADO na Petz: o campo de cupom no carrinho vem
- *    PRÉ-PREENCHIDO com PETTMOL e os 10% são aplicados automaticamente —
+ *    PRÉ-PREENCHIDO com PETMOL e os 10% são aplicados automaticamente —
  *    zero ação do cliente, o clipboard nem chega a ser necessário;
  *  - cliente DESLOGADO (maioria): a atribuição/comissão do Parceiro Petz
  *    já fica garantida pelo cookie mesmo assim, mas o campo de cupom NÃO
  *    vem pré-preenchido — precisa ser colado. É pra esse caso que existe
- *    o clipboard abaixo: copiar PETTMOL aqui faz o "auto-fill" ser um
+ *    o clipboard abaixo: copiar PETMOL aqui faz o "auto-fill" ser um
  *    Cmd+V no carrinho em vez de digitar o código na mão.
  * Não existe parâmetro de URL oficial que force login/pré-preenchimento —
  * o cookie só nasce da navegação pra essa URL exata; qualquer outro path
  * (busca, produto) NÃO grava esse cookie.
  *
- * Copia o cupom `PETTMOL` pro clipboard — cobre o caso deslogado acima e
+ * Copia o cupom `PETMOL` pro clipboard — cobre o caso deslogado acima e
  * serve de reserva mesmo quando logado. Se o clipboard falhar (comum em
  * WebView sem gesto), a Petz abre do mesmo jeito — o cupom nunca bloqueia
  * a navegação — e o toast troca pra avisar o tutor a colar o cupom

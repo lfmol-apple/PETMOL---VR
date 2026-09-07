@@ -9,7 +9,7 @@ sempre — ver docs/AFFILIATES.md §Petz.
 PetzProductMapping é INTENCIONALMENTE separado de ProductAffiliateLink:
 guarda estado de DESCOBERTA (status, confiança, variante, query de busca)
 e a página real do produto na Petz. O modelo comercial Petz atual é
-Loja Parceira + cupom PETTMOL; não existe affiliate_product_url
+Loja Parceira + cupom PETMOL; não existe affiliate_product_url
 individual por produto. ProductAffiliateLink(merchant="petz") permanece
 apenas como extensão futura se a Petz fornecer um deep-link oficial por
 produto, mas não é pré-requisito para o caminho "Ver na Petz".
@@ -46,7 +46,7 @@ MATCH_STATUSES = (
 PUBLISHABLE_MATCH_STATUSES = frozenset({"affiliate_ready"})
 
 # Status que já provam PRODUTO correto — suficiente pra oferecer "Ver na
-# Petz" com direct_product_url + cupom PETTMOL (ver GET
+# Petz" com direct_product_url + cupom PETMOL (ver GET
 # /commerce/petz-direct-link em main.py).
 # "ambiguous"/"candidate"/"rejected"/"unknown" nunca entram aqui — produto
 # ainda não confirmado por um humano.

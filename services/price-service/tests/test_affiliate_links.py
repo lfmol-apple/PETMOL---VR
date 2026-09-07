@@ -88,7 +88,7 @@ def test_monetized_offer_store_context_cobasi_has_storefront(client):
 def test_monetized_offer_store_context_petz_blocked_without_commercial_proof(client, monkeypatch):
     """Diferente da Cobasi (acima): Petz tem um gate próprio adicional
     (petz_provider.is_petz_publicly_servable). A atribuição por cupom
-    PETTMOL FOI validada com uma compra real em 29/08/2026 (ver
+    PETMOL FOI validada com uma compra real em 29/08/2026 (ver
     docs/PETZ_COMMISSION_VALIDATION.md) e o gate vem LIGADO por padrão
     desde 04/09/2026 — este teste cobre o kill-switch
     (petz_publicly_disabled) explicitamente ligado, defesa em
