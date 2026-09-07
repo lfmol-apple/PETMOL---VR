@@ -585,7 +585,7 @@ export function ParasiteItemSheet({
                   onClick={() => setMode('apply')}
                   className={`flex-1 py-2.5 rounded-xl text-[13px] font-semibold active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${PRIMARY_BTN}`}
                 >
-                  Registrar
+                  Registrar aplicação
                 </button>
                 {current && (
                   <button
@@ -596,6 +596,11 @@ export function ParasiteItemSheet({
                   </button>
                 )}
               </div>
+              {/* Deixa evidente que Registrar ≠ Comprar (checklist item 2):
+                  registrar é sobre a rotina/histórico, comprar é achar onde repor. */}
+              <p className="text-[11px] leading-snug text-gray-400">
+                Registre toda vez que aplicar — vale mesmo se comprou fora do PETMOL. O botão <span className="font-semibold text-gray-500">Comprar</span> serve só pra achar onde repor.
+              </p>
 
               {/* History — collapsed accordion */}
               {sorted.length > 0 && (
