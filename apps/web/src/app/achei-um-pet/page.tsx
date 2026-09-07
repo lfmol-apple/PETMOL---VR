@@ -7,6 +7,7 @@ import { Suspense } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { getToken } from '@/lib/auth-token';
+import { ReportAlertSheet } from '@/components/home/ReportAlertSheet';
 
 interface MissingPetRecord {
   id: string;
@@ -111,6 +112,7 @@ function AcheiUmPetInner() {
   const [reportMediaError, setReportMediaError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [reportedIds, setReportedIds] = useState<string[]>([]);
+  const [abuseAlertId, setAbuseAlertId] = useState<string | null>(null);
   const [preAnalysis, setPreAnalysis] = useState<string>('');
   const [preConfidenceLabel, setPreConfidenceLabel] = useState('');
   const [preLoading, setPreLoading] = useState(false);
@@ -1180,9 +1182,19 @@ function AcheiUmPetInner() {
                 onChangeLocation={setReportLocation}
                 onChangeNotes={setReportNotes}
                 onSubmitReport={() => handleSubmitReport(pet.id)}
+                onFlagAbuse={() => setAbuseAlertId(pet.id)}
               />
             ))}
           </div>
+        )}
+
+        {abuseAlertId && (
+          <ReportAlertSheet
+            open
+            alertId={abuseAlertId}
+            petName={pets.find(p => p.id === abuseAlertId)?.pet_name}
+            onClose={() => setAbuseAlertId(null)}
+          />
         )}
 
         {/* CTA — Download app */}
@@ -1226,6 +1238,7 @@ function PetCard({
   onChangeLocation,
   onChangeNotes,
   onSubmitReport,
+  onFlagAbuse,
 }: {
   pet: MissingPetRecord;
   reported: boolean;
@@ -1240,6 +1253,7 @@ function PetCard({
   onChangeLocation: (v: string) => void;
   onChangeNotes: (v: string) => void;
   onSubmitReport: () => void;
+  onFlagAbuse: () => void;
 }) {
   const isFound = pet.status === 'found';
   const speciesEmoji = pet.species === 'cat' ? '🐈' : '🐕';
@@ -1430,6 +1444,16 @@ function PetCard({
               </div>
             )}
           </>
+        )}
+
+        {!isFound && (
+          <button
+            type="button"
+            onClick={onFlagAbuse}
+            className="mt-1 w-full py-2 text-center text-[11px] font-semibold text-white/35 active:opacity-70"
+          >
+            Denunciar este alerta
+          </button>
         )}
       </div>
     </div>
