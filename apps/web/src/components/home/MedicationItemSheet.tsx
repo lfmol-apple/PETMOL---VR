@@ -910,6 +910,12 @@ export function MedicationItemSheet({
                   Comprar medicamento
                 </button>
               </div>
+              {/* Checklist item 2 — registrar (aqui: anotar doses e novas
+                  medicações no histórico) é a rotina; comprar é só achar onde
+                  repor, independente da loja. */}
+              <p className="text-[11px] leading-snug text-gray-400">
+                Anote as doses e medicações aqui pra manter o histórico e os lembretes. <span className="font-semibold text-gray-500">Comprar</span> serve só pra achar onde repor.
+              </p>
             </div>
           )}
 

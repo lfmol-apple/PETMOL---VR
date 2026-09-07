@@ -1176,7 +1176,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                         }}
                         className="w-full py-3 rounded-2xl border border-emerald-200 bg-emerald-50 text-[14px] font-black text-emerald-800 active:scale-[0.98] transition-all"
                       >
-                        Já comprei — cadastrar ração
+                        Já tenho a ração — registrar aqui
                       </button>
                     </>
                   )}
@@ -1393,6 +1393,15 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             <span className="text-xl">🛒</span>
                             Comprar novamente
                           </button>
+                          {/* Checklist item 2 — comprar (achar onde repor) e
+                              registrar o novo ciclo (o que reinicia a previsão)
+                              são coisas independentes. Sem exigir que o tutor
+                              "volte da loja pra confirmar" — o registro do novo
+                              pacote é o que atualiza a previsão, quando ele
+                              quiser fazer. */}
+                          <p className="text-[12px] leading-snug text-gray-400">
+                            Isso só abre as lojas pra achar onde repor. Quem atualiza a previsão é o registro de um novo pacote — independente de onde você comprou.
+                          </p>
 
                           {/* O botão "Editar" e o painel de opções (escanear/
                               editar manualmente/não uso mais ração) nunca
