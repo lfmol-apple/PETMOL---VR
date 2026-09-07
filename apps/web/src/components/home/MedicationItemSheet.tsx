@@ -623,7 +623,7 @@ export function MedicationItemSheet({
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
-          <p className="mx-4 mt-3 mb-1 text-[11.5px] font-medium text-slate-500 text-center">ℹ️ Gerenciamento e controle apenas — consulte seu veterinário.</p>
+          <p className="mx-4 mt-3 mb-1 text-[11.5px] font-medium text-slate-500 text-center">ℹ️ Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.</p>
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
           {mode === 'view' && (
@@ -1233,7 +1233,7 @@ export function MedicationItemSheet({
                     value={form.treatment_days}
                     onChange={e => setForm(f => ({ ...f, treatment_days: e.target.value }))}
                   />
-                  <p className="text-xs text-gray-400 mt-1">Preencha pra acompanhar as doses num calendário do tratamento.</p>
+                  <p className="text-xs text-gray-400 mt-1">Assim você acompanha cada dose num calendário do tratamento.</p>
                 </div>
               )}
 
