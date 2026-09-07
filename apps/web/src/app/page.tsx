@@ -25,7 +25,10 @@ export default function LandingPage() {
     <div className="min-h-dvh bg-white flex flex-col">
 
       {/* Nav */}
-      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-5 py-3 flex items-center justify-between">
+      <header
+        className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-5 py-3 flex items-center justify-between"
+        style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
+      >
         <PetmolTextLogo className="text-3xl" color="#0056D2" />
         <div className="flex items-center gap-2">
           <Link href="/login"
