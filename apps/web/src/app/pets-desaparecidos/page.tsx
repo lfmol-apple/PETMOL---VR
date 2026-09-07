@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
+import { ReportAlertSheet } from '@/components/home/ReportAlertSheet';
 
 // Área recuperável do Pet Sumido: um alerta sério nunca pode depender só de
 // um card efêmero na Home. Aqui ficam TODOS os alertas ativos que chegaram
@@ -57,6 +58,7 @@ export default function PetsDesaparecidosPage() {
   const [active, setActive] = useState<RegionAlert[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [abuseAlert, setAbuseAlert] = useState<RegionAlert | null>(null);
 
   const load = useCallback(async () => {
     const token = getToken();
@@ -115,11 +117,11 @@ export default function PetsDesaparecidosPage() {
                 const photo = resolvePetPhotoUrl(a.photo_url);
                 const descricao = [a.breed, a.characteristics].filter(Boolean).join(' · ');
                 return (
+                  <div key={a.id} className="overflow-hidden rounded-2xl border border-rose-200 bg-white shadow-sm">
                   <button
-                    key={a.id}
                     type="button"
                     onClick={() => router.push(`/achei-um-pet?id=${a.id}`)}
-                    className="flex w-full items-stretch gap-3 overflow-hidden rounded-2xl border border-rose-200 bg-white text-left shadow-sm active:scale-[0.99] transition-transform"
+                    className="flex w-full items-stretch gap-3 overflow-hidden text-left active:scale-[0.99] transition-transform"
                   >
                     <span className="flex w-[86px] flex-shrink-0 items-center justify-center self-stretch overflow-hidden bg-rose-50 text-3xl">
                       {photo ? (
@@ -146,9 +148,26 @@ export default function PetsDesaparecidosPage() {
                       </svg>
                     </span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setAbuseAlert(a)}
+                    className="w-full border-t border-rose-100 py-1.5 text-center text-[11px] font-semibold text-slate-400 active:bg-slate-50"
+                  >
+                    Denunciar
+                  </button>
+                  </div>
                 );
               })}
             </div>
+          )}
+
+          {abuseAlert && (
+            <ReportAlertSheet
+              open
+              alertId={abuseAlert.id}
+              petName={abuseAlert.pet_name}
+              onClose={() => setAbuseAlert(null)}
+            />
           )}
 
           <button
