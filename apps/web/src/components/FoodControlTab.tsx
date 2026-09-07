@@ -649,7 +649,7 @@ export function FoodControlTab({
     setSaving(true);
     setSavedOk(false);
     if (formMode === 'quick_setup') {
-      setSaveFeedback('Racao cadastrada com sucesso.');
+      setSaveFeedback('Ração salva.');
     } else {
       setSaveFeedback(hasExisting ? 'Alteracoes salvas com sucesso.' : 'Controle de alimentacao salvo com sucesso.');
     }
@@ -757,7 +757,7 @@ export function FoodControlTab({
 
   const handleDelete = async () => {
     const accepted = await requestUserDecision(
-      'Excluir este registro de alimentação? Essa ação remove o ciclo atual e exige novo preenchimento depois.',
+      'Excluir este registro de alimentação? Isso remove o ciclo atual — você vai precisar registrar de novo depois.',
       {
         title: 'Excluir controle de alimentação',
         tone: 'danger',

@@ -321,7 +321,7 @@ export function HealthParasiteControlPanel({
             </div>
 
             <p className="text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-              ⚕️ Registro pessoal para organização. Consulte seu veterinário sobre produtos, dosagens e frequências.
+              ⚕️ Anotações suas, pra não perder o fio dos cuidados. Sobre produtos, doses e frequência, quem orienta é o veterinário.
             </p>
 
             <div className="sticky bottom-0 bg-white z-10 pt-3 pb-3 -mx-4 px-4 border-t border-gray-100 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] flex gap-2">

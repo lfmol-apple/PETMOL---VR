@@ -144,7 +144,7 @@ export function OnboardingChecklistCard({
           tone="petmol"
           wrapTitle
           title={`Tudo pronto para cuidar ${artigo} ${name} 💙`}
-          subtitle="Configuração inicial concluída"
+          subtitle="Primeiros passos concluídos"
           media={<SheetAvatar src={petPhotoSrc} alt="" fallback={<PawPrint className="h-5 w-5 text-[#0056D2]" strokeWidth={2.2} />} />}
           onClose={finish}
         />
@@ -264,7 +264,7 @@ export function OnboardingChecklistCard({
             ? `Continue os cuidados ${artigo} ${name}`
             : `Vamos preparar os cuidados ${artigo} ${name}`
         }
-        subtitle={`Configuração inicial · ${progress.doneCount} de ${progress.total}`}
+        subtitle={`Primeiros passos · ${progress.doneCount} de ${progress.total}`}
         media={<SheetAvatar src={petPhotoSrc} alt="" fallback={<PawPrint className="h-5 w-5 text-[#0056D2]" strokeWidth={2.2} />} />}
         onClose={dismissCard}
       />

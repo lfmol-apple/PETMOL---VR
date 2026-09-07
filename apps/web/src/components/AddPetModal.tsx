@@ -440,11 +440,11 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
 
   const handleSubmit = async () => {
     setError('');
-    if (!name.trim()) { setError('Preencha o nome do pet.'); return; }
+    if (!name.trim()) { setError('Falta o nome do pet.'); return; }
     if (breedRequired && !breed.trim()) { setError('Selecione a raça do pet (use "SRD" se não souber).'); return; }
 
     const token = getToken();
-    if (!token) { setError('Você precisa estar logado.'); return; }
+    if (!token) { setError('Entre na sua conta para continuar.'); return; }
 
     setLoading(true);
     try {

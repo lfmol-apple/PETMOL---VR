@@ -756,7 +756,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   // controle" que já existia dentro do formulário).
   const handleDeletePlan = async () => {
     const accepted = await requestUserDecision(
-      `Excluir o plano de alimentação ${petDo(pet)} ${pet.pet_name}? Isso remove a ração principal e todos os petiscos cadastrados — não dá pra desfazer.`,
+      `Excluir o plano de alimentação ${petDo(pet)} ${pet.pet_name}? Isso remove a ração principal e todos os petiscos salvos — não dá pra desfazer.`,
       { title: 'Excluir plano de alimentação', tone: 'danger', confirmLabel: 'Excluir plano' },
     );
     if (!accepted) return;
@@ -1130,7 +1130,7 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                     await refreshFoodPlan();
                     dispatchFoodPlanUpdated();
                     const isQuickSetup = formRequest?.mode === 'quick_setup';
-                    showSuccessAndReturnToMain(isQuickSetup ? 'Ração cadastrada' : 'Plano atualizado');
+                    showSuccessAndReturnToMain(isQuickSetup ? 'Ração salva' : 'Plano atualizado');
                   }}
                 />
               </div>
@@ -1236,8 +1236,8 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                 <div className="px-4 pb-8 space-y-4">
                   {(!hasFood || showFreshChoice) && (
                     <CoachMark id="food-intro">
-                      Cadastrando o que {pet.pet_name} come, o PETMOL estima quando a ração vai acabar
-                      e facilita a próxima compra — sem você precisar ficar de olho no saco.
+                      Sabendo o que {pet.pet_name} come, o PETMOL estima quando a ração vai acabar
+                      e já facilita a recompra — sem você ficar de olho no saco.
                     </CoachMark>
                   )}
                   {/* ── SEM RAÇÃO ──────────────────────────────────────────── */}

@@ -254,7 +254,7 @@ export function ParasiteItemSheet({
       // (mantido por retrocompatibilidade/legibilidade humana).
       barcode: product.barcode || f.barcode,
     }));
-    if (!product.found) showToast('Não encontramos os dados. Preencha manualmente.');
+    if (!product.found) showToast('Não achamos os dados — você pode preencher à mão.');
   }
 
   useEffect(() => {
@@ -278,7 +278,7 @@ export function ParasiteItemSheet({
 
   async function handleApply() {
     if (!applyForm.date || !applyForm.product_name.trim()) {
-      showToast('⚠️ Preencha data e produto.');
+      showToast('⚠️ Falta a data e o produto.');
       return;
     }
     setSaving(true);
@@ -392,7 +392,7 @@ export function ParasiteItemSheet({
 
   async function handleSaveEdit() {
     if (!editRecord || !editForm.date_applied || !editForm.product_name.trim()) {
-      showToast('⚠️ Preencha data e produto.');
+      showToast('⚠️ Falta a data e o produto.');
       return;
     }
     setSaving(true);

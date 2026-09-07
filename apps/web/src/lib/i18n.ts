@@ -553,11 +553,11 @@ export const translations: Record<string, TranslationEntry> = {
     'fr': 'Envoyer maintenant', 'it': 'Invia ora'
   },
   'parasite.vet_instructions': {
-    'pt-BR': 'ℹ️ Configure conforme orientação do seu veterinário e instruções da embalagem',
-    'en': 'ℹ️ Configure as directed by your vet and product instructions',
-    'es': 'ℹ️ Configure según las indicaciones de su veterinario e instrucciones del producto',
-    'fr': 'ℹ️ Configurez selon les conseils de votre vétérinaire et les instructions du produit',
-    'it': 'ℹ️ Configura come indicato dal tuo veterinario e dalle istruzioni del prodotto'
+    'pt-BR': 'ℹ️ Siga a orientação do seu veterinário e as instruções da embalagem',
+    'en': 'ℹ️ Follow your vet\'s guidance and the package instructions',
+    'es': 'ℹ️ Sigue la orientación de tu veterinario y las instrucciones del envase',
+    'fr': 'ℹ️ Suivez les conseils de votre vétérinaire et les instructions de l\'emballage',
+    'it': 'ℹ️ Segui le indicazioni del veterinario e le istruzioni della confezione'
   },
   /* ── Shopping modal items ── */
   'shopping.dog_food': { 'pt-BR': 'Ração', 'en': 'Pet Food', 'es': 'Alimento', 'fr': 'Croquettes', 'it': 'Crocchette' },
@@ -605,9 +605,9 @@ export const translations: Record<string, TranslationEntry> = {
   'profile.country': { 'pt-BR': 'País', 'en': 'Country', 'es': 'País', 'fr': 'Pays', 'it': 'Paese' },
   'profile.save_changes': { 'pt-BR': 'Salvar Alterações', 'en': 'Save Changes', 'es': 'Guardar Cambios', 'fr': 'Enregistrer', 'it': 'Salva Modifiche' },
   'profile.saving': { 'pt-BR': 'Salvando...', 'en': 'Saving...', 'es': 'Guardando...', 'fr': 'Enregistrement...', 'it': 'Salvataggio...' },
-  'profile.family_title': { 'pt-BR': 'Gerenciar Familiares', 'en': 'Manage Family', 'es': 'Gestionar Familiares', 'fr': 'Gérer la Famille', 'it': 'Gestisci Famiglia' },
+  'profile.family_title': { 'pt-BR': 'Família e cuidadores', 'en': 'Family & caregivers', 'es': 'Familia y cuidadores', 'fr': 'Famille et aidants', 'it': 'Famiglia e caregiver' },
   'profile.family_desc': { 'pt-BR': 'Adicione familiares ou cuidadores que podem acessar os dados dos seus pets.', 'en': "Add family members or caregivers who can access your pets' data.", 'es': 'Añade familiares o cuidadores que puedan acceder a los datos de tus mascotas.', 'fr': 'Ajoutez des membres de la famille ou des soignants pouvant accéder aux données de vos animaux.', 'it': 'Aggiungi familiari o caregiver che possono accedere ai dati dei tuoi animali.' },
-  'profile.family_access': { 'pt-BR': 'Acessar Gerenciamento de Família', 'en': 'Access Family Management', 'es': 'Acceder a Gestión de Familia', 'fr': 'Gérer la Famille', 'it': 'Accedi alla Gestione Famiglia' },
+  'profile.family_access': { 'pt-BR': 'Abrir família e cuidadores', 'en': 'Open family & caregivers', 'es': 'Abrir familia y cuidadores', 'fr': 'Ouvrir famille et aidants', 'it': 'Apri famiglia e caregiver' },
   'profile.danger_zone': { 'pt-BR': 'Zona de Perigo', 'en': 'Danger Zone', 'es': 'Zona de Peligro', 'fr': 'Zone Dangereuse', 'it': 'Zona Pericolosa' },
   'profile.delete_account_desc': { 'pt-BR': 'Ao excluir sua conta, todos os seus dados serão permanentemente removidos.', 'en': 'Deleting your account will permanently remove all your data.', 'es': 'Al eliminar su cuenta, todos sus datos serán eliminados permanentemente.', 'fr': 'La suppression de votre compte supprimera définitivement toutes vos données.', 'it': "L'eliminazione dell'account rimuoverà permanentemente tutti i tuoi dati." },
   'profile.delete_account': { 'pt-BR': 'Excluir Minha Conta', 'en': 'Delete My Account', 'es': 'Eliminar Mi Cuenta', 'fr': 'Supprimer Mon Compte', 'it': 'Elimina Il Mio Account' },
@@ -739,8 +739,8 @@ export const translations: Record<string, TranslationEntry> = {
     'fr': 'Importer Carte', 'it': 'Importa Tessera'
   },
   'health.quick_add': {
-    'pt-BR': 'Preenchimento Rápido', 'en': 'Quick Fill', 'es': 'Llenado Rápido',
-    'fr': 'Saisie Rapide', 'it': 'Compilazione Rapida'
+    'pt-BR': 'Registro rápido', 'en': 'Quick log', 'es': 'Registro rápido',
+    'fr': 'Enregistrement rapide', 'it': 'Registrazione rapida'
   },
   'health.full_form': {
     'pt-BR': 'Formulário Completo', 'en': 'Full Form', 'es': 'Formulario Completo',
@@ -811,8 +811,8 @@ export const translations: Record<string, TranslationEntry> = {
     'fr': 'Rappel en retard', 'it': 'Richiamo in ritardo'
   },
   'health.disclaimer': {
-    'pt-BR': 'Este sistema é apenas para gerenciamento e controle. Consulte seu veterinário para orientação sobre vacinação.', 'en': 'This system is for management and control only. Consult your veterinarian for vaccination guidance.', 'es': 'Este sistema es solo para gestión y control. Consulta a tu veterinario para orientación sobre vacunación.',
-    'fr': 'Ce système est uniquement pour la gestion et le contrôle. Consultez votre vétérinaire pour les conseils de vaccination.', 'it': 'Questo sistema è solo per gestione e controllo. Consulta il tuo veterinario per consigli sulle vaccinazioni.'
+    'pt-BR': 'Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.', 'en': 'This is for keeping track of care so nothing slips — treatment decisions are always with your vet.', 'es': 'Esto es para acompañar los cuidados y que nada se pase — el tratamiento siempre es con tu veterinario.',
+    'fr': 'Ici, vous suivez les soins pour ne rien oublier — les décisions de traitement reviennent toujours à votre vétérinaire.', 'it': 'Qui tieni traccia delle cure per non dimenticare nulla — le decisioni sul trattamento sono sempre del veterinario.'
   },
   'health.add_new_procedure': {
     'pt-BR': 'Adicionar Novo Procedimento', 'en': 'Add New Procedure', 'es': 'Agregar Nuevo Procedimiento',
@@ -897,24 +897,24 @@ export const translations: Record<string, TranslationEntry> = {
     'fr': '✅ Données pré-remplies :', 'it': '✅ Dati precompilati:'
   },
   'alert.arrival_fill_details': {
-    'pt-BR': 'Preencha o tipo, nome da vacina e veterinário!', 'en': 'Fill in the type, vaccine name and veterinarian!', 'es': '¡Completa el tipo, nombre de vacuna y veterinario!',
-    'fr': 'Remplissez le type, nom du vaccin et vétérinaire !', 'it': 'Compila il tipo, nome del vaccino e veterinario!'
+    'pt-BR': 'Falta o tipo, o nome da vacina e o veterinário.', 'en': 'Still missing the type, vaccine name and vet.', 'es': 'Faltan el tipo, el nombre de la vacuna y el veterinario.',
+    'fr': 'Il manque encore le type, le nom du vaccin et le vétérinaire.', 'it': 'Mancano ancora il tipo, il nome del vaccino e il veterinario.'
   },
   'alert.arrival_grooming_registered': {
     'pt-BR': '✅ Dados pré-preenchidos automaticamente:', 'en': '✅ Data prefilled automatically:', 'es': '✅ Datos pre-llenados automáticamente:',
     'fr': '✅ Données pré-remplies automatiquement :', 'it': '✅ Dati precompilati automaticamente:'
   },
   'alert.arrival_fill_service_type': {
-    'pt-BR': 'Preencha apenas o tipo de serviço!', 'en': 'Just fill in the service type!', 'es': '¡Solo completa el tipo de servicio!',
-    'fr': 'Remplissez uniquement le type de service !', 'it': 'Compila solo il tipo di servizio!'
+    'pt-BR': 'Falta só o tipo de serviço.', 'en': 'Just the service type is missing.', 'es': 'Solo falta el tipo de servicio.',
+    'fr': 'Il ne manque que le type de service.', 'it': 'Manca solo il tipo di servizio.'
   },
   'alert.arrival_parasite_registered': {
     'pt-BR': '✅ Formulário pré-preenchido com o produto atrasado:', 'en': '✅ Form pre-filled with overdue product:', 'es': '✅ Formulario pre-llenado con producto atrasado:',
     'fr': '✅ Formulaire pré-rempli avec produit en retard :', 'it': '✅ Modulo precompilato con prodotto in ritardo:'
   },
   'alert.arrival_fill_product': {
-    'pt-BR': 'Preencha o produto comprado!', 'en': 'Fill in the product purchased!', 'es': '¡Completa el producto comprado!',
-    'fr': 'Remplissez le produit acheté !', 'it': 'Compila il prodotto acquistato!'
+    'pt-BR': 'Falta o produto comprado.', 'en': 'The purchased product is missing.', 'es': 'Falta el producto comprado.',
+    'fr': 'Le produit acheté est manquant.', 'it': 'Manca il prodotto acquistato.'
   },
   'alert.consultation_registered': {
     'pt-BR': '🩺 Consulta registrada!', 'en': '🩺 Consultation registered!', 'es': '🩺 ¡Consulta registrada!',
@@ -1094,8 +1094,8 @@ export const translations: Record<string, TranslationEntry> = {
   
   // Quick Add Modal 
   'quick_add.title': {
-    'pt-BR': 'Preenchimento Rápido de Vacina', 'en': 'Quick Fill Vaccine', 'es': 'Llenado Rápido de Vacuna',
-    'fr': 'Saisie Rapide Vaccin', 'it': 'Compilazione Rapida Vaccino'
+    'pt-BR': 'Registro rápido de vacina', 'en': 'Quick vaccine log', 'es': 'Registro rápido de vacuna',
+    'fr': 'Enregistrement rapide de vaccin', 'it': 'Registrazione rapida vaccino'
   },
   'quick_add.subtitle': {
     'pt-BR': 'Registre vacinas comuns em segundos!', 'en': 'Register common vaccines in seconds!', 'es': '¡Registra vacunas comunes en segundos!',
@@ -1306,8 +1306,8 @@ export const translations: Record<string, TranslationEntry> = {
     'fr': 'Sélectionné :', 'it': 'Selezionato:'
   },
   'parasite.configure_per_vet': {
-    'pt-BR': 'Configure conforme orientação do seu veterinário e instruções da embalagem', 'en': 'Configure according to veterinarian guidance and package instructions', 'es': 'Configure según la orientación del veterinario y las instrucciones del paquete',
-    'fr': 'Configurez selon les conseils du vétérinaire et les instructions de l\'emballage', 'it': 'Configura secondo l\'orientamento del veterinario e le istruzioni della confezione'
+    'pt-BR': 'Siga a orientação do seu veterinário e as instruções da embalagem', 'en': 'Follow your vet\'s guidance and the package instructions', 'es': 'Sigue la orientación de tu veterinario y las instrucciones del envase',
+    'fr': 'Suivez les conseils de votre vétérinaire et les instructions de l\'emballage', 'it': 'Segui le indicazioni del veterinario e le istruzioni della confezione'
   },
   'parasite.type_or_choose': {
     'pt-BR': 'Digite ou escolha da lista', 'en': 'Type or choose from list', 'es': 'Escribe o elige de la lista',
@@ -1334,8 +1334,8 @@ export const translations: Record<string, TranslationEntry> = {
 
   // Home Management Section
   'home.management_controls': {
-    'pt-BR': 'Gerenciamento e Controles', 'en': 'Management & Controls', 'es': 'Gestión y Controles',
-    'fr': 'Gestion et Contrôles', 'it': 'Gestione e Controlli'
+    'pt-BR': 'Acompanhar os cuidados', 'en': 'Keep track of care', 'es': 'Seguir los cuidados',
+    'fr': 'Suivre les soins', 'it': 'Seguire le cure'
   },
   'home.health_card': {
     'pt-BR': 'Saúde', 'en': 'Health', 'es': 'Salud',
@@ -3225,11 +3225,11 @@ export const translations: Record<string, TranslationEntry> = {
     'fr': 'Quels animaux?', 'it': 'Quali animali?'
   },
   'event_nudge.no_pets': {
-    'pt-BR': 'Nenhum pet cadastrado. Cadastre no módulo Saúde para vincular este evento.',
-    'en': 'No pets registered. Add one in Health to link this event.',
-    'es': 'No hay mascotas registradas. Añade una en Salud para vincular este evento.',
-    'fr': 'Aucun animal enregistré. Ajoutez-en un dans Santé pour lier cet événement.',
-    'it': 'Nessun animale registrato. Aggiungine uno in Salute per collegare questo evento.'
+    'pt-BR': 'Ainda não há um pet por aqui. Adicione um pet para vincular este evento.',
+    'en': 'No pet here yet. Add a pet to link this event.',
+    'es': 'Todavía no hay ninguna mascota. Añade una mascota para vincular este evento.',
+    'fr': 'Aucun animal ici pour l\'instant. Ajoutez un animal pour lier cet événement.',
+    'it': 'Ancora nessun animale qui. Aggiungi un animale per collegare questo evento.'
   },
   'event_nudge.event_type': {
     'pt-BR': 'Tipo de visita', 'en': 'Visit type', 'es': 'Tipo de visita',
@@ -4196,11 +4196,11 @@ export const translations: Record<string, TranslationEntry> = {
     'it': 'Animali'
   },
   'family.invite_section.no_pets': {
-    'pt-BR': 'Nenhum pet cadastrado.',
-    'en': 'No pets registered.',
-    'es': 'No hay mascotas registradas.',
-    'fr': 'Aucun animal enregistré.',
-    'it': 'Nessun animale registrato.'
+    'pt-BR': 'Ainda não há um pet por aqui.',
+    'en': 'No pet here yet.',
+    'es': 'Todavía no hay ninguna mascota.',
+    'fr': 'Aucun animal ici pour l\'instant.',
+    'it': 'Ancora nessun animale qui.'
   },
   'family.invite_section.permission': {
     'pt-BR': 'Permissão',

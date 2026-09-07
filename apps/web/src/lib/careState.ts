@@ -49,7 +49,7 @@ export const CARE_STATE: Record<CareStateKey, CareStateStyle> = {
     row: 'border-amber-300 bg-amber-50/70',
   },
   critical: {
-    label: 'Vencido',
+    label: 'Atrasado',
     dot: 'bg-red-500',
     chip: 'bg-red-50 border border-red-200',
     chipText: 'text-red-700',
