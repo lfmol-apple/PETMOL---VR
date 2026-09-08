@@ -247,16 +247,16 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
             });
           }}
           onPetzBuy={(petzLink) => {
-            // openPetzPartnerStore SEMPRE abre a Loja Parceira (nunca
-            // busca/produto — ver comentário na função); productUrl/
-            // searchUrl continuam mandados só pro nome do produto exibido
-            // na ponte. coupon_copied é o que de fato aconteceu no clique
-            // (nunca assumido) — por isso a analítica espera o retorno.
+            // Destino decidido pelo backend (`petzLink.destination`):
+            // 'store' = vitrine `/parceiro/PETMOL`; 'search' = busca da
+            // Petz pelo produto. coupon_copied é o que de fato aconteceu
+            // no clique (nunca assumido) — por isso a analítica espera o retorno.
             void (async () => {
               const copied = await openPetzPartnerStore({
                 productUrl: petzLink.direct_product_url,
                 searchUrl: petzLink.search_url,
                 productName: card.label,
+                preferSearch: petzLink.destination === 'search',
               });
               void trackClick({
                 source: 'home',

@@ -431,20 +431,18 @@ export function petzBridgeUrl(target: string, productName?: string): string {
 /**
  * Clique "Ver na Petz" / "Petz" (grade de lojas parceiras ou por produto).
  *
- * SEMPRE abre a Loja Parceira — `PETZ_PARTNER_STORE_URL`
- * (`/parceiro/PETMOL`) — nunca `/busca?q=` nem `/produto/...` (decisão de
- * produto, 04/09/2026: reduzir ao máximo o risco de perder comissão). A
- * Petz não documenta oficialmente nenhum parâmetro de cupom/rastreio pra
- * busca ou produto, e não há prova de que esses caminhos preservem a
- * atribuição do Parceiro Petz — só a Loja Parceira é um destino confirmado.
- * `productUrl`/`searchUrl` continuam na assinatura (quem chama — "Ver na
- * Petz" por produto — ainda manda esses dados) só pra alimentar o nome do
- * produto exibido na ponte; nunca decidem o destino. Se um dia a Petz
- * documentar/comprovar um deep link seguro, é aqui que ele voltaria a
- * decidir o `target`.
+ * Por padrão abre a Loja Parceira — `PETZ_PARTNER_STORE_URL`
+ * (`/parceiro/PETMOL`) — nunca `/produto/...` (a AASA da Petz o entrega ao
+ * app numa tela quebrada). Com `preferSearch` (o backend decide via a flag
+ * `petz_product_search_link`, default OFF) o destino passa a ser
+ * `searchUrl` — a busca da Petz pelo produto (`/busca?q=...`, o produto
+ * aparece na tela; `/busca` é AASA-safe). Nesse modo a comissão de 7% vem
+ * do cupom `PETMOL` no carrinho ("Caminho B", comprovado em compra real
+ * 29/08/2026), não do cookie. `productUrl` (`/produto/*`) continua na
+ * assinatura só pra alimentar o nome exibido na ponte; nunca é destino.
  *
- * Por que SEMPRE `/parceiro/PETMOL` também é o que dá o cupom automático
- * (investigação real no navegador, 29/08/2026 — ver
+ * Por que `/parceiro/PETMOL` (modo padrão) também é o que dá o cupom
+ * automático (investigação real no navegador, 29/08/2026 — ver
  * docs/PETZ_COMMISSION_VALIDATION.md): abrir essa URL por navegação
  * top-level grava um cookie first-party `petzPartner` em
  * www.petz.com.br (~30min, renovado a cada visita). Com o cookie:
@@ -478,15 +476,27 @@ export async function openPetzPartnerStore(
     productUrl?: string | null;
     productName?: string | null;
     searchUrl?: string | null;
+    /**
+     * true → o destino passa a ser a BUSCA da Petz pelo produto
+     * (`searchUrl`, normalmente `/busca?q=...` — o produto aparece na
+     * tela). Quem decide é o backend, via a flag `petz_product_search_link`
+     * (default OFF → este parâmetro chega false e o comportamento é
+     * idêntico ao de sempre: vitrine `/parceiro/PETMOL`). Só é respeitado
+     * se `searchUrl` for uma URL Petz segura (fora da AASA do app).
+     */
+    preferSearch?: boolean;
   } = {},
 ): Promise<boolean> {
   const productName = (opts.productName ?? '').trim();
-  // Não decidem mais o destino (ver comentário acima) — mantidos na
-  // assinatura só por compatibilidade com quem ainda os manda.
+  // `/produto/*` NUNCA é destino — a AASA da Petz o entrega ao app, que
+  // cai numa tela "DETALHES" quebrada (bug de 30/08, reconfirmado 08/09).
   void opts.productUrl;
-  void opts.searchUrl;
 
-  const target = PETZ_PARTNER_STORE_URL;
+  const searchUrl = (opts.searchUrl ?? '').trim();
+  const target =
+    opts.preferSearch && searchUrl && isSafePetzTarget(searchUrl)
+      ? searchUrl
+      : PETZ_PARTNER_STORE_URL;
 
   // Cupom no tempo do gesto (onClick) — melhor chance no WebView do iOS.
   const copied = await copyText(PETZ_COUPON_CODE).catch(() => false);

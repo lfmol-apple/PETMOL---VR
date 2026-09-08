@@ -68,6 +68,7 @@ def test_no_unmonetized_public_buy_paths(client):
     assert r.json() == {
         "available": False,
         "partner_program_active": False,
+        "destination": "store",
         "url": None,
         "direct_product_url": None,
         "search_url": None,
