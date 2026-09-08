@@ -58,12 +58,16 @@ card no rodapé da Loja do Pet** ("Ou visite uma loja parceira"),
   discovery (`find_offer`/`monetize` já checavam
   `is_marketplace_merchant_publicly_servable`); é defesa em profundidade
   atrás do filtro de frontend da Fase 1.
-- **Sync noturno vira no-op** — `start_sync_run`
-  (`admin/shopee_sync_router.py`) responde
-  `{"started": false, "reason": "shopee_affiliate_disabled"}` quando a
-  flag está `False`. O `petmol-shopee-sync.timer` pode continuar armado
-  no VPS; ele só não gasta mais rede/banco. (Opcional: `systemctl
-  disable --now petmol-shopee-sync.timer petmol-shopee-health.timer`.)
+- **Sync noturno REMOVIDO** — `start_sync_run`
+  (`admin/shopee_sync_router.py`) já respondia
+  `{"started": false, "reason": "shopee_affiliate_disabled"}` com a flag
+  `False`. Desde 08/09/2026 os units systemd da Shopee (`petmol-shopee-sync.{service,timer}`,
+  `petmol-shopee-health.{service,timer}`, `petmol-shopee-sync-trigger.sh`)
+  foram **apagados do repo** — o `activate.sh` re-habilitava todo `.timer`
+  a cada deploy, então desabilitar à mão não durava. Limpeza única no VPS
+  (units antigos ficam em `/etc/systemd/system/` até serem removidos):
+  `systemctl disable --now petmol-shopee-sync.timer petmol-shopee-health.timer &&
+  rm -f /etc/systemd/system/petmol-shopee-*.{timer,service} && systemctl daemon-reload`.
 - **O card da vitrine NÃO depende de nada disso** — é um shortlink
   afiliado estático no frontend (`homeShoppingPartners.ts`,
   `DEFAULT_SHOPEE_AFFILIATE_URL` / `NEXT_PUBLIC_AFFILIATE_SHOPEE`),
