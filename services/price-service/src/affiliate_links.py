@@ -46,6 +46,31 @@ PETZ_AFFILIATE_PROGRAM = "petz_partner"
 # é levar o tutor ao produto certo e com o cupom no clipboard.
 PETZ_SITE_SEARCH_BASE = "https://www.petz.com.br/busca"
 
+# "Carrinho pré-montado" (flag petz_cart_prefill) — endpoints legados Struts
+# da loja da Petz, descobertos por engenharia reversa em 08/09/2026. A loja
+# nova (Next.js/Vue) não os usa mais, mas continuam respondendo. Ver o
+# comentário do flag em config.py e docs/PETZ_COMMISSION_VALIDATION.md.
+#   1. PETZ_COUPON_APPLY_URL  → registra o cupom PETMOL na sessão do carrinho
+#   2. comprarAgora_Loja.html?prod=<id>&qtde=1 → adiciona o produto e
+#      redireciona pro /checkout/cart. Chamado DEPOIS do (1), o cupom já
+#      entra aplicado.
+# NÃO documentados: podem sair do ar. Só use quando a flag estiver ON e
+# houver petz_product_id; o bridge sempre tem fallback pro fluxo de hoje.
+PETZ_COUPON_APPLY_URL = f"https://www.petz.com.br/aplicarCupom_Loja.html?cupom={PETZ_COUPON_CODE}"
+_PETZ_CART_ADD_BASE = "https://www.petz.com.br/comprarAgora_Loja.html"
+
+
+def petz_cart_add_url(petz_product_id: str, qty: int = 1) -> Optional[str]:
+    """URL que adiciona o produto Petz ao carrinho e redireciona pro
+    checkout. Segunda navegação do fluxo "carrinho pré-montado" — a
+    primeira é PETZ_COUPON_APPLY_URL. `petz_product_id` é o id numérico
+    do PetzProductMapping (o mesmo `prod=` da loja legada)."""
+    pid = (petz_product_id or "").strip()
+    if not pid.isdigit():
+        return None
+    q = qty if isinstance(qty, int) and qty > 0 else 1
+    return f"{_PETZ_CART_ADD_BASE}?prod={quote_plus(pid)}&qtde={q}"
+
 # A busca da Petz devolve "0 resultados" quando o termo é o título Awin
 # completo (marca + variante + tamanho + "para Cães e Gatos"). Reduzimos
 # a marca + as 2 primeiras palavras significativas do nome — o suficiente

@@ -404,6 +404,44 @@ function isSafePetzTarget(url: string): boolean {
 }
 
 /**
+ * Endpoints legados Struts da loja da Petz usados no fluxo "carrinho
+ * pré-montado" (`destination: 'cart'`, flag backend `petz_cart_prefill`):
+ *  - `/aplicarCupom_Loja.html?cupom=PETMOL` — registra o cupom na sessão
+ *  - `/comprarAgora_Loja.html?prod=<id>&qtde=1` — adiciona o produto e
+ *    redireciona pro /checkout/cart (com o cupom já aplicado)
+ * Descobertos por engenharia reversa 08/09/2026 (ver
+ * docs/PETZ_COMMISSION_VALIDATION.md). Aceitos SÓ nesses dois paths
+ * exatos — o backend é a fonte, mas validamos aqui de novo pra nunca
+ * `Browser.open` uma URL inesperada.
+ */
+function isPetzCouponApplyUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return (
+      u.protocol === 'https:' &&
+      PETZ_ALLOWED_HOSTS.includes(u.hostname) &&
+      u.pathname === '/aplicarCupom_Loja.html'
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isPetzCartAddUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return (
+      u.protocol === 'https:' &&
+      PETZ_ALLOWED_HOSTS.includes(u.hostname) &&
+      u.pathname === '/comprarAgora_Loja.html' &&
+      /^\d+$/.test(u.searchParams.get('prod') ?? '')
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Ponte /go/petz — evita a interceptação pelo app da Petz (Universal Link
  * / App Link): a página fica em petmol.com.br (sem AASA) e navega pra Petz
  * só por JS (`location.replace`), pra um path NÃO reivindicado pela AASA
@@ -485,6 +523,18 @@ export async function openPetzPartnerStore(
      * se `searchUrl` for uma URL Petz segura (fora da AASA do app).
      */
     preferSearch?: boolean;
+    /**
+     * Par de URLs Struts do fluxo "carrinho pré-montado" (backend decide
+     * via a flag `petz_cart_prefill`, só quando há `petz_product_id`).
+     * SÓ no app nativo (Capacitor): `Browser.open(couponApplyUrl)` →
+     * ~1,8s → `Browser.open(cartAddUrl)` (que cai no /checkout/cart com o
+     * produto e o cupom PETMOL já aplicado — zero digitação). Fora do
+     * app nativo, ou se qualquer uma falhar na validação, cai no fluxo
+     * normal (busca/vitrine + clipboard). Ver
+     * docs/PETZ_COMMISSION_VALIDATION.md.
+     */
+    couponApplyUrl?: string | null;
+    cartAddUrl?: string | null;
   } = {},
 ): Promise<boolean> {
   const productName = (opts.productName ?? '').trim();
@@ -493,12 +543,14 @@ export async function openPetzPartnerStore(
   void opts.productUrl;
 
   const searchUrl = (opts.searchUrl ?? '').trim();
-  const target =
-    opts.preferSearch && searchUrl && isSafePetzTarget(searchUrl)
-      ? searchUrl
-      : PETZ_PARTNER_STORE_URL;
+  const couponApplyUrl = (opts.couponApplyUrl ?? '').trim();
+  const cartAddUrl = (opts.cartAddUrl ?? '').trim();
+  const canPrefillCart =
+    isPetzCouponApplyUrl(couponApplyUrl) && isPetzCartAddUrl(cartAddUrl);
 
-  // Cupom no tempo do gesto (onClick) — melhor chance no WebView do iOS.
+  // Cupom no tempo do gesto (onClick) — melhor chance no WebView do iOS,
+  // e rede de segurança mesmo no fluxo de carrinho pré-montado (se um dos
+  // hops falhar, o tutor ainda tem o código copiado).
   const copied = await copyText(PETZ_COUPON_CODE).catch(() => false);
   if (copied) {
     showAppToast(`Cupom ${PETZ_COUPON_CODE} copiado — 10% OFF na Petz`, {
@@ -511,6 +563,31 @@ export async function openPetzPartnerStore(
       durationMs: 6000,
     });
   }
+
+  // Carrinho pré-montado — SÓ no app nativo: duas navegações top-level no
+  // navegador do sistema (SFSafariViewController / Custom Tabs), que
+  // compartilham a sessão. 1) registra o cupom  2) adiciona o produto e
+  // cai no carrinho. Web/PWA não conseguem 2 navegações top-level a
+  // partir de uma página → seguem o fluxo normal abaixo.
+  if (canPrefillCart && Capacitor.isNativePlatform()) {
+    try {
+      const { Browser } = await import('@capacitor/browser');
+      await Browser.open({ url: couponApplyUrl });
+      await new Promise((resolve) => setTimeout(resolve, 1800));
+      await Browser.close().catch(() => {});
+      await Browser.open({ url: cartAddUrl });
+      return copied;
+    } catch {
+      // qualquer falha → cai no fluxo normal (busca/vitrine + clipboard)
+    }
+  }
+
+  // Fora do carrinho pré-montado: `destination: 'cart'` do backend vira
+  // "prefira a busca" no fallback (o produto aparece na tela), senão a
+  // vitrine fixa.
+  const preferSearch = Boolean(opts.preferSearch) || (canPrefillCart && Boolean(searchUrl));
+  const target =
+    preferSearch && searchUrl && isSafePetzTarget(searchUrl) ? searchUrl : PETZ_PARTNER_STORE_URL;
 
   navigateToPartnerUrl(petzBridgeUrl(target, productName || undefined));
   return copied;

@@ -198,12 +198,25 @@ export interface PetzDirectLink {
   affiliate_program?: string | null;
   link_type?: 'affiliate_store';
   /**
-   * Destino do clique "Ver na Petz", decidido pelo backend
-   * (`petz_product_search_link`):
+   * Destino do clique "Ver na Petz", decidido pelo backend:
    *  - `'store'` (padrão): vitrine fixa `/parceiro/PETMOL` (cookie petzPartner)
-   *  - `'search'`: busca da Petz pelo produto (`/busca?q=...`) — produto na tela
+   *  - `'search'` (`petz_product_search_link`): busca da Petz (`/busca?q=...`)
+   *  - `'cart'` (`petz_cart_prefill`): carrinho da Petz JÁ com o produto e o
+   *     cupom PETMOL aplicado — o bridge navega `coupon_apply_url` →
+   *     `cart_add_url` (que cai no /checkout/cart). Só quando há
+   *     `petz_product_id` (mapping confirmado).
    */
-  destination?: 'store' | 'search';
+  destination?: 'store' | 'search' | 'cart';
+  /** id numérico do produto na Petz (PetzProductMapping), quando confirmado. */
+  petz_product_id?: string | null;
+  /**
+   * Fluxo "carrinho pré-montado" (`destination: 'cart'`). O bridge navega
+   * `coupon_apply_url` (registra o cupom PETMOL na sessão) e ~1,8s depois
+   * `cart_add_url` (adiciona o produto e cai no /checkout/cart, com o cupom
+   * já aplicado). Ambos vazios → bridge usa o fluxo normal (busca + clipboard).
+   */
+  coupon_apply_url?: string | null;
+  cart_add_url?: string | null;
 }
 
 /**

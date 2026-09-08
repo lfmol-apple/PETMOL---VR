@@ -1565,6 +1565,8 @@ async def commerce_petz_direct_link(
         deslug_petz_product_url,
         petz_search_url_from_term,
         petz_site_search_url,
+        petz_cart_add_url,
+        PETZ_COUPON_APPLY_URL,
     )
     from .petz_mapping import DIRECT_LINK_ELIGIBLE_STATUSES, get_mapping
     from .petz_provider import is_petz_publicly_servable
@@ -1581,6 +1583,9 @@ async def commerce_petz_direct_link(
             "coupon_code": PETZ_COUPON_CODE,
             "affiliate_program": PETZ_AFFILIATE_PROGRAM,
             "destination": "store",
+            "petz_product_id": None,
+            "coupon_apply_url": None,
+            "cart_add_url": None,
         }
 
     gtin_raw = (gtin or "").strip()
@@ -1599,10 +1604,19 @@ async def commerce_petz_direct_link(
 
     direct_product_url: Optional[str] = None
     curated_search: Optional[str] = None
+    petz_product_id: Optional[str] = None
+    cart_add_url: Optional[str] = None
     if product is not None:
         mapping = get_mapping(db, product.id)
         if mapping and mapping.match_status in DIRECT_LINK_ELIGIBLE_STATUSES and mapping.product_url:
             direct_product_url = mapping.product_url
+            petz_product_id = (mapping.petz_product_id or "").strip() or None
+            # `petz_cart_prefill` (default OFF): quando ON e o mapping tem
+            # petz_product_id, o bridge pode montar o carrinho da Petz com
+            # o produto + cupom PETMOL já aplicado (2 navegações Struts —
+            # ver affiliate_links.py / comentário do flag em config.py).
+            if petz_product_id and bool(get_settings().petz_cart_prefill):
+                cart_add_url = petz_cart_add_url(petz_product_id)
             # Produto confirmado → busca curada (verificada) > deslug da
             # URL do produto. "Ver na Petz" abre /busca (a AASA da Petz
             # sequestra /produto/*), então a busca tem que trazer ESTE
@@ -1625,8 +1639,15 @@ async def commerce_petz_direct_link(
     # (produto na tela) em vez da vitrine fixa. Rollback = env var + restart.
     # Ver o comentário do flag em config.py. `get_settings()` fresco (não o
     # `settings` de módulo) pra o flip da flag valer sem reimportar o módulo.
+    coupon_apply_url: Optional[str] = PETZ_COUPON_APPLY_URL if cart_add_url else None
+
     prefer_search = bool(get_settings().petz_product_search_link) and bool(search_url)
-    if prefer_search:
+    if cart_add_url:
+        # Carrinho pré-montado tem prioridade: o bridge navega
+        # coupon_apply_url → cart_add_url (que já cai no /checkout/cart).
+        destination = "cart"
+        url = cart_add_url
+    elif prefer_search:
         destination = "search"
         url = search_url
     else:
@@ -1644,6 +1665,9 @@ async def commerce_petz_direct_link(
         "affiliate_program": PETZ_AFFILIATE_PROGRAM,
         "link_type": "affiliate_store",
         "destination": destination,
+        "petz_product_id": petz_product_id,
+        "coupon_apply_url": coupon_apply_url,
+        "cart_add_url": cart_add_url,
     }
 
 

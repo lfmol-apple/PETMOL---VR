@@ -75,6 +75,9 @@ def test_no_unmonetized_public_buy_paths(client):
         "partner_store_url": PETZ_PARTNER_STORE_URL,
         "coupon_code": PETZ_COUPON_CODE,
         "affiliate_program": PETZ_AFFILIATE_PROGRAM,
+        "petz_product_id": None,
+        "coupon_apply_url": None,
+        "cart_add_url": None,
     }
 
     for merchant in ("petz", "cobasi", "petlove"):

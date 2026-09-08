@@ -505,6 +505,10 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                               productName: item.title ?? undefined,
                               preferSearch:
                                 typeof petzResolved === 'object' && petzResolved.destination === 'search',
+                              couponApplyUrl:
+                                typeof petzResolved === 'object' ? petzResolved.coupon_apply_url : undefined,
+                              cartAddUrl:
+                                typeof petzResolved === 'object' ? petzResolved.cart_add_url : undefined,
                             });
                             void trackClick({
                               source: 'home',

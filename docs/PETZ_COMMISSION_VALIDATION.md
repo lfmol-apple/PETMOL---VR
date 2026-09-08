@@ -1,5 +1,57 @@
 # Validação de comissão — Parceiro Petz (cupom PETMOL)
 
+> **08/09/2026 — flag `petz_cart_prefill` (default OFF): carrinho da Petz
+> JÁ montado (produto + cupom PETMOL aplicado), sem o cliente digitar
+> nada.** Engenharia reversa da loja da Petz (plataforma Stoom) achou dois
+> endpoints **legados Struts** ainda no ar, que a loja nova (Next.js/Vue)
+> não usa mais:
+>
+> | URL | Efeito |
+> |---|---|
+> | `www.petz.com.br/aplicarCupom_Loja.html?cupom=PETMOL` | registra o cupom na sessão do carrinho (`petzCarrinho`, `SameSite=Lax`) — página em branco, sem redirect |
+> | `www.petz.com.br/comprarAgora_Loja.html?prod=<petz_product_id>&qtde=1` | adiciona o produto e **redireciona pro `/checkout/cart/<id>`** |
+>
+> **Nessa ordem, 2 navegações top-level → carrinho da Petz com o produto e
+> `✓ PETMOL` (−10%) já aplicado.** Provado em aba anônima zerada, do zero,
+> várias vezes, 08/09/2026 (Baby: `prod=100223`, R$ 154,99 → R$ 139,49).
+> A comissão é a MESMA de sempre — cupom PETMOL no checkout = 7% "vendas
+> com seu cupom" — só que colado automático.
+>
+> **Restrições confirmadas nos testes:**
+> - `comprarAgora_Loja.html` **não** aceita param de cupom (`cupom`,
+>   `cupomPromocional`, `promocode`, … — 14 nomes testados, nenhum).
+> - `aplicarCupom_Loja.html` **não** aceita param de redirect (`redirect`,
+>   `url`, `dest`, `proximaPagina`, … — ~25 nomes testados). É beco sem
+>   saída: aplica e para numa página em branco. Por isso são 2 navegações,
+>   não 1.
+> - `fetch`/`<iframe>` cross-origin de petmol.com.br **não** funcionam a
+>   frio: o cookie de sessão é `SameSite=Lax`, só nasce/viaja em navegação
+>   top-level. Confirmado que falha em incognito limpo.
+> - 3 abas separadas na mesma sessão (= cookie jar compartilhado)
+>   funcionam → o `Browser.open` sequencial do app nativo também funciona
+>   (SFSafariViewController compartilha cookies entre instâncias no mesmo
+>   app; ≠ WKWebView, ≠ Safari).
+>
+> **Entrega — SÓ no app nativo (Capacitor):** `openPetzPartnerStore` faz
+> `Browser.open(coupon_apply_url)` → ~1,8s → `Browser.close()` →
+> `Browser.open(cart_add_url)`. Fora do app (web/PWA) não dá pra fazer 2
+> navegações top-level a partir de uma página → segue o fluxo de
+> `petz_product_search_link` / vitrine + clipboard. Só vale pra produto
+> com `PetzProductMapping` confirmado E `petz_product_id` numérico.
+>
+> **Backend:** `/commerce/petz-direct-link` devolve `petz_product_id`,
+> `coupon_apply_url`, `cart_add_url` e `destination: "cart"` quando a flag
+> está ON e há `petz_product_id`. Helpers em `affiliate_links.py`
+> (`PETZ_COUPON_APPLY_URL`, `petz_cart_add_url`). Frontend valida os dois
+> paths de novo (`isPetzCouponApplyUrl`, `isPetzCartAddUrl`) antes de
+> `Browser.open`.
+>
+> **Riscos:** endpoints não documentados — a Petz pode removê-los. O
+> frontend cai no fluxo atual automaticamente se as URLs vierem vazias ou
+> inválidas, ou se qualquer `Browser.open` falhar. O "2× `Browser.open`"
+> ainda **não foi testado em iPhone real** (só a lógica de cookies).
+> Rollback = `PETZ_CART_PREFILL=false` + restart do petmol-api, sem deploy.
+
 > **08/09/2026 — flag `petz_product_search_link` (default OFF).** Investigação
 > a fundo (VTEX, API do parceiro, iframe, redirect params, app da Petz,
 > two-hop) confirmou: **a Petz não tem deep link de produto pro programa

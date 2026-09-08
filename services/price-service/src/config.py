@@ -431,6 +431,25 @@ class Settings(BaseSettings):
     # Rollback = env var `PETZ_PRODUCT_SEARCH_LINK=false` + restart do
     # petmol-api (sem deploy de código).
     petz_product_search_link: bool = False
+    # "Ver na Petz" → carrinho da Petz JÁ com o produto e o cupom PETMOL
+    # aplicado (10% OFF), sem o cliente digitar nada. Engenharia reversa
+    # 08/09/2026: dois endpoints legados Struts da Petz continuam vivos —
+    #   `aplicarCupom_Loja.html?cupom=PETMOL` (registra o cupom na sessão)
+    #   `comprarAgora_Loja.html?prod=<petz_product_id>&qtde=1` (adiciona o
+    #   produto e já redireciona pro /checkout/cart).
+    # Nessa ordem, 2 navegações top-level → carrinho com produto + cupom
+    # aplicado. Provado em aba anônima zerada (ver
+    # docs/PETZ_COMMISSION_VALIDATION.md). Comissão = a mesma de sempre
+    # (cupom PETMOL no checkout = 7% "vendas com seu cupom"), só que colado
+    # automático. Só vale para produto com PetzProductMapping confirmado E
+    # petz_product_id preenchido; sem isso, cai no fluxo de hoje.
+    #   OFF (padrão) = comportamento definido por petz_product_search_link.
+    #   ON = /commerce/petz-direct-link também devolve `coupon_apply_url` +
+    #        `cart_add_url` + `destination: "cart"` quando há petz_product_id.
+    # Endpoints NÃO documentados — a Petz pode removê-los. O bridge
+    # (`/go/petz`) sempre cai no fluxo atual se os campos vierem vazios.
+    # Rollback = env var `PETZ_CART_PREFILL=false` + restart (sem deploy).
+    petz_cart_prefill: bool = False
 
     @field_validator("debug", mode="before")
     @classmethod
