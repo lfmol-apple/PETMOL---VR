@@ -2,12 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // openPetzPartnerStore — clique "Ver na Petz" / card "Petz" da loja parceira.
 //
-// SEMPRE leva pra Loja Parceira (/parceiro/PETMOL) — nunca pra
-// `/busca?q=...` nem `/produto/...` (decisão de produto, 04/09/2026:
-// reduzir ao máximo o risco de perder comissão — só a Loja Parceira é um
-// destino comprovado). productUrl/searchUrl continuam aceitos na
-// assinatura, mas não decidem mais o destino. Cupom PETMOL copiado.
-// Sempre via a ponte /go/petz (redirect JS).
+// Por padrão (`preferSearch` ausente/false — flag de backend
+// `petz_product_search_link` OFF) leva pra Loja Parceira (/parceiro/PETMOL)
+// — nunca pra `/busca` nem `/produto/...`. Com `preferSearch: true` o
+// destino passa a ser `searchUrl` (a busca da Petz pelo produto), desde
+// que seja uma URL Petz segura (fora da AASA). `productUrl` (`/produto/*`)
+// nunca é destino. Cupom PETMOL sempre copiado. Sempre via a ponte
+// /go/petz (redirect JS).
 
 const REAL_PRODUCT = 'https://www.petz.com.br/produto/kit-enxoval-modernpet-201842';
 const SEARCH_URL = 'https://www.petz.com.br/busca?q=Royal+Canin+racao';
@@ -114,6 +115,58 @@ describe('openPetzPartnerStore', () => {
     delete document.execCommand;
     const { openPetzPartnerStore: openAgain } = await import('./homeShoppingPartners');
     await expect(openAgain({})).resolves.toBe(false);
+  });
+
+  describe('preferSearch (flag petz_product_search_link ON)', () => {
+    it('preferSearch + searchUrl /busca válido → destino é a busca (?to=<searchUrl>)', async () => {
+      const url = await callAndGetBridgeUrl({
+        searchUrl: SEARCH_URL,
+        productName: 'Ração Golden',
+        preferSearch: true,
+      });
+      expect(url.pathname).toBe('/go/petz');
+      expect(url.searchParams.get('to')).toBe(SEARCH_URL);
+      expect(url.searchParams.get('q')).toBe('Ração Golden');
+      expect(url.host).not.toContain('petz.com.br');
+    });
+
+    it('preferSearch mas sem searchUrl → cai na Loja Parceira (sem ?to=)', async () => {
+      const url = await callAndGetBridgeUrl({ productName: 'X', preferSearch: true });
+      expect(url.searchParams.get('to')).toBeNull();
+    });
+
+    it('preferSearch + searchUrl inseguro (evil / http / AASA / produto) → nunca vira ?to=, cai na Loja Parceira', async () => {
+      for (const badUrl of [
+        'https://evil.com/busca?q=x',
+        'http://www.petz.com.br/busca?q=x',
+        'https://petz.com.br.evil.com/busca',
+        'javascript:alert(1)',
+        'https://www.petz.com.br/produto/x-123',
+        'https://www.petz.com.br/',
+      ]) {
+        vi.resetModules();
+        const url = await callAndGetBridgeUrl({ searchUrl: badUrl, productName: 'X', preferSearch: true });
+        expect(url.searchParams.get('to')).toBeNull();
+        expect(url.href).not.toContain('evil.com');
+        expect(url.href).not.toContain('/produto/');
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('preferSearch + productUrl (/produto/*) NUNCA é destino — mesmo sem searchUrl', async () => {
+      const url = await callAndGetBridgeUrl({
+        productUrl: REAL_PRODUCT,
+        productName: 'Kit Enxoval',
+        preferSearch: true,
+      });
+      expect(url.searchParams.get('to')).toBeNull();
+      expect(url.href).not.toContain('/produto/');
+    });
+
+    it('preferSearch ainda copia o cupom PETMOL', async () => {
+      await callAndGetBridgeUrl({ searchUrl: SEARCH_URL, productName: 'Ração', preferSearch: true });
+      expect(writeText).toHaveBeenCalledWith('PETMOL');
+    });
   });
 
   it('feedback de cupom: copiou → "10% OFF na Petz"; falhou → "Use o cupom ... para 10% OFF"', async () => {

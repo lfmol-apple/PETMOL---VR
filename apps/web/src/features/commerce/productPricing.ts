@@ -197,6 +197,13 @@ export interface PetzDirectLink {
   coupon_code?: string | null;
   affiliate_program?: string | null;
   link_type?: 'affiliate_store';
+  /**
+   * Destino do clique "Ver na Petz", decidido pelo backend
+   * (`petz_product_search_link`):
+   *  - `'store'` (padrão): vitrine fixa `/parceiro/PETMOL` (cookie petzPartner)
+   *  - `'search'`: busca da Petz pelo produto (`/busca?q=...`) — produto na tela
+   */
+  destination?: 'store' | 'search';
 }
 
 /**

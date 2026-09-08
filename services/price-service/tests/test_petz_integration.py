@@ -75,6 +75,16 @@ def _enable_petz(monkeypatch) -> None:
     get_settings.cache_clear()
 
 
+def _enable_petz_search(monkeypatch) -> None:
+    """Liga o gate + a flag `petz_product_search_link` (default OFF): "Ver
+    na Petz" por produto passa a apontar pra BUSCA da Petz (`/busca?q=...`)
+    em vez da vitrine `/parceiro/PETMOL`. Rollback em prod = env var +
+    restart, sem deploy."""
+    _enable_petz(monkeypatch)
+    monkeypatch.setenv("PETZ_PRODUCT_SEARCH_LINK", "true")
+    get_settings.cache_clear()
+
+
 def _disable_petz(monkeypatch) -> None:
     """Força o gate único DESLIGADO, explicitamente — usado pelos testes
     que verificam o kill-switch em si (defesa em profundidade), já que
@@ -527,6 +537,49 @@ def test_petz_direct_link_bad_gtin_still_400(client, monkeypatch):
     _enable_petz(monkeypatch)
     resp = client.get("/commerce/petz-direct-link", params={"gtin": "abc"})
     assert resp.status_code == 400
+
+
+# ── flag petz_product_search_link (default OFF) ──────────────────────────
+
+def test_petz_direct_link_flag_off_destination_is_store(client, monkeypatch):
+    """Default: destination='store'. Comportamento idêntico ao de sempre."""
+    _enable_petz(monkeypatch)
+    resp = client.get("/commerce/petz-direct-link", params={"q": "Ração Golden Fórmula"})
+    body = resp.json()
+    assert body["destination"] == "store"
+    # url continua sendo direct_product_url or search_url or STORE
+    assert body["url"] == body["search_url"]
+
+
+def test_petz_direct_link_flag_on_destination_is_search(client, monkeypatch):
+    """Flag ON + há busca utilizável → destination='search', url = search_url."""
+    _enable_petz_search(monkeypatch)
+    resp = client.get("/commerce/petz-direct-link", params={"q": "Simparic 10 a 20 kg"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["destination"] == "search"
+    assert body["search_url"].startswith(PETZ_SITE_SEARCH_BASE + "?q=")
+    assert body["url"] == body["search_url"]
+    assert body["coupon_code"] == PETZ_COUPON_CODE
+
+
+def test_petz_direct_link_flag_on_but_no_search_url_stays_store(client, monkeypatch):
+    """Flag ON mas sem nome/GTIN → não há search_url → cai na vitrine."""
+    _enable_petz_search(monkeypatch)
+    resp = client.get("/commerce/petz-direct-link")
+    body = resp.json()
+    assert body["search_url"] is None
+    assert body["destination"] == "store"
+    assert body["url"] == PETZ_PARTNER_STORE_URL
+
+
+def test_petz_direct_link_gate_off_destination_store(client, monkeypatch):
+    """Gate desligado → available False, destination='store' (nunca ausente)."""
+    _disable_petz(monkeypatch)
+    resp = client.get("/commerce/petz-direct-link", params={"q": "Ração"})
+    body = resp.json()
+    assert body["available"] is False
+    assert body["destination"] == "store"
 
 
 def test_petz_site_search_term_is_short_and_brand_first(client, monkeypatch):

@@ -493,15 +493,18 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                         onClick={(event) => {
                           event.stopPropagation();
                           setStoreChoicesForGtin(null);
-                          // openPetzPartnerStore SEMPRE abre a Loja
-                          // Parceira (nunca busca/produto). coupon_copied
-                          // é o que de fato aconteceu no clique — por isso
-                          // a analítica espera o retorno em vez de assumir.
+                          // Destino decidido pelo backend
+                          // (`petzResolved.destination`): 'store' = vitrine;
+                          // 'search' = busca da Petz pelo produto.
+                          // coupon_copied é o que de fato aconteceu no
+                          // clique — a analítica espera o retorno.
                           void (async () => {
                             const copied = await openPetzPartnerStore({
                               productUrl: typeof petzResolved === 'object' ? petzResolved.direct_product_url : undefined,
                               searchUrl: typeof petzResolved === 'object' ? petzResolved.search_url : undefined,
                               productName: item.title ?? undefined,
+                              preferSearch:
+                                typeof petzResolved === 'object' && petzResolved.destination === 'search',
                             });
                             void trackClick({
                               source: 'home',

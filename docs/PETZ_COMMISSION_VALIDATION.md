@@ -1,5 +1,21 @@
 # Validação de comissão — Parceiro Petz (cupom PETMOL)
 
+> **08/09/2026 — flag `petz_product_search_link` (default OFF).** Investigação
+> a fundo (VTEX, API do parceiro, iframe, redirect params, app da Petz,
+> two-hop) confirmou: **a Petz não tem deep link de produto pro programa
+> Parceiro**, o app da Petz ainda abre `/produto/*` numa tela "DETALHES"
+> quebrada (bug de 30/08 reconfirmado num iPhone físico), e o two-hop não
+> roda dentro do SFSafariViewController do app. O `/busca?q=...` é AASA-safe
+> e mostra o produto; a comissão de 7% vem do **cupom PETMOL no carrinho**
+> ("Caminho B", comprovado em compra real 29/08). Com a flag **ON**, "Ver
+> na Petz" por produto passa a abrir `/busca?q=<produto>` (produto na tela)
+> em vez da vitrine fixa — trade-off: cliente logado na Petz perde o
+> pré-preenchimento automático do cupom (só o cookie `petzPartner` dá).
+> **OFF (padrão)** = comportamento de hoje (`/parceiro/PETMOL`). Rollback =
+> `PETZ_PRODUCT_SEARCH_LINK=false` + restart do petmol-api, sem deploy.
+> Backend: `main.py` devolve `destination: "store" | "search"`. Frontend:
+> `openPetzPartnerStore({ preferSearch })`.
+
 > **07/09/2026 — cupom e link mudaram.** O painel do Parceiro Petz passou a
 > emitir o cupom/código de convite **`PETMOL`** (antes `PETTMOL`) e o link
 > fixo **`https://www.petz.com.br/parceiro/PETMOL`** (antes `.../pettmol`).

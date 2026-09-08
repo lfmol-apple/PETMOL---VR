@@ -1580,6 +1580,7 @@ async def commerce_petz_direct_link(
             "partner_store_url": PETZ_PARTNER_STORE_URL,
             "coupon_code": PETZ_COUPON_CODE,
             "affiliate_program": PETZ_AFFILIATE_PROGRAM,
+            "destination": "store",
         }
 
     gtin_raw = (gtin or "").strip()
@@ -1619,7 +1620,18 @@ async def commerce_petz_direct_link(
         search_term = (q or "").strip() or (product.name if product and product.name else "")
         search_url = petz_site_search_url(search_term, search_brand) if search_term else None
 
-    url = direct_product_url or search_url or PETZ_PARTNER_STORE_URL
+    # `petz_product_search_link` (default OFF): quando ON e há uma busca
+    # utilizável, o destino passa a ser a BUSCA da Petz pelo produto
+    # (produto na tela) em vez da vitrine fixa. Rollback = env var + restart.
+    # Ver o comentário do flag em config.py. `get_settings()` fresco (não o
+    # `settings` de módulo) pra o flip da flag valer sem reimportar o módulo.
+    prefer_search = bool(get_settings().petz_product_search_link) and bool(search_url)
+    if prefer_search:
+        destination = "search"
+        url = search_url
+    else:
+        destination = "store"
+        url = direct_product_url or search_url or PETZ_PARTNER_STORE_URL
 
     return {
         "available": True,
@@ -1631,6 +1643,7 @@ async def commerce_petz_direct_link(
         "coupon_code": PETZ_COUPON_CODE,
         "affiliate_program": PETZ_AFFILIATE_PROGRAM,
         "link_type": "affiliate_store",
+        "destination": destination,
     }
 
 

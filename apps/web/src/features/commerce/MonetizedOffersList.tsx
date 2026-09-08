@@ -103,13 +103,15 @@ export function MonetizedOffersList({
 
   function handleVerNaPetz() {
     if (!petzLink?.url) return;
-    // Entra pela Loja Parceira (cookie petzPartner → atribuição garantida);
-    // no web, se há URL real de produto confirmado, faz o two-hop e o
-    // cliente cai no produto exato. Ver docs/PETZ_COMMISSION_VALIDATION.md.
+    // Destino decidido pelo backend (`destination`): 'store' = vitrine
+    // `/parceiro/PETMOL` (cookie petzPartner); 'search' = busca da Petz
+    // pelo produto (produto na tela, comissão via cupom PETMOL).
+    // Ver docs/PETZ_COMMISSION_VALIDATION.md.
     void openPetzPartnerStore({
       productUrl: petzLink.direct_product_url,
       searchUrl: petzLink.search_url,
       productName: productLabel,
+      preferSearch: petzLink.destination === 'search',
     });
     void trackClick({
       source,

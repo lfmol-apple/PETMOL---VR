@@ -415,6 +415,22 @@ class Settings(BaseSettings):
     #   Petz" por produto específico volta a aparecer (copia PETMOL +
     #   abre a Loja Parceira, igual ao card da grade).
     petz_publicly_disabled: bool = False
+    # "Ver na Petz" por produto → abre a BUSCA da Petz pelo produto
+    # (`/busca?q=...`, o produto aparece na tela) em vez da vitrine fixa
+    # `/parceiro/PETMOL`. Investigado a fundo em 08/09/2026: a Petz não
+    # tem deep link de produto pro programa Parceiro, o app da Petz ainda
+    # abre `/produto/*` numa tela "DETALHES" quebrada (bug de 30/08 ainda
+    # presente), e o two-hop (cookie + produto) não roda dentro do
+    # SFSafariViewController do app. `/busca` é AASA-safe e mostra o
+    # produto; a comissão de 7% vem do cupom PETMOL no carrinho
+    # ("Caminho B", comprovado em compra real 29/08). Trade-off: cliente
+    # logado na Petz não ganha o pré-preenchimento automático do cupom
+    # (que só o cookie `petzPartner` dá).
+    #   OFF (padrão) = comportamento de hoje: sempre `/parceiro/PETMOL`.
+    #   ON = destino vira `/busca?q=<produto>`.
+    # Rollback = env var `PETZ_PRODUCT_SEARCH_LINK=false` + restart do
+    # petmol-api (sem deploy de código).
+    petz_product_search_link: bool = False
 
     @field_validator("debug", mode="before")
     @classmethod
