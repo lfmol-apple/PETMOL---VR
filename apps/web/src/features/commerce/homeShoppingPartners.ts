@@ -442,6 +442,79 @@ function isPetzCartAddUrl(url: string): boolean {
 }
 
 /**
+ * Carrinho da Petz pré-montado (produto + cupom PETMOL aplicado) — SÓ no
+ * app nativo. As 2 navegações Struts precisam rodar na MESMA sessão de
+ * cookies. `@capacitor/browser` (SFSafariViewController) NÃO serve: no
+ * iOS 11+ cada `Browser.open` é uma sessão nova, então o cupom
+ * registrado no 1º hop some no 2º (confirmado num iPhone real 08/09).
+ *
+ * `@capgo/inappbrowser` abre UMA WKWebView persistente e deixa navegar
+ * dentro dela (`setUrl`), então os 2 hops compartilham cookies — igual
+ * às 2 navegações numa aba de navegador (comprovado). Fluxo:
+ *   1. openWebView(couponApplyUrl, hidden) — registra o cupom, invisível
+ *   2. setUrl(cartAddUrl) — adiciona o produto; a Petz redireciona pro
+ *      /checkout/cart, ainda invisível
+ *   3. quando a URL vira /checkout/cart → show() — o tutor vê o carrinho
+ *      já com o produto e o cupom, e finaliza a compra ali mesmo
+ * Timeout de segurança revela a WebView mesmo se algum passo travar.
+ *
+ * Retorna true se o fluxo assumiu a navegação; false → quem chamou deve
+ * cair no fluxo normal (plugin ausente do binário nativo, erro, etc.).
+ */
+async function runPetzCartPrefill(couponApplyUrl: string, cartAddUrl: string): Promise<boolean> {
+  let InAppBrowser: typeof import('@capgo/inappbrowser').InAppBrowser;
+  let ToolBarType: typeof import('@capgo/inappbrowser').ToolBarType;
+  try {
+    ({ InAppBrowser, ToolBarType } = await import('@capgo/inappbrowser'));
+  } catch {
+    return false; // wrapper não empacotado
+  }
+
+  try {
+    let revealed = false;
+    const reveal = async () => {
+      if (revealed) return;
+      revealed = true;
+      await InAppBrowser.show().catch(() => {});
+    };
+
+    const sub = await InAppBrowser.addListener('urlChangeEvent', ({ url }) => {
+      // a Petz redireciona comprarAgora_Loja.html → /checkout/cart/<id>
+      if (/\/checkout\/cart(\/|$|\?)/.test(url)) {
+        void sub.remove().catch(() => {});
+        void reveal();
+      }
+    });
+
+    await InAppBrowser.openWebView({
+      url: couponApplyUrl,
+      hidden: true,
+      title: 'Petz',
+      toolbarType: ToolBarType.NAVIGATION,
+      showReloadButton: true,
+      preventDeeplink: true, // nunca deixa o app da Petz sequestrar a navegação
+      isInspectable: false,
+    });
+
+    // hop 2 — aplicarCupom_Loja.html é uma página em branco rápida.
+    await new Promise((r) => setTimeout(r, 1600));
+    await InAppBrowser.setUrl({ url: cartAddUrl });
+
+    // rede de segurança: revela mesmo se o urlChangeEvent do carrinho não vier.
+    setTimeout(() => {
+      void sub.remove().catch(() => {});
+      void reveal();
+    }, 9000);
+
+    return true;
+  } catch {
+    // deixa o navegador aberto num estado ruim? melhor fechar e cair no fallback.
+    await InAppBrowser.close().catch(() => {});
+    return false;
+  }
+}
+
+/**
  * Ponte /go/petz — evita a interceptação pelo app da Petz (Universal Link
  * / App Link): a página fica em petmol.com.br (sem AASA) e navega pra Petz
  * só por JS (`location.replace`), pra um path NÃO reivindicado pela AASA
@@ -564,22 +637,14 @@ export async function openPetzPartnerStore(
     });
   }
 
-  // Carrinho pré-montado — SÓ no app nativo: duas navegações top-level no
-  // navegador do sistema (SFSafariViewController / Custom Tabs), que
-  // compartilham a sessão. 1) registra o cupom  2) adiciona o produto e
-  // cai no carrinho. Web/PWA não conseguem 2 navegações top-level a
-  // partir de uma página → seguem o fluxo normal abaixo.
+  // Carrinho pré-montado — SÓ no app nativo, numa única WKWebView
+  // (`@capgo/inappbrowser`), pra os 2 hops Struts dividirem a mesma
+  // sessão de cookies. Se o plugin não estiver no binário ou algo
+  // falhar, `runPetzCartPrefill` devolve false e caímos no fluxo normal
+  // (busca/vitrine + clipboard) abaixo.
   if (canPrefillCart && Capacitor.isNativePlatform()) {
-    try {
-      const { Browser } = await import('@capacitor/browser');
-      await Browser.open({ url: couponApplyUrl });
-      await new Promise((resolve) => setTimeout(resolve, 1800));
-      await Browser.close().catch(() => {});
-      await Browser.open({ url: cartAddUrl });
-      return copied;
-    } catch {
-      // qualquer falha → cai no fluxo normal (busca/vitrine + clipboard)
-    }
+    const took = await runPetzCartPrefill(couponApplyUrl, cartAddUrl).catch(() => false);
+    if (took) return copied;
   }
 
   // Fora do carrinho pré-montado: `destination: 'cart'` do backend vira

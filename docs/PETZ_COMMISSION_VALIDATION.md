@@ -27,29 +27,39 @@
 > - `fetch`/`<iframe>` cross-origin de petmol.com.br **não** funcionam a
 >   frio: o cookie de sessão é `SameSite=Lax`, só nasce/viaja em navegação
 >   top-level. Confirmado que falha em incognito limpo.
-> - 3 abas separadas na mesma sessão (= cookie jar compartilhado)
->   funcionam → o `Browser.open` sequencial do app nativo também funciona
->   (SFSafariViewController compartilha cookies entre instâncias no mesmo
->   app; ≠ WKWebView, ≠ Safari).
+> - 3 abas separadas na mesma sessão (= cookie jar compartilhado) funcionam.
+>   Mas **`@capacitor/browser` (SFSafariViewController) NÃO serve**: no
+>   iOS 11+ cada `Browser.open` é uma sessão isolada — o cupom registrado
+>   no 1º hop **some** no 2º. **Testado num iPhone real 08/09: o produto
+>   aparecia, o cupom não colava.** (2× `Browser.open` foi a 1ª tentativa,
+>   no PR #284 — revertida.)
 >
-> **Entrega — SÓ no app nativo (Capacitor):** `openPetzPartnerStore` faz
-> `Browser.open(coupon_apply_url)` → ~1,8s → `Browser.close()` →
-> `Browser.open(cart_add_url)`. Fora do app (web/PWA) não dá pra fazer 2
-> navegações top-level a partir de uma página → segue o fluxo de
-> `petz_product_search_link` / vitrine + clipboard. Só vale pra produto
-> com `PetzProductMapping` confirmado E `petz_product_id` numérico.
+> **Entrega — SÓ no app nativo, numa ÚNICA WKWebView (`@capgo/inappbrowser`):**
+> uma WKWebView persistente onde dá pra navegar (`setUrl`), então os 2
+> hops dividem os cookies — igual a 2 navegações numa aba de navegador.
+> `runPetzCartPrefill` em `homeShoppingPartners.ts`:
+>   1. `openWebView(coupon_apply_url, { hidden: true, preventDeeplink: true })` — registra o cupom, invisível
+>   2. `setUrl(cart_add_url)` — adiciona o produto; a Petz redireciona pro `/checkout/cart`, ainda invisível
+>   3. no `urlChangeEvent` com `/checkout/cart` → `show()` — o tutor vê o carrinho pronto e finaliza a compra ali
+>   4. timeout de 9 s revela a WebView mesmo se algum passo travar
+> Fora do app nativo (web/PWA), ou se o plugin não estiver no binário, ou
+> erro → cai no fluxo de `petz_product_search_link` / vitrine + clipboard.
+> Só vale pra produto com `PetzProductMapping` confirmado E `petz_product_id` numérico.
 >
 > **Backend:** `/commerce/petz-direct-link` devolve `petz_product_id`,
 > `coupon_apply_url`, `cart_add_url` e `destination: "cart"` quando a flag
 > está ON e há `petz_product_id`. Helpers em `affiliate_links.py`
 > (`PETZ_COUPON_APPLY_URL`, `petz_cart_add_url`). Frontend valida os dois
-> paths de novo (`isPetzCouponApplyUrl`, `isPetzCartAddUrl`) antes de
-> `Browser.open`.
+> paths de novo (`isPetzCouponApplyUrl`, `isPetzCartAddUrl`) antes de abrir.
 >
-> **Riscos:** endpoints não documentados — a Petz pode removê-los. O
-> frontend cai no fluxo atual automaticamente se as URLs vierem vazias ou
-> inválidas, ou se qualquer `Browser.open` falhar. O "2× `Browser.open`"
-> ainda **não foi testado em iPhone real** (só a lógica de cookies).
+> **Native (obrigatório antes de o fluxo funcionar no app):** `@capgo/inappbrowser`
+> é plugin nativo — `npm install` + `npx cap sync ios && npx cap sync android`
+> + rebuild + **nova submissão App Store / Play**. Até o binário novo
+> subir, o `import('@capgo/inappbrowser')` falha graciosamente → fallback.
+>
+> **Riscos:** endpoints Struts não documentados — a Petz pode removê-los
+> (fallback automático). A compra acontece numa WKWebView isolada (o
+> tutor pode ter que logar na Petz de novo, ou comprar como convidado).
 > Rollback = `PETZ_CART_PREFILL=false` + restart do petmol-api, sem deploy.
 
 > **08/09/2026 — flag `petz_product_search_link` (default OFF).** Investigação
