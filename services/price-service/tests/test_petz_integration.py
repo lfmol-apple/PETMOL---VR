@@ -85,6 +85,16 @@ def _enable_petz_search(monkeypatch) -> None:
     get_settings.cache_clear()
 
 
+def _enable_petz_cart_prefill(monkeypatch) -> None:
+    """Liga o gate + a flag `petz_cart_prefill` (default OFF): produto com
+    PetzProductMapping confirmado + petz_product_id → /commerce/petz-direct-link
+    devolve `coupon_apply_url` + `cart_add_url` + `destination: "cart"` pro
+    bridge montar o carrinho da Petz com produto + cupom já aplicado."""
+    _enable_petz(monkeypatch)
+    monkeypatch.setenv("PETZ_CART_PREFILL", "true")
+    get_settings.cache_clear()
+
+
 def _disable_petz(monkeypatch) -> None:
     """Força o gate único DESLIGADO, explicitamente — usado pelos testes
     que verificam o kill-switch em si (defesa em profundidade), já que
@@ -580,6 +590,66 @@ def test_petz_direct_link_gate_off_destination_store(client, monkeypatch):
     body = resp.json()
     assert body["available"] is False
     assert body["destination"] == "store"
+
+
+# ── flag petz_cart_prefill (default OFF) — carrinho pré-montado ──────────
+
+def _confirm(gtin: str, petz_product_id: str, url: str) -> int:
+    product_id = _register_product(gtin=gtin)
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(db, product_id, petz_product_id=petz_product_id, product_url=url)
+    finally:
+        db.close()
+    return product_id
+
+
+def test_petz_direct_link_cart_prefill_off_no_extra_fields(client, monkeypatch):
+    """Flag OFF (default) → cart_add_url/coupon_apply_url None, destination
+    nunca é 'cart'. Comportamento idêntico ao de hoje."""
+    _enable_petz(monkeypatch)
+    _confirm("9990000000201", "100223", "https://www.petz.com.br/produto/racao-100223")
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000201"}).json()
+    assert body["cart_add_url"] is None
+    assert body["coupon_apply_url"] is None
+    assert body["petz_product_id"] == "100223"
+    assert body["destination"] != "cart"
+
+
+def test_petz_direct_link_cart_prefill_on_confirmed_product(client, monkeypatch):
+    """Flag ON + mapping confirmado com petz_product_id → o bridge recebe
+    as duas URLs Struts e destination='cart'."""
+    _enable_petz_cart_prefill(monkeypatch)
+    _confirm("9990000000202", "100223", "https://www.petz.com.br/produto/racao-100223")
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000202"}).json()
+    assert body["destination"] == "cart"
+    assert body["coupon_apply_url"] == "https://www.petz.com.br/aplicarCupom_Loja.html?cupom=PETMOL"
+    assert body["cart_add_url"] == "https://www.petz.com.br/comprarAgora_Loja.html?prod=100223&qtde=1"
+    assert body["url"] == body["cart_add_url"]
+    assert body["coupon_code"] == PETZ_COUPON_CODE
+    # search_url continua vindo (fallback do bridge se as URLs Struts saírem do ar)
+    assert body["search_url"] is not None
+
+
+def test_petz_direct_link_cart_prefill_on_non_numeric_petz_product_id(client, monkeypatch):
+    """Flag ON mas o petz_product_id não é numérico → não dá pra montar
+    `comprarAgora_Loja.html?prod=` → sem carrinho pré-montado."""
+    _enable_petz_cart_prefill(monkeypatch)
+    _confirm("9990000000203", "abc-slug", "https://www.petz.com.br/produto/racao-abc-slug")
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000203"}).json()
+    assert body["cart_add_url"] is None
+    assert body["coupon_apply_url"] is None
+    assert body["destination"] != "cart"
+
+
+def test_petz_direct_link_cart_prefill_on_unconfirmed_product_falls_back(client, monkeypatch):
+    """Flag ON mas produto sem mapping confirmado → nada de carrinho
+    pré-montado, cai na busca/vitrine de sempre."""
+    _enable_petz_cart_prefill(monkeypatch)
+    _register_product(gtin="9990000000204")
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000204"}).json()
+    assert body["cart_add_url"] is None
+    assert body["destination"] != "cart"
 
 
 def test_petz_site_search_term_is_short_and_brand_first(client, monkeypatch):

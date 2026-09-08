@@ -104,14 +104,16 @@ export function MonetizedOffersList({
   function handleVerNaPetz() {
     if (!petzLink?.url) return;
     // Destino decidido pelo backend (`destination`): 'store' = vitrine
-    // `/parceiro/PETMOL` (cookie petzPartner); 'search' = busca da Petz
-    // pelo produto (produto na tela, comissão via cupom PETMOL).
-    // Ver docs/PETZ_COMMISSION_VALIDATION.md.
+    // `/parceiro/PETMOL`; 'search' = busca da Petz pelo produto; 'cart' =
+    // carrinho da Petz já com o produto e o cupom PETMOL aplicado (só no
+    // app nativo). Ver docs/PETZ_COMMISSION_VALIDATION.md.
     void openPetzPartnerStore({
       productUrl: petzLink.direct_product_url,
       searchUrl: petzLink.search_url,
       productName: productLabel,
       preferSearch: petzLink.destination === 'search',
+      couponApplyUrl: petzLink.coupon_apply_url,
+      cartAddUrl: petzLink.cart_add_url,
     });
     void trackClick({
       source,
