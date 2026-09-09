@@ -9,9 +9,30 @@
  * o que aconteceu na última tentativa — a tela de Perfil mostra isso quando
  * a ativação falha, pra dar pra diagnosticar sem Web Inspector.
  */
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
+
+// Plugin acessado DIRETO pelo bridge do Capacitor (registerPlugin) — sem
+// `import('@capacitor/push-notifications')`. O import dinâmico do pacote
+// travava dentro da WKWebView do iOS 18 e nem o timeout disparava (o
+// carregamento do chunk pendurava a promise). registerPlugin devolve o
+// proxy do plugin nativo já registrado (packageClassList) de forma síncrona.
+interface PushNotificationsPlugin {
+  checkPermissions(): Promise<{ receive: string }>;
+  requestPermissions(): Promise<{ receive: string }>;
+  register(): Promise<void>;
+  removeAllListeners(): Promise<void>;
+  addListener(
+    eventName: 'registration',
+    cb: (token: { value: string }) => void,
+  ): Promise<PluginListenerHandle>;
+  addListener(
+    eventName: 'registrationError',
+    cb: (err: unknown) => void,
+  ): Promise<PluginListenerHandle>;
+}
+const PushNotifications = registerPlugin<PushNotificationsPlugin>('PushNotifications');
 
 export type NativePushPermission = 'granted' | 'denied' | 'prompt';
 
@@ -89,11 +110,6 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   ]);
 }
 
-async function loadPlugin() {
-  const mod = await withTimeout(import('@capacitor/push-notifications'), 8000, 'import plugin');
-  return mod.PushNotifications;
-}
-
 function normalize(receive: string | undefined): NativePushPermission {
   if (receive === 'granted') return 'granted';
   if (receive === 'denied') return 'denied';
@@ -107,7 +123,6 @@ export async function checkNativePushPermission(): Promise<NativePushPermission>
     return 'denied';
   }
   try {
-    const PushNotifications = await loadPlugin();
     const status = await withTimeout(PushNotifications.checkPermissions(), 6000, 'checkPermissions');
     return normalize(status.receive);
   } catch (e) {
@@ -127,11 +142,11 @@ export async function requestNativePushPermission(): Promise<NativePushPermissio
     return 'denied';
   }
   try {
-    const PushNotifications = await loadPlugin();
-    reportDiag('requestNativePushPermission: plugin carregado');
+    reportDiag('requestNativePushPermission: vai chamar checkPermissions');
     let status = await withTimeout(PushNotifications.checkPermissions(), 6000, 'checkPermissions');
+    reportDiag('requestNativePushPermission: checkPermissions=' + status.receive);
     if (status.receive === 'prompt' || status.receive === 'prompt-with-rationale') {
-      // o prompt do iOS pode ficar aberto um tempo — timeout generoso
+      reportDiag('requestNativePushPermission: vai chamar requestPermissions (deve abrir o prompt do iOS)');
       status = await withTimeout(PushNotifications.requestPermissions(), 90000, 'requestPermissions');
     }
     setDiag(`permissão nativa: ${status.receive}`);
@@ -150,8 +165,6 @@ export async function registerNativePush(authToken: string): Promise<boolean> {
   }
 
   try {
-    const PushNotifications = await loadPlugin();
-
     const perm = await withTimeout(PushNotifications.checkPermissions(), 6000, 'checkPermissions');
     if (perm.receive !== 'granted') {
       setDiag(`sem permissão pra registrar (${perm.receive})`);
