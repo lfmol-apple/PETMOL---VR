@@ -16,10 +16,15 @@ ativar/desativar um link não deve exigir deploy de frontend.
 """
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime, timezone
+from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 from urllib.parse import quote_plus, urlsplit
+
+_MODULE_DIR = Path(__file__).resolve().parent
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
@@ -154,6 +159,53 @@ PETZ_CURATED_SEARCH: dict[str, str] = {
     "94808": "nexgard caes 4,1 a 10",
     "81288": "coleira antiparasitas scalibor",
 }
+
+# GTIN (catálogo PETMOL) → id do produto na loja da Petz. É o que faz o
+# "carrinho pré-montado" (flag `petz_cart_prefill`) funcionar SEM um
+# PetzProductMapping confirmado no banco. Duas fontes, mescladas:
+#   1. `_PETZ_GTIN_PRODUCT_ID_SEED` abaixo — poucos, à mão, sempre no build.
+#   2. `data/petz_gtin_product_id.json` — o resultado do matching em massa
+#      (scripts/... roda um navegador de verdade porque a Petz bloqueia
+#      acesso server-side; casa por código de barras EXATO, nunca por
+#      similaridade de nome). Regerado e commitado; não é editado à mão.
+# Ver docs/PETZ_COMMISSION_VALIDATION.md.
+_PETZ_GTIN_PRODUCT_ID_SEED: dict[str, str] = {
+    "7896181298083": "100223",   # Royal Canin Veterinary Urinary Small Dog 2 kg
+    "7896181212454": "71705",    # Royal Canin Mini Indoor Adult 7,5 kg
+    "7896181212430": "71703",    # Royal Canin Mini Indoor Adult 1 kg
+    "7891106903714": "83755",    # Drontal Plus Cães 10 kg — 2 comprimidos
+    "7896029041956": "72452",    # Biscoito Pedigree Biscrok Multi 1 kg
+    "7896029041932": "72451",    # Biscoito Pedigree Biscrok Multi 500 g
+    "7896185907004": "81287",    # Coleira Scalibor M
+    "8713184142108": "81288",    # Coleira Scalibor G
+}
+
+_PETZ_GTIN_MAP_FILE = _MODULE_DIR / "data" / "petz_gtin_product_id.json"
+
+
+@lru_cache(maxsize=1)
+def _petz_gtin_product_id_map() -> dict[str, str]:
+    merged = dict(_PETZ_GTIN_PRODUCT_ID_SEED)
+    try:
+        raw = json.loads(_PETZ_GTIN_MAP_FILE.read_text(encoding="utf-8"))
+        for gtin, val in raw.items():
+            pid = val if isinstance(val, str) else (val or {}).get("id")
+            if isinstance(pid, str) and pid.strip().isdigit():
+                merged[str(gtin).strip()] = pid.strip()
+    except FileNotFoundError:
+        pass
+    except (ValueError, AttributeError):
+        pass
+    return merged
+
+
+def petz_product_id_for_gtin(gtin_normalized: Optional[str]) -> Optional[str]:
+    """id do produto Petz pra um GTIN do catálogo PETMOL — seed embutido +
+    mapa em massa (`data/petz_gtin_product_id.json`). Fallback do carrinho
+    pré-montado quando não há PetzProductMapping confirmado."""
+    if not gtin_normalized:
+        return None
+    return _petz_gtin_product_id_map().get(gtin_normalized.strip())
 
 STOREFRONT_AFFILIATE_URLS: dict[str, str] = {
     "cobasi": "https://minhaloja.cobasi.com.br?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol",

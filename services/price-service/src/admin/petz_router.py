@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..affiliate_links import (
@@ -94,6 +94,55 @@ def _to_out(mapping: Optional[PetzProductMapping], gtin: str) -> PetzMappingOut:
 @router.get("/coverage", response_model=PetzCoverageOut)
 def get_coverage(db: Session = Depends(get_db), current=Depends(get_current_admin_or_readonly_key)):
     return PetzCoverageOut(**coverage_stats(db))
+
+
+@router.get("/backfill/catalog")
+def backfill_catalog(
+    limit: int = 1000,
+    offset: int = 0,
+    only_unmapped: bool = True,
+    source: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current=Depends(get_current_admin_or_readonly_key),
+):
+    """Dump paginado do catálogo (GTIN + nome + marca + peso) pra alimentar
+    o matching GTIN→id Petz do carrinho pré-montado. Só leitura — aceita
+    ADMIN_OPS_API_KEY. `only_unmapped` pula produtos que já têm mapping
+    confirmado. `source=cobasi` (ou outro merchant) restringe aos produtos
+    que têm oferta ativa desse feed — a "lista Cobasi".
+    Ver docs/PETZ_COMMISSION_VALIDATION.md."""
+    limit = max(1, min(limit, 5000))
+    q = select(ProductCatalog).order_by(ProductCatalog.id)
+    if only_unmapped:
+        mapped_ids = select(PetzProductMapping.product_id).where(
+            PetzProductMapping.match_status.in_(tuple(DIRECT_LINK_ELIGIBLE_STATUSES))
+        )
+        q = q.where(ProductCatalog.id.not_in(mapped_ids))
+    if source:
+        from ..affiliate_feed import AffiliateFeedOffer
+
+        feed_gtins = select(AffiliateFeedOffer.gtin).where(
+            AffiliateFeedOffer.merchant == source.strip().lower(),
+            AffiliateFeedOffer.active.is_(True),
+            AffiliateFeedOffer.gtin.is_not(None),
+        )
+        q = q.where(ProductCatalog.barcode_normalized.in_(feed_gtins))
+    total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
+    rows = db.scalars(q.offset(offset).limit(limit)).all()
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "products": [
+            {
+                "gtin": r.barcode_normalized,
+                "name": r.name,
+                "brand": r.brand,
+                "weight_kg": r.weight_kg,
+            }
+            for r in rows
+        ],
+    }
 
 
 @router.get("/products/{gtin}/status", response_model=PetzMappingOut)

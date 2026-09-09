@@ -1627,6 +1627,21 @@ async def commerce_petz_direct_link(
                 or None
             )
 
+    # Fallback do carrinho pré-montado SEM PetzProductMapping confirmado:
+    # mapa GTIN → id do produto Petz (`petz_product_id_for_gtin`, ver
+    # affiliate_links.py: seed embutido + data/petz_gtin_product_id.json).
+    # Só quando a flag `petz_cart_prefill` está ON. Não mexe em
+    # `direct_product_url` (isso continua exigindo mapping confirmado).
+    if cart_add_url is None and bool(get_settings().petz_cart_prefill):
+        from .affiliate_links import petz_product_id_for_gtin
+
+        fallback_pid = petz_product_id_for_gtin(gtin_normalized)
+        if fallback_pid:
+            petz_product_id = petz_product_id or fallback_pid
+            cart_add_url = petz_cart_add_url(fallback_pid)
+            if curated_search is None:
+                curated_search = PETZ_CURATED_SEARCH.get(fallback_pid) or None
+
     search_brand = (brand or "").strip() or (product.brand if product and getattr(product, "brand", None) else None)
     if curated_search:
         search_url = petz_search_url_from_term(curated_search)
