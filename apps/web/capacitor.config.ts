@@ -19,6 +19,14 @@ const config: CapacitorConfig = {
     url: 'https://www.petmol.com.br',
     cleartext: false,
   },
+  plugins: {
+    // Push nativo (APNs/FCM). presentationOptions faz a notificação aparecer
+    // como banner mesmo com o app em primeiro plano. Ver nativePushService.ts
+    // e docs/MOBILE_RELEASE_CHECKLIST.md (envio depende da APNs Auth Key).
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert'],
+    },
+  },
 };
 
 export default config;
