@@ -643,11 +643,34 @@ def test_petz_direct_link_cart_prefill_on_non_numeric_petz_product_id(client, mo
 
 
 def test_petz_direct_link_cart_prefill_on_unconfirmed_product_falls_back(client, monkeypatch):
-    """Flag ON mas produto sem mapping confirmado → nada de carrinho
-    pré-montado, cai na busca/vitrine de sempre."""
+    """Flag ON, produto sem mapping confirmado E fora do mapa curado
+    GTIN→id Petz → nada de carrinho pré-montado, cai na busca/vitrine."""
     _enable_petz_cart_prefill(monkeypatch)
     _register_product(gtin="9990000000204")
     body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000204"}).json()
+    assert body["cart_add_url"] is None
+    assert body["destination"] != "cart"
+
+
+def test_petz_direct_link_cart_prefill_curated_gtin_no_mapping(client, monkeypatch):
+    """Flag ON, produto SEM mapping confirmado mas com GTIN no mapa curado
+    `PETZ_GTIN_PRODUCT_ID` → carrinho pré-montado destrava mesmo assim."""
+    _enable_petz_cart_prefill(monkeypatch)
+    _register_product(gtin="7896181298083")  # Royal Canin Urinary 2 kg → prod 100223
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "7896181298083"}).json()
+    assert body["destination"] == "cart"
+    assert body["cart_add_url"] == "https://www.petz.com.br/comprarAgora_Loja.html?prod=100223&qtde=1"
+    assert body["coupon_apply_url"] == "https://www.petz.com.br/aplicarCupom_Loja.html?cupom=PETMOL"
+    assert body["petz_product_id"] == "100223"
+    # direct_product_url continua None — o mapa curado NÃO cria página exata
+    assert body["direct_product_url"] is None
+
+
+def test_petz_direct_link_cart_prefill_curated_gtin_flag_off(client, monkeypatch):
+    """Mesmo GTIN curado, flag OFF → nada muda (comportamento de hoje)."""
+    _enable_petz(monkeypatch)
+    _register_product(gtin="7896181298083")
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "7896181298083"}).json()
     assert body["cart_add_url"] is None
     assert body["destination"] != "cart"
 

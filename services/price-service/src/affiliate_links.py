@@ -155,6 +155,34 @@ PETZ_CURATED_SEARCH: dict[str, str] = {
     "81288": "coleira antiparasitas scalibor",
 }
 
+# GTIN (do catálogo PETMOL) → id do produto na loja da Petz. Curado e
+# verificado à mão em petz.com.br (`?json=product` → `barcode`/`id`,
+# 09/09/2026). É o que faz o "carrinho pré-montado" (flag
+# `petz_cart_prefill`) funcionar SEM depender de um PetzProductMapping
+# confirmado no banco — o /commerce/petz-direct-link usa isto como
+# fallback quando o produto ainda não foi mapeado pelo admin. Só
+# adicione um par aqui depois de conferir na Petz que o `prod=<id>`
+# adiciona EXATAMENTE esse GTIN/tamanho ao carrinho.
+PETZ_GTIN_PRODUCT_ID: dict[str, str] = {
+    "7896181298083": "100223",   # Royal Canin Veterinary Urinary Small Dog 2 kg
+    "7896181212454": "71705",    # Royal Canin Mini Indoor Adult 7,5 kg
+    "7896181212430": "71703",    # Royal Canin Mini Indoor Adult 1 kg
+    "7891106903714": "83755",    # Drontal Plus Cães 10 kg — 2 comprimidos
+    "7896029041956": "72452",    # Biscoito Pedigree Biscrok Multi 1 kg
+    "7896029041932": "72451",    # Biscoito Pedigree Biscrok Multi 500 g
+    "7896185907004": "81287",    # Coleira Scalibor M
+    "8713184142108": "81288",    # Coleira Scalibor G
+}
+
+
+def petz_product_id_for_gtin(gtin_normalized: Optional[str]) -> Optional[str]:
+    """id do produto Petz pra um GTIN do catálogo PETMOL, do mapa curado
+    `PETZ_GTIN_PRODUCT_ID`. Usado como fallback pro carrinho pré-montado
+    quando não há PetzProductMapping confirmado."""
+    if not gtin_normalized:
+        return None
+    return PETZ_GTIN_PRODUCT_ID.get(gtin_normalized.strip())
+
 STOREFRONT_AFFILIATE_URLS: dict[str, str] = {
     "cobasi": "https://minhaloja.cobasi.com.br?utm_source=mais&utm_medium=maisplataforma&utm_campaign=lojapetmol",
     "petz": PETZ_PARTNER_STORE_URL,
