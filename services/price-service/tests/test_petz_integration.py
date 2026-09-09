@@ -52,11 +52,15 @@ def _reset_settings(monkeypatch):
 
 @pytest.fixture
 def admin_client(client):
+    from src.admin.deps import get_current_admin_or_readonly_key
+
     app.dependency_overrides[get_current_admin] = lambda: ("fake-user", "fake-admin")
+    app.dependency_overrides[get_current_admin_or_readonly_key] = lambda: ("fake-user", "fake-admin")
     try:
         yield client
     finally:
         app.dependency_overrides.pop(get_current_admin, None)
+        app.dependency_overrides.pop(get_current_admin_or_readonly_key, None)
 
 
 def _enable_petz(monkeypatch) -> None:
@@ -643,13 +647,54 @@ def test_petz_direct_link_cart_prefill_on_non_numeric_petz_product_id(client, mo
 
 
 def test_petz_direct_link_cart_prefill_on_unconfirmed_product_falls_back(client, monkeypatch):
-    """Flag ON mas produto sem mapping confirmado → nada de carrinho
-    pré-montado, cai na busca/vitrine de sempre."""
+    """Flag ON, produto sem mapping confirmado E fora do mapa GTIN→id Petz
+    → nada de carrinho pré-montado, cai na busca/vitrine de sempre."""
     _enable_petz_cart_prefill(monkeypatch)
     _register_product(gtin="9990000000204")
     body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000204"}).json()
     assert body["cart_add_url"] is None
     assert body["destination"] != "cart"
+
+
+def test_petz_direct_link_cart_prefill_seed_gtin_without_mapping(client, monkeypatch):
+    """Flag ON, produto SEM mapping mas com GTIN no mapa curado
+    (`petz_product_id_for_gtin`) → carrinho pré-montado destrava mesmo assim."""
+    _enable_petz_cart_prefill(monkeypatch)
+    _register_product(gtin="7896181298083")  # seed → Petz prod 100223
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "7896181298083"}).json()
+    assert body["destination"] == "cart"
+    assert body["cart_add_url"] == "https://www.petz.com.br/comprarAgora_Loja.html?prod=100223&qtde=1"
+    assert body["coupon_apply_url"] == "https://www.petz.com.br/aplicarCupom_Loja.html?cupom=PETMOL"
+    assert body["petz_product_id"] == "100223"
+    assert body["direct_product_url"] is None  # mapa curado NÃO cria página exata
+
+
+def test_petz_direct_link_cart_prefill_seed_gtin_flag_off(client, monkeypatch):
+    """Mesmo GTIN do seed, flag OFF → nada muda."""
+    _enable_petz(monkeypatch)
+    _register_product(gtin="7896181298083")
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "7896181298083"}).json()
+    assert body["cart_add_url"] is None
+    assert body["destination"] != "cart"
+
+
+def test_backfill_catalog_dump_lists_unmapped_products(admin_client):
+    """GET /v1/admin/petz/backfill/catalog — dump paginado do catálogo pro
+    matching GTIN→id Petz. `only_unmapped` pula os já confirmados."""
+    _register_product(gtin="8880000000011", name="Ração A", brand="Marca A")
+    pid_b = _register_product(gtin="8880000000022", name="Ração B", brand="Marca B")
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(db, pid_b, petz_product_id="555", product_url="https://www.petz.com.br/produto/racao-b-555")
+    finally:
+        db.close()
+
+    body = admin_client.get("/v1/admin/petz/backfill/catalog", params={"only_unmapped": True, "limit": 500}).json()
+    gtins = {p["gtin"] for p in body["products"]}
+    assert "8880000000011" in gtins
+    assert "8880000000022" not in gtins  # já mapeado
+    row = next(p for p in body["products"] if p["gtin"] == "8880000000011")
+    assert row["name"] == "Ração A" and row["brand"] == "Marca A"
 
 
 def test_petz_site_search_term_is_short_and_brand_first(client, monkeypatch):
