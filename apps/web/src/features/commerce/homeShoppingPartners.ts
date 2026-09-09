@@ -515,6 +515,47 @@ async function runPetzCartPrefill(couponApplyUrl: string, cartAddUrl: string): P
 }
 
 /**
+ * Carrinho da Petz pré-montado no NAVEGADOR (desktop / Android) — mesmo
+ * fluxo de 2 hops do app nativo, mas numa janela popup que a gente
+ * controla:
+ *   1. window.open(couponApplyUrl) DENTRO do gesto do clique → o popup
+ *      navega top-level pra Petz e registra o cupom na sessão (cookie do
+ *      navegador; SameSite=Lax é OK porque é navegação top-level).
+ *   2. ~2,2s depois: popup.location = cartAddUrl → 2ª navegação top-level
+ *      na MESMA janela / mesmo cookie jar → a Petz adiciona o produto e
+ *      cai no /checkout/cart com o cupom já aplicado.
+ * A aba do PETMOL fica intacta. Popup bloqueado → devolve false.
+ *
+ * NÃO serve pra PWA instalado no iOS (standalone): lá window.open abre no
+ * Safari, num contexto separado que não dá pra re-navegar — quem chama
+ * pula esse caminho e cai no fallback (busca + cupom copiado).
+ */
+function runPetzCartPrefillWeb(couponApplyUrl: string, cartAddUrl: string): boolean {
+  if (typeof window === 'undefined' || typeof window.open !== 'function') return false;
+  let popup: Window | null = null;
+  try {
+    // sem 'noopener' — precisamos do handle pra fazer o 2º hop.
+    popup = window.open(couponApplyUrl, 'petz_cart_prefill');
+  } catch {
+    return false;
+  }
+  if (!popup) return false; // bloqueado pelo navegador
+
+  window.setTimeout(() => {
+    try {
+      // escrever location numa janela cross-origin que abrimos É permitido
+      // (só a leitura é bloqueada). Se falhar, o popup fica no
+      // aplicarCupom — o cupom já foi registrado, aceitável.
+      popup.location.href = cartAddUrl;
+    } catch {
+      /* noop */
+    }
+  }, 2200);
+
+  return true;
+}
+
+/**
  * Ponte /go/petz — evita a interceptação pelo app da Petz (Universal Link
  * / App Link): a página fica em petmol.com.br (sem AASA) e navega pra Petz
  * só por JS (`location.replace`), pra um path NÃO reivindicado pela AASA
@@ -645,6 +686,19 @@ export async function openPetzPartnerStore(
   if (canPrefillCart && Capacitor.isNativePlatform()) {
     const took = await runPetzCartPrefill(couponApplyUrl, cartAddUrl).catch(() => false);
     if (took) return copied;
+  }
+
+  // Carrinho pré-montado no navegador (desktop / Android): mesmo fluxo de
+  // 2 hops, numa janela popup controlada. NÃO no PWA instalado do iOS
+  // (standalone) — lá window.open escapa pro Safari e não dá pra
+  // re-navegar; cai no fallback abaixo.
+  if (
+    canPrefillCart &&
+    !Capacitor.isNativePlatform() &&
+    !isStandaloneInstalledApp() &&
+    runPetzCartPrefillWeb(couponApplyUrl, cartAddUrl)
+  ) {
+    return copied;
   }
 
   // Fora do carrinho pré-montado: `destination: 'cart'` do backend vira

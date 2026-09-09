@@ -169,6 +169,68 @@ describe('openPetzPartnerStore', () => {
     });
   });
 
+  describe('carrinho pré-montado no navegador (popup 2 hops, destination: cart)', () => {
+    const COUPON_APPLY = 'https://www.petz.com.br/aplicarCupom_Loja.html?cupom=PETMOL';
+    const CART_ADD = 'https://www.petz.com.br/comprarAgora_Loja.html?prod=95492&qtde=1';
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('abre popup no aplicarCupom e ~2,2s depois navega o MESMO popup pro comprarAgora — sem a ponte', async () => {
+      vi.useFakeTimers();
+      const popup = { location: { href: '' } };
+      const openSpy = vi.fn().mockReturnValue(popup);
+      vi.stubGlobal('open', openSpy);
+
+      const { openPetzPartnerStore } = await import('./homeShoppingPartners');
+      const result = await openPetzPartnerStore({ couponApplyUrl: COUPON_APPLY, cartAddUrl: CART_ADD });
+
+      expect(result).toBe(true); // cupom copiado
+      expect(openSpy).toHaveBeenCalledTimes(1);
+      expect(openSpy.mock.calls[0][0]).toBe(COUPON_APPLY);
+      expect(popup.location.href).toBe(''); // hop 2 ainda não
+
+      vi.advanceTimersByTime(2200);
+      expect(popup.location.href).toBe(CART_ADD); // hop 2
+
+      // a ponte /go/petz NÃO foi usada — só a chamada do popup
+      expect(openSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('popup bloqueado (window.open → null) → cai na ponte /go/petz', async () => {
+      const openSpy = vi.fn().mockReturnValue(null);
+      vi.stubGlobal('open', openSpy);
+
+      const { openPetzPartnerStore } = await import('./homeShoppingPartners');
+      await openPetzPartnerStore({ couponApplyUrl: COUPON_APPLY, cartAddUrl: CART_ADD });
+
+      // 1ª chamada = tentativa de popup (null); 2ª = a ponte
+      expect(openSpy).toHaveBeenCalledTimes(2);
+      expect(new URL(openSpy.mock.calls[1][0] as string).pathname).toBe('/go/petz');
+    });
+
+    it('PWA instalado no iOS (standalone) → NÃO abre popup (window.open escaparia pro Safari)', async () => {
+      const openSpy = vi.fn().mockReturnValue({ location: { href: '' } });
+      vi.stubGlobal('open', openSpy);
+      Object.defineProperty(window, 'location', {
+        value: { href: '', assign: vi.fn(), replace: vi.fn() },
+        configurable: true,
+      });
+      Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
+
+      const { openPetzPartnerStore } = await import('./homeShoppingPartners');
+      await openPetzPartnerStore({ couponApplyUrl: COUPON_APPLY, cartAddUrl: CART_ADD });
+
+      // popup pulado; navegação vai por window.location.href (fallback da ponte)
+      expect(openSpy).not.toHaveBeenCalled();
+      expect(new URL(window.location.href).pathname).toBe('/go/petz');
+
+      // @ts-expect-error limpa o override
+      delete navigator.standalone;
+    });
+  });
+
   it('feedback de cupom: copiou → "10% OFF na Petz"; falhou → "Use o cupom ... para 10% OFF"', async () => {
     const toastSpy = vi.fn();
     vi.doMock('@/features/interactions/userPromptChannel', () => ({ showAppToast: toastSpy }));
