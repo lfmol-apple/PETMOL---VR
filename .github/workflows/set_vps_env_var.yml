@@ -85,8 +85,12 @@ jobs:
           grep -vE "^${VAR_NAME}=" "$ENV_FILE" > "$tmp" || true
           # printf trata o valor como dado literal — sem expansão/execução.
           printf '%s=%s\n' "$VAR_NAME" "$value" >> "$tmp"
-          chmod --reference="$ENV_FILE" "$tmp" 2>/dev/null || chmod 600 "$tmp"
-          mv "$tmp" "$ENV_FILE"
+          # Reescreve o CONTEÚDO no arquivo existente (cat > preserva inode,
+          # dono e permissão). NUNCA `mv`: mktemp cria como root e o mv
+          # deixaria o api.env root:root → o serviço (User=petmol) perde a
+          # leitura → PermissionError no startup (quebrou a prod em 09/09).
+          cat "$tmp" > "$ENV_FILE"
+          rm -f "$tmp"
           unset value
 
           if grep -qE "^${VAR_NAME}=" "$ENV_FILE"; then
@@ -97,6 +101,23 @@ jobs:
           fi
 
           systemctl restart petmol-api
-          sleep 3
-          systemctl is-active petmol-api
+
+          # Espera o serviço estabilizar (startup + migrations levam ~15-25s).
+          # `is-active` logo após o restart devolve "activating" e faria o
+          # workflow falhar mesmo num deploy bom.
+          ok=""
+          for i in $(seq 1 20); do
+            sleep 3
+            state="$(systemctl is-active petmol-api || true)"
+            [ "$state" = "active" ] || continue
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8000/health || true)"
+            if [ "$code" = "200" ]; then ok="1"; break; fi
+          done
+          if [ -n "$ok" ]; then
+            echo "petmol-api: no ar (health 200)."
+          else
+            echo "petmol-api: NÃO estabilizou — estado=$state health=$code" >&2
+            systemctl --no-pager -l status petmol-api | tail -20 >&2 || true
+            exit 1
+          fi
           REMOTE
