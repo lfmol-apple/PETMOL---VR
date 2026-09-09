@@ -159,7 +159,8 @@ class Settings(BaseSettings):
     # Push Notifications service (.p8, só baixa 1 vez). apns_auth_key_p8 =
     # conteúdo do arquivo .p8 (com "-----BEGIN PRIVATE KEY-----"). Rollback:
     # limpar APNS_AUTH_KEY_P8 + restart. Ver docs/MOBILE_RELEASE_CHECKLIST.md.
-    apns_auth_key_p8: Optional[str] = None
+    apns_auth_key_p8: Optional[str] = None        # PEM inline (aceita \n literais)
+    apns_auth_key_p8_file: Optional[str] = None   # caminho pro .p8 no servidor (recomendado)
     apns_key_id: Optional[str] = None
     apns_team_id: Optional[str] = None
     apns_topic: str = "br.com.petmol.app"  # = bundle id do app
