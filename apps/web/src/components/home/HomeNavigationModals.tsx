@@ -143,7 +143,7 @@ export function HomeNavigationModals({
                   { icon: '🛁', image: '/cuidados-pets-banho.webp', label: 'Banho e Tosa', gradient: 'border-cyan-400 bg-gradient-to-br from-cyan-100 via-sky-100 to-cyan-200 shadow-cyan-900/10', text: 'text-cyan-950', sub: 'text-cyan-900/60', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
                   { icon: '💊', image: '/cuidados-medicacao.webp', label: 'Medicação', gradient: 'border-purple-400 bg-gradient-to-br from-purple-100 via-fuchsia-100 to-purple-200 shadow-purple-900/10', text: 'text-purple-950', sub: 'text-purple-900/60', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue },
                   // Busca de estabelecimento (Maps) — saiu da Home, é mais um card aqui em Cuidados.
-                  { icon: '🏪', image: undefined, label: 'PetShops', gradient: 'border-blue-400 bg-gradient-to-br from-blue-100 via-sky-100 to-blue-200 shadow-blue-900/10', text: 'text-blue-950', sub: 'text-blue-900/60', tab: 'petshops', alert: false, tone: undefined },
+                  { icon: '🏪', image: '/cuidados-petshops.webp', label: 'PetShops', gradient: 'border-blue-400 bg-gradient-to-br from-blue-100 via-sky-100 to-blue-200 shadow-blue-900/10', text: 'text-blue-950', sub: 'text-blue-900/60', tab: 'petshops', alert: false, tone: undefined },
                 ].map(({ icon, image, label, gradient, text, sub, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 
