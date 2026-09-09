@@ -83,8 +83,12 @@
 > fixo **`https://www.petz.com.br/parceiro/PETMOL`** (antes `.../pettmol`).
 > Código + testes atualizados. As linhas de log datadas abaixo (29/08) são
 > históricas e ficam como estão — os testes daquele dia usaram `PETTMOL`.
-> **Pendente de reverificação:** abrir o novo link e confirmar que aparece
-> "loja PETMOL do Parceiro Petz" + cupom pré-preenchido/válido.
+> **Reverificado 08/09/2026 (dono confirmou):** `/parceiro/PETMOL` é o link
+> correto agora; `__NEXT_DATA__` = `idPartner 41281`, `storeName "PETMOL"`,
+> voucher `PETMOL` (10% OFF); `aplicarCupom_Loja.html?cupom=PETMOL` aplica
+> −10% real no carrinho; carrinho mostra "Você está comprando na loja
+> PETMOL do Parceiro Petz". O código já usa `PETMOL` /
+> `www.petz.com.br/parceiro/PETMOL` em tudo — nada a ajustar.
 
 Status: **REATIVADA em produção 04/09/2026** (PR #210) como card "Loja
 Parceira" na grade "Ou visite uma loja parceira" da Loja do Pet —
