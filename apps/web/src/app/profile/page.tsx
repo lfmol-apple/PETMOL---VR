@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { API_BASE_URL } from '@/lib/api';
 import { showBlockingNotice } from '@/features/interactions/userPromptChannel';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
-import { isNativePushPlatform, getNativePushDiag } from '@/features/notifications/nativePushService';
+import { isNativePushPlatform, getNativePushDiag, pushDiagBreadcrumb } from '@/features/notifications/nativePushService';
 import { IosSwitch } from '@/components/ui/IosSwitch';
 import { useAdmin } from '@/hooks/useAdmin';
 import { trackV1Metric } from '@/lib/v1Metrics';
@@ -480,6 +480,7 @@ export default function ProfilePage() {
   const activatePush = async () => {
     setPushLoading('activate');
     setPushFeedback(null);
+    pushDiagBreadcrumb('activatePush: clicou', { isSupported, permission });
     try {
       if (!isSupported) {
         setNotifsOpen(true);

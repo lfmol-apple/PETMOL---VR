@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from pywebpush import webpush, WebPushException
 from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text, UniqueConstraint
@@ -576,6 +576,36 @@ class ReminderOut(BaseModel):
 def get_vapid_public_key():
     settings = get_settings()
     return {"publicKey": settings.vapid_public_key}
+
+
+# ── Diagnóstico do fluxo de push nativo (temporário, sem auth) ────────────
+# O app posta aqui em cada passo da ativação de notificação; a gente lê o
+# resultado via GET sem precisar de Web Inspector nem print da tela. Guarda
+# só os últimos 40 na memória do processo. REMOVER quando o push estiver ok.
+_NATIVE_DIAG: list = []
+
+
+@router.post("/native-diag")
+async def native_diag(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    entry = {
+        "at": datetime.now(timezone.utc).isoformat(),
+        "ip": (request.client.host if request.client else None),
+        "ua": request.headers.get("user-agent", "")[:200],
+        "data": body if isinstance(body, dict) else {"raw": str(body)[:500]},
+    }
+    _NATIVE_DIAG.append(entry)
+    del _NATIVE_DIAG[:-40]
+    logger.warning("NATIVE-DIAG %s", json.dumps(entry, ensure_ascii=False)[:600])
+    return {"ok": True}
+
+
+@router.get("/native-diag")
+def native_diag_dump():
+    return {"count": len(_NATIVE_DIAG), "entries": _NATIVE_DIAG[-40:]}
 
 
 @router.post("/subscribe")
