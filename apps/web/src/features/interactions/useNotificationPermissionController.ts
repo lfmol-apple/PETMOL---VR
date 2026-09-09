@@ -21,6 +21,7 @@ import {
   requestNativePushPermission,
   registerNativePush,
   unregisterNativePush,
+  pushDiagBreadcrumb,
   type NativePushPermission,
 } from '@/features/notifications/nativePushService';
 import { getDeviceId } from '@/features/notifications/pushService';
@@ -145,14 +146,22 @@ function isExpiredSubscriptionError(message: string): boolean {
 }
 
 async function getSwRegistration(): Promise<ServiceWorkerRegistration> {
+  pushDiagBreadcrumb('web: getSwRegistration início');
   // Ensure SW is registered first
   const existing = await navigator.serviceWorker.getRegistration('/');
   if (!existing) {
     await navigator.serviceWorker.register('/sw.js', { scope: '/' });
   }
-  // Always wait for the SW to reach 'active' state — PushManager.subscribe()
-  // requires an active SW; returning from register() too early causes AbortError.
-  return navigator.serviceWorker.ready;
+  // Wait for the SW to reach 'active' — mas com teto: `serviceWorker.ready`
+  // pode NUNCA resolver no WebView do iOS, e aí a UI fica presa em "ATIVANDO...".
+  const reg = await Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<ServiceWorkerRegistration>((_, reject) =>
+      setTimeout(() => reject(new Error('service worker não ativou (timeout 10s)')), 10_000),
+    ),
+  ]);
+  pushDiagBreadcrumb('web: SW pronto');
+  return reg;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,7 +187,14 @@ export function useNotificationPermissionController() {
       return state === 'granted';
     }
     if (!isSupported) return false;
-    const result = await Notification.requestPermission();
+    pushDiagBreadcrumb('web: Notification.requestPermission');
+    const result = await Promise.race([
+      Notification.requestPermission(),
+      new Promise<NotificationPermission>((_, reject) =>
+        setTimeout(() => reject(new Error('Notification.requestPermission não respondeu (timeout 60s)')), 60_000),
+      ),
+    ]);
+    pushDiagBreadcrumb('web: permissão = ' + result);
     setPermission(result);
     return result === 'granted';
   }, [isNative, isSupported]);

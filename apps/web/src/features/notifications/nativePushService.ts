@@ -17,11 +17,53 @@ export type NativePushPermission = 'granted' | 'denied' | 'prompt';
 
 /** Texto do último resultado/erro do fluxo nativo (pra mostrar na UI). */
 let _lastNativePushDiag = '';
+function envSnapshot(): Record<string, unknown> {
+  let cap: Record<string, unknown> = {};
+  try {
+    cap = {
+      isNative: Capacitor.isNativePlatform(),
+      platform: Capacitor.getPlatform(),
+      pluginAvailable: Capacitor.isPluginAvailable('PushNotifications'),
+    };
+  } catch (e) {
+    cap = { capErr: String(e) };
+  }
+  return {
+    ...cap,
+    ua: typeof navigator !== 'undefined' ? (navigator.userAgent || '').slice(0, 160) : '',
+    standalone:
+      typeof window !== 'undefined'
+        ? Boolean(
+            (window.navigator as Navigator & { standalone?: boolean }).standalone ||
+              window.matchMedia?.('(display-mode: standalone)').matches,
+          )
+        : null,
+  };
+}
+/** Manda o passo/erro pro backend (fire-and-forget) — dá pra ler de fora
+ *  sem Web Inspector. Endpoint temporário /notifications/native-diag. */
+function reportDiag(step: string, extra?: Record<string, unknown>) {
+  try {
+    void fetch(`${API_BASE}/notifications/native-diag`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
+      body: JSON.stringify({ step, ...envSnapshot(), ...(extra || {}) }),
+    }).catch(() => {});
+  } catch {
+    /* noop */
+  }
+}
 function setDiag(msg: string) {
   _lastNativePushDiag = msg;
+  reportDiag(msg);
 }
 export function getNativePushDiag(): string {
   return _lastNativePushDiag;
+}
+/** Chamável de qualquer lugar pra registrar um passo no diagnóstico remoto. */
+export function pushDiagBreadcrumb(step: string, extra?: Record<string, unknown>) {
+  reportDiag(step, extra);
 }
 
 export function isNativePushPlatform(): boolean {
@@ -75,13 +117,18 @@ export async function checkNativePushPermission(): Promise<NativePushPermission>
 }
 
 export async function requestNativePushPermission(): Promise<NativePushPermission> {
-  if (!isNativePushPlatform()) return 'denied';
+  reportDiag('requestNativePushPermission: entrou');
+  if (!isNativePushPlatform()) {
+    setDiag('não é app nativo (Capacitor.isNativePlatform=false)');
+    return 'denied';
+  }
   if (!pluginRegistered()) {
     setDiag('plugin PushNotifications não está no app (build sem a capability?)');
     return 'denied';
   }
   try {
     const PushNotifications = await loadPlugin();
+    reportDiag('requestNativePushPermission: plugin carregado');
     let status = await withTimeout(PushNotifications.checkPermissions(), 6000, 'checkPermissions');
     if (status.receive === 'prompt' || status.receive === 'prompt-with-rationale') {
       // o prompt do iOS pode ficar aberto um tempo — timeout generoso
