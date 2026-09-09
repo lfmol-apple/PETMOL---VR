@@ -66,6 +66,31 @@ def test_apns_fanout_sends_and_disables_invalid(monkeypatch):
         assert good.disabled_at is None
 
 
+def test_apns_key_from_file(monkeypatch, tmp_path):
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    pem = key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+    p8 = tmp_path / "AuthKey_ABC123.p8"
+    p8.write_text(pem)
+
+    s = get_settings()
+    monkeypatch.setattr(s, "apns_auth_key_p8_file", str(p8), raising=False)
+    monkeypatch.setattr(s, "apns_auth_key_p8", None, raising=False)
+    monkeypatch.setattr(s, "apns_key_id", "ABC1234567", raising=False)
+    monkeypatch.setattr(s, "apns_team_id", "TEAM123456", raising=False)
+    apns_mod._jwt_cache["token"] = None
+    apns_mod._jwt_cache["exp"] = 0.0
+
+    assert apns_mod.apns_configured() is True
+    assert apns_mod._build_jwt().count(".") == 2
+
+
 def test_apns_jwt_shape_with_generated_key(monkeypatch):
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import ec

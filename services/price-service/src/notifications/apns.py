@@ -22,9 +22,32 @@ _SANDBOX_HOST = "api.sandbox.push.apple.com"
 _jwt_cache: dict = {"token": None, "exp": 0.0}
 
 
+def _load_auth_key_pem() -> Optional[str]:
+    """Conteúdo PEM da APNs Auth Key. Três formas de fornecer, nessa ordem:
+      1. APNS_AUTH_KEY_P8_FILE — caminho pro arquivo .p8 no servidor
+         (recomendado: `scp` o .p8 e aponta pra ele; nada de multi-linha
+         no api.env).
+      2. APNS_AUTH_KEY_P8 — o PEM inline. Aceita `\\n` literais (erro comum
+         ao colar num .env de uma linha só).
+    """
+    s = get_settings()
+    path = getattr(s, "apns_auth_key_p8_file", None)
+    if path:
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                return fh.read()
+        except OSError as e:
+            logger.error("APNs: não consegui ler APNS_AUTH_KEY_P8_FILE (%s): %s", path, e)
+            return None
+    raw = s.apns_auth_key_p8
+    if raw:
+        return raw.replace("\\n", "\n")
+    return None
+
+
 def apns_configured() -> bool:
     s = get_settings()
-    return bool(s.apns_auth_key_p8 and s.apns_key_id and s.apns_team_id)
+    return bool(_load_auth_key_pem() and s.apns_key_id and s.apns_team_id)
 
 
 def _b64url(raw: bytes) -> str:
@@ -41,9 +64,10 @@ def _build_jwt() -> Optional[str]:
         from cryptography.hazmat.primitives.asymmetric import ec
         from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
-        key = serialization.load_pem_private_key(
-            s.apns_auth_key_p8.encode("utf-8"), password=None
-        )
+        pem = _load_auth_key_pem()
+        if not pem:
+            return None
+        key = serialization.load_pem_private_key(pem.encode("utf-8"), password=None)
         header = _b64url(json.dumps({"alg": "ES256", "kid": s.apns_key_id}, separators=(",", ":")).encode())
         claims = _b64url(json.dumps({"iss": s.apns_team_id, "iat": int(now)}, separators=(",", ":")).encode())
         signing_input = f"{header}.{claims}".encode("ascii")
