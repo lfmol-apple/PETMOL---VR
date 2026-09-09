@@ -2,15 +2,12 @@
  * nativePushService.ts
  *
  * Push NATIVO (APNs no iOS, FCM no Android) para o shell Capacitor —
- * distinto de pushService.ts (Web Push), que não funciona de forma
- * confiável dentro da WKWebView nativa. Tudo aqui é no-op seguro fora do
- * app nativo (`Capacitor.isNativePlatform() === false`), então é sempre
- * seguro chamar sem checar a plataforma antes.
+ * distinto de pushService.ts (Web Push). No-op seguro fora do app nativo.
  *
- * O ENVIO de fato depende de credenciais externas (APNs Auth Key .p8 no
- * iOS; projeto Firebase no Android) configuradas como secret no backend —
- * ver docs/MOBILE_RELEASE_CHECKLIST.md. Registrar o token sem elas não tem
- * custo nem risco: quando o envio existir, os tokens já estarão no banco.
+ * Toda chamada ao plugin tem timeout: uma ponte WebView↔nativo travada
+ * NUNCA deve pendurar a UI. `lastNativePushDiag` guarda, em texto legível,
+ * o que aconteceu na última tentativa — a tela de Perfil mostra isso quando
+ * a ativação falha, pra dar pra diagnosticar sem Web Inspector.
  */
 import { Capacitor } from '@capacitor/core';
 
@@ -18,13 +15,40 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 export type NativePushPermission = 'granted' | 'denied' | 'prompt';
 
-/** True dentro do app nativo PETMOL (iOS/Android via Capacitor). */
+/** Texto do último resultado/erro do fluxo nativo (pra mostrar na UI). */
+let _lastNativePushDiag = '';
+function setDiag(msg: string) {
+  _lastNativePushDiag = msg;
+}
+export function getNativePushDiag(): string {
+  return _lastNativePushDiag;
+}
+
 export function isNativePushPlatform(): boolean {
-  return Capacitor.isNativePlatform();
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
+}
+
+function pluginRegistered(): boolean {
+  try {
+    return Capacitor.isPluginAvailable('PushNotifications');
+  } catch {
+    return false;
+  }
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`timeout ${label} (${ms}ms)`)), ms)),
+  ]);
 }
 
 async function loadPlugin() {
-  const mod = await import('@capacitor/push-notifications');
+  const mod = await withTimeout(import('@capacitor/push-notifications'), 8000, 'import plugin');
   return mod.PushNotifications;
 }
 
@@ -34,58 +58,67 @@ function normalize(receive: string | undefined): NativePushPermission {
   return 'prompt';
 }
 
-/** Estado atual da permissão de push nativa. 'prompt' = ainda não perguntou. */
 export async function checkNativePushPermission(): Promise<NativePushPermission> {
-  if (!Capacitor.isNativePlatform()) return 'denied';
+  if (!isNativePushPlatform()) return 'denied';
+  if (!pluginRegistered()) {
+    setDiag('plugin PushNotifications não está no app (build sem a capability?)');
+    return 'denied';
+  }
   try {
     const PushNotifications = await loadPlugin();
-    const status = await PushNotifications.checkPermissions();
+    const status = await withTimeout(PushNotifications.checkPermissions(), 6000, 'checkPermissions');
     return normalize(status.receive);
-  } catch {
+  } catch (e) {
+    setDiag(`checkPermissions: ${(e as Error)?.message ?? String(e)}`);
     return 'denied';
   }
 }
 
-/**
- * Pede a permissão nativa de push. No iOS o prompt do sistema aparece só na
- * 1ª vez; depois retorna o estado já decidido sem mostrar nada.
- */
 export async function requestNativePushPermission(): Promise<NativePushPermission> {
-  if (!Capacitor.isNativePlatform()) return 'denied';
+  if (!isNativePushPlatform()) return 'denied';
+  if (!pluginRegistered()) {
+    setDiag('plugin PushNotifications não está no app (build sem a capability?)');
+    return 'denied';
+  }
   try {
     const PushNotifications = await loadPlugin();
-    let status = await PushNotifications.checkPermissions();
+    let status = await withTimeout(PushNotifications.checkPermissions(), 6000, 'checkPermissions');
     if (status.receive === 'prompt' || status.receive === 'prompt-with-rationale') {
-      status = await PushNotifications.requestPermissions();
+      // o prompt do iOS pode ficar aberto um tempo — timeout generoso
+      status = await withTimeout(PushNotifications.requestPermissions(), 90000, 'requestPermissions');
     }
+    setDiag(`permissão nativa: ${status.receive}`);
     return normalize(status.receive);
-  } catch {
+  } catch (e) {
+    setDiag(`requestPermissions: ${(e as Error)?.message ?? String(e)}`);
     return 'denied';
   }
 }
 
-/**
- * Registra no APNs/FCM e envia o device token ao backend
- * (`POST /notifications/native-device`). Resolve com `true` só se um token
- * foi capturado e aceito. Exige permissão JÁ concedida — chame
- * `requestNativePushPermission()` antes. Nunca loga o valor do token.
- */
 export async function registerNativePush(authToken: string): Promise<boolean> {
-  if (!Capacitor.isNativePlatform()) return false;
+  if (!isNativePushPlatform()) return false;
+  if (!pluginRegistered()) {
+    setDiag('plugin PushNotifications não está no app');
+    return false;
+  }
 
   try {
     const PushNotifications = await loadPlugin();
 
-    const perm = await PushNotifications.checkPermissions();
-    if (perm.receive !== 'granted') return false;
+    const perm = await withTimeout(PushNotifications.checkPermissions(), 6000, 'checkPermissions');
+    if (perm.receive !== 'granted') {
+      setDiag(`sem permissão pra registrar (${perm.receive})`);
+      return false;
+    }
 
     await PushNotifications.removeAllListeners();
 
     return await new Promise<boolean>((resolve) => {
       let settled = false;
-      const finish = (value: boolean) => {
+      const finish = (value: boolean, why: string) => {
         if (settled) return;
         settled = true;
+        setDiag(why);
         resolve(value);
       };
 
@@ -96,26 +129,29 @@ export async function registerNativePush(authToken: string): Promise<boolean> {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
           body: JSON.stringify({ platform, token: result.value }),
         })
-          .then((res) => finish(res.ok))
-          .catch(() => finish(false));
+          .then((res) => finish(res.ok, res.ok ? 'token registrado' : `backend recusou o token (HTTP ${res.status})`))
+          .catch((e) => finish(false, `envio do token falhou: ${e}`));
       });
 
-      void PushNotifications.addListener('registrationError', () => finish(false));
+      void PushNotifications.addListener('registrationError', (err) => {
+        finish(false, `APNs recusou o registro: ${JSON.stringify(err)?.slice(0, 160)}`);
+      });
 
       void PushNotifications.register();
 
-      // Rede de segurança: APNs/FCM pode simplesmente não responder (sem
-      // capability no build, offline, etc.) — nunca pendura quem chamou.
-      setTimeout(() => finish(false), 12_000);
+      setTimeout(
+        () => finish(false, 'APNs não respondeu em 15s (sem registration nem registrationError)'),
+        15_000,
+      );
     });
-  } catch {
-    // best-effort — falha de push nunca deve travar o app
+  } catch (e) {
+    setDiag(`register: ${(e as Error)?.message ?? String(e)}`);
     return false;
   }
 }
 
 export async function unregisterNativePush(authToken: string): Promise<void> {
-  if (!Capacitor.isNativePlatform()) return;
+  if (!isNativePushPlatform()) return;
   try {
     await fetch(`${API_BASE}/notifications/native-device`, {
       method: 'DELETE',
