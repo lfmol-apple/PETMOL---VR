@@ -5,6 +5,8 @@
  * Fluxo: pedir permissão → registrar SW → obter VAPID key → subscribe → enviar ao backend.
  */
 
+import { isNativePushPlatform, registerNativePush } from "./nativePushService";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 /** ID estável por instalação — o backend usa pra saber que dois endpoints
@@ -240,6 +242,11 @@ export async function scheduleReminder(
   token: string
 ): Promise<void> {
   try {
+    if (isNativePushPlatform()) {
+      void registerNativePush(token); // best-effort — token pro APNs/FCM
+      await createReminder(payload, token);
+      return;
+    }
     const already = await isSubscribed();
     if (already) {
       const registration = await navigator.serviceWorker.ready;
@@ -285,6 +292,12 @@ export async function scheduleFoodReminder(
   token: string
 ): Promise<void> {
   try {
+    if (isNativePushPlatform()) {
+      void registerNativePush(token);
+      await cancelFoodRemindersForPet(payload.pet_id, token);
+      await createReminder(payload, token);
+      return;
+    }
     // Garante subscription ativa
     const already = await isSubscribed();
     if (already) {
@@ -329,20 +342,25 @@ export async function scheduleUniqueReminder(
   matchByTitle: boolean = true,
 ): Promise<void> {
   try {
-    const already = await isSubscribed();
-    if (already) {
-      const registration = await navigator.serviceWorker.ready;
-      const existingSub = await registration.pushManager.getSubscription();
-      if (existingSub) {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/notifications/subscribe`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ subscription: existingSub.toJSON() }),
-        });
-      }
+    const nativeChannel = isNativePushPlatform();
+    if (nativeChannel) {
+      void registerNativePush(token);
     } else {
-      const ok = await subscribeToPush(token);
-      if (!ok) return;
+      const already = await isSubscribed();
+      if (already) {
+        const registration = await navigator.serviceWorker.ready;
+        const existingSub = await registration.pushManager.getSubscription();
+        if (existingSub) {
+          await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/notifications/subscribe`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ subscription: existingSub.toJSON() }),
+          });
+        }
+      } else {
+        const ok = await subscribeToPush(token);
+        if (!ok) return;
+      }
     }
     const existing = await listReminders(token);
     const old = existing.filter(

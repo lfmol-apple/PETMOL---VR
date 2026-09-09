@@ -9,6 +9,11 @@ import { API_BASE_URL } from '@/lib/api';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { subscribeToPush } from '@/features/notifications/pushService';
+import {
+  isNativePushPlatform,
+  requestNativePushPermission,
+  registerNativePush,
+} from '@/features/notifications/nativePushService';
 import { needsIosInstallForPush } from '@/lib/pwaPlatform';
 
 type FieldKey = 'name' | 'email' | 'password' | 'terms';
@@ -69,16 +74,24 @@ export default function RegisterPage() {
     setInviteToken(params.get('invite'));
     setRedirectAfter(params.get('redirect'));
     nameRef.current?.focus();
-    const nativePushSupported =
+    // App nativo (TestFlight/App Store): push é APNs/FCM — sempre oferece o
+    // passo de ativar, nunca a instrução de "Adicionar à Tela de Início".
+    if (isNativePushPlatform()) {
+      setPushSupported(true);
+      setIosNeedsInstall(false);
+      trackV1Metric('signup_started', {});
+      return;
+    }
+    const webPushSupported =
       'Notification' in window &&
       'serviceWorker' in navigator &&
       'PushManager' in window &&
       Notification.permission !== 'granted';
-    setPushSupported(nativePushSupported);
+    setPushSupported(webPushSupported);
     // On iOS Safari outside an installed PWA, PushManager doesn't exist at
-    // all — nativePushSupported is false the same as "no push support",
+    // all — webPushSupported is false the same as "no push support",
     // but here it's actually "would work if installed first".
-    setIosNeedsInstall(!nativePushSupported && needsIosInstallForPush());
+    setIosNeedsInstall(!webPushSupported && needsIosInstallForPush());
     trackV1Metric('signup_started', {});
   }, []);
 
@@ -133,7 +146,14 @@ export default function RegisterPage() {
     setSubscribing(true);
     try {
       const token = getToken();
-      if (token) await subscribeToPush(token);
+      if (token) {
+        if (isNativePushPlatform()) {
+          const state = await requestNativePushPermission();
+          if (state === 'granted') await registerNativePush(token);
+        } else {
+          await subscribeToPush(token);
+        }
+      }
     } catch {
       // best-effort — falhas não bloqueiam o cadastro
     }

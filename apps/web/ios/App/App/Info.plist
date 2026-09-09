@@ -18,10 +18,15 @@
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
-	<!-- UIBackgroundModes (remote-notification) removido para a v1.0: o envio
-	     de push nativo (APNs) ainda não está configurado — declarar o
-	     background mode sem usá-lo é risco de rejeição (App Store 2.5.4).
-	     Restaurar junto com a APNs Auth Key + a capability Push no Xcode. -->
+	<!-- Push nativo (APNs): o app pede permissão e registra o device token
+	     (ver nativePushService.ts). O envio de fato depende da APNs Auth Key
+	     (.p8) como secret no backend + a capability "Push Notifications" no
+	     target do Xcode (que liga App.entitlements ao build). Ver
+	     docs/MOBILE_RELEASE_CHECKLIST.md. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>CFBundleShortVersionString</key>

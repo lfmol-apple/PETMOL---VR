@@ -19,6 +19,18 @@ export function isIosDevice(): boolean {
   return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
 }
 
+/**
+ * True quando estamos dentro do app nativo PETMOL (WKWebView do Capacitor,
+ * iOS ou Android) — não numa aba de navegador nem num PWA instalado. Usa o
+ * marcador `PetmolApp` que `capacitor.config.ts` injeta no User-Agent, então
+ * funciona mesmo sem o `@capacitor/core` no bundle (ver lib/nativeApp.ts).
+ * No app nativo o push é APNs/FCM: nada de "Adicionar à Tela de Início".
+ */
+export function isNativeApp(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return (navigator.userAgent || '').includes('PetmolApp');
+}
+
 export function isStandalonePwa(): boolean {
   if (typeof window === 'undefined') return false;
   const displayModeStandalone = window.matchMedia?.('(display-mode: standalone)').matches;
@@ -27,7 +39,12 @@ export function isStandalonePwa(): boolean {
   return Boolean(displayModeStandalone || iosStandalone);
 }
 
-/** True when push could work here if the user installed the PWA first. */
+/**
+ * True quando push só funcionaria aqui se o usuário instalasse o PWA antes —
+ * iPhone, no Safari, FORA do app nativo e FORA do PWA instalado. Dentro do
+ * app nativo (TestFlight/App Store) o push é nativo (APNs), então isto é
+ * false e a tela não mostra instrução de "Adicionar à Tela de Início".
+ */
 export function needsIosInstallForPush(): boolean {
-  return isIosDevice() && !isStandalonePwa();
+  return isIosDevice() && !isStandalonePwa() && !isNativeApp();
 }

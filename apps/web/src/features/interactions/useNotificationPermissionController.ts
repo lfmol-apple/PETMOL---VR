@@ -15,8 +15,20 @@ import { useCallback, useEffect, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
-import { registerNativePush } from '@/features/notifications/nativePushService';
+import {
+  isNativePushPlatform,
+  checkNativePushPermission,
+  requestNativePushPermission,
+  registerNativePush,
+  unregisterNativePush,
+  type NativePushPermission,
+} from '@/features/notifications/nativePushService';
 import { getDeviceId } from '@/features/notifications/pushService';
+
+/** Estado nativo ('prompt'|'granted'|'denied') → NotificationPermission da web. */
+function nativeToWebPermission(p: NativePushPermission): NotificationPermission {
+  return p === 'prompt' ? 'default' : p;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -153,14 +165,34 @@ export function useNotificationPermissionController() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscription, setSubscription] = useState<PushSubscription | null>(null);
 
+  // Dentro do app nativo (TestFlight/App Store) o push é APNs/FCM via
+  // Capacitor — caminho totalmente separado do Web Push abaixo. A UI
+  // (register, profile) consome os mesmos campos/ações deste hook, então
+  // aqui a gente só troca a implementação por baixo conforme a plataforma.
+  const isNative = isNativePushPlatform();
+
   const requestPermission = useCallback(async (): Promise<boolean> => {
+    if (isNative) {
+      const state = await requestNativePushPermission();
+      setPermission(nativeToWebPermission(state));
+      return state === 'granted';
+    }
     if (!isSupported) return false;
     const result = await Notification.requestPermission();
     setPermission(result);
     return result === 'granted';
-  }, [isSupported]);
+  }, [isNative, isSupported]);
 
-  const subscribeToPush = useCallback(async (forceRefresh = false): Promise<PushSubscription | null> => {
+  const subscribeToPush = useCallback(async (forceRefresh = false): Promise<PushSubscription | boolean | null> => {
+    if (isNative) {
+      // Não existe PushSubscription no nativo — devolvemos boolean (truthy =
+      // token registrado). Quem chama já testa `if (!sub)`.
+      const token = getToken();
+      if (!token) return false;
+      const ok = await registerNativePush(token);
+      setIsSubscribed(ok);
+      return ok;
+    }
     if (!isSupported || Notification.permission !== 'granted') return null;
     try {
       const reg = await getSwRegistration();
@@ -197,13 +229,31 @@ export function useNotificationPermissionController() {
       console.error('[push] subscribeToPush falhou', err);
       return null;
     }
-  }, [isSupported]);
+  }, [isNative, isSupported]);
+
+  // ── App nativo (APNs/FCM): estado inicial + auto-registro do token ────────
+  useEffect(() => {
+    if (!isNative) return;
+    setIsSupported(true);
+
+    void (async () => {
+      const state = await checkNativePushPermission();
+      setPermission(nativeToWebPermission(state));
+      if (state !== 'granted') return;
+      // Permissão já concedida (build anterior, ou reabertura) → renova o
+      // token no backend silenciosamente.
+      const token = getToken();
+      if (!token) return;
+      const ok = await registerNativePush(token);
+      setIsSubscribed(ok);
+    })();
+  }, [isNative]);
 
   // Detect support and initial state.
   // If a browser subscription already exists, renew it silently so the backend
   // does not keep receiving an expired endpoint from FCM.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || isNative) return;
     const supported =
       'serviceWorker' in navigator &&
       'PushManager' in window &&
@@ -243,18 +293,15 @@ export function useNotificationPermissionController() {
         }
       })
       .catch(() => { /* silently ignore */ });
-  }, []);
-
-  // Push nativo (FCM/APNs via Capacitor) é um caminho totalmente separado
-  // do Web Push acima — no-op automático fora do shell nativo (ver
-  // nativePushService.ts), então é seguro sempre tentar aqui.
-  useEffect(() => {
-    const token = getToken();
-    if (!token) return;
-    void registerNativePush(token);
-  }, []);
+  }, [isNative]);
 
   const unsubscribe = useCallback(async (): Promise<void> => {
+    if (isNative) {
+      const token = getToken();
+      if (token) await unregisterNativePush(token);
+      setIsSubscribed(false);
+      return;
+    }
     if (!subscription) return;
     try {
       await subscription.unsubscribe();
@@ -263,9 +310,15 @@ export function useNotificationPermissionController() {
       setSubscription(null);
       setIsSubscribed(false);
     }
-  }, [subscription]);
+  }, [isNative, subscription]);
 
   const sendTestNotification = useCallback(async (): Promise<void> => {
+    if (isNative) {
+      // No app nativo o "teste" é só o push do backend (APNs/FCM) — não há
+      // notificação local via Service Worker.
+      await postTestNotification();
+      return;
+    }
     try {
       await postTestNotification();
       await showLocalTestNotification();
@@ -285,7 +338,7 @@ export function useNotificationPermissionController() {
       await postTestNotification();
       await showLocalTestNotification();
     }
-  }, [subscribeToPush]);
+  }, [isNative, subscribeToPush]);
 
   return {
     permission,
