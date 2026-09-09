@@ -153,6 +153,18 @@ class Settings(BaseSettings):
     vapid_private_key: Optional[str] = None
     vapid_claims_email: str = "mailto:contato@petmol.app"
 
+    # ── Push nativo iOS (APNs) ────────────────────────────────────────────
+    # Sem estas 3, o envio nativo iOS é no-op silencioso (o token continua
+    # sendo coletado). Gerar a chave em developer.apple.com → Keys → Apple
+    # Push Notifications service (.p8, só baixa 1 vez). apns_auth_key_p8 =
+    # conteúdo do arquivo .p8 (com "-----BEGIN PRIVATE KEY-----"). Rollback:
+    # limpar APNS_AUTH_KEY_P8 + restart. Ver docs/MOBILE_RELEASE_CHECKLIST.md.
+    apns_auth_key_p8: Optional[str] = None
+    apns_key_id: Optional[str] = None
+    apns_team_id: Optional[str] = None
+    apns_topic: str = "br.com.petmol.app"  # = bundle id do app
+    apns_use_sandbox: bool = False  # True → api.sandbox.push.apple.com (builds dev)
+
     # ── Fale com o Petmol (contato do tutor) ──────────────────────────────
     # Caixa que recebe as mensagens enviadas pela tela "Fale com o Petmol".
     # SMTP reaproveita as mesmas envs do OTP (SMTP_HOST/PORT/USER/PASS/FROM).

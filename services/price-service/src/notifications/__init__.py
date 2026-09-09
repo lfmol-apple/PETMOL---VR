@@ -18,6 +18,7 @@ from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text, 
 from ..db import Base, SessionLocal, engine
 from ..user_auth.deps import get_current_user
 from ..config import get_settings
+from .apns import apns_configured, send_apns
 from ..family.models import FamilyGroup, FamilyMember
 from ..pets.access import get_accessible_pet_or_404
 from ..pets.caretaker_models import PetCaretaker
@@ -251,13 +252,54 @@ def _send_push_devices(devices: list, payload: dict) -> tuple:
     return ok_count, invalid_ids
 
 
+def push_native_ios_to_user(user_id: str, payload: dict) -> int:
+    """Envia `payload` (mesmo formato do Web Push: title/body/badge/data)
+    para todos os device tokens iOS ativos do usuário via APNs. No-op se a
+    APNs não estiver configurada. Desativa tokens inválidos. Retorna quantos
+    dispositivos receberam."""
+    if not apns_configured():
+        return 0
+    db = SessionLocal()
+    try:
+        tokens = (
+            db.query(NativePushToken)
+            .filter(
+                NativePushToken.user_id == str(user_id),
+                NativePushToken.platform == "ios",
+                NativePushToken.disabled_at.is_(None),
+            )
+            .all()
+        )
+        ok = 0
+        invalid_ids: list = []
+        for t in tokens:
+            sent, invalid = send_apns(t.token, payload)
+            if sent:
+                ok += 1
+            if invalid:
+                invalid_ids.append(t.id)
+        if invalid_ids:
+            db.query(NativePushToken).filter(NativePushToken.id.in_(invalid_ids)).update(
+                {"disabled_at": datetime.now(timezone.utc)}, synchronize_session=False
+            )
+            db.commit()
+        return ok
+    except Exception as e:
+        logger.error(f"push_native_ios_to_user error: {e}")
+        return 0
+    finally:
+        db.close()
+
+
 def push_to_user(user_id, payload: dict, _subs_by_user: dict | None = None) -> int:
-    """Push para TODOS os dispositivos ativos de um usuário. Desativa apenas
-    as subscriptions inválidas. Retorna quantos dispositivos receberam."""
+    """Push para TODOS os dispositivos ativos de um usuário — Web Push +
+    APNs (iOS nativo). Desativa apenas as subscriptions/tokens inválidos.
+    Retorna quantos dispositivos receberam."""
     by_user = _subs_by_user if _subs_by_user is not None else _load_subscriptions_by_user()
     devices = by_user.get(str(user_id)) or []
     ok_count, invalid_ids = _send_push_devices(devices, payload)
     _disable_subscriptions_by_id(invalid_ids)
+    ok_count += push_native_ios_to_user(str(user_id), payload)
     return ok_count
 
 
@@ -388,7 +430,10 @@ def send_due_reminders() -> None:
                 for uid in recipient_ids
                 for sub_row in subs_by_user.get(uid, [])
             ]
-            if not recipient_subs:
+            # `apns_configured()` = pode haver destinatário iOS nativo (os
+            # tokens são conferidos por usuário no envio). Sem web nem APNs,
+            # não há pra onde mandar — consome o lembrete.
+            if not recipient_subs and not apns_configured():
                 logger.info(f"Reminder {reminder.id}: sem subscriptions para o pet/user — consumindo")
                 if is_duplicate:
                     logger.info(f"Reminder {reminder.id}: duplicado suprimido — marcado como enviado")
@@ -449,6 +494,10 @@ def send_due_reminders() -> None:
                     invalid_sub_ids.add(sub_row.id)
                 else:
                     hard_fail = True
+
+            # Push nativo iOS (APNs) — independente das subs Web acima.
+            for rid in recipient_ids:
+                ok_count += push_native_ios_to_user(rid, payload)
 
             if ok_count > 0 or not hard_fail:
                 reminder.sent = True
@@ -657,6 +706,8 @@ def unregister_native_device(body: Optional[UnregisterNativeDeviceRequest] = Non
 
 @router.post("/test")
 def test_push(current_user=Depends(get_current_user)):
+    payload = {"title": "🐾 Teste PETMOL", "body": "Push funcionando!", "tag": "test",
+               "data": {"url": "/home"}}
     db = SessionLocal()
     try:
         subs = (
@@ -664,13 +715,29 @@ def test_push(current_user=Depends(get_current_user)):
             .filter(PushSubscription.user_id == str(current_user.id), PushSubscription.disabled_at.is_(None))
             .all()
         )
-        if not subs:
-            raise HTTPException(status_code=404, detail="Sem subscription registrada para este usuário")
-        any_ok = False
+        native_ok = push_native_ios_to_user(str(current_user.id), payload)
+
+        if not subs and native_ok == 0:
+            # Nenhum canal: sem sub Web e (APNs off OU sem token iOS).
+            has_ios_token = (
+                db.query(NativePushToken)
+                .filter(
+                    NativePushToken.user_id == str(current_user.id),
+                    NativePushToken.platform == "ios",
+                    NativePushToken.disabled_at.is_(None),
+                )
+                .first()
+                is not None
+            )
+            if has_ios_token and not apns_configured():
+                raise HTTPException(status_code=503, detail="Push nativo iOS ainda não está ativo no servidor")
+            raise HTTPException(status_code=404, detail="Sem dispositivo registrado para este usuário")
+
+        any_ok = native_ok > 0
         for s in subs:
             ok, _ = _send_push(
                 {"endpoint": s.endpoint, "keys": {"p256dh": s.p256dh, "auth": s.auth}},
-                {"title": "🐾 Teste PETMOL", "body": "Push funcionando!", "tag": "test"},
+                payload,
             )
             any_ok = any_ok or ok
         if not any_ok:
