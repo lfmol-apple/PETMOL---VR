@@ -22,9 +22,12 @@ fastapi==0.128.0
 frozenlist==1.8.0
 h11==0.16.0
 http_ece==1.2.1
+h2==4.2.0
+hpack==4.1.0
 httpcore==1.0.9
 httptools==0.7.1
 httpx==0.28.1
+hyperframe==6.1.0
 idna==3.11
 imagehash==4.3.2
 jiter==0.12.0
