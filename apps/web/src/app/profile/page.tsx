@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { API_BASE_URL } from '@/lib/api';
 import { showBlockingNotice } from '@/features/interactions/userPromptChannel';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
-import { isNativePushPlatform } from '@/features/notifications/nativePushService';
+import { isNativePushPlatform, getNativePushDiag } from '@/features/notifications/nativePushService';
 import { IosSwitch } from '@/components/ui/IosSwitch';
 import { useAdmin } from '@/hooks/useAdmin';
 import { trackV1Metric } from '@/lib/v1Metrics';
@@ -489,10 +489,11 @@ export default function ProfilePage() {
 
       const granted = permission === 'granted' ? true : await requestPermission();
       if (!granted) {
+        const diag = isNativePushPlatform() ? getNativePushDiag() : '';
         setPushFeedback({
           ok: false,
           msg: isNativePushPlatform()
-            ? 'Permissão de notificações negada. Ative em Ajustes › PETMOL › Notificações.'
+            ? `Não deu pra ativar. ${diag || 'Verifique Ajustes › PETMOL › Notificações.'}`
             : 'Permissão negada pelo navegador.',
         });
         return;
@@ -500,7 +501,13 @@ export default function ProfilePage() {
 
       const sub = await subscribeToPush();
       if (!sub) {
-        setPushFeedback({ ok: false, msg: 'Não foi possível ativar as notificações neste dispositivo.' });
+        const diag = isNativePushPlatform() ? getNativePushDiag() : '';
+        setPushFeedback({
+          ok: false,
+          msg: diag
+            ? `Ativação incompleta: ${diag}`
+            : 'Não foi possível ativar as notificações neste dispositivo.',
+        });
         return;
       }
 
