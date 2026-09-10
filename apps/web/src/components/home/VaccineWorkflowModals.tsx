@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { Camera, Check, Syringe } from 'lucide-react';
+import { AlertTriangle, Camera, Check, Syringe } from 'lucide-react';
 import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { VaccineCardUpload } from '@/components/VaccineCardUpload';
 import { useI18n } from '@/lib/I18nContext';
@@ -77,10 +77,17 @@ export function VaccineWorkflowModals({
   const [customProductIndex, setCustomProductIndex] = useState<number | null>(null);
   const [customProductName, setCustomProductName] = useState('');
   const [justImported, setJustImported] = useState(false);
+  // Aviso obrigatório: o tutor precisa reconhecer que a leitura por IA erra
+  // ANTES de ver a lista de registros, senão ele confia numa data errada e
+  // pode perder a vacina do pet.
+  const [disclaimerAck, setDisclaimerAck] = useState(false);
 
-  // Reset success screen when a new analysis starts
+  // Reset success screen + aviso quando uma nova análise começa
   useEffect(() => {
-    if (cardAnalysis) setJustImported(false);
+    if (cardAnalysis) {
+      setJustImported(false);
+      setDisclaimerAck(false);
+    }
   }, [cardAnalysis]);
 
   function showToast(msg: string) {
@@ -318,8 +325,8 @@ export function VaccineWorkflowModals({
 
           <SheetShell.Body className="space-y-6">
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-              <p className="text-amber-900 text-sm font-semibold mb-1">💡 Dica importante</p>
-              <p className="text-amber-800 text-sm">Funciona melhor com carteiras <strong>impressas</strong>. Carteiras manuscritas podem ter leitura parcial. Sempre revise os dados extraídos antes de salvar.</p>
+              <p className="text-amber-900 text-sm font-semibold mb-1">⚠️ A leitura automática pode errar</p>
+              <p className="text-amber-800 text-sm">A IA erra datas e nomes de vacina, principalmente em carteirinhas <strong>manuscritas</strong>. <strong>Confira cada campo com a carteirinha</strong> antes de salvar — um registro errado pode fazer você perder a data de uma vacina do seu pet.</p>
             </div>
 
             <VaccineCardUpload
@@ -393,11 +400,69 @@ export function VaccineWorkflowModals({
               </button>
             </SheetShell.Body>
           </SheetShell>
+        ) : !disclaimerAck ? (
+          <SheetShell open onClose={closeCardAnalysis} tone="grey" size="lg" z={SHEET_Z.raised}>
+            <SheetHeader
+              title="Antes de importar, leia isto"
+              media={<SheetIcon tone="amber"><AlertTriangle className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
+              onClose={closeCardAnalysis}
+            />
+            <SheetShell.Body className="space-y-4">
+              <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4">
+                <p className="text-[15px] font-bold text-amber-900">
+                  A leitura automática pode conter erros
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-amber-900">
+                  A IA <strong>erra datas e nomes de vacina</strong> em carteirinhas,
+                  principalmente as manuscritas. Um registro errado pode fazer você
+                  <strong> perder a data de uma vacina do seu pet</strong>.
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-amber-900">
+                  Você precisa <strong>conferir cada registro, campo por campo</strong>,
+                  com a carteirinha original — antes de importar e sempre que abrir o
+                  prontuário. O PETMOL <strong>não se responsabiliza</strong> por
+                  registros que você não conferiu.
+                </p>
+              </div>
+              <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={disclaimerAck}
+                  onChange={(e) => setDisclaimerAck(e.target.checked)}
+                  className="mt-0.5 h-4 w-4"
+                />
+                <span className="font-medium">
+                  Entendi. Vou conferir todos os registros com a carteirinha antes de confiar.
+                </span>
+              </label>
+            </SheetShell.Body>
+            <SheetShell.Footer tone="grey">
+              <div className="flex gap-3">
+                <button
+                  onClick={closeCardAnalysis}
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  onClick={() => setDisclaimerAck(true)}
+                  disabled={!disclaimerAck}
+                  className={`flex-1 rounded-2xl px-4 py-3 text-sm font-semibold ${
+                    disclaimerAck
+                      ? 'bg-[#0056D2] text-white shadow-md shadow-blue-600/20'
+                      : 'bg-slate-300 text-slate-600 cursor-not-allowed'
+                  }`}
+                >
+                  Revisar os registros
+                </button>
+              </div>
+            </SheetShell.Footer>
+          </SheetShell>
         ) : (
           <SheetShell open onClose={closeCardAnalysis} tone="grey" size="lg" z={SHEET_Z.raised}>
             <SheetHeader
               title={`${reviewRegistros.length} vacina${reviewRegistros.length !== 1 ? 's' : ''} encontrada${reviewRegistros.length !== 1 ? 's' : ''}`}
-              subtitle="Revise antes de importar"
+              subtitle="Confira cada uma com a carteirinha"
               onClose={closeCardAnalysis}
             />
 
@@ -609,16 +674,20 @@ export function VaccineWorkflowModals({
                 </div>
               </div>
 
-              <label className="flex items-start gap-3 text-sm text-slate-700 bg-white border border-slate-200 rounded-xl p-3">
+              <label className="flex items-start gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
                 <input
                   type="checkbox"
                   checked={reviewConfirmed}
                   onChange={(e) => setReviewConfirmed(e.target.checked)}
-                  className="mt-1"
+                  className="mt-0.5 h-4 w-4"
                 />
                 <div>
-                  <div className="font-medium">Conferi e confirmo os registros acima</div>
-                  <div className="text-xs text-slate-500">A importação só fica disponível após a revisão.</div>
+                  <div className="font-semibold">
+                    Confirmo que conferi CADA vacina e CADA data acima com a carteirinha do meu pet
+                  </div>
+                  <div className="mt-0.5 text-xs text-amber-800">
+                    A responsabilidade pela conferência é sua. A importação só libera depois disto.
+                  </div>
                 </div>
               </label>
             </SheetShell.Body>
