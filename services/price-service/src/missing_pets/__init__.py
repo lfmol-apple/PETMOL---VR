@@ -626,6 +626,23 @@ def _broadcast_missing_pet(
     quiet = origin == "rebroadcast"
     try:
         subs_by_user = _load_subscriptions_by_user()
+
+        # Localização do perfil (users.lat/lng) para quem tem subscription mas
+        # o aparelho não mandou coordenadas — uma query só pro batch todo.
+        profile_locations: dict = {}
+        if subs_by_user:
+            _pl_db = SessionLocal()
+            try:
+                for _u in (
+                    _pl_db.query(User)
+                    .filter(User.id.in_(list(subs_by_user.keys())),
+                            User.lat.isnot(None), User.lng.isnot(None))
+                    .all()
+                ):
+                    profile_locations[str(_u.id)] = (_u.lat, _u.lng)
+            finally:
+                _pl_db.close()
+
         c_lat, c_lng = center if center is not None else (mp.lat, mp.lng)
         radius = radius_km if radius_km is not None else _effective_radius_km(mp)
         has_location = c_lat is not None and c_lng is not None
@@ -693,6 +710,12 @@ def _broadcast_missing_pet(
                     if d.get("lat") is not None and d.get("lng") is not None
                 ]
                 if not coords:
+                    # Sem coords no aparelho — tenta a localização do perfil
+                    # (GPS compartilhado ou centro da cidade).
+                    u_loc = profile_locations.get(str(user_id))
+                    if u_loc:
+                        coords = [u_loc]
+                if not coords:
                     if no_coord_sent >= MAX_NO_COORD_SUB:
                         skipped += 1
                         continue
@@ -723,7 +746,6 @@ def _broadcast_missing_pet(
                 from ..pets.caretaker_models import PetCaretaker
                 from ..pets.models import Pet
                 from sqlalchemy.orm import Session as _Session
-                from ..db import SessionLocal
                 with SessionLocal() as _db:
                     family_user_ids: set[str] = set()
                     pet = _db.query(Pet).filter(Pet.id == mp.pet_id).first()
@@ -837,9 +859,14 @@ def _nearby_active_missing_pets(
     return sorted(candidates, key=lambda p: _haversine_km(lat, lng, p.lat, p.lng))[:limit]
 
 
-def _user_last_known_location(db: Session, user_id: str):
-    """Última localização conhecida do usuário — a subscription ativa mais
-    recente que tem lat/lng. Usada quando o request não traz coordenadas."""
+def _user_location(db: Session, user_id: str):
+    """Localização conhecida do usuário, na ordem de confiança:
+    1. users.lat/lng (compartilhada no perfil = GPS, ou centro da cidade)
+    2. a push subscription ativa mais recente com lat/lng (legado)
+    """
+    u = db.query(User).filter(User.id == str(user_id)).first()
+    if u is not None and u.lat is not None and u.lng is not None:
+        return (u.lat, u.lng)
     row = (
         db.query(PushSubscription)
         .filter(
@@ -870,7 +897,7 @@ def catch_up_missing_pet_alerts_for_user(user_id: str, lat=None, lng=None, db: S
     db = db or SessionLocal()
     try:
         if lat is None or lng is None:
-            lat, lng = _user_last_known_location(db, user_id)
+            lat, lng = _user_location(db, user_id)
         if lat is None or lng is None:
             return 0
 

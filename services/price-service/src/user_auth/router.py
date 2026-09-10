@@ -28,6 +28,33 @@ from .schemas import (
 )
 from .security import create_access_token, decode_token, hash_password, verify_password
 
+
+def _geocode_user_city_async(user_id: str, city: str, state: Optional[str]) -> None:
+    """Geocodifica a cidade e grava lat/lng no usuário, fora do request."""
+    import threading
+
+    def _run() -> None:
+        try:
+            from ..geocoding import geocode_place
+            from ..db import SessionLocal
+            coords = geocode_place(city, state)
+            if not coords:
+                return
+            db = SessionLocal()
+            try:
+                u = db.query(User).filter(User.id == user_id).first()
+                if u and u.location_source != 'gps':
+                    u.lat, u.lng = coords
+                    u.location_source = 'city'
+                    u.location_updated_at = datetime.now(timezone.utc)
+                    db.commit()
+            finally:
+                db.close()
+        except Exception:
+            pass
+
+    threading.Thread(target=_run, daemon=True).start()
+
 settings = get_settings()
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -87,6 +114,12 @@ def signup(payload: UserCreate, response: Response, request: Request, db: Sessio
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Cidade informada no cadastro → geocodifica o centro como localização
+    # aproximada (fora do request, best-effort). Dá base pro alerta de Pet
+    # Sumido a quem não concede GPS.
+    if user.city:
+        _geocode_user_city_async(str(user.id), user.city, user.state)
 
     # Envia email de verificação (best-effort, não bloqueia o cadastro)
     _send_verification_for_user(user, db)
@@ -411,10 +444,26 @@ def update_me(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não encontrado")
     
+    # Localização precisa (GPS) — vem do "compartilhar localização" no perfil.
+    # Fica no registro do usuário, não na push subscription (que some ao trocar
+    # de aparelho / desativar notificação).
+    try:
+        lat_in = payload.get('lat')
+        lng_in = payload.get('lng')
+        if lat_in is not None and lng_in is not None:
+            user.lat = float(lat_in)
+            user.lng = float(lng_in)
+            user.location_source = 'gps'
+            user.location_updated_at = datetime.now(timezone.utc)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="lat/lng inválidos")
+
     # Atualiza apenas os campos permitidos
     allowed_fields = ['name', 'phone', 'whatsapp', 'postal_code', 'street', 'number',
                       'complement', 'neighborhood', 'city', 'state', 'country',
                       'monthly_checkin_day', 'monthly_checkin_hour', 'monthly_checkin_minute']
+
+    city_changed = 'city' in payload and (payload.get('city') or '').strip() != (user.city or '')
 
     for field in allowed_fields:
         if field not in payload:
@@ -446,10 +495,20 @@ def update_me(
             setattr(user, field, minute)
         else:
             setattr(user, field, payload[field])
-    
+
+    # Cidade nova e sem GPS no registro → geocodifica o centro da cidade como
+    # localização aproximada (não sobrescreve uma localização de GPS).
+    if city_changed and user.city and user.location_source != 'gps':
+        from ..geocoding import geocode_place
+        coords = geocode_place(user.city, user.state)
+        if coords:
+            user.lat, user.lng = coords
+            user.location_source = 'city'
+            user.location_updated_at = datetime.now(timezone.utc)
+
     db.commit()
     db.refresh(user)
-    
+
     return user
 
 
