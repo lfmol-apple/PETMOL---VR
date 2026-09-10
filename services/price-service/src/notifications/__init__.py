@@ -710,6 +710,17 @@ def subscribe(body: SubscribeRequest, current_user=Depends(get_current_user)):
         cleanup.update({PushSubscription.disabled_at: now}, synchronize_session=False)
 
         db.commit()
+
+        # Alerta atrasado de Pet Sumido: se este usuário estava deslogado
+        # quando um alerta da região saiu, ele nunca recebeu o push. Agora que
+        # (re)inscreveu com localização, manda o que ficou faltando (1x, async).
+        if body.lat is not None and body.lng is not None:
+            try:
+                from ..missing_pets import catch_up_missing_pet_alerts_async
+                catch_up_missing_pet_alerts_async(user_id, body.lat, body.lng)
+            except Exception:
+                pass
+
         return {"status": "subscribed"}
     finally:
         db.close()
