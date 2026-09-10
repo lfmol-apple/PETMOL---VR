@@ -117,8 +117,15 @@ def _petz_search_term(query: str, brand: Optional[str] = None) -> str:
     return " ".join(term.split())[:80]
 
 
-def petz_site_search_url(query: str, brand: Optional[str] = None) -> str:
+def petz_site_search_url(query: str, brand: Optional[str] = None, weight_kg: Optional[float] = None) -> str:
     term = _petz_search_term(query, brand)
+    # O peso/tamanho é o que separa "Ração X 3kg" de "Ração X 15kg". A
+    # heurística de encurtamento tira números do termo, então quando
+    # sabemos o peso do produto do catálogo, recolocamos ELE no fim — a
+    # busca da Petz passa a trazer a variante certa no topo.
+    if term and weight_kg:
+        weight_str = f"{weight_kg:g}".replace(".", ",")
+        term = f"{term} {weight_str}kg"
     return f"{PETZ_SITE_SEARCH_BASE}?q={quote_plus(term)}" if term else PETZ_PARTNER_STORE_URL
 
 

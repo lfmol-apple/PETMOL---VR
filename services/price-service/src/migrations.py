@@ -9,11 +9,14 @@ Keep migrations minimal, idempotent, and additive only.
 
 from __future__ import annotations
 
+import logging
 import shutil
 from pathlib import Path
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+
+logger = logging.getLogger(__name__)
 
 
 def _wipe_pet_documents_dir() -> None:
@@ -543,6 +546,31 @@ def run_pg_migrations(engine: Engine) -> None:
         # junto com o compartilhamento de histórico — rg/ router + RGPublic
         # apagados. A página pública /p/[id] e /v/[token] também.
         conn.execute(text("DROP TABLE IF EXISTS rg_public CASCADE"))
+
+        # 2026-09: varredura única de identidade dos mapeamentos Petz.
+        # Mapeamento cuja variante de peso confirmada diverge >5% do peso do
+        # produto do catálogo aponta pro TAMANHO ERRADO ("Ração X 3kg" no
+        # catálogo, "Ração X 15kg" na Petz). Rebaixa pra 'ambiguous' pra
+        # parar de servir link direto até um humano revisar. Idempotente:
+        # depois da 1ª passada não sobra linha divergente em 'confirmed'.
+        try:
+            swept = conn.execute(text("""
+                UPDATE petz_product_mappings AS m
+                   SET match_status = 'ambiguous',
+                       rejection_reason = COALESCE(
+                           'auto (sweep 2026-09): peso ' || m.variant_weight_kg ||
+                           'kg vs catálogo ' || c.weight_kg || 'kg', rejection_reason)
+                  FROM products_catalog AS c
+                 WHERE m.product_id = c.id
+                   AND m.match_status IN ('confirmed', 'affiliate_pending', 'affiliate_ready')
+                   AND m.variant_weight_kg IS NOT NULL
+                   AND c.weight_kg IS NOT NULL
+                   AND ABS(m.variant_weight_kg - c.weight_kg) > GREATEST(0.05, c.weight_kg * 0.05)
+            """))
+            if swept.rowcount:
+                logger.warning("petz identity sweep: %s mapeamento(s) divergente(s) rebaixado(s) pra ambiguous", swept.rowcount)
+        except Exception as exc:  # tabela pode não existir ainda em bases muito novas
+            logger.info("petz identity sweep pulado: %s", exc)
 
 
 def _migrate_push_subscriptions_from_json(conn) -> None:

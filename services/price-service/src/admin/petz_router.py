@@ -19,6 +19,7 @@ from ..db import get_db
 from ..petz_link_validator import InvalidPetzAffiliateUrlError, validate_petz_affiliate_url, validate_petz_product_url
 from ..petz_mapping import (
     PetzProductMapping,
+    PetzVariantConflictError,
     confirm_petz_mapping,
     coverage_stats,
     get_mapping,
@@ -183,15 +184,24 @@ def confirm(
     except InvalidPetzAffiliateUrlError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    mapping = confirm_petz_mapping(
-        db,
-        product.id,
-        petz_product_id=payload.petz_product_id,
-        product_url=payload.product_url,
-        variant_label=payload.variant_label,
-        variant_weight_kg=payload.variant_weight_kg,
-        match_confidence=payload.match_confidence,
-    )
+    try:
+        mapping = confirm_petz_mapping(
+            db,
+            product.id,
+            petz_product_id=payload.petz_product_id,
+            product_url=payload.product_url,
+            variant_label=payload.variant_label,
+            variant_weight_kg=payload.variant_weight_kg,
+            match_confidence=payload.match_confidence,
+        )
+    except PetzVariantConflictError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Variante não confere com o produto do catálogo ({exc}). "
+                "O mapeamento foi marcado como ambíguo — reveja o tamanho antes de confirmar."
+            ),
+        )
     return _to_out(mapping, product.barcode_normalized)
 
 
