@@ -103,7 +103,7 @@ export default function TransparenciaPage() {
 
         <h2>Dúvidas</h2>
         <p>
-          Escreva para <a href="mailto:contato@petmol.com.br">contato@petmol.com.br</a>.
+          Escreva para <a href="mailto:gerenciamento@petmol.com.br">gerenciamento@petmol.com.br</a>.
         </p>
       </InstitutionalLayout>
     </>

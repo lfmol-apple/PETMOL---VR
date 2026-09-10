@@ -83,7 +83,7 @@ export default function PoliticaEditorialPage() {
         </p>
         <p>
           Se você identificar um erro factual em qualquer guia, escreva para{' '}
-          <a href="mailto:contato@petmol.com.br">contato@petmol.com.br</a>. Erros confirmados são
+          <a href="mailto:gerenciamento@petmol.com.br">gerenciamento@petmol.com.br</a>. Erros confirmados são
           corrigidos e a data de atualização do guia muda para registrar a correção.
         </p>
       </InstitutionalLayout>

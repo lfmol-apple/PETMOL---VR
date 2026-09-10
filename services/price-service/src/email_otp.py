@@ -33,7 +33,7 @@ def send_email_otp(to_email: str, code: str) -> bool:
       SMTP_PORT   — ex: 587
       SMTP_USER   — ex: seuemail@gmail.com
       SMTP_PASS   — App Password do Gmail (não a senha normal)
-      SMTP_FROM   — ex: PETMOL <noreply@petmol.app>  (opcional, usa SMTP_USER)
+      SMTP_FROM   — ex: PETMOL <noreply@petmol.com.br>  (opcional, usa SMTP_USER)
     """
     host = os.environ.get("SMTP_HOST", "")
     port = int(os.environ.get("SMTP_PORT", "587"))

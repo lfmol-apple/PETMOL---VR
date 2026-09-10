@@ -168,7 +168,7 @@ export default function PrivacyPage() {
           <ul>
             <li>Através das configurações da sua conta (exclusão de conta disponível diretamente no app)</li>
             <li>Pela página pública <Link href="/excluir-conta" className="text-[#0056D2] hover:underline">petmol.com.br/excluir-conta</Link>, sem precisar do aplicativo instalado</li>
-            <li>Enviando e-mail para: privacidade@petmol.com.br</li>
+            <li>Enviando e-mail para: gerenciamento@petmol.com.br</li>
           </ul>
           <p className="text-sm text-gray-600">
             Responderemos sua solicitação em até 15 dias úteis.
@@ -215,7 +215,7 @@ export default function PrivacyPage() {
             Para questões relacionadas à proteção de dados, entre em contato com nosso Encarregado:
           </p>
           <ul>
-            <li><strong>E-mail:</strong> dpo@petmol.com.br</li>
+            <li><strong>E-mail:</strong> gerenciamento@petmol.com.br</li>
             <li><strong>Resposta em:</strong> até 15 dias úteis</li>
           </ul>
 
@@ -233,7 +233,7 @@ export default function PrivacyPage() {
             Para dúvidas sobre esta Política de Privacidade:
           </p>
           <ul>
-            <li><strong>E-mail:</strong> privacidade@petmol.com.br</li>
+            <li><strong>E-mail:</strong> gerenciamento@petmol.com.br</li>
             <li><strong>Suporte:</strong> Através do chat na plataforma</li>
           </ul>
 

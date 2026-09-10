@@ -136,7 +136,7 @@ export default function TermsPage() {
             Se você tiver dúvidas sobre estes Termos de Uso, entre em contato conosco:
           </p>
           <ul>
-            <li>Email: contato@petmol.com.br</li>
+            <li>Email: gerenciamento@petmol.com.br</li>
             <li>Através do formulário de contato na plataforma</li>
           </ul>
 
