@@ -710,18 +710,20 @@ function VaccineRow({
             )}
           </div>
           {needsReview && (
-            <p className="mt-1 text-[11px] leading-snug text-amber-700">
-              Lido por IA. Compare a data e o nome com a carteirinha.{' '}
+            <div className="mt-1.5">
+              <p className="text-[11px] leading-snug text-amber-700">
+                Lido por IA — confira a data e o nome com a carteirinha.
+              </p>
               {onConfirm && (
                 <button
                   type="button"
                   onClick={() => onConfirm(v)}
-                  className="font-semibold text-amber-800 underline underline-offset-2"
+                  className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-[13px] font-bold text-white shadow-sm transition-all active:scale-95"
                 >
-                  Está correto → confirmar
+                  ✓ Está tudo certo — confirmar
                 </button>
               )}
-            </p>
+            </div>
           )}
           {/* Sem `truncate` de propósito: essa linha é a resposta pra "quando
               preciso agir", cortar com "..." escondia justamente o contador
