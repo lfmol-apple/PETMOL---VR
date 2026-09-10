@@ -53,6 +53,29 @@ def test_create_vaccine_with_reminder_and_edit(client):
     assert edit.json()["notes"] == "Aplicada na clínica X"
 
 
+def test_delete_vaccine_is_hard_delete(client):
+    token, pet_id = _signup_login_and_pet(client, "cid-vac-hard", "tutor.vachard@example.com")
+    created = client.post(
+        f"/pets/{pet_id}/vaccines",
+        json={"vaccine_name": "V10", "applied_date": "2026-01-10", "next_dose_date": "2027-01-10"},
+        headers=_headers("cid-vac-hard", token),
+    )
+    vid = created.json()["id"]
+
+    d = client.delete(f"/vaccines/{vid}", headers=_headers("cid-vac-hard", token))
+    assert d.status_code == 204
+
+    # sumiu da listagem
+    listing = client.get(f"/pets/{pet_id}/vaccines", headers=_headers("cid-vac-hard", token))
+    assert all(v["id"] != vid for v in listing.json())
+
+    # e sumiu do banco de verdade (não é só flag)
+    from src.db import SessionLocal
+    from src.pets.vaccine_models import VaccineRecord
+    with SessionLocal() as db:
+        assert db.query(VaccineRecord).filter(VaccineRecord.id == vid).first() is None
+
+
 def test_vaccine_next_dose_before_applied_date_rejected(client):
     token, pet_id = _signup_login_and_pet(client, "cid-vaccine-baddate", "tutor.vacinadata@example.com")
 

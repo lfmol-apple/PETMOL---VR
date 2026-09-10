@@ -310,17 +310,21 @@ def delete_vaccine(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Deleta uma vacina (soft delete)."""
+    """Apaga uma vacina do banco de verdade (não deixa linha órfã).
+
+    Era soft delete ("para recuperação"), mas não há tela de recuperação e o
+    sync LWW que justificava manter a linha não está mais em uso — só acumulava.
+    """
     vaccine = db.query(VaccineRecord).filter(
         VaccineRecord.id == vaccine_id
     ).first()
-    
+
     if not vaccine:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Vacina não encontrada"
         )
-    
+
     try:
         _get_pet_or_404(db, user.id, vaccine.pet_id)
     except HTTPException:
@@ -328,12 +332,20 @@ def delete_vaccine(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Você não tem permissão para deletar esta vacina"
         )
-    
-    # Soft delete
-    vaccine.deleted = True
-    vaccine.deleted_at = datetime.utcnow()
-    vaccine.updated_at = datetime.utcnow()
-    
+
+    # Lembretes automáticos pendentes deste registro somem junto.
+    try:
+        from ..events.models import Event
+        db.query(Event).filter(
+            Event.pet_id == vaccine.pet_id,
+            Event.type == "vaccine",
+            Event.status == "pending",
+            Event.notes == f"vaccine_id={vaccine.id}",
+        ).delete(synchronize_session=False)
+    except Exception:
+        pass
+
+    db.delete(vaccine)
     db.commit()
 
 
