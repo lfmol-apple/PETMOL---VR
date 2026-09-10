@@ -836,6 +836,73 @@ def _nearby_active_missing_pets(
     return sorted(candidates, key=lambda p: _haversine_km(lat, lng, p.lat, p.lng))[:limit]
 
 
+def catch_up_missing_pet_alerts_for_user(user_id: str, lat, lng) -> int:
+    """Alerta atrasado para quem estava deslogado quando o push saiu.
+
+    O push comunitário só chega a quem, no momento do broadcast, estava logado
+    e com uma subscription ativa no raio. Um vizinho que só abriu o app depois
+    nunca era avisado. Chamado quando a subscription é (re)criada com
+    localização — verifica alertas ativos no raio efetivo que este usuário
+    ainda não recebeu e envia agora, uma vez.
+    """
+    if lat is None or lng is None:
+        return 0
+    db = SessionLocal()
+    try:
+        pets = _nearby_active_missing_pets(db, lat, lng, radius_km=30, days=21, limit=25)
+        if not pets:
+            return 0
+        devices = (_load_subscriptions_by_user().get(str(user_id)) or [])
+        if not devices:
+            return 0
+
+        notified = _load_mp_notified()
+        newly: list[str] = []
+        for mp in pets:
+            if mp.user_id and str(mp.user_id) == str(user_id):
+                continue
+            if str(user_id) in notified.get(mp.id, {}).get("notified", []):
+                continue
+            # respeita o raio EFETIVO do alerta (cresce com o tempo), não os
+            # 30 km amplos da busca de candidatos.
+            if mp.lat is not None and mp.lng is not None:
+                if _haversine_km(lat, lng, mp.lat, mp.lng) > _effective_radius_km(mp):
+                    continue
+            location_part = f"Visto em: {mp.last_seen_location}. " if mp.last_seen_location else ""
+            payload = {
+                "title": f"🚨 {mp.pet_name} pode estar na sua região!",
+                "body": f"{location_part}Desaparecido desde {mp.missing_date or 'hoje'}. Toque para ajudar.",
+                "tag": f"missing-pet-{mp.id}",
+                "requireInteraction": True,
+                "icon": "/icons/icon-192x192.png",
+                "badge": "/icons/icon-72x72.png",
+                "data": {"url": f"/achei-um-pet?id={mp.id}"},
+            }
+            ok_count, _bad = _send_push_devices(devices, payload)
+            if ok_count > 0:
+                newly.append(mp.id)
+
+        for mp_id in newly:
+            _mark_notified(mp_id, [str(user_id)])
+        if newly:
+            print(f"[catch-up] user={str(user_id)[:8]} recebeu {len(newly)} alerta(s) atrasado(s)", flush=True)
+        return len(newly)
+    except Exception as exc:  # nunca quebra o /subscribe
+        logger.warning("catch_up_missing_pet_alerts_for_user erro: %s", exc)
+        return 0
+    finally:
+        db.close()
+
+
+def catch_up_missing_pet_alerts_async(user_id: str, lat, lng) -> None:
+    """Roda o catch-up fora do request para não atrasar o /subscribe."""
+    threading.Thread(
+        target=catch_up_missing_pet_alerts_for_user,
+        args=(str(user_id), lat, lng),
+        daemon=True,
+    ).start()
+
+
 def _create_found_report_from_sighting(
     db: Session,
     mp: MissingPet,
