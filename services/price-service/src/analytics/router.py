@@ -6,12 +6,13 @@ POST /api/analytics/click  — registra evento de funil anônimo.
 import hashlib
 import json
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -358,3 +359,101 @@ def record_product_event(
     except Exception:
         db.rollback()
         return ProductEventResponse(accepted=False, event_id=event_id)
+
+
+# ── App install (proxy de download) ───────────────────────────────────────
+
+class AppInstallRequest(BaseModel):
+    platform: str = Field(default="web", max_length=20)  # ios | android | pwa | web
+
+
+def _real_client_ip(request: Request) -> Optional[str]:
+    for h in ("CF-Connecting-IP", "True-Client-IP", "X-Forwarded-For", "X-Real-IP"):
+        v = request.headers.get(h)
+        if v:
+            return v.split(",")[0].strip()
+    return request.client.host if request.client else None
+
+
+@router.post("/app-install", status_code=202)
+def record_app_install(body: AppInstallRequest, request: Request, db: Session = Depends(get_db)):
+    """O app chama isto UMA vez, na 1ª abertura. Registra + avisa o admin.
+
+    App Store / Play não dão download em tempo real nem localização — isto é o
+    mais perto: quando e em que CIDADE (por IP) o app foi aberto pela 1ª vez.
+    """
+    import threading
+    from ..analytics.install_models import AppInstall
+
+    platform = (body.platform or "web").strip().lower()[:20]
+    if platform not in ("ios", "android", "pwa", "web"):
+        platform = "web"
+    ip = _real_client_ip(request)
+    ip_hash = _ip_hash(ip)
+    ua = _truncate_ua(request.headers.get("user-agent"))
+
+    # Dedup: mesmo IP + plataforma nas últimas 24h = mesma instalação.
+    if ip_hash:
+        since = datetime.now(timezone.utc) - timedelta(hours=24)
+        exists = (
+            db.query(AppInstall.id)
+            .filter(AppInstall.ip_hash == ip_hash, AppInstall.platform == platform,
+                    AppInstall.created_at >= since)
+            .first()
+        )
+        if exists:
+            return {"ok": True, "dedup": True}
+
+    row = AppInstall(platform=platform, ip_hash=ip_hash, user_agent=ua)
+    try:
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    except Exception:
+        db.rollback()
+        return {"ok": False}
+
+    row_id = row.id
+    threading.Thread(
+        target=_enrich_and_notify_install, args=(row_id, ip, platform), daemon=True
+    ).start()
+    return {"ok": True}
+
+
+def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) -> None:
+    """Geo-IP + push pro admin, fora do request."""
+    from ..db import SessionLocal
+    from ..analytics.install_models import AppInstall
+    from ..geoip import geoip_lookup
+    from ..config import get_settings
+
+    geo = geoip_lookup(ip or "") or {}
+    db = SessionLocal()
+    try:
+        row = db.query(AppInstall).filter(AppInstall.id == row_id).first()
+        if not row:
+            return
+        row.city = (geo.get("city") or None)
+        row.region = (geo.get("region") or None)
+        row.country = (geo.get("country") or None)
+        db.commit()
+
+        settings = get_settings()
+        admin = db.query(User).filter(func.lower(User.email) == settings.admin_master_email.lower()).first()
+        if admin:
+            where = " · ".join(p for p in (row.city, row.region, row.country) if p) or "local desconhecido"
+            _PLATFORM_LABEL = {"ios": "iPhone", "android": "Android", "pwa": "app instalado", "web": "navegador"}
+            try:
+                from ..notifications import push_to_user
+                push_to_user(str(admin.id), {
+                    "title": "📲 Novo download do PETMOL",
+                    "body": f"{where} — {_PLATFORM_LABEL.get(platform, platform)}",
+                    "tag": "petmol-install",
+                    "data": {"url": "/admin/dashboard"},
+                })
+            except Exception:
+                pass
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
