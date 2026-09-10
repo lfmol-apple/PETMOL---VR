@@ -55,6 +55,7 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<Record<FieldKey, string>>({ name: '', email: '', password: '', terms: '' });
   const [currentField, setCurrentField] = useState<FieldKey>('name');
   const [subscribing, setSubscribing] = useState(false);
+  const [sharingLocation, setSharingLocation] = useState(false);
   const [pushSupported, setPushSupported] = useState(false);
   const [iosNeedsInstall, setIosNeedsInstall] = useState(false);
   const [postNotifRoute, setPostNotifRoute] = useState('/welcome');
@@ -158,7 +159,30 @@ export default function RegisterPage() {
       // best-effort — falhas não bloqueiam o cadastro
     }
     setSubscribing(false);
-    router.push(postNotifRoute);
+    setStep(4);
+  };
+
+  const finishOnboarding = () => router.push(postNotifRoute);
+
+  const handleShareLocation = async () => {
+    setSharingLocation(true);
+    try {
+      const pos = await new Promise<GeolocationPosition>((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000 }),
+      );
+      const token = getToken();
+      if (token) {
+        await fetch(`${API_BASE_URL}/auth/me`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        }).catch(() => {});
+      }
+    } catch {
+      // negou ou falhou — segue; a cidade digitada vira a localização aproximada
+    }
+    setSharingLocation(false);
+    finishOnboarding();
   };
 
   const handleSubmit = async () => {
@@ -217,10 +241,12 @@ export default function RegisterPage() {
         setPostNotifRoute('/welcome');
       }
 
-      if ((pushSupported || iosNeedsInstall) && !dest?.startsWith('/cuidar/')) {
+      if (dest?.startsWith('/cuidar/')) {
+        router.push(dest);
+      } else if (pushSupported || iosNeedsInstall) {
         setStep(3);
       } else {
-        router.push(dest || '/welcome');
+        setStep(4);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao criar conta.';
@@ -260,7 +286,7 @@ export default function RegisterPage() {
 
           <div className="mb-4">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-500">Cadastro rápido</p>
-            <p className="mt-2 text-sm font-bold text-slate-900">Passo {Math.min(step, (pushSupported || iosNeedsInstall) ? 3 : 2)} de {(pushSupported || iosNeedsInstall) ? 3 : 2}</p>
+            <p className="mt-2 text-sm font-bold text-slate-900">Passo {Math.min(step, (pushSupported || iosNeedsInstall) ? 4 : 3)} de {(pushSupported || iosNeedsInstall) ? 4 : 3}</p>
           </div>
 
           {step === 3 ? (
@@ -321,7 +347,7 @@ export default function RegisterPage() {
                 {iosNeedsInstall ? (
                   <button
                     type="button"
-                    onClick={() => router.push(postNotifRoute)}
+                    onClick={() => setStep(4)}
                     className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-[15px] font-black shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform"
                   >
                     Entendi
@@ -345,10 +371,67 @@ export default function RegisterPage() {
                 )}
                 <button
                   type="button"
-                  onClick={() => router.push(postNotifRoute)}
+                  onClick={() => setStep(4)}
                   className={`w-full py-3 text-sm font-semibold text-slate-400 active:text-slate-600 transition-colors ${iosNeedsInstall ? 'hidden' : ''}`}
                 >
                   Agora não
+                </button>
+              </div>
+            </div>
+          ) : step === 4 ? (
+            <div className="space-y-6">
+              <div className="flex justify-center">
+                <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center shadow-inner">
+                  <svg viewBox="0 0 24 24" fill="none" className="w-10 h-10 text-blue-600" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
+                </div>
+              </div>
+
+              <div className="text-center">
+                <p className="text-2xl font-black text-slate-900 leading-tight">Alertas de pet sumido</p>
+                <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+                  Se um pet sumir na sua região, você recebe um aviso na hora e pode ajudar.
+                  Para isso o PETMOL precisa saber onde você fica.
+                </p>
+              </div>
+
+              <ul className="space-y-2.5">
+                {[
+                  { icon: '📍', text: 'Só a sua região — nunca seu endereço exato' },
+                  { icon: '🔕', text: 'Você não recebe nada de propaganda por isso' },
+                  { icon: '🐾', text: 'Se o seu pet sumir, a vizinhança também é avisada' },
+                ].map(({ icon, text }) => (
+                  <li key={text} className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+                    <span className="text-lg leading-none">{icon}</span>
+                    <span className="text-sm font-semibold text-slate-700">{text}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleShareLocation}
+                  disabled={sharingLocation}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-[15px] font-black shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {sharingLocation ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.3" /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>
+                      Aguardando...
+                    </>
+                  ) : (
+                    '📍  Permitir localização'
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={finishOnboarding}
+                  className="w-full py-3 text-sm font-semibold text-slate-400 active:text-slate-600 transition-colors"
+                >
+                  {city.trim() ? `Usar só "${city.trim()}"` : 'Agora não'}
                 </button>
               </div>
             </div>

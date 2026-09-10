@@ -66,6 +66,9 @@ class UserOut(BaseModel):
     monthly_checkin_hour: int = 9
     monthly_checkin_minute: int = 0
     email_verified: bool = False
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    location_source: Optional[str] = None
     created_at: OptionalUtcInstant = None
 
     class Config:

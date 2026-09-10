@@ -40,6 +40,9 @@ interface TutorData {
   city?: string;
   state?: string;
   country?: string;
+  lat?: number | null;
+  lng?: number | null;
+  location_source?: string | null;
 }
 
 function PreferenceSwitch({ checked, onToggle, disabled = false }: { checked: boolean; onToggle: () => void; disabled?: boolean }) {
@@ -142,8 +145,20 @@ export default function ProfilePage() {
         navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000 })
       );
       setGeoStatus('granted');
-      // Sincroniza coordenadas com a subscription existente no backend
       const token = getToken();
+      // Grava a localização NO USUÁRIO (persiste mesmo sem push / ao trocar
+      // de aparelho). Fonte primária dos alertas de Pet Sumido.
+      if (token) {
+        try {
+          const r = await fetch(`${apiBase}/auth/me`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          });
+          if (r.ok) setTutorData((prev) => (prev ? { ...prev, lat: pos.coords.latitude, lng: pos.coords.longitude, location_source: 'gps' } : prev));
+        } catch { /* best-effort */ }
+      }
+      // Sincroniza coordenadas com a subscription existente no backend
       if (token && 'serviceWorker' in navigator) {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
@@ -810,41 +825,56 @@ export default function ProfilePage() {
                       </span>
                     </div>
 
-                    {/* Geolocalização para alertas de pets sumidos */}
-                    {isSubscribed && (
-                      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-black text-slate-900">Localização para alertas</p>
-                            <p className="mt-0.5 text-xs text-slate-500 leading-relaxed">
-                              Necessária para receber alertas de pets sumidos perto de você.
-                            </p>
+                    {/* Localização para alertas de Pet Sumido — independente do push */}
+                    {(() => {
+                      const hasPreciseFix = geoStatus === 'granted';
+                      const onFile = tutorData?.lat != null && tutorData?.lng != null;
+                      const bySource = tutorData?.location_source;
+                      return (
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-black text-slate-900">Localização para alertas</p>
+                              <p className="mt-0.5 text-xs text-slate-500 leading-relaxed">
+                                Para você ser avisado se um pet sumir perto de você.
+                              </p>
+                            </div>
+                            <span className={`ml-3 flex-shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
+                              onFile ? 'bg-emerald-50 text-emerald-700' :
+                              geoStatus === 'denied' ? 'bg-rose-50 text-rose-700' :
+                                                       'bg-amber-50 text-amber-700'
+                            }`}>
+                              {onFile ? (bySource === 'gps' ? 'Precisa' : 'Aproximada') : geoStatus === 'denied' ? 'Bloqueada' : 'Não definida'}
+                            </span>
                           </div>
-                          <span className={`ml-3 flex-shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
-                            geoStatus === 'granted' ? 'bg-emerald-50 text-emerald-700' :
-                            geoStatus === 'denied'  ? 'bg-rose-50 text-rose-700' :
-                                                      'bg-amber-50 text-amber-700'
-                          }`}>
-                            {geoStatus === 'granted' ? 'Ativa' : geoStatus === 'denied' ? 'Bloqueada' : 'Não definida'}
-                          </span>
+                          {(!onFile || bySource !== 'gps') && (
+                            <button
+                              type="button"
+                              onClick={() => void handleRequestGeo()}
+                              disabled={geoLoading || geoStatus === 'denied'}
+                              className="mt-3 w-full rounded-xl bg-blue-600 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-all active:scale-[0.98] disabled:opacity-40"
+                            >
+                              {geoLoading ? 'Aguardando...'
+                                : geoStatus === 'denied' ? 'Bloqueada — libere nas configurações do celular'
+                                : onFile ? 'Melhorar precisão (usar GPS)'
+                                : 'Compartilhar localização'}
+                            </button>
+                          )}
+                          {onFile && (
+                            <p className="mt-2 text-[11px] text-emerald-600 font-medium">
+                              {bySource === 'gps'
+                                ? 'Alertas de pets sumidos na sua área ativados (localização precisa).'
+                                : 'Alertas ativados pela sua cidade. Toque acima para usar o GPS e receber alertas mais precisos.'}
+                            </p>
+                          )}
+                          {!onFile && !hasPreciseFix && (
+                            <p className="mt-2 text-[11px] text-slate-400">
+                              Sem isso, você não recebe alerta de pet sumido na sua região.
+                            </p>
+                          )}
                         </div>
-                        {geoStatus !== 'granted' && (
-                          <button
-                            type="button"
-                            onClick={() => void handleRequestGeo()}
-                            disabled={geoLoading || geoStatus === 'denied'}
-                            className="mt-3 w-full rounded-xl bg-blue-600 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-all active:scale-[0.98] disabled:opacity-40"
-                          >
-                            {geoLoading ? 'Aguardando...' : geoStatus === 'denied' ? 'Permissão bloqueada — libere nas configurações do browser' : 'Compartilhar localização'}
-                          </button>
-                        )}
-                        {geoStatus === 'granted' && (
-                          <p className="mt-2 text-[11px] text-emerald-600 font-medium">
-                            Você vai receber alertas de pets sumidos na sua área.
-                          </p>
-                        )}
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
                       <p className="text-sm font-black text-slate-900">Quais notificações deseja receber?</p>

@@ -97,6 +97,14 @@ def run_pg_migrations(engine: Engine) -> None:
         _pg_add_column_if_missing(conn, "users", "monthly_checkin_day", "INTEGER DEFAULT 5")
         _pg_add_column_if_missing(conn, "users", "monthly_checkin_hour", "INTEGER DEFAULT 9")
         _pg_add_column_if_missing(conn, "users", "monthly_checkin_minute", "INTEGER DEFAULT 0")
+
+        # users: localização persistida (para alertas de Pet Sumido).
+        # Antes só existia lat/lng na push_subscription — frágil, some ao trocar
+        # de aparelho / desativar notificação. (Set/2026)
+        _pg_add_column_if_missing(conn, "users", "lat", "DOUBLE PRECISION")
+        _pg_add_column_if_missing(conn, "users", "lng", "DOUBLE PRECISION")
+        _pg_add_column_if_missing(conn, "users", "location_source", "TEXT")  # gps | city | ip
+        _pg_add_column_if_missing(conn, "users", "location_updated_at", "TIMESTAMPTZ")
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS password_reset_tokens (
                 id          TEXT PRIMARY KEY,
@@ -604,6 +612,10 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "users", "monthly_checkin_day", "INTEGER DEFAULT 5")
         changed |= _sqlite_add_column_if_missing(conn, "users", "monthly_checkin_hour", "INTEGER DEFAULT 9")
         changed |= _sqlite_add_column_if_missing(conn, "users", "monthly_checkin_minute", "INTEGER DEFAULT 0")
+        changed |= _sqlite_add_column_if_missing(conn, "users", "lat", "REAL")
+        changed |= _sqlite_add_column_if_missing(conn, "users", "lng", "REAL")
+        changed |= _sqlite_add_column_if_missing(conn, "users", "location_source", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "users", "location_updated_at", "DATETIME")
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS password_reset_tokens (
                 id          TEXT PRIMARY KEY,

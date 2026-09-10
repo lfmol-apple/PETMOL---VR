@@ -31,6 +31,13 @@ class User(Base):
     state: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     country: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
 
+    # Localização persistida (alertas de Pet Sumido) — independente da push
+    # subscription. source: "gps" (preciso) | "city" (centro da cidade) | "ip".
+    lat: Mapped[Optional[float]] = mapped_column(nullable=True)
+    lng: Mapped[Optional[float]] = mapped_column(nullable=True)
+    location_source: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+    location_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Monthly check-in preferred day (1–28; 0 = último dia) and hour (0–23)
     monthly_checkin_day: Mapped[int] = mapped_column(default=1, nullable=False)
     monthly_checkin_hour: Mapped[int] = mapped_column(default=20, nullable=False)
