@@ -78,6 +78,7 @@ from .places import models as _places_models  # noqa: F401
 
 # Monthly check-in reminders
 from .checkin import models as _checkin_models  # noqa: F401
+from .analytics import install_models as _install_models  # noqa: F401
 from .checkin.router import router as checkin_router
 
 # Lightweight cache to avoid repeated paid vision calls for the same image.
@@ -409,6 +410,12 @@ def start_push_scheduler():
                               id="prune_orphan_guest_accounts")
         except Exception as exc:
             push_logger.warning("[PETMOL] guest-prune não agendado: %s", exc)
+        try:
+            from .analytics.install_report import send_daily_install_report
+            scheduler.add_job(send_daily_install_report, "cron", hour=9, minute=0,
+                              timezone="America/Sao_Paulo", id="daily_install_report")
+        except Exception as exc:
+            push_logger.warning("[PETMOL] install-report não agendado: %s", exc)
         scheduler.start()
         push_logger.info("[PETMOL] Push scheduler iniciado")
     except Exception as e:

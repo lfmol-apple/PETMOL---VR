@@ -17,6 +17,7 @@ import { OfflineIndicator, ConnectivityStatus } from '@/components/OfflineIndica
 import { PushAutoRefresh } from '@/components/PushAutoRefresh';
 import { NativePushBridge } from '@/components/NativePushBridge';
 import { BuildVersionGate } from '@/components/BuildVersionGate';
+import { AppInstallPing } from '@/components/AppInstallPing';
 import { AnalyticsBootstrap } from '@/components/AnalyticsBootstrap';
 import { 
   isEventNudgeEnabled
@@ -104,6 +105,7 @@ export default function RootLayout({
             <PushAutoRefresh />
             <NativePushBridge />
             <BuildVersionGate />
+            <AppInstallPing />
             <TravelDetectionNotification />
             <UserPromptHost />
             {/* GlobalAutoDetector desativado — detecção por geolocalização removida */}
