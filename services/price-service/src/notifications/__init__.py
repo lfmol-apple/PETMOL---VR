@@ -252,6 +252,30 @@ def _send_push_devices(devices: list, payload: dict) -> tuple:
     return ok_count, invalid_ids
 
 
+def user_has_active_native_token(user_id: str) -> bool:
+    """True se o usuário tem pelo menos 1 device token nativo ativo E a APNs
+    está configurada. Nesse caso o app NATIVO é o canal — não mandamos
+    também Web Push pro mesmo usuário (senão o mesmo lembrete chega 2x: uma
+    pelo app nativo, outra pelo PWA/navegador, que pode nem estar logado)."""
+    if not apns_configured():
+        return False
+    db = SessionLocal()
+    try:
+        return (
+            db.query(NativePushToken.id)
+            .filter(
+                NativePushToken.user_id == str(user_id),
+                NativePushToken.disabled_at.is_(None),
+            )
+            .first()
+            is not None
+        )
+    except Exception:
+        return False
+    finally:
+        db.close()
+
+
 def push_native_ios_to_user(user_id: str, payload: dict) -> int:
     """Envia `payload` (mesmo formato do Web Push: title/body/badge/data)
     para todos os device tokens iOS ativos do usuário via APNs. No-op se a
@@ -295,11 +319,14 @@ def push_to_user(user_id, payload: dict, _subs_by_user: dict | None = None) -> i
     """Push para TODOS os dispositivos ativos de um usuário — Web Push +
     APNs (iOS nativo). Desativa apenas as subscriptions/tokens inválidos.
     Retorna quantos dispositivos receberam."""
+    # App nativo é o canal quando existe — não duplicar via Web Push.
+    if user_has_active_native_token(str(user_id)):
+        return push_native_ios_to_user(str(user_id), payload)
+
     by_user = _subs_by_user if _subs_by_user is not None else _load_subscriptions_by_user()
     devices = by_user.get(str(user_id)) or []
     ok_count, invalid_ids = _send_push_devices(devices, payload)
     _disable_subscriptions_by_id(invalid_ids)
-    ok_count += push_native_ios_to_user(str(user_id), payload)
     return ok_count
 
 
@@ -489,9 +516,18 @@ def send_due_reminders() -> None:
                     "type": reminder.type,
                 },
             }
+            # Quem tem app nativo recebe SÓ por APNs — nada de Web Push pro
+            # mesmo usuário (senão o lembrete chega 2x: app nativo + PWA/
+            # navegador, que pode até nem estar logado → cai no /login).
+            native_recipient_ids = {
+                rid for rid in recipient_ids if user_has_active_native_token(rid)
+            }
+
             ok_count = 0
             hard_fail = False
             for recipient_id, sub_row in recipient_subs:
+                if recipient_id in native_recipient_ids:
+                    continue  # já vai receber por APNs abaixo
                 sub_dict = {"endpoint": sub_row.endpoint, "keys": {"p256dh": sub_row.p256dh, "auth": sub_row.auth}}
                 ok, sub_invalid = _send_push(sub_dict, payload)
                 logger.info(
@@ -505,8 +541,8 @@ def send_due_reminders() -> None:
                 else:
                     hard_fail = True
 
-            # Push nativo iOS (APNs) — independente das subs Web acima.
-            for rid in recipient_ids:
+            # Push nativo iOS (APNs).
+            for rid in native_recipient_ids:
                 ok_count += push_native_ios_to_user(rid, payload)
 
             if ok_count > 0 or not hard_fail:
