@@ -176,6 +176,7 @@ export function useVaccineManagement({
         record_type?: 'confirmed_application' | 'estimated_control_start' | null;
         alert_days_before?: number | null;
         reminder_time?: string | null;
+        is_confirmed?: boolean | null;
       }> = await res.json();
       const toDateStr = (raw: string | null | undefined): string => {
         if (!raw) return '';
@@ -198,6 +199,7 @@ export function useVaccineManagement({
           record_type: v.record_type || 'confirmed_application',
           alert_days_before: v.alert_days_before ?? 3,
           reminder_time: v.reminder_time || '09:00',
+          is_confirmed: v.is_confirmed ?? true,
         }))
         .sort(
           (a, b) =>
@@ -458,6 +460,44 @@ export function useVaccineManagement({
     } catch (error) {
       console.error('Erro ao excluir vacina:', error);
       showBlockingNotice(t('health.vaccines.error_delete'));
+    }
+  };
+
+  // ── handleConfirmVaccine ──────────────────────────────────────────────────
+  // Tutor abriu um registro vindo de leitura por IA e confirma que conferiu
+  // com a carteirinha. Some o selo "não conferido" e o lembrete volta ao normal.
+
+  const handleConfirmVaccine = async (vaccine: VaccineRecord) => {
+    const currentPet = getCurrentPet();
+    const savedToken = getToken();
+    if (!savedToken) {
+      showBlockingNotice('Sessão expirada. Faça login novamente.');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE_URL}/vaccines/${vaccine.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${savedToken}` },
+        body: JSON.stringify({ is_confirmed: true }),
+      });
+      if (!res.ok) {
+        showBlockingNotice('Não consegui confirmar o registro. Tente de novo.');
+        return;
+      }
+      setVaccines((prev) => prev.map((v) => (v.id === vaccine.id ? { ...v, is_confirmed: true } : v)));
+      if (currentPet) {
+        setPets((prevPets) =>
+          prevPets.map((p) =>
+            p.pet_id === currentPet.pet_id
+              ? { ...p, vaccines: (p.vaccines || []).map((v) => (v.id === vaccine.id ? { ...v, is_confirmed: true } : v)) }
+              : p,
+          ),
+        );
+      }
+      showAppToast('Registro confirmado.');
+    } catch (error) {
+      console.error('Erro ao confirmar vacina:', error);
+      showBlockingNotice('Não consegui confirmar o registro. Tente de novo.');
     }
   };
 
@@ -880,6 +920,8 @@ export function useVaccineManagement({
             country_code: countryCode,
             species: currentPet.species || 'dog',
             vaccines: vaccinePayloads,
+            // Veio de leitura por IA → registros nascem "não conferidos"
+            needs_review: true,
           }),
         },
       );
@@ -902,6 +944,7 @@ export function useVaccineManagement({
             vaccine_code: saved.vaccine_code || undefined,
             country_code: saved.country_code || undefined,
             next_due_source: saved.next_due_source || 'unknown',
+            is_confirmed: saved.is_confirmed ?? false,
           });
         }
         importedCount = createdVaccines.length;
@@ -1054,6 +1097,7 @@ export function useVaccineManagement({
     handleSaveVaccine,
     handleEditVaccine,
     handleDeleteVaccine,
+    handleConfirmVaccine,
     handleDeleteAllVaccines,
     handleReportVaccineIssue,
     handleSubmitFeedback,
