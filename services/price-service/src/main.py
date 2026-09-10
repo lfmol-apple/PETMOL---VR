@@ -1790,6 +1790,9 @@ async def commerce_awin_search(
             AffiliateFeedOffer.gtin,
             AffiliateFeedOffer.title,
             AffiliateFeedOffer.brand,
+            AffiliateFeedOffer.category,
+            AffiliateFeedOffer.weight_kg,
+            AffiliateFeedOffer.description,
             AffiliateFeedOffer.price,
             AffiliateFeedOffer.list_price,
             AffiliateFeedOffer.image_url,
@@ -1822,12 +1825,22 @@ async def commerce_awin_search(
     )
     rows = db.execute(final_stmt).all()
 
+    def _short_category(cat: Optional[str]) -> Optional[str]:
+        # "Cachorro > Ração > Ração Úmida" → "Ração Úmida"
+        if not cat:
+            return None
+        parts = [p.strip() for p in str(cat).replace("|", ">").split(">") if p.strip()]
+        return parts[-1] if parts else None
+
     return {
         "results": [
             {
                 "gtin": row.gtin,
                 "title": row.title,
                 "brand": row.brand,
+                "category": _short_category(row.category),
+                "weight_kg": row.weight_kg,
+                "description": (str(row.description)[:200] if row.description else None),
                 "price": row.price,
                 "list_price": row.list_price,
                 "image_url": row.image_url,

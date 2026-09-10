@@ -146,6 +146,10 @@ export interface AwinSearchResult {
   gtin: string;
   title: string | null;
   brand: string | null;
+  /** Último nível da categoria do feed, ex "Ração Úmida". */
+  category?: string | null;
+  weight_kg?: number | null;
+  description?: string | null;
   price: number | null;
   list_price: number | null;
   image_url: string | null;
