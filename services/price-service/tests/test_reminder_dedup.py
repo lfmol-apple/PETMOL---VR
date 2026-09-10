@@ -60,6 +60,28 @@ def test_grooming_stale_plus_fresh_sends_only_one(_iso):
         assert db.query(Reminder).get(new_id).sent is True
 
 
+def test_native_user_gets_only_apns_not_web(_iso, monkeypatch):
+    """Usuário com token nativo ativo: lembrete só por APNs, nunca também
+    Web Push (senão chega 2x — app nativo + PWA)."""
+    sent_web = _iso
+    apns_calls = []
+    monkeypatch.setattr(notif, "apns_configured", lambda: True)
+    monkeypatch.setattr(notif, "send_apns", lambda tok, payload: (apns_calls.append(tok) or (True, False)))
+
+    uid, pid = str(uuid.uuid4()), str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    with SessionLocal() as db:
+        _sub(db, uid)  # subscription WEB (PWA)
+        db.add(notif.NativePushToken(id=str(uuid.uuid4()), user_id=uid, platform="ios", token="ios-tok"))
+        db.commit()
+        _rem(db, uid, pid, "dewormer", "🪱 Vermífugo", now - timedelta(minutes=1), now)
+
+    notif.send_due_reminders()
+
+    assert apns_calls == ["ios-tok"]   # foi por APNs
+    assert sent_web == []              # NÃO foi por Web Push
+
+
 def test_two_vaccines_different_dates_both_send(_iso):
     """vacina NÃO colapsa por (user,pet,type) — datas diferentes = eventos diferentes."""
     sent = _iso
