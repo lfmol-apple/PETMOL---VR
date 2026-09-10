@@ -88,6 +88,7 @@ export interface VaccineItemSheetProps {
   onDirectSaveVaccine?: (vaccine: { type: VaccineType; name: string; icon: string; code: string }, when: 'today' | 'this_month' | 'unknown') => Promise<void>;
   onEditVaccine: (v: VaccineRecord) => void;
   onDeleteVaccine: (v: VaccineRecord) => void;
+  onConfirmVaccine?: (v: VaccineRecord) => void;
   onDeleteAllVaccines: () => void;
   onRefreshVaccines: () => void;
   pendingCardFiles: File[];
@@ -117,6 +118,7 @@ export function VaccineItemSheet({
   onDirectSaveVaccine,
   onEditVaccine,
   onDeleteVaccine,
+  onConfirmVaccine,
   onDeleteAllVaccines,
   onRefreshVaccines,
   pendingCardFiles,
@@ -393,6 +395,7 @@ export function VaccineItemSheet({
                       isCurrent={currentVaccineIds.has(v.id)}
                       confirmDeleteId={confirmDeleteId}
                       onEdit={onEditVaccine}
+                      onConfirm={onConfirmVaccine}
                       onDeleteClick={handleDeleteClick}
                       borderColor="border-l-rose-500"
                       statusBadge={<span className="text-[10px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-semibold">Revisar</span>}
@@ -437,6 +440,7 @@ export function VaccineItemSheet({
                       isCurrent={currentVaccineIds.has(v.id)}
                       confirmDeleteId={confirmDeleteId}
                       onEdit={onEditVaccine}
+                      onConfirm={onConfirmVaccine}
                       onDeleteClick={handleDeleteClick}
                       borderColor="border-l-sky-500"
                       statusBadge={<span className="text-[10px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-semibold">⏰ Próxima</span>}
@@ -468,6 +472,7 @@ export function VaccineItemSheet({
                         isCurrent={currentVaccineIds.has(v.id)}
                         confirmDeleteId={confirmDeleteId}
                         onEdit={onEditVaccine}
+                        onConfirm={onConfirmVaccine}
                         onDeleteClick={handleDeleteClick}
                         borderColor="border-l-gray-300"
                       />
@@ -668,6 +673,7 @@ function VaccineRow({
   confirmDeleteId,
   onEdit,
   onDeleteClick,
+  onConfirm,
   borderColor,
   statusBadge,
 }: {
@@ -676,11 +682,13 @@ function VaccineRow({
   confirmDeleteId: string | null;
   onEdit: (v: VaccineRecord) => void;
   onDeleteClick: (v: VaccineRecord) => void;
+  onConfirm?: (v: VaccineRecord) => void;
   borderColor: string;
   statusBadge?: React.ReactNode;
 }) {
   const diff = diffDays(v.next_dose_date);
   const isConfirming = confirmDeleteId === v.id;
+  const needsReview = v.is_confirmed === false;
 
   return (
     <div className={`px-4 py-2.5 border-l-4 ${borderColor}`}>
@@ -694,10 +702,27 @@ function VaccineRow({
               </div>
             )}
             {statusBadge}
-            {isCurrent && !statusBadge && (
+            {isCurrent && !statusBadge && !needsReview && (
               <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">✅ Atual</span>
             )}
+            {needsReview && (
+              <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-semibold">⚠️ Não conferido</span>
+            )}
           </div>
+          {needsReview && (
+            <p className="mt-1 text-[11px] leading-snug text-amber-700">
+              Lido por IA. Compare a data e o nome com a carteirinha.{' '}
+              {onConfirm && (
+                <button
+                  type="button"
+                  onClick={() => onConfirm(v)}
+                  className="font-semibold text-amber-800 underline underline-offset-2"
+                >
+                  Está correto → confirmar
+                </button>
+              )}
+            </p>
+          )}
           {/* Sem `truncate` de propósito: essa linha é a resposta pra "quando
               preciso agir", cortar com "..." escondia justamente o contador
               relativo (em N dias) no fim da frase — deixa quebrar em 2 linhas

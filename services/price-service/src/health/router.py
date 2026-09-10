@@ -126,8 +126,9 @@ def _vaccine_record_to_response(record: VaccineRecord) -> VaccineResponse:
         next_due_on=record.next_dose_date.date().isoformat() if record.next_dose_date else None,
         next_due_source=record.next_due_source or "unknown",
         notes=record.notes,
-        source="manual",
+        source=record.source or "manual",
         confirmed_by_user=True,
+        is_confirmed=bool(getattr(record, "is_confirmed", True)),
         record_type=record.record_type or "confirmed_application",
         alert_days_before=record.alert_days_before,
         reminder_date=record.reminder_date.isoformat() if getattr(record, "reminder_date", None) else None,
@@ -402,13 +403,25 @@ def _ensure_vaccine_reminders(
     vaccine_id: str,
     vaccine_name: str,
     next_due_date: datetime,
+    unverified: bool = False,
 ) -> None:
-    """Create lightweight vaccine reminders at D-30, D-7 and D-1 if missing."""
+    """Create lightweight vaccine reminders at D-30, D-7 and D-1 if missing.
+
+    `unverified=True` (registro veio de OCR e o tutor ainda não confirmou) faz o
+    lembrete pedir explicitamente que a data seja conferida na carteirinha.
+    """
     for days_before in (30, 7, 1):
         scheduled_at = next_due_date - timedelta(days=days_before)
         if scheduled_at < datetime.utcnow():
             continue
         title = f"Reforço previsto: {vaccine_name}"
+        description = f"Lembrete automático de vacina ({days_before} dia(s) antes)."
+        if unverified:
+            title = f"Confira a data: {vaccine_name}"
+            description = (
+                f"Lembrete de vacina ({days_before} dia(s) antes). Esta data foi lida "
+                f"por IA e ainda não foi conferida — confira na carteirinha do pet."
+            )
         existing = (
             db.query(Event)
             .filter(
@@ -431,7 +444,7 @@ def _ensure_vaccine_reminders(
             status="pending",
             scheduled_at=scheduled_at,
             title=title,
-            description=f"Lembrete automático de vacina ({days_before} dia(s) antes).",
+            description=description,
             notes=f"vaccine_id={vaccine_id}",
             next_due_date=next_due_date,
             reminder_days_before=days_before,
@@ -676,6 +689,9 @@ async def bulk_confirm_vaccines(
             reminder_date=_parse_optional_local_date(vac.reminder_date),
             reminder_time=vac.reminder_time,
             reminder_enabled=vac.reminder_enabled,
+            # Leitura por IA → nasce "não conferido" até o tutor confirmar cada um.
+            is_confirmed=not request.needs_review,
+            source="ocr_card" if request.needs_review else (vac.source or None),
         )
 
         db.add(vaccine_record)
@@ -687,6 +703,7 @@ async def bulk_confirm_vaccines(
             vaccine_id=vaccine_record.id,
             vaccine_name=vaccine_record.vaccine_name,
             next_due_date=vaccine_record.next_dose_date,
+            unverified=request.needs_review,
         )
 
     db.commit()

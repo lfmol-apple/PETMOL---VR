@@ -50,6 +50,12 @@ class VaccineRecord(Base):
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     record_type: Mapped[str] = mapped_column(String(32), nullable=False, default="confirmed_application")
 
+    # Conferência humana: registros vindos de OCR nascem is_confirmed=False até
+    # o tutor abrir e confirmar. A coluna já existe no banco (default true), então
+    # registros manuais / antigos seguem "conferidos".
+    is_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=True, default=True, server_default="true")
+    source: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # ex.: "ocr_card"
+
     # ✅ CAMPOS DE CATÁLOGO (adicionados Fev 2026 – todos nullable para não quebrar registros existentes)
     vaccine_code: Mapped[Optional[str]] = mapped_column(
         String(64), nullable=True, index=True

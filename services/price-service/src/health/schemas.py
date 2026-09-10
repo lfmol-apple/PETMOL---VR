@@ -38,6 +38,9 @@ class BulkConfirmRequest(BaseModel):
     country_code: str
     species: str  # dog | cat
     vaccines: List[VaccinePayload]
+    # True quando vem de leitura por IA: os registros nascem "não conferidos"
+    # (is_confirmed=False) até o tutor abrir cada um e confirmar.
+    needs_review: bool = False
 
 
 class VaccineResponse(BaseModel):
@@ -58,6 +61,7 @@ class VaccineResponse(BaseModel):
     notes: Optional[str] = None
     source: str
     confirmed_by_user: bool
+    is_confirmed: bool = True
     record_type: str = "confirmed_application"
     alert_days_before: Optional[int] = None
     reminder_date: Optional[str] = None
