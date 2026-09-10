@@ -2307,7 +2307,7 @@ async def extract_vaccine_card_files(
     hint: Optional[str] = Form(None),
     prefer_local: bool = Form(True),
     force_ai: bool = Form(False),
-    max_ai_images: int = Form(6),
+    max_ai_images: int = Form(8),
 ):
     """Lê uma ou mais fotos da carteirinha e devolve os registros de vacina.
 

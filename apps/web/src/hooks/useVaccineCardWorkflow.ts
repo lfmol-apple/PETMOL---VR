@@ -55,7 +55,7 @@ export function useVaccineCardWorkflow({
   const [pendingCardFiles, setPendingCardFiles] = useState<File[]>([]);
   const [cardAnalysis, setCardAnalysis] = useState<VaccineCardAnalysis>(null);
   const [cardFiles, setCardFiles] = useState<File[] | null>(null);
-  const [aiImageLimit, setAiImageLimit] = useState(5);
+  const [aiImageLimit, setAiImageLimit] = useState(8);
   const [reviewRegistros, setReviewRegistros] = useState<VaccineCardOcrRecord[]>([]);
   const [reviewExpectedCount, setReviewExpectedCount] = useState(0);
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
