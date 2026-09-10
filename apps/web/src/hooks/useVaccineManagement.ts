@@ -898,6 +898,9 @@ export function useVaccineManagement({
       const ocrNotes = `${t('health.imported_ocr')}${cardAnalysis?.leitura_confiavel ? '' : ' (leitura parcial)'}`;
       const vaccinePayloads = validRecords.map((detected) => ({
         display_name: detected.nome_comercial || detected.tipo_vacina || 'Vacina',
+        // marca comercial lida do cartão — o backend guarda nas observações
+        // se a canonicalização trocar o nome por um tipo genérico
+        ...(detected.nome_comercial ? { brand: detected.nome_comercial } : {}),
         applied_on: detected.data_aplicacao as string,
         ...(detected.data_revacina ? { next_due_on: detected.data_revacina } : {}),
         notes: ocrNotes,
