@@ -14,6 +14,7 @@
 import { useEffect } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
+import { getDeviceId } from '@/features/notifications/pushService';
 import { trackV1Metric } from '@/lib/v1Metrics';
 
 const PUSH_HEALTH_FAIL_KEY = 'petmol_push_sync_failed_v1';
@@ -70,8 +71,22 @@ async function createSubscription(registration: ServiceWorkerRegistration): Prom
   });
 }
 
-async function getGpsCoords(): Promise<{ lat: number; lng: number } | null> {
+/**
+ * Só devolve coordenadas se a permissão de localização JÁ foi concedida.
+ * NUNCA chama getCurrentPosition sem checar antes — senão o iOS abre o
+ * prompt de localização toda vez que o app abre por uma notificação, o que
+ * não tem nada a ver com push. Localização é pedida no cadastro / no Pet
+ * Sumido, não aqui.
+ */
+async function getGpsCoordsIfAlreadyAllowed(): Promise<{ lat: number; lng: number } | null> {
   if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return null;
+  try {
+    if (!('permissions' in navigator)) return null;
+    const perm = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+    if (perm.state !== 'granted') return null;
+  } catch {
+    return null;
+  }
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
@@ -82,12 +97,15 @@ async function getGpsCoords(): Promise<{ lat: number; lng: number } | null> {
 }
 
 async function syncSubscription(subscription: PushSubscription): Promise<Response> {
-  const coords = await getGpsCoords();
+  const coords = await getGpsCoordsIfAlreadyAllowed();
   return fetch(`${API_BASE_URL}/notifications/subscribe`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({
       subscription: serializeSubscription(subscription),
+      // device_id: sem ele o backend não consegue desativar a subscription
+      // antiga deste mesmo aparelho → o celular recebe o push 2x.
+      device_id: getDeviceId(),
       lat: coords?.lat ?? null,
       lng: coords?.lng ?? null,
     }),

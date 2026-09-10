@@ -261,7 +261,7 @@ function HomePageInner() {
       if (!resp) return;
       const { url, ts } = await resp.json() as { url: string; ts: number };
       await cache.delete('/__petmol_deeplink');
-      if (Date.now() - ts < 30_000) applyDeepLinkUrl(url);
+      if (Date.now() - ts < 300_000) applyDeepLinkUrl(url);
     }).catch(() => {});
   }, [applyDeepLinkUrl]);
 
@@ -277,7 +277,7 @@ function HomePageInner() {
         if (!resp) return;
         const { url, ts } = await resp.json() as { url: string; ts: number };
         await cache.delete('/__petmol_deeplink');
-        if (Date.now() - ts < 30_000) applyDeepLinkUrl(url);
+        if (Date.now() - ts < 300_000) applyDeepLinkUrl(url);
       } catch {}
     };
     const onVisible = () => {
@@ -302,7 +302,7 @@ function HomePageInner() {
     bc.onmessage = (event: MessageEvent) => {
       if (event.data?.type !== 'PETMOL_DEEPLINK') return;
       const { url, ts } = event.data as { url: string; ts: number };
-      if (!url || Date.now() - (ts || 0) > 30_000) return;
+      if (!url || Date.now() - (ts || 0) > 300_000) return;
       applyDeepLinkUrl(url);
     };
     return () => bc.close();
@@ -318,7 +318,7 @@ function HomePageInner() {
       }
       if (event.data?.type !== 'PETMOL_DEEPLINK') return;
       const { url, ts } = event.data as { url: string; ts: number };
-      if (!url || Date.now() - (ts || 0) > 30_000) return;
+      if (!url || Date.now() - (ts || 0) > 300_000) return;
       applyDeepLinkUrl(url);
     };
     navigator.serviceWorker.addEventListener('message', handler);
