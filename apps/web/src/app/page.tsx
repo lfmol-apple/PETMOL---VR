@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getToken } from '@/lib/auth-token';
 import { PetmolTextLogo } from '@/components/ui/BrandBackground';
+import { AppBootSplash } from '@/components/AppBootSplash';
 import { isNativeAppClient } from '@/lib/nativeApp';
 
 export default function LandingPage() {
@@ -12,14 +13,25 @@ export default function LandingPage() {
   // "Recommendations" (Amazon US) é conteúdo editorial só web — deixado
   // no rodapé, nunca competindo com a proposta PETMOL. Escondido no app.
   const [hideAmazonPicks, setHideAmazonPicks] = useState(false);
+  // 'boot' = ainda não sei se está logado → mostra o splash (nunca a landing).
+  // Usuário logado abrindo o app cai direto no /home sem piscar esta tela.
+  const [phase, setPhase] = useState<'boot' | 'guest'>('boot');
 
   useEffect(() => {
-    if (getToken()) router.replace('/home');
+    if (getToken()) {
+      router.replace('/home');
+    } else {
+      setPhase('guest');
+    }
   }, [router]);
 
   useEffect(() => {
     setHideAmazonPicks(isNativeAppClient());
   }, []);
+
+  if (phase === 'boot') {
+    return <AppBootSplash />;
+  }
 
   return (
     <div className="min-h-dvh bg-white flex flex-col">

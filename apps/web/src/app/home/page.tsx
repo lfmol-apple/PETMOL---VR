@@ -8,6 +8,7 @@ import type { ActionSheetType } from '@/components/PushActionSheet';
 import type { QuickActionContext } from '@/components/home/HealthQuickActionSheet';
 
 // Componentes visíveis ao abrir — carregamento imediato
+import { AppBootSplash } from '@/components/AppBootSplash';
 import { HomePetHeader } from '@/components/home/HomePetHeader';
 import { HomePetDashboard } from '@/components/home/HomePetDashboard';
 import { PetTabs } from '@/components/PetTabs';
@@ -1756,14 +1757,9 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
 
   if (isLoading || isChecking) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin text-4xl sm:text-5xl md:text-6xl mb-4">🐾</div>
-          <p className="text-slate-600">{t('loading')}</p>
-        </div>
-      </div>
-    );
+    // Mesmo splash azul do boot — continuidade com o splash nativo e com a
+    // tela '/' enquanto resolve a sessão. Sem 🐾 girando nem "Carregando".
+    return <AppBootSplash />;
   }
   
   return (
