@@ -239,6 +239,48 @@ class PetzSetAffiliateLinkRequest(BaseModel):
     affiliate_product_url: str
 
 
+class PetzQueueItem(BaseModel):
+    """Uma linha do painel de casamento Petz — identidade PETMOL
+    (ancorada na Cobasi) + estado atual + link pronto de busca na Petz."""
+    gtin: str
+    product_id: int
+    name: str
+    canonical_name: Optional[str] = None
+    brand: Optional[str] = None
+    weight_kg: Optional[float] = None
+    pack_count: Optional[int] = None
+    species: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    scans: int = 0
+    match_status: str = "unknown"
+    rejection_reason: Optional[str] = None
+    petz_search_url: str
+
+
+class PetzQueueOut(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    only_cobasi: bool
+    items: List[PetzQueueItem]
+
+
+class PetzEvaluateRequest(BaseModel):
+    product_url: str
+
+
+class PetzEvaluateOut(BaseModel):
+    verdict: str  # "match" | "weak" | "conflict" | "invalid"
+    reason: Optional[str] = None
+    would_confirm: bool
+    deslug_text: Optional[str] = None
+    extracted_weight_kg: Optional[float] = None
+    petz_product_id: Optional[str] = None
+    catalog_weight_kg: Optional[float] = None
+    cart_test_url: Optional[str] = None
+    coupon_apply_url: Optional[str] = None
+
+
 class PetzCoverageOut(BaseModel):
     total: int
     unknown: int

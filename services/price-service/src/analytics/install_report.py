@@ -56,6 +56,22 @@ def send_daily_install_report() -> bool:
 
         plat_line = " · ".join(f"{_PLATFORM.get(p, p)}: {n}" for p, n in sorted(by_platform.items(), key=lambda kv: -kv[1]))
 
+        # Casamento Petz pendente — pra o admin não ter que abrir o painel
+        # toda hora só pra descobrir que não tem nada esperando.
+        try:
+            from ..petz_mapping import petz_pending_match_count
+
+            petz_pending = petz_pending_match_count(db)
+        except Exception:
+            petz_pending = 0
+        petz_block = (
+            f"<p style='margin:14px 0 0;padding:10px 12px;background:#FFF7ED;border-radius:8px;font-size:13px'>"
+            f"🔗 <b>{petz_pending}</b> produto{'s' if petz_pending != 1 else ''} aguardando casamento com a Petz — "
+            f"<a href='https://www.petmol.com.br/admin/petz' style='color:#0056D2'>abrir painel</a></p>"
+            if petz_pending
+            else ""
+        )
+
         html = f"""
 <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#1f2937">
   <h2 style="color:#0056D2;margin:0 0 4px">📲 Downloads do PETMOL — {dia}</h2>
@@ -71,10 +87,13 @@ def send_daily_install_report() -> bool:
   <p style="margin:6px 0 0;font-size:11px;color:#9ca3af">
     Localização vem do IP — só cidade, sem rua/bairro (nenhum geo-IP dá isso).
   </p>
+  {petz_block}
 </div>"""
         text = f"Downloads PETMOL {dia}\n" + "\n".join(
             f"  {c} {r} {co}: {n}" for (c, r, co), n in sorted(by_place.items(), key=lambda kv: -kv[1])
         ) + f"\n\nTotal: {total}"
+        if petz_pending:
+            text += f"\n\n{petz_pending} produto(s) aguardando casamento com a Petz — /admin/petz"
 
         ok = send_mail(to=to_email, subject=subject, body_text=text, body_html=html)
         logger.info("[install-report] %s → %s (enviado=%s)", subject, to_email, ok)

@@ -2,6 +2,7 @@
 petz_mapping.py). Endpoints simples, mesmo padrão de
 admin/affiliate_links_router.py — sem painel administrativo completo.
 """
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -20,6 +21,7 @@ from ..petz_link_validator import InvalidPetzAffiliateUrlError, validate_petz_af
 from ..petz_mapping import (
     PetzProductMapping,
     PetzVariantConflictError,
+    _pending_match_query,
     confirm_petz_mapping,
     coverage_stats,
     get_mapping,
@@ -32,10 +34,14 @@ from .deps import get_current_admin, get_current_admin_or_readonly_key
 from .schemas import (
     DeletedOut,
     PetzCoverageOut,
+    PetzEvaluateOut,
+    PetzEvaluateRequest,
     PetzMappingConfirmRequest,
     PetzMappingOut,
     PetzMappingRejectRequest,
     PetzMappingSuggestOut,
+    PetzQueueItem,
+    PetzQueueOut,
     PetzSetAffiliateLinkRequest,
 )
 
@@ -95,6 +101,53 @@ def _to_out(mapping: Optional[PetzProductMapping], gtin: str) -> PetzMappingOut:
 @router.get("/coverage", response_model=PetzCoverageOut)
 def get_coverage(db: Session = Depends(get_db), current=Depends(get_current_admin_or_readonly_key)):
     return PetzCoverageOut(**coverage_stats(db))
+
+
+@router.get("/queue", response_model=PetzQueueOut)
+def get_match_queue(
+    limit: int = 50,
+    offset: int = 0,
+    only_cobasi: bool = True,
+    db: Session = Depends(get_db),
+    current=Depends(get_current_admin_or_readonly_key),
+):
+    """Fila do painel de casamento assistido: produtos do catálogo (por
+    padrão só os que a Cobasi — loja irmã, maior cobertura — tem) que a
+    Petz ainda não casou (`unknown`/`candidate`/`ambiguous`). Ordenada por
+    popularidade real (nº de scans do tutor). Só leitura — aceita
+    ADMIN_OPS_API_KEY. Não busca nada na Petz (a busca é 403 Akamai
+    server-side); devolve o link `/busca?q=` pronto pro humano abrir."""
+    from ..affiliate_links import petz_site_search_url
+
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+    base = _pending_match_query(db, only_cobasi=only_cobasi)
+    total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
+
+    items: list[PetzQueueItem] = []
+    for product, scans in db.execute(base.offset(offset).limit(limit)).all():
+        mapping = get_mapping(db, product.id)
+        name = product.name or product.canonical_name or ""
+        items.append(
+            PetzQueueItem(
+                gtin=product.barcode_normalized,
+                product_id=product.id,
+                name=name,
+                canonical_name=product.canonical_name,
+                brand=product.brand,
+                weight_kg=product.weight_kg,
+                pack_count=getattr(product, "pack_count", None),
+                species=getattr(product, "species", None),
+                thumbnail_url=getattr(product, "thumbnail_url", None),
+                scans=int(scans or 0),
+                match_status=mapping.match_status if mapping else "unknown",
+                rejection_reason=mapping.rejection_reason if mapping else None,
+                petz_search_url=petz_site_search_url(
+                    (product.canonical_name or name), product.brand, product.weight_kg
+                ),
+            )
+        )
+    return PetzQueueOut(total=total, limit=limit, offset=offset, only_cobasi=only_cobasi, items=items)
 
 
 @router.get("/backfill/catalog")
@@ -166,6 +219,74 @@ def get_suggestion(gtin: str, db: Session = Depends(get_db), current=Depends(get
         gtin=product.barcode_normalized,
         search_query=mapping.search_query,
         current_status=mapping.match_status,
+    )
+
+
+@router.post("/products/{gtin}/evaluate", response_model=PetzEvaluateOut)
+def evaluate_candidate_url(
+    gtin: str,
+    payload: PetzEvaluateRequest,
+    db: Session = Depends(get_db),
+    current=Depends(get_current_admin_or_readonly_key),
+):
+    """Pontua uma URL de produto da Petz colada pelo humano contra a
+    identidade do produto do catálogo (âncora Cobasi). NÃO grava nada —
+    é o passo de revisão antes do /confirm. Usa o MESMO motor
+    (`structural_conflict` / `evaluate_identity`) da guarda de #333.
+
+    verdict: "match" (pode confirmar) · "weak" (confirme com cuidado) ·
+    "conflict" (peso/pack diverge — o /confirm vai recusar) · "invalid"
+    (não é URL de produto da Petz)."""
+    from ..affiliate_links import PETZ_COUPON_APPLY_URL, deslug_petz_product_url, petz_cart_add_url
+    from ..product_identity import (
+        IdentityDecision,
+        MerchantCandidate,
+        ProductIdentity,
+        evaluate_identity,
+        structural_conflict,
+    )
+    from ..shopee_offer_matcher import extract_weight_kg
+
+    product = _resolve_product(db, gtin)
+
+    raw_url = (payload.product_url or "").strip()
+    try:
+        clean_url = validate_petz_product_url(raw_url)
+    except InvalidPetzAffiliateUrlError as exc:
+        return PetzEvaluateOut(verdict="invalid", reason=str(exc), would_confirm=False)
+
+    deslug = deslug_petz_product_url(clean_url) or None
+    petz_pid_match = re.search(r"-(\d+)/?$", clean_url)
+    petz_pid = petz_pid_match.group(1) if petz_pid_match else None
+    extracted_weight = extract_weight_kg(deslug) if deslug else None
+
+    cat_id = ProductIdentity.from_catalog(product)
+    probe_id = ProductIdentity.build(canonical_name=deslug or "", weight_kg=extracted_weight)
+    conflict = structural_conflict(cat_id, probe_id)
+
+    if conflict:
+        verdict, reason, would_confirm = "conflict", conflict, False
+    else:
+        result = evaluate_identity(
+            cat_id, MerchantCandidate.build(merchant="petz", title=deslug, brand=product.brand)
+        )
+        if result.decision in (IdentityDecision.EXACT, IdentityDecision.HIGH_CONFIDENCE):
+            verdict, would_confirm = "match", True
+            reason = ", ".join(result.reasons) or None
+        else:
+            verdict, would_confirm = "weak", True
+            reason = f"{result.decision.value.lower()} — {', '.join(result.reasons) or 'sem sinal forte de identidade'}"
+
+    return PetzEvaluateOut(
+        verdict=verdict,
+        reason=reason,
+        would_confirm=would_confirm,
+        deslug_text=deslug,
+        extracted_weight_kg=extracted_weight,
+        petz_product_id=petz_pid,
+        catalog_weight_kg=product.weight_kg,
+        cart_test_url=petz_cart_add_url(petz_pid) if petz_pid else None,
+        coupon_apply_url=PETZ_COUPON_APPLY_URL if petz_pid else None,
     )
 
 
