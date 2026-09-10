@@ -33,6 +33,10 @@ class VisionService:
         "temperature": 0,
         "response_mime_type": "application/json",
     }
+    VACCINE_GENERATION_CONFIG = {
+        "temperature": 0,
+        "response_mime_type": "application/json",
+    }
     OCR_ONLY_PROMPT = """Transcreva literalmente todo texto legível nesta imagem.
 
 Isto é uma tarefa de OCR pura — NÃO identifique produto, marca, categoria ou
@@ -78,6 +82,7 @@ Responda APENAS com JSON válido neste formato:
         prompt: str,
         image_part: Dict[str, Any],
         generation_config: Optional[Dict[str, Any]] = None,
+        timeout: int = 30,
     ):
         last_error: Optional[Exception] = None
         for model_name in self._candidate_model_names():
@@ -94,8 +99,10 @@ Responda APENAS com JSON válido neste formato:
                     # occasionally trips it, surfacing as "não conseguiu ler" to the
                     # user for no real reason. 30s keeps real hangs bounded while
                     # giving enough headroom that this doesn't fire on ordinary slow
-                    # responses.
-                    request_options={"timeout": 30},
+                    # responses. The vaccine-card call passes a longer timeout: its
+                    # prompt is large and the card can carry a dozen stickers, so
+                    # the model reasons longer.
+                    request_options={"timeout": timeout},
                 )
             except Exception as exc:
                 err_str = str(exc).lower()
@@ -123,6 +130,48 @@ Responda APENAS com JSON válido neste formato:
         return "image/jpeg"
 
     @staticmethod
+    def _prepare_image_for_vision(image_bytes: bytes, max_dim: int = 1600, quality: int = 85) -> bytes:
+        """Downscale + re-encode a photo before sending it to Gemini.
+
+        Phone camera photos are commonly 3–4 MB / ~4000 px wide. At that size the
+        vision call routinely times out (observed: repeated 504 "request timed
+        out" on real vaccine-card photos), and Gemini downsamples the image
+        internally anyway. Shrinking the long edge to ~1600 px keeps every
+        legible detail of a card (handwritten dates, stamp text) while cutting
+        the payload ~10x and making the call reliable.
+
+        Also applies EXIF orientation so a sideways photo is read upright, and
+        flattens alpha/palette modes to RGB so JPEG re-encoding never fails.
+
+        Any failure returns the original bytes unchanged — this is an
+        optimisation, never a hard dependency.
+        """
+        try:
+            from io import BytesIO
+            from PIL import Image, ImageOps
+
+            with Image.open(BytesIO(image_bytes)) as img:
+                img = ImageOps.exif_transpose(img)
+                if img.mode not in ("RGB", "L"):
+                    img = img.convert("RGB")
+                longest = max(img.size)
+                if longest <= max_dim and image_bytes[:3] == b'\xff\xd8\xff':
+                    # already small enough and already JPEG — leave untouched
+                    return image_bytes
+                if longest > max_dim:
+                    scale = max_dim / float(longest)
+                    img = img.resize(
+                        (max(1, round(img.size[0] * scale)), max(1, round(img.size[1] * scale))),
+                        Image.LANCZOS,
+                    )
+                out = BytesIO()
+                img.save(out, format="JPEG", quality=quality, optimize=True)
+                return out.getvalue()
+        except Exception as exc:
+            logger.info("[prepare_image] mantendo imagem original (falha ao redimensionar): %s", exc)
+            return image_bytes
+
+    @staticmethod
     def _strip_json_fences(response_text: str) -> str:
         text = response_text.strip()
         if text.startswith("```json"):
@@ -147,9 +196,10 @@ Responda APENAS com JSON válido neste formato:
         otherwise used.
         """
         try:
+            prepared = self._prepare_image_for_vision(image_bytes)
             image_part = {
-                "mime_type": self._detect_mime_type(image_bytes),
-                "data": image_bytes,
+                "mime_type": self._detect_mime_type(prepared),
+                "data": prepared,
             }
             response = await self._generate_content_with_model_fallback(
                 self.OCR_ONLY_PROMPT,
@@ -797,159 +847,138 @@ Se a imagem for realmente ilegível:
             Dict com: vaccines (lista), confidence (float), raw_text (str)
         """
         
-        # Prompt refatorado com lógica de ancoragem e PRIORIDADE NOBIVAC
-        prompt = """
-Você é um Especialista Veterinário Global em OCR de Carteirinhas de Vacinação.
+        # Prompt enxuto: instruções curtas = menos "raciocínio" do modelo = resposta
+        # mais rápida (cartões densos passavam de 30s e davam 504). O
+        # pós-processamento em Python cuida de dedupe, datas e sanidade.
+        prompt = """Você faz OCR de carteirinhas de vacinação de pets. Extraia TODAS as vacinas.
 
-🎯 MISSÃO: Extrair TODAS as vacinas desta imagem com precisão de 100%.
+CONTAGEM E DUPLICATAS (erro mais comum):
+- Cada adesivo de frasco OU cada linha manuscrita de aplicação = 1 registro.
+- NUNCA repita um registro. Se dois teriam a mesma marca E a mesma data de
+  aplicação, é o MESMO registro — inclua uma vez só.
+- Vacina + diluente do mesmo frasco = 1 vacina. Antes de responder, releia a
+  lista e apague pares idênticos. 3 corretas > 6 com metades repetidas.
 
-🌟 PRIORIDADE MÁXIMA NOBIVAC:
-- Se encontrar texto "NOBIVAC" em QUALQUER adesivo, marca = "NOBIVAC"
-- NUNCA substituir "Nobivac" por "Vanguard", "Duramune" ou outras marcas
-- Variações Nobivac: "Nobivac Raiva", "Nobivac 1-Cv", "Nobivac DAPPv+L4", "Nobivac Canine"
-- Se há adesivo com "NOBIVAC" e texto ilegível, ainda reportar com confiança 0.7
+MARCA:
+- Copie a marca comercial exatamente como escrita (ex: "Nobivac Raiva",
+  "Vanguard Plus", "Duramune Max", "Recombitek C8", "Canigen R").
+- Se há texto "NOBIVAC", a marca é Nobivac — nunca troque por outra.
+- NÃO confunda lote/validade do frasco ("PART/FABR/VENC", "037/16", "MAI/18")
+  com a data de aplicação (essa é o carimbo/manuscrito do veterinário).
 
-⚓ ETAPA 1 - LÓGICA DE ANCORAGEM (Conte Primeiro):
-Antes de extrair qualquer dado, faça uma VARREDURA COMPLETA da imagem e conte:
-- Quantos adesivos/etiquetas de vacina você vê? (conte visualmente)
-- Quantos números de série/lote você detecta?
-- Quantas marcas comerciais diferentes identifica?
-- Liste as coordenadas aproximadas (topo-esquerda, topo-centro, topo-direita, meio-esquerda, etc.)
+NOME (name): classifique pelos componentes visíveis, ex:
+- "DHPPi+L" / "V10" / "DAPPv+L4" → "Vacina Múltipla (V10) - Cinomose, Hepatite, Parvo, Parainfluenza, Leptospirose"
+- "R" / "Raiva" / "Antirrábica" → "Raiva (Antirrábica)"
+- "Lepto" → "Leptospirose"; "Corona"/"Cv" → "Coronavírus"; "Bordetella" → "Bordetelose"; "Giardia" → "Giárdia"
 
-Se você contar 8 adesivos, deve retornar EXATAMENTE 8 registros no JSON.
+DATAS: aceite dd/mm/aa, dd.mm.aa, dd-mm-aa, "dd mm aa", "dd de Mês de aaaa"
+(pt/es/en). Devolva como está escrito, sem inventar. Se ilegível → null.
 
-📋 ETAPA 2 - CLASSIFICAÇÃO SEMÂNTICA GLOBAL:
-Em vez de apenas buscar marcas fixas, CLASSIFIQUE a vacina pelos COMPONENTES visíveis:
+CONFIANÇA: preencha field_confidence e overall_confidence com números REAIS
+entre 0 e 1 (ex: 0.9 quando está nítido, 0.5 quando o manuscrito é difícil).
+NUNCA deixe 0 — 0 significa "não li nada".
 
-CÓDIGOS DE COMPONENTES:
-- "D" ou "Distemper" ou "Cinomose" → Distemper (Cinomose)
-- "H" ou "Hepatitis" ou "Hepatite" → Hepatite/Adenovírus
-- "P" ou "Parvo" → Parvovirose  
-- "Pi" ou "Parainfluenza" → Parainfluenza
-- "L" ou "Lepto" → Leptospirose
-- "R" ou "Rabies" ou "Raiva" ou "Antirrábica" → Raiva (Antirrábica)
-- "C" ou "Corona" → Coronavírus
-- "B" ou "Bordetella" → Bordetelose (Tosse dos Canis)
-- "G" ou "Giardia" → Giárdia
-- "Leish" → Leishmaniose
-
-EXEMPLOS DE CLASSIFICAÇÃO:
-- Se ler "DHPPI + L" → "Vacina Múltipla (V8) - Cinomose, Hepatite, Parvo, Parainfluenza, Leptospirose"
-- Se ler "Nobivac Lepto" → "Leptospirose (Nobivac)"
-- Se ler "Nobivac DAPPv+L4" → "Vacina Múltipla (V10) - Nobivac DAPPv+L4"
-- Se ler "Nobivac Canine 1-DAPPv+L4" → "Vacina Múltipla (V10) - Nobivac Canine"
-- Se ler "Nobivac 1-Cv" → "Coronavírus (Nobivac 1-Cv)"
-- Se ler "Nobivac Raiva" → "Raiva (Nobivac Raiva)"
-- Se ler "Duramune Max" → "Vacina Múltipla (V10) - Duramune"
-- Se ler apenas "R" no selo → "Raiva (Antirrábica)"
-
-⚠️ REGRA CRÍTICA NOBIVAC: Se encontrar QUALQUER texto com "NOBIVAC", preserve na marca comercial EXATA, mesmo se difícil de ler.
-
-📅 ETAPA 3 - LEITURA DE DATAS MANUSCRITAS:
-
-FORMATOS ACEITOS:
-- dd/mm/aa ou dd/mm/aaaa (Brasil: 15/03/24)
-- dd.mm.aa ou dd-mm-aa (Europa: 15.03.24)
-- ddmmaa ou ddmmaaaa SEM separadores (150324)
-- dd Mon aa (15 Mar 24, 15 Marzo 24, 15 March 24)
-- Mon dd aa (Mar 15 24, Marzo 15 24)
-
-CORREÇÃO DE ANOS AMBÍGUOS:
-⚠️ REGRA CRÍTICA: Se você ler um ano MAIOR que 2027 em uma data de aplicação:
-  - Verifique se o segundo dígito pode ser um "1" mal escrito
-  - Exemplo: "2026" → pode ser "2016" (dígito "2" confundido com "1")
-  - Exemplo: "2029" → pode ser "2019" 
-  - Exemplo: "2030" → pode ser "2010"
-  - Use o contexto: vacinas antigas (5+ anos) provavelmente têm ano mal lido
-
-CORREÇÃO DE CARACTERES MANUSCRITOS:
-- "l" ou "I" ou "|" → número "1"
-- "O" ou "o" → número "0" (zero)
-- "S" → número "5" (quando em contexto de data)
-- "G" → número "6"
-- "g" minúsculo → número "9"
-- "Z" → número "2"
-- "B" → número "8"
-
-🌍 MESES MULTILÍNGUE:
-Português: Janeiro, Fevereiro, Março, Abril, Maio, Junho, Julho, Agosto, Setembro, Outubro, Novembro, Dezembro
-Espanhol: Enero, Febrero, Marzo, Abril, Mayo, Junio, Julio, Agosto, Septiembre, Octubre, Noviembre, Diciembre  
-Inglês: January, February, March, April, May, June, July, August, September, October, November, December
-Abreviações: Jan, Feb/Fev, Mar, Apr/Abr, May/Mai, Jun, Jul, Aug/Ago, Sep/Set, Oct/Out, Nov, Dec/Dez
-
-✅ ETAPA 4 - FORMATO DE SAÍDA (JSON Estrito):
-
+Responda só com JSON neste formato (os valores abaixo são exemplo):
 {
-  "total_encontrado": 8,  // DEVE bater com número de adesivos contados
   "vaccines": [
     {
-      "name": "Leptospirose (Nobivac Lepto)",  // Nome classificado semanticamente
-      "commercial_brand": "Nobivac Lepto",  // Marca exata do adesivo
-      "components": ["Leptospirose"],  // Componentes identificados
-      "date": "2024-03-15",  // YYYY-MM-DD (null se ilegível)
-      "next_date": "2025-03-15",  // YYYY-MM-DD (null se não houver)
-      "veterinarian": "Dr. João Silva",  // Nome do carimbo (null se ilegível)
-      "notes": "Lote ABC123",  // Opcional
-      "field_confidence": {  // NOVO: Confiança por campo
-        "name": 0.95,
-        "date": 0.80,  // Baixa se manuscrito ilegível
-        "next_date": 0.90,
-        "veterinarian": 0.70
-      }
+      "name": "Raiva (Antirrábica)",
+      "commercial_brand": "Nobivac Raiva",
+      "components": ["Raiva"],
+      "date": "15/03/2024",
+      "next_date": "15/03/2025",
+      "veterinarian": "Dra. Ana Souza",
+      "notes": "Lote 037A16",
+      "field_confidence": {"name": 0.95, "date": 0.8, "next_date": 0.8, "veterinarian": 0.7}
     }
   ],
   "overall_confidence": 0.85,
-  "raw_text": "Texto OCR bruto detectado"
-}
-
-🚫 REGRAS DE SANIDADE:
-1. Se total_encontrado != len(vaccines), REVISE a imagem
-2. NUNCA invente datas - use null se ilegível
-3. NUNCA pule colunas - varra linha por linha, esquerda→direita
-4. Se data_aplicacao > data_revacina, INVERTA (erro de leitura)
-5. Datas de aplicação não podem ser futuro (>hoje + 7 dias)
-6. field_confidence < 0.7 em qualquer campo = marcar para revisão humana
-
-Retorne APENAS o JSON, sem texto adicional.
-"""
+  "raw_text": "todo o texto lido"
+}"""
         
+        from datetime import date as _date, timedelta as _timedelta
+
+        today = _date.today()
+        prompt = (
+            f"HOJE É {today.isoformat()}. Use esta data para validar anos "
+            f"(datas de aplicação no futuro são ano mal lido) e nunca aceite "
+            f"aplicação depois de hoje.\n" + prompt
+        )
+
         try:
-            # Enviar para Gemini
             logger.info(f"Enviando imagem para Gemini AI (pet_id={pet_id})")
-            
-            # Preparar imagem
+
+            # Fotos de celular vêm com ~4000px/3-4MB e a chamada de visão dá 504.
+            # Reduzir para ~1600px torna a leitura confiável sem perder os
+            # detalhes manuscritos da carteirinha.
+            prepared = self._prepare_image_for_vision(image_bytes)
             image_part = {
-                "mime_type": self._detect_mime_type(image_bytes),
-                "data": image_bytes
+                "mime_type": self._detect_mime_type(prepared),
+                "data": prepared,
             }
-            
-            # Gerar resposta
-            response = self.model.generate_content([prompt, image_part])
-            
-            # Parse da resposta
+
+            # temperature=0 + JSON mode + fallback de modelo + timeout — o mesmo
+            # tratamento de identify_product_from_image (antes a chamada de vacina
+            # não tinha nenhum disso).
+            response = await self._generate_content_with_model_fallback(
+                prompt,
+                image_part,
+                generation_config=self.VACCINE_GENERATION_CONFIG,
+                timeout=70,
+            )
+
             response_text = self._strip_json_fences(response.text)
-            
-            # Parse JSON
             result = json.loads(response_text)
-            
-            # Validar estrutura
-            if "vaccines" not in result:
-                result["vaccines"] = []
-            if "confidence" not in result:
-                result["confidence"] = 0.5
-            
-            # Normalizar datas
-            for vaccine in result["vaccines"]:
-                # Garantir que datas estejam no formato correto
-                if vaccine.get("date"):
-                    vaccine["date"] = self._normalize_date(vaccine["date"])
-                if vaccine.get("next_date"):
-                    vaccine["next_date"] = self._normalize_date(vaccine["next_date"])
-            
-            logger.info(f"Gemini retornou {len(result['vaccines'])} vacinas com confiança {result['confidence']}")
-            
+            if not isinstance(result, dict):
+                result = {}
+
+            raw_vaccines = result.get("vaccines")
+            if not isinstance(raw_vaccines, list):
+                raw_vaccines = []
+
+            cleaned: List[Dict[str, Any]] = []
+            for vaccine in raw_vaccines:
+                if not isinstance(vaccine, dict):
+                    continue
+                vaccine["name"] = (str(vaccine.get("name") or "").strip()
+                                   or "Vacina (não identificada)")
+                vaccine["date"] = (self._normalize_date(vaccine.get("date"), kind="aplicacao")
+                                   if vaccine.get("date") else None)
+                vaccine["next_date"] = (self._normalize_date(vaccine.get("next_date"), kind="revacina")
+                                        if vaccine.get("next_date") else None)
+                # revacinação antes da aplicação = leitura trocada
+                if vaccine["date"] and vaccine["next_date"] and vaccine["next_date"] < vaccine["date"]:
+                    vaccine["date"], vaccine["next_date"] = vaccine["next_date"], vaccine["date"]
+                # aplicação no futuro sem correção segura de ano → data inutilizável
+                if vaccine["date"] and vaccine["date"] > (today + _timedelta(days=7)).isoformat():
+                    vaccine["date"] = None
+                # revacina igual à aplicação = o modelo repetiu a mesma data
+                if vaccine["date"] and vaccine["next_date"] == vaccine["date"]:
+                    vaccine["next_date"] = None
+                cleaned.append(vaccine)
+
+            cleaned = self._dedupe_vaccines(cleaned)
+            cleaned.sort(key=lambda v: v.get("date") or "9999-99-99")
+
+            result["vaccines"] = cleaned
+            result["total_encontrado"] = len(cleaned)
+            # overall_confidence do modelo; se vier 0/ausente, cai pra média dos
+            # field_confidence (o modelo às vezes zera o campo em cartão difícil).
+            conf = result.get("overall_confidence") or result.get("confidence") or 0
+            if not conf and cleaned:
+                per_field = [x for v in cleaned for x in (v.get("field_confidence") or {}).values()
+                             if isinstance(x, (int, float))]
+                conf = round(sum(per_field) / len(per_field), 2) if per_field else 0.5
+            result["confidence"] = conf or 0.5
+            if not result.get("raw_text"):
+                result["raw_text"] = response_text[:4000]
+
+            logger.info(
+                "Gemini vacinas: %d brutas -> %d após dedupe (confiança %s)",
+                len(raw_vaccines), len(cleaned), result.get("confidence"),
+            )
             return result
-            
+
         except json.JSONDecodeError as e:
             logger.error(f"Erro ao fazer parse da resposta do Gemini: {response_text[:200]}")
             # Retornar resposta vazia mas válida
@@ -961,7 +990,93 @@ Retorne APENAS o JSON, sem texto adicional.
         except Exception as e:
             logger.error(f"Erro ao chamar Gemini AI: {str(e)}", exc_info=True)
             raise
-    
+
+    @staticmethod
+    def _dedupe_vaccines(vaccines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Colapsa registros duplicados que o Gemini repete na carteirinha.
+
+        O erro mais comum observado nas cartas reais do usuário: a mesma vacina
+        (mesma marca, mesma data de aplicação) aparecia 2–3x. Regras:
+
+        - Dois registros com a MESMA âncora (marca comercial, ou nome se não há
+          marca) E a MESMA data de aplicação = o mesmo registro → fica só o mais
+          completo.
+        - Um registro SEM data cuja âncora já aparece em outro registro COM data
+          é descartado (é o "fantasma" de uma linha real).
+        - Registros sem âncora e sem data são mantidos como estão (não há como
+          deduplicar com segurança).
+        """
+        import re as _re
+
+        def anchor(v: Dict[str, Any]) -> str:
+            brand = _re.sub(r"[^a-z0-9]+", "", str(v.get("commercial_brand") or "").lower())
+            name = _re.sub(r"[^a-z0-9]+", "", str(v.get("name") or "").lower())
+            return brand or name
+
+        def completeness(v: Dict[str, Any]) -> tuple:
+            filled = sum(1 for f in ("date", "next_date", "veterinarian", "notes", "commercial_brand")
+                         if v.get(f))
+            fc = v.get("field_confidence") or {}
+            conf = sum(x for x in fc.values() if isinstance(x, (int, float)))
+            return (filled, conf)
+
+        anchors_with_date = {anchor(v) for v in vaccines if v.get("date") and anchor(v)}
+
+        best: Dict[tuple, Dict[str, Any]] = {}
+        passthrough: List[Dict[str, Any]] = []
+        for v in vaccines:
+            a = anchor(v)
+            date = str(v.get("date") or "").strip()
+            if not date:
+                if a and a in anchors_with_date:
+                    continue  # fantasma de uma linha datada
+                passthrough.append(v)
+                continue
+            if not a:
+                passthrough.append(v)
+                continue
+            key = (a, date)
+            if key not in best or completeness(v) > completeness(best[key]):
+                best[key] = v
+        return passthrough + list(best.values())
+
+    async def extract_vaccine_data_multi(self, images: List[bytes], pet_id: str) -> Dict[str, Any]:
+        """Roda extract_vaccine_data em cada foto do cartão e junta o resultado.
+
+        O usuário costuma fotografar a carteirinha em 2–4 páginas; cada uma vai
+        para o Gemini separadamente e as vacinas são deduplicadas no conjunto
+        (mesma marca + mesma data em páginas diferentes = um registro só).
+        """
+        if not images:
+            return {"vaccines": [], "confidence": 0.0, "raw_text": ""}
+
+        all_vaccines: List[Dict[str, Any]] = []
+        raw_parts: List[str] = []
+        confidences: List[float] = []
+        for idx, img in enumerate(images):
+            try:
+                res = await self.extract_vaccine_data(img, pet_id)
+            except Exception as exc:
+                logger.error("Falha ao extrair vacinas da imagem %d: %s", idx + 1, exc)
+                continue
+            all_vaccines.extend(res.get("vaccines") or [])
+            if res.get("raw_text"):
+                raw_parts.append(str(res["raw_text"]))
+            try:
+                confidences.append(float(res.get("confidence") or 0))
+            except (TypeError, ValueError):
+                pass
+
+        merged = self._dedupe_vaccines(all_vaccines)
+        merged.sort(key=lambda v: v.get("date") or "9999-99-99")
+        usable = [c for c in confidences if c > 0]
+        return {
+            "vaccines": merged,
+            "total_encontrado": len(merged),
+            "confidence": round(sum(usable) / len(usable), 2) if usable else 0.5,
+            "raw_text": "\n---\n".join(raw_parts),
+        }
+
     def _normalize_date(self, date_str: str, kind: str = "unknown") -> str:
         """
         Normaliza diferentes formatos de data para YYYY-MM-DD (suporte global).
@@ -982,7 +1097,12 @@ Retorne APENAS o JSON, sem texto adicional.
         s = str(date_str).strip()
         if not s:
             return None
-        
+
+        # Carteirinhas manuscritas: "20 / 06 / 26", "31,07,17", "31 07 17".
+        # 1) tira espaços ao redor de / . - ; 2) vírgula/espaço entre dígitos → "/"
+        s = re.sub(r'\s*([/.\-])\s*', r'\1', s)
+        s = re.sub(r'(?<=\d)[,\s]+(?=\d)', '/', s)
+
         # Correção de caracteres manuscritos mal lidos
         char_fixes = {
             'l': '1', 'I': '1', '|': '1',  # l, I, pipe → 1
