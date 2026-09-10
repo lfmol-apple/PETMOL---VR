@@ -31,6 +31,14 @@ interface PushNotificationsPlugin {
     eventName: 'registrationError',
     cb: (err: unknown) => void,
   ): Promise<PluginListenerHandle>;
+  addListener(
+    eventName: 'pushNotificationActionPerformed',
+    cb: (evt: unknown) => void,
+  ): Promise<PluginListenerHandle>;
+  addListener(
+    eventName: 'pushNotificationReceived',
+    cb: (evt: unknown) => void,
+  ): Promise<PluginListenerHandle>;
 }
 const PushNotifications = registerPlugin<PushNotificationsPlugin>('PushNotifications');
 
@@ -171,7 +179,15 @@ export async function registerNativePush(authToken: string): Promise<boolean> {
       return false;
     }
 
-    await PushNotifications.removeAllListeners();
+    // remove só os listeners DESTA função (não `removeAllListeners`, que
+    // apagaria o listener de tap em pushNotificationActionPerformed).
+    for (const h of _registrationHandles.splice(0)) {
+      try {
+        await h.remove();
+      } catch {
+        /* noop */
+      }
+    }
 
     return await new Promise<boolean>((resolve) => {
       let settled = false;
@@ -191,11 +207,11 @@ export async function registerNativePush(authToken: string): Promise<boolean> {
         })
           .then((res) => finish(res.ok, res.ok ? 'token registrado' : `backend recusou o token (HTTP ${res.status})`))
           .catch((e) => finish(false, `envio do token falhou: ${e}`));
-      });
+      }).then((h) => _registrationHandles.push(h));
 
       void PushNotifications.addListener('registrationError', (err) => {
         finish(false, `APNs recusou o registro: ${JSON.stringify(err)?.slice(0, 160)}`);
-      });
+      }).then((h) => _registrationHandles.push(h));
 
       void PushNotifications.register();
 
@@ -207,6 +223,81 @@ export async function registerNativePush(authToken: string): Promise<boolean> {
   } catch (e) {
     setDiag(`register: ${(e as Error)?.message ?? String(e)}`);
     return false;
+  }
+}
+
+const _registrationHandles: PluginListenerHandle[] = [];
+let _tapListenerAdded = false;
+
+/**
+ * Liga o listener de "notificação nativa tocada" (APNs). Ao tocar num
+ * lembrete, entrega o deep-link (`notification.data.url`) pelos MESMOS
+ * canais que o home/page.tsx já escuta (BroadcastChannel + Cache API), e
+ * faz navegação direta se o app não estiver na Home. Idempotente.
+ */
+export async function initNativePushDeepLink(): Promise<void> {
+  if (_tapListenerAdded || !isNativePushPlatform() || !pluginRegistered()) return;
+  _tapListenerAdded = true;
+  try {
+    await PushNotifications.addListener('pushNotificationActionPerformed', (evt: unknown) => {
+      const e = (evt || {}) as {
+        actionId?: string;
+        notification?: { data?: Record<string, unknown> };
+      };
+      const data = e.notification?.data ?? {};
+      const actionUrls =
+        data.action_urls && typeof data.action_urls === 'object'
+          ? (data.action_urls as Record<string, unknown>)
+          : {};
+      let url: string | undefined;
+      if (e.actionId && typeof actionUrls[e.actionId] === 'string') {
+        url = actionUrls[e.actionId] as string;
+      }
+      if (!url && typeof data.url === 'string') url = data.url as string;
+      if (!url) url = '/home';
+      reportDiag('native tap → ' + url);
+      deliverNativeDeepLink(url);
+    });
+    reportDiag('initNativePushDeepLink: listener de tap ligado');
+  } catch (e) {
+    reportDiag('initNativePushDeepLink erro: ' + String(e));
+    _tapListenerAdded = false;
+  }
+}
+
+function deliverNativeDeepLink(url: string) {
+  const ts = Date.now();
+  // 1. BroadcastChannel — app já aberto numa página que escuta (Home)
+  try {
+    const bc = new BroadcastChannel('petmol-deeplink');
+    bc.postMessage({ type: 'PETMOL_DEEPLINK', url, ts });
+    bc.close();
+  } catch {
+    /* noop */
+  }
+  // 2. Cache API — cold start: a Home lê '/__petmol_deeplink' ao montar
+  try {
+    if (typeof caches !== 'undefined') {
+      void caches.open('petmol-deeplink-v1').then((c) =>
+        c.put(
+          '/__petmol_deeplink',
+          new Response(JSON.stringify({ url, ts }), {
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      );
+    }
+  } catch {
+    /* noop */
+  }
+  // 3. Navegação direta quando NÃO está na Home (o listener BroadcastChannel
+  //    só existe lá). location.assign faz a Home montar e processar o modal.
+  try {
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/home')) {
+      window.location.assign(url);
+    }
+  } catch {
+    /* noop */
   }
 }
 
