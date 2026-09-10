@@ -52,6 +52,7 @@ from .admin import petz_admin_router
 from .admin import monetization_coverage_admin_router
 from .admin import commerce_identity_admin_router
 from .admin import shopee_coverage_admin_router
+from .admin import admin_debug_router
 from .admin import admin_analytics_router
 from .admin import models as _admin_models
 from .affiliate_links import ProductAffiliateLink as _product_affiliate_link_model  # noqa: F401 — register with Base
@@ -284,6 +285,7 @@ app.include_router(petz_admin_router)
 app.include_router(monetization_coverage_admin_router)
 app.include_router(commerce_identity_admin_router)
 app.include_router(shopee_coverage_admin_router)
+app.include_router(admin_debug_router)
 app.include_router(admin_analytics_router)
 # Some deployments forward /api/* without stripping the prefix.
 app.include_router(admin_router, prefix="/api")
