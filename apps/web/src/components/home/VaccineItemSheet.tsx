@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
+import React, { useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
 import type { VaccineRecord, VaccineType } from '@/lib/petHealth';
 import type { VaccineFormData } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
@@ -144,6 +144,7 @@ export function VaccineItemSheet({
   const [savingChip, setSavingChip] = useState<string | null>(null);
   const [savedChip, setSavedChip] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
+  const MAX_CARD_PHOTOS = 8;
 
   useEffect(() => {
     if (forceJustSaved) {
@@ -151,6 +152,28 @@ export function VaccineItemSheet({
       onForceJustSavedConsumed?.();
     }
   }, [forceJustSaved]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Miniaturas das fotos já tiradas (revoga as object URLs ao trocar a lista).
+  const cardPreviews = useMemo(
+    () => pendingCardFiles.map((f) => URL.createObjectURL(f)),
+    [pendingCardFiles],
+  );
+  useEffect(() => () => cardPreviews.forEach((u) => URL.revokeObjectURL(u)), [cardPreviews]);
+
+  // Barra de progresso da leitura — não há progresso real (1 request), então
+  // avança sozinha desacelerando, chega a ~92% e o modal fecha ao terminar.
+  const [readPct, setReadPct] = useState(0);
+  const [readingCount, setReadingCount] = useState(0);
+  useEffect(() => {
+    if (!importingCard) { setReadPct(0); return; }
+    setReadPct(8);
+    const started = Date.now();
+    const id = window.setInterval(() => {
+      const elapsed = (Date.now() - started) / 1000;
+      setReadPct(Math.min(92, 8 + 84 * (1 - Math.exp(-elapsed / 14))));
+    }, 400);
+    return () => window.clearInterval(id);
+  }, [importingCard]);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -569,9 +592,11 @@ export function VaccineItemSheet({
         >
           <SheetHeader
             title={
-              pendingCardFiles.length > 0 && !importingCard
-                ? `${pendingCardFiles.length} foto${pendingCardFiles.length > 1 ? 's' : ''} — o que fazer?`
-                : 'Ler carteirinha por foto'
+              importingCard
+                ? 'Lendo a carteirinha…'
+                : pendingCardFiles.length > 0
+                  ? `Passo 2: revisar e ler (${pendingCardFiles.length} foto${pendingCardFiles.length > 1 ? 's' : ''})`
+                  : 'Passo 1: fotografar a carteirinha'
             }
             media={<SheetIcon tone="blue"><Camera className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
             onClose={importingCard ? undefined : () => { setShowImportModal(false); setPendingCardFiles([]); }}
@@ -582,15 +607,21 @@ export function VaccineItemSheet({
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" multiple onChange={handleFilesSelectedAppend} disabled={importingCard} className="hidden" />
             <input ref={galleryInputRef} type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.bmp,.tiff,.tif,.avif,image/*" multiple onChange={handleFilesSelectedAppend} disabled={importingCard} className="hidden" />
 
-            {/* STATE: no photos yet */}
+            {/* ETAPA 1 — nenhuma foto ainda */}
             {pendingCardFiles.length === 0 && !importingCard && (
               <div className="space-y-3">
+                <div className="rounded-2xl bg-blue-50 border border-blue-100 p-3 text-[13px] leading-relaxed text-[#0047ad]">
+                  <p className="font-bold mb-1">Como funciona</p>
+                  <p><span className="font-semibold">1.</span> Fotografe cada parte da carteirinha — capa, páginas com adesivos, verso. Até {MAX_CARD_PHOTOS} fotos.</p>
+                  <p><span className="font-semibold">2.</span> Toque em <span className="font-semibold">Ler agora</span>.</p>
+                  <p><span className="font-semibold">3.</span> Confira cada data com a carteirinha antes de salvar.</p>
+                </div>
                 <button
                   type="button"
                   onClick={() => cameraInputRef.current?.click()}
                   className="w-full py-5 rounded-2xl bg-[#0056D2] active:bg-[#0047ad] text-white font-bold text-base flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-md shadow-blue-600/20"
                 >
-                  <span className="text-2xl">📸</span> Abrir câmera
+                  <span className="text-2xl">📸</span> Tirar a 1ª foto
                 </button>
                 <button
                   type="button"
@@ -600,62 +631,115 @@ export function VaccineItemSheet({
                   🖼️ Escolher da galeria
                 </button>
                 <p className="text-xs text-amber-700 text-center pt-1">
-                  Funciona melhor com carteiras impressas — revise os dados após a leitura
+                  Funciona melhor com carteiras impressas.
                 </p>
               </div>
             )}
 
-            {/* STATE: photos selected — dynamic action choice */}
+            {/* ETAPA 2 — fotos tiradas: numeradas + "Ler agora" em destaque */}
             {pendingCardFiles.length > 0 && !importingCard && (
               <div className="space-y-3">
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                  {cardPreviews.map((src, i) => (
+                    <div key={src} className="relative flex-shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={src} alt={`Foto ${i + 1}`} className="h-16 w-16 rounded-xl object-cover border border-slate-200" />
+                      <span className="absolute -top-1.5 -left-1.5 h-5 w-5 rounded-full bg-[#0056D2] text-white text-[11px] font-bold flex items-center justify-center shadow">
+                        {i + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPendingCardFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shadow"
+                        aria-label={`Remover foto ${i + 1}`}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  {pendingCardFiles.length < MAX_CARD_PHOTOS && (
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="h-16 w-16 flex-shrink-0 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50 text-[#0056D2] text-2xl flex items-center justify-center active:scale-95"
+                      aria-label="Tirar mais uma foto"
+                    >
+                      +
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-center text-[13px] font-semibold text-slate-700">
+                  {pendingCardFiles.length} foto{pendingCardFiles.length > 1 ? 's' : ''} adicionada{pendingCardFiles.length > 1 ? 's' : ''}
+                  {pendingCardFiles.length < MAX_CARD_PHOTOS && (
+                    <span className="text-slate-400"> · pode até {MAX_CARD_PHOTOS}</span>
+                  )}
+                </p>
+                <p className="-mt-1 text-center text-xs text-slate-400">Já fotografou todas as páginas?</p>
+
                 <button
                   type="button"
                   onClick={async () => {
+                    setReadingCount(pendingCardFiles.length);
                     await handleProcessCards(pendingCardFiles);
                     setShowImportModal(false);
                   }}
-                  className="w-full py-4 rounded-2xl bg-[#0056D2] active:bg-[#0047ad] text-white font-bold text-base flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-md shadow-blue-600/20"
+                  className="w-full py-5 rounded-2xl bg-[#0056D2] active:bg-[#0047ad] text-white font-extrabold text-lg flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-blue-600/30 ring-2 ring-blue-300 ring-offset-2"
                 >
                   🔍 Ler agora
                 </button>
-                <button
-                  type="button"
-                  onClick={() => cameraInputRef.current?.click()}
-                  className="w-full py-3 rounded-2xl border border-blue-200 text-[#0056D2] bg-blue-50 text-sm font-medium flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
-                >
-                  📸 Tirar mais fotos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => galleryInputRef.current?.click()}
-                  className="w-full py-3 rounded-2xl border border-slate-200 bg-white text-gray-600 text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
-                >
-                  + Adicionar da galeria
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPendingCardFiles([])}
-                  className="w-full py-2 text-gray-400 text-xs"
-                >
-                  Remover fotos e recomeçar
-                </button>
+
+                <div className="flex gap-2">
+                  {pendingCardFiles.length < MAX_CARD_PHOTOS && (
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="flex-1 py-2.5 rounded-xl border border-slate-200 bg-white text-gray-500 text-xs font-medium active:scale-[0.98]"
+                    >
+                      📸 Mais fotos
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="flex-1 py-2.5 rounded-xl border border-slate-200 bg-white text-gray-500 text-xs font-medium active:scale-[0.98]"
+                  >
+                    + Galeria
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingCardFiles([])}
+                    className="flex-1 py-2.5 rounded-xl border border-slate-200 bg-white text-gray-400 text-xs active:scale-[0.98]"
+                  >
+                    Recomeçar
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* STATE: analyzing */}
+            {/* ETAPA 3 — lendo, com barra de progresso */}
             {importingCard && (
-              <div className="py-8 text-center">
-                <div className="animate-spin w-10 h-10 border-4 border-blue-200 border-t-[#0056D2] rounded-full mx-auto mb-4" />
-                <div className="font-semibold text-slate-900 mb-1">Lendo a carteirinha…</div>
-                <div className="text-sm text-slate-500 mb-4">Pode levar alguns segundos</div>
+              <div className="py-6">
+                <div className="text-center font-semibold text-slate-900 mb-1">
+                  {readingCount > 1 ? `Lendo ${readingCount} fotos…` : 'Lendo a carteirinha…'}
+                </div>
+                <div className="text-center text-sm text-slate-500 mb-4">Pode levar até uns 30 segundos</div>
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-[#0056D2] transition-all duration-500 ease-out"
+                    style={{ width: `${readPct}%` }}
+                  />
+                </div>
                 {cancelProcessCards && (
-                  <button
-                    type="button"
-                    onClick={cancelProcessCards}
-                    className="min-h-[44px] px-6 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 active:scale-95 transition-transform"
-                  >
-                    Cancelar
-                  </button>
+                  <div className="mt-4 text-center">
+                    <button
+                      type="button"
+                      onClick={cancelProcessCards}
+                      className="min-h-[44px] px-6 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 active:scale-95 transition-transform"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
                 )}
               </div>
             )}
