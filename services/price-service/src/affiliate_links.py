@@ -117,15 +117,51 @@ def _petz_search_term(query: str, brand: Optional[str] = None) -> str:
     return " ".join(term.split())[:80]
 
 
-def petz_site_search_url(query: str, brand: Optional[str] = None, weight_kg: Optional[float] = None) -> str:
+def petz_size_hint(*, weight_kg=None, length_cm=None, volume_ml=None, strength_mg=None) -> Optional[str]:
+    """O token de tamanho/dose que separa uma variante da outra — "15kg",
+    "48cm", "50ml", "2mg". Coleira usa cm, remédio usa mg, ração usa kg,
+    úmida usa ml. Sem isso a busca da Petz traz a variante errada no topo
+    (ou o produto pai, que tem seletor)."""
+    if weight_kg:
+        return f"{weight_kg:g}".replace(".", ",") + "kg"
+    if length_cm:
+        return f"{length_cm:g}".replace(".", ",") + "cm"
+    if volume_ml:
+        return f"{volume_ml:g}".replace(".", ",") + "ml"
+    if strength_mg:
+        return f"{strength_mg:g}".replace(".", ",") + "mg"
+    return None
+
+
+def petz_size_hint_for_product(product) -> Optional[str]:
+    """size hint a partir de um ProductCatalog: kg > cm > ml > mg (mg lido
+    do nome, ex. 'Flamavet 2mg')."""
+    if product is None:
+        return None
+    name = f"{getattr(product, 'canonical_name', '') or ''} {getattr(product, 'name', '') or ''}"
+    m = re.search(r"(\d+(?:[.,]\d+)?)\s*mg\b", name, re.IGNORECASE)
+    return petz_size_hint(
+        weight_kg=getattr(product, "weight_kg", None) or None,
+        length_cm=getattr(product, "length_cm", None),
+        volume_ml=getattr(product, "volume_ml", None),
+        strength_mg=float(m.group(1).replace(",", ".")) if m else None,
+    )
+
+
+def petz_site_search_url(
+    query: str,
+    brand: Optional[str] = None,
+    weight_kg: Optional[float] = None,
+    size_hint: Optional[str] = None,
+) -> str:
     term = _petz_search_term(query, brand)
-    # O peso/tamanho é o que separa "Ração X 3kg" de "Ração X 15kg". A
-    # heurística de encurtamento tira números do termo, então quando
-    # sabemos o peso do produto do catálogo, recolocamos ELE no fim — a
-    # busca da Petz passa a trazer a variante certa no topo.
-    if term and weight_kg:
-        weight_str = f"{weight_kg:g}".replace(".", ",")
-        term = f"{term} {weight_str}kg"
+    # O tamanho/dose é o que separa "Ração X 3kg" de "Ração X 15kg" (ou a
+    # coleira de 48cm da de 65cm). A heurística de encurtamento tira
+    # números do termo, então recolocamos ELE no fim. `size_hint` (cm/ml/
+    # mg) tem prioridade; `weight_kg` é o atalho antigo pra ração.
+    hint = size_hint or (f"{weight_kg:g}".replace(".", ",") + "kg" if weight_kg else None)
+    if term and hint:
+        term = f"{term} {hint}"
     return f"{PETZ_SITE_SEARCH_BASE}?q={quote_plus(term)}" if term else PETZ_PARTNER_STORE_URL
 
 

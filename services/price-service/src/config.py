@@ -463,6 +463,17 @@ class Settings(BaseSettings):
     # (`/go/petz`) sempre cai no fluxo atual se os campos vierem vazios.
     # Rollback = env var `PETZ_CART_PREFILL=false` + restart (sem deploy).
     petz_cart_prefill: bool = False
+    # EXPERIMENTO "search-first": ignora `direct_product_url` e
+    # `cart_add_url` no destino e SEMPRE manda o tutor pra busca da Petz
+    # pelo produto (termo com marca + nome + tamanho/dose). Hipótese: com
+    # um termo bom a busca já cai no produto certo, e aí não precisa casar
+    # produto por produto (o carrinho pré-montado erra a variante de
+    # coleira/remédio, que a página da Petz junta num seletor só).
+    # A comissão (cupom PETMOL no checkout = 7%) não muda.
+    #   OFF (padrão) = matched → cart/direct; unmatched → busca.
+    #   ON = todo mundo → busca (com o termo bom).
+    # Rollback = env var `PETZ_SEARCH_FIRST=false` + restart (sem deploy).
+    petz_search_first: bool = False
 
     @field_validator("debug", mode="before")
     @classmethod
