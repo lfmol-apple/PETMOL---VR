@@ -403,6 +403,12 @@ def start_push_scheduler():
 
         scheduler = BackgroundScheduler()
         scheduler.add_job(send_due_reminders, "cron", second=0, id="send_due_reminders")
+        try:
+            from .user_auth.maintenance import prune_orphan_guest_accounts
+            scheduler.add_job(prune_orphan_guest_accounts, "cron", hour=4, minute=17,
+                              id="prune_orphan_guest_accounts")
+        except Exception as exc:
+            push_logger.warning("[PETMOL] guest-prune não agendado: %s", exc)
         scheduler.start()
         push_logger.info("[PETMOL] Push scheduler iniciado")
     except Exception as e:
