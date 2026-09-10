@@ -66,9 +66,15 @@ OLD_HASH="$(cat "$REQS_HASH_FILE" 2>/dev/null || true)"
 if [ ! -x "$SHARED_DIR/venv/bin/python" ] || [ "$NEW_HASH" != "$OLD_HASH" ]; then
     log "Backend dependencies changed (or venv missing) — installing into shared venv..."
     [ -x "$SHARED_DIR/venv/bin/python" ] || python3 -m venv "$SHARED_DIR/venv"
-    "$SHARED_DIR/venv/bin/pip" install -q --upgrade pip
-    "$SHARED_DIR/venv/bin/pip" install -q -r "$RELEASE_DIR/services/price-service/requirements.txt"
-    "$SHARED_DIR/venv/bin/pip" install -q -e "$RELEASE_DIR/services/price-service"
+    # SEMPRE `python -m pip`, nunca `bin/pip` — o shebang do bin/pip é
+    # absoluto e pode apontar pra um caminho antigo se a venv foi movida
+    # (aconteceu: bin/pip apontava pra /opt/petmol/app/... e o h2 do APNs
+    # ia parar na venv errada; o app rodava sem ele e o push nativo
+    # falhava silenciosamente).
+    VENV_PY="$SHARED_DIR/venv/bin/python"
+    "$VENV_PY" -m pip install -q --upgrade pip
+    "$VENV_PY" -m pip install -q -r "$RELEASE_DIR/services/price-service/requirements.txt"
+    "$VENV_PY" -m pip install -q -e "$RELEASE_DIR/services/price-service"
     echo "$NEW_HASH" > "$REQS_HASH_FILE"
     chown -R petmol:petmol "$SHARED_DIR/venv" 2>/dev/null || true
 else
