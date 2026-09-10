@@ -378,6 +378,7 @@ def send_due_reminders() -> None:
         due = (
             db.query(Reminder)
             .filter(Reminder.sent == False, Reminder.remind_at <= now)
+            .order_by(Reminder.created_at.desc())  # o mais recente é o "de verdade"
             .all()
         )
         if not due:
@@ -396,12 +397,21 @@ def send_due_reminders() -> None:
             subs_by_user.setdefault(s.user_id, []).append(s)
         invalid_sub_ids: set = set()
 
-        # Dedup: para cada (user_id, pet_id, type, remind_at), enviar apenas uma vez
-        # e marcar todos os duplicados como enviados (evita push duplo por dados herdados)
+        # Dedup: envia UM push por grupo, marca o resto como enviado (consome
+        # os duplicados sem notificar). Para os tipos em que o `type` já é a
+        # identidade por pet (ração/vermífugo/antipulgas/coleira/banho-tosa),
+        # a chave ignora `remind_at` — assim um lembrete ANTIGO herdado (título
+        # ou deep-link em formato velho) não vira um 2º push junto do novo.
+        # Como `due` vem ordenado por created_at desc, o primeiro visto (=mais
+        # recente) é o que dispara.
+        _UNIQUE_PER_PET_TYPES = {"food", "dewormer", "flea", "collar", "grooming"}
         seen: set = set()
 
         for reminder in due:
-            dedup_key = (reminder.user_id, reminder.pet_id or "", reminder.type, reminder.remind_at)
+            if reminder.type in _UNIQUE_PER_PET_TYPES:
+                dedup_key = (reminder.user_id, reminder.pet_id or "", reminder.type)
+            else:
+                dedup_key = (reminder.user_id, reminder.pet_id or "", reminder.type, reminder.remind_at)
             is_duplicate = dedup_key in seen
             seen.add(dedup_key)
 
