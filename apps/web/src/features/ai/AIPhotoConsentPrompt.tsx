@@ -15,6 +15,10 @@ export function AIPhotoConsentPrompt({ onAccept, onDecline, disabled = false }: 
           Para tentar identificar estas informações automaticamente, esta foto será enviada ao Google
           Gemini para processamento. Você pode continuar sem usar IA e preencher manualmente.
         </p>
+        <p className="mt-2 text-sm font-medium text-[#0047ad]">
+          A leitura por IA pode conter erros — você precisa conferir cada dado antes de salvar. O
+          PETMOL não garante a leitura correta.
+        </p>
       </div>
       <div className="flex flex-col gap-2">
         <button
