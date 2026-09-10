@@ -26,6 +26,7 @@ from src.db import SessionLocal
 from src.main import app
 from src.petz_link_validator import InvalidPetzAffiliateUrlError, validate_petz_affiliate_url, validate_petz_product_url
 from src.petz_mapping import (
+    PetzVariantConflictError,
     build_petz_search_query,
     coverage_stats,
     confirm_petz_mapping,
@@ -957,3 +958,101 @@ def test_petz_monetized_offer_store_context_works_once_verified(client, monkeypa
         "url": "https://www.petz.com.br/parceiro/PETMOL",
         "link_type": "affiliate_store",
     }
+
+
+# ── Guarda de identidade: peso/tamanho da variante Petz vs catálogo ──────
+#
+# "Ração X 3kg" e "Ração X 15kg" são PRODUTOS diferentes. Um mapeamento
+# cuja variante confirmada não bate com o peso do produto do catálogo
+# manda o tutor pro tamanho errado — nunca pode servir link direto.
+
+def test_confirm_rejects_variant_weight_that_conflicts_with_catalog():
+    product_id = _register_product(gtin="9990000000201", weight_kg=3.0)
+    db = SessionLocal()
+    try:
+        with pytest.raises(PetzVariantConflictError):
+            confirm_petz_mapping(
+                db, product_id,
+                petz_product_id="777001",
+                product_url="https://www.petz.com.br/produto/racao-x-15kg-777001",
+                variant_label="15 kg",
+                variant_weight_kg=15.0,
+            )
+        # gravado como ambiguous (não 'confirmed'), com o motivo
+        mapping = get_mapping(db, product_id)
+        assert mapping is not None
+        assert mapping.match_status == "ambiguous"
+        assert mapping.rejection_reason and "confirmação" in mapping.rejection_reason
+    finally:
+        db.close()
+
+
+def test_confirm_accepts_variant_weight_that_matches_catalog():
+    product_id = _register_product(gtin="9990000000202", weight_kg=7.5)
+    db = SessionLocal()
+    try:
+        mapping = confirm_petz_mapping(
+            db, product_id,
+            petz_product_id="777002",
+            product_url="https://www.petz.com.br/produto/racao-x-75kg-777002",
+            variant_label="7,5 kg",
+            variant_weight_kg=7.5,
+        )
+        assert mapping.match_status == "confirmed"
+    finally:
+        db.close()
+
+
+def test_admin_confirm_endpoint_returns_409_on_variant_conflict(admin_client):
+    _register_product(gtin="9990000000203", weight_kg=1.0)
+    resp = admin_client.post(
+        "/v1/admin/petz/products/9990000000203/confirm",
+        json={
+            "petz_product_id": "777003",
+            "product_url": "https://www.petz.com.br/produto/racao-x-10kg-777003",
+            "variant_label": "10 kg",
+            "variant_weight_kg": 10.0,
+        },
+    )
+    assert resp.status_code == 409
+    assert "ambíguo" in resp.json()["detail"].lower()
+
+
+def test_direct_link_dropped_and_auto_healed_when_mapping_weight_diverges(client, monkeypatch):
+    """Mapeamento 'confirmed' que aponta pro peso errado (dado legado /
+    variante trocada depois) — o endpoint NÃO serve o link direto e
+    rebaixa o mapping pra ambiguous sozinho."""
+    _enable_petz(monkeypatch)
+    product_id = _register_product(gtin="9990000000204", weight_kg=2.0)
+    db = SessionLocal()
+    try:
+        # entra confirmado com a variante certa…
+        confirm_petz_mapping(
+            db, product_id, petz_product_id="777004",
+            product_url="https://www.petz.com.br/produto/racao-x-2kg-777004",
+            variant_label="2 kg", variant_weight_kg=2.0,
+        )
+        # …e depois a variante é adulterada pro tamanho errado
+        m = get_mapping(db, product_id)
+        m.variant_weight_kg = 10.1
+        m.variant_label = "10,1 kg"
+        db.commit()
+    finally:
+        db.close()
+
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000204"}).json()
+    assert body["direct_product_url"] is None
+    assert body["search_url"] is not None  # ainda leva pra busca (com o peso do catálogo)
+
+    db = SessionLocal()
+    try:
+        assert get_mapping(db, product_id).match_status == "ambiguous"
+    finally:
+        db.close()
+
+
+def test_search_fallback_carries_catalog_weight(client, monkeypatch):
+    _enable_petz(monkeypatch)
+    _register_product(gtin="9990000000205", name="Ração Golden Fórmula Frango", brand="Golden", weight_kg=15.0)
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000205"}).json()
+    assert "15kg" in body["search_url"].replace("+", "").replace("%2C", ",")

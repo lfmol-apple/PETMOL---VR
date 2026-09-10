@@ -53,6 +53,36 @@ PUBLISHABLE_MATCH_STATUSES = frozenset({"affiliate_ready"})
 DIRECT_LINK_ELIGIBLE_STATUSES = frozenset({"confirmed", "affiliate_pending", "affiliate_ready"})
 
 
+class PetzVariantConflictError(ValueError):
+    """A variante que se tenta confirmar (peso/pack) não bate com o
+    produto do catálogo — confirmar isso mandaria o tutor pro tamanho
+    errado. O mapping fica gravado como 'ambiguous', não 'confirmed'."""
+
+
+def _catalog_variant_conflict(db: Session, product_id: int, variant_weight_kg: Optional[float]) -> Optional[str]:
+    """Compara a variante informada na confirmação com a identidade
+    estrutural do produto do catálogo. Retorna o motivo do conflito ou
+    None. Sem peso na variante OU sem peso no catálogo → não bloqueia
+    (não há divergência provável)."""
+    if not variant_weight_kg:
+        return None
+    try:
+        from .product_catalog_lookup import ProductCatalog
+        from .product_identity import ProductIdentity, structural_conflict
+
+        product = db.get(ProductCatalog, product_id)
+        if product is None or getattr(product, "weight_kg", None) is None:
+            return None
+        cat_id = ProductIdentity.from_catalog(product)
+        variant_id = ProductIdentity.build(
+            canonical_name=cat_id.canonical_name or "",
+            weight_kg=variant_weight_kg,
+        )
+        return structural_conflict(cat_id, variant_id)
+    except Exception:
+        return None
+
+
 class PetzProductMapping(Base):
     """Uma linha por produto PETMOL (products_catalog.id) — aprendida uma
     vez, reutilizada por todos os tutores depois (ver docstring do
@@ -166,9 +196,22 @@ def confirm_petz_mapping(
     mapping.variant_label = variant_label
     mapping.variant_weight_kg = variant_weight_kg
     mapping.match_confidence = match_confidence
+    mapping.last_verified_at = datetime.now(timezone.utc)
+
+    # Guarda de identidade: a variante informada bate com o produto do
+    # catálogo? Se o peso diverge, isto NÃO vira 'confirmed' — fica
+    # 'ambiguous' e a confirmação é recusada (o admin escolheu o
+    # tamanho errado).
+    conflict = _catalog_variant_conflict(db, product_id, variant_weight_kg)
+    if conflict:
+        mapping.match_status = "ambiguous"
+        mapping.rejection_reason = f"variante recusada na confirmação: {conflict}"
+        db.commit()
+        db.refresh(mapping)
+        raise PetzVariantConflictError(conflict)
+
     mapping.match_status = "confirmed"
     mapping.rejection_reason = None
-    mapping.last_verified_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(mapping)
     return mapping

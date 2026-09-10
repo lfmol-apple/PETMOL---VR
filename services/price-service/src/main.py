@@ -1610,6 +1610,34 @@ async def commerce_petz_direct_link(
     if product is not None:
         mapping = get_mapping(db, product.id)
         if mapping and mapping.match_status in DIRECT_LINK_ELIGIBLE_STATUSES and mapping.product_url:
+            # GUARDA DE IDENTIDADE: o mapeamento aponta pro MESMO produto e
+            # tamanho? "Ração X 3kg" e "Ração X 15kg" são produtos diferentes.
+            # Peso/pack divergente do catálogo → derruba o link direto e
+            # auto-cura o mapeamento (vira ambiguous). Ver product_identity.py.
+            from .product_identity import ProductIdentity, structural_conflict
+            _cat_id = ProductIdentity.from_catalog(product)
+            _petz_id = ProductIdentity.build(
+                canonical_name=(mapping.variant_label or mapping.search_query or ""),
+                weight_kg=mapping.variant_weight_kg,
+            )
+            _conflict = structural_conflict(_cat_id, _petz_id)
+            if _conflict:
+                logger.warning(
+                    "petz-direct-link: mapping %s reprovado (%s) — catálogo %skg vs Petz %skg",
+                    mapping.id, _conflict, product.weight_kg, mapping.variant_weight_kg,
+                )
+                try:
+                    mapping.match_status = "ambiguous"
+                    mapping.rejection_reason = (
+                        f"auto: {_conflict} — catálogo {product.weight_kg}kg vs "
+                        f"Petz {mapping.variant_weight_kg}kg"
+                    )
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                mapping = None  # segue pro fallback de busca (com o peso certo)
+
+        if mapping and mapping.match_status in DIRECT_LINK_ELIGIBLE_STATUSES and mapping.product_url:
             direct_product_url = mapping.product_url
             petz_product_id = (mapping.petz_product_id or "").strip() or None
             # `petz_cart_prefill` (default OFF): quando ON e o mapping tem
@@ -1647,8 +1675,16 @@ async def commerce_petz_direct_link(
     if curated_search:
         search_url = petz_search_url_from_term(curated_search)
     else:
-        search_term = (q or "").strip() or (product.name if product and product.name else "")
-        search_url = petz_site_search_url(search_term, search_brand) if search_term else None
+        # Sem página exata → a busca TEM que carregar o peso/tamanho, senão
+        # a Petz mostra a variante errada no topo ("Ração X" traz a de 15kg
+        # quando o pet usa a de 3kg). petz_site_search_url recoloca o peso
+        # do catálogo no fim do termo.
+        product_weight = product.weight_kg if product and getattr(product, "weight_kg", None) else None
+        product_name = (getattr(product, "canonical_name", None) or product.name) if product else None
+        search_term = (q or "").strip() or product_name or ""
+        search_url = (
+            petz_site_search_url(search_term, search_brand, product_weight) if search_term else None
+        )
 
     # `petz_product_search_link` (default OFF): quando ON e há uma busca
     # utilizável, o destino passa a ser a BUSCA da Petz pelo produto
