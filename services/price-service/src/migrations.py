@@ -592,6 +592,15 @@ def _migrate_push_subscriptions_from_json(conn) -> None:
             "lng": entry.get("lng"),
         })
 
+    # Limpeza das linhas soft-deleted de vacina que já estavam acumuladas: a
+    # exclusão virou hard delete (Set/2026), então essas linhas não voltam a
+    # existir. Idempotente — depois da 1ª vez não há o que apagar.
+    with engine.begin() as conn:
+        try:
+            conn.execute(text('DELETE FROM vaccine_records WHERE deleted IS TRUE'))
+        except Exception:
+            pass
+
 
 def run_sqlite_migrations(engine: Engine) -> None:
     """Run idempotent migrations.
