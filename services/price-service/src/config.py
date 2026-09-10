@@ -151,7 +151,7 @@ class Settings(BaseSettings):
     # ── Web Push Notifications (VAPID) ────────────────────────────────────
     vapid_public_key: Optional[str] = None
     vapid_private_key: Optional[str] = None
-    vapid_claims_email: str = "mailto:contato@petmol.app"
+    vapid_claims_email: str = "mailto:gerenciamento@petmol.com.br"
 
     # ── Push nativo iOS (APNs) ────────────────────────────────────────────
     # Sem estas 3, o envio nativo iOS é no-op silencioso (o token continua

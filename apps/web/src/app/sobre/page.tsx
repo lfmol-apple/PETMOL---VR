@@ -88,7 +88,7 @@ export default function SobrePage() {
         <h2>Contato</h2>
         <p>
           Para dúvidas, correções ou sugestões sobre os conteúdos:{' '}
-          <a href="mailto:contato@petmol.com.br">contato@petmol.com.br</a>. Se você identificar um
+          <a href="mailto:gerenciamento@petmol.com.br">gerenciamento@petmol.com.br</a>. Se você identificar um
           erro em algum guia, esse é o caminho — corrigir informação faz parte do compromisso
           editorial.
         </p>

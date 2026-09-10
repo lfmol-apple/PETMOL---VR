@@ -172,8 +172,8 @@ export default function DeleteAccountPage() {
           <p className="text-sm font-semibold text-slate-800">Não consegue fazer login?</p>
           <p className="mt-1 text-sm text-slate-600">
             Se você esqueceu sua senha ou perdeu acesso ao e-mail cadastrado, escreva para{' '}
-            <a href="mailto:privacidade@petmol.com.br" className="text-[#0056D2] hover:underline">
-              privacidade@petmol.com.br
+            <a href="mailto:gerenciamento@petmol.com.br" className="text-[#0056D2] hover:underline">
+              gerenciamento@petmol.com.br
             </a>{' '}
             explicando sua solicitação de exclusão. Vamos verificar sua identidade antes de
             processar o pedido manualmente.

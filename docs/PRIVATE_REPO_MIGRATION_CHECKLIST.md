@@ -14,10 +14,10 @@ atual feita nesta revisão.
   rastreado (só `.env.example`).
 - **IP/hostname interno**: não encontrado nada além do domínio público
   `petmol.com.br` (esperado, é o produto).
-- **E-mail administrativo**: `privacidade@petmol.com.br`/
-  `dpo@petmol.com.br` são endereços de contato deliberadamente públicos
-  (exigidos pela LGPD na política de privacidade) — não é exposição
-  indevida.
+- **E-mail administrativo**: `gerenciamento@petmol.com.br` é o endereço de
+  contato público único (suporte + privacidade/LGPD) — deliberadamente
+  público, não é exposição indevida. O remetente do sistema é
+  `noreply@petmol.com.br` (SMTP Hostinger).
 - **Docs estratégicos**: nada como plano de negócio, margens, contratos
   comerciais reais encontrado versionado.
 - **Achado real de produção**: existe histórico de senha PostgreSQL
