@@ -1043,21 +1043,26 @@ Responda só com JSON neste formato (os valores abaixo são exemplo):
     async def extract_vaccine_data_multi(self, images: List[bytes], pet_id: str) -> Dict[str, Any]:
         """Roda extract_vaccine_data em cada foto do cartão e junta o resultado.
 
-        O usuário costuma fotografar a carteirinha em 2–4 páginas; cada uma vai
-        para o Gemini separadamente e as vacinas são deduplicadas no conjunto
-        (mesma marca + mesma data em páginas diferentes = um registro só).
+        O usuário costuma fotografar a carteirinha em 2–4 páginas. As chamadas
+        rodam EM PARALELO (asyncio.gather) — se fossem sequenciais, 4 fotos a
+        ~30s cada estourariam o timeout de 60s do nginx. Depois as vacinas são
+        deduplicadas no conjunto (mesma marca + mesma data em páginas
+        diferentes = um registro só).
         """
         if not images:
             return {"vaccines": [], "confidence": 0.0, "raw_text": ""}
 
+        results = await asyncio.gather(
+            *(self.extract_vaccine_data(img, pet_id) for img in images),
+            return_exceptions=True,
+        )
+
         all_vaccines: List[Dict[str, Any]] = []
         raw_parts: List[str] = []
         confidences: List[float] = []
-        for idx, img in enumerate(images):
-            try:
-                res = await self.extract_vaccine_data(img, pet_id)
-            except Exception as exc:
-                logger.error("Falha ao extrair vacinas da imagem %d: %s", idx + 1, exc)
+        for idx, res in enumerate(results):
+            if isinstance(res, BaseException):
+                logger.error("Falha ao extrair vacinas da imagem %d: %s", idx + 1, res)
                 continue
             all_vaccines.extend(res.get("vaccines") or [])
             if res.get("raw_text"):
