@@ -2576,9 +2576,66 @@ async def extract_vaccine_card_files(
 
     start_time = time.time()
 
-    # ========== SISTEMA ROBUSTO (PRIORIDADE) ==========
+    # ========== EXTRATOR ÚNICO (VisionService — PRIORIDADE) ==========
+    # Um só caminho de leitura de vacina, o mesmo do endpoint
+    # /vision/extract-vaccine-card: Gemini com temperature=0 + JSON mode +
+    # fallback de modelo, imagem reduzida antes do envio (evita 504),
+    # deduplicação e normalização de datas em Python. Substitui o "Sistema
+    # Robusto" (cross-validation nunca ativa sem OPENAI_API_KEY) e o legado.
+    # Reversível: USE_VISION_SERVICE_VACCINE_READER=false volta pro robusto.
+    USE_VISION_SERVICE = os.getenv("USE_VISION_SERVICE_VACCINE_READER", "true").lower() == "true"
+    if USE_VISION_SERVICE:
+        try:
+            gemini_key = _get_gemini_api_key()
+            if not gemini_key:
+                raise RuntimeError("GEMINI_API_KEY não configurada")
+
+            images_bytes: List[bytes] = []
+            for file in files:
+                images_bytes.append(await file.read())
+                await file.seek(0)
+            images_bytes = images_bytes[: max(1, max_ai_images)]
+
+            from .vision.service import VisionService
+
+            vision_service = VisionService(gemini_key)
+            result = await vision_service.extract_vaccine_data_multi(images_bytes, pet_id="import")
+
+            registros_convertidos = [
+                VaccineCardOcrRecord(
+                    tipo_vacina=v.get("name") or "Desconhecida",
+                    nome_comercial=v.get("commercial_brand") or v.get("name") or "",
+                    data_aplicacao=v.get("date"),
+                    data_revacina=v.get("next_date"),
+                    lote=(v.get("notes") or None),
+                    veterinario_responsavel=v.get("veterinarian"),
+                )
+                for v in result.get("vaccines", [])
+            ]
+            confidence = float(result.get("confidence") or 0)
+            logger.info(
+                "✅ VisionService: %d vacinas, confiança=%.2f, tempo=%dms",
+                len(registros_convertidos), confidence,
+                int((time.time() - start_time) * 1000),
+            )
+            return VaccineCardOcrResponse(
+                sucesso=True,
+                leitura_confiavel=confidence >= 0.70,
+                registros=registros_convertidos,
+                motor_usado="vision-service",
+                motores_usados=["gemini-2.5-flash"],
+                ia_usada=True,
+                ia_tentada=True,
+                motivo_fallback=None,
+                api_calls=len(images_bytes),
+                cache_hits=0,
+            )
+        except Exception as e:
+            logger.error("❌ VisionService falhou, tentando sistema robusto/legado: %s", e, exc_info=True)
+
+    # ========== SISTEMA ROBUSTO ==========
     USE_ROBUST_SYSTEM = os.getenv("USE_ROBUST_VACCINE_READER", "true").lower() == "true"
-    
+
     if USE_ROBUST_SYSTEM and _ROBUST_SYSTEM_AVAILABLE:
         try:
             logger.info("🚀 Usando Sistema Robusto para leitura de cartão de vacina")
