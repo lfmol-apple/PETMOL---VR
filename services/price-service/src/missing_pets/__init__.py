@@ -33,6 +33,7 @@ from ..user_auth.deps import get_current_user, get_current_user_optional
 from ..user_auth.models import User
 from ..rate_limit import rate_limiter
 from ..notifications import (
+    PushSubscription,
     _load_subscriptions_by_user,
     _disable_subscriptions_by_id,
     _send_push_devices,
@@ -836,38 +837,60 @@ def _nearby_active_missing_pets(
     return sorted(candidates, key=lambda p: _haversine_km(lat, lng, p.lat, p.lng))[:limit]
 
 
-def catch_up_missing_pet_alerts_for_user(user_id: str, lat, lng) -> int:
-    """Alerta atrasado para quem estava deslogado quando o push saiu.
+def _user_last_known_location(db: Session, user_id: str):
+    """Última localização conhecida do usuário — a subscription ativa mais
+    recente que tem lat/lng. Usada quando o request não traz coordenadas."""
+    row = (
+        db.query(PushSubscription)
+        .filter(
+            PushSubscription.user_id == str(user_id),
+            PushSubscription.disabled_at.is_(None),
+            PushSubscription.lat.isnot(None),
+            PushSubscription.lng.isnot(None),
+        )
+        .order_by(PushSubscription.last_seen_at.desc())
+        .first()
+    )
+    return (row.lat, row.lng) if row else (None, None)
 
-    O push comunitário só chega a quem, no momento do broadcast, estava logado
-    e com uma subscription ativa no raio. Um vizinho que só abriu o app depois
-    nunca era avisado. Chamado quando a subscription é (re)criada com
-    localização — verifica alertas ativos no raio efetivo que este usuário
-    ainda não recebeu e envia agora, uma vez.
+
+def catch_up_missing_pet_alerts_for_user(user_id: str, lat=None, lng=None, db: Session | None = None) -> int:
+    """Alerta atrasado para quem não estava logado/no raio quando o push saiu.
+
+    O push comunitário só chega a quem, NO INSTANTE do broadcast, estava logado
+    e com subscription ativa no raio. Um vizinho que só abre o app depois nunca
+    era avisado. Chamado (a) async no /subscribe e (b) inline no /my-alerts
+    (que a home consulta a cada 60s).
+
+    Para cada alerta ativo no raio efetivo que o usuário ainda não recebeu:
+    marca como notificado SEMPRE (assim o banner vermelho aparece mesmo se o
+    push falhar) e tenta enviar o push (best-effort).
     """
-    if lat is None or lng is None:
-        return 0
-    db = SessionLocal()
+    own_db = db is None
+    db = db or SessionLocal()
     try:
+        if lat is None or lng is None:
+            lat, lng = _user_last_known_location(db, user_id)
+        if lat is None or lng is None:
+            return 0
+
         pets = _nearby_active_missing_pets(db, lat, lng, radius_km=30, days=21, limit=25)
         if not pets:
             return 0
-        devices = (_load_subscriptions_by_user().get(str(user_id)) or [])
-        if not devices:
-            return 0
 
         notified = _load_mp_notified()
+        devices = (_load_subscriptions_by_user().get(str(user_id)) or [])
         newly: list[str] = []
         for mp in pets:
             if mp.user_id and str(mp.user_id) == str(user_id):
                 continue
             if str(user_id) in notified.get(mp.id, {}).get("notified", []):
                 continue
-            # respeita o raio EFETIVO do alerta (cresce com o tempo), não os
-            # 30 km amplos da busca de candidatos.
+            # raio EFETIVO do alerta (cresce com o tempo), não os 30 km da busca
             if mp.lat is not None and mp.lng is not None:
                 if _haversine_km(lat, lng, mp.lat, mp.lng) > _effective_radius_km(mp):
                     continue
+
             location_part = f"Visto em: {mp.last_seen_location}. " if mp.last_seen_location else ""
             payload = {
                 "title": f"🚨 {mp.pet_name} pode estar na sua região!",
@@ -878,20 +901,24 @@ def catch_up_missing_pet_alerts_for_user(user_id: str, lat, lng) -> int:
                 "badge": "/icons/icon-72x72.png",
                 "data": {"url": f"/achei-um-pet?id={mp.id}"},
             }
-            ok_count, _bad = _send_push_devices(devices, payload)
-            if ok_count > 0:
-                newly.append(mp.id)
+            if devices:
+                try:
+                    _send_push_devices(devices, payload)  # best-effort
+                except Exception:
+                    pass
+            newly.append(mp.id)  # marca SEMPRE — o banner é o canal garantido
 
         for mp_id in newly:
             _mark_notified(mp_id, [str(user_id)])
         if newly:
-            print(f"[catch-up] user={str(user_id)[:8]} recebeu {len(newly)} alerta(s) atrasado(s)", flush=True)
+            print(f"[catch-up] user={str(user_id)[:8]} +{len(newly)} alerta(s) atrasado(s)", flush=True)
         return len(newly)
-    except Exception as exc:  # nunca quebra o /subscribe
+    except Exception as exc:
         logger.warning("catch_up_missing_pet_alerts_for_user erro: %s", exc)
         return 0
     finally:
-        db.close()
+        if own_db:
+            db.close()
 
 
 def catch_up_missing_pet_alerts_async(user_id: str, lat, lng) -> None:
@@ -1679,9 +1706,19 @@ def my_active_alerts(db: Session = Depends(get_db), current_user: User = Depends
 
 @router.get("/my-alerts")
 def my_alerts(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    """Retorna alertas ativos onde o usuário logado foi notificado (estava no raio)."""
-    notified_data = _load_mp_notified()
+    """Retorna alertas ativos onde o usuário logado foi notificado (estava no raio).
+
+    A home consulta isto a cada ~60s. Aproveita para o catch-up: se o usuário
+    logou/aproximou-se DEPOIS de um alerta sair, marca-o como notificado agora
+    (banner + tentativa de push) — assim quem chega atrasado também vê.
+    """
     user_id = str(current_user.id)
+    try:
+        catch_up_missing_pet_alerts_for_user(user_id, db=db)
+    except Exception as exc:
+        logger.warning("my_alerts catch-up erro: %s", exc)
+
+    notified_data = _load_mp_notified()
     # IDs dos alertas onde este usuário foi notificado
     notified_pet_ids = [
         mp_id for mp_id, rec in notified_data.items()

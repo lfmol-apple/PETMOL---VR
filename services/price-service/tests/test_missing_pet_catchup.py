@@ -99,3 +99,28 @@ def test_catchup_skips_owner(_isolate):
 
 def test_catchup_noop_without_location(_isolate):
     assert catch_up_missing_pet_alerts_for_user("x", None, None) == 0
+
+
+def test_catchup_uses_last_known_location_from_subscription(_isolate):
+    # sem lat/lng no argumento → pega da subscription mais recente
+    with SessionLocal() as db:
+        _mp(db, lat=-19.90, lng=-43.90)
+        _sub(db, "vizinho", lat=-19.905, lng=-43.905)
+
+    assert catch_up_missing_pet_alerts_for_user("vizinho") == 1
+
+
+def test_catchup_marks_notified_even_when_push_fails(_isolate):
+    # usuário SEM nenhum device — não recebe push, mas o alerta é marcado
+    # (o banner vermelho é o canal garantido)
+    with SessionLocal() as db:
+        mp_id = _mp(db, lat=-19.90, lng=-43.90).id
+
+    n = catch_up_missing_pet_alerts_for_user("sem_device", -19.90, -43.90)
+    assert n == 1
+    assert "sem_device" in store_snapshot()[mp_id]["notified"]
+
+
+# helper para o teste acima ler o mp_notified mockado
+def store_snapshot():
+    return mp_mod._load_mp_notified()
