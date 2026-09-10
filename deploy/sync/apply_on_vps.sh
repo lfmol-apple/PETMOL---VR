@@ -237,9 +237,9 @@ if [ "$RESTART_API" = true ]; then
     if [ ! -d ".venv" ]; then
         python3 -m venv .venv 200>&-
     fi
-    .venv/bin/pip install -q --upgrade pip 200>&-
-    .venv/bin/pip install -q -e . 200>&-
-    .venv/bin/pip install -q uvicorn[standard] 200>&-
+    .venv/bin/python -m pip install -q --upgrade pip 200>&-
+    .venv/bin/python -m pip install -q -e . 200>&-
+    .venv/bin/python -m pip install -q "uvicorn[standard]" 200>&-
 fi
 
 if [ "$RESTART_WEB" = true ]; then

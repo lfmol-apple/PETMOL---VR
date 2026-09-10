@@ -5,6 +5,7 @@ import { Siren } from 'lucide-react';
 import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { getToken } from '@/lib/auth-token';
+import { isNativeApp } from '@/lib/pwaPlatform';
 
 interface PetSumidoSheetProps {
   pet: PetHealthProfile;
@@ -110,6 +111,8 @@ export function PetSumidoSheet({
   const [generating, setGenerating] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
   const [cardDataUrl, setCardDataUrl] = useState<string | null>(null);
+  // Overlay "segure pra salvar" — no app nativo <a download> não funciona.
+  const [savePosterOpen, setSavePosterOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Trava: um toque duplo / re-render não pode disparar o alerta 2x.
@@ -444,7 +447,12 @@ export function PetSumidoSheet({
     const fileName = `pet-sumido-${pet.pet_name.toLowerCase().replace(/\s+/g, '-')}.png`;
     const file = new File([blob], fileName, { type: 'image/png' });
 
-    if (target === 'native' && typeof navigator !== 'undefined' && navigator.share) {
+    const canShareFiles =
+      typeof navigator !== 'undefined' &&
+      !!navigator.share &&
+      (typeof navigator.canShare !== 'function' || navigator.canShare({ files: [file] }));
+
+    if (target === 'native' && canShareFiles) {
       try {
         await navigator.share({
           title: `${pet.pet_name} está desaparecido!`,
@@ -452,7 +460,17 @@ export function PetSumidoSheet({
           files: [file],
         });
         setShareSuccess(true);
-      } catch { /* user cancelled */ }
+        return;
+      } catch {
+        /* usuário cancelou OU share de arquivo indisponível — cai abaixo */
+      }
+    }
+
+    // <a download> não funciona no WKWebView do app nativo → abre a imagem
+    // em tela cheia pra o tutor segurar e "Salvar Imagem" (usa a permissão
+    // NSPhotoLibraryAdd do Info.plist). Na web, o download normal.
+    if (isNativeApp()) {
+      setSavePosterOpen(true);
       return;
     }
 
@@ -804,6 +822,33 @@ export function PetSumidoSheet({
         )}
 
         <canvas ref={canvasRef} className="hidden" />
+      {savePosterOpen && cardDataUrl && (
+        <div
+          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/90 p-5"
+          onClick={() => setSavePosterOpen(false)}
+        >
+          <p className="text-white text-center text-[15px] font-bold mb-1">
+            Toque e segure na imagem
+          </p>
+          <p className="text-white/70 text-center text-[13px] mb-4">
+            depois toque em <strong>&ldquo;Salvar Imagem&rdquo;</strong> ou <strong>&ldquo;Adicionar às Fotos&rdquo;</strong>
+          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={cardDataUrl}
+            alt={`Cartaz de ${pet.pet_name} desaparecido`}
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[70vh] w-auto rounded-xl shadow-2xl"
+          />
+          <button
+            type="button"
+            onClick={() => setSavePosterOpen(false)}
+            className="mt-5 px-6 py-2.5 rounded-full bg-white/15 text-white font-semibold text-[14px] active:scale-[0.98]"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
     </SheetShell>
   );
 }
