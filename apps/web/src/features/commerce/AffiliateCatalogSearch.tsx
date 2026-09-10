@@ -391,7 +391,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                 onKeyDown={canOpen ? handleResultKeyDown : undefined}
                 className={`p-3.5 bg-white rounded-2xl ring-1 ring-black/5 shadow-[0_4px_16px_-8px_rgba(15,23,42,0.18)] transition-all outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 ${canOpen ? 'cursor-pointer hover:ring-emerald-200 active:scale-[0.99]' : ''}`}
               >
-                <div className="flex items-center gap-4">
+                <div className="flex items-start gap-4">
                   <div className="w-[92px] h-[92px] rounded-xl overflow-hidden bg-gray-50 border border-gray-100 flex-shrink-0 flex items-center justify-center">
                     {item.image_url && !failedImageGtins.has(item.gtin) ? (
                       <img
@@ -406,10 +406,25 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[15px] font-bold text-gray-900 leading-snug line-clamp-2">{item.title}</p>
+                    {(item.brand || item.category) && (
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 leading-tight truncate">
+                        {[item.brand, item.category].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
+                    <p className="text-[15px] font-bold text-gray-900 leading-snug line-clamp-3 mt-0.5">{item.title}</p>
+                    {(item.weight_kg || item.description) && (
+                      <p className="text-[12px] text-gray-500 leading-snug line-clamp-2 mt-0.5">
+                        {item.weight_kg ? `${item.weight_kg} kg` : ''}
+                        {item.weight_kg && item.description ? ' · ' : ''}
+                        {item.description || ''}
+                      </p>
+                    )}
                     {typeof item.price === 'number' && (
                       <p className="text-[14px] font-bold text-emerald-700 mt-1.5">
                         {item.offer_count > 1 ? 'A partir de ' : ''}{formatBRLPrice(item.price)}
+                        {typeof item.list_price === 'number' && item.list_price > item.price && (
+                          <span className="ml-2 text-[12px] font-semibold text-gray-400 line-through">{formatBRLPrice(item.list_price)}</span>
+                        )}
                         {item.offer_count > 1 && (
                           <span className="block mt-1 text-[11px] font-black uppercase tracking-wide text-blue-600 whitespace-nowrap">
                             {merchantLabel(item.merchant)} · +{item.offer_count - 1} loja{item.offer_count - 1 > 1 ? 's' : ''}
