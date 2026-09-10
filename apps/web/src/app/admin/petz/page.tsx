@@ -12,10 +12,10 @@ import { useAdmin } from '@/hooks/useAdmin';
  *
  * A identidade vem da Cobasi (loja irmã, maior cobertura) já enriquecida no
  * catálogo. A Petz não tem deep link de produto e bloqueia busca
- * server-side (403 Akamai), então o humano abre a busca da Petz, acha o
- * produto certo, cola a URL e o backend pontua contra a identidade do
- * catálogo com o MESMO motor da guarda de identidade (structural_conflict).
- * Confirmado uma vez, vale pra todo tutor que tiver aquele produto.
+ * server-side (403 Akamai), então o humano lê a ficha da Cobasi, abre a
+ * busca da Petz, acha o produto certo, cola a URL e o backend pontua com o
+ * MESMO motor da guarda de identidade (structural_conflict). Confirmado
+ * uma vez, vale pra todo tutor que tiver aquele produto.
  */
 
 interface QueueItem {
@@ -25,13 +25,27 @@ interface QueueItem {
   canonical_name: string | null;
   brand: string | null;
   weight_kg: number | null;
+  volume_ml: number | null;
   pack_count: number | null;
   species: string | null;
+  product_line: string | null;
+  product_family: string | null;
+  flavor: string | null;
+  breed_size: string | null;
+  animal_weight_min_kg: number | null;
+  animal_weight_max_kg: number | null;
   thumbnail_url: string | null;
   scans: number;
   match_status: string;
   rejection_reason: string | null;
   petz_search_url: string;
+  suggested_search_term: string;
+  cobasi_title: string | null;
+  cobasi_description: string | null;
+  cobasi_category: string | null;
+  cobasi_url: string | null;
+  cobasi_image_url: string | null;
+  cobasi_price: number | null;
 }
 
 interface QueueResponse {
@@ -39,7 +53,17 @@ interface QueueResponse {
   limit: number;
   offset: number;
   only_cobasi: boolean;
+  catalog_total: number;
+  matched: number;
+  rejected: number;
   items: QueueItem[];
+}
+
+interface AttrCompare {
+  attribute: string;
+  catalog: string | null;
+  petz: string | null;
+  status: 'match' | 'conflict' | 'unknown';
 }
 
 interface EvalResponse {
@@ -52,12 +76,13 @@ interface EvalResponse {
   catalog_weight_kg: number | null;
   cart_test_url: string | null;
   coupon_apply_url: string | null;
+  comparison: AttrCompare[];
 }
 
 const VERDICT_UI: Record<EvalResponse['verdict'], { icon: string; label: string; cls: string }> = {
-  match: { icon: '🟢', label: 'Casa com o produto do catálogo', cls: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
-  weak: { icon: '🟡', label: 'Provável — confira o tamanho antes de confirmar', cls: 'border-amber-200 bg-amber-50 text-amber-800' },
-  conflict: { icon: '🔴', label: 'Peso/tamanho diverge — é outro produto', cls: 'border-red-200 bg-red-50 text-red-800' },
+  match: { icon: '🟢', label: 'Casa com o produto do catálogo — pode confirmar', cls: 'border-emerald-200 bg-emerald-50 text-emerald-900' },
+  weak: { icon: '🟡', label: 'Provável — confira a tabela antes de confirmar', cls: 'border-amber-200 bg-amber-50 text-amber-900' },
+  conflict: { icon: '🔴', label: 'Peso/tamanho diverge — é outro produto', cls: 'border-red-200 bg-red-50 text-red-900' },
   invalid: { icon: '⚠️', label: 'Não é uma URL de produto da Petz', cls: 'border-slate-200 bg-slate-50 text-slate-600' },
 };
 
@@ -88,21 +113,20 @@ async function api<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   return res.json();
 }
 
-function fmtWeight(kg: number | null): string {
-  if (kg == null) return '—';
-  return `${(`${kg}`).replace('.', ',')} kg`;
-}
+const fmtKg = (kg: number | null): string => (kg == null ? '—' : `${`${kg}`.replace('.', ',')} kg`);
+const fmtBRL = (v: number | null): string =>
+  v == null ? '' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export default function AdminPetzMatchPage() {
   const router = useRouter();
   const { isAdmin, isLoading: adminLoading } = useAdmin();
 
-  const [items, setItems] = useState<QueueItem[]>([]);
-  const [total, setTotal] = useState(0);
+  const [data, setData] = useState<QueueResponse | null>(null);
   const [onlyCobasi, setOnlyCobasi] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openGtin, setOpenGtin] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     if (!adminLoading && !isAdmin) router.replace('/home');
@@ -111,9 +135,8 @@ export default function AdminPetzMatchPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await api<QueueResponse>(`/v1/admin/petz/queue?only_cobasi=${onlyCobasi}&limit=100`);
-      setItems(data.items);
-      setTotal(data.total);
+      const d = await api<QueueResponse>(`/v1/admin/petz/queue?only_cobasi=${onlyCobasi}&limit=100`);
+      setData(d);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar a fila');
@@ -127,60 +150,93 @@ export default function AdminPetzMatchPage() {
   }, [isAdmin, load]);
 
   const removeRow = (gtin: string) => {
-    setItems((prev) => prev.filter((i) => i.gtin !== gtin));
-    setTotal((t) => Math.max(0, t - 1));
+    setData((prev) =>
+      prev
+        ? { ...prev, total: Math.max(0, prev.total - 1), matched: prev.matched + 1, items: prev.items.filter((i) => i.gtin !== gtin) }
+        : prev,
+    );
+    setOpenGtin(null);
+  };
+  const rejectRow = (gtin: string) => {
+    setData((prev) =>
+      prev
+        ? { ...prev, total: Math.max(0, prev.total - 1), rejected: prev.rejected + 1, items: prev.items.filter((i) => i.gtin !== gtin) }
+        : prev,
+    );
     setOpenGtin(null);
   };
 
   if (adminLoading || !isAdmin) return null;
 
+  const done = data ? data.matched + data.rejected : 0;
+  const pct = data && data.catalog_total ? Math.round((done / data.catalog_total) * 100) : 0;
+
   return (
     <PremiumScreenShell
       title="Casamento Petz"
-      subtitle="Identidade ancorada na Cobasi · confirme o produto certo na Petz"
+      subtitle="Identidade ancorada na Cobasi · leve o tutor ao produto certo na Petz"
       backHref="/admin/dashboard"
     >
       <div className="px-4 py-5 max-w-2xl mx-auto space-y-4 pb-24">
-        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-700 leading-relaxed">
-          A Cobasi tem a maior cobertura e é loja irmã da Petz. Aqui você casa cada
-          produto com a página certa da Petz — <b>no tamanho certo</b>. Feito uma
-          vez, vale pra todo tutor que tiver o produto. Só volta pra fila se a Petz
-          mudar a página.
+        {/* Como funciona */}
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 overflow-hidden">
+          <button
+            onClick={() => setShowHelp((s) => !s)}
+            className="w-full flex items-center justify-between p-4 text-left"
+          >
+            <span className="text-sm font-semibold text-slate-900">Como funciona {showHelp ? '▾' : '▸'}</span>
+          </button>
+          {showHelp && (
+            <div className="px-4 pb-4 text-sm text-slate-700 leading-relaxed space-y-2">
+              <p>A Cobasi tem a maior cobertura e é loja irmã da Petz. Aqui você casa cada produto com a página certa da Petz — <b>no tamanho certo</b>. Feito uma vez, vale pra todo tutor. Só volta pra fila se a Petz mudar a página.</p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li><b>Leia a ficha da Cobasi</b> (título, descrição, peso, sabor…) — é a verdade do produto.</li>
+                <li><b>Abra a busca da Petz</b> e ache o mesmo produto, no mesmo tamanho.</li>
+                <li><b>Cole a URL</b> e clique em Avaliar. A tabela mostra Catálogo × Petz atributo por atributo.</li>
+                <li><b>Confirme</b> se bate (🟢/🟡). Se não achou nada equivalente, marque “não achei”.</li>
+              </ol>
+              <p className="text-xs text-slate-500">
+                🟢 casa · 🟡 provável, confira · 🔴 peso/tamanho diverge (é outro produto) · ⚠️ URL inválida
+              </p>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-slate-900">
-            {loading ? 'Carregando…' : `${total} produto${total === 1 ? '' : 's'} na fila`}
-          </p>
-          <label className="flex items-center gap-2 text-xs text-slate-600">
-            <input
-              type="checkbox"
-              checked={onlyCobasi}
-              onChange={(e) => setOnlyCobasi(e.target.checked)}
-              className="h-4 w-4"
-            />
-            só produtos da Cobasi
-          </label>
-        </div>
-
-        {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+        {/* Cobertura */}
+        {data && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="font-semibold text-slate-900">{data.matched} de {data.catalog_total} casados</span>
+              <span className="text-slate-500">{data.total} na fila · {data.rejected} sem Petz</span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+            </div>
+            <label className="flex items-center gap-2 text-xs text-slate-600 pt-1">
+              <input type="checkbox" checked={onlyCobasi} onChange={(e) => setOnlyCobasi(e.target.checked)} className="h-4 w-4" />
+              só produtos que a Cobasi tem
+            </label>
+          </div>
         )}
 
-        {!loading && items.length === 0 && !error && (
+        {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+        {loading && <p className="text-sm text-slate-500">Carregando…</p>}
+
+        {!loading && data && data.items.length === 0 && !error && (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
             Nada esperando. 🎉
           </div>
         )}
 
         <div className="space-y-3">
-          {items.map((item) => (
+          {data?.items.map((item) => (
             <QueueRow
               key={item.gtin}
               item={item}
               open={openGtin === item.gtin}
               onToggle={() => setOpenGtin((g) => (g === item.gtin ? null : item.gtin))}
-              onDone={() => removeRow(item.gtin)}
+              onConfirmed={() => removeRow(item.gtin)}
+              onRejected={() => rejectRow(item.gtin)}
             />
           ))}
         </div>
@@ -189,22 +245,40 @@ export default function AdminPetzMatchPage() {
   );
 }
 
+function Chip({ label, value }: { label: string; value: string | number | null }) {
+  if (value == null || value === '') return null;
+  return (
+    <span className="inline-flex items-baseline gap-1 rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-700">
+      <span className="text-slate-400">{label}</span>
+      <span className="font-semibold">{value}</span>
+    </span>
+  );
+}
+
 function QueueRow({
   item,
   open,
   onToggle,
-  onDone,
+  onConfirmed,
+  onRejected,
 }: {
   item: QueueItem;
   open: boolean;
   onToggle: () => void;
-  onDone: () => void;
+  onConfirmed: () => void;
+  onRejected: () => void;
 }) {
   const [url, setUrl] = useState('');
   const [evaluating, setEvaluating] = useState(false);
   const [result, setResult] = useState<EvalResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [rowError, setRowError] = useState<string | null>(null);
+
+  const img = item.thumbnail_url || item.cobasi_image_url;
+  const petRange =
+    item.animal_weight_min_kg != null || item.animal_weight_max_kg != null
+      ? `${item.animal_weight_min_kg ?? '?'}–${item.animal_weight_max_kg ?? '?'} kg`
+      : null;
 
   const runEval = async () => {
     if (!url.trim()) return;
@@ -237,12 +311,12 @@ function QueueRow({
         body: JSON.stringify({
           petz_product_id: result.petz_product_id,
           product_url: url.trim(),
-          variant_label: result.extracted_weight_kg ? fmtWeight(result.extracted_weight_kg) : null,
+          variant_label: result.extracted_weight_kg ? fmtKg(result.extracted_weight_kg) : null,
           variant_weight_kg: result.extracted_weight_kg,
           match_confidence: result.verdict === 'match' ? 0.95 : 0.7,
         }),
       });
-      onDone();
+      onConfirmed();
     } catch (e) {
       setRowError(e instanceof Error ? e.message : 'Erro ao confirmar');
     } finally {
@@ -258,7 +332,7 @@ function QueueRow({
         method: 'POST',
         body: JSON.stringify({ reason: 'Sem produto equivalente na Petz' }),
       });
-      onDone();
+      onRejected();
     } catch (e) {
       setRowError(e instanceof Error ? e.message : 'Erro ao marcar');
     } finally {
@@ -270,20 +344,17 @@ function QueueRow({
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center gap-3 p-3 text-left active:bg-slate-50"
-      >
-        {item.thumbnail_url ? (
+      <button onClick={onToggle} className="w-full flex items-center gap-3 p-3 text-left active:bg-slate-50">
+        {img ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.thumbnail_url} alt="" className="h-12 w-12 rounded-lg object-contain bg-slate-50 shrink-0" />
+          <img src={img} alt="" className="h-12 w-12 rounded-lg object-contain bg-slate-50 shrink-0" />
         ) : (
           <div className="h-12 w-12 rounded-lg bg-slate-100 shrink-0" />
         )}
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-slate-900 truncate">{item.canonical_name || item.name}</p>
           <p className="text-xs text-slate-500 truncate">
-            {item.brand || '—'} · {fmtWeight(item.weight_kg)}
+            {item.brand || '—'} · {fmtKg(item.weight_kg)}
             {item.pack_count && item.pack_count > 1 ? ` · ${item.pack_count}un` : ''} · {item.scans} scans
           </p>
         </div>
@@ -293,29 +364,68 @@ function QueueRow({
       </button>
 
       {open && (
-        <div className="border-t border-slate-100 p-3 space-y-3">
-          <div className="text-xs text-slate-500 grid grid-cols-2 gap-1">
-            <span>GTIN: <span className="font-mono text-slate-700">{item.gtin}</span></span>
-            <span>Espécie: {item.species || '—'}</span>
-          </div>
-
+        <div className="border-t border-slate-100 p-3 space-y-4">
           {item.match_status === 'ambiguous' && item.rejection_reason && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-              Marcado ambíguo: {item.rejection_reason}
+              Marcado ambíguo automaticamente: {item.rejection_reason}
             </div>
           )}
 
-          <a
-            href={item.petz_search_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block w-full rounded-xl border border-[#0056D2] py-2.5 text-center text-sm font-semibold text-[#0056D2] active:opacity-80"
-          >
-            1. Abrir busca na Petz ↗
-          </a>
+          {/* O que a Cobasi diz */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">O que a Cobasi diz</p>
+            {item.cobasi_title ? (
+              <>
+                <p className="text-sm font-medium text-slate-800">{item.cobasi_title}</p>
+                {item.cobasi_description && (
+                  <p className="text-xs text-slate-600 leading-relaxed">{item.cobasi_description}</p>
+                )}
+                <div className="flex flex-wrap gap-1.5 text-xs text-slate-500">
+                  {item.cobasi_category && <span>{item.cobasi_category}</span>}
+                  {item.cobasi_price != null && <span>· {fmtBRL(item.cobasi_price)}</span>}
+                </div>
+                {item.cobasi_url && (
+                  <a href={item.cobasi_url} target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-semibold text-[#0056D2]">
+                    Ver na Cobasi ↗
+                  </a>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-slate-500">Sem ficha da Cobasi para este GTIN — use os atributos abaixo.</p>
+            )}
+          </div>
 
+          {/* Atributos estruturais */}
+          <div className="flex flex-wrap gap-1.5">
+            <Chip label="peso" value={fmtKg(item.weight_kg)} />
+            <Chip label="volume" value={item.volume_ml ? `${item.volume_ml} ml` : null} />
+            <Chip label="unid." value={item.pack_count && item.pack_count > 1 ? item.pack_count : null} />
+            <Chip label="sabor" value={item.flavor} />
+            <Chip label="porte" value={item.breed_size} />
+            <Chip label="pet" value={petRange} />
+            <Chip label="espécie" value={item.species} />
+            <Chip label="linha" value={item.product_line} />
+            <Chip label="família" value={item.product_family} />
+            <Chip label="GTIN" value={item.gtin} />
+          </div>
+
+          {/* Passo 1 */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-600">2. Colar a URL do produto da Petz</label>
+            <p className="text-xs font-semibold text-slate-600">1. Ache este produto na Petz</p>
+            <a
+              href={item.petz_search_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full rounded-xl border border-[#0056D2] py-2.5 text-center text-sm font-semibold text-[#0056D2] active:opacity-80"
+            >
+              Abrir busca na Petz ↗
+            </a>
+            <p className="text-[11px] text-slate-400">busca por: <span className="font-mono">{item.suggested_search_term}</span></p>
+          </div>
+
+          {/* Passo 2 + 3 */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-600">2. Cole a URL do produto da Petz</label>
             <input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -331,23 +441,47 @@ function QueueRow({
             </button>
           </div>
 
-          {rowError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">{rowError}</div>
-          )}
+          {rowError && <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">{rowError}</div>}
 
           {result && v && (
-            <div className={`rounded-xl border p-3 text-sm space-y-2 ${v.cls}`}>
-              <p className="font-semibold">{v.icon} {v.label}</p>
+            <div className={`rounded-xl border p-3 space-y-3 ${v.cls}`}>
+              <p className="text-sm font-semibold">{v.icon} {v.label}</p>
               {result.reason && <p className="text-xs opacity-90">{result.reason}</p>}
+
+              {result.comparison.length > 0 && (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left opacity-60">
+                      <th className="py-1 font-medium">Atributo</th>
+                      <th className="py-1 font-medium">Catálogo</th>
+                      <th className="py-1 font-medium">Petz (da URL)</th>
+                      <th className="py-1" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.comparison.map((c) => (
+                      <tr key={c.attribute} className="border-t border-black/5">
+                        <td className="py-1 pr-2">{c.attribute}</td>
+                        <td className="py-1 pr-2 font-semibold">{c.catalog ?? '—'}</td>
+                        <td className="py-1 pr-2 font-semibold">{c.petz ?? '—'}</td>
+                        <td className="py-1 text-right">
+                          {c.status === 'match' ? '✓' : c.status === 'conflict' ? '✗' : '·'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
               <div className="text-xs opacity-90">
-                Peso na URL: <b>{fmtWeight(result.extracted_weight_kg)}</b> · catálogo: <b>{fmtWeight(result.catalog_weight_kg)}</b>
-                {result.petz_product_id ? <> · id Petz: <b>{result.petz_product_id}</b></> : ' · sem id numérico na URL'}
+                id Petz: <b>{result.petz_product_id || 'não encontrado na URL'}</b>
               </div>
               {result.cart_test_url && (
                 <div className="text-xs">
+                  Testar:{' '}
                   <a href={result.coupon_apply_url || '#'} target="_blank" rel="noopener noreferrer" className="underline">aplicar cupom</a>
                   {' → '}
-                  <a href={result.cart_test_url} target="_blank" rel="noopener noreferrer" className="underline">testar no carrinho ↗</a>
+                  <a href={result.cart_test_url} target="_blank" rel="noopener noreferrer" className="underline">abrir no carrinho ↗</a>
                 </div>
               )}
 

@@ -1118,6 +1118,39 @@ def test_evaluate_flags_weight_conflict(admin_client):
     assert body["extracted_weight_kg"] == 15.0
     assert body["catalog_weight_kg"] == 3.0
     assert body["petz_product_id"] == "800321"
+    # tabela lado a lado: o peso aparece marcado como conflito
+    peso = next((c for c in body["comparison"] if c["attribute"] == "Peso"), None)
+    assert peso and peso["status"] == "conflict"
+    assert peso["catalog"] == "3.0" and "15" in peso["petz"]
+
+
+def test_queue_item_carries_cobasi_and_coverage(admin_client):
+    from src.affiliate_feed import AffiliateFeedOffer
+
+    _register_product(gtin="9990000000331", name="Ração Golden", brand="Golden", weight_kg=15.0)
+    db = SessionLocal()
+    try:
+        db.add(AffiliateFeedOffer(
+            network="awin", merchant="cobasi", advertiser_id="17870",
+            external_product_id="g-331", gtin="9990000000331",
+            title="Ração Golden Fórmula Frango para Cães Adultos 15kg",
+            description="Alimento completo e balanceado sabor frango.",
+            category="Cães / Ração Seca", brand="Golden", price=189.9,
+            merchant_url="https://www.cobasi.com.br/racao-golden-15kg", active=True,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    body = admin_client.get("/v1/admin/petz/queue", params={"only_cobasi": True}).json()
+    assert body["catalog_total"] >= 1
+    assert "matched" in body and "rejected" in body
+    item = next(i for i in body["items"] if i["gtin"] == "9990000000331")
+    assert item["cobasi_title"].startswith("Ração Golden Fórmula Frango")
+    assert item["cobasi_description"]
+    assert item["cobasi_category"] == "Cães / Ração Seca"
+    assert item["cobasi_url"].startswith("https://www.cobasi.com.br/")
+    assert "15" in item["suggested_search_term"]
 
 
 def test_evaluate_accepts_aligned_candidate(admin_client):
