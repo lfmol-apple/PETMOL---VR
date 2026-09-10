@@ -82,7 +82,8 @@ class VaccineRecordUpdate(BaseModel):
     reminder_date: Optional[str] = None
     reminder_time: Optional[str] = Field(None, max_length=8)
     reminder_enabled: Optional[bool] = None
-    
+    is_confirmed: Optional[bool] = None
+
     pass
 
 
@@ -100,6 +101,10 @@ class VaccineRecordOut(VaccineRecordBase):
     vaccine_code: Optional[str] = None
     country_code: Optional[str] = None
     next_due_source: Optional[str] = None
+
+    # Conferência humana (False = veio de OCR e o tutor ainda não confirmou)
+    is_confirmed: bool = True
+    source: Optional[str] = None
 
     # Legacy fields (deprecated, mantidos para compatibilidade temporária)
     vaccine_type: Optional[str] = None

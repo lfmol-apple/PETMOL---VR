@@ -55,6 +55,7 @@ export interface VaccineRecord {
   vaccine_code?: string;      // e.g. "DOG_RABIES", "CAT_POLYVALENT"
   country_code?: string;      // e.g. "BR", "US"
   next_due_source?: string;   // "protocol" | "manual" | "unknown"
+  is_confirmed?: boolean;     // false = veio de leitura por IA e o tutor ainda não conferiu
   record_type?: 'confirmed_application' | 'estimated_control_start';
   alert_days_before?: number;
   reminder_time?: string;
