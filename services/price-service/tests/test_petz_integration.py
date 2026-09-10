@@ -100,6 +100,15 @@ def _enable_petz_cart_prefill(monkeypatch) -> None:
     get_settings.cache_clear()
 
 
+def _enable_petz_search_first(monkeypatch) -> None:
+    """Liga o gate + `petz_search_first` (default OFF): /commerce/petz-direct-link
+    ignora link direto/carrinho e manda todo mundo pra busca da Petz pelo
+    produto (termo com marca + nome + tamanho/dose)."""
+    _enable_petz(monkeypatch)
+    monkeypatch.setenv("PETZ_SEARCH_FIRST", "true")
+    get_settings.cache_clear()
+
+
 def _disable_petz(monkeypatch) -> None:
     """Força o gate único DESLIGADO, explicitamente — usado pelos testes
     que verificam o kill-switch em si (defesa em profundidade), já que
@@ -1056,6 +1065,48 @@ def test_search_fallback_carries_catalog_weight(client, monkeypatch):
     _register_product(gtin="9990000000205", name="Ração Golden Fórmula Frango", brand="Golden", weight_kg=15.0)
     body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000205"}).json()
     assert "15kg" in body["search_url"].replace("+", "").replace("%2C", ",")
+
+
+# ── size hint (cm/ml/mg) + experimento petz_search_first ────────────────
+
+def test_petz_size_hint_priority():
+    from src.affiliate_links import petz_size_hint
+    assert petz_size_hint(weight_kg=15) == "15kg"
+    assert petz_size_hint(length_cm=48) == "48cm"
+    assert petz_size_hint(volume_ml=85) == "85ml"
+    assert petz_size_hint(strength_mg=2) == "2mg"
+    assert petz_size_hint(weight_kg=3, length_cm=48) == "3kg"  # kg vence
+    assert petz_size_hint() is None
+
+
+def test_search_term_carries_collar_length(client, monkeypatch):
+    _enable_petz(monkeypatch)
+    _register_product(
+        gtin="9990000000401", name="Coleira Antiparasitária Scalibor Cães Pequenos e Médios",
+        brand="Scalibor", length_cm=48.0,
+    )
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000401"}).json()
+    assert "48cm" in body["search_url"].replace("+", "").replace("%2C", ",")
+
+
+def test_petz_search_first_suppresses_direct_and_cart(client, monkeypatch):
+    _enable_petz_search_first(monkeypatch)
+    product_id = _register_product(gtin="9990000000402", name="Coleira Scalibor", brand="Scalibor")
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, product_id, petz_product_id="81288",
+            product_url="https://www.petz.com.br/produto/coleira-scalibor-81288",
+        )
+    finally:
+        db.close()
+
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000402"}).json()
+    assert body["direct_product_url"] is None
+    assert body["cart_add_url"] is None
+    assert body["destination"] == "search"
+    assert body["url"] == body["search_url"]
+    assert body["url"].startswith("https://www.petz.com.br/busca?q=")
 
 
 # ── Painel de casamento assistido Petz (fila + evaluate) ─────────────────

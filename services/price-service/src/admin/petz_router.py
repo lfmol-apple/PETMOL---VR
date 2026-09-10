@@ -123,7 +123,7 @@ def get_match_queue(
     busca nada na Petz (a busca é 403 Akamai server-side); devolve o link
     `/busca?q=` pronto pro humano abrir e o termo sugerido separado."""
     from ..affiliate_feed import AffiliateFeedOffer
-    from ..affiliate_links import petz_site_search_url
+    from ..affiliate_links import petz_site_search_url, petz_size_hint_for_product
     from ..petz_mapping import build_petz_search_query
 
     limit = max(1, min(limit, 200))
@@ -156,11 +156,14 @@ def get_match_queue(
     for product, scans in db.execute(base.offset(offset).limit(limit)).all():
         mapping = get_mapping(db, product.id)
         name = product.name or product.canonical_name or ""
+        hint = petz_size_hint_for_product(product)
         term = build_petz_search_query(
             brand=product.brand,
             name=(product.canonical_name or name),
             weight_kg=product.weight_kg,
         ) or (product.canonical_name or name)
+        if hint and not product.weight_kg and hint not in term:
+            term = f"{term} {hint}"
         cobasi = db.scalar(
             select(AffiliateFeedOffer)
             .where(
@@ -192,7 +195,9 @@ def get_match_queue(
                 scans=int(scans or 0),
                 match_status=mapping.match_status if mapping else "unknown",
                 rejection_reason=mapping.rejection_reason if mapping else None,
-                petz_search_url=petz_site_search_url((product.canonical_name or name), product.brand, product.weight_kg),
+                petz_search_url=petz_site_search_url(
+                    (product.canonical_name or name), product.brand, size_hint=hint
+                ),
                 suggested_search_term=term,
                 cobasi_title=cobasi.title if cobasi else None,
                 cobasi_description=(cobasi.description[:600] if cobasi and cobasi.description else None),

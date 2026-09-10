@@ -1672,28 +1672,47 @@ async def commerce_petz_direct_link(
                 curated_search = PETZ_CURATED_SEARCH.get(fallback_pid) or None
 
     search_brand = (brand or "").strip() or (product.brand if product and getattr(product, "brand", None) else None)
+
+    # Token de tamanho/dose pro termo de busca — kg (ração), cm (coleira),
+    # ml (úmida), mg (remédio). A Petz junta as variantes num seletor só,
+    # então sem isso a busca cai no produto pai / na variante errada.
+    from .affiliate_links import petz_size_hint_for_product
+    _size_hint = petz_size_hint_for_product(product)
+
+    # EXPERIMENTO `petz_search_first` (default OFF): ignora o link direto e
+    # o carrinho pré-montado, manda todo mundo pra busca pelo produto (com
+    # o termo marca+nome+tamanho). Rollback = env var + restart. Ver
+    # config.py. A comissão (cupom no checkout) não muda.
+    _search_first = bool(get_settings().petz_search_first)
+    if _search_first:
+        direct_product_url = None
+        cart_add_url = None
+        curated_search = None
+
+    product_name = (getattr(product, "canonical_name", None) or product.name) if product else None
+    search_term = (q or "").strip() or product_name or ""
     if curated_search:
         search_url = petz_search_url_from_term(curated_search)
+    elif search_term:
+        # Sem página exata (ou search-first) → o termo carrega o
+        # tamanho/dose, senão a Petz mostra a variante errada no topo.
+        search_url = petz_site_search_url(search_term, search_brand, size_hint=_size_hint)
     else:
-        # Sem página exata → a busca TEM que carregar o peso/tamanho, senão
-        # a Petz mostra a variante errada no topo ("Ração X" traz a de 15kg
-        # quando o pet usa a de 3kg). petz_site_search_url recoloca o peso
-        # do catálogo no fim do termo.
-        product_weight = product.weight_kg if product and getattr(product, "weight_kg", None) else None
-        product_name = (getattr(product, "canonical_name", None) or product.name) if product else None
-        search_term = (q or "").strip() or product_name or ""
-        search_url = (
-            petz_site_search_url(search_term, search_brand, product_weight) if search_term else None
-        )
+        search_url = None
 
     # `petz_product_search_link` (default OFF): quando ON e há uma busca
     # utilizável, o destino passa a ser a BUSCA da Petz pelo produto
     # (produto na tela) em vez da vitrine fixa. Rollback = env var + restart.
     # Ver o comentário do flag em config.py. `get_settings()` fresco (não o
     # `settings` de módulo) pra o flip da flag valer sem reimportar o módulo.
-    coupon_apply_url: Optional[str] = PETZ_COUPON_APPLY_URL if cart_add_url else None
+    # coupon_apply_url = 1º hop do bridge (registra o cupom PETMOL na
+    # sessão). Vale pro carrinho pré-montado E pro search-first: em ambos
+    # o tutor fecha o carrinho com o cupom já aplicado (7%).
+    coupon_apply_url: Optional[str] = (
+        PETZ_COUPON_APPLY_URL if (cart_add_url or (_search_first and search_url)) else None
+    )
 
-    prefer_search = bool(get_settings().petz_product_search_link) and bool(search_url)
+    prefer_search = (_search_first or bool(get_settings().petz_product_search_link)) and bool(search_url)
     if cart_add_url:
         # Carrinho pré-montado tem prioridade: o bridge navega
         # coupon_apply_url → cart_add_url (que já cai no /checkout/cart).
