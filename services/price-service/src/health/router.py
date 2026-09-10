@@ -670,6 +670,16 @@ async def bulk_confirm_vaccines(
                 or vac.display_name
             )
 
+        # A canonicalização acima troca "Vanguard Plus" por "Polivalente V8/V10".
+        # A marca comercial lida do cartão é informação real — se sumiu do nome,
+        # preserva nas observações para o tutor não perder.
+        record_notes = vac.notes
+        brand = (vac.brand or "").strip()
+        if brand and _re.sub(r"[^a-z0-9]", "", brand.lower()) not in _re.sub(
+            r"[^a-z0-9]", "", canonical_vaccine_name.lower()
+        ):
+            record_notes = f"Marca: {brand}." + (f" {vac.notes}" if vac.notes else "")
+
         vaccine_record = VaccineRecord(
             id=str(uuid4()),
             pet_id=pet_id,
@@ -677,7 +687,7 @@ async def bulk_confirm_vaccines(
             applied_date=applied_date,
             next_dose_date=next_due_date,
             dose_number=vac.dose_number,
-            notes=vac.notes,
+            notes=record_notes,
             clinic_name=vac.clinic_name,
             veterinarian_name=vac.veterinarian,
             deleted=False,

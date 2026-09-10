@@ -958,6 +958,7 @@ Responda só com JSON neste formato (os valores abaixo são exemplo):
                 cleaned.append(vaccine)
 
             cleaned = self._dedupe_vaccines(cleaned)
+            self._fix_implausible_interval(cleaned, today)
             cleaned.sort(key=lambda v: v.get("date") or "9999-99-99")
 
             result["vaccines"] = cleaned
@@ -1040,6 +1041,34 @@ Responda só com JSON neste formato (os valores abaixo são exemplo):
                 best[key] = v
         return passthrough + list(best.values())
 
+    @staticmethod
+    def _fix_implausible_interval(vaccines: List[Dict[str, Any]], today) -> None:
+        """Nenhuma vacina revacina depois de ~18 meses. Intervalo maior = um dos
+        anos foi mal lido. Se aplicação e revacina são o mesmo dia/mês, o ano
+        certo é o da revacina (costuma estar mais legível); senão, descarta a
+        revacina para não agendar lembrete errado."""
+        from datetime import date as _d
+
+        def _parse(s):
+            try:
+                return _d.fromisoformat(s)
+            except (TypeError, ValueError):
+                return None
+
+        for v in vaccines:
+            a, n = _parse(v.get("date")), _parse(v.get("next_date"))
+            if not a or not n:
+                continue
+            if (n - a).days <= 550:
+                continue
+            if (a.month, a.day) == (n.month, n.day):
+                if n <= today:
+                    v["date"], v["next_date"] = v["next_date"], None
+                else:
+                    v["date"] = n.replace(year=n.year - 1).isoformat()
+            else:
+                v["next_date"] = None
+
     async def extract_vaccine_data_multi(self, images: List[bytes], pet_id: str) -> Dict[str, Any]:
         """Roda extract_vaccine_data em cada foto do cartão e junta o resultado.
 
@@ -1072,7 +1101,10 @@ Responda só com JSON neste formato (os valores abaixo são exemplo):
             except (TypeError, ValueError):
                 pass
 
+        from datetime import date as _date_multi
+        today = _date_multi.today()
         merged = self._dedupe_vaccines(all_vaccines)
+        self._fix_implausible_interval(merged, today)
         merged.sort(key=lambda v: v.get("date") or "9999-99-99")
         usable = [c for c in confidences if c > 0]
         return {

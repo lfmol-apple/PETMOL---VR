@@ -48,6 +48,32 @@ def test_dedupe_keeps_dateless_when_no_dated_sibling():
     assert len(out) == 1
 
 
+def test_implausible_interval_same_day_snaps_to_revacina_year():
+    # "Canigen R" lida como aplicação 12/07/2020, revacina 12/07/2026 (gap de 6
+    # anos, mesmo dia/mês) → a aplicação real é 12/07/2026, sem revacina agendada.
+    from datetime import date
+    recs = [{"name": "Raiva", "commercial_brand": "Canigen R", "date": "2020-07-12",
+             "next_date": "2026-07-12", "veterinarian": "Bruno de Vargas Gonçalves"}]
+    VisionService._fix_implausible_interval(recs, date(2026, 9, 10))
+    assert recs[0]["date"] == "2026-07-12"
+    assert recs[0]["next_date"] is None
+
+
+def test_implausible_interval_different_days_drops_next_date():
+    from datetime import date
+    recs = [{"name": "x", "date": "2022-01-05", "next_date": "2027-11-30", "veterinarian": None}]
+    VisionService._fix_implausible_interval(recs, date(2026, 9, 10))
+    assert recs[0]["date"] == "2022-01-05"
+    assert recs[0]["next_date"] is None
+
+
+def test_normal_annual_interval_untouched():
+    from datetime import date
+    recs = [{"name": "x", "date": "2024-03-15", "next_date": "2025-03-15", "veterinarian": "Dra Ana"}]
+    VisionService._fix_implausible_interval(recs, date(2026, 9, 10))
+    assert recs[0]["next_date"] == "2025-03-15"
+
+
 def test_dedupe_prefers_more_complete_row():
     rows = [
         {"name": "V10", "commercial_brand": "Duramune", "date": "2020-11-18"},

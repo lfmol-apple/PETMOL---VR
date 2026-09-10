@@ -54,6 +54,22 @@ def test_manual_bulk_import_stays_confirmed(client):
     assert r.json()["vaccines"][0]["is_confirmed"] is True
 
 
+def test_ocr_brand_preserved_in_notes_when_canonicalized(client):
+    token, pet_id = _signup_pet(client, "cid-nr4", "nr4@example.com")
+    r = client.post(
+        f"/health/pets/{pet_id}/vaccines/bulk-confirm",
+        json={
+            "country_code": "BR", "species": "dog", "needs_review": True,
+            "vaccines": [{"display_name": "Antirrábica", "brand": "Nobivac Raiva",
+                          "applied_on": "2024-05-01", "next_due_on": "2025-05-01"}],
+        },
+        headers=_headers("cid-nr4", token),
+    )
+    assert r.status_code == 200, r.text
+    notes = (r.json()["vaccines"][0].get("notes") or "")
+    assert "Nobivac Raiva" in notes
+
+
 def test_plain_vaccine_create_is_confirmed(client):
     token, pet_id = _signup_pet(client, "cid-nr3", "nr3@example.com")
     r = client.post(f"/pets/{pet_id}/vaccines", json={
