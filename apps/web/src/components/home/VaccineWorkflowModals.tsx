@@ -81,6 +81,10 @@ export function VaccineWorkflowModals({
   // ANTES de ver a lista de registros, senão ele confia numa data errada e
   // pode perder a vacina do pet.
   const [disclaimerAck, setDisclaimerAck] = useState(false);
+  // Formulário enxuto: "Outra" abre o campo de texto livre; "ajustar" abre
+  // a configuração do lembrete + data manual da próxima dose.
+  const [otherVaccineOpen, setOtherVaccineOpen] = useState(false);
+  const [remindAdjustOpen, setRemindAdjustOpen] = useState(false);
 
   // Reset success screen + aviso quando uma nova análise começa
   useEffect(() => {
@@ -89,6 +93,34 @@ export function VaccineWorkflowModals({
       setDisclaimerAck(false);
     }
   }, [cardAnalysis]);
+
+  useEffect(() => {
+    if (!showVaccineForm) {
+      setOtherVaccineOpen(false);
+      setRemindAdjustOpen(false);
+    }
+  }, [showVaccineForm]);
+
+  // Vacinas comuns por espécie — 1 toque preenche nome + tipo.
+  const vaccineChips: Array<{ label: string; type: VaccineType }> =
+    currentPet?.species === 'cat'
+      ? [
+          { label: 'V3', type: 'multiple' },
+          { label: 'V4', type: 'multiple' },
+          { label: 'V5', type: 'multiple' },
+          { label: 'Antirrábica', type: 'rabies' },
+          { label: 'FeLV', type: 'feline_leukemia' as VaccineType },
+        ]
+      : [
+          { label: 'V10', type: 'multiple' },
+          { label: 'V8', type: 'multiple' },
+          { label: 'Antirrábica', type: 'rabies' },
+          { label: 'Leptospirose', type: 'leptospirosis' as VaccineType },
+          { label: 'Gripe Canina', type: 'kennel_cough' as VaccineType },
+          { label: 'Giárdia', type: 'giardia' },
+        ];
+  const isKnownChip = (name: string) => vaccineChips.some((c) => c.label === name);
+  const usingOther = otherVaccineOpen || (!!vaccineFormData.vaccine_name && !isKnownChip(vaccineFormData.vaccine_name));
 
   function showToast(msg: string) {
     setToast(msg);
@@ -145,104 +177,82 @@ export function VaccineWorkflowModals({
 
           <SheetShell.Body className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('vaccine_form.vaccine_type')} *
-                </label>
-                <select
-                  value={vaccineFormData.vaccine_type}
-                  onChange={(e) => setVaccineFormData((prev: VaccineFormData) => ({ ...prev, vaccine_type: e.target.value as VaccineType }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
-                >
-                  <option value="multiple">V10</option>
-                  <option value="multiple">V8</option>
-                  <option value="rabies">Raiva</option>
-                  <option value="influenza">Gripe</option>
-                  <option value="giardia">Giárdia</option>
-                  <option value="leishmaniasis">Leishmaniose</option>
-                  <option value="other">Outra</option>
-                </select>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Qual vacina? *</label>
+                <div className="flex flex-wrap gap-2">
+                  {vaccineChips.map(({ label, type }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => {
+                        setOtherVaccineOpen(false);
+                        setVaccineFormData((prev: VaccineFormData) => ({ ...prev, vaccine_name: label, vaccine_type: type }));
+                      }}
+                      className={`px-3 py-2 rounded-full text-sm font-semibold border transition-all ${
+                        !usingOther && vaccineFormData.vaccine_name === label
+                          ? 'bg-[#0056D2] text-white border-[#0056D2]'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtherVaccineOpen(true);
+                      setVaccineFormData((prev: VaccineFormData) => ({
+                        ...prev,
+                        vaccine_name: isKnownChip(prev.vaccine_name) ? '' : prev.vaccine_name,
+                        vaccine_type: 'other',
+                      }));
+                    }}
+                    className={`px-3 py-2 rounded-full text-sm font-semibold border border-dashed transition-all ${
+                      usingOther
+                        ? 'bg-[#0056D2] text-white border-[#0056D2]'
+                        : 'bg-white text-slate-500 border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    + Outra
+                  </button>
+                </div>
+                {usingOther && (
+                  <input
+                    type="text"
+                    autoFocus
+                    value={vaccineFormData.vaccine_name}
+                    onChange={(e) => setVaccineFormData((prev: VaccineFormData) => ({ ...prev, vaccine_name: e.target.value, vaccine_type: 'other' }))}
+                    placeholder="Nome da vacina"
+                    className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
+                  />
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('vaccine_form.vaccine_name')} *
+                  {t('vaccine_form.application_date')} *
                 </label>
                 <input
-                  type="text"
-                  value={vaccineFormData.vaccine_name}
-                  onChange={(e) => setVaccineFormData((prev: VaccineFormData) => ({ ...prev, vaccine_name: e.target.value }))}
-                  placeholder="Ex: V10, V8, Raiva, Gripe..."
+                  type="date"
+                  value={vaccineFormData.date_administered}
+                  onChange={(e) => setVaccineFormData((prev: VaccineFormData) => ({ ...prev, date_administered: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
                 />
-                <div className="mt-2 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-                  <p className="text-xs font-semibold text-indigo-700 mb-2 flex items-center gap-1">🏷️ Catálogo — clique para preencher:</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(currentPet?.species === 'cat'
-                      ? [
-                          { label: 'V3 (Tríplice)', type: 'multiple', code: 'CAT_POLYVALENT' },
-                          { label: 'V4 (Quádrupla)', type: 'multiple', code: 'CAT_POLYVALENT' },
-                          { label: 'V5 (Quíntupla)', type: 'multiple', code: 'CAT_POLYVALENT' },
-                          { label: 'Antirrábica', type: 'rabies', code: 'CAT_RABIES' },
-                          { label: 'FeLV (Leucemia Felina)', type: 'feline_leukemia', code: 'CAT_FELV' },
-                        ]
-                      : [
-                          { label: 'V10 (Múltipla)', type: 'multiple', code: 'DOG_POLYVALENT_V8' },
-                          { label: 'V8 (Múltipla)', type: 'multiple', code: 'DOG_POLYVALENT_V8' },
-                          { label: 'Antirrábica', type: 'rabies', code: 'DOG_RABIES' },
-                          { label: 'Leptospirose', type: 'leptospirosis', code: 'DOG_LEPTO' },
-                          { label: 'Gripe Canina', type: 'kennel_cough', code: 'DOG_BORDETELLA' },
-                          { label: 'Influenza Canina', type: 'influenza', code: 'DOG_INFLUENZA' },
-                        ]).map(({ label, type, code }) => (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={() => setVaccineFormData((prev: VaccineFormData) => ({ ...prev, vaccine_name: label, vaccine_type: type as VaccineType }))}
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
-                          vaccineFormData.vaccine_name === label
-                            ? 'bg-indigo-600 text-white border-indigo-600'
-                            : 'bg-white text-indigo-700 border-indigo-300 hover:bg-indigo-100'
-                        }`}
-                        title={`Código: ${code}`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-[10px] text-indigo-500 mt-1.5">💡 Ao salvar, a vacina será mapeada automaticamente pelo catálogo e o intervalo de revacinação calculado pelo protocolo.</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {t('vaccine_form.application_date')} *
-                  </label>
+                <label className="mt-2 flex items-center gap-2 text-sm text-gray-700">
                   <input
-                    type="date"
-                    value={vaccineFormData.date_administered}
-                    onChange={(e) => setVaccineFormData((prev: VaccineFormData) => ({ ...prev, date_administered: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
+                    type="checkbox"
+                    checked={vaccineFormData.record_type === 'estimated_control_start'}
+                    onChange={(e) => setVaccineFormData((prev: VaccineFormData) => ({
+                      ...prev,
+                      record_type: e.target.checked ? 'estimated_control_start' : 'confirmed_application',
+                    }))}
+                    className="h-4 w-4 accent-[#0056D2]"
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Histórico anterior</label>
-                  <label className="flex min-h-[42px] items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={vaccineFormData.record_type === 'estimated_control_start'}
-                      onChange={(e) => setVaccineFormData((prev: VaccineFormData) => ({
-                        ...prev,
-                        record_type: e.target.checked ? 'estimated_control_start' : 'confirmed_application',
-                      }))}
-                      className="h-4 w-4 accent-[#0056D2]"
-                    />
-                    Não sei o histórico anterior
-                  </label>
-                </div>
+                  Foi a 1ª vez / não sei as doses anteriores
+                </label>
               </div>
 
               <details className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <summary className="cursor-pointer text-sm font-bold text-gray-700">Opcionais</summary>
+                <summary className="cursor-pointer text-sm font-bold text-gray-700">Detalhes (opcional)</summary>
                 <div className="mt-3 space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Clínica</label>
@@ -251,6 +261,16 @@ export function VaccineWorkflowModals({
                       value={vaccineFormData.clinic_name}
                       onChange={(e) => setVaccineFormData((prev: VaccineFormData) => ({ ...prev, clinic_name: e.target.value }))}
                       placeholder="Nome da clínica"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Veterinário</label>
+                    <input
+                      type="text"
+                      value={vaccineFormData.veterinarian}
+                      onChange={(e) => setVaccineFormData((prev: VaccineFormData) => ({ ...prev, veterinarian: e.target.value }))}
+                      placeholder="Nome do veterinário"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
                     />
                   </div>
@@ -268,22 +288,45 @@ export function VaccineWorkflowModals({
                 </div>
               </details>
 
-              <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">
-                {vaccineFormData.record_type === 'estimated_control_start'
-                  ? `Controle iniciado em ${vaccineFormData.date_administered || 'data selecionada'}`
-                  : 'Aplicação registrada'}
+              <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm text-green-900">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">
+                    {vaccineFormData.next_dose_date
+                      ? <>Vou te lembrar antes de <strong>{vaccineFormData.next_dose_date}</strong></>
+                      : 'Vou te lembrar antes da próxima dose'}
+                    {' '}— {vaccineFormData.alert_days_before ?? 3} dias antes, {(vaccineFormData.reminder_time ?? '09:00').slice(0, 5)}.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setRemindAdjustOpen((o) => !o)}
+                    className="shrink-0 text-xs font-semibold text-green-800 underline"
+                  >
+                    {remindAdjustOpen ? 'ok' : 'ajustar'}
+                  </button>
+                </div>
+                {remindAdjustOpen && (
+                  <div className="mt-3 space-y-3 border-t border-green-200 pt-3">
+                    <ReminderPicker
+                      days={String(vaccineFormData.alert_days_before ?? 3)}
+                      time={vaccineFormData.reminder_time ?? '09:00'}
+                      onDaysChange={v => setVaccineFormData(prev => ({ ...prev, alert_days_before: parseInt(v) || 3 }))}
+                      onTimeChange={v => setVaccineFormData(prev => ({ ...prev, reminder_time: v }))}
+                    />
+                    <div>
+                      <label className="block text-xs font-medium text-green-900 mb-1">
+                        Data da próxima dose — só se o veterinário informou
+                      </label>
+                      <input
+                        type="date"
+                        value={vaccineFormData.next_dose_date}
+                        onChange={(e) => setVaccineFormData(prev => ({ ...prev, next_dose_date: e.target.value }))}
+                        className="w-full px-3 py-2 border border-green-300 bg-white rounded-lg focus:ring-2 focus:ring-[#0056D2] focus:border-transparent"
+                      />
+                      <p className="mt-1 text-[11px] text-green-700">Em branco, o PETMOL calcula pelo protocolo da vacina.</p>
+                    </div>
+                  </div>
+                )}
               </div>
-
-              <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-800">
-                Lembrete ativo
-              </div>
-
-              <ReminderPicker
-                days={String(vaccineFormData.alert_days_before ?? 3)}
-                time={vaccineFormData.reminder_time ?? '09:00'}
-                onDaysChange={v => setVaccineFormData(prev => ({ ...prev, alert_days_before: parseInt(v) || 3 }))}
-                onTimeChange={v => setVaccineFormData(prev => ({ ...prev, reminder_time: v }))}
-              />
 
               {editingVaccine && (
                 <div className="text-xs text-gray-500 pt-2 border-t border-gray-100">
@@ -615,8 +658,8 @@ export function VaccineWorkflowModals({
                               placeholder={isProductMissing ? '🔍 Preencher' : 'Ex: Leptospirose'}
                             />
                           </div>
-                          <div>
-                            <div className="text-xs text-slate-500 mb-1">Aplicação</div>
+                          <div className="col-span-2">
+                            <div className="text-xs font-semibold text-slate-600 mb-1">Data da aplicação — confira com a carteirinha</div>
                             <input
                               type="date"
                               value={record.data_aplicacao || ''}
@@ -624,37 +667,44 @@ export function VaccineWorkflowModals({
                                 updateReviewRegistro(index, { data_aplicacao: e.target.value || null });
                                 setReviewConfirmed(false);
                               }}
-                              className={`w-full border rounded px-2 py-1 ${
-                                isDateMissing ? 'border-yellow-300 bg-yellow-50' : 'border-slate-200'
+                              className={`w-full border rounded px-2 py-2 text-base ${
+                                isDateMissing ? 'border-yellow-300 bg-yellow-50' : 'border-slate-300'
                               }`}
                             />
                             {isDateMissing && <div className="text-xs text-yellow-700 mt-1">📅 Selecionar data</div>}
                           </div>
-                          <div>
-                            <div className="text-xs text-slate-500 mb-1">Revacina</div>
-                            <input
-                              type="date"
-                              value={record.data_revacina || ''}
-                              onChange={(e) => {
-                                updateReviewRegistro(index, { data_revacina: e.target.value || null });
-                                setReviewConfirmed(false);
-                              }}
-                              className="w-full border border-slate-200 rounded px-2 py-1"
-                              placeholder="Opcional"
-                            />
-                          </div>
-                          <div className="col-span-2">
-                            <div className="text-xs text-slate-500 mb-1">Veterinário</div>
-                            <input
-                              value={record.veterinario_responsavel || ''}
-                              onChange={(e) => {
-                                updateReviewRegistro(index, { veterinario_responsavel: e.target.value || null });
-                                setReviewConfirmed(false);
-                              }}
-                              className="w-full border border-slate-200 rounded px-2 py-1"
-                              placeholder="Ex: Dr. João Silva"
-                            />
-                          </div>
+                          <details className="col-span-2 rounded border border-slate-200 bg-white px-2 py-1.5">
+                            <summary className="cursor-pointer text-xs text-slate-500">
+                              Revacina{record.data_revacina ? ` (${record.data_revacina})` : ' e veterinário'}
+                            </summary>
+                            <div className="mt-2 space-y-2">
+                              <div>
+                                <div className="text-xs text-slate-500 mb-1">Próxima dose (revacina)</div>
+                                <input
+                                  type="date"
+                                  value={record.data_revacina || ''}
+                                  onChange={(e) => {
+                                    updateReviewRegistro(index, { data_revacina: e.target.value || null });
+                                    setReviewConfirmed(false);
+                                  }}
+                                  className="w-full border border-slate-200 rounded px-2 py-1"
+                                  placeholder="Opcional — o PETMOL calcula pelo protocolo"
+                                />
+                              </div>
+                              <div>
+                                <div className="text-xs text-slate-500 mb-1">Veterinário</div>
+                                <input
+                                  value={record.veterinario_responsavel || ''}
+                                  onChange={(e) => {
+                                    updateReviewRegistro(index, { veterinario_responsavel: e.target.value || null });
+                                    setReviewConfirmed(false);
+                                  }}
+                                  className="w-full border border-slate-200 rounded px-2 py-1"
+                                  placeholder="Ex: Dr. João Silva"
+                                />
+                              </div>
+                            </div>
+                          </details>
                         </div>
 
                         {!record.data_aplicacao && (
