@@ -258,3 +258,51 @@ def coverage_stats(db: Session) -> dict:
         counts[status] = count
     counts["total"] = sum(counts.values())
     return counts
+
+
+# Status em que um produto ainda ESPERA casamento humano com a Petz —
+# nunca serviu link direto e ninguém disse "não tem na Petz". 'rejected' e
+# os DIRECT_LINK_ELIGIBLE_STATUSES ficam de fora: já foram decididos.
+PENDING_MATCH_STATUSES = frozenset({"unknown", "candidate", "ambiguous"})
+
+
+def _pending_match_query(db: Session, *, only_cobasi: bool = True):
+    """Base do painel de casamento Petz: produtos do catálogo que a Cobasi
+    (loja irmã, maior cobertura) tem e a Petz ainda não casou. Ordena por
+    popularidade real (nº de scans do tutor) — o que mais gente tem
+    primeiro."""
+    from .affiliate_feed import AffiliateFeedOffer
+    from .product_catalog_lookup import ProductCatalog, ProductScanEvent
+
+    decided = select(PetzProductMapping.product_id).where(
+        PetzProductMapping.match_status.notin_(tuple(PENDING_MATCH_STATUSES))
+    )
+    scan_count = (
+        select(ProductScanEvent.product_id, func.count(ProductScanEvent.id).label("n"))
+        .where(ProductScanEvent.product_id.is_not(None))
+        .group_by(ProductScanEvent.product_id)
+        .subquery()
+    )
+    q = (
+        select(ProductCatalog, func.coalesce(scan_count.c.n, 0).label("scans"))
+        .select_from(ProductCatalog)
+        .outerjoin(scan_count, scan_count.c.product_id == ProductCatalog.id)
+        .where(ProductCatalog.id.notin_(decided))
+    )
+    if only_cobasi:
+        cobasi_gtins = select(AffiliateFeedOffer.gtin).where(
+            AffiliateFeedOffer.merchant == "cobasi",
+            AffiliateFeedOffer.active.is_(True),
+            AffiliateFeedOffer.gtin.is_not(None),
+        )
+        q = q.where(ProductCatalog.barcode_normalized.in_(cobasi_gtins))
+    return q.order_by(func.coalesce(scan_count.c.n, 0).desc(), ProductCatalog.name)
+
+
+def petz_pending_match_count(db: Session, *, only_cobasi: bool = True) -> int:
+    """Quantos produtos esperam casamento Petz — pro e-mail diário do
+    admin não obrigar a abrir o painel toda hora."""
+    try:
+        return db.scalar(select(func.count()).select_from(_pending_match_query(db, only_cobasi=only_cobasi).subquery())) or 0
+    except Exception:
+        return 0

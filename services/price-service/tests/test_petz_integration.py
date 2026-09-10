@@ -1056,3 +1056,86 @@ def test_search_fallback_carries_catalog_weight(client, monkeypatch):
     _register_product(gtin="9990000000205", name="Ração Golden Fórmula Frango", brand="Golden", weight_kg=15.0)
     body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000205"}).json()
     assert "15kg" in body["search_url"].replace("+", "").replace("%2C", ",")
+
+
+# ── Painel de casamento assistido Petz (fila + evaluate) ─────────────────
+
+def test_match_queue_lists_pending_and_hides_decided(admin_client):
+    from src.petz_mapping import petz_pending_match_count
+
+    pend = _register_product(gtin="9990000000301", name="Ração A", weight_kg=3.0)
+    done = _register_product(gtin="9990000000302", name="Ração B", weight_kg=3.0)
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, done, petz_product_id="800302",
+            product_url="https://www.petz.com.br/produto/racao-b-800302",
+        )
+        before = petz_pending_match_count(db, only_cobasi=False)
+    finally:
+        db.close()
+
+    body = admin_client.get("/v1/admin/petz/queue", params={"only_cobasi": False}).json()
+    gtins = {i["gtin"] for i in body["items"]}
+    assert "9990000000301" in gtins
+    assert "9990000000302" not in gtins  # confirmado sai da fila
+    assert body["total"] == before >= 1
+    item = next(i for i in body["items"] if i["gtin"] == "9990000000301")
+    assert item["petz_search_url"].startswith("https://www.petz.com.br/busca?q=")
+
+
+def test_match_queue_only_cobasi_filters_by_feed(admin_client):
+    _register_product(gtin="9990000000311", name="Só no catálogo", weight_kg=1.0)
+    p_cobasi = _register_product(gtin="9990000000312", name="Na Cobasi", weight_kg=1.0)
+    db = SessionLocal()
+    try:
+        from src.affiliate_feed import AffiliateFeedOffer
+
+        db.add(AffiliateFeedOffer(
+            network="awin", merchant="cobasi", advertiser_id="17870",
+            external_product_id="c-312", gtin="9990000000312", title="Na Cobasi 1kg",
+            brand="X", active=True,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    body = admin_client.get("/v1/admin/petz/queue", params={"only_cobasi": True}).json()
+    gtins = {i["gtin"] for i in body["items"]}
+    assert "9990000000312" in gtins
+    assert "9990000000311" not in gtins
+
+
+def test_evaluate_flags_weight_conflict(admin_client):
+    _register_product(gtin="9990000000321", name="Ração X", brand="Golden", weight_kg=3.0)
+    resp = admin_client.post(
+        "/v1/admin/petz/products/9990000000321/evaluate",
+        json={"product_url": "https://www.petz.com.br/produto/racao-golden-x-15kg-800321"},
+    )
+    body = resp.json()
+    assert body["verdict"] == "conflict"
+    assert body["would_confirm"] is False
+    assert body["extracted_weight_kg"] == 15.0
+    assert body["catalog_weight_kg"] == 3.0
+    assert body["petz_product_id"] == "800321"
+
+
+def test_evaluate_accepts_aligned_candidate(admin_client):
+    _register_product(gtin="9990000000322", name="Ração Golden Fórmula Frango 15kg", brand="Golden", weight_kg=15.0)
+    resp = admin_client.post(
+        "/v1/admin/petz/products/9990000000322/evaluate",
+        json={"product_url": "https://www.petz.com.br/produto/racao-golden-formula-frango-15kg-800322"},
+    )
+    body = resp.json()
+    assert body["verdict"] in ("match", "weak")
+    assert body["would_confirm"] is True
+    assert body["cart_test_url"] and "800322" in body["cart_test_url"]
+
+
+def test_evaluate_rejects_non_product_url(admin_client):
+    _register_product(gtin="9990000000323", name="Ração", weight_kg=1.0)
+    resp = admin_client.post(
+        "/v1/admin/petz/products/9990000000323/evaluate",
+        json={"product_url": "https://www.petz.com.br/parceiro/PETMOL"},
+    )
+    assert resp.json()["verdict"] == "invalid"

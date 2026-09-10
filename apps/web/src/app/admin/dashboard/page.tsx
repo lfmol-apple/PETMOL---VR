@@ -37,6 +37,7 @@ const ADMIN_TOOLS: { href: string; label: string; highlight?: boolean }[] = [
   { href: '/admin/accounts', label: '👤 Contas' },
   { href: '/admin/pets', label: '🐾 Pets' },
   { href: '/admin/notifications', label: '🔔 Notificações' },
+  { href: '/admin/petz', label: '🔗 Casamento Petz' },
 ];
 
 export default function AdminDashboardPage() {
