@@ -241,32 +241,58 @@ class PetzSetAffiliateLinkRequest(BaseModel):
 
 class PetzQueueItem(BaseModel):
     """Uma linha do painel de casamento Petz — identidade PETMOL
-    (ancorada na Cobasi) + estado atual + link pronto de busca na Petz."""
+    (ancorada na Cobasi) + o que a Cobasi diz do produto + estado atual."""
     gtin: str
     product_id: int
     name: str
     canonical_name: Optional[str] = None
     brand: Optional[str] = None
     weight_kg: Optional[float] = None
+    volume_ml: Optional[float] = None
     pack_count: Optional[int] = None
     species: Optional[str] = None
+    product_line: Optional[str] = None
+    product_family: Optional[str] = None
+    flavor: Optional[str] = None
+    breed_size: Optional[str] = None
+    animal_weight_min_kg: Optional[float] = None
+    animal_weight_max_kg: Optional[float] = None
     thumbnail_url: Optional[str] = None
     scans: int = 0
     match_status: str = "unknown"
     rejection_reason: Optional[str] = None
     petz_search_url: str
+    suggested_search_term: str = ""
+    # O que a Cobasi (loja irmã, âncora de identidade) diz deste produto.
+    cobasi_title: Optional[str] = None
+    cobasi_description: Optional[str] = None
+    cobasi_category: Optional[str] = None
+    cobasi_url: Optional[str] = None
+    cobasi_image_url: Optional[str] = None
+    cobasi_price: Optional[float] = None
 
 
 class PetzQueueOut(BaseModel):
-    total: int
+    total: int          # tamanho da fila (produtos aguardando casamento)
     limit: int
     offset: int
     only_cobasi: bool
+    # Cobertura (no universo escolhido — só Cobasi por padrão):
+    catalog_total: int  # produtos elegíveis
+    matched: int        # já casados com a Petz (serve link)
+    rejected: int       # marcados "sem produto na Petz"
     items: List[PetzQueueItem]
 
 
 class PetzEvaluateRequest(BaseModel):
     product_url: str
+
+
+class PetzAttrCompare(BaseModel):
+    attribute: str          # rótulo legível (Peso, Marca, …)
+    catalog: Optional[str] = None
+    petz: Optional[str] = None
+    status: str = "unknown"  # match | conflict | unknown
 
 
 class PetzEvaluateOut(BaseModel):
@@ -279,6 +305,7 @@ class PetzEvaluateOut(BaseModel):
     catalog_weight_kg: Optional[float] = None
     cart_test_url: Optional[str] = None
     coupon_apply_url: Optional[str] = None
+    comparison: List[PetzAttrCompare] = []
 
 
 class PetzCoverageOut(BaseModel):

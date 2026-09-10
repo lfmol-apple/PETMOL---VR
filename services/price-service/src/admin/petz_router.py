@@ -33,6 +33,7 @@ from ..product_catalog_lookup import ProductCatalog, normalize_gtin
 from .deps import get_current_admin, get_current_admin_or_readonly_key
 from .schemas import (
     DeletedOut,
+    PetzAttrCompare,
     PetzCoverageOut,
     PetzEvaluateOut,
     PetzEvaluateRequest,
@@ -115,19 +116,61 @@ def get_match_queue(
     padrão só os que a Cobasi — loja irmã, maior cobertura — tem) que a
     Petz ainda não casou (`unknown`/`candidate`/`ambiguous`). Ordenada por
     popularidade real (nº de scans do tutor). Só leitura — aceita
-    ADMIN_OPS_API_KEY. Não busca nada na Petz (a busca é 403 Akamai
-    server-side); devolve o link `/busca?q=` pronto pro humano abrir."""
+    ADMIN_OPS_API_KEY.
+
+    Cada item traz a ficha da Cobasi (título, descrição, categoria, imagem,
+    preço) — é o que o humano lê pra saber o que procurar na Petz. Não
+    busca nada na Petz (a busca é 403 Akamai server-side); devolve o link
+    `/busca?q=` pronto pro humano abrir e o termo sugerido separado."""
+    from ..affiliate_feed import AffiliateFeedOffer
     from ..affiliate_links import petz_site_search_url
+    from ..petz_mapping import build_petz_search_query
 
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
     base = _pending_match_query(db, only_cobasi=only_cobasi)
     total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
 
+    # Cobertura no universo escolhido (só Cobasi por padrão).
+    cobasi_gtins = select(AffiliateFeedOffer.gtin).where(
+        AffiliateFeedOffer.merchant == "cobasi",
+        AffiliateFeedOffer.active.is_(True),
+        AffiliateFeedOffer.gtin.is_not(None),
+    )
+    catalog_q = select(func.count()).select_from(ProductCatalog)
+    matched_q = select(func.count(func.distinct(PetzProductMapping.product_id))).select_from(PetzProductMapping).join(
+        ProductCatalog, ProductCatalog.id == PetzProductMapping.product_id
+    ).where(PetzProductMapping.match_status.in_(tuple(DIRECT_LINK_ELIGIBLE_STATUSES)))
+    rejected_q = select(func.count(func.distinct(PetzProductMapping.product_id))).select_from(PetzProductMapping).join(
+        ProductCatalog, ProductCatalog.id == PetzProductMapping.product_id
+    ).where(PetzProductMapping.match_status == "rejected")
+    if only_cobasi:
+        catalog_q = catalog_q.where(ProductCatalog.barcode_normalized.in_(cobasi_gtins))
+        matched_q = matched_q.where(ProductCatalog.barcode_normalized.in_(cobasi_gtins))
+        rejected_q = rejected_q.where(ProductCatalog.barcode_normalized.in_(cobasi_gtins))
+    catalog_total = db.scalar(catalog_q) or 0
+    matched = db.scalar(matched_q) or 0
+    rejected = db.scalar(rejected_q) or 0
+
     items: list[PetzQueueItem] = []
     for product, scans in db.execute(base.offset(offset).limit(limit)).all():
         mapping = get_mapping(db, product.id)
         name = product.name or product.canonical_name or ""
+        term = build_petz_search_query(
+            brand=product.brand,
+            name=(product.canonical_name or name),
+            weight_kg=product.weight_kg,
+        ) or (product.canonical_name or name)
+        cobasi = db.scalar(
+            select(AffiliateFeedOffer)
+            .where(
+                AffiliateFeedOffer.merchant == "cobasi",
+                AffiliateFeedOffer.gtin == product.barcode_normalized,
+                AffiliateFeedOffer.active.is_(True),
+            )
+            .order_by(AffiliateFeedOffer.last_synced_at.desc().nullslast())
+            .limit(1)
+        )
         items.append(
             PetzQueueItem(
                 gtin=product.barcode_normalized,
@@ -136,18 +179,33 @@ def get_match_queue(
                 canonical_name=product.canonical_name,
                 brand=product.brand,
                 weight_kg=product.weight_kg,
+                volume_ml=getattr(product, "volume_ml", None),
                 pack_count=getattr(product, "pack_count", None),
                 species=getattr(product, "species", None),
-                thumbnail_url=getattr(product, "thumbnail_url", None),
+                product_line=getattr(product, "product_line", None),
+                product_family=getattr(product, "product_family", None),
+                flavor=getattr(product, "flavor", None),
+                breed_size=getattr(product, "breed_size", None),
+                animal_weight_min_kg=getattr(product, "animal_weight_min_kg", None),
+                animal_weight_max_kg=getattr(product, "animal_weight_max_kg", None),
+                thumbnail_url=getattr(product, "thumbnail_url", None) or (cobasi.image_url if cobasi else None),
                 scans=int(scans or 0),
                 match_status=mapping.match_status if mapping else "unknown",
                 rejection_reason=mapping.rejection_reason if mapping else None,
-                petz_search_url=petz_site_search_url(
-                    (product.canonical_name or name), product.brand, product.weight_kg
-                ),
+                petz_search_url=petz_site_search_url((product.canonical_name or name), product.brand, product.weight_kg),
+                suggested_search_term=term,
+                cobasi_title=cobasi.title if cobasi else None,
+                cobasi_description=(cobasi.description[:600] if cobasi and cobasi.description else None),
+                cobasi_category=cobasi.category if cobasi else None,
+                cobasi_url=(cobasi.merchant_url or cobasi.affiliate_url) if cobasi else None,
+                cobasi_image_url=cobasi.image_url if cobasi else None,
+                cobasi_price=cobasi.price if cobasi else None,
             )
         )
-    return PetzQueueOut(total=total, limit=limit, offset=offset, only_cobasi=only_cobasi, items=items)
+    return PetzQueueOut(
+        total=total, limit=limit, offset=offset, only_cobasi=only_cobasi,
+        catalog_total=catalog_total, matched=matched, rejected=rejected, items=items,
+    )
 
 
 @router.get("/backfill/catalog")
@@ -239,6 +297,7 @@ def evaluate_candidate_url(
     (não é URL de produto da Petz)."""
     from ..affiliate_links import PETZ_COUPON_APPLY_URL, deslug_petz_product_url, petz_cart_add_url
     from ..product_identity import (
+        AttributeStatus,
         IdentityDecision,
         MerchantCandidate,
         ProductIdentity,
@@ -263,19 +322,37 @@ def evaluate_candidate_url(
     cat_id = ProductIdentity.from_catalog(product)
     probe_id = ProductIdentity.build(canonical_name=deslug or "", weight_kg=extracted_weight)
     conflict = structural_conflict(cat_id, probe_id)
+    result = evaluate_identity(
+        cat_id, MerchantCandidate.build(merchant="petz", title=deslug, brand=product.brand)
+    )
+
+    # Tabela lado a lado: só os atributos que aparecem em algum dos dois.
+    _LABELS = {
+        "weight_kg": "Peso", "brand": "Marca", "pack_count": "Unidades",
+        "flavor": "Sabor", "species": "Espécie", "volume_ml": "Volume",
+        "breed_size": "Porte", "animal_weight_range": "Faixa de peso do pet",
+        "life_stage": "Fase", "product_family": "Família",
+    }
+    _STATUS = {AttributeStatus.MATCH: "match", AttributeStatus.CONFLICT: "conflict", AttributeStatus.UNKNOWN: "unknown"}
+    comparison = [
+        PetzAttrCompare(
+            attribute=_LABELS.get(a.attribute, a.attribute),
+            catalog=None if a.expected is None else str(a.expected),
+            petz=None if a.observed is None else str(a.observed),
+            status=_STATUS.get(a.status, "unknown"),
+        )
+        for a in result.attributes
+        if a.attribute in _LABELS and (a.expected is not None or a.observed is not None)
+    ]
 
     if conflict:
         verdict, reason, would_confirm = "conflict", conflict, False
+    elif result.decision in (IdentityDecision.EXACT, IdentityDecision.HIGH_CONFIDENCE):
+        verdict, would_confirm = "match", True
+        reason = ", ".join(result.reasons) or None
     else:
-        result = evaluate_identity(
-            cat_id, MerchantCandidate.build(merchant="petz", title=deslug, brand=product.brand)
-        )
-        if result.decision in (IdentityDecision.EXACT, IdentityDecision.HIGH_CONFIDENCE):
-            verdict, would_confirm = "match", True
-            reason = ", ".join(result.reasons) or None
-        else:
-            verdict, would_confirm = "weak", True
-            reason = f"{result.decision.value.lower()} — {', '.join(result.reasons) or 'sem sinal forte de identidade'}"
+        verdict, would_confirm = "weak", True
+        reason = f"{result.decision.value.lower()} — {', '.join(result.reasons) or 'sem sinal forte de identidade'}"
 
     return PetzEvaluateOut(
         verdict=verdict,
@@ -287,6 +364,7 @@ def evaluate_candidate_url(
         catalog_weight_kg=product.weight_kg,
         cart_test_url=petz_cart_add_url(petz_pid) if petz_pid else None,
         coupon_apply_url=PETZ_COUPON_APPLY_URL if petz_pid else None,
+        comparison=comparison,
     )
 
 
