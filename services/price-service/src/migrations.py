@@ -649,6 +649,15 @@ def run_pg_migrations(engine: Engine) -> None:
         except Exception as exc:
             logger.info("petz Royal Canin Urinary fix pulado: %s", exc)
 
+        # petz_product_mappings.variant_label era VARCHAR(120) — nome real
+        # de variante da Petz passa disso e o INSERT inteiro quebrava com
+        # StringDataRightTruncation (visto no bulk-import de ~2700 itens
+        # reais em 11/09/2026). Widening pra Text, sem limite.
+        if _pg_column_type(conn, "petz_product_mappings", "variant_label") == "character varying":
+            conn.execute(text(
+                'ALTER TABLE "petz_product_mappings" ALTER COLUMN "variant_label" TYPE TEXT'
+            ))
+
 
 def _migrate_push_subscriptions_from_json(conn) -> None:
     """One-time import of the legacy push_subscriptions.json (file-based,
