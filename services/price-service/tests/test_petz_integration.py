@@ -1178,6 +1178,47 @@ def test_search_term_carries_collar_length(client, monkeypatch):
     assert "48cm" in body["search_url"].replace("+", "").replace("%2C", ",")
 
 
+def test_shared_variant_page_never_gets_cart_prefill(client, monkeypatch):
+    """Sistema, não conserto pontual: QUALQUER produto cujo petz_product_id
+    a auditoria (find_petz_id_conflicts) pega compartilhado por pesos
+    diferentes nunca monta carrinho pré-montado — nem pro GTIN com
+    mapping confirmado, nem pro GTIN que só cai no seed. Reproduz o
+    incidente real (Royal Canin Urinary Small Dog 2kg/7,5kg no mesmo
+    petz_product_id)."""
+    from src.affiliate_links import _PETZ_GTIN_PRODUCT_ID_SEED, _petz_gtin_product_id_map
+    from src.petz_mapping import _clear_shared_variant_cache
+
+    _enable_petz_cart_prefill(monkeypatch)
+    _register_product(gtin="9990000000701", name="Ração RC Urinary 2kg", brand="Royal Canin", weight_kg=2.0)
+    pid_75 = _register_product(gtin="9990000000702", name="Ração RC Urinary 7,5kg", brand="Royal Canin", weight_kg=7.5)
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, pid_75, petz_product_id="777100",
+            product_url="https://www.petz.com.br/produto/racao-rc-urinary-777100",
+        )
+    finally:
+        db.close()
+    monkeypatch.setitem(_PETZ_GTIN_PRODUCT_ID_SEED, "9990000000701", "777100")
+    _petz_gtin_product_id_map.cache_clear()
+    _clear_shared_variant_cache()
+    try:
+        # GTIN com mapping confirmado (7,5kg): direct_product_url segue
+        # servindo (a página em si está certa), mas SEM carrinho.
+        body_75 = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000702"}).json()
+        assert body_75["cart_add_url"] is None
+        assert body_75["destination"] != "cart"
+        assert body_75["direct_product_url"] == "https://www.petz.com.br/produto/racao-rc-urinary-777100"
+
+        # GTIN só no seed (2kg): também sem carrinho — mesmo id compartilhado.
+        body_2 = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000701"}).json()
+        assert body_2["cart_add_url"] is None
+        assert body_2["destination"] != "cart"
+    finally:
+        _petz_gtin_product_id_map.cache_clear()
+        _clear_shared_variant_cache()
+
+
 def test_petz_search_first_suppresses_direct_and_cart(client, monkeypatch):
     _enable_petz_search_first(monkeypatch)
     product_id = _register_product(gtin="9990000000402", name="Coleira Scalibor", brand="Scalibor")
