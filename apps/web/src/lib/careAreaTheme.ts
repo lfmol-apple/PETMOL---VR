@@ -75,8 +75,8 @@ export const CARE_AREA_THEME: Record<CareAreaKey, CareAreaTheme> = {
   },
   collar: {
     label: 'Coleira', emoji: '📿',
-    accentText: 'text-violet-700', accentBg: 'bg-violet-50', accentBorder: 'border-violet-200',
-    focusRing: 'focus:ring-violet-400',
+    accentText: 'text-orange-700', accentBg: 'bg-orange-50', accentBorder: 'border-orange-200',
+    focusRing: 'focus:ring-orange-400',
   },
   medication: {
     label: 'Medicação', emoji: '💊',
