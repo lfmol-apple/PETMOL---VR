@@ -261,12 +261,6 @@ class PetzQueueItem(BaseModel):
     scans: int = 0
     match_status: str = "unknown"
     rejection_reason: Optional[str] = None
-    # Casamento automático anterior (não conferido por humano) — o painel
-    # mostra pra onde ele aponta hoje e pede reconferência.
-    needs_reverify: bool = False
-    current_petz_product_id: Optional[str] = None
-    current_petz_url: Optional[str] = None
-    current_variant_label: Optional[str] = None
     petz_search_url: str
     suggested_search_term: str = ""
     # O que a Cobasi (loja irmã, âncora de identidade) diz deste produto.

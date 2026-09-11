@@ -547,13 +547,6 @@ def run_pg_migrations(engine: Engine) -> None:
         # apagados. A página pública /p/[id] e /v/[token] também.
         conn.execute(text("DROP TABLE IF EXISTS rg_public CASCADE"))
 
-        # 2026-09: só mapeamento Petz que um humano confirmou olhando a
-        # página serve link direto (ver incidente coleira Scalibor —
-        # 81288 G servida no lugar da 81287 M). Coluna default False → os
-        # mapeamentos que já existem (palpites de backfill) param de
-        # servir link direto e voltam pra fila do painel.
-        _pg_add_column_if_missing(conn, "petz_product_mappings", "human_verified", "BOOLEAN DEFAULT FALSE NOT NULL")
-
         # 2026-09: varredura única de identidade dos mapeamentos Petz.
         # Mapeamento cuja variante de peso confirmada diverge >5% do peso do
         # produto do catálogo aponta pro TAMANHO ERRADO ("Ração X 3kg" no
@@ -1031,7 +1024,6 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "identity_evidence_json", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "flavor", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "products_catalog", "identity_enriched_at", "TEXT")
-        changed |= _sqlite_add_column_if_missing(conn, "petz_product_mappings", "human_verified", "BOOLEAN DEFAULT 0 NOT NULL")
         changed |= _sqlite_add_column_if_missing(conn, "affiliate_feed_offers", "description", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "affiliate_feed_offers", "mpn", "TEXT")
 
