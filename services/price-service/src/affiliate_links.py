@@ -214,7 +214,13 @@ PETZ_CURATED_SEARCH: dict[str, str] = {
 #      similaridade de nome). Regerado e commitado; não é editado à mão.
 # Ver docs/PETZ_COMMISSION_VALIDATION.md.
 _PETZ_GTIN_PRODUCT_ID_SEED: dict[str, str] = {
-    "7896181298083": "100223",   # Royal Canin Veterinary Urinary Small Dog 2 kg
+    # Royal Canin Urinary Small Dog: a URL do produto é COMPARTILHADA
+    # entre 2kg e 7,5kg (mesmo id "100223" na página) — usar o "Código"
+    # de SKU que aparece na tela ao selecionar cada peso, não o id da
+    # URL. Confirmado ao vivo 11/09: comprarAgora?prod=10001330000135
+    # abriu o carrinho com o preço exato do 7,5kg (R$ 457,81).
+    "7896181298083": "10001330000134",  # Royal Canin Veterinary Urinary Small Dog 2 kg
+    "7896181298090": "10001330000135",  # Royal Canin Veterinary Urinary Small Dog 7,5 kg
     "7896181212454": "71705",    # Royal Canin Mini Indoor Adult 7,5 kg
     "7896181212430": "71703",    # Royal Canin Mini Indoor Adult 1 kg
     "7891106903714": "83755",    # Drontal Plus Cães 10 kg — 2 comprimidos

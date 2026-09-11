@@ -235,6 +235,38 @@ class PetzMappingRejectRequest(BaseModel):
     reason: Optional[str] = None
 
 
+class PetzBulkImportItem(BaseModel):
+    """Uma linha vinda da API de busca JSON da própria Petz (coletada do
+    navegador do dono, ver script "coleta em lote"). `barcode` é o GTIN —
+    a chave de casamento exata, não estimada."""
+    barcode: str
+    sku: str
+    id: Optional[str] = None
+    name: Optional[str] = None
+    brand: Optional[str] = None
+    price: Optional[float] = None
+    url: Optional[str] = None
+    category: Optional[str] = None
+
+
+class PetzBulkImportRequest(BaseModel):
+    items: List[PetzBulkImportItem]
+
+
+class PetzBulkImportSkip(BaseModel):
+    barcode: str
+    reason: str
+
+
+class PetzBulkImportOut(BaseModel):
+    received: int
+    matched: int
+    no_catalog_product: int
+    weight_conflict: int
+    invalid_url: int
+    skips: List[PetzBulkImportSkip] = []
+
+
 class PetzSetAffiliateLinkRequest(BaseModel):
     affiliate_product_url: str
 

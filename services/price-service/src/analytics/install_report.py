@@ -72,6 +72,27 @@ def send_daily_install_report() -> bool:
             else ""
         )
 
+        # Auditoria de conflito (ver find_petz_id_conflicts): produto já
+        # casado cujo petz_product_id é compartilhado por peso/tamanho
+        # diferente — o carrinho pré-montado já foi desligado sozinho pra
+        # esse item, mas alguém tem que achar o "Código" de SKU certo na
+        # tela da Petz (ver PR #341) pra ele voltar a funcionar. Sem isso
+        # no e-mail, o admin só descobre testando produto por produto.
+        try:
+            from ..petz_mapping import find_petz_id_conflicts
+
+            petz_conflicts = find_petz_id_conflicts(db)["conflicts"]
+        except Exception:
+            petz_conflicts = []
+        petz_conflict_block = (
+            f"<p style='margin:10px 0 0;padding:10px 12px;background:#FEF2F2;border-radius:8px;font-size:13px'>"
+            f"⚠️ <b>{len(petz_conflicts)}</b> produto{'s' if len(petz_conflicts) != 1 else ''} já casado "
+            f"com a Petz num id compartilhado por peso/tamanho diferente (carrinho automático desligado até "
+            f"corrigir) — <a href='https://www.petmol.com.br/admin/petz' style='color:#0056D2'>ver no painel</a></p>"
+            if petz_conflicts
+            else ""
+        )
+
         html = f"""
 <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#1f2937">
   <h2 style="color:#0056D2;margin:0 0 4px">📲 Downloads do PETMOL — {dia}</h2>
@@ -88,10 +109,13 @@ def send_daily_install_report() -> bool:
     Localização vem do IP — só cidade, sem rua/bairro (nenhum geo-IP dá isso).
   </p>
   {petz_block}
+  {petz_conflict_block}
 </div>"""
         text = f"Downloads PETMOL {dia}\n" + "\n".join(
             f"  {c} {r} {co}: {n}" for (c, r, co), n in sorted(by_place.items(), key=lambda kv: -kv[1])
         ) + f"\n\nTotal: {total}"
+        if petz_conflicts:
+            text += f"\n\n⚠️ {len(petz_conflicts)} produto(s) Petz com id compartilhado por peso diferente — /admin/petz"
         if petz_pending:
             text += f"\n\n{petz_pending} produto(s) aguardando casamento com a Petz — /admin/petz"
 

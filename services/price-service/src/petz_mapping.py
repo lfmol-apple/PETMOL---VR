@@ -391,3 +391,49 @@ def find_petz_id_conflicts(db: Session) -> dict:
             })
 
     return {"conflicts": conflicts, "invalid_ids": invalid_ids}
+
+
+_shared_variant_cache: "TTLCache" = None  # inicializado sob demanda (ver shared_variant_petz_ids)
+
+
+def shared_variant_petz_ids() -> frozenset[str]:
+    """IDs da Petz que `find_petz_id_conflicts` pegou compartilhados por
+    produtos de peso/tamanho diferente — a Petz junta essas variantes
+    numa página só, com seletor (ex.: Royal Canin Urinary Small Dog
+    2kg/7,5kg, ração RC Mini, etc.). Pra esses, `/commerce/petz-direct-link`
+    NUNCA usa carrinho pré-montado (ele adicionaria um peso fixo — que
+    pode não ser o do tutor). Continua servindo o link/busca pra página —
+    a Petz mostra o seletor, o tutor escolhe o peso dele mesmo lá.
+
+    Aplica-se automaticamente a QUALQUER produto do catálogo que caia
+    nesse padrão, sem precisar descobrir um por um — é a resposta pra
+    "quero isso resolvido pra todo o catálogo, não só o produto que eu
+    testei". Cache de 10min (SessionLocal próprio; estado dos
+    mapeamentos muda raramente, não é por request)."""
+    from cachetools import TTLCache
+
+    global _shared_variant_cache
+    if _shared_variant_cache is None:
+        _shared_variant_cache = TTLCache(maxsize=1, ttl=600)
+    cached = _shared_variant_cache.get("ids")
+    if cached is not None:
+        return cached
+
+    from .db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        result = find_petz_id_conflicts(db)
+        ids = frozenset(c["petz_product_id"] for c in result["conflicts"])
+    except Exception:
+        return frozenset()
+    finally:
+        db.close()
+    _shared_variant_cache["ids"] = ids
+    return ids
+
+
+def _clear_shared_variant_cache() -> None:
+    """Só pra teste — força `shared_variant_petz_ids()` a recalcular."""
+    global _shared_variant_cache
+    _shared_variant_cache = None

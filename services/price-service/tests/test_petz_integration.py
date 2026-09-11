@@ -668,14 +668,17 @@ def test_petz_direct_link_cart_prefill_on_unconfirmed_product_falls_back(client,
 
 def test_petz_direct_link_cart_prefill_seed_gtin_without_mapping(client, monkeypatch):
     """Flag ON, produto SEM mapping mas com GTIN no mapa curado
-    (`petz_product_id_for_gtin`) → carrinho pré-montado destrava mesmo assim."""
+    (`petz_product_id_for_gtin`) → carrinho pré-montado destrava mesmo
+    assim. Usa o "Código" de SKU (10001330000134) — não o id da URL
+    (100223), que é compartilhado entre pesos e por isso nunca serviria
+    carrinho (ver shared_variant_petz_ids)."""
     _enable_petz_cart_prefill(monkeypatch)
-    _register_product(gtin="7896181298083")  # seed → Petz prod 100223
+    _register_product(gtin="7896181298083")  # seed → Petz 10001330000134 (2kg)
     body = client.get("/commerce/petz-direct-link", params={"gtin": "7896181298083"}).json()
     assert body["destination"] == "cart"
-    assert body["cart_add_url"] == "https://www.petz.com.br/comprarAgora_Loja.html?prod=100223&qtde=1"
+    assert body["cart_add_url"] == "https://www.petz.com.br/comprarAgora_Loja.html?prod=10001330000134&qtde=1"
     assert body["coupon_apply_url"] == "https://www.petz.com.br/aplicarCupom_Loja.html?cupom=PETMOL"
-    assert body["petz_product_id"] == "100223"
+    assert body["petz_product_id"] == "10001330000134"
     assert body["direct_product_url"] is None  # mapa curado NÃO cria página exata
 
 
@@ -775,6 +778,67 @@ def test_audit_flags_non_numeric_petz_product_id(admin_client):
         db.close()
     body = admin_client.get("/v1/admin/petz/audit/conflicts").json()
     assert any(p["gtin"] == "9990000000605" for p in body["invalid_ids"])
+
+
+# ── Casamento em lote via API de busca real da Petz ──────────────────────
+#
+# O dono coleta, do navegador dele, os resultados reais da busca JSON da
+# Petz (que devolve o GTIN de cada variação) e manda pra cá. O casamento
+# é por GTIN exato — não é estimativa, não precisa de revisão visual.
+
+def test_bulk_import_matches_by_exact_barcode(admin_client):
+    _register_product(gtin="7896181298083", name="Ração RC Urinary", brand="Royal Canin", weight_kg=2.0)
+    _register_product(gtin="7896181298090", name="Ração RC Urinary 7,5kg", brand="Royal Canin", weight_kg=7.5)
+
+    body = admin_client.post("/v1/admin/petz/bulk-import", json={"items": [
+        {
+            "barcode": "7896181298083", "sku": "10001330000134", "id": "100223",
+            "name": "Ração Seca Royal Canin Veterinary Diet Urinary Small Dog - 2 kg",
+            "brand": "Royal Canin", "price": 154.99,
+            "url": "www.petz.com.br/produto/racao-royal-canin-urinary-100223",
+        },
+        {
+            "barcode": "7896181298090", "sku": "10001330000135", "id": "100224",
+            "name": "Ração Seca Royal Canin Veterinary Diet Urinary Small Dog - 7,5 kg",
+            "brand": "Royal Canin", "price": 457.81,
+            "url": "https://www.petz.com.br/produto/racao-seca-royal-canin-urinary-100224",
+        },
+    ]}).json()
+
+    assert body["received"] == 2
+    assert body["matched"] == 2
+    assert body["no_catalog_product"] == 0
+    assert body["weight_conflict"] == 0
+
+    resp2 = admin_client.get("/v1/admin/petz/products/7896181298083/status").json()
+    resp75 = admin_client.get("/v1/admin/petz/products/7896181298090/status").json()
+    assert resp2["petz_product_id"] == "10001330000134"
+    assert resp75["petz_product_id"] == "10001330000135"
+    assert resp2["match_confidence"] == 1.0
+
+
+def test_bulk_import_rejects_weight_conflict_and_skips_missing_gtin(admin_client):
+    _register_product(gtin="7896181298083", name="Ração RC Urinary", brand="Royal Canin", weight_kg=2.0)
+
+    body = admin_client.post("/v1/admin/petz/bulk-import", json={"items": [
+        {
+            # peso do item (7,5 kg) diverge do catálogo (2 kg) → recusado
+            "barcode": "7896181298083", "sku": "999999",
+            "name": "Ração Seca Royal Canin Veterinary Diet Urinary Small Dog - 7,5 kg",
+            "url": "https://www.petz.com.br/produto/racao-outra-999999",
+        },
+        {
+            # GTIN que não existe no nosso catálogo — pulado, não é erro
+            "barcode": "0000000000000", "sku": "111111",
+            "name": "Produto qualquer", "url": "https://www.petz.com.br/produto/x-111111",
+        },
+    ]}).json()
+
+    assert body["received"] == 2
+    assert body["matched"] == 0
+    assert body["weight_conflict"] == 1
+    assert body["no_catalog_product"] == 1
+    assert any("peso diverge" in s["reason"] for s in body["skips"])
 
 
 def test_backfill_catalog_dump_lists_unmapped_products(admin_client):
@@ -1176,6 +1240,88 @@ def test_search_term_carries_collar_length(client, monkeypatch):
     )
     body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000401"}).json()
     assert "48cm" in body["search_url"].replace("+", "").replace("%2C", ",")
+
+
+def test_distinct_sku_code_per_weight_resolves_the_conflict(client, admin_client, monkeypatch):
+    """Quando cada peso ganha o CÓDIGO DE SKU certo (não o id da URL
+    compartilhada), a auditoria não vê mais conflito — e o carrinho
+    pré-montado volta a funcionar, com o peso certo pra cada GTIN.
+    Reproduz a correção real: Royal Canin Urinary Small Dog 2kg
+    (código 10001330000134) e 7,5kg (10001330000135), confirmado ao vivo
+    no carrinho real da Petz."""
+    from src.petz_mapping import _clear_shared_variant_cache
+
+    _enable_petz_cart_prefill(monkeypatch)
+    pid_2 = _register_product(gtin="9990000000801", name="Ração RC Urinary 2kg", brand="Royal Canin", weight_kg=2.0)
+    pid_75 = _register_product(gtin="9990000000802", name="Ração RC Urinary 7,5kg", brand="Royal Canin", weight_kg=7.5)
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, pid_2, petz_product_id="888001",
+            product_url="https://www.petz.com.br/produto/racao-rc-urinary-999999",
+            variant_label="2 kg", variant_weight_kg=2.0,
+        )
+        confirm_petz_mapping(
+            db, pid_75, petz_product_id="888002",
+            product_url="https://www.petz.com.br/produto/racao-rc-urinary-999999",
+            variant_label="7,5 kg", variant_weight_kg=7.5,
+        )
+    finally:
+        db.close()
+    _clear_shared_variant_cache()
+    try:
+        audit = admin_client.get("/v1/admin/petz/audit/conflicts").json()
+        assert not any(
+            "9990000000801" in {p["gtin"] for p in c["products"]} for c in audit["conflicts"]
+        )
+
+        body_2 = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000801"}).json()
+        body_75 = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000802"}).json()
+        assert body_2["cart_add_url"] == "https://www.petz.com.br/comprarAgora_Loja.html?prod=888001&qtde=1"
+        assert body_75["cart_add_url"] == "https://www.petz.com.br/comprarAgora_Loja.html?prod=888002&qtde=1"
+    finally:
+        _clear_shared_variant_cache()
+
+
+def test_shared_variant_page_never_gets_cart_prefill(client, monkeypatch):
+    """Sistema, não conserto pontual: QUALQUER produto cujo petz_product_id
+    a auditoria (find_petz_id_conflicts) pega compartilhado por pesos
+    diferentes nunca monta carrinho pré-montado — nem pro GTIN com
+    mapping confirmado, nem pro GTIN que só cai no seed. Reproduz o
+    incidente real (Royal Canin Urinary Small Dog 2kg/7,5kg no mesmo
+    petz_product_id)."""
+    from src.affiliate_links import _PETZ_GTIN_PRODUCT_ID_SEED, _petz_gtin_product_id_map
+    from src.petz_mapping import _clear_shared_variant_cache
+
+    _enable_petz_cart_prefill(monkeypatch)
+    _register_product(gtin="9990000000701", name="Ração RC Urinary 2kg", brand="Royal Canin", weight_kg=2.0)
+    pid_75 = _register_product(gtin="9990000000702", name="Ração RC Urinary 7,5kg", brand="Royal Canin", weight_kg=7.5)
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, pid_75, petz_product_id="777100",
+            product_url="https://www.petz.com.br/produto/racao-rc-urinary-777100",
+        )
+    finally:
+        db.close()
+    monkeypatch.setitem(_PETZ_GTIN_PRODUCT_ID_SEED, "9990000000701", "777100")
+    _petz_gtin_product_id_map.cache_clear()
+    _clear_shared_variant_cache()
+    try:
+        # GTIN com mapping confirmado (7,5kg): direct_product_url segue
+        # servindo (a página em si está certa), mas SEM carrinho.
+        body_75 = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000702"}).json()
+        assert body_75["cart_add_url"] is None
+        assert body_75["destination"] != "cart"
+        assert body_75["direct_product_url"] == "https://www.petz.com.br/produto/racao-rc-urinary-777100"
+
+        # GTIN só no seed (2kg): também sem carrinho — mesmo id compartilhado.
+        body_2 = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000701"}).json()
+        assert body_2["cart_add_url"] is None
+        assert body_2["destination"] != "cart"
+    finally:
+        _petz_gtin_product_id_map.cache_clear()
+        _clear_shared_variant_cache()
 
 
 def test_petz_search_first_suppresses_direct_and_cart(client, monkeypatch):

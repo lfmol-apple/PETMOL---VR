@@ -1569,7 +1569,7 @@ async def commerce_petz_direct_link(
         petz_cart_add_url,
         PETZ_COUPON_APPLY_URL,
     )
-    from .petz_mapping import DIRECT_LINK_ELIGIBLE_STATUSES, get_mapping
+    from .petz_mapping import DIRECT_LINK_ELIGIBLE_STATUSES, get_mapping, shared_variant_petz_ids
     from .petz_provider import is_petz_publicly_servable
     from .product_catalog_lookup import ProductCatalog, normalize_gtin
 
@@ -1644,7 +1644,17 @@ async def commerce_petz_direct_link(
             # petz_product_id, o bridge pode montar o carrinho da Petz com
             # o produto + cupom PETMOL já aplicado (2 navegações Struts —
             # ver affiliate_links.py / comentário do flag em config.py).
-            if petz_product_id and bool(get_settings().petz_cart_prefill):
+            # NUNCA quando este id é uma PÁGINA COMPARTILHADA entre pesos
+            # diferentes (`shared_variant_petz_ids`, alimentado pela
+            # auditoria find_petz_id_conflicts) — o carrinho adicionaria
+            # um peso fixo que pode não ser o do tutor. Aplica-se a
+            # QUALQUER produto do catálogo nesse padrão, automaticamente
+            # (ver incidente ração Royal Canin Urinary Small Dog 2kg/7,5kg).
+            if (
+                petz_product_id
+                and bool(get_settings().petz_cart_prefill)
+                and petz_product_id not in shared_variant_petz_ids()
+            ):
                 cart_add_url = petz_cart_add_url(petz_product_id)
             # Produto confirmado → busca curada (verificada) > deslug da
             # URL do produto. "Ver na Petz" abre /busca (a AASA da Petz
@@ -1667,7 +1677,8 @@ async def commerce_petz_direct_link(
         fallback_pid = petz_product_id_for_gtin(gtin_normalized)
         if fallback_pid:
             petz_product_id = petz_product_id or fallback_pid
-            cart_add_url = petz_cart_add_url(fallback_pid)
+            if fallback_pid not in shared_variant_petz_ids():
+                cart_add_url = petz_cart_add_url(fallback_pid)
             if curated_search is None:
                 curated_search = PETZ_CURATED_SEARCH.get(fallback_pid) or None
 

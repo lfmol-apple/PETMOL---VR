@@ -36,6 +36,9 @@ from .schemas import (
     DeletedOut,
     PetzAttrCompare,
     PetzAuditOut,
+    PetzBulkImportOut,
+    PetzBulkImportRequest,
+    PetzBulkImportSkip,
     PetzCoverageOut,
     PetzEvaluateOut,
     PetzEvaluateRequest,
@@ -432,6 +435,85 @@ def reject(
     product = _resolve_product(db, gtin)
     mapping = reject_petz_candidate(db, product.id, reason=payload.reason)
     return _to_out(mapping, product.barcode_normalized)
+
+
+@router.post("/bulk-import", response_model=PetzBulkImportOut)
+def bulk_import(
+    payload: PetzBulkImportRequest,
+    db: Session = Depends(get_db),
+    current=Depends(get_current_admin),
+):
+    """Casamento em lote a partir de dados reais da própria Petz — cada
+    item vem com o GTIN (`barcode`) que a Petz devolve pra aquela
+    variação exata, coletado da API pública de busca da Petz
+    (`busca?q=...&json=products`) pelo navegador do dono (a Petz bloqueia
+    acesso automatizado de servidor — 403). O casamento aqui NÃO é visual
+    nem por nome: é igualdade de código de barras, a mesma chave que o
+    resto do sistema usa pra identidade de produto.
+
+    Pra cada item: acha o produto do catálogo pelo GTIN; se achar, chama
+    confirm_petz_mapping com o peso extraído do NOME do item da Petz — a
+    guarda de identidade do #333 (PetzVariantConflictError) ainda roda,
+    então um item cujo peso não bate com o catálogo é recusado e
+    reportado, nunca aplicado às cegas. Sem produto correspondente no
+    catálogo → pulado (não é erro, só não é um GTIN nosso).
+
+    Idempotente: rodar de novo com os mesmos dados não piora nada — só
+    reconfirma. NUNCA sobrescreve pra pior (a guarda de peso protege)."""
+    from ..shopee_offer_matcher import extract_weight_kg
+
+    received = len(payload.items)
+    matched = 0
+    no_catalog_product = 0
+    weight_conflict = 0
+    invalid_url = 0
+    skips: list[PetzBulkImportSkip] = []
+
+    for item in payload.items:
+        gtin_normalized = normalize_gtin(item.barcode)
+        if not gtin_normalized:
+            no_catalog_product += 1
+            continue
+        product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin_normalized))
+        if product is None:
+            no_catalog_product += 1
+            continue
+
+        raw_url = (item.url or "").strip()
+        if raw_url and not raw_url.startswith(("http://", "https://")):
+            raw_url = f"https://{raw_url}"
+        try:
+            clean_url = validate_petz_product_url(raw_url) if raw_url else None
+        except InvalidPetzAffiliateUrlError as exc:
+            invalid_url += 1
+            skips.append(PetzBulkImportSkip(barcode=item.barcode, reason=f"URL inválida: {exc}"))
+            continue
+        if not clean_url:
+            invalid_url += 1
+            skips.append(PetzBulkImportSkip(barcode=item.barcode, reason="sem URL de produto"))
+            continue
+
+        variant_weight = extract_weight_kg(item.name or "")
+        try:
+            confirm_petz_mapping(
+                db, product.id,
+                petz_product_id=(item.sku or item.id or "").strip(),
+                product_url=clean_url,
+                variant_label=item.name,
+                variant_weight_kg=variant_weight,
+                match_confidence=1.0,  # GTIN exato — não é estimativa
+            )
+            matched += 1
+        except PetzVariantConflictError as exc:
+            weight_conflict += 1
+            skips.append(PetzBulkImportSkip(barcode=item.barcode, reason=f"peso diverge do catálogo: {exc}"))
+        except Exception as exc:
+            skips.append(PetzBulkImportSkip(barcode=item.barcode, reason=str(exc)))
+
+    return PetzBulkImportOut(
+        received=received, matched=matched, no_catalog_product=no_catalog_product,
+        weight_conflict=weight_conflict, invalid_url=invalid_url, skips=skips[:200],
+    )
 
 
 @router.post("/products/{gtin}/affiliate-link", response_model=PetzMappingOut)
