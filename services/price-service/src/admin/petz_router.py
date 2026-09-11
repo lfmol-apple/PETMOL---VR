@@ -508,6 +508,7 @@ def bulk_import(
             weight_conflict += 1
             skips.append(PetzBulkImportSkip(barcode=item.barcode, reason=f"peso diverge do catálogo: {exc}"))
         except Exception as exc:
+            db.rollback()
             skips.append(PetzBulkImportSkip(barcode=item.barcode, reason=str(exc)))
 
     return PetzBulkImportOut(
