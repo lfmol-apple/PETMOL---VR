@@ -260,9 +260,9 @@ export async function fetchPetzDirectLink(
 }
 
 export async function fetchCommerceOffers(query: string, packageSizeKg?: number, gtin?: string): Promise<CommerceOffer[]> {
-  const trimmed = query.trim();
-  if (!trimmed && !gtin) return [];
   try {
+    const trimmed = (query || '').trim();
+    if (!trimmed && !gtin) return [];
     const params = new URLSearchParams();
     if (trimmed) params.set('q', trimmed);
     if (typeof packageSizeKg === 'number' && packageSizeKg > 0) {
