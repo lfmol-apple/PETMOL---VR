@@ -200,7 +200,8 @@ PETZ_CURATED_SEARCH: dict[str, str] = {
     "biscoito-pedigree-biscrok-multi-para-caes-adultos": "biscoito pedigree biscrok multi",
     "83755": "drontal plus para caes de 10 kg",
     "94808": "nexgard caes 4,1 a 10",
-    "81288": "coleira antiparasitas scalibor",
+    "81287": "coleira antiparasitas scalibor",  # M / 48 cm
+    "81288": "coleira antiparasitas scalibor",  # G / 65 cm
 }
 
 # GTIN (catálogo PETMOL) → id do produto na loja da Petz. É o que faz o
@@ -219,8 +220,10 @@ _PETZ_GTIN_PRODUCT_ID_SEED: dict[str, str] = {
     "7891106903714": "83755",    # Drontal Plus Cães 10 kg — 2 comprimidos
     "7896029041956": "72452",    # Biscoito Pedigree Biscrok Multi 1 kg
     "7896029041932": "72451",    # Biscoito Pedigree Biscrok Multi 500 g
-    "7896185907004": "81287",    # Coleira Scalibor M
-    "8713184142108": "81288",    # Coleira Scalibor G
+    "7896185957009": "81287",    # Coleira Scalibor Cães Pequenos e Médios — M / 48 cm
+    "7896185907004": "81287",    # Coleira Scalibor M / 48 cm
+    "7896185907011": "81288",    # Coleira Scalibor Cães Grandes — G / 65 cm
+    "8713184142108": "81288",    # Coleira Scalibor G / 65 cm
 }
 
 _PETZ_GTIN_MAP_FILE = _MODULE_DIR / "data" / "petz_gtin_product_id.json"
