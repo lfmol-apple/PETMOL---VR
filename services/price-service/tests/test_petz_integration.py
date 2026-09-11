@@ -841,6 +841,58 @@ def test_bulk_import_rejects_weight_conflict_and_skips_missing_gtin(admin_client
     assert any("peso diverge" in s["reason"] for s in body["skips"])
 
 
+def test_bulk_import_rolls_back_session_after_unexpected_error_mid_batch(admin_client, monkeypatch):
+    """Reprodução do 500 real relatado pelo dono ao importar ~2700 itens:
+    um erro inesperado no meio do lote (ex.: violação de integridade no
+    commit de UM item, algo que só o Postgres de produção pega — SQLite
+    do CI não reproduz o estado de transação abortada) deixava a sessão
+    sem rollback. Sem `db.rollback()` no `except Exception`, TODO item
+    seguinte quebraria com PendingRollbackError — virando um 500 pra
+    requisição inteira em vez de só marcar aquele item como skip. Este
+    teste garante o contrato direto: o rollback é chamado, e o lote
+    inteiro continua processando os itens depois do que falhou."""
+    from sqlalchemy.orm import Session as OrmSession
+
+    import src.admin.petz_router as petz_router_module
+
+    _register_product(gtin="7770000000011", name="Produto A", brand="Marca A")
+    _register_product(gtin="7770000000022", name="Produto B", brand="Marca B")
+
+    original_confirm = petz_router_module.confirm_petz_mapping
+    calls = {"n": 0}
+
+    def flaky_confirm(db, product_id, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("erro inesperado simulado")
+        return original_confirm(db, product_id, **kwargs)
+
+    monkeypatch.setattr(petz_router_module, "confirm_petz_mapping", flaky_confirm)
+
+    rollback_calls = {"n": 0}
+    original_rollback = OrmSession.rollback
+
+    def spy_rollback(self, *args, **kwargs):
+        rollback_calls["n"] += 1
+        return original_rollback(self, *args, **kwargs)
+
+    monkeypatch.setattr(OrmSession, "rollback", spy_rollback)
+
+    resp = admin_client.post("/v1/admin/petz/bulk-import", json={"items": [
+        {"barcode": "7770000000011", "sku": "boom", "name": "Produto A",
+         "url": "https://www.petz.com.br/produto/a-1"},
+        {"barcode": "7770000000022", "sku": "222222", "name": "Produto B",
+         "url": "https://www.petz.com.br/produto/b-2"},
+    ]})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["received"] == 2
+    assert body["matched"] == 1
+    assert any("erro inesperado simulado" in s["reason"] for s in body["skips"])
+    assert rollback_calls["n"] >= 1
+
+
 def test_backfill_catalog_dump_lists_unmapped_products(admin_client):
     """GET /v1/admin/petz/backfill/catalog — dump paginado do catálogo pro
     matching GTIN→id Petz. `only_unmapped` pula os já confirmados."""
