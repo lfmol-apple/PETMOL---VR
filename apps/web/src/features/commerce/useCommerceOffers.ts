@@ -21,12 +21,24 @@ export function useCommerceOffers(query: string, packageSizeKg?: number | null, 
     let cancelled = false;
     setLoading(true);
     setOffers([]);
-    fetchCommerceOffers(query, packageSizeKg ?? undefined, gtin ?? undefined).then((result) => {
-      if (!cancelled) {
-        setOffers(result);
-        setLoading(false);
-      }
-    });
+    fetchCommerceOffers(query, packageSizeKg ?? undefined, gtin ?? undefined)
+      .then((result) => {
+        if (!cancelled) {
+          setOffers(result);
+          setLoading(false);
+        }
+      })
+      // fetchCommerceOffers já captura erro de rede internamente e resolve
+      // com [], mas sem este catch qualquer rejeição inesperada (ex.: um
+      // throw síncrono antes do try interno) deixava `loading` preso em
+      // `true` pra sempre — "Buscando opções de compra..." nunca saía da
+      // tela (achado em produção, card do "Loja do Pet" no primeiro boot).
+      .catch(() => {
+        if (!cancelled) {
+          setOffers([]);
+          setLoading(false);
+        }
+      });
     return () => { cancelled = true; };
   }, [query, packageSizeKg, gtin]);
 
