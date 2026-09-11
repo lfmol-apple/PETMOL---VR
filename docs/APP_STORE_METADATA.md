@@ -9,7 +9,6 @@ Confirmado via schema do banco (`petmol_prod_mirror`) e leitura do código nesta
 - **Conta**: nome, e-mail, senha (hash bcrypt, nunca em texto), telefone (opcional), endereço (opcional)
 - **Pets**: nome, espécie, raça, foto do pet
 - **Saúde do pet** (não do usuário humano): vacinas (tipo, data, próxima dose), medicações, controle de parasitas, plano de alimentação
-- **Documentos do pet**: uploads de arquivos (`pet_documents` — carteirinha de vacina, receitas, etc.), com tipo MIME e tamanho
 - **Localização (precisa)**: latitude/longitude, só em primeiro plano, sem rastreamento contínuo/background. Capturada em: (1) fluxo "Pet Sumido" / "achei um pet" / "reportar pet perdido" — último local visto; (2) **ao ativar notificações**, o app anexa `lat/lng` à inscrição (`useNotificationPermissionController.getLocationSilently` → `POST /notifications/subscribe`) **apenas se a permissão de localização já estiver concedida** (não dispara prompt) — usado para alertas geolocalizados de pet perdido; (3) perfil, ao configurar a região. Declarar como coletada para "Funcionalidade do app". No **app nativo v1.0** o caminho (2) é Web Push (não roda no WebView), então na prática o nativo só coleta em (1) e (3) — mas a declaração deve cobrir o escopo completo.
 - **Notificações push**: endpoint/chaves de inscrição Web Push (VAPID), não um token de um SDK de push de terceiros
 - **Uso de IA**: fotos (carteirinha de vacina, identificação de produto) só são enviadas à API do Gemini (Google) para extração/leitura após consentimento explícito por usuário — é compartilhamento com terceiro nesse fluxo específico
@@ -18,7 +17,7 @@ Confirmado via schema do banco (`petmol_prod_mirror`) e leitura do código nesta
 - **E-mail transacional**: SMTP genérico (compatível com Gmail/Outlook/qualquer provedor — configurado via env, não é um vendor fixo com API própria de tracking)
 - **Afiliados**: cliques em links de parceiros (Cobasi, Shopee via Awin) — rastreados só nas tabelas próprias acima, sem pixel de terceiro no cliente
 - **Suporte/feedback**: mensagens de "Fale com o PETMOL" (categoria + texto livre), opcionalmente vinculadas à conta — sem foto, sem dado de saúde, sem documento
-- **Notificações push nativas** (Android/iOS via Capacitor): token de dispositivo (FCM/APNs) — hoje só registrado no banco, envio de fato ainda não ativo (ver `docs/MOBILE_RELEASE_CHECKLIST.md`)
+- **Notificações push nativas** (Android/iOS via Capacitor): token de dispositivo (FCM/APNs). No iOS, confirmado funcionando de ponta a ponta em aparelho físico (registro do token, envio via APNs, entrega em foreground/background) — `aps-environment=production` no entitlements, `UIBackgroundModes: remote-notification` no Info.plist. Token é apagado do banco na exclusão de conta (ver `docs/MOBILE_RELEASE_CHECKLIST.md`)
 
 ## Apple App Privacy (App Store Connect → App Privacy)
 
@@ -57,7 +56,7 @@ Nenhuma categoria de "Financial info", "Health info padronizado (do usuário hum
 
 ## Conta de revisor (App Review / Google Play Review)
 
-**Pendente de decisão do usuário** — precisa ser uma conta real, dedicada, com e-mail acessível para verificação/reset se o revisor pedir, nunca uma conta de usuário real. Não fui eu quem decidiu as credenciais porque isso é um artefato permanente ligado à ficha do app nos dois consoles — se quiser, eu crio a conta em produção (registro comum, sem custo) assim que você confirmar o e-mail/senha que prefere usar. Passos, uma vez com as credenciais definidas:
+**Estado atual: requer confirmação manual (Leonardo).** Este doc foi escrito em 24/08/2026, antes da primeira submissão (07/09/2026) — não há registro em nenhum arquivo do repositório confirmando se essa conta foi de fato criada, se as credenciais ainda são válidas, ou se os 5 cadastros abaixo (pet, alimentação, vacina, medicação, antiparasitário) estão realmente populados hoje. Auditoria de 11/09/2026 aponta isto como a explicação mais provável, com evidência em repositório, para uma rejeição por Guideline 2.1 (App Completeness): se o revisor recebeu uma conta vazia ou credenciais que não funcionavam, isso sozinho já justifica a rejeição. **Antes de reenviar, confirmar manualmente que a conta existe e está populada — não assumir que sim.** Passos, uma vez com as credenciais definidas/confirmadas:
 
 1. Registrar a conta normalmente pelo app/site
 2. Cadastrar 1 pet com foto

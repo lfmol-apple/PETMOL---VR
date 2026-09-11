@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '@/lib/api';
+import { getToken } from '@/lib/auth-token';
 import type { VaccineType } from '@/lib/petHealth';
 
 export type VaccineCardOcrRecord = {
@@ -51,10 +52,16 @@ export async function analyzeVaccineCardFiles({
   form.append('prefer_local', 'false');
   form.append('max_ai_images', String(Math.min(files.length, Math.max(1, maxAiImages))));
 
+  const token = getToken();
+  if (!token) {
+    throw new Error('Sessão expirada. Faça login novamente.');
+  }
+
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}/vision/extract-vaccine-card-files`, {
       method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
       body: form,
       signal,
     });

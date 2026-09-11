@@ -9,6 +9,10 @@ import { SheetAvatar, SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/comp
 import { localTodayISO } from '@/lib/localDate';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
+import { useAuth } from '@/contexts/AuthContext';
+import { getToken } from '@/lib/auth-token';
+import { AIPhotoConsentPrompt } from '@/features/ai/AIPhotoConsentPrompt';
+import { declineAiPhotoConsent, ensureAiPhotoConsent, grantAiPhotoConsent } from '@/features/ai/aiPhotoConsent';
 
 // CTA primário — azul institucional PETMOL (Modelo C), nunca a cor da área.
 const PRIMARY_BTN = 'bg-[#0056D2] hover:bg-[#004ab8] active:bg-[#003f9e] text-white shadow-[0_8px_20px_-6px_rgba(0,86,210,0.4)]';
@@ -132,6 +136,7 @@ export function VaccineItemSheet({
   onForceJustSavedConsumed,
 }: VaccineItemSheetProps) {
   const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
+  const { tutor } = useAuth();
   const [mode, setMode] = useState<'view' | 'buy'>(initialMode === 'buy' ? 'buy' : 'view');
   const [quickRegisterExpanded, setQuickRegisterExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(true);
@@ -144,7 +149,50 @@ export function VaccineItemSheet({
   const [savingChip, setSavingChip] = useState<string | null>(null);
   const [savedChip, setSavedChip] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
+  // Guarda de consentimento de IA (App Store 5.1 / Guideline 2.1): a leitura
+  // por foto usa Gemini — mesma exigência já aplicada no upload de foto única
+  // (VaccineCardUpload.tsx). Antes disto, este caminho multi-foto chamava o
+  // backend sem checar consentimento nenhum.
+  const [showCardConsentPrompt, setShowCardConsentPrompt] = useState(false);
+  const [consentSaving, setConsentSaving] = useState(false);
   const MAX_CARD_PHOTOS = 8;
+
+  const startReadingCards = async () => {
+    const token = getToken();
+    const hasConsent = await ensureAiPhotoConsent(tutor?.id, token);
+    if (hasConsent) {
+      setReadingCount(pendingCardFiles.length);
+      await handleProcessCards(pendingCardFiles);
+      setShowImportModal(false);
+      return;
+    }
+    setShowCardConsentPrompt(true);
+  };
+
+  const handleCardConsentAccept = async () => {
+    const token = getToken();
+    if (tutor?.id == null || !token) {
+      setShowCardConsentPrompt(false);
+      return;
+    }
+    setConsentSaving(true);
+    try {
+      const granted = await grantAiPhotoConsent(tutor.id, token);
+      if (!granted) return;
+      setShowCardConsentPrompt(false);
+      setReadingCount(pendingCardFiles.length);
+      await handleProcessCards(pendingCardFiles);
+      setShowImportModal(false);
+    } finally {
+      setConsentSaving(false);
+    }
+  };
+
+  const handleCardConsentDecline = () => {
+    declineAiPhotoConsent();
+    setShowCardConsentPrompt(false);
+    setShowImportModal(false);
+  };
 
   useEffect(() => {
     if (forceJustSaved) {
@@ -636,8 +684,17 @@ export function VaccineItemSheet({
               </div>
             )}
 
+            {/* ETAPA 2b — consentimento de IA pendente (Gemini processa a foto) */}
+            {pendingCardFiles.length > 0 && !importingCard && showCardConsentPrompt && (
+              <AIPhotoConsentPrompt
+                onAccept={handleCardConsentAccept}
+                onDecline={handleCardConsentDecline}
+                disabled={consentSaving}
+              />
+            )}
+
             {/* ETAPA 2 — fotos tiradas: numeradas + "Ler agora" em destaque */}
-            {pendingCardFiles.length > 0 && !importingCard && (
+            {pendingCardFiles.length > 0 && !importingCard && !showCardConsentPrompt && (
               <div className="space-y-3">
                 <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
                   {cardPreviews.map((src, i) => (
@@ -679,11 +736,7 @@ export function VaccineItemSheet({
 
                 <button
                   type="button"
-                  onClick={async () => {
-                    setReadingCount(pendingCardFiles.length);
-                    await handleProcessCards(pendingCardFiles);
-                    setShowImportModal(false);
-                  }}
+                  onClick={startReadingCards}
                   className="w-full py-5 rounded-2xl bg-[#0056D2] active:bg-[#0047ad] text-white font-extrabold text-lg flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-blue-600/30 ring-2 ring-blue-300 ring-offset-2"
                 >
                   🔍 Ler agora
