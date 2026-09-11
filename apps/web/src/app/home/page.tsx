@@ -439,7 +439,7 @@ function HomePageInner() {
   const [healthModalMode, setHealthModalMode] = useState<'full' | 'health' | 'grooming' | 'food'>('full');
   const [healthActiveTab, setHealthActiveTab] = useState('vaccines');
   // Plano alimentar — API-first, sincronizado com localStorage
-  const { feedingPlan, setFeedingPlan, fetchFeedingPlan } = useFoodPlanSync({ selectedPetId });
+  const { feedingPlan, setFeedingPlan, fetchFeedingPlan, feedingPlanAttempted } = useFoodPlanSync({ selectedPetId });
   // Quick-mark medicação inline
   const {
     quickMarkId, setQuickMarkId,
@@ -1188,6 +1188,21 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   // esteja populado antes de qualquer modal abrir)
   useEffect(() => {
     if (selectedPetId && pets.length > 0) {
+      // Pré-preenche na hora com o que o /pets já trouxe embutido (currentPet.vaccines/
+      // parasite_controls) — sem isso, `vaccines`/`parasiteControls` ficavam em [] até
+      // loadVaccines()/loadParasiteControls() (fetch à parte) resolverem, e o
+      // OnboardingChecklistCard piscava "onboarding incompleto" por um instante mesmo
+      // pra quem já tinha tudo cadastrado (achado: abertura do app ainda "tremia"
+      // depois do fix do splash em usePetBootstrap.ts).
+      const currentPet = pets.find((p) => p.pet_id === selectedPetId);
+      if (currentPet) {
+        if (vaccines.length === 0 && currentPet.vaccines?.length) {
+          setVaccines(currentPet.vaccines);
+        }
+        if (parasiteControls.length === 0 && currentPet.parasite_controls?.length) {
+          setParasiteControls(currentPet.parasite_controls);
+        }
+      }
       const token = getToken();
       if (token) {
         loadVaccines();
@@ -2275,7 +2290,13 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                   {/* Camada de orientação do novato — some sozinha quando os
                       dados reais do pet resolvem os 5 itens, ou quando o tutor
                       fecha o card. Deriva progresso de vaccines/parasiteControls/
-                      feedingPlan já carregados. */}
+                      feedingPlan já carregados. Só monta depois que o plano
+                      alimentar do pet atual teve uma resposta definitiva
+                      (feedingPlanAttempted) — sem isso, o card podia piscar
+                      "onboarding incompleto" por um instante com feedingPlan
+                      ainda no estado inicial vazio, mesmo pra quem já tinha
+                      tudo cadastrado. */}
+                  {feedingPlanAttempted.has(currentPet.pet_id) && (
                   <OnboardingChecklistCard
                     petId={currentPet.pet_id}
                     petName={currentPet.pet_name}
@@ -2291,6 +2312,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     onOpenDewormer={handleOpenVermifugo}
                     suppressed={showFoodSheet || showVaccineSheet || showAntipulgasSheet || showVermifugoSheet}
                   />
+                  )}
 
                   <PetTabs
                     pets={pets.map(p => ({

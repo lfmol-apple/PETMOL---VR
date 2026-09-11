@@ -77,6 +77,12 @@ function flattenFeedingPlan(raw: Record<string, unknown>): FeedingPlanEntry {
 
 export function useFoodPlanSync({ selectedPetId }: { selectedPetId: string | null }) {
   const [feedingPlan, setFeedingPlan] = useState<Record<string, FeedingPlanEntry>>({});
+  // Quais pets já tiveram uma tentativa de fetch concluída (sucesso, 404 ou
+  // erro final) — distingue "ainda não sei" de "sei que não tem plano".
+  // Usado pra segurar a exibição do OnboardingChecklistCard até o plano
+  // alimentar do pet atual realmente resolver, em vez de piscar "incompleto"
+  // com feedingPlan ainda no estado inicial vazio.
+  const [attemptedPetIds, setAttemptedPetIds] = useState<Set<string>>(new Set());
 
   const fetchFeedingPlan = async (petId: string, attempt = 1) => {
     const token = getToken();
@@ -232,8 +238,12 @@ export function useFoodPlanSync({ selectedPetId }: { selectedPetId: string | nul
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (selectedPetId) fetchFeedingPlan(selectedPetId);
+    if (selectedPetId) {
+      void fetchFeedingPlan(selectedPetId).then(() => {
+        setAttemptedPetIds((prev) => (prev.has(selectedPetId) ? prev : new Set(prev).add(selectedPetId)));
+      });
+    }
   }, [selectedPetId]);
 
-  return { feedingPlan, setFeedingPlan, fetchFeedingPlan };
+  return { feedingPlan, setFeedingPlan, fetchFeedingPlan, feedingPlanAttempted: attemptedPetIds };
 }
