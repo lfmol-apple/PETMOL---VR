@@ -125,6 +125,7 @@ def get_match_queue(
     limit: int = 50,
     offset: int = 0,
     only_cobasi: bool = True,
+    min_scans: int = 0,
     db: Session = Depends(get_db),
     current=Depends(get_current_admin_or_readonly_key),
 ):
@@ -133,6 +134,10 @@ def get_match_queue(
     Petz ainda não casou (`unknown`/`candidate`/`ambiguous`). Ordenada por
     popularidade real (nº de scans do tutor). Só leitura — aceita
     ADMIN_OPS_API_KEY.
+
+    `min_scans` filtra só quem tem pelo menos essa quantidade de scans —
+    usado pra seção "demanda real" do painel, que fica fixa no topo sem
+    paginação (a fila inteira é grande demais pra caber numa página só).
 
     Cada item traz a ficha da Cobasi (título, descrição, categoria, imagem,
     preço) — é o que o humano lê pra saber o que procurar na Petz. Não
@@ -144,7 +149,8 @@ def get_match_queue(
 
     limit = max(1, min(limit, 200))
     offset = max(0, offset)
-    base = _pending_match_query(db, only_cobasi=only_cobasi)
+    min_scans = max(0, min_scans)
+    base = _pending_match_query(db, only_cobasi=only_cobasi, min_scans=min_scans)
     total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
 
     # Cobertura no universo escolhido (só Cobasi por padrão).

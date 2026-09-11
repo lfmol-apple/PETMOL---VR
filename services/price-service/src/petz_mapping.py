@@ -271,11 +271,13 @@ def coverage_stats(db: Session) -> dict:
 PENDING_MATCH_STATUSES = frozenset({"unknown", "candidate", "ambiguous"})
 
 
-def _pending_match_query(db: Session, *, only_cobasi: bool = True):
+def _pending_match_query(db: Session, *, only_cobasi: bool = True, min_scans: int = 0):
     """Base do painel de casamento Petz: produtos do catálogo que a Cobasi
     (loja irmã, maior cobertura) tem e a Petz ainda não casou. Ordena por
     popularidade real (nº de scans do tutor) — o que mais gente tem
-    primeiro."""
+    primeiro. `min_scans` filtra só quem tem demanda real registrada (usado
+    pela seção "demanda real" do painel, que fica sempre visível no topo,
+    sem paginação — o resto da fila é grande demais pra caber sem página)."""
     from .affiliate_feed import AffiliateFeedOffer
     from .product_catalog_lookup import ProductCatalog, ProductScanEvent
 
@@ -301,6 +303,8 @@ def _pending_match_query(db: Session, *, only_cobasi: bool = True):
             AffiliateFeedOffer.gtin.is_not(None),
         )
         q = q.where(ProductCatalog.barcode_normalized.in_(cobasi_gtins))
+    if min_scans > 0:
+        q = q.where(func.coalesce(scan_count.c.n, 0) >= min_scans)
     return q.order_by(func.coalesce(scan_count.c.n, 0).desc(), ProductCatalog.name)
 
 
