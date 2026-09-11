@@ -698,6 +698,85 @@ def test_petz_direct_link_cart_prefill_seed_gtin_flag_off(client, monkeypatch):
     assert body["destination"] != "cart"
 
 
+# ── Auditoria permanente: petz_product_id compartilhado entre pesos ──────
+#
+# Sem abrir a Petz: um produto físico não pode ser 2kg E 7,5kg ao mesmo
+# tempo, então o mesmo petz_product_id usado por dois GTINs de peso
+# diferente é garantidamente um mapeamento errado pra pelo menos um.
+# Reproduz os incidentes reais: coleira Scalibor (48/65cm) e ração Royal
+# Canin Urinary Small Dog (2kg via seed / 7,5kg via mapping confirmado).
+
+def test_audit_flags_same_petz_id_shared_by_different_weights(admin_client, monkeypatch):
+    from src.affiliate_links import _PETZ_GTIN_PRODUCT_ID_SEED, _petz_gtin_product_id_map
+
+    # 2kg SÓ no seed (imita o GTIN 7896181298083 real) — nenhum PetzProductMapping.
+    _register_product(gtin="9990000000601", name="Ração X 2kg", brand="X", weight_kg=2.0)
+    # 7,5kg com mapping CONFIRMADO pro MESMO petz_product_id do seed acima.
+    pid_75 = _register_product(gtin="9990000000602", name="Ração X 7,5kg", brand="X", weight_kg=7.5)
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, pid_75, petz_product_id="555001",
+            product_url="https://www.petz.com.br/produto/racao-x-555001",
+        )
+    finally:
+        db.close()
+    monkeypatch.setitem(_PETZ_GTIN_PRODUCT_ID_SEED, "9990000000601", "555001")
+    _petz_gtin_product_id_map.cache_clear()  # lru_cache — sem isso o seed alterado não é visto
+    try:
+        body = admin_client.get("/v1/admin/petz/audit/conflicts").json()
+        hit = next((c for c in body["conflicts"] if c["petz_product_id"] == "555001"), None)
+        assert hit is not None, body
+        gtins = {p["gtin"] for p in hit["products"]}
+        assert gtins == {"9990000000601", "9990000000602"}
+        sources = {p["gtin"]: p["source"] for p in hit["products"]}
+        assert sources["9990000000601"] == "seed"
+        assert sources["9990000000602"] == "mapping"
+    finally:
+        _petz_gtin_product_id_map.cache_clear()
+
+
+def test_audit_does_not_flag_same_petz_id_when_weight_matches(admin_client, monkeypatch):
+    """Duas EANs pro mesmo produto físico (peso igual) não é conflito —
+    caso legítimo (ex: Scalibor 48cm com dois GTINs)."""
+    from src.affiliate_links import _PETZ_GTIN_PRODUCT_ID_SEED, _petz_gtin_product_id_map
+
+    _register_product(gtin="9990000000603", name="Coleira Y 48cm", brand="Y", length_cm=48.0)
+    pid = _register_product(gtin="9990000000604", name="Coleira Y 48cm", brand="Y", length_cm=48.0)
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, pid, petz_product_id="555002",
+            product_url="https://www.petz.com.br/produto/coleira-y-555002",
+        )
+    finally:
+        db.close()
+    monkeypatch.setitem(_PETZ_GTIN_PRODUCT_ID_SEED, "9990000000603", "555002")
+    _petz_gtin_product_id_map.cache_clear()
+    try:
+        body = admin_client.get("/v1/admin/petz/audit/conflicts").json()
+        assert not any(c["petz_product_id"] == "555002" for c in body["conflicts"])
+    finally:
+        _petz_gtin_product_id_map.cache_clear()
+
+
+def test_audit_flags_non_numeric_petz_product_id(admin_client):
+    """petz_product_id que não é número → carrinho pré-montado nunca
+    funciona (petz_cart_add_url exige dígitos). Achado separado, não um
+    'conflito' de peso."""
+    pid = _register_product(gtin="9990000000605", name="Biscoito Z", brand="Z")
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, pid, petz_product_id="biscoito-z-generico",
+            product_url="https://www.petz.com.br/produto/biscoito-z-generico",
+        )
+    finally:
+        db.close()
+    body = admin_client.get("/v1/admin/petz/audit/conflicts").json()
+    assert any(p["gtin"] == "9990000000605" for p in body["invalid_ids"])
+
+
 def test_backfill_catalog_dump_lists_unmapped_products(admin_client):
     """GET /v1/admin/petz/backfill/catalog — dump paginado do catálogo pro
     matching GTIN→id Petz. `only_unmapped` pula os já confirmados."""

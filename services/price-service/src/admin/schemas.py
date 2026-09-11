@@ -319,6 +319,32 @@ class PetzCoverageOut(BaseModel):
     rejected: int
 
 
+class PetzAuditProduct(BaseModel):
+    """Um produto do catálogo que participa de um achado da auditoria."""
+    gtin: str
+    product_id: int
+    name: Optional[str] = None
+    brand: Optional[str] = None
+    weight_kg: Optional[float] = None
+    length_cm: Optional[float] = None
+    volume_ml: Optional[float] = None
+    petz_product_id: str
+    source: str  # "mapping" (PetzProductMapping confirmado) | "seed" (_PETZ_GTIN_PRODUCT_ID_SEED)
+
+
+class PetzAuditConflict(BaseModel):
+    """Um petz_product_id usado por 2+ produtos de peso/tamanho diferente
+    — mapeamento garantidamente errado pra pelo menos um deles."""
+    petz_product_id: str
+    reason: str
+    products: List[PetzAuditProduct]
+
+
+class PetzAuditOut(BaseModel):
+    conflicts: List[PetzAuditConflict]
+    invalid_ids: List[PetzAuditProduct]  # petz_product_id não-numérico — carrinho pré-montado não funciona
+
+
 # Marketplace offers (link oficial de vendedor/marketplace por produto —
 # Shopee hoje; NUNCA gerado por template, sempre colado do Portal do
 # Afiliado — ver marketplace_offer_provider.py / shopee_link_validator.py)

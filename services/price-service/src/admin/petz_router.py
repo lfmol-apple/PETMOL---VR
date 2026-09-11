@@ -24,6 +24,7 @@ from ..petz_mapping import (
     _pending_match_query,
     confirm_petz_mapping,
     coverage_stats,
+    find_petz_id_conflicts,
     get_mapping,
     DIRECT_LINK_ELIGIBLE_STATUSES,
     reject_petz_candidate,
@@ -34,6 +35,7 @@ from .deps import get_current_admin, get_current_admin_or_readonly_key
 from .schemas import (
     DeletedOut,
     PetzAttrCompare,
+    PetzAuditOut,
     PetzCoverageOut,
     PetzEvaluateOut,
     PetzEvaluateRequest,
@@ -102,6 +104,17 @@ def _to_out(mapping: Optional[PetzProductMapping], gtin: str) -> PetzMappingOut:
 @router.get("/coverage", response_model=PetzCoverageOut)
 def get_coverage(db: Session = Depends(get_db), current=Depends(get_current_admin_or_readonly_key)):
     return PetzCoverageOut(**coverage_stats(db))
+
+
+@router.get("/audit/conflicts", response_model=PetzAuditOut)
+def get_id_conflicts(db: Session = Depends(get_db), current=Depends(get_current_admin_or_readonly_key)):
+    """Auditoria permanente: acha todo petz_product_id compartilhado por
+    produtos de peso/tamanho diferente (mapeamento garantidamente errado
+    pra pelo menos um deles) + todo petz_product_id não-numérico
+    (carrinho pré-montado nunca funciona pra esse item). Não faz nenhuma
+    chamada à Petz — só leitura no banco. Ver incidentes coleira Scalibor
+    e ração Royal Canin Urinary Small Dog."""
+    return find_petz_id_conflicts(db)
 
 
 @router.get("/queue", response_model=PetzQueueOut)

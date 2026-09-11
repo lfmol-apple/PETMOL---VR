@@ -306,3 +306,88 @@ def petz_pending_match_count(db: Session, *, only_cobasi: bool = True) -> int:
         return db.scalar(select(func.count()).select_from(_pending_match_query(db, only_cobasi=only_cobasi).subquery())) or 0
     except Exception:
         return 0
+
+
+def find_petz_id_conflicts(db: Session) -> dict:
+    """Acha, sem abrir a Petz, todo `petz_product_id` EFETIVO (mapping
+    confirmado do banco, ou o seed `_PETZ_GTIN_PRODUCT_ID_SEED` quando não
+    há mapping) usado por 2+ produtos do catálogo com peso/tamanho
+    DIFERENTE. Um produto físico não pode ser 2kg e 7,5kg ao mesmo tempo
+    — id compartilhado + peso divergente é garantidamente um mapeamento
+    errado (ver incidentes: coleira Scalibor 48/65cm, ração Royal Canin
+    Urinary Small Dog 2/7,5kg). Também sinaliza `petz_product_id` que não
+    é numérico (o carrinho pré-montado nunca funciona pra esse item —
+    `petz_cart_add_url` exige dígitos).
+
+    Só varre os GTINs que aparecem no seed OU têm PetzProductMapping —
+    produto sem nenhum dos dois nunca tem petz_product_id, não pode
+    conflitar. Isso cobre o catálogo inteiro (não só os poucos já
+    mapeados) sem custar uma varredura de ~20 mil linhas."""
+    from .affiliate_links import _petz_gtin_product_id_map, petz_product_id_for_gtin
+    from .product_catalog_lookup import ProductCatalog
+    from .product_identity import ProductIdentity, structural_conflict
+
+    candidate_gtins: set[str] = set(_petz_gtin_product_id_map().keys())
+    mapped_gtins = db.scalars(
+        select(ProductCatalog.barcode_normalized)
+        .join(PetzProductMapping, PetzProductMapping.product_id == ProductCatalog.id)
+        .where(
+            PetzProductMapping.match_status.in_(tuple(DIRECT_LINK_ELIGIBLE_STATUSES)),
+            PetzProductMapping.petz_product_id.is_not(None),
+        )
+    ).all()
+    candidate_gtins.update(mapped_gtins)
+
+    groups: dict[str, list[dict]] = {}
+    invalid_ids: list[dict] = []
+    for gtin in candidate_gtins:
+        product = db.scalar(select(ProductCatalog).where(ProductCatalog.barcode_normalized == gtin))
+        if product is None:
+            continue
+        mapping = get_mapping(db, product.id)
+        effective_id: Optional[str] = None
+        source = "seed"
+        if mapping and mapping.match_status in DIRECT_LINK_ELIGIBLE_STATUSES and (mapping.petz_product_id or "").strip():
+            effective_id = mapping.petz_product_id.strip()
+            source = "mapping"
+        else:
+            effective_id = petz_product_id_for_gtin(gtin)
+        if not effective_id:
+            continue
+        entry = {
+            "gtin": gtin,
+            "product_id": product.id,
+            "name": product.canonical_name or product.name,
+            "brand": product.brand,
+            "weight_kg": product.weight_kg,
+            "length_cm": getattr(product, "length_cm", None),
+            "volume_ml": getattr(product, "volume_ml", None),
+            "source": source,
+            "petz_product_id": effective_id,
+        }
+        if not effective_id.isdigit():
+            invalid_ids.append(entry)
+            continue
+        entry["_identity"] = ProductIdentity.from_catalog(product)
+        groups.setdefault(effective_id, []).append(entry)
+
+    conflicts = []
+    for petz_id, entries in groups.items():
+        if len(entries) < 2:
+            continue
+        reason = None
+        for i in range(len(entries)):
+            for j in range(i + 1, len(entries)):
+                reason = structural_conflict(entries[i]["_identity"], entries[j]["_identity"])
+                if reason:
+                    break
+            if reason:
+                break
+        if reason:
+            conflicts.append({
+                "petz_product_id": petz_id,
+                "reason": reason,
+                "products": [{k: v for k, v in e.items() if k != "_identity"} for e in entries],
+            })
+
+    return {"conflicts": conflicts, "invalid_ids": invalid_ids}
