@@ -123,7 +123,7 @@ def get_match_queue(
     busca nada na Petz (a busca é 403 Akamai server-side); devolve o link
     `/busca?q=` pronto pro humano abrir e o termo sugerido separado."""
     from ..affiliate_feed import AffiliateFeedOffer
-    from ..affiliate_links import petz_site_search_url, petz_size_hint_for_product
+    from ..affiliate_links import petz_site_search_url
     from ..petz_mapping import build_petz_search_query
 
     limit = max(1, min(limit, 200))
@@ -156,14 +156,11 @@ def get_match_queue(
     for product, scans in db.execute(base.offset(offset).limit(limit)).all():
         mapping = get_mapping(db, product.id)
         name = product.name or product.canonical_name or ""
-        hint = petz_size_hint_for_product(product)
         term = build_petz_search_query(
             brand=product.brand,
             name=(product.canonical_name or name),
             weight_kg=product.weight_kg,
         ) or (product.canonical_name or name)
-        if hint and not product.weight_kg and hint not in term:
-            term = f"{term} {hint}"
         cobasi = db.scalar(
             select(AffiliateFeedOffer)
             .where(
@@ -195,8 +192,16 @@ def get_match_queue(
                 scans=int(scans or 0),
                 match_status=mapping.match_status if mapping else "unknown",
                 rejection_reason=mapping.rejection_reason if mapping else None,
+                # Casamento automático anterior (não human_verified) que
+                # precisa reconferência — mostra o que ele aponta hoje.
+                needs_reverify=bool(
+                    mapping and mapping.match_status in DIRECT_LINK_ELIGIBLE_STATUSES and not mapping.human_verified
+                ),
+                current_petz_product_id=(mapping.petz_product_id if mapping else None),
+                current_petz_url=(mapping.product_url if mapping else None),
+                current_variant_label=(mapping.variant_label if mapping else None),
                 petz_search_url=petz_site_search_url(
-                    (product.canonical_name or name), product.brand, size_hint=hint
+                    (product.canonical_name or name), product.brand, product.weight_kg
                 ),
                 suggested_search_term=term,
                 cobasi_title=cobasi.title if cobasi else None,
