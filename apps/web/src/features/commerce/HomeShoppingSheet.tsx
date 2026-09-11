@@ -218,10 +218,24 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
   function renderReorderCards(cards: ReorderCard[]) {
     return cards.map((card) => {
-      const pickerKey = `reorder:${card.id}`;
+      // card.id (= reminder.key, "petId|domain|entityType|recordId|dueDate")
+      // inclui o registro/data do lembrete que originou o card — voláteis
+      // por natureza (mudam quando o registro é reaplicado, ou quando a
+      // pré-carga síncrona de pets.parasite_controls e o fetch assíncrono
+      // de loadParasiteControls() trazem o "mesmo" registro com id/data
+      // ligeiramente diferentes entre si). Usar isso como key do React
+      // remonta o ReorderCardItem (e reseta useCommerceOffers, que começa
+      // `loading=true` de novo) toda vez que o registro subjacente muda,
+      // mesmo sendo visualmente "o mesmo card" — achado em produção: a
+      // coleira Scalibor ficava presa em "Buscando opções de compra..."
+      // indefinidamente enquanto os outros cards (com registro estável)
+      // resolviam normal. A chave estável usa só petId|domain|entityType —
+      // só existe UM card ativo por combinação dessas três coisas aqui.
+      const stableKey = card.id.split('|').slice(0, 3).join('|');
+      const pickerKey = `reorder:${stableKey}`;
       return (
         <ReorderCardItem
-          key={card.id}
+          key={stableKey}
           card={card}
           isPickerOpen={quickBuyFor === pickerKey}
           visibleQuickBuyPartners={visibleQuickBuyPartners}

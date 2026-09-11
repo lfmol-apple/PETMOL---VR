@@ -120,4 +120,16 @@ describe('fetchCommerceOffers — Shopee só vitrine (05/09/2026)', () => {
     }));
     expect(await fetchCommerceOffers('racao')).toEqual([]);
   });
+
+  // query.trim() rodava FORA do try/catch — se query chegasse undefined/null
+  // (em vez de string vazia) por algum card com dado incompleto, o throw
+  // escapava do catch interno e virava uma promise rejeitada sem tratamento
+  // no chamador (achado em produção: card da Loja preso em "Buscando opções
+  // de compra..." pra sempre — useCommerceOffers só desarma `loading` dentro
+  // do .then()/.catch(), que nunca é alcançado se a função relançar).
+  it('query undefined/null não quebra — resolve com [] em vez de rejeitar', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    await expect(fetchCommerceOffers(undefined as unknown as string)).resolves.toEqual([]);
+    await expect(fetchCommerceOffers(null as unknown as string)).resolves.toEqual([]);
+  });
 });
