@@ -24,7 +24,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, and_, func, or_, select
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .db import Base
@@ -99,13 +99,6 @@ class PetzProductMapping(Base):
     search_query: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     match_status: Mapped[str] = mapped_column(String(24), nullable=False, default="unknown", index=True)
     match_confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    # Um HUMANO abriu a página da Petz e confirmou que é ESTE produto, ESTE
-    # tamanho? Só `confirm_petz_mapping` (via o painel /admin/petz) marca
-    # True. Palpite automático (backfill, cross-check de feed, "inferido
-    # por eliminação") = False. /commerce/petz-direct-link só serve link
-    # direto / carrinho quando True; o resto cai na busca. Ver o incidente
-    # da coleira Scalibor (81288 G servida no lugar da 81287 M).
-    human_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     variant_label: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     variant_weight_kg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     rejection_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -186,16 +179,12 @@ def confirm_petz_mapping(
     variant_label: Optional[str] = None,
     variant_weight_kg: Optional[float] = None,
     match_confidence: Optional[float] = None,
-    human_verified: bool = True,
 ) -> PetzProductMapping:
     """Confirmação humana explícita do PRODUTO — único caminho que move
     um mapping pra 'confirmed'. NUNCA chamado automaticamente por
     similaridade de texto e NUNCA cria affiliate_product_url individual:
     o modelo comercial Petz Partner é tratado separadamente via
-    partner_store_url + coupon_code.
-
-    `human_verified` (default True — este é o caminho humano): passe False
-    só de um backfill/heurística que não olhou a página da Petz."""
+    partner_store_url + coupon_code."""
     clean_product_url = validate_petz_product_url(product_url)
     mapping = get_mapping(db, product_id)
     if mapping is None:
@@ -207,7 +196,6 @@ def confirm_petz_mapping(
     mapping.variant_label = variant_label
     mapping.variant_weight_kg = variant_weight_kg
     mapping.match_confidence = match_confidence
-    mapping.human_verified = bool(human_verified)
     mapping.last_verified_at = datetime.now(timezone.utc)
 
     # Guarda de identidade: a variante informada bate com o produto do
@@ -278,21 +266,6 @@ def coverage_stats(db: Session) -> dict:
 PENDING_MATCH_STATUSES = frozenset({"unknown", "candidate", "ambiguous"})
 
 
-def _petz_product_decided():
-    """Produto FORA da fila: rejeitado por um humano OU casado e
-    human_verified. `confirmed` sem human_verified = palpite automático,
-    volta pra fila pra reconferência."""
-    return select(PetzProductMapping.product_id).where(
-        or_(
-            PetzProductMapping.match_status == "rejected",
-            and_(
-                PetzProductMapping.match_status.in_(tuple(DIRECT_LINK_ELIGIBLE_STATUSES)),
-                PetzProductMapping.human_verified.is_(True),
-            ),
-        )
-    )
-
-
 def _pending_match_query(db: Session, *, only_cobasi: bool = True):
     """Base do painel de casamento Petz: produtos do catálogo que a Cobasi
     (loja irmã, maior cobertura) tem e a Petz ainda não casou. Ordena por
@@ -301,7 +274,9 @@ def _pending_match_query(db: Session, *, only_cobasi: bool = True):
     from .affiliate_feed import AffiliateFeedOffer
     from .product_catalog_lookup import ProductCatalog, ProductScanEvent
 
-    decided = _petz_product_decided()
+    decided = select(PetzProductMapping.product_id).where(
+        PetzProductMapping.match_status.notin_(tuple(PENDING_MATCH_STATUSES))
+    )
     scan_count = (
         select(ProductScanEvent.product_id, func.count(ProductScanEvent.id).label("n"))
         .where(ProductScanEvent.product_id.is_not(None))
