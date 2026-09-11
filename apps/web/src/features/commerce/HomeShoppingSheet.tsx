@@ -443,10 +443,6 @@ function partnerLogoClassName(partnerId: HomeShoppingPartnerId): string {
   return 'h-11 w-11 rounded-[0.55rem]';
 }
 
-// DIAGNÓSTICO TEMPORÁRIO — ver comentário dentro de ReorderCardItem. Remover
-// junto com o resto da instrumentação depois de confirmar a causa real.
-const _mountCounters = new Map<string, number>();
-
 interface ReorderCardItemProps {
   card: ReorderCard;
   isPickerOpen: boolean;
@@ -465,22 +461,6 @@ interface ReorderCardItemProps {
 // MedicationItemSheet.tsx "onde comprar") — mesma lógica de preço/picker já
 // validada aqui, sem duplicar useCommerceOffers numa segunda cópia.
 export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy, onPetzBuy }: ReorderCardItemProps) {
-  // DIAGNÓSTICO TEMPORÁRIO (remover depois de confirmar a causa do preço
-  // preso em "Buscando opções de compra..." mesmo após #351/#353). Um
-  // useRef comum reseta a 0 a cada mount novo — não serve pra provar
-  // remontagem. _mountCounters (módulo, sobrevive a remounts) conta
-  // quantas vezes UM CARD COM ESSA IDENTIDADE (petId|domain|entityType) já
-  // montou do zero nesta sessão. Se aparecer "mount #2" ou mais na tela
-  // enquanto ainda carrega, prova remontagem em loop. Se ficar preso em
-  // "mount #1" pra sempre, não é remontagem — é outra coisa (fetch real
-  // nunca chamado, ou nunca resolvido).
-  const stableIdForDiag = card.id.split('|').slice(0, 3).join('|');
-  const mountNumber = useRef<number>();
-  if (mountNumber.current === undefined) {
-    const next = (_mountCounters.get(stableIdForDiag) ?? 0) + 1;
-    _mountCounters.set(stableIdForDiag, next);
-    mountNumber.current = next;
-  }
   const { offers: offersByPrice, loading } = useCommerceOffers(card.searchQuery, card.packageSizeKg, card.gtin);
   // Loja preferida nos cards de "produtos cadastrados do pet": Cobasi
   // primeiro quando tiver preço confiável, mesmo que outra loja seja mais
@@ -592,12 +572,7 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
           <p className={`mt-0.5 text-[11.5px] font-semibold leading-tight ${card.urgencyTone === 'overdue' ? 'text-rose-600' : card.urgencyTone === 'today' ? 'text-amber-600' : 'text-slate-500'}`}>
             {card.urgencyText}
           </p>
-          {loading && (
-            <p className="mt-0.5 text-[11px] font-medium text-slate-400">
-              Buscando opções de compra...{' '}
-              <span className="font-mono text-rose-500">[mount #{mountNumber.current}]</span>
-            </p>
-          )}
+          {loading && <p className="mt-0.5 text-[11px] font-medium text-slate-400">Buscando opções de compra...</p>}
           {/* Primeiro nível do card = produto + prazo + preço de referência.
               O PETMOL informa, não "grita promoção": nada de selo de oferta
               aqui. A loja, o preço por loja e a origem do preço só aparecem
