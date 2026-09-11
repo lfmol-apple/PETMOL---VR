@@ -1472,6 +1472,34 @@ def test_match_queue_only_cobasi_filters_by_feed(admin_client):
     assert "9990000000311" not in gtins
 
 
+def test_match_queue_min_scans_filters_to_real_demand(admin_client):
+    """`min_scans` isola quem tem demanda real registrada (scan de
+    tutor) — usado pela seção fixa no topo do painel, que não pode
+    depender de paginação pra aparecer."""
+    from src.product_catalog_lookup import ProductScanEvent
+
+    demanded = _register_product(gtin="9990000000331", name="Com demanda", weight_kg=2.0)
+    quiet = _register_product(gtin="9990000000332", name="Sem demanda", weight_kg=2.0)
+    db = SessionLocal()
+    try:
+        db.add(ProductScanEvent(barcode="9990000000331", barcode_normalized="9990000000331", product_id=demanded, context="scan"))
+        db.add(ProductScanEvent(barcode="9990000000331", barcode_normalized="9990000000331", product_id=demanded, context="scan"))
+        db.commit()
+    finally:
+        db.close()
+
+    body = admin_client.get("/v1/admin/petz/queue", params={"only_cobasi": False, "min_scans": 1}).json()
+    gtins = {i["gtin"] for i in body["items"]}
+    assert "9990000000331" in gtins
+    assert "9990000000332" not in gtins
+    item = next(i for i in body["items"] if i["gtin"] == "9990000000331")
+    assert item["scans"] == 2
+
+    body_all = admin_client.get("/v1/admin/petz/queue", params={"only_cobasi": False}).json()
+    gtins_all = {i["gtin"] for i in body_all["items"]}
+    assert {"9990000000331", "9990000000332"} <= gtins_all
+
+
 def test_evaluate_flags_weight_conflict(admin_client):
     _register_product(gtin="9990000000321", name="Ração X", brand="Golden", weight_kg=3.0)
     resp = admin_client.post(

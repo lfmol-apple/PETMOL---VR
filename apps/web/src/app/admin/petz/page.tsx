@@ -117,12 +117,16 @@ const fmtKg = (kg: number | null): string => (kg == null ? '—' : `${`${kg}`.re
 const fmtBRL = (v: number | null): string =>
   v == null ? '' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+const PAGE_SIZE = 30;
+
 export default function AdminPetzMatchPage() {
   const router = useRouter();
   const { isAdmin, isLoading: adminLoading } = useAdmin();
 
   const [data, setData] = useState<QueueResponse | null>(null);
+  const [demand, setDemand] = useState<QueueResponse | null>(null);
   const [onlyCobasi, setOnlyCobasi] = useState(true);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openGtin, setOpenGtin] = useState<string | null>(null);
@@ -135,19 +139,37 @@ export default function AdminPetzMatchPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const d = await api<QueueResponse>(`/v1/admin/petz/queue?only_cobasi=${onlyCobasi}&limit=100`);
+      const [d, dem] = await Promise.all([
+        api<QueueResponse>(`/v1/admin/petz/queue?only_cobasi=${onlyCobasi}&limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`),
+        api<QueueResponse>(`/v1/admin/petz/queue?only_cobasi=${onlyCobasi}&limit=200&min_scans=1`),
+      ]);
       setData(d);
+      setDemand(dem);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar a fila');
     } finally {
       setLoading(false);
     }
-  }, [onlyCobasi]);
+  }, [onlyCobasi, page]);
 
   useEffect(() => {
     if (isAdmin) load();
   }, [isAdmin, load]);
+
+  // Ao trocar o filtro "só Cobasi", volta pra primeira página — o total
+  // muda e a página atual pode nem existir mais no novo recorte.
+  useEffect(() => {
+    setPage(0);
+  }, [onlyCobasi]);
+
+  // Confirmar/rejeitar o último item de uma página tardia (sem refetch)
+  // pode deixar `page` além do fim — volta pra última página válida.
+  useEffect(() => {
+    if (!data) return;
+    const maxPage = Math.max(0, Math.ceil(data.total / PAGE_SIZE) - 1);
+    if (page > maxPage) setPage(maxPage);
+  }, [data, page]);
 
   const removeRow = (gtin: string) => {
     setData((prev) =>
@@ -155,6 +177,7 @@ export default function AdminPetzMatchPage() {
         ? { ...prev, total: Math.max(0, prev.total - 1), matched: prev.matched + 1, items: prev.items.filter((i) => i.gtin !== gtin) }
         : prev,
     );
+    setDemand((prev) => (prev ? { ...prev, items: prev.items.filter((i) => i.gtin !== gtin) } : prev));
     setOpenGtin(null);
   };
   const rejectRow = (gtin: string) => {
@@ -163,6 +186,7 @@ export default function AdminPetzMatchPage() {
         ? { ...prev, total: Math.max(0, prev.total - 1), rejected: prev.rejected + 1, items: prev.items.filter((i) => i.gtin !== gtin) }
         : prev,
     );
+    setDemand((prev) => (prev ? { ...prev, items: prev.items.filter((i) => i.gtin !== gtin) } : prev));
     setOpenGtin(null);
   };
 
@@ -170,6 +194,11 @@ export default function AdminPetzMatchPage() {
 
   const done = data ? data.matched + data.rejected : 0;
   const pct = data && data.catalog_total ? Math.round((done / data.catalog_total) * 100) : 0;
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
+  const demandGtins = new Set((demand?.items || []).map((i) => i.gtin));
+  // A seção "demanda real" já mostra esses itens fixos no topo — não repete
+  // na lista paginada de baixo, senão o mesmo produto aparece duas vezes.
+  const restItems = (data?.items || []).filter((i) => !demandGtins.has(i.gtin));
 
   return (
     <PremiumScreenShell
@@ -222,26 +251,142 @@ export default function AdminPetzMatchPage() {
         {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
         {loading && <p className="text-sm text-slate-500">Carregando…</p>}
 
-        {!loading && data && data.items.length === 0 && !error && (
+        {!loading && data && data.total === 0 && !error && (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
             Nada esperando. 🎉
           </div>
         )}
 
-        <div className="space-y-3">
-          {data?.items.map((item) => (
-            <QueueRow
-              key={item.gtin}
-              item={item}
-              open={openGtin === item.gtin}
-              onToggle={() => setOpenGtin((g) => (g === item.gtin ? null : item.gtin))}
-              onConfirmed={() => removeRow(item.gtin)}
-              onRejected={() => rejectRow(item.gtin)}
-            />
-          ))}
-        </div>
+        {/* Demanda real: sempre no topo, sem paginação — é o que importa
+            agora, mesmo que fique escondido em alguma página lá na frente. */}
+        {demand && demand.items.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 px-1">
+              <span className="text-sm font-bold text-rose-700">🔥 Demanda real agora</span>
+              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">{demand.items.length}</span>
+            </div>
+            <p className="px-1 text-xs text-slate-500">
+              Algum tutor escaneou estes produtos e ainda não têm link certo na Petz — prioridade sobre o resto da fila.
+            </p>
+            <div className="space-y-3">
+              {demand.items.map((item) => (
+                <QueueRow
+                  key={item.gtin}
+                  item={item}
+                  open={openGtin === item.gtin}
+                  onToggle={() => setOpenGtin((g) => (g === item.gtin ? null : item.gtin))}
+                  onConfirmed={() => removeRow(item.gtin)}
+                  onRejected={() => rejectRow(item.gtin)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Resto da fila, paginado — ordenada por demanda (quem tiver o
+            primeiro scan sobe pra seção de cima automaticamente). */}
+        {restItems.length > 0 && (
+          <div className="space-y-2">
+            {demand && demand.items.length > 0 && (
+              <div className="px-1 text-sm font-semibold text-slate-700">Resto da fila</div>
+            )}
+            <div className="space-y-3">
+              {restItems.map((item) => (
+                <QueueRow
+                  key={item.gtin}
+                  item={item}
+                  open={openGtin === item.gtin}
+                  onToggle={() => setOpenGtin((g) => (g === item.gtin ? null : item.gtin))}
+                  onConfirmed={() => removeRow(item.gtin)}
+                  onRejected={() => rejectRow(item.gtin)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {data && data.total > PAGE_SIZE && (
+          <Pager
+            page={page}
+            totalPages={totalPages}
+            total={data.total}
+            pageSize={PAGE_SIZE}
+            onChange={setPage}
+          />
+        )}
       </div>
     </PremiumScreenShell>
+  );
+}
+
+function Pager({
+  page,
+  totalPages,
+  total,
+  pageSize,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  total: number;
+  pageSize: number;
+  onChange: (page: number) => void;
+}) {
+  const from = page * pageSize + 1;
+  const to = Math.min(total, (page + 1) * pageSize);
+
+  // Janela curta de números de página em volta da atual — evita uma
+  // fileira de 200 botões quando a fila é grande.
+  const windowStart = Math.max(0, Math.min(page - 2, totalPages - 5));
+  const pageNumbers = Array.from({ length: Math.min(5, totalPages) }, (_, i) => windowStart + i);
+
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3">
+      <p className="text-xs text-slate-500">
+        Mostrando <b>{from}–{to}</b> de <b>{total}</b>
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onChange(0)}
+          disabled={page === 0}
+          className="rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-500 disabled:opacity-30 active:bg-slate-100"
+        >
+          «
+        </button>
+        <button
+          onClick={() => onChange(Math.max(0, page - 1))}
+          disabled={page === 0}
+          className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-30 active:bg-slate-100"
+        >
+          ‹ anterior
+        </button>
+        {pageNumbers.map((p) => (
+          <button
+            key={p}
+            onClick={() => onChange(p)}
+            className={`h-8 w-8 rounded-lg text-xs font-semibold ${
+              p === page ? 'bg-[#0056D2] text-white' : 'text-slate-600 active:bg-slate-100'
+            }`}
+          >
+            {p + 1}
+          </button>
+        ))}
+        <button
+          onClick={() => onChange(Math.min(totalPages - 1, page + 1))}
+          disabled={page >= totalPages - 1}
+          className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-30 active:bg-slate-100"
+        >
+          próxima ›
+        </button>
+        <button
+          onClick={() => onChange(totalPages - 1)}
+          disabled={page >= totalPages - 1}
+          className="rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-500 disabled:opacity-30 active:bg-slate-100"
+        >
+          »
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -341,9 +486,14 @@ function QueueRow({
   };
 
   const v = result ? VERDICT_UI[result.verdict] : null;
+  const demanded = item.scans > 0;
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+    <div
+      className={`rounded-2xl border overflow-hidden ${
+        demanded ? 'border-rose-300 bg-rose-50/60 shadow-sm shadow-rose-900/5' : 'border-slate-200 bg-white'
+      }`}
+    >
       <button onClick={onToggle} className="w-full flex items-center gap-3 p-3 text-left active:bg-slate-50">
         {img ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -355,7 +505,11 @@ function QueueRow({
           <p className="text-sm font-semibold text-slate-900 truncate">{item.canonical_name || item.name}</p>
           <p className="text-xs text-slate-500 truncate">
             {item.brand || '—'} · {fmtKg(item.weight_kg)}
-            {item.pack_count && item.pack_count > 1 ? ` · ${item.pack_count}un` : ''} · {item.scans} scans
+            {item.pack_count && item.pack_count > 1 ? ` · ${item.pack_count}un` : ''}
+            {' · '}
+            <span className={demanded ? 'font-bold text-rose-600' : ''}>
+              {demanded ? `🔥 ${item.scans} scan${item.scans > 1 ? 's' : ''}` : `${item.scans} scans`}
+            </span>
           </p>
         </div>
         <span className={`text-[10px] font-semibold uppercase px-2 py-1 rounded-full shrink-0 ${STATUS_BADGE[item.match_status] || 'bg-slate-100 text-slate-600'}`}>
