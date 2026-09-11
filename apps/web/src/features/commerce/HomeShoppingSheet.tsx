@@ -577,7 +577,7 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
             <p className="mt-0.5 text-[12px] font-bold leading-tight text-blue-700">Disponível para compra</p>
           )}
           {!loading && noBuyOptionAtAll && (
-            <p className="mt-0.5 text-[11px] font-medium text-slate-400">Buscando opções de compra...</p>
+            <p className="mt-0.5 text-[11px] font-medium text-slate-400">Sem opção de compra no momento</p>
           )}
         </div>
 
