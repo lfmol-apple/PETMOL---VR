@@ -5,19 +5,25 @@ Este documento existe para que alguém além de quem escreveu o código consiga 
 ## Onde as coisas ficam
 
 - **Repositório**: `github.com/lfmol-apple/PETMOL---VR`, branch de produção é `main`.
-- **VPS**: Hostinger, `srv1335464.hstgr.cloud` (147.93.33.24), São Paulo. Painel: Hostinger → VPS. Acesso root via Web Console do painel ou `ssh root@147.93.33.24`.
-- **Diretório da aplicação no VPS**: `/opt/petmol/app`.
+- **VPS**: Hostinger, `<VPS_HOST>` (`<VPS_IP>`), São Paulo. Painel: Hostinger → VPS. Acesso root via Web Console do painel ou `ssh root@<VPS_IP>` (valores reais só no cofre de segredos da equipe, nunca neste repositório público).
+- **Diretório da aplicação ativa no VPS**: `/opt/petmol/current` — symlink pra `/opt/petmol/releases/<sha>` (a release versionada em uso). `/opt/petmol/shared` guarda o que persiste entre releases (`.env`, uploads, venv Python compartilhada, logs). `/opt/petmol/app` é o **layout legado** do pipeline antigo (`deploy.yml`/`apply_on_vps.sh`) — hoje é só um diretório vestigial (não é mais um checkout git nem a release servida); não use como referência de onde a aplicação roda.
 - **Serviços systemd**: `petmol-api` (FastAPI/Uvicorn, porta 8000) e `petmol-web` (Next.js standalone, porta 3000). nginx faz proxy reverso para ambos e serve `petmol.com.br` / `www.petmol.com.br`.
 - **Banco**: PostgreSQL local no VPS. `DATABASE_URL` em `services/price-service/.env` (nunca commitado).
-- **Admin master**: `leonardofmol@gmail.com` — único e-mail que `get_current_admin` aceita (hardcoded em `src/config.py`, ver `admin_master_email`).
+- **Admin master**: e-mail único que `get_current_admin` aceita, configurado via `ADMIN_MASTER_EMAIL` (`src/config.py`, ver `admin_master_email`) — obrigatório em produção (`validate_prod()` bloqueia o startup se ausente), não tem mais valor padrão hardcoded. Valor real: cofre de segredos da equipe, nunca neste repositório.
 
 ## Deploy
 
-Fluxo normal: push em `main` → CI ([`ci.yml`](../.github/workflows/ci.yml): typecheck/lint/build do frontend, compile-check + pytest do backend) → se o CI passar, `deploy.yml` dispara automaticamente via `workflow_run` → empacota o repo, envia por SSH, roda [`deploy/sync/apply_on_vps.sh`](../deploy/sync/apply_on_vps.sh) no VPS.
+Fluxo normal (**pipeline oficial**, [`deploy-atomic.yml`](../.github/workflows/deploy-atomic.yml)): push em `main` → CI ([`ci.yml`](../.github/workflows/ci.yml): typecheck/lint/build do frontend, compile-check + pytest do backend) empacota um artefato único (`petmol-<sha>.tar.gz` + `manifest.json`) → se o CI passar, `deploy-atomic.yml` dispara automaticamente via `workflow_run`, baixa esse artefato, envia por SSH e roda [`deploy/release/activate.sh`](../deploy/release/activate.sh) no VPS.
 
-O que `apply_on_vps.sh` faz, em ordem: extrai o pacote, faz `rsync --delete` preservando `.env`/segredos, reinstala dependências (`pip`/`npm ci`) se backend/frontend mudou, builda o Next.js, grava `/opt/petmol/app/REVISION` com o SHA e branch aplicados, reinicia `petmol-api` e `petmol-web` via `systemctl`, roda 6 health checks internos (API health/version/suggest, frontend home, `sw.js`, VAPID key).
+O que `activate.sh` faz, em ordem: extrai a release em `/opt/petmol/releases/<sha>/` (fora de qualquer lock — pode demorar), faz symlink dos caminhos persistentes de `/opt/petmol/shared/` (`.env`, uploads, venv Python) pra dentro da release, reinstala dependências do backend na venv compartilhada só se `requirements.txt` mudou, e só então entra numa seção curta protegida por `flock` (`/opt/petmol/.activate.lock`, timeout de 30s): troca o symlink `/opt/petmol/current` pra apontar pra release nova, reinicia `petmol-api` e `petmol-web` via `systemctl`, e roda os health checks essenciais. Se algum health check essencial falhar, faz **rollback automático**: volta `/opt/petmol/current` pra release anterior, reinicia os serviços de novo e regrava `/opt/petmol/REVISION` com `rolled_back_from=<sha que falhou>` — sem intervenção manual (ver seção Rollback abaixo). Health checks opcionais rodam depois, só como aviso, nunca bloqueiam o deploy. Por fim poda releases antigas, mantendo as últimas 5.
 
-**Deploy manual** (bypassa a espera do CI — usar só se souber que o commit já está validado):
+**Deploy manual** (redeploya um SHA específico já empacotado pelo CI — bypassa a espera do `workflow_run`, útil pra redeployar um commit antigo ou reaplicar o mesmo SHA):
+```bash
+gh workflow run deploy-atomic.yml --repo lfmol-apple/PETMOL---VR --field sha=<sha-completo>
+# sem --field sha: usa o último commit com CI verde em main
+```
+
+`deploy.yml` (o pipeline legado — SSH + rsync in-place sobre `/opt/petmol/app`, sem release versionada nem rollback automático) só roda via `workflow_dispatch` manual hoje, reservado pra emergência caso o pipeline atômico esteja indisponível:
 ```bash
 gh workflow run deploy.yml --repo lfmol-apple/PETMOL---VR --ref main
 ```
@@ -29,7 +35,7 @@ Sintoma ja observado em 2026-08-10:
 ```text
 Connection established.
 kex_exchange_identification: read: Operation timed out
-banner exchange: Connection to 147.93.33.24 port 22: Operation timed out
+banner exchange: Connection to <VPS_IP> port 22: Operation timed out
 ```
 
 Isso significa que o TCP na porta 22 abriu, mas o `sshd` nao respondeu o
@@ -37,7 +43,7 @@ banner. Nao e erro de senha/chave. A producao pode continuar no ar via nginx
 enquanto o SSH esta quebrado; confirme com:
 
 ```bash
-curl -I --connect-timeout 10 http://147.93.33.24
+curl -I --connect-timeout 10 http://<VPS_IP>
 curl -I --connect-timeout 10 https://www.petmol.com.br/
 curl -sS --connect-timeout 10 https://www.petmol.com.br/version.json
 ```
@@ -86,8 +92,8 @@ ss -ltnp | grep -E ':(22|2222)\b'
 Depois testar de fora:
 
 ```bash
-ssh -o BatchMode=yes -o ConnectTimeout=15 root@147.93.33.24 'hostname; whoami; date'
-ssh -p 2222 -o BatchMode=yes -o ConnectTimeout=15 root@147.93.33.24 'hostname; whoami; date'
+ssh -o BatchMode=yes -o ConnectTimeout=15 root@<VPS_IP> 'hostname; whoami; date'
+ssh -p 2222 -o BatchMode=yes -o ConnectTimeout=15 root@<VPS_IP> 'hostname; whoami; date'
 ```
 
 Se a porta 2222 funcionar e a 22 nao, liberar TCP 2222 no firewall da
@@ -104,11 +110,15 @@ version.json -> 753705196e29044936fc41a876a960918affe10a-1786370556
 api/health -> {"status":"ok","version":"0.1.0","providers":["mercadolivre"]}
 ```
 
-**Verificar se um deploy realmente aplicou** — compare o SHA:
+**Verificar se um deploy realmente aplicou** — os três indicadores abaixo (rodar no VPS) devem apontar pro mesmo SHA entre si; isso, não a ponta da `main`, é a fonte de verdade sobre o que está no ar:
 ```bash
-git log -1 --format=%H main          # local/GitHub
-cat /opt/petmol/app/REVISION          # o que está de fato rodando (rodar no VPS)
+cat /opt/petmol/REVISION                        # o que activate.sh gravou como ativado
+readlink -f /opt/petmol/current                 # a release efetivamente servida
+curl -sS http://127.0.0.1:3000/version.json      # o que o frontend rodando de fato responde
 ```
+Qualquer divergência entre esses três é incidente de deploy. (`/opt/petmol/app/REVISION` ainda existe como symlink legado pra `/opt/petmol/REVISION`, mas não deve ser consultado diretamente — é sobre o layout antigo, não a release servida.)
+
+Só depois disso compare com `git log -1 --format=%H main` — mas `main` pode legitimamente estar à frente do SHA ativado: `deploy-atomic.yml` pula a ativação quando o diff desde a release ativa contém só docs/workflow (ver "Detect whether VPS deploy is needed" no workflow). `main` mais à frente não é, sozinho, incidente; só investigue se os commits entre a release ativa e a ponta da `main` tiverem código que deveria ter sido implantado e não foi.
 
 **Acompanhar um deploy em andamento** (não precisa de acesso ao VPS, só `gh` autenticado):
 ```bash
@@ -118,20 +128,25 @@ gh run watch <run-id> --repo lfmol-apple/PETMOL---VR --exit-status
 
 ### Trava de concorrência (por que existe)
 
-Dois deploys rodando ao mesmo tempo no VPS corrompem `node_modules`/`.next` (dois `npm ci`/`next build` escrevendo em cima um do outro). Duas camadas de proteção:
-- `deploy.yml` tem `concurrency: group: deploy-vps` — GitHub enfileira em vez de rodar em paralelo, e `timeout-minutes: 10` no job evita que uma conexão SSH morta (ex.: reboot do VPS no meio de um deploy) bloqueie a fila por até 6 horas (o padrão do GitHub Actions).
-- `apply_on_vps.sh` também usa `flock` num arquivo (`/opt/petmol/.deploy.lock`) como segunda trava, com expiração automática depois de 15 minutos — protege contra invocação direta do script fora do GitHub Actions.
+Duas ativações rodando ao mesmo tempo no VPS corromperiam o symlink `current`/os serviços reiniciando em cima um do outro. Duas camadas de proteção no pipeline atômico:
+- `deploy-atomic.yml` tem `concurrency: group: deploy-vps-atomic` (`cancel-in-progress: false`) — GitHub enfileira em vez de rodar em paralelo, e `timeout-minutes: 10` no job evita que uma conexão SSH morta trave a fila indefinidamente.
+- `activate.sh` só entra em seção crítica (`flock` em `/opt/petmol/.activate.lock`, timeout de **30 segundos**) pra trocar o symlink `current`, reiniciar os serviços e rodar os health checks essenciais — a parte lenta e variável (extrair o pacote, reinstalar dependências) roda **fora** do lock de propósito, então o lock nunca fica preso por minutos.
 
-Se um deploy travar com `"Outro deploy ja esta em andamento"` e você tiver certeza de que não há deploy real rodando, o lock expira sozinho em até 15 minutos. Não é necessário intervir manualmente.
+O pipeline legado (`deploy.yml`/`apply_on_vps.sh`) tinha `concurrency: group: deploy-vps` e um lock por `flock` com expiração de 15 minutos cobrindo o build inteiro — mantido aqui só como histórico caso o fallback manual seja usado.
 
 ### Rollback
 
-Não existe rollback automático. Para reverter um deploy problemático:
+**Existe rollback automático** no pipeline atômico: se os health checks essenciais falharem logo após `activate.sh` trocar o symlink `current` pra release nova, ele reverte sozinho — troca `current` de volta pra release anterior, reinicia `petmol-api`/`petmol-web` e regrava `/opt/petmol/REVISION` com `rolled_back_from=<sha que falhou>`. Isso acontece dentro do mesmo deploy, sem intervenção manual; confira `cat /opt/petmol/REVISION` pra ver se um rollback automático aconteceu.
+
+Pra reverter um deploy que **passou** nos health checks mas se revelou problemático depois (bug funcional, não um erro que os health checks pegam):
 ```bash
 git revert <commit-ruim> --no-edit
 git push origin main
 ```
-Isso passa pelo mesmo pipeline (CI → deploy) e aplica o estado anterior. Alternativa mais rápida em emergência: `git checkout <sha-bom> -- .` seguido de commit, ou disparar `gh workflow run deploy.yml --ref <branch-com-sha-bom>` se existir uma branch/tag apontando pro estado bom.
+Isso passa pelo mesmo pipeline (CI → deploy-atomic) e aplica o estado anterior como uma release nova. Alternativa mais rápida em emergência — redeployar um SHA antigo específico sem esperar CI de novo (o SHA precisa já ter uma release empacotada por um CI verde anterior):
+```bash
+gh workflow run deploy-atomic.yml --repo lfmol-apple/PETMOL---VR --field sha=<sha-bom>
+```
 
 ## Banco de dados
 
