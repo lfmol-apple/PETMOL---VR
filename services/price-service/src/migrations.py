@@ -596,6 +596,59 @@ def run_pg_migrations(engine: Engine) -> None:
         except Exception as exc:
             logger.info("petz Scalibor fix pulado: %s", exc)
 
+        # 2026-09-11: correção da ração Royal Canin Urinary Small Dog. A
+        # URL do produto (.../100223) é COMPARTILHADA entre 2kg e 7,5kg —
+        # a Petz não separa por URL, só por um seletor de peso na tela.
+        # Descoberta ao vivo: cada peso tem um "Código" próprio na tela
+        # (diferente do id "100223" da URL) — 10001330000134 = 2kg,
+        # 10001330000135 = 7,5kg — e `comprarAgora_Loja.html?prod=<esse
+        # código>` adiciona o peso CERTO (confirmado: carrinho real
+        # mostrou R$ 457,81 = preço do 7,5kg). Troca o petz_product_id de
+        # "100223" (ambíguo) pro código de SKU exato de cada peso.
+        try:
+            fixed_rc75 = conn.execute(text("""
+                UPDATE petz_product_mappings AS m
+                   SET petz_product_id = '10001330000135',
+                       variant_label = '7,5 kg — corrigido 11/09 (código de SKU, não o id da URL compartilhada)',
+                       variant_weight_kg = 7.5,
+                       match_status = 'confirmed',
+                       match_confidence = 1.0,
+                       rejection_reason = NULL,
+                       updated_at = NOW()
+                  FROM products_catalog AS c
+                 WHERE m.product_id = c.id
+                   AND c.barcode_normalized = '7896181298090'
+                   AND m.petz_product_id = '100223'
+            """))
+            fixed_rc2 = conn.execute(text("""
+                INSERT INTO petz_product_mappings
+                    (product_id, petz_product_id, product_url, variant_label, variant_weight_kg,
+                     match_status, match_confidence, created_at, updated_at, last_verified_at)
+                SELECT c.id, '10001330000134',
+                       'https://www.petz.com.br/produto/racao-royal-canin-veterinary-urinary-small-dog-para-caes-de-porte-pequeno-com-calculos-urinarios-100223',
+                       '2 kg — corrigido 11/09 (código de SKU, não o id da URL compartilhada)', 2.0,
+                       'confirmed', 1.0, NOW(), NOW(), NOW()
+                  FROM products_catalog AS c
+                 WHERE c.barcode_normalized = '7896181298083'
+                ON CONFLICT (product_id) DO UPDATE SET
+                    petz_product_id = EXCLUDED.petz_product_id,
+                    product_url = EXCLUDED.product_url,
+                    variant_label = EXCLUDED.variant_label,
+                    variant_weight_kg = EXCLUDED.variant_weight_kg,
+                    match_status = 'confirmed',
+                    match_confidence = 1.0,
+                    rejection_reason = NULL,
+                    updated_at = NOW()
+                WHERE petz_product_mappings.petz_product_id IS DISTINCT FROM EXCLUDED.petz_product_id
+            """))
+            if fixed_rc75.rowcount or fixed_rc2.rowcount:
+                logger.warning(
+                    "petz Royal Canin Urinary fix: 7,5kg=%s 2kg=%s (código de SKU exato por peso)",
+                    fixed_rc75.rowcount, fixed_rc2.rowcount,
+                )
+        except Exception as exc:
+            logger.info("petz Royal Canin Urinary fix pulado: %s", exc)
+
 
 def _migrate_push_subscriptions_from_json(conn) -> None:
     """One-time import of the legacy push_subscriptions.json (file-based,

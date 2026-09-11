@@ -668,14 +668,17 @@ def test_petz_direct_link_cart_prefill_on_unconfirmed_product_falls_back(client,
 
 def test_petz_direct_link_cart_prefill_seed_gtin_without_mapping(client, monkeypatch):
     """Flag ON, produto SEM mapping mas com GTIN no mapa curado
-    (`petz_product_id_for_gtin`) → carrinho pré-montado destrava mesmo assim."""
+    (`petz_product_id_for_gtin`) → carrinho pré-montado destrava mesmo
+    assim. Usa o "Código" de SKU (10001330000134) — não o id da URL
+    (100223), que é compartilhado entre pesos e por isso nunca serviria
+    carrinho (ver shared_variant_petz_ids)."""
     _enable_petz_cart_prefill(monkeypatch)
-    _register_product(gtin="7896181298083")  # seed → Petz prod 100223
+    _register_product(gtin="7896181298083")  # seed → Petz 10001330000134 (2kg)
     body = client.get("/commerce/petz-direct-link", params={"gtin": "7896181298083"}).json()
     assert body["destination"] == "cart"
-    assert body["cart_add_url"] == "https://www.petz.com.br/comprarAgora_Loja.html?prod=100223&qtde=1"
+    assert body["cart_add_url"] == "https://www.petz.com.br/comprarAgora_Loja.html?prod=10001330000134&qtde=1"
     assert body["coupon_apply_url"] == "https://www.petz.com.br/aplicarCupom_Loja.html?cupom=PETMOL"
-    assert body["petz_product_id"] == "100223"
+    assert body["petz_product_id"] == "10001330000134"
     assert body["direct_product_url"] is None  # mapa curado NÃO cria página exata
 
 
@@ -1176,6 +1179,47 @@ def test_search_term_carries_collar_length(client, monkeypatch):
     )
     body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000401"}).json()
     assert "48cm" in body["search_url"].replace("+", "").replace("%2C", ",")
+
+
+def test_distinct_sku_code_per_weight_resolves_the_conflict(client, admin_client, monkeypatch):
+    """Quando cada peso ganha o CÓDIGO DE SKU certo (não o id da URL
+    compartilhada), a auditoria não vê mais conflito — e o carrinho
+    pré-montado volta a funcionar, com o peso certo pra cada GTIN.
+    Reproduz a correção real: Royal Canin Urinary Small Dog 2kg
+    (código 10001330000134) e 7,5kg (10001330000135), confirmado ao vivo
+    no carrinho real da Petz."""
+    from src.petz_mapping import _clear_shared_variant_cache
+
+    _enable_petz_cart_prefill(monkeypatch)
+    pid_2 = _register_product(gtin="9990000000801", name="Ração RC Urinary 2kg", brand="Royal Canin", weight_kg=2.0)
+    pid_75 = _register_product(gtin="9990000000802", name="Ração RC Urinary 7,5kg", brand="Royal Canin", weight_kg=7.5)
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, pid_2, petz_product_id="888001",
+            product_url="https://www.petz.com.br/produto/racao-rc-urinary-999999",
+            variant_label="2 kg", variant_weight_kg=2.0,
+        )
+        confirm_petz_mapping(
+            db, pid_75, petz_product_id="888002",
+            product_url="https://www.petz.com.br/produto/racao-rc-urinary-999999",
+            variant_label="7,5 kg", variant_weight_kg=7.5,
+        )
+    finally:
+        db.close()
+    _clear_shared_variant_cache()
+    try:
+        audit = admin_client.get("/v1/admin/petz/audit/conflicts").json()
+        assert not any(
+            "9990000000801" in {p["gtin"] for p in c["products"]} for c in audit["conflicts"]
+        )
+
+        body_2 = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000801"}).json()
+        body_75 = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000802"}).json()
+        assert body_2["cart_add_url"] == "https://www.petz.com.br/comprarAgora_Loja.html?prod=888001&qtde=1"
+        assert body_75["cart_add_url"] == "https://www.petz.com.br/comprarAgora_Loja.html?prod=888002&qtde=1"
+    finally:
+        _clear_shared_variant_cache()
 
 
 def test_shared_variant_page_never_gets_cart_prefill(client, monkeypatch):
