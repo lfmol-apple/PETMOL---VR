@@ -31,7 +31,12 @@ export function usePetBootstrap() {
   const router = useRouter();
   const { tutor, token, isLoading, isAuthenticated } = useAuth();
 
-  const [isChecking, setIsChecking] = useState(false);
+  // Começa true: o boot splash (gated por isLoading || isChecking na Home)
+  // precisa cobrir toda a janela entre "auth resolvido" e "pets carregados"
+  // — antes ficava false por padrão e nunca era setado true em lugar
+  // nenhum, então a Home renderizava com pets=[] (estado vazio "Quem é o
+  // seu pet?", depois o checklist de onboarding) até os dados chegarem.
+  const [isChecking, setIsChecking] = useState(true);
   const [pets, setPets] = useState<PetHealthProfile[]>([]);
   const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
   const [tutorName, setTutorName] = useState<string>('');
@@ -86,8 +91,6 @@ export function usePetBootstrap() {
   useEffect(() => {
     const forceLoadPets = async () => {
       if (tutor && tutor.email) {
-        setIsChecking(false);
-
         try {
           const savedToken = getToken();
           const response = await fetch(`${API_BASE_URL}/pets`, {
@@ -129,11 +132,13 @@ export function usePetBootstrap() {
               setSelectedPetId((prev) => resolveSelectedPetId(convertedPets, prev));
             }
             // sem pets: home exibe estado vazio com botão "Adicionar pet"
+            setIsChecking(false);
           } else {
             if (response.status === 401 || response.status === 403) {
               router.replace('/login');
             }
             // Erros genéricos (5xx, etc.) — não redirecionar; manter tela atual
+            setIsChecking(false);
           }
         } catch {
           // Erro de rede — usuário está logado, não deslogar; manter na tela atual
