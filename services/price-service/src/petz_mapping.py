@@ -99,7 +99,12 @@ class PetzProductMapping(Base):
     search_query: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     match_status: Mapped[str] = mapped_column(String(24), nullable=False, default="unknown", index=True)
     match_confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    variant_label: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    # Text, não VARCHAR(120): nome real de variante da Petz passa fácil de
+    # 120 caracteres (ex.: "Ração Seca Royal Canin Veterinary Diet
+    # Hypoallergenic Small Dog para Cães Pequenos com Sensibilidades
+    # Alimentares - 7,5 kg") — um limite curto rejeitava o INSERT inteiro
+    # (StringDataRightTruncation) no bulk-import em massa.
+    variant_label: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     variant_weight_kg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     rejection_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     last_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -817,6 +817,34 @@ def test_bulk_import_matches_by_exact_barcode(admin_client):
     assert resp2["match_confidence"] == 1.0
 
 
+def test_bulk_import_accepts_variant_label_longer_than_120_chars(admin_client):
+    """Nome real de produto da Petz (o `name` do item, usado como
+    variant_label) passa fácil de 120 caracteres — ex.: linhas
+    veterinárias com "Royal Canin Veterinary Diet Hypoallergenic ...
+    com Sensibilidades Alimentares - 7,5 kg". Em produção (Postgres),
+    variant_label era VARCHAR(120) e o INSERT inteiro quebrava com
+    StringDataRightTruncation (achado no bulk-import real de 11/09/2026,
+    onde SQLite do CI não pegou porque não aplica limite de VARCHAR)."""
+    long_name = (
+        "Ração Seca Royal Canin Veterinary Diet Hypoallergenic Small Dog "
+        "para Cães Pequenos com Sensibilidades Alimentares - 7,5 kg"
+    )
+    assert len(long_name) > 120
+    _register_product(gtin="7896181216452", name="Ração RC Hypoallergenic", brand="Royal Canin", weight_kg=7.5)
+
+    body = admin_client.post("/v1/admin/petz/bulk-import", json={"items": [
+        {
+            "barcode": "7896181216452", "sku": "10001330000099",
+            "name": long_name,
+            "url": "https://www.petz.com.br/produto/racao-royal-canin-hypoallergenic-71789",
+        },
+    ]}).json()
+
+    assert body["matched"] == 1
+    status = admin_client.get("/v1/admin/petz/products/7896181216452/status").json()
+    assert status["variant_label"] == long_name
+
+
 def test_bulk_import_rejects_weight_conflict_and_skips_missing_gtin(admin_client):
     _register_product(gtin="7896181298083", name="Ração RC Urinary", brand="Royal Canin", weight_kg=2.0)
 
