@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .config import get_settings
-from .rate_limit import rate_limit
+from .rate_limit import rate_limit, rate_limiter
 from .models import (
     Currency,
     ErrorResponse,
@@ -2395,19 +2395,29 @@ Focus on dog food, cat food, and other pet food products."""
 
 @app.post("/vision/extract-vaccine-card-files", response_model=VaccineCardOcrResponse, tags=["Vision"])
 async def extract_vaccine_card_files(
+    http_request: Request,
     files: List[UploadFile] = File(...),
     hint: Optional[str] = Form(None),
     prefer_local: bool = Form(True),
     force_ai: bool = Form(False),
     max_ai_images: int = Form(8),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Lê uma ou mais fotos da carteirinha e devolve os registros de vacina.
 
     Um caminho só: VisionService (Gemini 2.5 Flash, temperature=0 + JSON mode,
     imagem reduzida antes do envio, dedupe + normalização de datas em Python).
     Em qualquer falha devolve lista vazia — o app mostra "nenhuma vacina".
-    """
+
+    Exige login + consentimento de IA (mesma guarda do caminho de foto única
+    em vision/router.py) — antes, este endpoint multi-foto aceitava qualquer
+    requisição sem autenticação nem consentimento, apesar de ser o caminho
+    que o app de fato usa na tela de vacinas (achado de auditoria App Store,
+    11/09/2026)."""
     import time
+
+    from .vision.router import _require_ai_photo_consent
 
     start_time = time.time()
 
@@ -2419,6 +2429,14 @@ async def extract_vaccine_card_files(
         )
     if len(files) > 12:
         raise HTTPException(status_code=400, detail="Too many files (max 12)")
+
+    # Mesmo limite do caminho de foto única (vision/router.py) — cada chamada
+    # custa dinheiro de verdade (API do Gemini).
+    allowed, _, _ = rate_limiter.check_rate_limit(http_request, max_requests=20, window_seconds=3600)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Muitas leituras de imagem. Aguarde um momento.")
+
+    _require_ai_photo_consent(db, str(current_user.id))
 
     try:
         gemini_key = _get_gemini_api_key()

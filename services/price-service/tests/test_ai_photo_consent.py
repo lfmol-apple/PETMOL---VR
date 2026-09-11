@@ -90,3 +90,73 @@ def test_no_gemini_request_without_current_user_consent(client, monkeypatch):
     assert resp.status_code == 403
     assert resp.json()["detail"]["error"] == "ai_photo_consent_required"
     assert called["value"] is False
+
+
+# ── /vision/extract-vaccine-card-files (multi-foto) ─────────────────────────
+#
+# Achado de auditoria App Store (11/09/2026): este é o caminho que a tela de
+# vacinas do app de fato usa (VaccineItemSheet.tsx "Ler agora"), mas ele
+# aceitava qualquer requisição sem login e sem consentimento de IA — ao
+# contrário do irmão de foto única (/vision/extract-vaccine-card), que já
+# tinha as duas guardas. Os testes abaixo travam essa paridade.
+
+def test_extract_vaccine_card_files_requires_login(client):
+    resp = client.post(
+        "/vision/extract-vaccine-card-files",
+        files=[("files", ("carteirinha.jpg", b"fake-image-bytes", "image/jpeg"))],
+    )
+    assert resp.status_code in (401, 403)
+
+
+def test_no_gemini_request_without_consent_multi_photo(client, monkeypatch):
+    token = _signup_and_login(client, "cid-ai-vaccine-no-consent", "vaccine-no-consent@example.com")
+    called = {"value": False}
+
+    class FailIfInstantiated:
+        def __init__(self, *_args, **_kwargs):
+            called["value"] = True
+            raise AssertionError("VisionService must not be instantiated without consent")
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr("src.vision.service.VisionService", FailIfInstantiated)
+
+    resp = client.post(
+        "/vision/extract-vaccine-card-files",
+        files=[("files", ("carteirinha.jpg", b"fake-image-bytes", "image/jpeg"))],
+        headers=_headers("cid-ai-vaccine-no-consent", token),
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"]["error"] == "ai_photo_consent_required"
+    assert called["value"] is False
+
+
+def test_extract_vaccine_card_files_works_after_consent(client, monkeypatch):
+    token = _signup_and_login(client, "cid-ai-vaccine-consent", "vaccine-consent@example.com")
+    assert client.post("/vision/consent/ai-photo", headers=_headers("cid-ai-vaccine-consent", token)).status_code == 200
+
+    class FakeVisionService:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def extract_vaccine_data_multi(self, images, pet_id):
+            return {
+                "vaccines": [{"name": "V10", "date": "2026-01-10", "next_date": None, "veterinarian": None, "notes": None}],
+                "confidence": 0.9,
+            }
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr("src.vision.service.VisionService", FakeVisionService)
+
+    resp = client.post(
+        "/vision/extract-vaccine-card-files",
+        files=[("files", ("carteirinha.jpg", b"fake-image-bytes", "image/jpeg"))],
+        headers=_headers("cid-ai-vaccine-consent", token),
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["sucesso"] is True
+    assert body["ia_usada"] is True
+    assert len(body["registros"]) == 1
+    assert body["registros"][0]["tipo_vacina"] == "V10"

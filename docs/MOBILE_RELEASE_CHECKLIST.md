@@ -62,7 +62,7 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 
 - [x] Projeto Xcode gerado (`npx cap add ios` não exige Xcode, só build/archive exigem) — mesmo shell Capacitor do Android (`server.url` remoto), bundle id `br.com.petmol.app` herdado automaticamente do `capacitor.config.ts`
 - [x] Usage descriptions de câmera/fotos adicionadas no `Info.plist` (`NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`, `NSPhotoLibraryAddUsageDescription`) — faltavam no template padrão
-- [x] **v1.0 vai SEM push nativo.** `UIBackgroundModes: remote-notification` **removido** do `Info.plist` (PR `fix/store-readiness-round1`) — declarar background mode sem push funcional é risco de rejeição App Store 2.5.4. `nativePushService` agora só registra o token se a permissão JÁ estiver concedida (não abre prompt que não leva a nada). `App.entitlements` (`aps-environment=development`) segue no repo, órfão, pronto pra quando a APNs Auth Key existir. Ao ligar push de verdade: gerar `.p8`, no Xcode "+ Capability → Push Notifications" (conecta `CODE_SIGN_ENTITLEMENTS`), trocar `aps-environment` p/ `production`, restaurar o `UIBackgroundModes` e o prompt de permissão.
+- [x] **Push nativo iOS confirmado funcionando em aparelho físico** (atualizado 11/09/2026 — a entrada anterior deste item, que dizia "v1.0 vai SEM push nativo", estava desatualizada e não reflete mais o código nem o comportamento real). `Info.plist` tem `UIBackgroundModes: remote-notification` presente; `App.entitlements` tem `aps-environment=production` (não `development`, não órfão); registro de token, permissão e entrega em foreground/background testados e confirmados. Ver `nativePushService.ts` e `AppDelegate.swift`.
 - [ ] **Bloqueado hoje**: Xcode completo não está instalado neste Mac (só Command Line Tools) — `xcodebuild` recusa rodar; requer instalação interativa via App Store com o Apple ID do usuário, não pode ser feito de forma não-interativa. CocoaPods também não está instalado (necessário pra `pod install` antes de abrir o projeto no Xcode)
 - [x] Ícones e launch screen trocados pela marca PETMOL (mesmo processo do Android — `@capacitor/assets`, AppIcon + Splash light/dark)
 - [x] Área Amazon US (`/recommendations`) mantida FORA do app nativo (PR `fix/store-readiness-round1`): `capacitor.config.ts` marca o UA com `PetmolApp`; a rota `/recommendations` dá `notFound()` quando o UA é do app; links "Picks"/"Recommendations" escondidos no Header/Footer/landing/InstitutionalLayout quando `Capacitor.isNativePlatform()`. Web e crawlers inalterados.
@@ -72,7 +72,7 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 
 ## Push nativo (Android/iOS) — pendências externas
 
-O registro do token (permissão, captura, envio ao backend, tabela `native_push_tokens`, cascade de exclusão de conta) está pronto de ponta a ponta nas duas plataformas — commit `09b9641`, CI verde. O que falta é **enviar** de fato uma notificação nativa, e isso depende de credenciais externas que este ambiente não tem e não pode gerar sozinho:
+**iOS: resolvido e confirmado em aparelho físico (11/09/2026)** — ver Bloqueio 2 abaixo, mantido só como registro histórico. O registro do token (permissão, captura, envio ao backend, tabela `native_push_tokens`, cascade de exclusão de conta) está pronto de ponta a ponta nas duas plataformas — commit `09b9641`, CI verde. No iOS o envio de fato **já funciona**; no Android (FCM) o bloqueio abaixo segue sem confirmação registrada neste repositório:
 
 **Bloqueio 1 — Android (Firebase Cloud Messaging)**
 - AÇÃO HUMANA: criar um projeto no Firebase Console, registrar o app com `applicationId br.com.petmol.app`, baixar `google-services.json` e gerar uma Server Key/Service Account
@@ -80,11 +80,8 @@ O registro do token (permissão, captura, envio ao backend, tabela `native_push_
 - VALOR NECESSÁRIO: nenhum custo — o tier gratuito do FCM cobre o volume esperado no lançamento
 - RESULTADO ESPERADO: `google-services.json` colocado em `apps/web/android/app/` (fora do Git, mesmo padrão do keystore) + credencial de servidor (Service Account JSON ou Server Key legada) configurada como secret no backend, pra o serviço poder chamar a API do FCM e efetivamente enviar os pushes cujos tokens já estão sendo coletados
 
-**Bloqueio 2 — iOS (Apple Push Notification service)**
-- AÇÃO HUMANA: no Apple Developer Program (exige conta paga, USD 99/ano — provavelmente já existe pra fins de submissão à App Store, ver seção "Metadados de loja"), gerar uma APNs Auth Key (.p8, recomendado sobre certificado porque não expira) vinculada ao App ID `br.com.petmol.app`; depois, no Xcode, ativar a capability "Push Notifications" no projeto (isso é o passo que também conecta o `App.entitlements` já preparado ao `project.pbxproj`)
-- LOCAL: https://developer.apple.com/account (Certificates, Identifiers & Profiles → Keys) + Xcode, que precisa estar instalado (ver bloqueio do build iOS, já documentado abaixo)
-- VALOR NECESSÁRIO: já coberto pela assinatura anual do Apple Developer Program, se o usuário já tiver — nenhum custo adicional específico do push
-- RESULTADO ESPERADO: arquivo `.p8` + Key ID + Team ID guardados como secret no backend (nunca no repo), permitindo o serviço assinar requisições JWT pra APNs e enviar os pushes cujos tokens já estão sendo coletados no iOS
+**Bloqueio 2 — iOS (Apple Push Notification service) — RESOLVIDO (11/09/2026)**
+A APNs Auth Key foi gerada e configurada, a capability "Push Notifications" está ativa no Xcode (`App.entitlements` com `aps-environment=production` já conectado ao `project.pbxproj`), e o envio ponta a ponta foi confirmado em aparelho físico. Nada pendente aqui.
 
 Registrar o token agora, mesmo sem poder enviar ainda, não tem custo nem risco — quando as duas credenciais acima existirem, os dispositivos que já instalaram o app vão precisar apenas reabrir uma vez pra o token já estar no banco.
 
@@ -92,7 +89,7 @@ Registrar o token agora, mesmo sem poder enviar ainda, não tem custo nem risco 
 
 - [x] Apple App Privacy mapeado a partir do código real (schemas de banco + confirmação de que não há SDK de analytics/ads/crash de terceiros) — ver `docs/APP_STORE_METADATA.md`
 - [x] Google Data Safety — matriz equivalente pronta em `docs/APP_STORE_METADATA.md`
-- [ ] Conta de revisor dedicada — procedimento documentado em `docs/APP_STORE_METADATA.md`, mas **as credenciais (e-mail/senha) dependem de decisão sua** antes de eu criar a conta em produção
+- [ ] Conta de revisor dedicada — procedimento documentado em `docs/APP_STORE_METADATA.md`. **Requer confirmação manual (Leonardo)**: não há registro no repositório de que essa conta foi criada/populada antes da submissão de 07/09/2026 — verificar antes de reenviar, é o candidato mais provável para a rejeição 2.1 recebida
 - [x] Review notes para App Store e Google Play — rascunho pronto em `docs/APP_STORE_METADATA.md`
 - [x] Copy de loja sem "grátis"/"menor preço garantido"/"diagnóstico"/"garantia de saúde" — landing page já corrigida (PR #55); lembretes documentados pra aplicar na ficha das lojas também
 

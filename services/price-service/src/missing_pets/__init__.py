@@ -449,9 +449,17 @@ def _mp_to_dict(p: MissingPet) -> dict:
 
 
 def _mp_to_public_dict(p: MissingPet) -> dict:
+    # lat/lng exatos nunca saem daqui — nenhum consumidor (lista de alertas,
+    # resultado de match-photo) usa coordenada crua, só `last_seen_location`
+    # (que o frontend já redige a nível de rua) e `current_radius_km`.
+    # Achado de auditoria App Store (11/09/2026): coordenada exata do último
+    # local visto do tutor ficava pública, sem login, junto com foto e nome
+    # do pet — risco de privacidade (Guideline 5.1.1) sem ganho funcional.
     data = _mp_to_dict(p)
     data.pop("contact", None)
     data.pop("user_id", None)
+    data.pop("lat", None)
+    data.pop("lng", None)
     return data
 
 
