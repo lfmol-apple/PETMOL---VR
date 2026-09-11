@@ -572,6 +572,30 @@ def run_pg_migrations(engine: Engine) -> None:
         except Exception as exc:  # tabela pode não existir ainda em bases muito novas
             logger.info("petz identity sweep pulado: %s", exc)
 
+        # 2026-09-11: correção pontual da coleira Scalibor. O matching
+        # automático casou os GTINs de 48 cm (M) com a página Petz 81288 —
+        # que é a de 65 cm (G). A de 48 cm é a 81287. Troca só nesses
+        # GTINs. Idempotente (depois da 1ª vez WHERE petz_product_id='81288'
+        # não bate mais). Ver conversa 11/09 + páginas Petz 81287/81288.
+        try:
+            fixed = conn.execute(text("""
+                UPDATE petz_product_mappings AS m
+                   SET petz_product_id = '81287',
+                       product_url = 'https://www.petz.com.br/produto/coleira-antiparasitas-scalibor-msd-saude-animal-81287',
+                       variant_label = 'M / 48 cm — corrigido 11/09 (81288 é a G/65cm)',
+                       match_status = 'confirmed',
+                       match_confidence = 1.0,
+                       rejection_reason = NULL
+                  FROM products_catalog AS c
+                 WHERE m.product_id = c.id
+                   AND c.barcode_normalized IN ('7896185957009', '7896185907004')
+                   AND m.petz_product_id = '81288'
+            """))
+            if fixed.rowcount:
+                logger.warning("petz Scalibor fix: %s mapeamento(s) 81288→81287 (48cm)", fixed.rowcount)
+        except Exception as exc:
+            logger.info("petz Scalibor fix pulado: %s", exc)
+
 
 def _migrate_push_subscriptions_from_json(conn) -> None:
     """One-time import of the legacy push_subscriptions.json (file-based,

@@ -679,6 +679,16 @@ def test_petz_direct_link_cart_prefill_seed_gtin_without_mapping(client, monkeyp
     assert body["direct_product_url"] is None  # mapa curado NÃO cria página exata
 
 
+def test_scalibor_48cm_seed_points_to_81287_not_81288(client, monkeypatch):
+    """Coleira Scalibor de 48 cm (M) → Petz 81287. A 81288 é a de 65 cm (G).
+    Ver correção pontual 11/09."""
+    _enable_petz_cart_prefill(monkeypatch)
+    _register_product(gtin="7896185957009", name="Coleira Antiparasitária Scalibor Cães Pequenos e Médios", brand="Scalibor")
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "7896185957009"}).json()
+    assert body["cart_add_url"] == "https://www.petz.com.br/comprarAgora_Loja.html?prod=81287&qtde=1"
+    assert body["petz_product_id"] == "81287"
+
+
 def test_petz_direct_link_cart_prefill_seed_gtin_flag_off(client, monkeypatch):
     """Mesmo GTIN do seed, flag OFF → nada muda."""
     _enable_petz(monkeypatch)
