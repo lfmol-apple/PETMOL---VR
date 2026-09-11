@@ -1609,6 +1609,13 @@ async def commerce_petz_direct_link(
     cart_add_url: Optional[str] = None
     if product is not None:
         mapping = get_mapping(db, product.id)
+        # Só serve link direto / carrinho se um HUMANO confirmou olhando a
+        # página da Petz (mapping.human_verified). Palpite de backfill
+        # ("inferido por eliminação") não serve — cai na busca e aparece
+        # no painel /admin/petz pra reconferência. Ver incidente coleira
+        # Scalibor (81288 G servida no lugar da 81287 M).
+        if mapping is not None and not mapping.human_verified:
+            mapping = None
         if mapping and mapping.match_status in DIRECT_LINK_ELIGIBLE_STATUSES and mapping.product_url:
             # GUARDA DE IDENTIDADE: o mapeamento aponta pro MESMO produto e
             # tamanho? "Ração X 3kg" e "Ração X 15kg" são produtos diferentes.
@@ -1673,16 +1680,16 @@ async def commerce_petz_direct_link(
 
     search_brand = (brand or "").strip() or (product.brand if product and getattr(product, "brand", None) else None)
 
-    # Token de tamanho/dose pro termo de busca — kg (ração), cm (coleira),
-    # ml (úmida), mg (remédio). A Petz junta as variantes num seletor só,
-    # então sem isso a busca cai no produto pai / na variante errada.
-    from .affiliate_links import petz_size_hint_for_product
-    _size_hint = petz_size_hint_for_product(product)
+    # Hint de tamanho no termo de busca — SÓ `kg` (ração). A Petz põe o
+    # peso no título da ração ("Golden 15kg"), então isso ajuda. Coleira
+    # /remédio a Petz NÃO titula por cm/mg (testado: "Scalibor ... 48cm" →
+    # 0 resultados), então cm/ml/mg ficam de fora do termo; a variante
+    # certa vem do casamento humano (human_verified), não da busca.
+    _search_weight = product.weight_kg if product and getattr(product, "weight_kg", None) else None
 
     # EXPERIMENTO `petz_search_first` (default OFF): ignora o link direto e
-    # o carrinho pré-montado, manda todo mundo pra busca pelo produto (com
-    # o termo marca+nome+tamanho). Rollback = env var + restart. Ver
-    # config.py. A comissão (cupom no checkout) não muda.
+    # o carrinho pré-montado, manda todo mundo pra busca pelo produto.
+    # Rollback = env var + restart. Ver config.py.
     _search_first = bool(get_settings().petz_search_first)
     if _search_first:
         direct_product_url = None
@@ -1694,9 +1701,7 @@ async def commerce_petz_direct_link(
     if curated_search:
         search_url = petz_search_url_from_term(curated_search)
     elif search_term:
-        # Sem página exata (ou search-first) → o termo carrega o
-        # tamanho/dose, senão a Petz mostra a variante errada no topo.
-        search_url = petz_site_search_url(search_term, search_brand, size_hint=_size_hint)
+        search_url = petz_site_search_url(search_term, search_brand, _search_weight)
     else:
         search_url = None
 

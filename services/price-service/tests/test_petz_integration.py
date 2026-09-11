@@ -1079,14 +1079,73 @@ def test_petz_size_hint_priority():
     assert petz_size_hint() is None
 
 
-def test_search_term_carries_collar_length(client, monkeypatch):
+def test_search_term_omits_cm_for_collar(client, monkeypatch):
+    """A Petz não titula coleira por cm — "Scalibor ... 48cm" dá 0
+    resultados. O termo fica limpo (marca + nome); a variante certa vem
+    do casamento humano, não da busca."""
     _enable_petz(monkeypatch)
     _register_product(
         gtin="9990000000401", name="Coleira Antiparasitária Scalibor Cães Pequenos e Médios",
         brand="Scalibor", length_cm=48.0,
     )
     body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000401"}).json()
-    assert "48cm" in body["search_url"].replace("+", "").replace("%2C", ",")
+    assert "48cm" not in body["search_url"].replace("+", "").replace("%2C", ",").replace("%20", "")
+    assert "scalibor" in body["search_url"].lower()
+
+
+def test_direct_link_needs_human_verified_mapping(client, monkeypatch):
+    """Casamento automático (human_verified=False) NÃO serve link direto —
+    cai na busca. Ver incidente coleira Scalibor (81288 G no lugar de
+    81287 M)."""
+    _enable_petz(monkeypatch)
+    pid = _register_product(gtin="9990000000501", name="Coleira Scalibor", brand="Scalibor")
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, pid, petz_product_id="81288",
+            product_url="https://www.petz.com.br/produto/coleira-scalibor-81288",
+            human_verified=False,
+        )
+    finally:
+        db.close()
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000501"}).json()
+    assert body["direct_product_url"] is None
+    assert body["petz_product_id"] is None
+    assert body["search_url"] and "scalibor" in body["search_url"].lower()
+
+
+def test_direct_link_served_when_human_verified(client, monkeypatch):
+    _enable_petz(monkeypatch)
+    pid = _register_product(gtin="9990000000502", name="Coleira Scalibor", brand="Scalibor")
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, pid, petz_product_id="81287",
+            product_url="https://www.petz.com.br/produto/coleira-scalibor-msd-81287",
+        )  # human_verified default True
+    finally:
+        db.close()
+    body = client.get("/commerce/petz-direct-link", params={"gtin": "9990000000502"}).json()
+    assert body["direct_product_url"] == "https://www.petz.com.br/produto/coleira-scalibor-msd-81287"
+
+
+def test_queue_shows_unverified_confirmed_for_reverify(admin_client):
+    pid = _register_product(gtin="9990000000503", name="Coleira Scalibor 48cm", brand="Scalibor")
+    db = SessionLocal()
+    try:
+        confirm_petz_mapping(
+            db, pid, petz_product_id="81288",
+            product_url="https://www.petz.com.br/produto/coleira-scalibor-81288",
+            variant_label="48 cm - inferido por eliminacao",
+            human_verified=False,
+        )
+    finally:
+        db.close()
+    body = admin_client.get("/v1/admin/petz/queue", params={"only_cobasi": False}).json()
+    item = next(i for i in body["items"] if i["gtin"] == "9990000000503")
+    assert item["needs_reverify"] is True
+    assert item["current_petz_product_id"] == "81288"
+    assert "inferido" in (item["current_variant_label"] or "")
 
 
 def test_petz_search_first_suppresses_direct_and_cart(client, monkeypatch):

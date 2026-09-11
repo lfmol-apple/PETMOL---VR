@@ -38,6 +38,10 @@ interface QueueItem {
   scans: number;
   match_status: string;
   rejection_reason: string | null;
+  needs_reverify: boolean;
+  current_petz_product_id: string | null;
+  current_petz_url: string | null;
+  current_variant_label: string | null;
   petz_search_url: string;
   suggested_search_term: string;
   cobasi_title: string | null;
@@ -90,6 +94,7 @@ const STATUS_BADGE: Record<string, string> = {
   unknown: 'bg-slate-100 text-slate-600',
   candidate: 'bg-blue-100 text-blue-700',
   ambiguous: 'bg-amber-100 text-amber-800',
+  reconferir: 'bg-red-100 text-red-700',
 };
 
 async function api<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -358,13 +363,30 @@ function QueueRow({
             {item.pack_count && item.pack_count > 1 ? ` · ${item.pack_count}un` : ''} · {item.scans} scans
           </p>
         </div>
-        <span className={`text-[10px] font-semibold uppercase px-2 py-1 rounded-full shrink-0 ${STATUS_BADGE[item.match_status] || 'bg-slate-100 text-slate-600'}`}>
-          {item.match_status}
-        </span>
+        {(() => {
+          const label = item.needs_reverify ? 'reconferir' : item.match_status;
+          return (
+            <span className={`text-[10px] font-semibold uppercase px-2 py-1 rounded-full shrink-0 ${STATUS_BADGE[label] || 'bg-slate-100 text-slate-600'}`}>
+              {label}
+            </span>
+          );
+        })()}
       </button>
 
       {open && (
         <div className="border-t border-slate-100 p-3 space-y-4">
+          {item.needs_reverify && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-800 space-y-1">
+              <p className="font-semibold">⚠️ Casamento automático — reconfira</p>
+              <p>
+                Aponta hoje pra Petz <b>{item.current_petz_product_id || '?'}</b>
+                {item.current_variant_label ? ` (${item.current_variant_label})` : ''} — nunca foi conferido por um humano e pode estar no tamanho errado.
+              </p>
+              {item.current_petz_url && (
+                <a href={item.current_petz_url} target="_blank" rel="noopener noreferrer" className="underline">abrir o que está mapeado ↗</a>
+              )}
+            </div>
+          )}
           {item.match_status === 'ambiguous' && item.rejection_reason && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
               Marcado ambíguo automaticamente: {item.rejection_reason}
