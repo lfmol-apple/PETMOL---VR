@@ -259,10 +259,39 @@ export async function fetchPetzDirectLink(
   }
 }
 
-export async function fetchCommerceOffers(query: string, packageSizeKg?: number, gtin?: string): Promise<CommerceOffer[]> {
+/**
+ * "ready": resposta definitiva (lista vazia ou não — nunca mais tentar de
+ * novo pra essa mesma consulta). "enrichment_pending": o backend ainda
+ * está preparando a identidade canônica deste produto pela 1ª vez (ver
+ * commerce_offers.py::get_commerce_offers_with_status) — a lista vem
+ * vazia, mas isso NÃO significa "sem oferta"; quem chama deve tentar de
+ * novo em instantes (ver useCommerceOffers.ts). Bug real 11/09/2026: sem
+ * essa distinção, o preço só aparecia depois de fechar/reabrir o app —
+ * a 1ª consulta (pendente) e a "sem oferta" definitiva eram
+ * indistinguíveis pro frontend.
+ */
+export interface CommerceOffersResult {
+  offers: CommerceOffer[];
+  status: 'ready' | 'enrichment_pending';
+}
+
+/** Timeout de rede mais generoso que os 5s antigos — hoje uma resposta
+ * "enrichment_pending" pode vir de propósito perto do limite de 2.5s que
+ * o backend se dá pra tentar enriquecer a tempo (ver
+ * ENRICHMENT_WAIT_TIMEOUT_SECONDS em commerce_offers.py); 7s dá folga
+ * real pra essa resposta chegar sem abortar por engano uma tentativa que
+ * já ia voltar "ready" com preço.
+ */
+const COMMERCE_OFFERS_FETCH_TIMEOUT_MS = 7000;
+
+export async function fetchCommerceOffersWithStatus(
+  query: string,
+  packageSizeKg?: number,
+  gtin?: string,
+): Promise<CommerceOffersResult> {
   try {
     const trimmed = (query || '').trim();
-    if (!trimmed && !gtin) return [];
+    if (!trimmed && !gtin) return { offers: [], status: 'ready' };
     const params = new URLSearchParams();
     if (trimmed) params.set('q', trimmed);
     if (typeof packageSizeKg === 'number' && packageSizeKg > 0) {
@@ -271,11 +300,13 @@ export async function fetchCommerceOffers(query: string, packageSizeKg?: number,
     if (gtin) params.set('gtin', gtin);
     const res = await fetch(`${API_BASE_URL}/commerce/offers?${params.toString()}`, {
       cache: 'no-store',
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(COMMERCE_OFFERS_FETCH_TIMEOUT_MS),
     });
-    if (!res.ok) return [];
-    const data = (await res.json()) as { offers?: CommerceOffer[] };
-    return Array.isArray(data.offers)
+    // Erro HTTP real (5xx/4xx) é terminal — nunca retry indiscriminado
+    // aqui; quem chama decide se tenta de novo mais tarde por outro motivo.
+    if (!res.ok) return { offers: [], status: 'ready' };
+    const data = (await res.json()) as { offers?: CommerceOffer[]; status?: string };
+    const offers = Array.isArray(data.offers)
       ? data.offers
           .map((offer) => ({ ...offer, url: normalizeOfferUrl(offer.url) }))
           .filter((offer) => offer.is_available !== false && Boolean(offer.url))
@@ -286,7 +317,19 @@ export async function fetchCommerceOffers(query: string, packageSizeKg?: number,
           // card estático do rodapé (resolvePartnerUrl/shortlink) fica.
           .filter((offer) => offer.merchant !== 'shopee')
       : [];
+    return { offers, status: data.status === 'enrichment_pending' ? 'enrichment_pending' : 'ready' };
   } catch {
-    return [];
+    // Timeout de rede / exceção: terminal, nunca "pending" — retry
+    // indiscriminado de falha de rede não é o que este contrato resolve.
+    return { offers: [], status: 'ready' };
   }
+}
+
+/** Compatibilidade: mesma assinatura/retorno de sempre. Quem precisa
+ * distinguir "sem oferta" de "identidade ainda em preparo" (hoje só
+ * useCommerceOffers, pro card de recompra na Home/Loja) usa
+ * fetchCommerceOffersWithStatus diretamente. */
+export async function fetchCommerceOffers(query: string, packageSizeKg?: number, gtin?: string): Promise<CommerceOffer[]> {
+  const { offers } = await fetchCommerceOffersWithStatus(query, packageSizeKg, gtin);
+  return offers;
 }

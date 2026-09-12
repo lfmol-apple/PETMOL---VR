@@ -1461,12 +1461,20 @@ async def commerce_offers(
     dev, sinalizado por link_type="direct"). `gtin`: opcional — o
     frontend deve enviar quando souber (ex: produto já escaneado);
     providers de busca textual (Cobasi/VTEX) continuam usando `q`.
+
+    `status`: "ready" (padrão) ou "enrichment_pending" — só na 1ª vez que
+    um produto nunca visto é consultado e o enriquecimento de identidade
+    não terminou a tempo desta chamada (ver commerce_offers.py, bug
+    11/09/2026: sem isso, `offers=[]` transitório era indistinguível de
+    "sem oferta mesmo" e o frontend nunca tentava de novo). Com
+    "enrichment_pending", o frontend deve tentar de novo em instantes —
+    nunca tratar como resposta definitiva.
     """
     if not q and not gtin:
         raise HTTPException(status_code=400, detail="informe ao menos q ou gtin")
-    from .commerce_offers import CommerceOfferOut, get_commerce_offers
-    offers = await get_commerce_offers(db, q, target_weight_kg=weight_kg, gtin=gtin)
-    return {"offers": [CommerceOfferOut(**vars(o)) for o in offers]}
+    from .commerce_offers import CommerceOfferOut, get_commerce_offers_with_status
+    offers, status = await get_commerce_offers_with_status(db, q, target_weight_kg=weight_kg, gtin=gtin)
+    return {"offers": [CommerceOfferOut(**vars(o)) for o in offers], "status": status}
 
 
 @app.get("/commerce/awin-click", tags=["Catalog"])
