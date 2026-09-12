@@ -46,6 +46,14 @@ from .product_catalog_lookup import ProductCatalog, normalize_gtin
 # links cadastrados ainda, ver docs/AFFILIATES.md).
 _MARKETPLACE_MERCHANTS = ("shopee", "mercadolivre")
 
+# Quanto get_commerce_offers_with_status espera pelo enriquecimento sob
+# demanda (ver _ensure_enriched_within) antes de devolver
+# status="enrichment_pending" em vez de travar a resposta. Módulo-level
+# (em vez de literal inline) só pra testes conseguirem encurtar isso e
+# simular "enriquecimento mais lento que o prazo" sem sleeps longos de
+# verdade — produção sempre usa o valor real abaixo.
+ENRICHMENT_WAIT_TIMEOUT_SECONDS = 2.5
+
 
 class ProductOfferResult(BaseModel):
     found: bool
@@ -202,6 +210,37 @@ async def resolve_cobasi_product_offer(
     return _to_result(offers[0])
 
 
+# Uma tarefa de enriquecimento em voo por produto, por worker — reusada por
+# chamadas concorrentes/retries pro MESMO produto enquanto a 1ª ainda não
+# terminou, em vez de disparar uma thread duplicada fazendo o mesmo
+# trabalho. `asyncio.shield` é essencial: sem ele, o `wait_for` de uma
+# chamada que desiste no timeout cancelaria a tarefa e uma chamada
+# seguinte que tentasse reaproveitá-la via `await` receberia
+# CancelledError em vez do resultado real (a thread em si continuaria
+# rodando de qualquer forma — só o bookkeeping do asyncio seria afetado).
+_enrichment_tasks: dict[int, "asyncio.Task[None]"] = {}
+
+
+async def _ensure_enriched_within(product_id: int, timeout: float) -> bool:
+    """True = produto enriquecido dentro do prazo (dado atualizado pronto
+    pra uso nesta mesma chamada). False = ainda não — a tarefa continua
+    rodando em segundo plano (nunca cancelada) e persiste no banco quando
+    terminar, então uma chamada seguinte (retry do frontend ou nova
+    requisição) sempre encontra o produto já enriquecido."""
+    task = _enrichment_tasks.get(product_id)
+    if task is None or task.done():
+        task = asyncio.ensure_future(asyncio.to_thread(_enrich_catalog_blocking, product_id))
+        _enrichment_tasks[product_id] = task
+    try:
+        await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
+        return True
+    except Exception:  # noqa: BLE001 — TimeoutError ou qualquer falha do enriquecimento
+        return False
+    finally:
+        if task.done():
+            _enrichment_tasks.pop(product_id, None)
+
+
 async def get_commerce_offers(
     db: Session,
     query: Optional[str] = None,
@@ -212,35 +251,68 @@ async def get_commerce_offers(
     name: Optional[str] = None,
     brand: Optional[str] = None,
 ) -> list[MonetizedOffer]:
+    """Compatibilidade: mesma assinatura/retorno de sempre (lista de
+    ofertas), usada por toda a suíte de testes e por resolve_cobasi_product_offer.
+    Quem precisa saber se a lista vazia é "sem oferta mesmo" ou "identidade
+    ainda em preparo" (ver get_commerce_offers_with_status) usa a variante
+    abaixo — hoje só a rota HTTP /commerce/offers."""
+    offers, _status = await get_commerce_offers_with_status(
+        db, query, target_weight_kg, gtin=gtin, product_id=product_id, name=name, brand=brand,
+    )
+    return offers
+
+
+async def get_commerce_offers_with_status(
+    db: Session,
+    query: Optional[str] = None,
+    target_weight_kg: Optional[float] = None,
+    *,
+    gtin: Optional[str] = None,
+    product_id: Optional[int] = None,
+    name: Optional[str] = None,
+    brand: Optional[str] = None,
+) -> tuple[list[MonetizedOffer], str]:
     """`query`/`target_weight_kg` continuam funcionando exatamente como
     antes (compatibilidade). `gtin`/`product_id`/`name`/`brand` são novos
     e opcionais — quando o frontend souber o GTIN do produto (ex: já
     escaneado), passar aqui é o caminho preferido pra providers
     estruturados (ex: AwinFeedProvider, que só resolve por GTIN exato,
     nunca por texto). Providers de busca textual (Cobasi/VTEX hoje)
-    continuam usando `query`."""
+    continuam usando `query`.
+
+    Retorna (offers, status). status="enrichment_pending" SÓ quando o
+    produto nunca foi enriquecido e o enriquecimento não terminou a tempo
+    desta chamada — nesse caso `offers` pode vir vazia sem que isso
+    signifique "produto sem oferta". Em qualquer outro caso, status="ready"
+    e a lista (vazia ou não) é definitiva. Ver BUG 11/09/2026 abaixo."""
     product = _resolve_catalog_product(db, gtin=gtin, product_id=product_id)
+    status = "ready"
     if product is not None and getattr(product, "identity_enriched_at", None) is None and product.barcode_normalized:
         # Enriquecimento sob demanda SÓ pra produto nunca enriquecido, e
         # fora do event loop (merge_product_catalog_identity é síncrono e
         # pesado — bloqueava o worker, ver incidente 2026-09-01).
         #
-        # BUG ENCONTRADO 11/09/2026: sem limite de tempo aqui, essa espera
-        # podia passar dos 5s de timeout que o app usa pra essa chamada —
-        # o app desistia (mostrando "sem preço"), mas o enriquecimento
-        # terminava sozinho pouco depois e gravava no banco. Resultado:
-        # 1ª chamada pra um produto novo sempre vinha vazia; a 2ª (já
-        # enriquecido) vinha certa. Daí o `wait_for`: dá uma chance real do
-        # enriquecimento terminar A TEMPO da PRÓPRIA primeira chamada, mas
-        # nunca trava a resposta além disso — a thread continua rodando e
-        # persistindo no banco mesmo se estourar o prazo aqui, então a
-        # PRÓXIMA chamada (com ou sem timeout nesta) sempre acerta.
-        try:
-            await asyncio.wait_for(asyncio.to_thread(_enrich_catalog_blocking, product.id), timeout=2.5)
+        # BUG ENCONTRADO 11/09/2026: a versão anterior deste código
+        # (PR #358) limitava a espera a 2.5s, mas ao estourar o prazo
+        # devolvia silenciosamente uma lista vazia — indistinguível de
+        # "este produto não tem oferta" pro frontend, que tratava isso
+        # como resposta definitiva e nunca tentava de novo. O
+        # enriquecimento terminava sozinho pouco depois e gravava no
+        # banco, mas ninguém voltava a perguntar: 1ª chamada pra um
+        # produto novo sempre vinha vazia pro usuário; só reabrindo o
+        # app (nova consulta, produto já enriquecido) o preço aparecia.
+        # Fix: quando o prazo estoura, sinaliza status="enrichment_pending"
+        # em vez de fingir que "ready, sem oferta" — a rota HTTP devolve
+        # isso ao frontend, que faz um retry curto e automático (ver
+        # useCommerceOffers.ts) até o enriquecimento (que continua rodando
+        # em segundo plano, nunca cancelado) terminar — tudo na MESMA
+        # abertura do app, sem exigir fechar/reabrir.
+        enriched_in_time = await _ensure_enriched_within(product.id, timeout=ENRICHMENT_WAIT_TIMEOUT_SECONDS)
+        if enriched_in_time:
             db.expire(product)
             product = db.get(ProductCatalog, product.id) or product
-        except Exception:  # noqa: BLE001
-            pass
+        else:
+            status = "enrichment_pending"
     canonical_gtin = normalize_gtin(product.barcode_normalized) if product else normalize_gtin(gtin or "")
     canonical_name = (product.canonical_name or product.name) if product else (name or query)
     canonical_brand = (product.canonical_brand or product.brand) if product else brand
@@ -273,7 +345,7 @@ async def get_commerce_offers(
     if sibling_offers:
         offers = _merge_group_offers(offers, sibling_offers)
         offers.sort(key=lambda o: o.price if o.price is not None else float("inf"))
-    return offers
+    return offers, status
 
 
 def _merge_group_offers(primary: list, siblings: list) -> list:
