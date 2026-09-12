@@ -1215,7 +1215,7 @@ function AcheiUmPetInner() {
           </div>
           <Link
             href="/"
-            className="flex-shrink-0 px-4 py-2 rounded-full bg-blue-600 text-white text-[13px] font-black active:scale-95 transition-all"
+            className="flex-shrink-0 inline-flex items-center justify-center px-4 py-2 rounded-full bg-blue-600 text-white text-[13px] font-black active:scale-95 transition-all"
           >
             Instalar
           </Link>
