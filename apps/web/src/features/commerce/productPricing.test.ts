@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchCommerceOffers, hasReliablePrice, preferCobasiOffer, type CommerceOffer } from './productPricing';
+import {
+  fetchCommerceOffers,
+  fetchCommerceOffersWithStatus,
+  hasReliablePrice,
+  preferCobasiOffer,
+  type CommerceOffer,
+} from './productPricing';
 
 function offer(overrides: Partial<CommerceOffer> & { merchant: string }): CommerceOffer {
   return {
@@ -131,5 +137,99 @@ describe('fetchCommerceOffers — Shopee só vitrine (05/09/2026)', () => {
     vi.stubGlobal('fetch', vi.fn());
     await expect(fetchCommerceOffers(undefined as unknown as string)).resolves.toEqual([]);
     await expect(fetchCommerceOffers(null as unknown as string)).resolves.toEqual([]);
+  });
+});
+
+describe('fetchCommerceOffersWithStatus — contrato de erro transitório (12/09/2026)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function mockHttpStatus(status: number) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status, json: async () => ({}) }),
+    );
+  }
+
+  it('HTTP 401 é terminal — nunca retry indiscriminado', async () => {
+    mockHttpStatus(401);
+    await expect(fetchCommerceOffersWithStatus('racao')).resolves.toEqual({ offers: [], status: 'ready' });
+  });
+
+  it('HTTP 403 é terminal', async () => {
+    mockHttpStatus(403);
+    await expect(fetchCommerceOffersWithStatus('racao')).resolves.toEqual({ offers: [], status: 'ready' });
+  });
+
+  it('HTTP 404 é terminal', async () => {
+    mockHttpStatus(404);
+    await expect(fetchCommerceOffersWithStatus('racao')).resolves.toEqual({ offers: [], status: 'ready' });
+  });
+
+  it('HTTP 400 (erro de contrato) é terminal', async () => {
+    mockHttpStatus(400);
+    await expect(fetchCommerceOffersWithStatus('racao')).resolves.toEqual({ offers: [], status: 'ready' });
+  });
+
+  it.each([502, 503, 504])('HTTP %i é transitório — vale retry', async (status) => {
+    mockHttpStatus(status);
+    await expect(fetchCommerceOffersWithStatus('racao')).resolves.toEqual({
+      offers: [],
+      status: 'transient_error',
+    });
+  });
+
+  it('HTTP 429 é tratado como transitório (orçamento de retry é curto: 3 tentativas de um card só)', async () => {
+    mockHttpStatus(429);
+    await expect(fetchCommerceOffersWithStatus('racao')).resolves.toEqual({
+      offers: [],
+      status: 'transient_error',
+    });
+  });
+
+  it('TypeError de fetch (rede/DNS/conexão recusada) é transitório', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+    await expect(fetchCommerceOffersWithStatus('racao')).resolves.toEqual({
+      offers: [],
+      status: 'transient_error',
+    });
+  });
+
+  it('TimeoutError do AbortSignal.timeout da própria chamada é transitório', async () => {
+    const timeoutError = new DOMException('signal timed out', 'TimeoutError');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(timeoutError));
+    await expect(fetchCommerceOffersWithStatus('racao')).resolves.toEqual({
+      offers: [],
+      status: 'transient_error',
+    });
+  });
+
+  it('AbortError é transitório', async () => {
+    const abortError = new DOMException('aborted', 'AbortError');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortError));
+    await expect(fetchCommerceOffersWithStatus('racao')).resolves.toEqual({
+      offers: [],
+      status: 'transient_error',
+    });
+  });
+
+  it('exceção não reconhecida fica terminal por padrão — nunca retry de causa desconhecida', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('algo bizarro e inesperado')));
+    await expect(fetchCommerceOffersWithStatus('racao')).resolves.toEqual({ offers: [], status: 'ready' });
+  });
+
+  it('ready + oferta continua funcionando normalmente (sem regressão no caminho feliz)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        offers: [{ merchant: 'cobasi', url: 'https://cobasi.com.br/x', price: 80, is_available: true }],
+        status: 'ready',
+      }),
+    }));
+    await expect(fetchCommerceOffersWithStatus('racao')).resolves.toEqual({
+      offers: [{ merchant: 'cobasi', url: 'https://cobasi.com.br/x', price: 80, is_available: true }],
+      status: 'ready',
+    });
   });
 });

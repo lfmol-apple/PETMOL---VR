@@ -151,6 +151,128 @@ describe('useCommerceOffers', () => {
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
+  it('4) erro transitório → ready + oferta: retry automático resolve o preço na mesma abertura', async () => {
+    const spy = vi
+      .spyOn(productPricing, 'fetchCommerceOffersWithStatus')
+      .mockResolvedValueOnce({ offers: [], status: 'transient_error' })
+      .mockResolvedValueOnce({ offers: [fakeOffer], status: 'ready' });
+
+    const { result } = renderHook(() => useCommerceOffers('Ração X', 7.5, '789'));
+
+    // 1ª tentativa: falha transitória (ex: rede ainda estabilizando pós-login)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.loading).toBe(true);
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    // backoff curto → 2ª tentativa, agora ready com preço, sem fechar a Loja
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700);
+    });
+    expect(result.current.loading).toBe(false);
+    expect(result.current.offers).toEqual([fakeOffer]);
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it('5) erro transitório → erro transitório → ready + oferta: resolve na mesma abertura', async () => {
+    const spy = vi
+      .spyOn(productPricing, 'fetchCommerceOffersWithStatus')
+      .mockResolvedValueOnce({ offers: [], status: 'transient_error' })
+      .mockResolvedValueOnce({ offers: [], status: 'transient_error' })
+      .mockResolvedValueOnce({ offers: [fakeOffer], status: 'ready' });
+
+    const { result } = renderHook(() => useCommerceOffers('Ração X', 7.5, '789'));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0); // tentativa 1: transient_error
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(700); // tentativa 2: transient_error
+    });
+    expect(result.current.loading).toBe(true);
+    expect(spy).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1400); // tentativa 3: ready + oferta
+    });
+    expect(result.current.loading).toBe(false);
+    expect(result.current.offers).toEqual([fakeOffer]);
+    expect(spy).toHaveBeenCalledTimes(3);
+  });
+
+  it('6) erro transitório persistente: para no limite de tentativas, sem loop infinito', async () => {
+    const spy = vi
+      .spyOn(productPricing, 'fetchCommerceOffersWithStatus')
+      .mockResolvedValue({ offers: [], status: 'transient_error' });
+
+    const { result } = renderHook(() => useCommerceOffers('Produto Instável', undefined, '444'));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0); // tentativa 1
+      await vi.advanceTimersByTimeAsync(700); // tentativa 2
+      await vi.advanceTimersByTimeAsync(1400); // tentativa 3 (última)
+    });
+
+    // esgotou o orçamento de retry sem resolver — cai no fallback "sem
+    // preço" (mesma UI de "ready" com lista vazia, PASSO 6: sem estado
+    // novo de erro na tela), nunca fica preso em "Buscando...".
+    expect(result.current.loading).toBe(false);
+    expect(result.current.offers).toEqual([]);
+    expect(spy).toHaveBeenCalledTimes(3);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20000);
+    });
+    expect(spy).toHaveBeenCalledTimes(3);
+  });
+
+  it('13) login → abrir a Loja imediatamente: preço aparece sozinho depois do retry, sem fechar a Loja', async () => {
+    // Cenário real reportado: 1ª consulta pós-login sofre falha
+    // transitória (proxy/sessão ainda estabilizando), 2ª já responde
+    // normalmente. Antes da correção, este teste falha porque a 1ª
+    // resposta ("ready" + []) era tratada como definitiva.
+    const spy = vi
+      .spyOn(productPricing, 'fetchCommerceOffersWithStatus')
+      .mockResolvedValueOnce({ offers: [], status: 'transient_error' })
+      .mockResolvedValueOnce({ offers: [fakeOffer], status: 'ready' });
+
+    const { result } = renderHook(() => useCommerceOffers('Ração X', 7.5, '789'));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000); // avança além de todos os backoffs de uma vez
+    });
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.offers).toEqual([fakeOffer]);
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it('12) fechar/reabrir a Loja continua funcionando, mas não é mais necessário pra recuperar o preço', async () => {
+    const spy = vi
+      .spyOn(productPricing, 'fetchCommerceOffersWithStatus')
+      .mockResolvedValueOnce({ offers: [], status: 'transient_error' }); // "fecha a Loja" antes de resolver
+
+    const { unmount } = renderHook(() => useCommerceOffers('Ração X', 7.5, '789'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    unmount();
+
+    // "reabre a Loja": novo mount, nova sequência independente — resolve
+    // sozinho, sem qualquer ação além de abrir a tela.
+    spy.mockResolvedValueOnce({ offers: [fakeOffer], status: 'ready' });
+    const { result } = renderHook(() => useCommerceOffers('Ração X', 7.5, '789'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.loading).toBe(false);
+    expect(result.current.offers).toEqual([fakeOffer]);
+  });
+
   it('7) trocar de produto (logout/login, ou card seguinte) não herda o estado de retry do anterior', async () => {
     const spy = vi
       .spyOn(productPricing, 'fetchCommerceOffersWithStatus')
