@@ -269,10 +269,45 @@ export async function fetchPetzDirectLink(
  * essa distinção, o preço só aparecia depois de fechar/reabrir o app —
  * a 1ª consulta (pendente) e a "sem oferta" definitiva eram
  * indistinguíveis pro frontend.
+ *
+ * "transient_error": a consulta em si falhou (rede/timeout/429/502/503/504)
+ * — não sabemos se há oferta ou não, só que não conseguimos perguntar
+ * ainda. Bug real 12/09/2026: antes disso existir, qualquer falha
+ * transitória (comum logo após o login, com o proxy/sessão do WKWebView
+ * ainda estabilizando) virava "ready" com lista vazia — indistinguível de
+ * "sem oferta mesmo", e o preço só aparecia depois de fechar/reabrir a
+ * Loja (novo mount, nova tentativa manual). Quem chama trata isso igual a
+ * "enrichment_pending": tenta de novo automaticamente, bounded (ver
+ * useCommerceOffers.ts) — nunca como resposta definitiva.
  */
 export interface CommerceOffersResult {
   offers: CommerceOffer[];
-  status: 'ready' | 'enrichment_pending';
+  status: 'ready' | 'enrichment_pending' | 'transient_error';
+}
+
+/** HTTP status que indicam falha do lado do servidor/infra provavelmente
+ * passageira — vale tentar de novo em instantes. 429 entra aqui porque o
+ * orçamento de retry é curto e de um único card (3 tentativas, backoff
+ * 600ms/1300ms) — não é um cliente batendo em loop nem risco real de
+ * agravar um rate-limit; é a mesma essência de "servidor pediu pra
+ * esperar um pouco". Qualquer outro 4xx (400/401/403/404) é erro de
+ * contrato/autenticação/recurso — nunca transitório, nunca retry. */
+const TRANSIENT_HTTP_STATUS = new Set([429, 502, 503, 504]);
+
+/** Classifica uma exceção do `fetch` (erro HTTP não entra aqui — vem via
+ * `res.status`, tratado separadamente) como transitória ou não. Só os
+ * dois casos abaixo são reconhecidamente rede/timeout da própria chamada
+ * (o único AbortSignal em uso aqui é o `AbortSignal.timeout` criado nesta
+ * função — não há sinal externo cancelável por outro motivo): `TypeError`
+ * (fetch falhou antes de qualquer resposta — offline, DNS, conexão
+ * recusada) e `AbortError`/`TimeoutError` (o timeout de
+ * `COMMERCE_OFFERS_FETCH_TIMEOUT_MS` disparou). Qualquer outra exceção não
+ * reconhecida fica terminal por padrão — retry indiscriminado de causa
+ * desconhecida não é o que este contrato resolve. */
+function isTransientFetchError(err: unknown): boolean {
+  if (err instanceof TypeError) return true;
+  const name = (err as { name?: string } | null)?.name;
+  return name === 'AbortError' || name === 'TimeoutError';
 }
 
 /** Timeout de rede mais generoso que os 5s antigos — hoje uma resposta
@@ -302,9 +337,13 @@ export async function fetchCommerceOffersWithStatus(
       cache: 'no-store',
       signal: AbortSignal.timeout(COMMERCE_OFFERS_FETCH_TIMEOUT_MS),
     });
-    // Erro HTTP real (5xx/4xx) é terminal — nunca retry indiscriminado
-    // aqui; quem chama decide se tenta de novo mais tarde por outro motivo.
-    if (!res.ok) return { offers: [], status: 'ready' };
+    if (!res.ok) {
+      // 429/502/503/504: provavelmente passageiro, vale tentar de novo
+      // (ver TRANSIENT_HTTP_STATUS). Qualquer outro 4xx (400/401/403/404)
+      // é erro de contrato/autenticação/recurso — terminal, nunca retry
+      // indiscriminado aqui.
+      return { offers: [], status: TRANSIENT_HTTP_STATUS.has(res.status) ? 'transient_error' : 'ready' };
+    }
     const data = (await res.json()) as { offers?: CommerceOffer[]; status?: string };
     const offers = Array.isArray(data.offers)
       ? data.offers
@@ -318,10 +357,11 @@ export async function fetchCommerceOffersWithStatus(
           .filter((offer) => offer.merchant !== 'shopee')
       : [];
     return { offers, status: data.status === 'enrichment_pending' ? 'enrichment_pending' : 'ready' };
-  } catch {
-    // Timeout de rede / exceção: terminal, nunca "pending" — retry
-    // indiscriminado de falha de rede não é o que este contrato resolve.
-    return { offers: [], status: 'ready' };
+  } catch (err) {
+    // Rede/timeout da própria chamada (ver isTransientFetchError):
+    // transitório, quem chama tenta de novo. Qualquer outra exceção não
+    // reconhecida fica terminal — nunca retry de causa desconhecida.
+    return { offers: [], status: isTransientFetchError(err) ? 'transient_error' : 'ready' };
   }
 }
 
