@@ -224,8 +224,19 @@ async def get_commerce_offers(
         # Enriquecimento sob demanda SÓ pra produto nunca enriquecido, e
         # fora do event loop (merge_product_catalog_identity é síncrono e
         # pesado — bloqueava o worker, ver incidente 2026-09-01).
+        #
+        # BUG ENCONTRADO 11/09/2026: sem limite de tempo aqui, essa espera
+        # podia passar dos 5s de timeout que o app usa pra essa chamada —
+        # o app desistia (mostrando "sem preço"), mas o enriquecimento
+        # terminava sozinho pouco depois e gravava no banco. Resultado:
+        # 1ª chamada pra um produto novo sempre vinha vazia; a 2ª (já
+        # enriquecido) vinha certa. Daí o `wait_for`: dá uma chance real do
+        # enriquecimento terminar A TEMPO da PRÓPRIA primeira chamada, mas
+        # nunca trava a resposta além disso — a thread continua rodando e
+        # persistindo no banco mesmo se estourar o prazo aqui, então a
+        # PRÓXIMA chamada (com ou sem timeout nesta) sempre acerta.
         try:
-            await asyncio.to_thread(_enrich_catalog_blocking, product.id)
+            await asyncio.wait_for(asyncio.to_thread(_enrich_catalog_blocking, product.id), timeout=2.5)
             db.expire(product)
             product = db.get(ProductCatalog, product.id) or product
         except Exception:  # noqa: BLE001
