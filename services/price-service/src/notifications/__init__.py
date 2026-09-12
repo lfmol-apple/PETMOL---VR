@@ -223,6 +223,26 @@ def _load_subscriptions_by_user() -> dict:
         db.close()
 
 
+def _load_active_native_user_ids() -> set:
+    """Ids de usuários com pelo menos 1 device token iOS nativo ativo.
+    Usado pelos broadcasts (ex.: Pet Sumido) que hoje só olham
+    push_subscriptions (Web Push) — sem isso, usuários só-nativos (o app
+    publicado, que nunca registra Web Push) nunca entram no envio."""
+    if not apns_configured():
+        return set()
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(NativePushToken.user_id)
+            .filter(NativePushToken.disabled_at.is_(None))
+            .distinct()
+            .all()
+        )
+        return {str(r[0]) for r in rows}
+    finally:
+        db.close()
+
+
 def _disable_subscriptions_by_id(sub_ids: list) -> None:
     ids = [s for s in (sub_ids or []) if s]
     if not ids:

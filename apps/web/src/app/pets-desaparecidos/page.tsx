@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
+import { formatLocalDateOnly } from '@/lib/localDate';
 import { ReportAlertSheet } from '@/components/home/ReportAlertSheet';
 
 // Área recuperável do Pet Sumido: um alerta sério nunca pode depender só de
@@ -41,7 +42,8 @@ function speciesEmoji(species: string | null): string {
 
 function missingLine(a: RegionAlert): string {
   if (!a.missing_date) return 'Desaparecido recentemente';
-  return `Desaparecido em ${a.missing_date}${a.missing_time ? ' às ' + a.missing_time : ''}`;
+  const dateLabel = formatLocalDateOnly(a.missing_date, 'pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return `Desaparecido em ${dateLabel}${a.missing_time ? ' às ' + a.missing_time : ''}`;
 }
 
 function foundDateLabel(iso: string | null): string {

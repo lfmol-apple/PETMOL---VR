@@ -35,8 +35,7 @@ from ..rate_limit import rate_limiter
 from ..notifications import (
     PushSubscription,
     _load_subscriptions_by_user,
-    _disable_subscriptions_by_id,
-    _send_push_devices,
+    _load_active_native_user_ids,
     push_to_user,
 )
 from ..family.models import FamilyGroup, FamilyMember
@@ -634,16 +633,23 @@ def _broadcast_missing_pet(
     quiet = origin == "rebroadcast"
     try:
         subs_by_user = _load_subscriptions_by_user()
+        native_user_ids = _load_active_native_user_ids()
+        # União: Web Push (navegador/PWA) + token nativo (app da loja).
+        # push_to_user() decide o canal por usuário — nativo tem prioridade
+        # quando existe, senão cai pro Web Push. Sem isso, usuários só-nativos
+        # (o app publicado, que nunca registra Web Push) nunca entravam aqui.
+        candidate_user_ids = set(subs_by_user.keys()) | native_user_ids
 
-        # Localização do perfil (users.lat/lng) para quem tem subscription mas
-        # o aparelho não mandou coordenadas — uma query só pro batch todo.
+        # Localização do perfil (users.lat/lng) para quem tem subscription/
+        # token mas o aparelho não mandou coordenadas (tokens nativos nunca
+        # mandam) — uma query só pro batch todo.
         profile_locations: dict = {}
-        if subs_by_user:
+        if candidate_user_ids:
             _pl_db = SessionLocal()
             try:
                 for _u in (
                     _pl_db.query(User)
-                    .filter(User.id.in_(list(subs_by_user.keys())),
+                    .filter(User.id.in_(list(candidate_user_ids)),
                             User.lat.isnot(None), User.lng.isnot(None))
                     .all()
                 ):
@@ -661,8 +667,9 @@ def _broadcast_missing_pet(
 
         print(
             f"[broadcast] pet={mp.id} origin={origin} owner={mp.user_id or 'public'} raio={radius}km "
-            f"has_location={has_location} users={len(subs_by_user)} "
-            f"devices={sum(len(d) for d in subs_by_user.values())} excluded={len(excluded)}",
+            f"has_location={has_location} users={len(candidate_user_ids)} "
+            f"web_devices={sum(len(d) for d in subs_by_user.values())} "
+            f"native_users={len(native_user_ids)} excluded={len(excluded)}",
             flush=True,
         )
 
@@ -694,23 +701,23 @@ def _broadcast_missing_pet(
             }
 
         newly_notified: list = []
-        invalid_sub_ids: list = []
-        sent = 0                    # USUÁRIOS notificados (>= 1 dispositivo cada)
+        sent = 0                    # USUÁRIOS notificados (>= 1 dispositivo/canal cada)
         devices_sent = 0
         skipped = 0
         no_coord_sent = 0
         MAX_NO_LOCATION = 50        # alertas sem localização
         MAX_NO_COORD_SUB = 15       # assinantes sem coordenadas quando alerta TEM localização
 
-        for user_id, devices in subs_by_user.items():
+        for user_id in candidate_user_ids:
             if user_id in excluded or (mp.user_id and user_id == str(mp.user_id)):
                 continue
             if not has_location and sent >= MAX_NO_LOCATION:
                 skipped += 1
                 continue
 
+            devices = subs_by_user.get(user_id, [])
             # Geo filter — decisão POR USUÁRIO: se qualquer aparelho dele
-            # está no raio, notifica todos os aparelhos dele.
+            # está no raio, notifica todos os canais dele.
             if has_location:
                 coords = [
                     (d["lat"], d["lng"])
@@ -718,8 +725,9 @@ def _broadcast_missing_pet(
                     if d.get("lat") is not None and d.get("lng") is not None
                 ]
                 if not coords:
-                    # Sem coords no aparelho — tenta a localização do perfil
-                    # (GPS compartilhado ou centro da cidade).
+                    # Sem coords no aparelho (ou token nativo, que nunca
+                    # manda) — tenta a localização do perfil (GPS
+                    # compartilhado ou centro da cidade).
                     u_loc = profile_locations.get(str(user_id))
                     if u_loc:
                         coords = [u_loc]
@@ -735,15 +743,14 @@ def _broadcast_missing_pet(
                         skipped += 1
                         continue
 
-            ok_count, bad_ids = _send_push_devices(devices, payload)
-            invalid_sub_ids.extend(bad_ids)
-            print(f"[broadcast]   user={user_id[:8]} devices_ok={ok_count}/{len(devices)} invalid={len(bad_ids)}", flush=True)
+            # push_to_user() decide o canal (nativo/APNs quando existe,
+            # senão Web Push) e já desativa subscriptions/tokens inválidos.
+            ok_count = push_to_user(user_id, payload, subs_by_user)
+            print(f"[broadcast]   user={user_id[:8]} devices_ok={ok_count}", flush=True)
             if ok_count > 0:
                 sent += 1
                 devices_sent += ok_count
                 newly_notified.append(user_id)
-
-        _disable_subscriptions_by_id(invalid_sub_ids)
 
         # Notifica cuidadores e familiares do pet sempre (sem filtro de geo).
         # No re-alerta por avistamento (origin="sighting") isso é feito à parte
@@ -770,15 +777,10 @@ def _broadcast_missing_pet(
                     for c_id in target_user_ids:
                         if c_id in excluded or (mp.user_id and c_id == str(mp.user_id)) or c_id in newly_notified:
                             continue
-                        c_devices = subs_by_user.get(c_id)
-                        if not c_devices:
-                            continue
-                        ok_count, bad_ids = _send_push_devices(c_devices, payload)
-                        _disable_subscriptions_by_id(bad_ids)
+                        ok_count = push_to_user(c_id, payload, subs_by_user)
                         if ok_count > 0:
                             caretaker_sent += 1
-                            if c_id not in newly_notified:
-                                newly_notified.append(c_id)
+                            newly_notified.append(c_id)
             except Exception as ce:
                 print(f"[broadcast] caretaker push error: {ce}", flush=True)
 
@@ -787,7 +789,7 @@ def _broadcast_missing_pet(
 
         print(
             f"[broadcast] DONE: {sent} usuários ({devices_sent} dispositivos) + {caretaker_sent} cuidadores, "
-            f"{skipped} fora do raio, {len(set(invalid_sub_ids))} subscriptions removidas (pet={mp.id})",
+            f"{skipped} fora do raio (pet={mp.id})",
             flush=True,
         )
         return sent + caretaker_sent
@@ -914,7 +916,6 @@ def catch_up_missing_pet_alerts_for_user(user_id: str, lat=None, lng=None, db: S
             return 0
 
         notified = _load_mp_notified()
-        devices = (_load_subscriptions_by_user().get(str(user_id)) or [])
         newly: list[str] = []
         for mp in pets:
             if mp.user_id and str(mp.user_id) == str(user_id):
@@ -936,11 +937,10 @@ def catch_up_missing_pet_alerts_for_user(user_id: str, lat=None, lng=None, db: S
                 "badge": "/icons/icon-72x72.png",
                 "data": {"url": f"/achei-um-pet?id={mp.id}"},
             }
-            if devices:
-                try:
-                    _send_push_devices(devices, payload)  # best-effort
-                except Exception:
-                    pass
+            try:
+                push_to_user(user_id, payload)  # best-effort — nativo ou Web Push
+            except Exception:
+                pass
             newly.append(mp.id)  # marca SEMPRE — o banner é o canal garantido
 
         for mp_id in newly:

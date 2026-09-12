@@ -56,6 +56,15 @@ function redactStreetFromLocation(location: string | null): string | null {
   return parts.slice(1).join(', ');
 }
 
+function readFileAsDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error('Falha ao ler o arquivo'));
+    reader.readAsDataURL(file);
+  });
+}
+
 function formatMissingDate(date: string | null, time: string | null): string {
   if (!date) return 'Data não informada';
   const [yr, mo, dy] = date.split('-');
@@ -108,7 +117,8 @@ function AcheiUmPetInner() {
   const [reportCep, setReportCep] = useState('');
   const [cepLoading, setCepLoading] = useState(false);
   const [reportPhotos, setReportPhotos] = useState<string[]>([]);
-  const [reportVideo, setReportVideo] = useState('');
+  const [reportVideoFile, setReportVideoFile] = useState<File | null>(null);
+  const [reportVideoPreviewUrl, setReportVideoPreviewUrl] = useState('');
   const [reportMediaError, setReportMediaError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [reportedIds, setReportedIds] = useState<string[]>([]);
@@ -233,6 +243,15 @@ function AcheiUmPetInner() {
 
   useEffect(() => { void fetchPets(); }, [fetchPets]);
 
+  // Libera o blob: URL anterior sempre que troca (ou some) o vídeo — evita
+  // vazamento de memória, que era parte do que derrubava a WKWebView ao
+  // gravar vídeo (base64 gigante decodificado pelo <video> + retido em
+  // estado). O preview agora usa createObjectURL, bem mais leve.
+  useEffect(() => {
+    if (!reportVideoPreviewUrl) return;
+    return () => URL.revokeObjectURL(reportVideoPreviewUrl);
+  }, [reportVideoPreviewUrl]);
+
   const handleCepChange = async (raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 8);
     const formatted = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
@@ -271,12 +290,13 @@ function AcheiUmPetInner() {
       e.target.value = '';
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      setReportMediaError('');
-      setReportVideo(evt.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    // createObjectURL em vez de base64 pro preview: o <video> decodifica um
+    // blob direto do disco, sem reter uma string base64 gigante em memória
+    // (isso derrubava a WKWebView no iPhone). O base64 só é gerado depois,
+    // em cima da hora, no envio (ver handleSubmitReport).
+    setReportMediaError('');
+    setReportVideoFile(file);
+    setReportVideoPreviewUrl(URL.createObjectURL(file));
     e.target.value = '';
   };
 
@@ -398,7 +418,8 @@ function AcheiUmPetInner() {
     setReportCep('');
     setCepLoading(false);
     setReportPhotos([]);
-    setReportVideo('');
+    setReportVideoFile(null);
+    setReportVideoPreviewUrl('');
     setReportMediaError('');
     setPreAnalysis('');
     setPreConfidenceLabel('');
@@ -412,12 +433,27 @@ function AcheiUmPetInner() {
     // (hasPossession === true). Quem só avistou, ou o form simplificado do
     // PetCard na lista (que nunca oferece gravar vídeo), envia sem essa
     // etapa.
-    if (hasPossession === true && (!reportVideo || !proofChallenge)) {
+    if (hasPossession === true && (!reportVideoFile || !proofChallenge)) {
       setReportMediaError('Grave um vídeo curto mostrando o pet antes de avisar o tutor.');
       return;
     }
     setSubmitting(true);
     try {
+      // Só converte o vídeo pra base64 agora, em cima da hora do envio — é
+      // exatamente esse blob que o backend espera hoje (finder_video em
+      // JSON). Manter isso fora do estado/preview evita reter a string
+      // gigante por tempo nenhum além do necessário.
+      let reportVideoBase64: string | null = null;
+      if (reportVideoFile) {
+        try {
+          reportVideoBase64 = await readFileAsDataURL(reportVideoFile);
+        } catch {
+          setReportMediaError('Não foi possível processar o vídeo gravado. Tente gravar de novo.');
+          setSubmitting(false);
+          return;
+        }
+      }
+
       // Pega user_id do token JWT (sub) se o achador estiver logado — para o push de agradecimento
       let finderUserId: string | null = null;
       try {
@@ -442,9 +478,9 @@ function AcheiUmPetInner() {
           finder_location: reportLocation.trim() || null,
           notes: reportNotes.trim() || null,
           finder_photos: reportPhotos,
-          finder_video: reportVideo || null,
-          proof_challenge: reportVideo ? proofChallenge?.phrase : null,
-          proof_challenge_id: reportVideo ? proofChallenge?.id : null,
+          finder_video: reportVideoBase64,
+          proof_challenge: reportVideoBase64 ? proofChallenge?.phrase : null,
+          proof_challenge_id: reportVideoBase64 ? proofChallenge?.id : null,
           finder_user_id: finderUserId,
           pre_score: null,
           pre_analysis: null,
@@ -633,7 +669,7 @@ function AcheiUmPetInner() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setHasPossession(false); setReportVideo(''); }}
+                    onClick={() => { setHasPossession(false); setReportVideoFile(null); setReportVideoPreviewUrl(''); }}
                     className={`py-3.5 rounded-2xl text-[14px] font-black border-2 transition-colors ${
                       hasPossession === false
                         ? 'border-red-400 bg-red-50 text-red-600'
@@ -770,12 +806,12 @@ function AcheiUmPetInner() {
                     className="hidden"
                     onChange={handleVideoCapture}
                   />
-                  {reportVideo ? (
+                  {reportVideoPreviewUrl ? (
                     <div className="mt-3 overflow-hidden rounded-2xl border border-amber-300 bg-black">
-                      <video src={reportVideo} controls playsInline className="h-44 w-full object-contain" />
+                      <video src={reportVideoPreviewUrl} controls playsInline className="h-44 w-full object-contain" />
                       <button
                         type="button"
-                        onClick={() => setReportVideo('')}
+                        onClick={() => { setReportVideoFile(null); setReportVideoPreviewUrl(''); }}
                         className="w-full bg-white px-3 py-2 text-[12px] font-black text-amber-800"
                       >
                         Remover vídeo
@@ -827,7 +863,7 @@ function AcheiUmPetInner() {
                   const canSubmit = Boolean(
                     reportContact.trim()
                     && hasPossession !== null
-                    && !(hasPossession === true && (!reportVideo || !proofChallenge)),
+                    && !(hasPossession === true && (!reportVideoFile || !proofChallenge)),
                   );
                   return (
                     <button
