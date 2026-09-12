@@ -44,11 +44,11 @@ export default function LandingPage() {
         <PetmolTextLogo className="text-3xl" color="#0056D2" />
         <div className="flex items-center gap-2">
           <Link href="/login"
-            className="px-4 py-2 rounded-xl text-sm font-bold text-[#0056D2] border border-[#0056D2]/30 active:bg-blue-50">
+            className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-bold text-[#0056D2] border border-[#0056D2]/30 active:bg-blue-50">
             Entrar
           </Link>
           <Link href="/register"
-            className="px-4 py-2 rounded-xl text-sm font-black text-white bg-[#0056D2] shadow-sm active:scale-[0.97]">
+            className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-black text-white bg-[#0056D2] shadow-sm active:scale-[0.97]">
             Criar conta
           </Link>
         </div>
@@ -67,7 +67,7 @@ export default function LandingPage() {
           Acompanha a alimentação, as vacinas, os remédios e a proteção — e mostra o que vem a seguir, na hora certa.
         </p>
         <Link href="/register"
-          className="mt-8 inline-block w-full max-w-xs rounded-2xl bg-[#0056D2] px-6 py-4 text-base font-black text-white shadow-lg shadow-blue-500/25 active:scale-[0.98]">
+          className="mt-8 inline-flex w-full max-w-xs items-center justify-center rounded-2xl bg-[#0056D2] px-6 py-4 text-base font-black text-white shadow-lg shadow-blue-500/25 active:scale-[0.98]">
           Criar conta
         </Link>
         <p className="mt-3 text-xs text-slate-400 font-semibold">Leva menos de 1 minuto.</p>
@@ -99,6 +99,14 @@ export default function LandingPage() {
           body="Cada cuidado tem uma data. O PETMOL organiza tudo, prioriza o que vem primeiro e, quando for hora de repor, ajuda a comprar o produto que o seu pet já usa."
           title="O próximo cuidado, sempre à vista"
         />
+        <FeatureCard
+          icon="🚨"
+          color="bg-red-50 border-red-100"
+          iconBg="bg-red-500"
+          tag="Pet Sumido"
+          title="Se sumir, a comunidade ajuda a procurar"
+          body="Um alerta geolocalizado avisa quem está por perto na hora — sem precisar sair procurando sozinho."
+        />
       </section>
 
       {/* Fechamento — sem depoimento fabricado */}
@@ -118,7 +126,7 @@ export default function LandingPage() {
         <h2 className="text-2xl font-black text-slate-900">Comece agora.</h2>
         <p className="mt-2 text-sm text-slate-500 font-medium">Crie a conta e adicione o seu pet.</p>
         <Link href="/register"
-          className="mt-6 block w-full max-w-xs rounded-2xl bg-[#0056D2] px-6 py-4 text-base font-black text-white shadow-lg shadow-blue-500/25 active:scale-[0.98]">
+          className="mt-6 inline-flex w-full max-w-xs items-center justify-center rounded-2xl bg-[#0056D2] px-6 py-4 text-base font-black text-white shadow-lg shadow-blue-500/25 active:scale-[0.98]">
           Criar conta
         </Link>
         <Link href="/login" className="mt-3 text-sm text-slate-400 font-semibold">
