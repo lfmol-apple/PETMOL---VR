@@ -471,6 +471,14 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
   const offer = offers[0] ?? null;
   const [imageFailed, setImageFailed] = useState(false);
   const [petzLink, setPetzLink] = useState<PetzDirectLink | null>(null);
+  // Distingue "ainda não buscou" de "buscou, Petz não tem" — petzLink=null
+  // sozinho é ambíguo entre os dois. Sem isso, o card tinha uma revelação
+  // em DOIS estágios: o botão "Comprar" aparecia assim que só a Petz
+  // resolvia (rápido), sem preço nenhum, e só minutos depois — quando o
+  // preço da Cobasi finalmente chegava — o mesmo botão trocava pra mostrar
+  // o preço. Pro usuário parecia "não carrega de primeira" mesmo não
+  // estando travado (achado em produção, 11/09/2026).
+  const [petzResolved, setPetzResolved] = useState(false);
 
   // "Ver na Petz" — caminho separado de useCommerceOffers (sem preço por
   // produto, ver docs/AFFILIATES.md §Petz). Com o programa Parceiro Petz
@@ -480,17 +488,43 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
     const petzName = card.searchQuery || card.label;
     if (!card.gtin && !petzName) {
       setPetzLink(null);
+      setPetzResolved(true);
       return;
     }
     let cancelled = false;
+    setPetzResolved(false);
+    // Rede de segurança igual à do useCommerceOffers (ver comentário lá) —
+    // fetchPetzDirectLink já tem timeout de 5s + catch interno, mas isso
+    // garante que petzResolved nunca fica preso em `false` pra sempre,
+    // não importa o motivo.
+    const hardTimeout = setTimeout(() => {
+      if (!cancelled) setPetzResolved(true);
+    }, 8000);
     // Sem GTIN ainda mostra "Ver na Petz" → busca da Petz pelo nome.
-    void fetchPetzDirectLink(card.gtin ?? undefined, petzName).then((link) => {
-      if (!cancelled) setPetzLink(link);
-    });
+    void fetchPetzDirectLink(card.gtin ?? undefined, petzName)
+      .then((link) => {
+        if (!cancelled) {
+          setPetzLink(link);
+          setPetzResolved(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPetzLink(null);
+          setPetzResolved(true);
+        }
+      })
+      .finally(() => clearTimeout(hardTimeout));
     return () => {
       cancelled = true;
+      clearTimeout(hardTimeout);
     };
   }, [card.gtin, card.label, card.searchQuery]);
+
+  // Loading combinado: só revela o card quando AS DUAS fontes assíncronas
+  // (preço Cobasi via useCommerceOffers + link Petz) já resolveram pro
+  // gtin/query atuais — evita mostrar um resultado parcial que depois muda.
+  const stillResolving = loading || !petzResolved;
 
   // Toda oferta na lista é o mesmo SKU físico — o GTIN da oferta pode ser
   // um EAN irmão do grupo (ver offerOriginLabel). Nem toda loja tem imagem
@@ -513,7 +547,7 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
     hasMonetizedOffer && offer && priceReliable && typeof offer.list_price === 'number' && offer.list_price > (offer.price ?? 0),
   );
   const noBuyOptionAtAll = !hasMonetizedOffer && !hasPetz && visibleQuickBuyPartners.length === 0;
-  const canAct = !loading && !noBuyOptionAtAll;
+  const canAct = !stillResolving && !noBuyOptionAtAll;
   const displayProductLabel = offer?.canonical_name || offer?.product_name || card.label;
 
   function handlePrimaryAction() {
@@ -572,12 +606,12 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
           <p className={`mt-0.5 text-[11.5px] font-semibold leading-tight ${card.urgencyTone === 'overdue' ? 'text-rose-600' : card.urgencyTone === 'today' ? 'text-amber-600' : 'text-slate-500'}`}>
             {card.urgencyText}
           </p>
-          {loading && <p className="mt-0.5 text-[11px] font-medium text-slate-400">Buscando opções de compra...</p>}
+          {stillResolving && <p className="mt-0.5 text-[11px] font-medium text-slate-400">Buscando opções de compra...</p>}
           {/* Primeiro nível do card = produto + prazo + preço de referência.
               O PETMOL informa, não "grita promoção": nada de selo de oferta
               aqui. A loja, o preço por loja e a origem do preço só aparecem
               ao tocar "Comprar" (ver OfferPickerRow). */}
-          {!loading && hasMonetizedOffer && offer && (
+          {!stillResolving && hasMonetizedOffer && offer && (
             <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[12px] font-bold leading-tight">
               <span className={priceReliable ? 'text-emerald-800' : 'text-emerald-700'}>
                 {priceReliable ? formatBRLPrice(offer.price as number) : offerPriceLabel(offer)}
@@ -587,18 +621,18 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
               )}
             </p>
           )}
-          {!loading && !hasMonetizedOffer && hasPetz && (
+          {!stillResolving && !hasMonetizedOffer && hasPetz && (
             <p className="mt-0.5 text-[12px] font-bold leading-tight text-blue-700">Disponível para compra</p>
           )}
-          {!loading && noBuyOptionAtAll && (
+          {!stillResolving && noBuyOptionAtAll && (
             <p className="mt-0.5 text-[11px] font-medium text-slate-400">Sem opção de compra no momento</p>
           )}
         </div>
 
-        {!noBuyOptionAtAll && (
+        {(stillResolving || !noBuyOptionAtAll) && (
           <button
             type="button"
-            disabled={loading}
+            disabled={stillResolving}
             onClick={(event) => {
               event.stopPropagation();
               handlePrimaryAction();

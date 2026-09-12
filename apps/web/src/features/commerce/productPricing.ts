@@ -237,12 +237,12 @@ export async function fetchPetzDirectLink(
   productName?: string,
   brand?: string,
 ): Promise<PetzDirectLink> {
-  const trimmedGtin = (gtin ?? '').trim();
-  const trimmedName = (productName ?? '').trim();
-  // Sem GTIN a página exata não é possível, mas a busca da Petz pelo nome
-  // sim — só desiste quando não há NENHUM dos dois.
-  if (!trimmedGtin && !trimmedName) return { available: false, url: null };
   try {
+    const trimmedGtin = (gtin ?? '').trim();
+    const trimmedName = (productName ?? '').trim();
+    // Sem GTIN a página exata não é possível, mas a busca da Petz pelo nome
+    // sim — só desiste quando não há NENHUM dos dois.
+    if (!trimmedGtin && !trimmedName) return { available: false, url: null };
     const params = new URLSearchParams();
     if (trimmedGtin) params.set('gtin', trimmedGtin);
     if (trimmedName) params.set('q', trimmedName);
