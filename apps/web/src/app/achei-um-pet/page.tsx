@@ -963,14 +963,19 @@ function AcheiUmPetInner() {
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={matchPhotos[0] ? handleRunPhotoMatch : () => matchInputRef.current?.click()}
-              disabled={matchLoading}
-              className="w-full rounded-2xl bg-emerald-500 py-4 text-[16px] font-black text-white shadow-lg shadow-emerald-950/40 active:scale-[0.98] transition-all disabled:opacity-60"
-            >
-              {matchLoading ? 'IA procurando candidatos...' : matchPhotos[0] ? 'Buscar pets parecidos' : 'Escolher foto da galeria'}
-            </button>
+            {/* Só aparece com foto já escolhida — sem isso, duplicava
+                "Escolher da galeria" (mesma ação, botão de cima) quando
+                ainda não havia foto nenhuma. */}
+            {matchPhotos[0] && (
+              <button
+                type="button"
+                onClick={handleRunPhotoMatch}
+                disabled={matchLoading}
+                className="w-full rounded-2xl bg-emerald-500 py-4 text-[16px] font-black text-white shadow-lg shadow-emerald-950/40 active:scale-[0.98] transition-all disabled:opacity-60"
+              >
+                {matchLoading ? 'IA procurando candidatos...' : 'Buscar pets parecidos'}
+              </button>
+            )}
             {matchLocationStatus !== 'idle' && (
               <p className="text-center text-[12px] text-white/45">
                 {matchLocationStatus === 'requesting' && 'Pedindo localização para reduzir falsos positivos...'}
@@ -1210,7 +1215,7 @@ function AcheiUmPetInner() {
           </div>
           <Link
             href="/"
-            className="flex-shrink-0 px-4 py-2 rounded-full bg-blue-600 text-white text-[13px] font-black active:scale-95 transition-all"
+            className="flex-shrink-0 inline-flex items-center justify-center px-4 py-2 rounded-full bg-blue-600 text-white text-[13px] font-black active:scale-95 transition-all"
           >
             Instalar
           </Link>
