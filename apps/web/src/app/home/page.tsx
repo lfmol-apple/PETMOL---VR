@@ -61,7 +61,7 @@ import { hasCompletedOnboarding } from '@/lib/ownerProfile';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
-import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
+import { dateToLocalISO, localTodayISO, formatLocalDateOnly } from '@/lib/localDate';
 import { useAuth } from '@/contexts/AuthContext';
 import { petMolAPI } from '@/lib/api-client';
 import { normalizeBackendPetProfiles } from '@/lib/backendPetProfile';
@@ -2085,7 +2085,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
             {visibleAlerts.map((alert) => {
               const speciesLabel = alert.species === 'cat' ? 'Gato' : alert.species === 'dog' ? 'Cachorro' : 'Pet';
               const missingInfo = alert.missing_date
-                ? `Desaparecido em ${alert.missing_date}${alert.missing_time ? ' às ' + alert.missing_time : ''}`
+                ? `Desaparecido em ${formatLocalDateOnly(alert.missing_date, 'pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}${alert.missing_time ? ' às ' + alert.missing_time : ''}`
                 : 'Desaparecido recentemente';
               const alertPhotoUrl = getPhotoUrl(alert.photo_url);
               const descricao = [alert.breed, alert.characteristics].filter(Boolean).join(' · ');
@@ -2961,7 +2961,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         const cardPhoto = getPhotoUrl(alertCard.photo_url);
         const desc = [alertCard.breed, alertCard.characteristics].filter(Boolean).join(' · ');
         const missing = alertCard.missing_date
-          ? `Desaparecido em ${alertCard.missing_date}${alertCard.missing_time ? ' às ' + alertCard.missing_time : ''}`
+          ? `Desaparecido em ${formatLocalDateOnly(alertCard.missing_date, 'pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}${alertCard.missing_time ? ' às ' + alertCard.missing_time : ''}`
           : 'Desaparecido recentemente';
         return (
           <div
