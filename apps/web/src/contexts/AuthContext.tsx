@@ -58,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    clearSensitiveBrowserCaches();
     const savedToken = getToken();
     if (savedToken) {
       setAuthToken(savedToken);
@@ -69,16 +70,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchTutorData = async () => {
-    const savedToken = getToken();
-    // Sem token, não faz request desnecessário (evita 401)
-    if (!savedToken) {
-      setTutor(null);
-      setAuthToken(null);
-      setIsLoading(false);
-      return;
-    }
-
     try {
+      const savedToken = getToken();
+      // Sem token, não faz request desnecessário (evita 401)
+      if (!savedToken) {
+        setTutor(null);
+        setAuthToken(null);
+        setIsLoading(false);
+        return;
+      }
       const response = await fetch(`${API_URL}/auth/me`, {
         credentials: 'include',
         headers: { 'Authorization': `Bearer ${savedToken}` },
@@ -89,23 +89,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await response.json();
         setTutor(data);
         setAuthToken(savedToken);
-        setIsOfflineMode(false);
-      } else if (response.status === 401 || response.status === 403) {
+      } else {
         setTutor(null);
         setAuthToken(null);
         clearToken();
-      } else {
-        // 5xx/502 during deploy must not log the user out. Keep the token so
-        // /home can retry loading pets and push deep links can still resolve.
-        setAuthToken(savedToken);
-        setToken(savedToken);
-        setIsOfflineMode(true);
       }
     } catch (error) {
       console.error('Erro ao buscar dados do tutor:', error);
-      setAuthToken(savedToken);
-      setToken(savedToken);
-      setIsOfflineMode(true);
+      setTutor(null);
+      clearToken();
     } finally {
       setIsLoading(false);
     }
@@ -205,14 +197,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Erro ao fazer logout:', error);
     }
     clearToken();
-    clearSensitiveBrowserCaches();
     setAuthToken(null);
     setTutor(null);
     setIsOfflineMode(false);
   };
 
   const currentUser = tutor?.email || null;
-  const isAuthenticated = !!tutor || !!token;
+  const isAuthenticated = !!tutor;
 
   return (
     <AuthContext.Provider

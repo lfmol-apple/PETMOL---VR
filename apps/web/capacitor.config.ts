@@ -16,7 +16,7 @@ const config: CapacitorConfig = {
   // pública, que é só para a web). O front também tem Capacitor.isNativePlatform().
   appendUserAgent: 'PetmolApp',
   server: {
-    url: 'https://www.petmol.com.br/home',
+    url: 'https://www.petmol.com.br',
     cleartext: false,
   },
   plugins: {

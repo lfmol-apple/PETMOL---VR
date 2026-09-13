@@ -10,17 +10,16 @@ import { ContentMenu } from '@/components/ContentMenu';
 
 export function Header() {
   const { t } = useI18n();
-  const { tutor, token } = useAuth();
+  const { tutor } = useAuth();
   const { initiateLogout } = useLogout();
   const [showLogo, setShowLogo] = useState(false);
   const pathname = usePathname();
 
-  const hasSession = Boolean(tutor || token);
-  const userLabel = tutor?.name?.split(' ')[0] || tutor?.email?.split('@')[0] || (hasSession ? 'Perfil' : null);
-  const homeHref = hasSession ? '/home' : '/';
+  const userLabel = tutor?.name?.split(' ')[0] || tutor?.email?.split('@')[0] || null;
+  const homeHref = userLabel ? '/home' : '/';
   const profileHref = '/profile';
   const helpHref = `https://wa.me/?text=${encodeURIComponent('Olá, preciso de ajuda com o PETMOL.')}`;
-  const brandCaption = hasSession ? (pathname === '/home' ? 'você está na home' : 'voltar à home') : 'início';
+  const brandCaption = userLabel ? (pathname === '/home' ? 'você está na home' : 'voltar à home') : 'início';
   const profileCaption = pathname === '/profile' ? 'perfil aberto' : 'abrir perfil';
 
   // Animação de entrada da logo
@@ -44,7 +43,7 @@ export function Header() {
           {/* Marca alinhada à esquerda */}
           <Link
             href={homeHref}
-            title={hasSession ? 'Ir para a home' : 'Ir para o início'}
+            title={userLabel ? 'Ir para a home' : 'Ir para o início'}
             className={`flex flex-shrink-0 items-center gap-2 transition-all duration-500 active:scale-95 ${
               showLogo ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
             }`}
