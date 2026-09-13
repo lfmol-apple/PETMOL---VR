@@ -78,35 +78,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Constrói a origin correta considerando proxy reverso (nginx → localhost:3000)
-  // request.nextUrl.origin seria http://localhost:3000 em produção sem essa correção
-  const forwardedProto =
-    firstHeaderValue(request.headers.get('x-forwarded-proto')) || request.nextUrl.protocol.replace(':', '');
-  const forwardedHost =
-    firstHeaderValue(request.headers.get('x-forwarded-host')) ||
-    firstHeaderValue(request.headers.get('host')) ||
-    request.nextUrl.host;
-  const origin = `${forwardedProto}://${forwardedHost}`;
-
-  // Verifica o cookie de sessão:
-  // - petmol_session: HttpOnly cookie setado pelo backend (funciona em produção mesmo domínio)
-  // - petmol_auth: cookie JS setado pelo auth-token.ts (funciona em dev porta diferente)
-  const session = request.cookies.get('petmol_session')?.value
-    || request.cookies.get('petmol_auth')?.value;
-
-  // O shell nativo Capacitor acorda em "/" nas builds instaladas que ainda
-  // apontam server.url para a raiz, mesmo quando o tap do push será entregue
-  // logo depois como deeplink. Dentro do app nativo a landing pública nunca
-  // deve participar do boot: /home decide se mostra Home ou redireciona login.
-  if (pathname === '/') {
-    const ua = request.headers.get('user-agent') || '';
-    if (ua.includes(NATIVE_APP_UA_MARKER)) {
-      const homeUrl = new URL('/home', origin);
-      homeUrl.searchParams.set('native_start', '1');
-      return NextResponse.redirect(homeUrl, 308);
-    }
-  }
-
   // Área Amazon US ("/recommendations") é pública SÓ na web — nunca dentro do
   // app nativo (ToS do Amazon Associates para apps + página em inglês num app
   // pt-BR). O UA do WebView Capacitor carrega o marcador (appendUserAgent).
@@ -128,6 +99,22 @@ export function middleware(request: NextRequest) {
   if (isPublic(pathname)) {
     return NextResponse.next();
   }
+
+  // Verifica o cookie de sessão:
+  // - petmol_session: HttpOnly cookie setado pelo backend (funciona em produção mesmo domínio)
+  // - petmol_auth: cookie JS setado pelo auth-token.ts (funciona em dev porta diferente)
+  const session = request.cookies.get('petmol_session')?.value
+    || request.cookies.get('petmol_auth')?.value;
+
+  // Constrói a origin correta considerando proxy reverso (nginx → localhost:3000)
+  // request.nextUrl.origin seria http://localhost:3000 em produção sem essa correção
+  const forwardedProto =
+    firstHeaderValue(request.headers.get('x-forwarded-proto')) || request.nextUrl.protocol.replace(':', '');
+  const forwardedHost =
+    firstHeaderValue(request.headers.get('x-forwarded-host')) ||
+    firstHeaderValue(request.headers.get('host')) ||
+    request.nextUrl.host;
+  const origin = `${forwardedProto}://${forwardedHost}`;
 
   // Força domínio canônico para evitar que app/web abram páginas diferentes em hosts distintos
   // (ex.: petmol.com.br vs www.petmol.com.br)

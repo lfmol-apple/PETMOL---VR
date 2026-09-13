@@ -240,34 +240,6 @@ function HomePageInner() {
   const cachedDeepLinkRef = useRef<string | null>(null);
   const [deepLinkTrigger, setDeepLinkTrigger] = useState(0);
 
-  // Aquecimento dos módulos dos sheets mais comuns — medido no console do
-  // Safari (Web Inspector remoto): abrir um desses sheets pela primeira vez
-  // na sessão trava a thread principal por ~300ms com ZERO atividade de
-  // rede e ZERO mutação de DOM nesse intervalo — ou seja, não é download de
-  // chunk (já em cache) nem CSS, é o custo de executar o módulo do
-  // componente pela primeira vez (React.lazy por trás do next/dynamic). Na
-  // segunda abertura do mesmo sheet fica instantâneo, porque o módulo já
-  // rodou. Chamar o import() aqui, ocioso, faz esse custo acontecer em
-  // background assim que a Home carrega, antes do usuário ter chance de
-  // tocar em qualquer sheet.
-  useEffect(() => {
-    const warm = () => {
-      import('@/components/home/ParasiteItemSheet');
-      import('@/components/home/VaccineItemSheet');
-      import('@/components/home/MedicationItemSheet');
-      import('@/components/home/FoodItemSheet');
-      import('@/components/home/GroomingItemSheet');
-      import('@/components/home/HomeNavigationModals');
-    };
-    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
-    if (ric) {
-      const id = ric(warm, { timeout: 2000 });
-      return () => (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id);
-    }
-    const t = setTimeout(warm, 1500);
-    return () => clearTimeout(t);
-  }, []);
-
   // ── Deep link via notificação push ──────────────────────────────────────────
   // 4 mecanismos redundantes para cobrir todos os estados do app (ativo, background, frozen, recém-aberto).
   // Todos chamam router.push() diretamente ao receber a URL, garantindo que searchParams atualize.
@@ -283,45 +255,15 @@ function HomePageInner() {
   }, [router]);
 
   // 1. Leitura na montagem — cobre app aberto do zero via notificação (ou iOS onde openWindow ignora params)
-  //
-  // Corrida no cold start: app/page.tsx já faz router.replace('/home') (sem
-  // query params) assim que vê um token salvo — isso é síncrono e quase
-  // sempre vence a entrega do "launch notification" nativo, que depende do
-  // bridge do Capacitor resolver e só então escreve a URL aqui via
-  // deliverNativeDeepLink. Se essa leitura rodar só uma vez, no exato
-  // instante da montagem, ela sempre chega ANTES da escrita — o cache nunca
-  // é encontrado, e o link do lembrete se perde silenciosamente (o app abre
-  // normal, mas nunca a sheet do item). Repete a leitura por alguns
-  // segundos, mesmo padrão de retry já usado no efeito 2 abaixo.
   useEffect(() => {
     if (typeof window === 'undefined' || !('caches' in window)) return;
-    let cancelled = false;
-    const tryRead = async () => {
-      if (cancelled) return true;
-      try {
-        const cache = await caches.open('petmol-deeplink-v1');
-        const resp = await cache.match('/__petmol_deeplink');
-        if (!resp) return false;
-        const { url, ts } = await resp.json() as { url: string; ts: number };
-        // Deleta só DEPOIS de aplicar: se um reload de version skew
-        // interromper entre a leitura e a aplicação, a entrada continua no
-        // Cache API (sobrevive ao reload) pra próxima montagem tentar de novo,
-        // em vez de já ter sido apagada sem o link ter sido de fato usado.
-        if (Date.now() - ts < 300_000) applyDeepLinkUrl(url);
-        await cache.delete('/__petmol_deeplink');
-        return true;
-      } catch {
-        return false;
-      }
-    };
-    const delaysMs = [0, 300, 800, 1500, 3000];
-    (async () => {
-      for (const delay of delaysMs) {
-        if (delay > 0) await new Promise((r) => setTimeout(r, delay));
-        if (await tryRead()) return;
-      }
-    })();
-    return () => { cancelled = true; };
+    caches.open('petmol-deeplink-v1').then(async (cache) => {
+      const resp = await cache.match('/__petmol_deeplink');
+      if (!resp) return;
+      const { url, ts } = await resp.json() as { url: string; ts: number };
+      await cache.delete('/__petmol_deeplink');
+      if (Date.now() - ts < 300_000) applyDeepLinkUrl(url);
+    }).catch(() => {});
   }, [applyDeepLinkUrl]);
 
   // 2. visibilitychange + window.focus — cobre app vindo do background
@@ -335,10 +277,8 @@ function HomePageInner() {
         const resp = await cache.match('/__petmol_deeplink');
         if (!resp) return;
         const { url, ts } = await resp.json() as { url: string; ts: number };
-        // Mesma ordem do efeito 1: aplica antes de apagar, pra um reload no
-        // meio do caminho não perder o link (Cache API sobrevive a reload).
-        if (Date.now() - ts < 300_000) applyDeepLinkUrl(url);
         await cache.delete('/__petmol_deeplink');
+        if (Date.now() - ts < 300_000) applyDeepLinkUrl(url);
       } catch {}
     };
     const onVisible = () => {
@@ -373,6 +313,10 @@ function HomePageInner() {
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
     const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'PETMOL_SW_UPDATED') {
+        window.location.reload();
+        return;
+      }
       if (event.data?.type !== 'PETMOL_DEEPLINK') return;
       const { url, ts } = event.data as { url: string; ts: number };
       if (!url || Date.now() - (ts || 0) > 300_000) return;
@@ -381,6 +325,27 @@ function HomePageInner() {
     navigator.serviceWorker.addEventListener('message', handler);
     return () => navigator.serviceWorker.removeEventListener('message', handler);
   }, [applyDeepLinkUrl]);
+
+  // ── Checagem de versão — força reload quando novo deploy chega ─────────────
+  useEffect(() => {
+    const STORAGE_KEY = 'petmol_build_v';
+    const check = async () => {
+      try {
+        const res = await fetch('/version.json?t=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) return;
+        const { v } = await res.json() as { v: string };
+        const stored = sessionStorage.getItem(STORAGE_KEY);
+        if (!stored) { sessionStorage.setItem(STORAGE_KEY, v); return; }
+        if (stored !== v) {
+          sessionStorage.setItem(STORAGE_KEY, v);
+          window.location.reload();
+        }
+      } catch { /* offline — ignora */ }
+    };
+    check();
+    const iv = setInterval(check, 60_000);
+    return () => clearInterval(iv);
+  }, []);
 
   // ── Saúde da subscription de push ──────────────────────────────────────────
   // Sincroniza o endpoint atual do dispositivo com o servidor em cada mount.
@@ -1807,13 +1772,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   }, [applyFoodPushAction, applyHomeSurfaceResolution, pets, selectedPetId, searchParams, router, deepLinkTrigger]);
 
 
-  if ((isLoading || isChecking) && pets.length === 0) {
-    const isNativeOrPushBoot =
-      searchParams.get('native_start') === '1' ||
-      Boolean(searchParams.get('modal') && searchParams.get('petId'));
-    if (isNativeOrPushBoot) {
-      return <div className="min-h-screen bg-gradient-to-b from-amber-50/40 via-white to-gray-50" />;
-    }
+  if (isLoading || isChecking) {
     // Mesmo splash azul do boot — continuidade com o splash nativo e com a
     // tela '/' enquanto resolve a sessão. Sem 🐾 girando nem "Carregando".
     return <AppBootSplash />;
