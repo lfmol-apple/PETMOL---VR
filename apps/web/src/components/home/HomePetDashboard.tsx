@@ -254,29 +254,31 @@ export function HomePetDashboard({
   // casar dentro da janela de retry (~9,4s), só aparece na PRÓXIMA vez que
   // a Loja for aberta (o enriquecimento continua rodando no backend em
   // segundo plano mesmo depois do app desistir de esperar). Disparando essa
-  // mesma consulta aqui, ocioso, assim que os produtos do pet são
-  // conhecidos — bem antes do usuário ter chance de abrir a Loja — o
-  // enriquecimento já está pronto (ou bem mais perto disso) na primeira
-  // abertura de verdade.
+  // mesma consulta aqui, assim que os produtos do pet são conhecidos — bem
+  // antes do usuário ter chance de abrir a Loja — o enriquecimento já está
+  // pronto (ou bem mais perto disso) na primeira abertura de verdade.
+  //
+  // BUG ENCONTRADO 13/09/2026: a 1ª versão disparava via
+  // requestIdleCallback({ timeout: 3000 }) — "timeout" aí é só um teto,
+  // não uma garantia de disparo imediato; numa Home ocupada renderizando,
+  // o navegador podia não considerar "ocioso" por perto desses 3s inteiros.
+  // Um usuário que abre a Loja rápido (vídeo real: ~2-4s depois da Home
+  // aparecer) chegava antes do aquecimento sequer ter começado — o cache
+  // de fetchCommerceOffersWithStatus (ver productPricing.ts) ficava vazio
+  // e a sheet acabava fazendo a MESMA busca ao vivo de antes, sem ganho
+  // nenhum. A busca em si é assíncrona (fetch) e não compete por tempo de
+  // CPU da thread principal, então não precisa de idle/timeout nenhum —
+  // dispara direto, tão cedo quanto os produtos do pet são conhecidos.
   const warmedProductKeysRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!reminders.length) return;
     const cards = buildReorderCards(reminders);
-    const warm = () => {
-      for (const card of cards) {
-        const key = card.gtin || card.searchQuery;
-        if (!key || warmedProductKeysRef.current.has(key)) continue;
-        warmedProductKeysRef.current.add(key);
-        void fetchCommerceOffersWithStatus(card.searchQuery, card.packageSizeKg ?? undefined, card.gtin ?? undefined);
-      }
-    };
-    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
-    if (ric) {
-      const id = ric(warm, { timeout: 3000 });
-      return () => (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id);
+    for (const card of cards) {
+      const key = card.gtin || card.searchQuery;
+      if (!key || warmedProductKeysRef.current.has(key)) continue;
+      warmedProductKeysRef.current.add(key);
+      void fetchCommerceOffersWithStatus(card.searchQuery, card.packageSizeKg ?? undefined, card.gtin ?? undefined);
     }
-    const t = setTimeout(warm, 2000);
-    return () => clearTimeout(t);
   }, [reminders]);
 
   // Includes OVERDUE reminders (diff < 0) too, not just future ones — the
