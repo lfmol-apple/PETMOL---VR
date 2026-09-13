@@ -1014,7 +1014,7 @@ def _create_found_report_from_sighting(
     if mp.user_id:
         threading.Thread(
             target=_push_owner_found,
-            args=(mp.user_id, mp.pet_name, sighting.location_text, mp.id),
+            args=(mp, sighting.location_text, mp.id),
             kwargs={"score": score, "minutes_ago": minutes_ago, "distance_km": distance_km},
             daemon=True,
         ).start()
@@ -1053,8 +1053,8 @@ def _create_found_report_from_sighting(
     ):
         _mark_sighting_broadcast(mp.id)
         threading.Thread(
-            target=_broadcast_missing_pet_async,
-            args=(mp.id,),
+            target=_broadcast_missing_pet,
+            args=(mp,),
             kwargs={"center": (sighting.lat, sighting.lng), "radius_km": 5.0, "origin": "sighting"},
             daemon=True,
         ).start()
@@ -1138,22 +1138,15 @@ def _retro_match_recent_sightings_for_missing_pet_id(mp_id: str) -> None:
         db.close()
 
 
-def _broadcast_missing_pet_async(mp_id: str, **kwargs) -> None:
+def _broadcast_missing_pet_async(mp_id: str) -> None:
     """Roda _broadcast_missing_pet fora do request. O endpoint de criação NÃO
     espera N web-pushes — era o motivo de o cartaz demorar demais e, com o
-    cliente re-tentando uma request lenta, de o alerta sair duas vezes.
-
-    Recarrega o MissingPet numa sessão própria, aberta e fechada dentro
-    desta mesma thread — nunca receber o objeto já carregado por outra
-    sessão/thread, que pode ter sido fechada (db.close() no fim do
-    request) antes desta thread rodar, e daria DetachedInstanceError ao
-    ler qualquer atributo (engolido pelo try/except de _broadcast_missing_pet,
-    silenciando o broadcast inteiro sem erro visível)."""
+    cliente re-tentando uma request lenta, de o alerta sair duas vezes."""
     db = SessionLocal()
     try:
         mp = db.query(MissingPet).filter(MissingPet.id == mp_id, MissingPet.status == "active").first()
         if mp:
-            _broadcast_missing_pet(mp, **kwargs)
+            _broadcast_missing_pet(mp)
     except Exception as exc:
         logger.error(f"Async broadcast failed for {mp_id}: {exc}")
     finally:
@@ -2842,8 +2835,7 @@ def _owner_found_body(score: int | None, minutes_ago: int | None, distance_km: f
 
 
 def _push_owner_found(
-    owner_user_id: str | None,
-    pet_name: str,
+    mp: MissingPet,
     finder_location: str | None,
     mp_id: str,
     *,
@@ -2852,20 +2844,13 @@ def _push_owner_found(
     distance_km: float | None = None,
 ) -> None:
     """Push ao dono quando surge um possível avistamento/relato do pet.
-    Uma notificação só (relato + %, quando conhecido), sem expor contato.
-
-    Recebe valores já extraídos (não o objeto MissingPet): é chamada numa
-    thread em background, e por essa altura a sessão do SQLAlchemy que
-    carregou o MissingPet já foi fechada pelo FastAPI (get_db fecha no
-    fim da requisição) — ler um atributo do objeto "desconectado" dava
-    DetachedInstanceError, engolido pelo except abaixo, e o push nunca
-    saía (só o banner ao abrir o app, que busca os dados de novo)."""
+    Uma notificação só (relato + %, quando conhecido), sem expor contato."""
     try:
-        if not owner_user_id:
+        if not mp.user_id:
             return
         emoji = "🔎" if score is None or score >= 90 else "⚠️" if score >= 75 else "❓"
-        push_to_user(owner_user_id, {
-            "title": f"{emoji} Possível avistamento de {pet_name}",
+        push_to_user(mp.user_id, {
+            "title": f"{emoji} Possível avistamento de {mp.pet_name}",
             "body": _owner_found_body(score, minutes_ago, distance_km),
             "tag": f"found-report-{mp_id}",
             "renotify": True,
@@ -3061,7 +3046,7 @@ def report_found(
     if mp.user_id:
         threading.Thread(
             target=_push_owner_found,
-            args=(mp.user_id, mp.pet_name, body.finder_location, mp_id),
+            args=(mp, body.finder_location, mp_id),
             kwargs={"score": body.pre_score if has_pre_score else None},
             daemon=True,
         ).start()

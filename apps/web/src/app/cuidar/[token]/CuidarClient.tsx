@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
+import { subscribeToPush } from '@/features/notifications/pushService';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? '/api';
 
@@ -22,7 +22,6 @@ type PetInfo = { pet_id: string; pet_name: string; species: string; breed: strin
 
 export default function CuidarClient({ token, initial }: { token: string; initial?: PetInfo | null }) {
   const router = useRouter();
-  const { permission, requestPermission, subscribeToPush } = useNotificationPermissionController();
 
   const [info, setInfo] = useState<PetInfo | null>(initial ?? null);
   const [loading, setLoading] = useState(!initial);
@@ -166,12 +165,8 @@ export default function CuidarClient({ token, initial }: { token: string; initia
   async function handlePush() {
     setPushLoading(true);
     try {
-      // No app nativo (cuidador com o PETMOL instalado), o canal é
-      // APNs/FCM via Capacitor — chamar só o Web Push daqui nunca registra
-      // nada nesse caso, e o convidado fica sem receber os lembretes que
-      // ele mesmo edita. O hook decide o canal certo por baixo.
-      const granted = permission === 'granted' ? true : await requestPermission();
-      if (granted) await subscribeToPush();
+      const tok = authToken || localStorage.getItem('petmol_token');
+      if (tok) await subscribeToPush(tok);
       setPushDone(true);
     } catch { setPushDone(true); }
     finally { setPushLoading(false); }
