@@ -153,20 +153,17 @@ export function usePetBootstrap() {
           // Erro de rede — usuário está logado, não deslogar; manter na tela atual
           setIsChecking(false);
         }
-      } else if (!isLoading) {
-        setIsChecking(false);
       }
     };
 
-    void forceLoadPets();
-  }, [tutor, isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+    forceLoadPets();
+  }, [tutor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Efeito 2: loadPets — disparado por token/isAuthenticated ──────────────
   useEffect(() => {
     const loadPets = async () => {
       if (!token) {
         if (!isLoading) {
-          setIsChecking(false);
           router.replace('/login');
         }
         return;
@@ -212,7 +209,6 @@ export function usePetBootstrap() {
 
         if (!response.ok) {
           if (response.status === 401 || response.status === 403) {
-            setIsChecking(false);
             router.replace('/login');
             return;
           }
@@ -234,8 +230,8 @@ export function usePetBootstrap() {
       }
     };
 
-    void loadPets();
-  }, [isAuthenticated, isLoading, token, API_BASE_URL]); // eslint-disable-line react-hooks/exhaustive-deps
+    loadPets();
+  }, [isAuthenticated, token, API_BASE_URL]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     isChecking,
