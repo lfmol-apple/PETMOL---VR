@@ -240,6 +240,34 @@ function HomePageInner() {
   const cachedDeepLinkRef = useRef<string | null>(null);
   const [deepLinkTrigger, setDeepLinkTrigger] = useState(0);
 
+  // Aquecimento dos módulos dos sheets mais comuns — medido no console do
+  // Safari (Web Inspector remoto): abrir um desses sheets pela primeira vez
+  // na sessão trava a thread principal por ~300ms com ZERO atividade de
+  // rede e ZERO mutação de DOM nesse intervalo — ou seja, não é download de
+  // chunk (já em cache) nem CSS, é o custo de executar o módulo do
+  // componente pela primeira vez (React.lazy por trás do next/dynamic). Na
+  // segunda abertura do mesmo sheet fica instantâneo, porque o módulo já
+  // rodou. Chamar o import() aqui, ocioso, faz esse custo acontecer em
+  // background assim que a Home carrega, antes do usuário ter chance de
+  // tocar em qualquer sheet.
+  useEffect(() => {
+    const warm = () => {
+      import('@/components/home/ParasiteItemSheet');
+      import('@/components/home/VaccineItemSheet');
+      import('@/components/home/MedicationItemSheet');
+      import('@/components/home/FoodItemSheet');
+      import('@/components/home/GroomingItemSheet');
+      import('@/components/home/HomeNavigationModals');
+    };
+    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+    if (ric) {
+      const id = ric(warm, { timeout: 2000 });
+      return () => (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(warm, 1500);
+    return () => clearTimeout(t);
+  }, []);
+
   // ── Deep link via notificação push ──────────────────────────────────────────
   // 4 mecanismos redundantes para cobrir todos os estados do app (ativo, background, frozen, recém-aberto).
   // Todos chamam router.push() diretamente ao receber a URL, garantindo que searchParams atualize.
