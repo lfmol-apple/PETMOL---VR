@@ -19,6 +19,12 @@ const config: CapacitorConfig = {
     url: 'https://www.petmol.com.br',
     cleartext: false,
   },
+  ios: {
+    // Garante que o NotificationRouter do Capacitor receba taps em APNs e
+    // entregue `pushNotificationActionPerformed` ao JS. Sem isto o app pode
+    // abrir pelo push sem repassar o intent para a Home.
+    handleApplicationNotifications: true,
+  },
   plugins: {
     // Push nativo (APNs/FCM). presentationOptions faz a notificação aparecer
     // como banner mesmo com o app em primeiro plano. Ver nativePushService.ts
