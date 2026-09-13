@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronRight, PawPrint, Utensils, Syringe, Bug, Pill, ArrowLeft } from 'lucide-react';
+import { Check, ChevronRight, PawPrint, Utensils, Syringe, Bug, Pill } from 'lucide-react';
 import { petDo } from '@/lib/petGender';
 import { trackV1Metric, type V1MetricEvent } from '@/lib/v1Metrics';
 import type { FeedingPlanEntry } from '@/lib/types/homeForms';
@@ -75,7 +75,6 @@ export function OnboardingChecklistCard({
   onOpenDewormer,
   suppressed = false,
 }: OnboardingChecklistCardProps) {
-  const [expandedSkip, setExpandedSkip] = useState<ActionKey | null>(null);
   const [storeTick, setStoreTick] = useState(0);
 
   const progress = useMemo(
@@ -236,7 +235,6 @@ export function OnboardingChecklistCard({
   const handleSkip = (key: ActionKey, value: string) => {
     writeOnboardingStore(petId, { [key]: value });
     trackV1Metric('onboarding_skipped', { pet_id: petId, step: key, reason: value });
-    setExpandedSkip(null);
     setStoreTick((t) => t + 1);
   };
 
@@ -289,7 +287,6 @@ export function OnboardingChecklistCard({
             const done = doneByKey[row.key];
             const isProfile = row.key === 'profile';
             const actionKey = row.key as ActionKey;
-            const expanded = expandedSkip === actionKey;
             const StepIcon = STEP_ICON[row.key];
             const openable = !done && !isProfile;
 
@@ -339,36 +336,18 @@ export function OnboardingChecklistCard({
                 {openable && (
                   <div className="px-3 pb-3 pl-[52px]">
                     <p className="text-[12.5px] leading-snug text-slate-500">{row.why}</p>
-                    {!expanded ? (
-                      <button
-                        type="button"
-                        onClick={() => setExpandedSkip(actionKey)}
-                        className="mt-1.5 text-[12px] font-semibold text-slate-400 underline decoration-slate-300 underline-offset-2 active:text-slate-600"
-                      >
-                        Agora não
-                      </button>
-                    ) : (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {row.skipChoices?.map((choice) => (
-                          <button
-                            key={choice.value}
-                            type="button"
-                            onClick={() => handleSkip(actionKey, choice.value)}
-                            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-600 active:bg-slate-50"
-                          >
-                            {choice.label}
-                          </button>
-                        ))}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {row.skipChoices?.map((choice) => (
                         <button
+                          key={choice.value}
                           type="button"
-                          onClick={() => setExpandedSkip(null)}
-                          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[12px] font-semibold text-slate-400"
+                          onClick={() => handleSkip(actionKey, choice.value)}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-600 active:bg-slate-50"
                         >
-                          <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.4} />
-                          Voltar
+                          {choice.label}
                         </button>
-                      </div>
-                    )}
+                      ))}
+                    </div>
                   </div>
                 )}
               </li>
