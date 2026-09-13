@@ -159,6 +159,19 @@ def _species_speed_kmh(species: str | None) -> float:
 _BR_TZ = timezone(timedelta(hours=-3))
 
 
+def _missing_date_br(missing_date: str | None) -> str | None:
+    """`missing_date` é guardado como "YYYY-MM-DD" (ver strptime acima) —
+    formata pra "DD/MM/YYYY" nos textos de push/notificação (usuário
+    reportou a data "americana" na notificação de Pet Sumido). Formato
+    inesperado cai de volta no valor cru em vez de quebrar o envio."""
+    if not missing_date:
+        return None
+    try:
+        return datetime.strptime(missing_date, "%Y-%m-%d").strftime("%d/%m/%Y")
+    except ValueError:
+        return missing_date
+
+
 def _missing_since(mp: "MissingPet") -> datetime | None:
     if mp.missing_date:
         try:
@@ -690,7 +703,7 @@ def _broadcast_missing_pet(
             location_part = f"Visto em: {mp.last_seen_location}. " if mp.last_seen_location else ""
             payload = {
                 "title": f"🚨 {mp.pet_name} pode estar na sua região!",
-                "body": f"{location_part}Desaparecido desde {mp.missing_date or 'hoje'} às {mp.missing_time or '??:??'}. Toque para ajudar.",
+                "body": f"{location_part}Desaparecido desde {_missing_date_br(mp.missing_date) or 'hoje'} às {mp.missing_time or '??:??'}. Toque para ajudar.",
                 "tag": f"missing-pet-{mp.id}",
                 "renotify": not quiet,
                 "requireInteraction": True,
@@ -930,7 +943,7 @@ def catch_up_missing_pet_alerts_for_user(user_id: str, lat=None, lng=None, db: S
             location_part = f"Visto em: {mp.last_seen_location}. " if mp.last_seen_location else ""
             payload = {
                 "title": f"🚨 {mp.pet_name} pode estar na sua região!",
-                "body": f"{location_part}Desaparecido desde {mp.missing_date or 'hoje'}. Toque para ajudar.",
+                "body": f"{location_part}Desaparecido desde {_missing_date_br(mp.missing_date) or 'hoje'}. Toque para ajudar.",
                 "tag": f"missing-pet-{mp.id}",
                 "requireInteraction": True,
                 "icon": "/icons/icon-192x192.png",
