@@ -13,14 +13,14 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from pywebpush import webpush, WebPushException
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text, UniqueConstraint, or_
 
 from ..db import Base, SessionLocal, engine
 from ..user_auth.deps import get_current_user
 from ..config import get_settings
 from .apns import apns_configured, send_apns
 from ..family.models import FamilyGroup, FamilyMember
-from ..pets.access import get_accessible_pet_or_404
+from ..pets.access import accessible_pets_query, get_accessible_pet_or_404
 from ..pets.caretaker_models import PetCaretaker
 from ..pets.models import Pet
 
@@ -856,11 +856,25 @@ def test_push(current_user=Depends(get_current_user)):
 
 @router.get("/reminders", response_model=List[ReminderOut])
 def list_reminders(current_user=Depends(get_current_user)):
+    """Lembretes do usuário — os que ele criou, MAIS os de qualquer pet ao
+    qual ele tem acesso (dono, cuidador convidado ou família). Sem isso, um
+    cuidador que edita um lembrete criado pelo tutor (ou vice-versa) nunca
+    encontra o antigo pra cancelar: cada edição vira um lembrete "fantasma"
+    duplicado, com a data velha, além do novo."""
     db = SessionLocal()
     try:
+        accessible_pet_ids = [
+            p.id for p in accessible_pets_query(db, str(current_user.id)).all()
+        ]
         rows = (
             db.query(Reminder)
-            .filter(Reminder.user_id == str(current_user.id), Reminder.sent == False)
+            .filter(
+                Reminder.sent == False,
+                or_(
+                    Reminder.user_id == str(current_user.id),
+                    Reminder.pet_id.in_(accessible_pet_ids),
+                ),
+            )
             .order_by(Reminder.remind_at)
             .all()
         )
@@ -908,11 +922,20 @@ def create_reminder(body: ReminderIn, current_user=Depends(get_current_user)):
 def delete_reminder(reminder_id: str, current_user=Depends(get_current_user)):
     db = SessionLocal()
     try:
-        r = db.query(Reminder).filter(
-            Reminder.id == reminder_id,
-            Reminder.user_id == str(current_user.id),
-        ).first()
+        r = db.query(Reminder).filter(Reminder.id == reminder_id).first()
         if not r:
+            raise HTTPException(status_code=404, detail="Lembrete não encontrado")
+        # Dono do lembrete sempre pode apagar. Senão, só se o lembrete for de
+        # um pet ao qual o usuário atual tem acesso (dono/cuidador/família) —
+        # é o caso de um cuidador cancelando um lembrete que o tutor criou.
+        allowed = str(r.user_id) == str(current_user.id)
+        if not allowed and r.pet_id:
+            try:
+                get_accessible_pet_or_404(db, str(current_user.id), r.pet_id)
+                allowed = True
+            except HTTPException:
+                allowed = False
+        if not allowed:
             raise HTTPException(status_code=404, detail="Lembrete não encontrado")
         db.delete(r)
         db.commit()
