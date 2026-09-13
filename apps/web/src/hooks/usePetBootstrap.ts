@@ -6,6 +6,13 @@ import { getToken } from '@/lib/auth-token';
 import { normalizeBackendPetProfiles } from '@/lib/backendPetProfile';
 import type { PetHealthProfile } from '@/lib/petHealth';
 
+// Sem timeout, um fetch que trava (comum no WKWebView do iOS quando o app
+// é suspenso em segundo plano no meio da requisição) nunca resolve nem
+// rejeita — o `await` fica pendurado pra sempre e `isChecking` nunca vira
+// false, prendendo a Home na splash de carregamento indefinidamente. Mesmo
+// padrão de timeout já usado em AuthContext.tsx.
+const BOOTSTRAP_FETCH_TIMEOUT_MS = 15_000;
+
 /** Re-envia a subscription de push ao backend uma vez por sessão do browser.
  *  Garante que o servidor sempre tem um endpoint válido mesmo após deploys. */
 async function syncPushSubscriptionOnce(token: string): Promise<void> {
@@ -96,6 +103,7 @@ export function usePetBootstrap() {
           const response = await fetch(`${API_BASE_URL}/pets`, {
             credentials: 'include',
             headers: savedToken ? { Authorization: `Bearer ${savedToken}` } : {},
+            signal: AbortSignal.timeout(BOOTSTRAP_FETCH_TIMEOUT_MS),
           });
 
           let meIdForSort = '';
@@ -104,6 +112,7 @@ export function usePetBootstrap() {
             const meRes = await fetch(`${API_BASE_URL}/auth/me`, {
               credentials: 'include',
               headers: savedToken2 ? { Authorization: `Bearer ${savedToken2}` } : {},
+              signal: AbortSignal.timeout(BOOTSTRAP_FETCH_TIMEOUT_MS),
             });
             if (meRes.ok) {
               const meData = await meRes.json();
@@ -170,6 +179,7 @@ export function usePetBootstrap() {
         const tutorResponse = await fetch(`${API_BASE_URL}/auth/me`, {
           credentials: 'include',
           headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: AbortSignal.timeout(BOOTSTRAP_FETCH_TIMEOUT_MS),
         });
 
         let meIdForSort = '';
@@ -194,6 +204,7 @@ export function usePetBootstrap() {
         const response = await fetch(`${API_BASE_URL}/pets`, {
           credentials: 'include',
           ...(token && { headers: { Authorization: `Bearer ${token}` } }),
+          signal: AbortSignal.timeout(BOOTSTRAP_FETCH_TIMEOUT_MS),
         });
 
         if (!response.ok) {

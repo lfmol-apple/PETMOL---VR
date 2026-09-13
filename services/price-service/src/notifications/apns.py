@@ -9,6 +9,7 @@ import json
 import logging
 import time
 from base64 import urlsafe_b64encode
+from datetime import datetime, timezone
 from typing import Optional, Tuple
 
 from ..config import get_settings
@@ -20,6 +21,31 @@ _SANDBOX_HOST = "api.sandbox.push.apple.com"
 
 # A APNs aceita reusar o mesmo JWT por até 1h — renovamos aos 50 min.
 _jwt_cache: dict = {"token": None, "exp": 0.0}
+
+# Diagnóstico temporário (sem SSH pra ler logs do servidor): guarda a
+# resposta REAL da APNs pra cada tentativa de envio — só isso explica por
+# que um token "ativo" no banco nunca entrega de fato (ambiente sandbox vs
+# produção, certificado, token realmente morto etc.). Lido via
+# GET /v1/admin/debug/apns-log (admin-gated). Remover quando o push nativo
+# estiver 100% confiável.
+_RECENT_ATTEMPTS: list = []
+
+
+def get_recent_apns_attempts() -> list:
+    return list(_RECENT_ATTEMPTS)
+
+
+def _log_attempt(device_token: str, host: str, status_code: Optional[int], reason: str, ok: bool, error: str = "") -> None:
+    _RECENT_ATTEMPTS.append({
+        "at": datetime.now(timezone.utc).isoformat(),
+        "token_suffix": (device_token or "")[-8:],
+        "host": host,
+        "status_code": status_code,
+        "reason": reason,
+        "ok": ok,
+        "error": error,
+    })
+    del _RECENT_ATTEMPTS[:-60]
 
 
 def _load_auth_key_pem() -> Optional[str]:
@@ -83,11 +109,18 @@ def _build_jwt() -> Optional[str]:
         return None
 
 
-def send_apns(device_token: str, payload: dict) -> Tuple[bool, bool]:
+def send_apns(device_token: str, payload: dict, *, host_override: Optional[str] = None) -> Tuple[bool, bool]:
     """Envia UMA notificação para um device token iOS.
 
     Retorna `(ok, invalid)`. `invalid=True` quando o token deve ser
     desativado no banco (410 Unregistered / BadDeviceToken / etc.).
+
+    `host_override` força sandbox ou produção pra UM envio específico —
+    só usado pelo diagnóstico admin (/v1/admin/debug/apns-test), pra
+    descobrir se um token "aceito com 200" na produção na verdade é de
+    build de desenvolvimento (precisa do host sandbox pra entregar de
+    verdade). O fluxo normal (scheduler) nunca passa isso — usa
+    `apns_use_sandbox` global.
     """
     if not apns_configured():
         return (False, False)
@@ -96,7 +129,7 @@ def send_apns(device_token: str, payload: dict) -> Tuple[bool, bool]:
         return (False, False)
 
     s = get_settings()
-    host = _SANDBOX_HOST if s.apns_use_sandbox else _PROD_HOST
+    host = host_override or (_SANDBOX_HOST if s.apns_use_sandbox else _PROD_HOST)
 
     aps: dict = {
         "alert": {"title": payload.get("title") or "PETMOL", "body": payload.get("body") or ""},
@@ -128,6 +161,7 @@ def send_apns(device_token: str, payload: dict) -> Tuple[bool, bool]:
                 content=json.dumps(body).encode("utf-8"),
             )
         if resp.status_code == 200:
+            _log_attempt(device_token, host, 200, "", True)
             return (True, False)
         reason = ""
         try:
@@ -138,7 +172,9 @@ def send_apns(device_token: str, payload: dict) -> Tuple[bool, bool]:
             "BadDeviceToken", "Unregistered", "DeviceTokenNotForTopic", "TopicDisallowed",
         }
         logger.warning("APNs %s (%s) token=…%s", resp.status_code, reason, (device_token or "")[-6:])
+        _log_attempt(device_token, host, resp.status_code, reason, False)
         return (False, invalid)
     except Exception as e:  # h2 ausente, rede, etc. — nunca propaga
         logger.error("APNs send error: %s", e)
+        _log_attempt(device_token, host, None, "", False, error=str(e)[:200])
         return (False, False)
