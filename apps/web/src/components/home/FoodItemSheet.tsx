@@ -725,14 +725,39 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   // deve ficar calmo ("não rastreado"), não insistir em pedir dados que não
   // existem. O backend já suporta isso (mode + no_consumption_control, todo
   // o resto opcional) — só faltava um jeito de declarar isso em 1 toque.
+  //
+  // POST /feeding/plan é REPLACE, não PATCH — manda só {mode,
+  // no_consumption_control, enabled} apagava food_brand/package_size_kg/
+  // daily_amount_g de quem já tinha ração cadastrada e clicou aqui por
+  // engano (ou pra só declarar "não controlo mais estoque", sem querer
+  // perder o histórico). Busca o plano atual primeiro e reenvia os campos
+  // dele — só quando NÃO existe plano nenhum ainda é que cai no caso
+  // original (declaração do zero, sem marca/peso mesmo).
   const handleDeclareNonKibble = async () => {
     setDeclaringNonKibble(true);
     try {
+      let body: Record<string, unknown> = { mode: 'homemade', no_consumption_control: true, enabled: true };
+      try {
+        const currentRes = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan`, {
+          headers: authH(),
+          credentials: 'include',
+        });
+        if (currentRes.ok) {
+          const currentPayload: FeedingPlanApiResponse = await currentRes.json();
+          if (currentPayload.plan) {
+            const existingItems = Array.isArray(currentPayload.plan.items) ? currentPayload.plan.items : [];
+            body = { ...buildFeedingPlanSaveBody(currentPayload.plan, existingItems), no_consumption_control: true };
+          }
+        }
+      } catch {
+        // Sem plano prévio pra preservar (ou falha ao buscar) — segue com a
+        // declaração mínima original.
+      }
       const res = await fetch(`${API_BACKEND_BASE}/health/pets/${pet.pet_id}/feeding/plan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authH() },
         credentials: 'include',
-        body: JSON.stringify({ mode: 'homemade', no_consumption_control: true, enabled: true }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         setFeedback({ msg: 'Não deu pra salvar agora. Tente de novo.', tone: 'red' });
