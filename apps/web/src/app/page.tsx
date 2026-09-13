@@ -18,6 +18,10 @@ export default function LandingPage() {
   const [phase, setPhase] = useState<'boot' | 'guest'>('boot');
 
   useEffect(() => {
+    if (isNativeAppClient()) {
+      router.replace('/home');
+      return;
+    }
     if (getToken()) {
       router.replace('/home');
     } else {

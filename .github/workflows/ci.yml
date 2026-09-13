@@ -99,6 +99,13 @@ jobs:
         run: echo "{\"v\":\"${GITHUB_SHA}-$(date -u +%s)\"}" > apps/web/public/version.json
 
       - name: Build frontend (standalone)
+        env:
+          # Version skew: precisa existir em tempo de `next build` (embutido
+          # no manifest de build e em cada chunk), não é lido em runtime.
+          # Mesmo SHA que vai no manifest.json da release e no nome do
+          # diretório em releases/<sha>/ — um valor por release, nunca
+          # reutilizado entre deploys.
+          NEXT_DEPLOYMENT_ID: ${{ github.sha }}
         run: npm run web:build
 
       # Next's standalone output already mirrors the monorepo layout it needs
