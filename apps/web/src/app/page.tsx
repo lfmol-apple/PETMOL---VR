@@ -8,24 +8,6 @@ import { PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { AppBootSplash } from '@/components/AppBootSplash';
 import { isNativeAppClient } from '@/lib/nativeApp';
 
-// Mesma cache que apps/web/src/app/home/page.tsx lê (mecanismo 1 do deep
-// link via push). Aqui só fazemos leitura — quem consome e apaga a entrada
-// continua sendo o efeito de deep link da Home, então nunca ficamos sem essa
-// rede de segurança se a janela curta abaixo não bastar.
-async function readPendingNativeDeepLink(): Promise<string | null> {
-  if (typeof window === 'undefined' || !('caches' in window)) return null;
-  try {
-    const cache = await caches.open('petmol-deeplink-v1');
-    const resp = await cache.match('/__petmol_deeplink');
-    if (!resp) return null;
-    const { url, ts } = (await resp.json()) as { url: string; ts: number };
-    if (Date.now() - ts >= 300_000) return null;
-    return url;
-  } catch {
-    return null;
-  }
-}
-
 export default function LandingPage() {
   const router = useRouter();
   // "Recommendations" (Amazon US) é conteúdo editorial só web — deixado
@@ -37,32 +19,8 @@ export default function LandingPage() {
 
   useEffect(() => {
     if (isNativeAppClient()) {
-      let cancelled = false;
-      (async () => {
-        // Cold start via push: o bridge nativo escreve o deep link nessa
-        // cache antes/durante o boot do JS, mas sem ordem garantida — sem
-        // isso, a gente manda pra /home cego, a Home pinta inteira, e só
-        // depois de várias centenas de ms o link é aplicado por cima (o
-        // "pisca" da Home antes do sheet abrir). Damos uma janela curta pro
-        // bridge escrever antes de decidir o destino; se não achar nada, cai
-        // no /home normal sem custo extra visível (o splash já está na tela).
-        for (const delay of [0, 150, 350]) {
-          if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
-          if (cancelled) return;
-          const url = await readPendingNativeDeepLink();
-          if (url) {
-            try {
-              const parsed = new URL(url, window.location.origin);
-              router.replace(parsed.pathname + parsed.search);
-            } catch {
-              router.replace('/home');
-            }
-            return;
-          }
-        }
-        if (!cancelled) router.replace('/home');
-      })();
-      return () => { cancelled = true; };
+      router.replace('/home');
+      return;
     }
     if (getToken()) {
       router.replace('/home');

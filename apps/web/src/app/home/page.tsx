@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '@/lib/I18nContext';
 import dynamic from 'next/dynamic';
@@ -13,12 +13,6 @@ import { HomePetHeader } from '@/components/home/HomePetHeader';
 import { HomePetDashboard } from '@/components/home/HomePetDashboard';
 import { PetTabs } from '@/components/PetTabs';
 
-const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
-
-function SheetLoadingBackdrop() {
-  return <div className="fixed inset-0 z-[80] bg-black/35 backdrop-blur-sm" aria-hidden="true" />;
-}
-
 // Modais e sheets — carregados sob demanda (só quando o usuário abre)
 const EditPetModal = dynamic(() => import('@/components/EditPetModal').then(m => ({ default: m.EditPetModal })), { ssr: false });
 const AddPetModal = dynamic(() => import('../../components/AddPetModal').then(m => ({ default: m.AddPetModal })), { ssr: false });
@@ -28,13 +22,13 @@ const FeedbackModal = dynamic(() => import('@/components/home/FeedbackModal').th
 const QuickAddVaccineModal = dynamic(() => import('@/components/home/QuickAddVaccineModal').then(m => ({ default: m.QuickAddVaccineModal })), { ssr: false });
 const HomeNavigationModals = dynamic(() => import('@/components/home/HomeNavigationModals').then(m => ({ default: m.HomeNavigationModals })), { ssr: false });
 const HomeEmergencySheet = dynamic(() => import('@/components/home/HomeEmergencySheet').then(m => ({ default: m.HomeEmergencySheet })), { ssr: false });
-const PushActionSheet = dynamic(() => import('@/components/PushActionSheet').then(m => ({ default: m.PushActionSheet })), { ssr: false, loading: SheetLoadingBackdrop });
+const PushActionSheet = dynamic(() => import('@/components/PushActionSheet').then(m => ({ default: m.PushActionSheet })), { ssr: false });
 const HealthQuickActionSheet = dynamic(() => import('@/components/home/HealthQuickActionSheet').then(m => ({ default: m.HealthQuickActionSheet })), { ssr: false });
-const ParasiteItemSheet = dynamic(() => import('@/components/home/ParasiteItemSheet').then(m => ({ default: m.ParasiteItemSheet })), { ssr: false, loading: SheetLoadingBackdrop });
-const VaccineItemSheet = dynamic(() => import('@/components/home/VaccineItemSheet').then(m => ({ default: m.VaccineItemSheet })), { ssr: false, loading: SheetLoadingBackdrop });
-const MedicationItemSheet = dynamic(() => import('@/components/home/MedicationItemSheet').then(m => ({ default: m.MedicationItemSheet })), { ssr: false, loading: SheetLoadingBackdrop });
-const FoodItemSheet = dynamic(() => import('@/components/home/FoodItemSheet').then(m => ({ default: m.FoodItemSheet })), { ssr: false, loading: SheetLoadingBackdrop });
-const GroomingItemSheet = dynamic(() => import('@/components/home/GroomingItemSheet').then(m => ({ default: m.GroomingItemSheet })), { ssr: false, loading: SheetLoadingBackdrop });
+const ParasiteItemSheet = dynamic(() => import('@/components/home/ParasiteItemSheet').then(m => ({ default: m.ParasiteItemSheet })), { ssr: false });
+const VaccineItemSheet = dynamic(() => import('@/components/home/VaccineItemSheet').then(m => ({ default: m.VaccineItemSheet })), { ssr: false });
+const MedicationItemSheet = dynamic(() => import('@/components/home/MedicationItemSheet').then(m => ({ default: m.MedicationItemSheet })), { ssr: false });
+const FoodItemSheet = dynamic(() => import('@/components/home/FoodItemSheet').then(m => ({ default: m.FoodItemSheet })), { ssr: false });
+const GroomingItemSheet = dynamic(() => import('@/components/home/GroomingItemSheet').then(m => ({ default: m.GroomingItemSheet })), { ssr: false });
 const OnboardingChecklistCard = dynamic(() => import('@/components/home/OnboardingChecklistCard').then(m => ({ default: m.OnboardingChecklistCard })), { ssr: false });
 const PetSumidoSheet = dynamic(() => import('@/components/home/PetSumidoSheet').then(m => ({ default: m.PetSumidoSheet })), { ssr: false });
 const UpcomingEventsSheet = dynamic(() => import('@/components/home/UpcomingEventsSheet').then(m => ({ default: m.UpcomingEventsSheet })), { ssr: false });
@@ -1685,7 +1679,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   // URL pattern: /home?modal=vaccines&petId=<id>
   // Suportado: vaccines | parasites | medication | eventos | grooming | health | food
   // Fallback: lê do Cache API (escrito pelo SW — necessário no iOS onde openWindow ignora query params)
-  useIsomorphicLayoutEffect(() => {
+  useEffect(() => {
     if (!pets.length) return; // aguarda os pets carregarem
 
     // Resolve params: URL (caminho padrão) ou cache do SW (fallback iOS/Android)
