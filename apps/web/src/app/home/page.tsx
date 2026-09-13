@@ -345,10 +345,6 @@ function HomePageInner() {
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
     const handler = (event: MessageEvent) => {
-      if (event.data?.type === 'PETMOL_SW_UPDATED') {
-        window.location.reload();
-        return;
-      }
       if (event.data?.type !== 'PETMOL_DEEPLINK') return;
       const { url, ts } = event.data as { url: string; ts: number };
       if (!url || Date.now() - (ts || 0) > 300_000) return;
@@ -357,27 +353,6 @@ function HomePageInner() {
     navigator.serviceWorker.addEventListener('message', handler);
     return () => navigator.serviceWorker.removeEventListener('message', handler);
   }, [applyDeepLinkUrl]);
-
-  // ── Checagem de versão — força reload quando novo deploy chega ─────────────
-  useEffect(() => {
-    const STORAGE_KEY = 'petmol_build_v';
-    const check = async () => {
-      try {
-        const res = await fetch('/version.json?t=' + Date.now(), { cache: 'no-store' });
-        if (!res.ok) return;
-        const { v } = await res.json() as { v: string };
-        const stored = sessionStorage.getItem(STORAGE_KEY);
-        if (!stored) { sessionStorage.setItem(STORAGE_KEY, v); return; }
-        if (stored !== v) {
-          sessionStorage.setItem(STORAGE_KEY, v);
-          window.location.reload();
-        }
-      } catch { /* offline — ignora */ }
-    };
-    check();
-    const iv = setInterval(check, 60_000);
-    return () => clearInterval(iv);
-  }, []);
 
   // ── Saúde da subscription de push ──────────────────────────────────────────
   // Sincroniza o endpoint atual do dispositivo com o servidor em cada mount.
