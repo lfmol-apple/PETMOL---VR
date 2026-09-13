@@ -158,6 +158,25 @@ export function usePetBootstrap() {
     }
   };
 
+  const applyDeepLinkedCachedPets = (currentLoggedUserId: string): boolean => {
+    const deepLinkPetId = readDeepLinkPetId();
+    if (!deepLinkPetId) return false;
+    const cachedPets = readCachedPets();
+    if (!cachedPets.some((pet) => pet.pet_id === deepLinkPetId)) return false;
+
+    applyLoadedPets(cachedPets, currentLoggedUserId);
+    return true;
+  };
+
+  // Caminho rápido só para push/deep link: se a URL já aponta para um pet que
+  // existe no cache local, libera a Home imediatamente e deixa os effects
+  // abaixo atualizarem os dados reais em background. Isso remove a piscada do
+  // AppBootSplash sem reabrir o estado vazio "Quem é seu pet?".
+  useEffect(() => {
+    if (!isChecking || isLoading || !token) return;
+    applyDeepLinkedCachedPets(loggedUserId);
+  });
+
   // ── Efeito 1: forceLoadPets — disparado quando tutor (AuthContext) muda ──
   useEffect(() => {
     const forceLoadPets = async () => {
