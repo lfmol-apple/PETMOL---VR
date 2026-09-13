@@ -1,8 +1,10 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import { AppleControlButtons } from '@/components/AppleControlButtons';
 import { HomeShoppingSheet } from '@/features/commerce/HomeShoppingSheet';
+import { buildReorderCards } from '@/features/commerce/petStoreContent';
+import { fetchCommerceOffersWithStatus } from '@/features/commerce/productPricing';
 import { buildPetCareReminders } from '@/lib/petCareDomain';
 import type { CareActionTarget, PetCareReminder } from '@/lib/petCareDomain';
 import type { PetEventRecord } from '@/lib/petEvents';
@@ -242,6 +244,40 @@ export function HomePetDashboard({
       petEvents,
     });
   }, [currentPet, vaccines, parasiteControls, groomingRecords, feedingPlan, petEvents]);
+
+  // Aquecimento da Loja do Pet: o casamento de identidade com a Petz é
+  // sabidamente o mais lento do sistema (exige confirmação humana antes de
+  // liberar link, não é instantâneo — ver PetzProductMapping.human_verified).
+  // useCommerceOffers já tenta de novo automaticamente quando o backend
+  // sinaliza status="enrichment_pending" (ver useCommerceOffers.ts), mas
+  // isso só começa quando o usuário ABRE a Loja — se a Petz não terminar de
+  // casar dentro da janela de retry (~9,4s), só aparece na PRÓXIMA vez que
+  // a Loja for aberta (o enriquecimento continua rodando no backend em
+  // segundo plano mesmo depois do app desistir de esperar). Disparando essa
+  // mesma consulta aqui, ocioso, assim que os produtos do pet são
+  // conhecidos — bem antes do usuário ter chance de abrir a Loja — o
+  // enriquecimento já está pronto (ou bem mais perto disso) na primeira
+  // abertura de verdade.
+  const warmedProductKeysRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!reminders.length) return;
+    const cards = buildReorderCards(reminders);
+    const warm = () => {
+      for (const card of cards) {
+        const key = card.gtin || card.searchQuery;
+        if (!key || warmedProductKeysRef.current.has(key)) continue;
+        warmedProductKeysRef.current.add(key);
+        void fetchCommerceOffersWithStatus(card.searchQuery, card.packageSizeKg ?? undefined, card.gtin ?? undefined);
+      }
+    };
+    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+    if (ric) {
+      const id = ric(warm, { timeout: 3000 });
+      return () => (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(warm, 2000);
+    return () => clearTimeout(t);
+  }, [reminders]);
 
   // Includes OVERDUE reminders (diff < 0) too, not just future ones — the
   // bell shows the full picture (count includes everything; only the
