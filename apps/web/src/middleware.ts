@@ -94,13 +94,13 @@ export function middleware(request: NextRequest) {
   const session = request.cookies.get('petmol_session')?.value
     || request.cookies.get('petmol_auth')?.value;
 
-  // O shell nativo Capacitor acorda em "/" (server.url), mesmo quando o tap
-  // do push será entregue logo depois como deeplink. Para usuário já logado,
-  // mande direto para /home no servidor e evite renderizar a landing/splash
-  // azul por um frame antes da Home.
+  // O shell nativo Capacitor acorda em "/" nas builds instaladas que ainda
+  // apontam server.url para a raiz, mesmo quando o tap do push será entregue
+  // logo depois como deeplink. Dentro do app nativo a landing pública nunca
+  // deve participar do boot: /home decide se mostra Home ou redireciona login.
   if (pathname === '/') {
     const ua = request.headers.get('user-agent') || '';
-    if (session && ua.includes(NATIVE_APP_UA_MARKER)) {
+    if (ua.includes(NATIVE_APP_UA_MARKER)) {
       const homeUrl = new URL('/home', origin);
       homeUrl.searchParams.set('native_start', '1');
       return NextResponse.redirect(homeUrl, 308);
