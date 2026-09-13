@@ -26,6 +26,7 @@ from ..pets.parasite_models import ParasiteControlRecord
 from ..pets.grooming_models import GroomingRecord
 from ..health.models import FeedingPlan
 from ..notifications import NativePushToken, PushSubscription, Reminder
+from ..notifications.apns import get_recent_apns_attempts
 from .deps import get_current_admin_or_readonly_key
 
 router = APIRouter(prefix="/v1/admin/debug", tags=["Admin Debug"])
@@ -149,3 +150,12 @@ def inspect_user(
             "vaccine_records": sum(len(x["vaccine_records"]) for x in pets_out),
         },
     }
+
+
+@router.get("/apns-log")
+def apns_log(_auth=Depends(get_current_admin_or_readonly_key)):
+    """Últimas tentativas reais de envio via APNs (resposta da Apple, não só
+    o que o app achou que aconteceu) — cruzar `token_suffix` com
+    `native_push_tokens` de /user pra achar de qual usuário/device é.
+    Diagnóstico temporário, ver notifications/apns.py."""
+    return {"attempts": get_recent_apns_attempts()}
