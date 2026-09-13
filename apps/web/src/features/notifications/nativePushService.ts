@@ -10,6 +10,7 @@
  * a ativação falha, pra dar pra diagnosticar sem Web Inspector.
  */
 import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core';
+import { showAppToast } from '@/features/interactions/userPromptChannel';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
@@ -230,10 +231,20 @@ const _registrationHandles: PluginListenerHandle[] = [];
 let _tapListenerAdded = false;
 
 /**
- * Liga o listener de "notificação nativa tocada" (APNs). Ao tocar num
- * lembrete, entrega o deep-link (`notification.data.url`) pelos MESMOS
- * canais que o home/page.tsx já escuta (BroadcastChannel + Cache API), e
- * faz navegação direta se o app não estiver na Home. Idempotente.
+ * Liga os listeners de push nativo: "tocada" (pushNotificationActionPerformed)
+ * e "recebida" (pushNotificationReceived). Ao tocar num lembrete, entrega o
+ * deep-link (`notification.data.url`) pelos MESMOS canais que o home/page.tsx
+ * já escuta (BroadcastChannel + Cache API), e faz navegação direta se o app
+ * não estiver na Home.
+ *
+ * O listener de "recebida" existe porque o iOS, por padrão, não mostra
+ * banner/som quando o app já está em primeiro plano — mesmo com
+ * `presentationOptions` configurado no capacitor.config.ts, isso depende do
+ * build instalado no aparelho estar atualizado, e o usuário pode nem notar
+ * um badge silencioso enquanto usa o app. Mostrar um toast in-app garante
+ * que o lembrete é visto mesmo nesse caso (caso reportado: cuidador editando
+ * um lembrete no app não via a notificação chegar, embora o backend tivesse
+ * entregue). Idempotente.
  */
 export async function initNativePushDeepLink(): Promise<void> {
   if (_tapListenerAdded || !isNativePushPlatform() || !pluginRegistered()) return;
@@ -258,7 +269,16 @@ export async function initNativePushDeepLink(): Promise<void> {
       reportDiag('native tap → ' + url);
       deliverNativeDeepLink(url);
     });
-    reportDiag('initNativePushDeepLink: listener de tap ligado');
+    await PushNotifications.addListener('pushNotificationReceived', (evt: unknown) => {
+      const e = (evt || {}) as { title?: string; body?: string };
+      reportDiag('native received (foreground) → ' + (e.title || ''));
+      showAppToast(e.body || 'Toque para ver os detalhes no PETMOL.', {
+        title: e.title || '🔔 PETMOL',
+        tone: 'success',
+        durationMs: 5000,
+      });
+    });
+    reportDiag('initNativePushDeepLink: listeners de tap e recebimento ligados');
   } catch (e) {
     reportDiag('initNativePushDeepLink erro: ' + String(e));
     _tapListenerAdded = false;
