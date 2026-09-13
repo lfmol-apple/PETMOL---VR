@@ -812,8 +812,8 @@ export function ParasiteItemSheet({
                     onChange={e => setEditForm(f => ({ ...f, date_applied: e.target.value }))}
                   />
                 </div>
-                <div className="w-[92px] flex-shrink-0">
-                  <label className={labelCls}>A cada (dias)</label>
+                <div className="w-[120px] flex-shrink-0">
+                  <label className={`${labelCls} whitespace-nowrap`}>A cada (dias)</label>
                   <input
                     type="number"
                     inputMode="numeric"
