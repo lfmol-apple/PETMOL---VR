@@ -14,8 +14,14 @@
  * deploy). Se o bundle rodando está velho → recarrega uma vez. Checa no
  * mount, a cada 60s, e principalmente quando o app volta ao foco (o caso
  * do WKWebView retomando).
+ *
+ * A marca "já recarreguei pra essa versão" é compartilhada com
+ * ChunkReloadGuard (ver lib/versionSkew.ts) — os dois nunca devem contar
+ * reloads separadamente, senão um deploy pode disparar dois reloads
+ * concorrentes.
  */
 import { useEffect } from 'react';
+import { claimReloadForVersion } from '@/lib/versionSkew';
 
 const BAKED_SHA = (process.env.NEXT_PUBLIC_APP_VERSION || '').trim();
 
@@ -35,13 +41,7 @@ export function BuildVersionGate() {
 
         // bundle rodando está desatualizado — recarrega (1x por versão-alvo,
         // pra nunca entrar em loop se a WebView insistir em servir o velho).
-        const key = 'petmol_reloaded_for_' + liveSha;
-        try {
-          if (sessionStorage.getItem(key)) return;
-          sessionStorage.setItem(key, '1');
-        } catch {
-          /* sessionStorage bloqueado — segue e recarrega mesmo assim */
-        }
+        if (!claimReloadForVersion(liveSha)) return;
         window.location.reload();
       } catch {
         /* offline — ignora */

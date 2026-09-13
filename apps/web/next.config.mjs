@@ -7,6 +7,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const nextConfig = {
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname, '../..'),
+  // Version skew: cada deploy troca o processo Next.js rodando (release
+  // symlink + restart), mas um cliente com o app já aberto (o shell
+  // Capacitor carrega o site ao vivo, não empacotado) continua referenciando
+  // os chunks/RSC payloads da release anterior. Sem isso, um navegação ou
+  // import dinâmico logo após um deploy pega 404 nesses arquivos — o
+  // mecanismo oficial do Next detecta a inconsistência de deploymentId e
+  // permite recuperação (worker do lado do cliente reconhece a versão
+  // errada). NEXT_DEPLOYMENT_ID é setado só no build de release (ver
+  // ci.yml, job "package") — precisa existir em tempo de `next build`, não
+  // é lido em runtime.
+  deploymentId: process.env.NEXT_DEPLOYMENT_ID,
   // Disable static page generation for dynamic routes
   experimental: {
     // This helps with monorepo React issues

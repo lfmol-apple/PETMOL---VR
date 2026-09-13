@@ -275,8 +275,12 @@ function HomePageInner() {
         const resp = await cache.match('/__petmol_deeplink');
         if (!resp) return false;
         const { url, ts } = await resp.json() as { url: string; ts: number };
-        await cache.delete('/__petmol_deeplink');
+        // Deleta só DEPOIS de aplicar: se um reload de version skew
+        // interromper entre a leitura e a aplicação, a entrada continua no
+        // Cache API (sobrevive ao reload) pra próxima montagem tentar de novo,
+        // em vez de já ter sido apagada sem o link ter sido de fato usado.
         if (Date.now() - ts < 300_000) applyDeepLinkUrl(url);
+        await cache.delete('/__petmol_deeplink');
         return true;
       } catch {
         return false;
@@ -303,8 +307,10 @@ function HomePageInner() {
         const resp = await cache.match('/__petmol_deeplink');
         if (!resp) return;
         const { url, ts } = await resp.json() as { url: string; ts: number };
-        await cache.delete('/__petmol_deeplink');
+        // Mesma ordem do efeito 1: aplica antes de apagar, pra um reload no
+        // meio do caminho não perder o link (Cache API sobrevive a reload).
         if (Date.now() - ts < 300_000) applyDeepLinkUrl(url);
+        await cache.delete('/__petmol_deeplink');
       } catch {}
     };
     const onVisible = () => {

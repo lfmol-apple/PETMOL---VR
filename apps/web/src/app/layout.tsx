@@ -17,6 +17,7 @@ import { OfflineIndicator, ConnectivityStatus } from '@/components/OfflineIndica
 import { PushAutoRefresh } from '@/components/PushAutoRefresh';
 import { NativePushBridge } from '@/components/NativePushBridge';
 import { BuildVersionGate } from '@/components/BuildVersionGate';
+import { ChunkReloadGuard } from '@/components/ChunkReloadGuard';
 import { AppInstallPing } from '@/components/AppInstallPing';
 import { AnalyticsBootstrap } from '@/components/AnalyticsBootstrap';
 import { 
@@ -105,6 +106,7 @@ export default function RootLayout({
             <PushAutoRefresh />
             <NativePushBridge />
             <BuildVersionGate />
+            <ChunkReloadGuard />
             <AppInstallPing />
             <TravelDetectionNotification />
             <UserPromptHost />
