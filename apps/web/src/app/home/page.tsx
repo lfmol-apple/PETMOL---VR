@@ -2221,8 +2221,10 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     </button>
                   </div>
                   {/* Ação secundária DELIBERADA de ocultar (não é o "recolher"):
-                      esconde o alerta da Home por um tempo. Continua acessível
-                      na área "Pets desaparecidos na região". Nunca um X ambíguo. */}
+                      esconde o alerta da Home por um tempo (dono pediu pra
+                      tirar a tela "Pets desaparecidos na região" — 13/09/2026
+                      — não há mais área de recuperação além desta Home).
+                      Nunca um X ambíguo. */}
                   <div className="flex items-center border-t border-white/15">
                     <button
                       type="button"
@@ -2247,16 +2249,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                 </div>
               );
             })}
-            {/* Entrada para a área recuperável — visível sempre que houver
-                alerta ativo na região, inclusive quando todos foram
-                recolhidos/ocultados. Um alerta sério nunca depende só do card. */}
-            <button
-              type="button"
-              onClick={() => router.push('/pets-desaparecidos')}
-              className="w-full py-1.5 text-center text-[12px] font-bold text-rose-600 active:opacity-70"
-            >
-              Ver todos os pets desaparecidos na região ›
-            </button>
           </div>
           );
         })()}
