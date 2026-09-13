@@ -1,11 +1,20 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  __clearCommerceOffersCacheForTests,
   fetchCommerceOffers,
   fetchCommerceOffersWithStatus,
   hasReliablePrice,
   preferCobasiOffer,
   type CommerceOffer,
 } from './productPricing';
+
+// O cache de ofertas (ver productPricing.ts) é módulo-level e sobrevive
+// entre `it()`s do mesmo arquivo — sem limpar, um teste posterior com a
+// mesma query/gtin herdaria o resultado cacheado por um teste anterior em
+// vez de exercitar o `fetch` mockado da vez.
+beforeEach(() => {
+  __clearCommerceOffersCacheForTests();
+});
 
 function offer(overrides: Partial<CommerceOffer> & { merchant: string }): CommerceOffer {
   return {

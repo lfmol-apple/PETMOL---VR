@@ -319,11 +319,40 @@ function isTransientFetchError(err: unknown): boolean {
  */
 const COMMERCE_OFFERS_FETCH_TIMEOUT_MS = 7000;
 
+/** Cache em memória (aba atual, vida da página) pra evitar refazer a MESMA
+ * consulta em segundos — existe especificamente pra o aquecimento de
+ * HomePetDashboard (dispara esta função ociosamente assim que a Home
+ * carrega, ver PR #388) render de graça quando a Loja abre logo em
+ * seguida, em vez do usuário ver "Buscando opções de compra..." de novo
+ * enquanto o front repete uma chamada cujo resultado já tinha acabado de
+ * chegar. Só guarda status="ready" (definitivo, com ou sem oferta) — nunca
+ * "enrichment_pending"/"transient_error", pra não travar o retry de
+ * useCommerceOffers.ts servindo uma resposta que ainda não é a final. TTL
+ * curto porque preço muda; suficiente pra cobrir "abriu a Loja segundos
+ * depois da Home carregar", não uma sessão inteira. */
+const OFFERS_CACHE_TTL_MS = 45_000;
+const offersCache = new Map<string, { result: CommerceOffersResult; expiresAt: number }>();
+
+function offersCacheKey(query: string, packageSizeKg?: number, gtin?: string): string {
+  return `${(query || '').trim().toLowerCase()}|${packageSizeKg ?? ''}|${gtin ?? ''}`;
+}
+
+/** Só para teste — isola cada caso limpando o cache entre eles (o cache é
+ * módulo-level, então sem isso um `it()` herdaria o resultado gravado por
+ * outro que rodou antes com a mesma query/gtin). */
+export function __clearCommerceOffersCacheForTests(): void {
+  offersCache.clear();
+}
+
 export async function fetchCommerceOffersWithStatus(
   query: string,
   packageSizeKg?: number,
   gtin?: string,
 ): Promise<CommerceOffersResult> {
+  const cacheKey = offersCacheKey(query, packageSizeKg, gtin);
+  const cached = offersCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.result;
+
   try {
     const trimmed = (query || '').trim();
     if (!trimmed && !gtin) return { offers: [], status: 'ready' };
@@ -356,7 +385,14 @@ export async function fetchCommerceOffersWithStatus(
           // card estático do rodapé (resolvePartnerUrl/shortlink) fica.
           .filter((offer) => offer.merchant !== 'shopee')
       : [];
-    return { offers, status: data.status === 'enrichment_pending' ? 'enrichment_pending' : 'ready' };
+    const result: CommerceOffersResult = {
+      offers,
+      status: data.status === 'enrichment_pending' ? 'enrichment_pending' : 'ready',
+    };
+    if (result.status === 'ready') {
+      offersCache.set(cacheKey, { result, expiresAt: Date.now() + OFFERS_CACHE_TTL_MS });
+    }
+    return result;
   } catch (err) {
     // Rede/timeout da própria chamada (ver isTransientFetchError):
     // transitório, quem chama tenta de novo. Qualquer outra exceção não
