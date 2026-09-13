@@ -38,6 +38,23 @@ _cache: TTLCache = TTLCache(maxsize=500, ttl=get_settings().commerce_pricing_cac
 _gtin_cache: TTLCache = TTLCache(maxsize=500, ttl=get_settings().commerce_pricing_cache_ttl)
 _candidates_cache: TTLCache = TTLCache(maxsize=500, ttl=get_settings().commerce_pricing_cache_ttl)
 
+# Cliente HTTP compartilhado (padrão recomendado pelo próprio httpx pra apps
+# de vida longa — nunca abrir um AsyncClient por chamada). Antes, cada uma
+# das 3 chamadas à Cobasi abaixo abria/fechava seu próprio `AsyncClient`,
+# pagando handshake TCP+TLS do zero toda vez — perceptível quando a Loja do
+# Pet dispara 4+ consultas em paralelo (uma por produto do pet) e sempre
+# que o TTLCache em memória está frio (todo restart do processo, ou seja,
+# todo deploy). Reaproveitando um único client com keep-alive, a partir da
+# 2ª consulta ao mesmo host a conexão já está de pé.
+_http_client: Optional[httpx.AsyncClient] = None
+
+
+def _get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(timeout=_COBASI_TIMEOUT)
+    return _http_client
+
 
 def _digits(value: Optional[str]) -> str:
     return "".join(ch for ch in (value or "") if ch.isdigit())
@@ -108,12 +125,11 @@ async def fetch_cobasi_price_by_gtin(gtin: str) -> ProductPriceResult:
 
 
 async def _fetch_cobasi_by_gtin_uncached(gtin_n: str) -> ProductPriceResult:
-    async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
-        response = await client.get(
-            _COBASI_EAN_SEARCH_URL,
-            params={"fq": f"alternateIds_Ean:{gtin_n}", "_from": 0, "_to": 3, "sc": 1},
-            headers={"Accept": "application/json"},
-        )
+    response = await _get_http_client().get(
+        _COBASI_EAN_SEARCH_URL,
+        params={"fq": f"alternateIds_Ean:{gtin_n}", "_from": 0, "_to": 3, "sc": 1},
+        headers={"Accept": "application/json"},
+    )
     if response.status_code not in (200, 206):
         logger.info("[commerce_pricing] cobasi EAN status=%s gtin=%s", response.status_code, gtin_n)
         return ProductPriceResult(found=False)
@@ -236,12 +252,11 @@ async def _search_cobasi_once(
     quando `query` (o que de fato vai pra busca) é um fallback encurtado
     que já perdeu a palavra de porte (ver _shorten_query_variants)."""
     url = _COBASI_SEARCH_URL.format(query=urllib.parse.quote(query))
-    async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
-        response = await client.get(
-            url,
-            params={"_from": 0, "_to": 4, "sc": 1},
-            headers={"Accept": "application/json"},
-        )
+    response = await _get_http_client().get(
+        url,
+        params={"_from": 0, "_to": 4, "sc": 1},
+        headers={"Accept": "application/json"},
+    )
     if response.status_code not in (200, 206):
         logger.info("[commerce_pricing] cobasi status=%s query=%r", response.status_code, query)
         return ProductPriceResult(found=False)
@@ -415,12 +430,11 @@ async def _search_cobasi_candidates_uncached(query: str, limit: int) -> list[dic
 
     url = _COBASI_SEARCH_URL.format(query=urllib.parse.quote(query))
     try:
-        async with httpx.AsyncClient(timeout=_COBASI_TIMEOUT) as client:
-            response = await client.get(
-                url,
-                params={"_from": 0, "_to": max(0, limit - 1)},
-                headers={"Accept": "application/json"},
-            )
+        response = await _get_http_client().get(
+            url,
+            params={"_from": 0, "_to": max(0, limit - 1)},
+            headers={"Accept": "application/json"},
+        )
         if response.status_code not in (200, 206):
             logger.info("[commerce_pricing] cobasi candidates status=%s query=%r", response.status_code, query)
             return []
