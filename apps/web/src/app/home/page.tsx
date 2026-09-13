@@ -1830,18 +1830,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         }
       }}
     >
-      {/* Aquecimento do backdrop-blur (invisível, fora da tela) — no
-          WKWebView do iOS, a primeira vez que o motor precisa compor uma
-          camada com backdrop-filter sobre uma tela cheia de conteúdo (fotos,
-          gradientes) demora um instante extra pra montar essa camada na GPU;
-          da segunda vez em diante é instantâneo. Isso aparecia como a Home
-          "aparecendo antes" só na primeira sheet aberta na sessão — nada a
-          ver com React/mount, é custo de composição do próprio WebKit. Estes
-          dois divs (as mesmas classes de blur usadas por SheetShell e por
-          SheetLoadingBackdrop/Cuidados) forçam esse custo aqui, cedo e sem
-          ninguém ver, antes que o usuário tenha chance de abrir um sheet. */}
-      <div className="fixed left-[-9999px] top-0 h-px w-px backdrop-blur-2xl" aria-hidden="true" />
-      <div className="fixed left-[-9999px] top-0 h-px w-px backdrop-blur-sm" aria-hidden="true" />
       {/* Indicador de pull-to-refresh */}
       <div
         className="flex justify-center items-center overflow-hidden transition-all duration-200"
