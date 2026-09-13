@@ -587,12 +587,14 @@ function AcheiUmPetInner() {
           {/* Gradiente sobre a foto */}
           <div className="absolute inset-0 z-[2] bg-gradient-to-b from-black/40 via-transparent to-black/80" />
 
-          {/* Botão voltar */}
+          {/* Botão voltar — com o rótulo "Voltar" (não só a setinha), a
+              pedido do dono: mais fácil de identificar e de tocar. */}
           <Link
             href="/home"
-            className="absolute top-4 left-4 z-[3] w-10 h-10 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center text-white active:opacity-70"
+            className="absolute top-4 left-4 z-[3] h-10 rounded-full bg-black/45 backdrop-blur-sm flex items-center gap-1 pl-3 pr-4 text-white text-[14px] font-semibold active:opacity-70"
           >
             <span className="text-xl leading-none">‹</span>
+            Voltar
           </Link>
 
           {/* Badge urgência */}
