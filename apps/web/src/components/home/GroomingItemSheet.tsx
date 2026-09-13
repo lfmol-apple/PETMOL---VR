@@ -10,6 +10,7 @@ import { ReminderPicker } from '@/components/ReminderPicker';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
+import { CARE_AREA_THEME } from '@/lib/careAreaTheme';
 import { scheduleUniqueReminder, buildRemindAt, subtractDays } from '@/features/notifications/pushService';
 
 const PRIMARY_BTN = 'bg-[#0056D2] hover:bg-[#004ab8] active:bg-[#003f9e] text-white shadow-lg shadow-blue-500/25';
@@ -367,6 +368,7 @@ export function GroomingItemSheet({
   }
 
   // ── CSS helpers ───────────────────────────────────────────────────────────
+  const theme = CARE_AREA_THEME.grooming;
   const inputCls = 'w-full min-w-0 border border-[#E5E5EA] rounded-xl px-3 py-3 text-[15px] text-[#1C1C1E] bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/30 placeholder:text-[#C7C7CC]';
   const labelCls = 'block text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider mb-1.5';
 
@@ -727,98 +729,100 @@ export function GroomingItemSheet({
             <div className="space-y-3 px-5 pb-4 pt-3">
               <h3 className="text-[17px] font-bold text-[#1C1C1E]">Editar registro</h3>
 
-              <div className="flex items-start gap-2.5">
-                <div className="min-w-0 flex-1">
-                  <label className={labelCls}>Data *</label>
-                  <input
-                    type="date"
-                    className={inputCls}
-                    value={editForm.date}
-                    onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
-                  />
-                </div>
-                <div className="w-[120px] flex-shrink-0">
-                  <label className={`${labelCls} whitespace-nowrap`}>A cada (dias)</label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min="1"
-                    max="365"
-                    className={`${inputCls} text-center`}
-                    value={editForm.frequency_days}
-                    onChange={e => setEditForm(f => ({ ...f, frequency_days: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className={labelCls}>Tipo</label>
-                <select
-                  className={inputCls}
-                  value={editForm.type}
-                  onChange={e => setEditForm(f => ({ ...f, type: e.target.value as GroomingType }))}
-                >
-                  <option value="bath">🚿 Somente Banho</option>
-                  <option value="grooming">✂️ Somente Tosa</option>
-                  <option value="bath_grooming">🛁 Banho + Tosa</option>
-                </select>
-              </div>
-
-              <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-                <div className="px-4 pt-3 pb-1">
-                  <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider">Petshop</p>
-                </div>
-                <datalist id={`grooming-loc-edit-${petId}`}>
-                  {[...new Set(groomingRecords.filter(r => r.location).map(r => r.location!))].map(loc => (
-                    <option key={loc} value={loc} />
-                  ))}
-                </datalist>
-                <div className="px-4 pb-3 space-y-3 pt-2">
-                  <div>
-                    <label className={labelCls}>Nome do local</label>
+              <div className={`rounded-2xl border ${theme.accentBorder} ${theme.accentBg}/40 p-3.5 space-y-3`}>
+                <div className="flex items-start gap-2.5">
+                  <div className="min-w-0 flex-1">
+                    <label className={labelCls}>Data *</label>
                     <input
-                      type="text"
-                      list={`grooming-loc-edit-${petId}`}
+                      type="date"
                       className={inputCls}
-                      placeholder="Ex: Banho & Tosa da Ana, Cobasi..."
-                      value={editForm.location}
-                      onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))}
+                      value={editForm.date}
+                      onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
                     />
                   </div>
-                  <div>
-                    <label className={labelCls}>WhatsApp para agendamento</label>
-                    <div className="relative">
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <WhatsAppIcon className="w-4 h-4 text-[#25D366]" />
-                      </div>
-                      <input
-                        type="tel"
-                        className={`${inputCls} pl-9`}
-                        placeholder="(11) 99999-9999"
-                        value={editForm.location_phone}
-                        onChange={e => setEditForm(f => ({ ...f, location_phone: e.target.value }))}
-                      />
-                    </div>
-                    {editForm.location_phone && (
-                      <a
-                        href={buildWhatsAppUrl(editForm.location_phone)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-1.5 inline-flex items-center gap-1 text-[13px] font-medium text-[#25D366]"
-                      >
-                        Testar este número ›
-                      </a>
-                    )}
+                  <div className="w-[120px] flex-shrink-0">
+                    <label className={`${labelCls} whitespace-nowrap`}>A cada (dias)</label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min="1"
+                      max="365"
+                      className={`${inputCls} text-center`}
+                      value={editForm.frequency_days}
+                      onChange={e => setEditForm(f => ({ ...f, frequency_days: e.target.value }))}
+                    />
                   </div>
                 </div>
-              </div>
 
-              <ReminderPicker
-                days={editForm.reminder_days}
-                time={editForm.reminder_time}
-                onDaysChange={v => setEditForm(f => ({ ...f, reminder_days: v }))}
-                onTimeChange={v => setEditForm(f => ({ ...f, reminder_time: v }))}
-              />
+                <div>
+                  <label className={labelCls}>Tipo</label>
+                  <select
+                    className={inputCls}
+                    value={editForm.type}
+                    onChange={e => setEditForm(f => ({ ...f, type: e.target.value as GroomingType }))}
+                  >
+                    <option value="bath">🚿 Somente Banho</option>
+                    <option value="grooming">✂️ Somente Tosa</option>
+                    <option value="bath_grooming">🛁 Banho + Tosa</option>
+                  </select>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-black/5 overflow-hidden shadow-sm">
+                  <div className="px-4 pt-3 pb-1">
+                    <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wider">Petshop</p>
+                  </div>
+                  <datalist id={`grooming-loc-edit-${petId}`}>
+                    {[...new Set(groomingRecords.filter(r => r.location).map(r => r.location!))].map(loc => (
+                      <option key={loc} value={loc} />
+                    ))}
+                  </datalist>
+                  <div className="px-4 pb-3 space-y-3 pt-2">
+                    <div>
+                      <label className={labelCls}>Nome do local</label>
+                      <input
+                        type="text"
+                        list={`grooming-loc-edit-${petId}`}
+                        className={inputCls}
+                        placeholder="Ex: Banho & Tosa da Ana, Cobasi..."
+                        value={editForm.location}
+                        onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelCls}>WhatsApp para agendamento</label>
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                          <WhatsAppIcon className="w-4 h-4 text-[#25D366]" />
+                        </div>
+                        <input
+                          type="tel"
+                          className={`${inputCls} pl-9`}
+                          placeholder="(11) 99999-9999"
+                          value={editForm.location_phone}
+                          onChange={e => setEditForm(f => ({ ...f, location_phone: e.target.value }))}
+                        />
+                      </div>
+                      {editForm.location_phone && (
+                        <a
+                          href={buildWhatsAppUrl(editForm.location_phone)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1.5 inline-flex items-center gap-1 text-[13px] font-medium text-[#25D366]"
+                        >
+                          Testar este número ›
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <ReminderPicker
+                  days={editForm.reminder_days}
+                  time={editForm.reminder_time}
+                  onDaysChange={v => setEditForm(f => ({ ...f, reminder_days: v }))}
+                  onTimeChange={v => setEditForm(f => ({ ...f, reminder_time: v }))}
+                />
+              </div>
 
               <button
                 onClick={handleSaveEdit}

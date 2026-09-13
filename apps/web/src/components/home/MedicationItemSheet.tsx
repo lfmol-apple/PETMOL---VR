@@ -987,6 +987,7 @@ export function MedicationItemSheet({
 
               {showManualForm && (
               <>
+              <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-3.5 space-y-3">
               <div>
                 <label className={labelCls}>Nome do medicamento *</label>
                 <input
@@ -1248,6 +1249,7 @@ export function MedicationItemSheet({
                   value={form.cost}
                   onChange={e => setForm(f => ({ ...f, cost: e.target.value }))}
                 />
+              </div>
               </div>
 
               <button

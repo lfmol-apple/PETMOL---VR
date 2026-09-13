@@ -802,58 +802,60 @@ export function ParasiteItemSheet({
             <div className="px-4 pt-2 pb-4 space-y-3">
               <h3 className="text-[16px] font-bold text-gray-900">Editar registro</h3>
 
-              <div className="flex items-start gap-2.5">
-                <div className="min-w-0 flex-1">
-                  <label className={labelCls}>Data</label>
+              <div className={`rounded-2xl border ${theme.accentBorder} ${theme.accentBg}/40 p-3.5 space-y-3`}>
+                <div className="flex items-start gap-2.5">
+                  <div className="min-w-0 flex-1">
+                    <label className={labelCls}>Data</label>
+                    <input
+                      type="date"
+                      className={inputCls}
+                      value={editForm.date_applied}
+                      onChange={e => setEditForm(f => ({ ...f, date_applied: e.target.value }))}
+                    />
+                  </div>
+                  <div className="w-[120px] flex-shrink-0">
+                    <label className={`${labelCls} whitespace-nowrap`}>A cada (dias)</label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min="1"
+                      max="365"
+                      className={`${inputCls} text-center`}
+                      value={editForm.frequency_days}
+                      onChange={e => setEditForm(f => ({ ...f, frequency_days: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className={labelCls}>Produto</label>
                   <input
-                    type="date"
+                    type="text"
                     className={inputCls}
-                    value={editForm.date_applied}
-                    onChange={e => setEditForm(f => ({ ...f, date_applied: e.target.value }))}
+                    value={editForm.product_name}
+                    onChange={e => setEditForm(f => ({ ...f, product_name: e.target.value }))}
                   />
                 </div>
-                <div className="w-[120px] flex-shrink-0">
-                  <label className={`${labelCls} whitespace-nowrap`}>A cada (dias)</label>
+
+                <div>
+                  <label className={labelCls}>Valor pago</label>
                   <input
                     type="number"
-                    inputMode="numeric"
-                    min="1"
-                    max="365"
-                    className={`${inputCls} text-center`}
-                    value={editForm.frequency_days}
-                    onChange={e => setEditForm(f => ({ ...f, frequency_days: e.target.value }))}
+                    min="0"
+                    step="0.01"
+                    className={inputCls}
+                    value={editForm.cost}
+                    onChange={e => setEditForm(f => ({ ...f, cost: e.target.value }))}
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className={labelCls}>Produto</label>
-                <input
-                  type="text"
-                  className={inputCls}
-                  value={editForm.product_name}
-                  onChange={e => setEditForm(f => ({ ...f, product_name: e.target.value }))}
+                <ReminderPicker
+                  days={editForm.reminder_days}
+                  time={editForm.reminder_time}
+                  onDaysChange={v => setEditForm(f => ({ ...f, reminder_days: v }))}
+                  onTimeChange={v => setEditForm(f => ({ ...f, reminder_time: v }))}
                 />
               </div>
-
-              <div>
-                <label className={labelCls}>Valor pago</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className={inputCls}
-                  value={editForm.cost}
-                  onChange={e => setEditForm(f => ({ ...f, cost: e.target.value }))}
-                />
-              </div>
-
-              <ReminderPicker
-                days={editForm.reminder_days}
-                time={editForm.reminder_time}
-                onDaysChange={v => setEditForm(f => ({ ...f, reminder_days: v }))}
-                onTimeChange={v => setEditForm(f => ({ ...f, reminder_time: v }))}
-              />
 
               <button
                 onClick={handleSaveEdit}
