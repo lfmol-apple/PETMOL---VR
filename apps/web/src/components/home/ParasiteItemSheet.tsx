@@ -485,6 +485,7 @@ export function ParasiteItemSheet({
   // ── CSS helpers ───────────────────────────────────────────────────────────
   const inputCls = `w-full min-w-0 prime-input text-gray-800 ${theme.focusRing}`;
   const labelCls = 'block text-[10px] font-black text-gray-400 uppercase tracking-[0.16em] mb-1.5 ml-1';
+  const accentLabelCls = labelCls.replace('text-gray-400', theme.accentText);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -800,12 +801,17 @@ export function ParasiteItemSheet({
           {/* ── EDIT FORM ─────────────────────────────────────────────────── */}
           {mode === 'edit' && editRecord && (
             <div className="px-4 pt-2 pb-4 space-y-3">
-              <h3 className="text-[16px] font-bold text-gray-900">Editar registro</h3>
+              <div className="flex items-center gap-2">
+                <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-base ${theme.accentBg} ring-1 ${theme.accentBorder}`}>
+                  {cfg.icon}
+                </div>
+                <h3 className="text-[16px] font-bold text-gray-900">Editar registro</h3>
+              </div>
 
-              <div className={`rounded-2xl border ${theme.accentBorder} ${theme.accentBg}/40 p-3.5 space-y-3`}>
+              <div className={`rounded-2xl border-2 ${theme.accentBorder} ${theme.accentBg} p-3.5 space-y-3`}>
                 <div className="flex items-start gap-2.5">
                   <div className="min-w-0 flex-1">
-                    <label className={labelCls}>Data</label>
+                    <label className={accentLabelCls}>Data</label>
                     <input
                       type="date"
                       className={inputCls}
@@ -814,7 +820,7 @@ export function ParasiteItemSheet({
                     />
                   </div>
                   <div className="w-[120px] flex-shrink-0">
-                    <label className={`${labelCls} whitespace-nowrap`}>A cada (dias)</label>
+                    <label className={`${accentLabelCls} whitespace-nowrap`}>A cada (dias)</label>
                     <input
                       type="number"
                       inputMode="numeric"
@@ -828,7 +834,7 @@ export function ParasiteItemSheet({
                 </div>
 
                 <div>
-                  <label className={labelCls}>Produto</label>
+                  <label className={accentLabelCls}>Produto</label>
                   <input
                     type="text"
                     className={inputCls}
@@ -838,7 +844,7 @@ export function ParasiteItemSheet({
                 </div>
 
                 <div>
-                  <label className={labelCls}>Valor pago</label>
+                  <label className={accentLabelCls}>Valor pago</label>
                   <input
                     type="number"
                     min="0"
