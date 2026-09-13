@@ -11,6 +11,7 @@
  */
 import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
+import { markDeepLinkIntent } from '@/lib/deepLinkIntent';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
@@ -229,6 +230,11 @@ export async function registerNativePush(authToken: string): Promise<boolean> {
 
 const _registrationHandles: PluginListenerHandle[] = [];
 let _tapListenerAdded = false;
+let _nativeDeepLinkNavigator: ((url: string) => boolean) | null = null;
+
+export function setNativeDeepLinkNavigator(navigator: ((url: string) => boolean) | null): void {
+  _nativeDeepLinkNavigator = navigator;
+}
 
 /**
  * Liga os listeners de push nativo: "tocada" (pushNotificationActionPerformed)
@@ -287,6 +293,7 @@ export async function initNativePushDeepLink(): Promise<void> {
 
 function deliverNativeDeepLink(url: string) {
   const ts = Date.now();
+  markDeepLinkIntent();
   // 1. BroadcastChannel — app já aberto numa página que escuta (Home)
   try {
     const bc = new BroadcastChannel('petmol-deeplink');
@@ -310,8 +317,16 @@ function deliverNativeDeepLink(url: string) {
   } catch {
     /* noop */
   }
-  // 3. Navegação direta quando NÃO está na Home (o listener BroadcastChannel
-  //    só existe lá). location.assign faz a Home montar e processar o modal.
+  // 3. Navegação SPA global — evita recriar o documento/WebView no tap do
+  //    push. O fallback abaixo só fica para cenários em que o bridge React
+  //    ainda não registrou o router.
+  try {
+    if (_nativeDeepLinkNavigator?.(url)) return;
+  } catch {
+    /* noop */
+  }
+  // 4. Fallback quando NÃO está na Home (o listener BroadcastChannel só existe
+  //    lá) e ainda não há router global disponível.
   try {
     if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/home')) {
       window.location.assign(url);

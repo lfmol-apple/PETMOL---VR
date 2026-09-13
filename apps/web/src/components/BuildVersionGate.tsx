@@ -21,6 +21,7 @@
  * concorrentes.
  */
 import { useEffect } from 'react';
+import { hasRecentDeepLinkIntent } from '@/lib/deepLinkIntent';
 import { claimReloadForVersion } from '@/lib/versionSkew';
 
 const BAKED_SHA = (process.env.NEXT_PUBLIC_APP_VERSION || '').trim();
@@ -32,6 +33,7 @@ export function BuildVersionGate() {
 
     const check = async () => {
       if (stopped) return;
+      if (hasRecentDeepLinkIntent()) return;
       try {
         const res = await fetch('/version.json?t=' + Date.now(), { cache: 'no-store' });
         if (!res.ok) return;
@@ -50,8 +52,14 @@ export function BuildVersionGate() {
 
     void check();
     const iv = window.setInterval(() => void check(), 60_000);
+    let focusTimer: number | null = null;
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void check();
+      if (document.visibilityState !== 'visible') return;
+      // Ao tocar em push, o WebView volta ao foco antes do Capacitor entregar
+      // pushNotificationActionPerformed. Dá uma janela curta para o deeplink
+      // marcar intenção; assim deploy/version skew não dá reload antes do sheet.
+      if (focusTimer) window.clearTimeout(focusTimer);
+      focusTimer = window.setTimeout(() => void check(), 1_500);
     };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onVisible);
@@ -59,6 +67,7 @@ export function BuildVersionGate() {
     return () => {
       stopped = true;
       window.clearInterval(iv);
+      if (focusTimer) window.clearTimeout(focusTimer);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
     };

@@ -13,6 +13,34 @@ import type { PetHealthProfile } from '@/lib/petHealth';
 // padrão de timeout já usado em AuthContext.tsx.
 const BOOTSTRAP_FETCH_TIMEOUT_MS = 15_000;
 
+function readDeepLinkPetIdFromLocation(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return new URLSearchParams(window.location.search).get('petId');
+  } catch {
+    return null;
+  }
+}
+
+function readCachedPetsFromStorage(): PetHealthProfile[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('petmol_cached_pets');
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed as PetHealthProfile[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function readDeepLinkedCachedPetsFromStorage(): PetHealthProfile[] {
+  const deepLinkPetId = readDeepLinkPetIdFromLocation();
+  if (!deepLinkPetId) return [];
+  const cachedPets = readCachedPetsFromStorage();
+  return cachedPets.some((pet) => pet.pet_id === deepLinkPetId) ? cachedPets : [];
+}
+
 /** Re-envia a subscription de push ao backend uma vez por sessão do browser.
  *  Garante que o servidor sempre tem um endpoint válido mesmo após deploys. */
 async function syncPushSubscriptionOnce(token: string): Promise<void> {
@@ -37,16 +65,22 @@ async function syncPushSubscriptionOnce(token: string): Promise<void> {
 export function usePetBootstrap() {
   const router = useRouter();
   const { tutor, token, isLoading, isAuthenticated } = useAuth();
+  const initialDeepLinkPetId = readDeepLinkPetIdFromLocation();
+  const initialDeepLinkedCachedPets = readDeepLinkedCachedPetsFromStorage();
 
   // Começa true: o boot splash (gated por isLoading || isChecking na Home)
   // precisa cobrir toda a janela entre "auth resolvido" e "pets carregados"
   // — antes ficava false por padrão e nunca era setado true em lugar
   // nenhum, então a Home renderizava com pets=[] (estado vazio "Quem é o
   // seu pet?", depois o checklist de onboarding) até os dados chegarem.
-  const [isChecking, setIsChecking] = useState(true);
+  const [isChecking, setIsChecking] = useState(initialDeepLinkedCachedPets.length === 0);
   const [petsLoadFailed, setPetsLoadFailed] = useState(false);
-  const [pets, setPets] = useState<PetHealthProfile[]>([]);
-  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
+  const [pets, setPets] = useState<PetHealthProfile[]>(initialDeepLinkedCachedPets);
+  const [selectedPetId, setSelectedPetId] = useState<string | null>(
+    initialDeepLinkPetId && initialDeepLinkedCachedPets.some((pet) => pet.pet_id === initialDeepLinkPetId)
+      ? initialDeepLinkPetId
+      : null,
+  );
   const [tutorName, setTutorName] = useState<string>('');
   const [loggedUserId, setLoggedUserId] = useState<string>('');
   const [familyOwnerNames] = useState<Record<string, string>>({});
@@ -56,12 +90,7 @@ export function usePetBootstrap() {
   const [photoTimestamps, setPhotoTimestamps] = useState<Record<string, number>>({});
 
   const readDeepLinkPetId = (): string | null => {
-    if (typeof window === 'undefined') return null;
-    try {
-      return new URLSearchParams(window.location.search).get('petId');
-    } catch {
-      return null;
-    }
+    return readDeepLinkPetIdFromLocation();
   };
 
   /** Pets do próprio dono aparecem antes dos compartilhados com ele (conta
@@ -96,15 +125,7 @@ export function usePetBootstrap() {
   };
 
   const readCachedPets = (): PetHealthProfile[] => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const raw = localStorage.getItem('petmol_cached_pets');
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed as PetHealthProfile[] : [];
-    } catch {
-      return [];
-    }
+    return readCachedPetsFromStorage();
   };
 
   const writeCachedPets = (loadedPets: PetHealthProfile[]) => {

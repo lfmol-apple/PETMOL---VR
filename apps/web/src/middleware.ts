@@ -101,7 +101,9 @@ export function middleware(request: NextRequest) {
   if (pathname === '/') {
     const ua = request.headers.get('user-agent') || '';
     if (session && ua.includes(NATIVE_APP_UA_MARKER)) {
-      return NextResponse.redirect(new URL('/home', origin), 308);
+      const homeUrl = new URL('/home', origin);
+      homeUrl.searchParams.set('native_start', '1');
+      return NextResponse.redirect(homeUrl, 308);
     }
   }
 

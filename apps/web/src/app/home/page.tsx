@@ -1779,7 +1779,13 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   }, [applyFoodPushAction, applyHomeSurfaceResolution, pets, selectedPetId, searchParams, router, deepLinkTrigger]);
 
 
-  if (isLoading || isChecking) {
+  if ((isLoading || isChecking) && pets.length === 0) {
+    const isNativeOrPushBoot =
+      searchParams.get('native_start') === '1' ||
+      Boolean(searchParams.get('modal') && searchParams.get('petId'));
+    if (isNativeOrPushBoot) {
+      return <div className="min-h-screen bg-gradient-to-b from-amber-50/40 via-white to-gray-50" />;
+    }
     // Mesmo splash azul do boot — continuidade com o splash nativo e com a
     // tela '/' enquanto resolve a sessão. Sem 🐾 girando nem "Carregando".
     return <AppBootSplash />;
