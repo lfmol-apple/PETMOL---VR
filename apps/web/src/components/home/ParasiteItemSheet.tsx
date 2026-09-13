@@ -342,11 +342,17 @@ export function ParasiteItemSheet({
         }
 
         const pushType = (type === 'flea_tick' ? 'flea' : type) as 'dewormer' | 'flea' | 'collar';
-        void scheduleUniqueReminder(
-          { pet_id: petId, type: pushType, title: `${cfg.icon} ${cfg.title}`, body: `Hora de comprar ${applyForm.product_name} para ${petName || 'seu pet'}. Verifique o estoque!`, remind_at: buildRemindAt(addDays(computedNext, -(parseInt(applyForm.reminder_days) || 3)), applyForm.reminder_time) },
-          token!,
-          false
-        );
+        const applyRemindAt = buildRemindAt(addDays(computedNext, -(parseInt(applyForm.reminder_days) || 3)), applyForm.reminder_time);
+        // Se "dias de aviso" >= ciclo do produto, a conta cai na (ou antes da)
+        // própria data de aplicação — já passada. Sem essa checagem, cada
+        // "Registrar aplicação" cria um lembrete que dispara quase na hora.
+        if (new Date(applyRemindAt) > new Date()) {
+          void scheduleUniqueReminder(
+            { pet_id: petId, type: pushType, title: `${cfg.icon} ${cfg.title}`, body: `Hora de comprar ${applyForm.product_name} para ${petName || 'seu pet'}. Verifique o estoque!`, remind_at: applyRemindAt },
+            token!,
+            false
+          );
+        }
         setMode('view');
         // Track product usage for recurring product suggestions
         try {
@@ -423,11 +429,17 @@ export function ParasiteItemSheet({
         showToast('✅ Registro atualizado!');
         const nextDue = addDays(editForm.date_applied, parseInt(editForm.frequency_days, 10) || cfg.defaultFrequency);
         const pushType = (type === 'flea_tick' ? 'flea' : type) as 'dewormer' | 'flea' | 'collar';
-        void scheduleUniqueReminder(
-          { pet_id: petId, type: pushType, title: `${cfg.icon} ${cfg.title}`, body: `Hora de comprar ${editForm.product_name} para ${petName || 'seu pet'}. Verifique o estoque!`, remind_at: buildRemindAt(addDays(nextDue, -(parseInt(editForm.reminder_days) || 3)), editForm.reminder_time) },
-          token!,
-          false
-        );
+        const editRemindAt = buildRemindAt(addDays(nextDue, -(parseInt(editForm.reminder_days) || 3)), editForm.reminder_time);
+        // Mesma proteção do fluxo de "Registrar aplicação": se "dias de aviso"
+        // >= ciclo do produto, a conta cai na própria data de aplicação (já
+        // passada) e recriaria um lembrete que dispara quase na hora.
+        if (new Date(editRemindAt) > new Date()) {
+          void scheduleUniqueReminder(
+            { pet_id: petId, type: pushType, title: `${cfg.icon} ${cfg.title}`, body: `Hora de comprar ${editForm.product_name} para ${petName || 'seu pet'}. Verifique o estoque!`, remind_at: editRemindAt },
+            token!,
+            false
+          );
+        }
         setMode('view');
         setEditRecord(null);
         await onRefresh();
