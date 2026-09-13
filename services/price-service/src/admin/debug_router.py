@@ -1,11 +1,14 @@
 """Read-only production inspector for support/debugging.
 
-Every route here is GET and guarded by ``get_current_admin_or_readonly_key``
-(master admin JWT *or* the standing ``ADMIN_OPS_API_KEY`` header). It exists so
+Every route here is guarded by ``get_current_admin_or_readonly_key`` (master
+admin JWT *or* the standing ``ADMIN_OPS_API_KEY`` header). It exists so
 support can pull the full picture of one account's health records — vaccines,
 antiparasitics, grooming, feeding, reminders — without a DB shell.
 
-Never add a write/delete route here: the API key has no per-action audit trail.
+Never add a route that mutates or deletes a user's data here: the API key has
+no per-action audit trail. The one exception is ``/apns-test`` — it sends a
+push notification (an outbound side effect, not a data mutation) to help
+diagnose native-push delivery without SSH access to server logs.
 """
 
 from __future__ import annotations
@@ -26,7 +29,12 @@ from ..pets.parasite_models import ParasiteControlRecord
 from ..pets.grooming_models import GroomingRecord
 from ..health.models import FeedingPlan
 from ..notifications import NativePushToken, PushSubscription, Reminder
-from ..notifications.apns import get_recent_apns_attempts
+from ..notifications.apns import (
+    _PROD_HOST as APNS_PROD_HOST,
+    _SANDBOX_HOST as APNS_SANDBOX_HOST,
+    get_recent_apns_attempts,
+    send_apns,
+)
 from .deps import get_current_admin_or_readonly_key
 
 router = APIRouter(prefix="/v1/admin/debug", tags=["Admin Debug"])
@@ -159,3 +167,46 @@ def apns_log(_auth=Depends(get_current_admin_or_readonly_key)):
     `native_push_tokens` de /user pra achar de qual usuário/device é.
     Diagnóstico temporário, ver notifications/apns.py."""
     return {"attempts": get_recent_apns_attempts()}
+
+
+@router.post("/apns-test")
+def apns_test(
+    email: str = Query(...),
+    db: Session = Depends(get_db),
+    _auth=Depends(get_current_admin_or_readonly_key),
+):
+    """Manda um push de teste pro(s) token(s) iOS ativo(s) do usuário, uma vez
+    via host de PRODUÇÃO e uma vez via SANDBOX. Existe pra distinguir "a Apple
+    aceitou com 200 mas nunca entrega" causado por token de build de
+    desenvolvimento (precisa do sandbox) sendo mandado pro host de produção —
+    isso não aparece nos logs normais porque a produção às vezes aceita um
+    token sandbox com 200 sem nunca entregar de fato."""
+    user = db.query(User).filter(User.email == email.strip().lower()).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="usuário não encontrado")
+
+    tokens = (
+        db.query(NativePushToken)
+        .filter(
+            NativePushToken.user_id == user.id,
+            NativePushToken.platform == "ios",
+            NativePushToken.disabled_at.is_(None),
+        )
+        .all()
+    )
+    if not tokens:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="sem token iOS ativo")
+
+    payload = {
+        "title": "🔔 Teste PETMOL (diagnóstico)",
+        "body": "Se você está vendo isso, chegou! Pode ignorar.",
+        "data": {"url": "/home"},
+    }
+    results = []
+    for t in tokens:
+        row = {"token_suffix": (t.token or "")[-8:], "created_at": _norm(t.created_at)}
+        for label, host in (("production", APNS_PROD_HOST), ("sandbox", APNS_SANDBOX_HOST)):
+            ok, invalid = send_apns(t.token, payload, host_override=host)
+            row[label] = {"ok": ok, "invalid": invalid}
+        results.append(row)
+    return {"email": user.email, "results": results}

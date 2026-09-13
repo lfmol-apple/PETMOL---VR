@@ -109,11 +109,18 @@ def _build_jwt() -> Optional[str]:
         return None
 
 
-def send_apns(device_token: str, payload: dict) -> Tuple[bool, bool]:
+def send_apns(device_token: str, payload: dict, *, host_override: Optional[str] = None) -> Tuple[bool, bool]:
     """Envia UMA notificação para um device token iOS.
 
     Retorna `(ok, invalid)`. `invalid=True` quando o token deve ser
     desativado no banco (410 Unregistered / BadDeviceToken / etc.).
+
+    `host_override` força sandbox ou produção pra UM envio específico —
+    só usado pelo diagnóstico admin (/v1/admin/debug/apns-test), pra
+    descobrir se um token "aceito com 200" na produção na verdade é de
+    build de desenvolvimento (precisa do host sandbox pra entregar de
+    verdade). O fluxo normal (scheduler) nunca passa isso — usa
+    `apns_use_sandbox` global.
     """
     if not apns_configured():
         return (False, False)
@@ -122,7 +129,7 @@ def send_apns(device_token: str, payload: dict) -> Tuple[bool, bool]:
         return (False, False)
 
     s = get_settings()
-    host = _SANDBOX_HOST if s.apns_use_sandbox else _PROD_HOST
+    host = host_override or (_SANDBOX_HOST if s.apns_use_sandbox else _PROD_HOST)
 
     aps: dict = {
         "alert": {"title": payload.get("title") or "PETMOL", "body": payload.get("body") or ""},
