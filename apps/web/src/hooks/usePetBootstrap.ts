@@ -44,6 +44,7 @@ export function usePetBootstrap() {
   // nenhum, então a Home renderizava com pets=[] (estado vazio "Quem é o
   // seu pet?", depois o checklist de onboarding) até os dados chegarem.
   const [isChecking, setIsChecking] = useState(true);
+  const [petsLoadFailed, setPetsLoadFailed] = useState(false);
   const [pets, setPets] = useState<PetHealthProfile[]>([]);
   const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
   const [tutorName, setTutorName] = useState<string>('');
@@ -94,6 +95,69 @@ export function usePetBootstrap() {
     return availablePets[0]?.pet_id ?? null;
   };
 
+  const readCachedPets = (): PetHealthProfile[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem('petmol_cached_pets');
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed as PetHealthProfile[] : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const writeCachedPets = (loadedPets: PetHealthProfile[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem('petmol_cached_pets', JSON.stringify(loadedPets));
+    } catch {}
+  };
+
+  const applyLoadedPets = (
+    loadedPets: PetHealthProfile[],
+    currentLoggedUserId: string,
+    failed = false,
+  ) => {
+    const sortedPets = sortOwnedPetsFirst(loadedPets, currentLoggedUserId);
+    setPets(sortedPets);
+    setSelectedPetId((prev) => resolveSelectedPetId(sortedPets, prev));
+    if (!failed) writeCachedPets(sortedPets);
+    setPetsLoadFailed(failed);
+    setIsChecking(false);
+  };
+
+  const loadCachedPetsAfterFailure = (currentLoggedUserId: string) => {
+    const cachedPets = sortOwnedPetsFirst(readCachedPets(), currentLoggedUserId);
+    if (cachedPets.length > 0) {
+      applyLoadedPets(cachedPets, currentLoggedUserId, true);
+      return;
+    }
+    setPetsLoadFailed(true);
+    setIsChecking(false);
+  };
+
+  const loadDeepLinkedPetFallback = async (
+    authToken: string,
+    currentLoggedUserId: string,
+  ): Promise<PetHealthProfile[] | null> => {
+    const deepLinkPetId = readDeepLinkPetId();
+    if (!deepLinkPetId) return null;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/pets/${encodeURIComponent(deepLinkPetId)}`, {
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${authToken}` },
+        signal: AbortSignal.timeout(BOOTSTRAP_FETCH_TIMEOUT_MS),
+      });
+      if (!response.ok) return null;
+      const backendPet = await response.json();
+      return sortOwnedPetsFirst(normalizeBackendPetProfiles([backendPet]), currentLoggedUserId);
+    } catch {
+      return null;
+    }
+  };
+
   // ── Efeito 1: forceLoadPets — disparado quando tutor (AuthContext) muda ──
   useEffect(() => {
     const forceLoadPets = async () => {
@@ -131,33 +195,35 @@ export function usePetBootstrap() {
                 setTutorCheckinMinute(meData.monthly_checkin_minute);
               }
             }
-          } catch (_) {}
+          } catch {}
 
           if (response.ok) {
             const backendPets = await response.json();
-            const convertedPets = sortOwnedPetsFirst(normalizeBackendPetProfiles(backendPets), meIdForSort);
-            setPets(convertedPets);
-            if (convertedPets.length > 0) {
-              setSelectedPetId((prev) => resolveSelectedPetId(convertedPets, prev));
+            let convertedPets = sortOwnedPetsFirst(normalizeBackendPetProfiles(backendPets), meIdForSort);
+            if (convertedPets.length === 0 && savedToken) {
+              convertedPets = await loadDeepLinkedPetFallback(savedToken, meIdForSort) || convertedPets;
             }
-            // sem pets: home exibe estado vazio com botão "Adicionar pet"
-            setIsChecking(false);
+            applyLoadedPets(convertedPets, meIdForSort);
           } else {
             if (response.status === 401 || response.status === 403) {
               router.replace('/login');
+              setIsChecking(false);
+              return;
             }
             // Erros genéricos (5xx, etc.) — não redirecionar; manter tela atual
-            setIsChecking(false);
+            loadCachedPetsAfterFailure(meIdForSort);
           }
         } catch {
           // Erro de rede — usuário está logado, não deslogar; manter na tela atual
-          setIsChecking(false);
+          loadCachedPetsAfterFailure('');
         }
+      } else if (!isLoading && !token) {
+        setIsChecking(false);
       }
     };
 
     forceLoadPets();
-  }, [tutor]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tutor, isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Efeito 2: loadPets — disparado por token/isAuthenticated ──────────────
   useEffect(() => {
@@ -165,13 +231,10 @@ export function usePetBootstrap() {
       if (!token) {
         if (!isLoading) {
           router.replace('/login');
+          setIsChecking(false);
         }
         return;
       }
-
-      localStorage.removeItem('petmol_pets');
-      localStorage.removeItem('pet_health_profiles');
-      localStorage.removeItem('petmol_cached_pets');
 
       void syncPushSubscriptionOnce(token);
 
@@ -210,31 +273,30 @@ export function usePetBootstrap() {
         if (!response.ok) {
           if (response.status === 401 || response.status === 403) {
             router.replace('/login');
+            setIsChecking(false);
             return;
           }
           throw new Error('Erro ao carregar pets');
         }
 
         const backendPets = await response.json();
-        const convertedPets = sortOwnedPetsFirst(normalizeBackendPetProfiles(backendPets), meIdForSort);
-        setPets(convertedPets);
-        if (convertedPets.length > 0) {
-          setSelectedPetId((prev) => resolveSelectedPetId(convertedPets, prev));
+        let convertedPets = sortOwnedPetsFirst(normalizeBackendPetProfiles(backendPets), meIdForSort);
+        if (convertedPets.length === 0) {
+          convertedPets = await loadDeepLinkedPetFallback(token, meIdForSort) || convertedPets;
         }
-        // sem pets: home exibe estado vazio com botão "Adicionar pet"
-        setIsChecking(false);
+        applyLoadedPets(convertedPets, meIdForSort);
       } catch {
         // Erro de rede — não redirecionar para login; usuário pode ter conexão instável
-        setPets([]);
-        setIsChecking(false);
+        loadCachedPetsAfterFailure('');
       }
     };
 
     loadPets();
-  }, [isAuthenticated, token, API_BASE_URL]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, token, isLoading, API_BASE_URL]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     isChecking,
+    petsLoadFailed,
     pets,
     setPets,
     selectedPetId,
