@@ -172,6 +172,8 @@ def apns_log(_auth=Depends(get_current_admin_or_readonly_key)):
 @router.post("/apns-test")
 def apns_test(
     email: str = Query(...),
+    deep_url: Optional[str] = Query(default=None, description="Ex.: /home?modal=parasites&petId=X&subtype=flea_tick — testa o toque abrindo a sheet certa, não só se o push chega."),
+    action_id: str = Query(default="open"),
     db: Session = Depends(get_db),
     _auth=Depends(get_current_admin_or_readonly_key),
 ):
@@ -180,7 +182,12 @@ def apns_test(
     aceitou com 200 mas nunca entrega" causado por token de build de
     desenvolvimento (precisa do sandbox) sendo mandado pro host de produção —
     isso não aparece nos logs normais porque a produção às vezes aceita um
-    token sandbox com 200 sem nunca entregar de fato."""
+    token sandbox com 200 sem nunca entregar de fato.
+
+    Passando `deep_url`, o payload fica idêntico ao de um lembrete real
+    (mesma estrutura de `data`/`action_urls` que send_due_reminders monta) —
+    dá pra testar se o toque na notificação abre a sheet certa sem esperar
+    o scheduler nem criar um Reminder de verdade."""
     user = db.query(User).filter(User.email == email.strip().lower()).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="usuário não encontrado")
@@ -197,11 +204,21 @@ def apns_test(
     if not tokens:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="sem token iOS ativo")
 
-    payload = {
-        "title": "🔔 Teste PETMOL (diagnóstico)",
-        "body": "Se você está vendo isso, chegou! Pode ignorar.",
-        "data": {"url": "/home"},
-    }
+    if deep_url:
+        payload = {
+            "title": "🔔 Teste PETMOL (deep link)",
+            "body": "Toque pra ver se abre a tela certa.",
+            "data": {
+                "url": deep_url,
+                "action_urls": {action_id: deep_url, "dismiss": "/home"},
+            },
+        }
+    else:
+        payload = {
+            "title": "🔔 Teste PETMOL (diagnóstico)",
+            "body": "Se você está vendo isso, chegou! Pode ignorar.",
+            "data": {"url": "/home"},
+        }
     results = []
     for t in tokens:
         row = {"token_suffix": (t.token or "")[-8:], "created_at": _norm(t.created_at)}
