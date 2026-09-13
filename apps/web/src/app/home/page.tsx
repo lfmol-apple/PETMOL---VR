@@ -255,15 +255,41 @@ function HomePageInner() {
   }, [router]);
 
   // 1. Leitura na montagem — cobre app aberto do zero via notificação (ou iOS onde openWindow ignora params)
+  //
+  // Corrida no cold start: app/page.tsx já faz router.replace('/home') (sem
+  // query params) assim que vê um token salvo — isso é síncrono e quase
+  // sempre vence a entrega do "launch notification" nativo, que depende do
+  // bridge do Capacitor resolver e só então escreve a URL aqui via
+  // deliverNativeDeepLink. Se essa leitura rodar só uma vez, no exato
+  // instante da montagem, ela sempre chega ANTES da escrita — o cache nunca
+  // é encontrado, e o link do lembrete se perde silenciosamente (o app abre
+  // normal, mas nunca a sheet do item). Repete a leitura por alguns
+  // segundos, mesmo padrão de retry já usado no efeito 2 abaixo.
   useEffect(() => {
     if (typeof window === 'undefined' || !('caches' in window)) return;
-    caches.open('petmol-deeplink-v1').then(async (cache) => {
-      const resp = await cache.match('/__petmol_deeplink');
-      if (!resp) return;
-      const { url, ts } = await resp.json() as { url: string; ts: number };
-      await cache.delete('/__petmol_deeplink');
-      if (Date.now() - ts < 300_000) applyDeepLinkUrl(url);
-    }).catch(() => {});
+    let cancelled = false;
+    const tryRead = async () => {
+      if (cancelled) return true;
+      try {
+        const cache = await caches.open('petmol-deeplink-v1');
+        const resp = await cache.match('/__petmol_deeplink');
+        if (!resp) return false;
+        const { url, ts } = await resp.json() as { url: string; ts: number };
+        await cache.delete('/__petmol_deeplink');
+        if (Date.now() - ts < 300_000) applyDeepLinkUrl(url);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const delaysMs = [0, 300, 800, 1500, 3000];
+    (async () => {
+      for (const delay of delaysMs) {
+        if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+        if (await tryRead()) return;
+      }
+    })();
+    return () => { cancelled = true; };
   }, [applyDeepLinkUrl]);
 
   // 2. visibilitychange + window.focus — cobre app vindo do background
