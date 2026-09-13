@@ -36,9 +36,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>O PETMOL usa a câmera para fotografar seu pet, escanear produtos, ler carteirinhas de vacinação e gravar o vídeo de prova de quem encontrou um pet perdido.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>O PETMOL usa o microfone ao gravar o vídeo de prova de quem encontrou um pet perdido.</string>
+	<string>O PETMOL usa a câmera para fotografar seu pet, escanear produtos e ler carteirinhas de vacinação.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>O PETMOL usa sua localização aproximada, só enquanto o app está aberto, para avisar quando um pet desaparece perto de você e para registrar a região ao publicar um alerta de pet perdido. Você pode preencher a região manualmente e recusar esta permissão.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

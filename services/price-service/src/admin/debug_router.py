@@ -1,14 +1,11 @@
 """Read-only production inspector for support/debugging.
 
-Every route here is guarded by ``get_current_admin_or_readonly_key`` (master
-admin JWT *or* the standing ``ADMIN_OPS_API_KEY`` header). It exists so
+Every route here is GET and guarded by ``get_current_admin_or_readonly_key``
+(master admin JWT *or* the standing ``ADMIN_OPS_API_KEY`` header). It exists so
 support can pull the full picture of one account's health records — vaccines,
 antiparasitics, grooming, feeding, reminders — without a DB shell.
 
-Never add a route that mutates or deletes a user's data here: the API key has
-no per-action audit trail. The one exception is ``/apns-test`` — it sends a
-push notification (an outbound side effect, not a data mutation) to help
-diagnose native-push delivery without SSH access to server logs.
+Never add a write/delete route here: the API key has no per-action audit trail.
 """
 
 from __future__ import annotations
@@ -23,18 +20,11 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..user_auth.models import User
 from ..pets.models import Pet
-from ..pets.caretaker_models import PetCaretaker
 from ..pets.vaccine_models import VaccineRecord
 from ..pets.parasite_models import ParasiteControlRecord
 from ..pets.grooming_models import GroomingRecord
 from ..health.models import FeedingPlan
-from ..notifications import NativePushToken, PushSubscription, Reminder
-from ..notifications.apns import (
-    _PROD_HOST as APNS_PROD_HOST,
-    _SANDBOX_HOST as APNS_SANDBOX_HOST,
-    get_recent_apns_attempts,
-    send_apns,
-)
+from ..notifications import Reminder
 from .deps import get_current_admin_or_readonly_key
 
 router = APIRouter(prefix="/v1/admin/debug", tags=["Admin Debug"])
@@ -79,17 +69,6 @@ def inspect_user(
 
     pets = db.query(Pet).filter(Pet.user_id == user.id).order_by(Pet.created_at).all()
 
-    caretaker_rows = db.query(PetCaretaker).filter(PetCaretaker.user_id == user.id).all()
-    caretaker_of = []
-    for c in caretaker_rows:
-        other_pet = db.query(Pet).filter(Pet.id == c.pet_id).first()
-        caretaker_of.append({
-            "pet_id": c.pet_id,
-            "pet_name": other_pet.name if other_pet else None,
-            "owner_user_id": other_pet.user_id if other_pet else None,
-            "joined_at": _norm(c.joined_at),
-        })
-
     def _for_pet(model, pet_id: str, order_col: str) -> list[dict]:
         rows = db.query(model).filter(model.pet_id == pet_id)
         if not include_deleted and hasattr(model, "deleted"):
@@ -116,32 +95,6 @@ def inspect_user(
             }
         )
 
-    # p256dh/auth (Web Push) e token (APNs/FCM) nunca aparecem aqui — dão
-    # pra mandar push em nome do usuário. Só o suficiente pra diagnosticar
-    # "por que o push não chegou": existe/está ativo, quando, em qual device.
-    push_subscriptions = [
-        {
-            "id": s.id,
-            "endpoint_host": (s.endpoint or "").split("/")[2] if "//" in (s.endpoint or "") else s.endpoint,
-            "device_id": s.device_id,
-            "created_at": _norm(s.created_at),
-            "last_seen_at": _norm(s.last_seen_at),
-            "disabled_at": _norm(s.disabled_at),
-        }
-        for s in db.query(PushSubscription).filter(PushSubscription.user_id == user.id).all()
-    ]
-    native_push_tokens = [
-        {
-            "id": t.id,
-            "platform": t.platform,
-            "token_suffix": (t.token or "")[-8:],
-            "created_at": _norm(t.created_at),
-            "last_seen_at": _norm(t.last_seen_at),
-            "disabled_at": _norm(t.disabled_at),
-        }
-        for t in db.query(NativePushToken).filter(NativePushToken.user_id == user.id).all()
-    ]
-
     return {
         "user": {
             "id": str(user.id),
@@ -150,80 +103,8 @@ def inspect_user(
             "created_at": user.created_at,
         },
         "pets": pets_out,
-        "caretaker_of": caretaker_of,
-        "push_subscriptions": push_subscriptions,
-        "native_push_tokens": native_push_tokens,
         "counts": {
             "pets": len(pets_out),
             "vaccine_records": sum(len(x["vaccine_records"]) for x in pets_out),
         },
     }
-
-
-@router.get("/apns-log")
-def apns_log(_auth=Depends(get_current_admin_or_readonly_key)):
-    """Últimas tentativas reais de envio via APNs (resposta da Apple, não só
-    o que o app achou que aconteceu) — cruzar `token_suffix` com
-    `native_push_tokens` de /user pra achar de qual usuário/device é.
-    Diagnóstico temporário, ver notifications/apns.py."""
-    return {"attempts": get_recent_apns_attempts()}
-
-
-@router.post("/apns-test")
-def apns_test(
-    email: str = Query(...),
-    deep_url: Optional[str] = Query(default=None, description="Ex.: /home?modal=parasites&petId=X&subtype=flea_tick — testa o toque abrindo a sheet certa, não só se o push chega."),
-    action_id: str = Query(default="open"),
-    db: Session = Depends(get_db),
-    _auth=Depends(get_current_admin_or_readonly_key),
-):
-    """Manda um push de teste pro(s) token(s) iOS ativo(s) do usuário, uma vez
-    via host de PRODUÇÃO e uma vez via SANDBOX. Existe pra distinguir "a Apple
-    aceitou com 200 mas nunca entrega" causado por token de build de
-    desenvolvimento (precisa do sandbox) sendo mandado pro host de produção —
-    isso não aparece nos logs normais porque a produção às vezes aceita um
-    token sandbox com 200 sem nunca entregar de fato.
-
-    Passando `deep_url`, o payload fica idêntico ao de um lembrete real
-    (mesma estrutura de `data`/`action_urls` que send_due_reminders monta) —
-    dá pra testar se o toque na notificação abre a sheet certa sem esperar
-    o scheduler nem criar um Reminder de verdade."""
-    user = db.query(User).filter(User.email == email.strip().lower()).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="usuário não encontrado")
-
-    tokens = (
-        db.query(NativePushToken)
-        .filter(
-            NativePushToken.user_id == user.id,
-            NativePushToken.platform == "ios",
-            NativePushToken.disabled_at.is_(None),
-        )
-        .all()
-    )
-    if not tokens:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="sem token iOS ativo")
-
-    if deep_url:
-        payload = {
-            "title": "🔔 Teste PETMOL (deep link)",
-            "body": "Toque pra ver se abre a tela certa.",
-            "data": {
-                "url": deep_url,
-                "action_urls": {action_id: deep_url, "dismiss": "/home"},
-            },
-        }
-    else:
-        payload = {
-            "title": "🔔 Teste PETMOL (diagnóstico)",
-            "body": "Se você está vendo isso, chegou! Pode ignorar.",
-            "data": {"url": "/home"},
-        }
-    results = []
-    for t in tokens:
-        row = {"token_suffix": (t.token or "")[-8:], "created_at": _norm(t.created_at)}
-        for label, host in (("production", APNS_PROD_HOST), ("sandbox", APNS_SANDBOX_HOST)):
-            ok, invalid = send_apns(t.token, payload, host_override=host)
-            row[label] = {"ok": ok, "invalid": invalid}
-        results.append(row)
-    return {"email": user.email, "results": results}
