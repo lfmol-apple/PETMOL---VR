@@ -42,7 +42,7 @@ from src.pets.models import Pet
 from src.pets.caretaker_models import PetCaretaker
 from src.family.models import FamilyGroup, FamilyMember
 from src.user_auth.models import User
-from src.missing_pets import MissingPet
+from src.missing_pets import MissingPet, _missing_date_br
 from src.notifications import _load_subscriptions, _send_push
 
 
@@ -108,7 +108,7 @@ def main() -> None:
             "title": f"🚨 {mp.pet_name} pode estar na sua região!",
             "body": (
                 (f"Visto em: {mp.last_seen_location}. " if mp.last_seen_location else "")
-                + f"Desaparecido desde {mp.missing_date or 'hoje'} às {mp.missing_time or '??:??'}. Toque para ajudar."
+                + f"Desaparecido desde {_missing_date_br(mp.missing_date) or 'hoje'} às {mp.missing_time or '??:??'}. Toque para ajudar."
             ),
             "tag": f"missing-pet-{mp.id}",
             "renotify": True,
