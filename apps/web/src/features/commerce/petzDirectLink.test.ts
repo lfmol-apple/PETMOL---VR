@@ -84,6 +84,43 @@ describe('fetchPetzDirectLink — "Ver na Petz" (caminho separado do CommerceEng
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('erro transitório de rede (TypeError) na 1ª tentativa → tenta de novo e resolve na 2ª, sem esperar fechar/reabrir a Loja', async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          available: true,
+          url: 'https://www.petz.com.br/produto/x-100223',
+          direct_product_url: 'https://www.petz.com.br/produto/x-100223',
+        }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchPetzDirectLink } = await import('./productPricing');
+    const result = await fetchPetzDirectLink('7896181298090', 'Ração X');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.available).toBe(true);
+    expect(result.url).toBe('https://www.petz.com.br/produto/x-100223');
+  });
+
+  it('status HTTP transitório (503) na 1ª tentativa → tenta de novo e resolve na 2ª', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({}) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ available: true, url: 'https://www.petz.com.br/busca?q=X' }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchPetzDirectLink } = await import('./productPricing');
+    const result = await fetchPetzDirectLink('7896181298090', 'Ração X');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.available).toBe(true);
+  });
+
   it('sem GTIN mas COM nome → busca a Petz pelo nome (só ?q=, sem gtin)', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

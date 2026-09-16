@@ -232,30 +232,52 @@ export interface PetzDirectLink {
  * vem do cupom PETMOL no checkout. Ver GET /commerce/petz-direct-link e
  * docs/PETZ_COMMISSION_VALIDATION.md.
  */
+// Mesmo backoff bounded de RETRY_DELAYS_MS em useCommerceOffers.ts — Petz
+// nunca ganhou o equivalente, e por isso sofria o mesmo bug que a Cobasi já
+// teve (12/09/2026, ver isTransientFetchError abaixo): falha transitória de
+// rede logo após login/cold-start (proxy/sessão do WKWebView ainda
+// estabilizando) desistia na 1ª tentativa e só se resolvia fechando e
+// reabrindo a Loja (novo mount = nova tentativa manual). "Ver na Petz"
+// sumia só na 1ª abertura do app; Cobasi não, porque só ela tinha retry.
+const PETZ_RETRY_DELAYS_MS = [600, 1300];
+
 export async function fetchPetzDirectLink(
   gtin?: string | null,
   productName?: string,
   brand?: string,
 ): Promise<PetzDirectLink> {
-  try {
-    const trimmedGtin = (gtin ?? '').trim();
-    const trimmedName = (productName ?? '').trim();
-    // Sem GTIN a página exata não é possível, mas a busca da Petz pelo nome
-    // sim — só desiste quando não há NENHUM dos dois.
-    if (!trimmedGtin && !trimmedName) return { available: false, url: null };
-    const params = new URLSearchParams();
-    if (trimmedGtin) params.set('gtin', trimmedGtin);
-    if (trimmedName) params.set('q', trimmedName);
-    if (brand?.trim()) params.set('brand', brand.trim());
-    const res = await fetch(`${API_BASE_URL}/commerce/petz-direct-link?${params.toString()}`, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) return { available: false, url: null };
-    const data = (await res.json()) as PetzDirectLink;
-    return data?.available && data.url ? data : { available: false, url: null };
-  } catch {
-    return { available: false, url: null };
+  const trimmedGtin = (gtin ?? '').trim();
+  const trimmedName = (productName ?? '').trim();
+  // Sem GTIN a página exata não é possível, mas a busca da Petz pelo nome
+  // sim — só desiste quando não há NENHUM dos dois.
+  if (!trimmedGtin && !trimmedName) return { available: false, url: null };
+  const params = new URLSearchParams();
+  if (trimmedGtin) params.set('gtin', trimmedGtin);
+  if (trimmedName) params.set('q', trimmedName);
+  if (brand?.trim()) params.set('brand', brand.trim());
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/commerce/petz-direct-link?${params.toString()}`, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) {
+        if (TRANSIENT_HTTP_STATUS.has(res.status) && attempt < PETZ_RETRY_DELAYS_MS.length) {
+          await new Promise((resolve) => setTimeout(resolve, PETZ_RETRY_DELAYS_MS[attempt]));
+          continue;
+        }
+        return { available: false, url: null };
+      }
+      const data = (await res.json()) as PetzDirectLink;
+      return data?.available && data.url ? data : { available: false, url: null };
+    } catch (err) {
+      if (isTransientFetchError(err) && attempt < PETZ_RETRY_DELAYS_MS.length) {
+        await new Promise((resolve) => setTimeout(resolve, PETZ_RETRY_DELAYS_MS[attempt]));
+        continue;
+      }
+      return { available: false, url: null };
+    }
   }
 }
 
