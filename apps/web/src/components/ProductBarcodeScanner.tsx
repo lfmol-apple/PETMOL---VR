@@ -63,22 +63,17 @@ export function ProductBarcodeScanner({
           </span>
           <span className="text-blue-300 text-lg">›</span>
         </button>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => openWithMode(defaultMode ?? 'scan')}
-            className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] font-bold text-slate-700 active:scale-[0.98] transition-all"
-          >
-            📷 {label}
-          </button>
-          <button
-            type="button"
-            onClick={() => openWithMode('manual')}
-            className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] font-bold text-slate-700 active:scale-[0.98] transition-all"
-          >
-            ✏️ Buscar pelo nome
-          </button>
-        </div>
+        {/* "Buscar pelo nome" saiu daqui — era a mesma tela que "Buscar
+            produto" já abre acima, só forçando outro modo (duplicava a
+            entrada, feedback do usuário). Só o scanner fica como via
+            secundária, pra quem prefere ler o código de barras. */}
+        <button
+          type="button"
+          onClick={() => openWithMode(defaultMode ?? 'scan')}
+          className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] font-bold text-slate-700 active:scale-[0.98] transition-all"
+        >
+          📷 {label}
+        </button>
       </div>
 
       {open && (
