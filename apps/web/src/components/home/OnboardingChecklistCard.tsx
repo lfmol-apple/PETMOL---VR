@@ -13,6 +13,9 @@ import {
   writeOnboardingStore,
   type OnboardingStepKey,
 } from '@/lib/onboardingProgress';
+import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
+import { API_BASE_URL } from '@/lib/api';
+import { getToken } from '@/lib/auth-token';
 
 interface OnboardingChecklistCardProps {
   petId: string;
@@ -76,6 +79,7 @@ export function OnboardingChecklistCard({
   suppressed = false,
 }: OnboardingChecklistCardProps) {
   const [storeTick, setStoreTick] = useState(0);
+  const { permission: pushPermission, requestPermission: requestPushPermission, subscribeToPush } = useNotificationPermissionController();
 
   const progress = useMemo(
     () =>
@@ -132,6 +136,37 @@ export function OnboardingChecklistCard({
 
   // ── conclusão ─────────────────────────────────────────────────────────────
   if (showCompletion) {
+    // Pede notificação + localização AQUI — no toque em "Ir para o Petmol",
+    // não dependendo do tutor achar o botão em Preferências depois. É o
+    // primeiro momento em que ele já viu, na tela, pra que serve cada uma
+    // (lembretes de cuidado / alerta de Pet Sumido perto dele), então o
+    // pedido nativo do sistema aparece com contexto, não do nada no launch.
+    const requestPermissionsThenFinish = async () => {
+      if (pushPermission === 'default') {
+        try {
+          const granted = await requestPushPermission();
+          if (granted) void subscribeToPush();
+        } catch { /* melhor esforço — não bloqueia o fluxo */ }
+      }
+      if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 }),
+          );
+          const token = getToken();
+          if (token) {
+            await fetch(`${API_BASE_URL}/auth/me`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            }).catch(() => {});
+          }
+        } catch { /* usuário negou ou timeout — segue sem localização, igual ao Perfil */ }
+      }
+      writeOnboardingStore(petId, { completedShownAt: new Date().toISOString() });
+      setOnboardingActiveFlag(false);
+      setStoreTick((t) => t + 1);
+    };
     const finish = () => {
       writeOnboardingStore(petId, { completedShownAt: new Date().toISOString() });
       setOnboardingActiveFlag(false);
@@ -171,10 +206,16 @@ export function OnboardingChecklistCard({
               </li>
             ))}
           </ul>
+          {pushPermission === 'default' && (
+            <p className="mt-4 text-[12px] leading-snug text-slate-400">
+              A seguir vamos pedir permissão de notificação (avisar quando um cuidado vencer) e localização
+              (avisar se um pet sumir perto de você).
+            </p>
+          )}
           <button
             type="button"
-            onClick={finish}
-            className="mt-6 w-full rounded-2xl bg-[#0056D2] py-3.5 text-[15px] font-bold text-white shadow-[0_10px_24px_-8px_rgba(0,86,210,0.5)] transition-transform active:scale-[0.98]"
+            onClick={() => void requestPermissionsThenFinish()}
+            className="mt-4 w-full rounded-2xl bg-[#0056D2] py-3.5 text-[15px] font-bold text-white shadow-[0_10px_24px_-8px_rgba(0,86,210,0.5)] transition-transform active:scale-[0.98]"
           >
             Ir para o Petmol
           </button>
