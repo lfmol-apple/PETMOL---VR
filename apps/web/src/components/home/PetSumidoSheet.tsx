@@ -94,6 +94,34 @@ function nowTime() {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+// Mesma normalização de profile/page.tsx (formatPhone/normalizeBRPhone) —
+// duplicada aqui em vez de compartilhada porque as duas telas evoluem
+// independente e o contrato é minúsculo (formatar DDD+número BR).
+function normalizeBRPhoneDigits(raw: string): string {
+  let d = raw.replace(/\D/g, '');
+  if (d.length >= 12 && d.startsWith('55')) d = d.slice(2);
+  return d;
+}
+
+export function formatBRPhoneInput(value: string): string {
+  const numbers = normalizeBRPhoneDigits(value);
+  if (numbers.length === 0) return '';
+  if (numbers.length <= 2) return `(${numbers}`;
+  if (numbers.length <= 6) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+  if (numbers.length <= 10) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6, 10)}`;
+  return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+}
+
+// Bug real (set/2026): o CTA "Gerar alerta" só checava contact.trim().length
+// >= 8 — qualquer texto com 8+ caracteres (inclusive lixo, sem formato de
+// telefone) liberava a geração e publicação de um alerta público com
+// contato incontatável. DDD (2) + número (8 ou 9 dígitos) = 10 ou 11 dígitos
+// é o único formato válido de celular/telefone BR.
+export function isValidBRPhone(value: string): boolean {
+  const digits = normalizeBRPhoneDigits(value);
+  return digits.length === 10 || digits.length === 11;
+}
+
 export function PetSumidoSheet({
   pet, petPhotoUrl, onClose,
   editAlertId, initialContact = '', initialLocation = '',
@@ -101,7 +129,7 @@ export function PetSumidoSheet({
 }: PetSumidoSheetProps) {
   const isEditMode = Boolean(editAlertId);
   const [step, setStep] = useState<Step>('form');
-  const [contact, setContact] = useState(initialContact);
+  const [contact, setContact] = useState(() => formatBRPhoneInput(initialContact));
   const [lastSeenLocation, setLastSeenLocation] = useState(initialLocation);
   const [characteristics, setCharacteristics] = useState(initialCharacteristics);
   const [missingDate, setMissingDate] = useState(initialMissingDate ?? todayISO());
@@ -482,7 +510,7 @@ export function PetSumidoSheet({
   }, [cardDataUrl, pet, contact]);
 
   const hasPhoto = Boolean(photoPreview) && !photoLoadFailed;
-  const hasContact = contact.trim().length >= 8;
+  const hasContact = isValidBRPhone(contact);
   const canGenerate = hasPhoto && hasContact;
   const missingParts = [!hasPhoto && 'foto', !hasContact && 'WhatsApp'].filter(Boolean) as string[];
 
@@ -559,8 +587,9 @@ export function PetSumidoSheet({
                 </label>
                 <input
                   type="tel"
+                  inputMode="numeric"
                   value={contact}
-                  onChange={e => setContact(e.target.value)}
+                  onChange={e => setContact(formatBRPhoneInput(e.target.value))}
                   placeholder="(00) 00000-0000"
                   onFocus={() => setFocusedField('contact')}
                   onBlur={() => setFocusedField(null)}
