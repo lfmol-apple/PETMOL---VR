@@ -12,9 +12,14 @@ import {
  * de cards funcionais. Fica imediatamente abaixo dos cards e acima de
  * "Pet Sumido".
  *
- * DESATIVADO (padrão): versão neutra, "Em breve", sem parceiro, sem CTA
- * clicável, sem cupom. ATIVADO: ganha rótulo "Publicidade • Parceria" e um
- * CTA para a URL de afiliado configurada (ver features/healthPlan/config.ts).
+ * DESATIVADO (padrão): faixa discreta, "Em breve", sem parceiro, sem CTA
+ * clicável, sem cupom — deliberadamente mais quieta que os cards funcionais
+ * da Home (estabilização pré-lançamento, set/2026: a versão anterior tinha o
+ * mesmo peso visual — ícone grande, sombra, padding — de um card real, e
+ * competia com as funções principais). ATIVADO: ganha rótulo
+ * "Publicidade • Parceria" e um CTA para a URL de afiliado configurada (ver
+ * features/healthPlan/config.ts) — essa versão mantém o destaque de card,
+ * proporcional a ser uma oferta real.
  */
 export function PetHealthPlanCard({
   petName,
@@ -31,6 +36,25 @@ export function PetHealthPlanCard({
       ? `Plano de saúde para ${petO({ sex: petSex })} ${petName.trim()}`
       : 'Plano de saúde para seu pet';
 
+  if (!isActive) {
+    return (
+      <section
+        aria-label="Plano de saúde para pets"
+        className="flex items-center gap-2.5 rounded-xl border border-slate-100 bg-slate-50/60 px-3.5 py-2.5"
+      >
+        <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white ring-1 ring-slate-100">
+          <img src="/plano-saude-pets.webp" alt="" className="h-5 w-5 object-contain opacity-70" />
+        </span>
+        <p className="min-w-0 flex-1 truncate text-[12px] font-medium text-slate-400">
+          {title}
+        </p>
+        <span className="flex-shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+          Em breve
+        </span>
+      </section>
+    );
+  }
+
   return (
     <section
       aria-label="Plano de saúde para pets"
@@ -41,41 +65,29 @@ export function PetHealthPlanCard({
           <img src="/plano-saude-pets.webp" alt="" className="h-full w-full object-contain p-0.5" />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="text-[14px] font-bold leading-tight text-slate-900 min-[390px]:text-[15px]">
-              {title}
-            </h3>
-            {!isActive && (
-              <span className="flex-shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                Em breve
-              </span>
-            )}
-          </div>
+          <h3 className="text-[14px] font-bold leading-tight text-slate-900 min-[390px]:text-[15px]">
+            {title}
+          </h3>
           <p className="mt-1 text-[12px] leading-snug text-slate-500 min-[390px]:text-[13px]">
             Mais tranquilidade para cuidar da saúde de quem está sempre com você.
           </p>
-
-          {isActive && (
-            <>
-              <a
-                href={ctaUrl}
-                target="_blank"
-                rel="sponsored nofollow noopener noreferrer"
-                className="mt-3 inline-flex w-fit items-center gap-1.5 rounded-xl bg-[#0056D2] px-3.5 py-2 text-[13px] font-bold text-white transition-colors hover:bg-[#0047ad]"
-              >
-                Conhecer os planos
-                <span aria-hidden>→</span>
-              </a>
-              {HEALTH_PLAN_COUPON && (
-                <p className="mt-2 text-[12px] text-slate-500">
-                  Cupom: <span className="font-semibold text-slate-700">{HEALTH_PLAN_COUPON}</span>
-                </p>
-              )}
-              <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                Publicidade • Parceria
-              </p>
-            </>
+          <a
+            href={ctaUrl}
+            target="_blank"
+            rel="sponsored nofollow noopener noreferrer"
+            className="mt-3 inline-flex w-fit items-center gap-1.5 rounded-xl bg-[#0056D2] px-3.5 py-2 text-[13px] font-bold text-white transition-colors hover:bg-[#0047ad]"
+          >
+            Conhecer os planos
+            <span aria-hidden>→</span>
+          </a>
+          {HEALTH_PLAN_COUPON && (
+            <p className="mt-2 text-[12px] text-slate-500">
+              Cupom: <span className="font-semibold text-slate-700">{HEALTH_PLAN_COUPON}</span>
+            </p>
           )}
+          <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+            Publicidade • Parceria
+          </p>
         </div>
       </div>
     </section>
