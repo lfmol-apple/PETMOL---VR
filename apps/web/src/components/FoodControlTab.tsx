@@ -1286,9 +1286,9 @@ export function FoodControlTab({
             <button type="button"
               onClick={handleDelete}
               disabled={saving}
-              className="w-full py-3.5 min-h-[44px] rounded-2xl border border-red-200 bg-red-50 text-red-700 text-sm font-bold shadow-sm disabled:opacity-50 active:scale-[0.99] transition-all hover:bg-red-100"
+              className="w-full py-1.5 text-[12px] font-semibold text-red-400 disabled:opacity-50 active:opacity-60 transition-opacity"
             >
-              🗑 Excluir controle
+              Excluir controle
             </button>
           )}
         </div>
