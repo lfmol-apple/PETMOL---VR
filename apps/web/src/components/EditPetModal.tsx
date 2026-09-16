@@ -605,7 +605,7 @@ export function EditPetModal({ pet, photoVersion, careSummary, onClose, onSave, 
           />
 
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-            <SheetShell.Body className="space-y-5">
+            <SheetShell.Body className="space-y-4">
 
               {/* Estado atual do pet — read-only, reusa os tons dos cards da Home */}
               {careSummary && <PetCareStatus summary={careSummary} petName={pet.pet_name || pet.name || 'o pet'} />}

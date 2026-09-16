@@ -301,6 +301,10 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
   const [buyTargetItem, setBuyTargetItem] = useState<{ label: string; query: string; gtin: string | null; packageSizeKg: number | null } | null>(null);
   const [deletingPlan, setDeletingPlan] = useState(false);
   const [deletingSecondaryId, setDeletingSecondaryId] = useState<string | null>(null);
+  // "Não uso mais"/"Excluir plano" são ações raras — ficam atrás do "⋯" ao
+  // lado de "Editar plano" em vez de sempre visíveis, pra tela caber sem
+  // rolar no caso comum.
+  const [showMoreFoodActions, setShowMoreFoodActions] = useState(false);
   // Alterna qual seção a tela principal mostra — ração (controle de peso/
   // tempo) ou petiscos (compra esporádica, sem contagem). Pedido do tutor:
   // as duas seções empilhadas numa rolagem só ficavam confusas pra um
@@ -1418,15 +1422,6 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                             <span className="text-xl">🛒</span>
                             Comprar novamente
                           </button>
-                          {/* Checklist item 2 — comprar (achar onde repor) e
-                              registrar o novo ciclo (o que reinicia a previsão)
-                              são coisas independentes. Sem exigir que o tutor
-                              "volte da loja pra confirmar" — o registro do novo
-                              pacote é o que atualiza a previsão, quando ele
-                              quiser fazer. */}
-                          <p className="text-[12px] leading-snug text-gray-400">
-                            Isso só abre as lojas pra achar onde repor. Quem atualiza a previsão é o registro de um novo pacote — independente de onde você comprou.
-                          </p>
 
                           {/* O botão "Editar" e o painel de opções (escanear/
                               editar manualmente/não uso mais ração) nunca
@@ -1445,36 +1440,48 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               produto" e "Excluir" ficam como ações
                               secundárias, sempre visíveis. */}
                           <div className="space-y-2">
-                            <button type="button"
-                              onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
-                              className="w-full flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-800 shadow-sm active:scale-[0.98] transition-all"
-                            >
-                              <span className="text-xl">✏️</span>
-                              <span className="flex-1 text-left">
-                                <span className="block">Editar plano</span>
-                                <span className="block text-[12px] font-semibold text-blue-700/70">Código de barras, peso, duração ou datas</span>
-                              </span>
-                              <span className="text-blue-300 text-lg">›</span>
-                            </button>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="flex gap-2">
+                              <button type="button"
+                                onClick={() => { setFormRequest({ id: Date.now(), mode: 'edit' }); setMode('edit'); }}
+                                className="flex-1 flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-800 shadow-sm active:scale-[0.98] transition-all"
+                              >
+                                <span className="text-xl">✏️</span>
+                                <span className="flex-1 text-left">
+                                  <span className="block">Editar plano</span>
+                                  <span className="block text-[12px] font-semibold text-blue-700/70">Código de barras, peso, duração ou datas</span>
+                                </span>
+                                <span className="text-blue-300 text-lg">›</span>
+                              </button>
                               <button
                                 type="button"
-                                onClick={() => { void handleDeclareNonKibble(); }}
-                                disabled={declaringNonKibble}
-                                className="w-full py-2 min-h-[40px] rounded-xl bg-white border border-gray-200 text-gray-600 text-[12px] font-semibold hover:bg-gray-50 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                onClick={() => setShowMoreFoodActions((v) => !v)}
+                                aria-label="Mais ações"
+                                className="flex-shrink-0 w-11 rounded-2xl border border-gray-200 bg-white text-gray-500 text-lg font-black active:scale-[0.98] transition-all"
                               >
-                                <span>🍲</span>
-                                {declaringNonKibble ? 'Salvando...' : 'Não uso mais'}
-                              </button>
-                              <button type="button"
-                                onClick={() => { void handleDeletePlan(); }}
-                                disabled={deletingPlan}
-                                className="w-full py-2 min-h-[40px] rounded-xl bg-white border border-red-100 text-red-500 text-[12px] font-semibold hover:bg-red-50 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                              >
-                                <span>🗑️</span>
-                                {deletingPlan ? 'Excluindo...' : 'Excluir plano'}
+                                ⋯
                               </button>
                             </div>
+                            {showMoreFoodActions && (
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => { void handleDeclareNonKibble(); }}
+                                  disabled={declaringNonKibble}
+                                  className="w-full py-2 min-h-[40px] rounded-xl bg-white border border-gray-200 text-gray-600 text-[12px] font-semibold hover:bg-gray-50 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                  <span>🍲</span>
+                                  {declaringNonKibble ? 'Salvando...' : 'Não uso mais'}
+                                </button>
+                                <button type="button"
+                                  onClick={() => { void handleDeletePlan(); }}
+                                  disabled={deletingPlan}
+                                  className="w-full py-2 min-h-[40px] rounded-xl bg-white border border-red-100 text-red-500 text-[12px] font-semibold hover:bg-red-50 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                  <span>🗑️</span>
+                                  {deletingPlan ? 'Excluindo...' : 'Excluir plano'}
+                                </button>
+                              </div>
+                            )}
                           </div>
 
                           {/* 4. Ajustes rápidos */}

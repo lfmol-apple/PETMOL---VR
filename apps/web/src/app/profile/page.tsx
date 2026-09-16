@@ -16,7 +16,7 @@ import { fetchAiPhotoConsent, revokeAiPhotoConsent } from '@/features/ai/aiPhoto
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 
 const G   = 'divide-y divide-slate-100 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06),0_8px_24px_-12px_rgba(15,23,42,0.10)]';
-const ROW = 'px-4 py-4';
+const ROW = 'px-4 py-3';
 const CTA = 'w-full py-4 bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-base font-black rounded-2xl active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xl shadow-blue-500/20 uppercase tracking-widest';
 const DEFAULT_CHECKIN_DAY = 1;
 const DEFAULT_CHECKIN_HOUR = 20;
@@ -819,7 +819,7 @@ export default function ProfilePage() {
                       />
                     </div>
 
-                    <div className="mt-4 flex flex-wrap gap-2">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${pushToggleChecked ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
                         {pushToggleChecked ? 'Chave ligada' : 'Chave desligada'}
                       </span>
@@ -837,7 +837,7 @@ export default function ProfilePage() {
                       const onFile = tutorData?.lat != null && tutorData?.lng != null;
                       const bySource = tutorData?.location_source;
                       return (
-                        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-black text-slate-900">Localização para alertas</p>
@@ -882,7 +882,7 @@ export default function ProfilePage() {
                       );
                     })()}
 
-                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+                    <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
                       <p className="text-sm font-black text-slate-900">Quais notificações deseja receber?</p>
                       <div className="mt-3 grid gap-2">
                         {[
@@ -902,7 +902,7 @@ export default function ProfilePage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <p className="text-sm font-black text-slate-900">Uso de IA para fotos</p>
@@ -927,12 +927,12 @@ export default function ProfilePage() {
                     </div>
 
                     {pushFeedback && (
-                      <div className={`mt-4 rounded-2xl px-4 py-3 text-xs font-bold ${pushFeedback.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                      <div className={`mt-3 rounded-2xl px-4 py-3 text-xs font-bold ${pushFeedback.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
                         {pushFeedback.msg}
                       </div>
                     )}
 
-                    <div className="mt-4 space-y-3">
+                    <div className="mt-3 space-y-3">
                       {!isSubscribed ? (
                         <button
                           type="button"
@@ -940,7 +940,7 @@ export default function ProfilePage() {
                             void activatePush();
                           }}
                           disabled={pushLoading === 'activate' || permission === 'denied'}
-                          className="w-full rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] py-3.5 text-xs font-black uppercase tracking-[0.2em] text-white shadow-lg shadow-blue-500/20 transition-all active:scale-[0.98] disabled:opacity-40"
+                          className="w-full rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] py-3 text-xs font-black uppercase tracking-[0.2em] text-white shadow-lg shadow-blue-500/20 transition-all active:scale-[0.98] disabled:opacity-40"
                         >
                           {pushLoading === 'activate' ? 'Ativando...' : 'Ativar notificações no celular'}
                         </button>
@@ -952,7 +952,7 @@ export default function ProfilePage() {
                               void handlePushTest();
                             }}
                             disabled={pushLoading === 'test'}
-                            className="flex-1 rounded-2xl bg-slate-900 py-3.5 text-[10px] font-black uppercase tracking-[0.2em] text-white transition-all active:scale-[0.98] disabled:opacity-40"
+                            className="flex-1 rounded-2xl bg-slate-900 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white transition-all active:scale-[0.98] disabled:opacity-40"
                           >
                             {pushLoading === 'test' ? 'Enviando...' : 'Enviar teste'}
                           </button>
@@ -962,7 +962,7 @@ export default function ProfilePage() {
                               void deactivatePush();
                             }}
                             disabled={pushLoading === 'deactivate'}
-                            className="flex-1 rounded-2xl bg-slate-100 py-3.5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 transition-all active:scale-[0.98] disabled:opacity-40"
+                            className="flex-1 rounded-2xl bg-slate-100 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 transition-all active:scale-[0.98] disabled:opacity-40"
                           >
                             {pushLoading === 'deactivate' ? 'Desativando...' : 'Desativar'}
                           </button>

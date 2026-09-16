@@ -1225,21 +1225,15 @@ export function FoodControlTab({
                   )}
 
                   {item.isPrimary && item.trackingMethod === 'weight' && pkgKg && dailyConsumptionG && (
-                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                      <span>📦</span>
-                      <span className="text-xs font-semibold text-amber-800">
-                        Duração estimada: ~{Math.round((pkgKg * 1000) / dailyConsumptionG)} dias (após salvar, data exata calculada pelo servidor)
-                      </span>
-                    </div>
+                    <p className="text-[11px] font-medium text-amber-700 px-1">
+                      📦 Duração estimada: ~{Math.round((pkgKg * 1000) / dailyConsumptionG)} dias (após salvar, data exata calculada pelo servidor)
+                    </p>
                   )}
 
                   {item.isPrimary && item.trackingMethod === 'duration' && itemMetrics.days != null && (
-                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                      <span>⏳</span>
-                      <span className="text-xs font-semibold text-amber-800">
-                        O sistema vai usar {itemMetrics.days} dias para programar o próximo lembrete de reposição.
-                      </span>
-                    </div>
+                    <p className="text-[11px] font-medium text-amber-700 px-1">
+                      ⏳ O sistema vai usar {itemMetrics.days} dias para programar o próximo lembrete de reposição.
+                    </p>
                   )}
 
                   {!item.isPrimary && itemMetrics.days != null && (
