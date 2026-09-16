@@ -6,9 +6,10 @@ support can pull the full picture of one account's health records — vaccines,
 antiparasitics, grooming, feeding, reminders — without a DB shell.
 
 Never add a route that mutates or deletes a user's data here: the API key has
-no per-action audit trail. The one exception is ``/apns-test`` — it sends a
-push notification (an outbound side effect, not a data mutation) to help
-diagnose native-push delivery without SSH access to server logs.
+no per-action audit trail. The exceptions are ``/apns-test`` and ``/fcm-test``
+— they send a push notification (an outbound side effect, not a data
+mutation) to help diagnose native-push delivery without SSH access to
+server logs.
 """
 
 from __future__ import annotations
@@ -35,6 +36,7 @@ from ..notifications.apns import (
     get_recent_apns_attempts,
     send_apns,
 )
+from ..notifications.fcm import fcm_configured, get_recent_fcm_attempts, send_fcm
 from .deps import get_current_admin_or_readonly_key
 
 router = APIRouter(prefix="/v1/admin/debug", tags=["Admin Debug"])
@@ -227,3 +229,61 @@ def apns_test(
             row[label] = {"ok": ok, "invalid": invalid}
         results.append(row)
     return {"email": user.email, "results": results}
+
+
+@router.get("/fcm-log")
+def fcm_log(_auth=Depends(get_current_admin_or_readonly_key)):
+    """Últimas tentativas reais de envio via FCM (resposta do Google, não só
+    o que o app achou que aconteceu) — cruzar `token_suffix` com
+    `native_push_tokens` de /user pra achar de qual usuário/device é.
+    Diagnóstico temporário, ver notifications/fcm.py."""
+    return {"configured": fcm_configured(), "attempts": get_recent_fcm_attempts()}
+
+
+@router.post("/fcm-test")
+def fcm_test(
+    email: str = Query(...),
+    deep_url: Optional[str] = Query(default=None, description="Ex.: /home?modal=parasites&petId=X&subtype=flea_tick — testa o toque abrindo a sheet certa, não só se o push chega."),
+    action_id: str = Query(default="open"),
+    db: Session = Depends(get_db),
+    _auth=Depends(get_current_admin_or_readonly_key),
+):
+    """Manda um push de teste pro(s) token(s) Android ativo(s) do usuário via
+    FCM. Mesma ideia do /apns-test, sem a distinção sandbox/produção (a API
+    v1 do FCM não tem esse conceito — o mesmo token funciona pros dois)."""
+    user = db.query(User).filter(User.email == email.strip().lower()).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="usuário não encontrado")
+
+    tokens = (
+        db.query(NativePushToken)
+        .filter(
+            NativePushToken.user_id == user.id,
+            NativePushToken.platform == "android",
+            NativePushToken.disabled_at.is_(None),
+        )
+        .all()
+    )
+    if not tokens:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="sem token Android ativo")
+
+    if deep_url:
+        payload = {
+            "title": "🔔 Teste PETMOL (deep link)",
+            "body": "Toque pra ver se abre a tela certa.",
+            "data": {
+                "url": deep_url,
+                "action_urls": {action_id: deep_url, "dismiss": "/home"},
+            },
+        }
+    else:
+        payload = {
+            "title": "🔔 Teste PETMOL (diagnóstico)",
+            "body": "Se você está vendo isso, chegou! Pode ignorar.",
+            "data": {"url": "/home"},
+        }
+    results = []
+    for t in tokens:
+        ok, invalid = send_fcm(t.token, payload)
+        results.append({"token_suffix": (t.token or "")[-8:], "created_at": _norm(t.created_at), "ok": ok, "invalid": invalid})
+    return {"email": user.email, "configured": fcm_configured(), "results": results}

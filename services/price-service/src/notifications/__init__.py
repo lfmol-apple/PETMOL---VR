@@ -19,6 +19,7 @@ from ..db import Base, SessionLocal, engine
 from ..user_auth.deps import get_current_user
 from ..config import get_settings
 from .apns import apns_configured, send_apns
+from .fcm import fcm_configured, send_fcm
 from ..family.models import FamilyGroup, FamilyMember
 from ..pets.access import accessible_pets_query, get_accessible_pet_or_404
 from ..pets.caretaker_models import PetCaretaker
@@ -122,10 +123,12 @@ class NativePushToken(Base):
     campos de Web Push (que são NOT NULL e não fazem sentido pra esse caso).
 
     IMPORTANTE: esta tabela só REGISTRA o token — o envio de fato (via
-    Firebase Cloud Messaging / Apple Push Notification service) ainda
-    depende de credenciais externas que não existem neste ambiente ainda
-    (projeto Firebase + google-services.json pro Android; certificado/chave
-    APNs + capability no Xcode pro iOS). Ver docs/MOBILE_RELEASE_CHECKLIST.md
+    Firebase Cloud Messaging / Apple Push Notification service, ver
+    fcm.py/apns.py) ainda depende de credenciais externas que precisam ser
+    configuradas no servidor (FCM_SERVICE_ACCOUNT_JSON_FILE; APNS_AUTH_KEY_P8_FILE
+    + APNS_KEY_ID + APNS_TEAM_ID) — e, no caso do Android, o app também
+    precisa do google-services.json embutido no build pra sequer gerar um
+    token válido pra registrar aqui. Ver docs/MOBILE_RELEASE_CHECKLIST.md
     para o que falta exatamente e quem precisa fazer o quê.
     """
     __tablename__ = "native_push_tokens"
@@ -224,11 +227,11 @@ def _load_subscriptions_by_user() -> dict:
 
 
 def _load_active_native_user_ids() -> set:
-    """Ids de usuários com pelo menos 1 device token iOS nativo ativo.
-    Usado pelos broadcasts (ex.: Pet Sumido) que hoje só olham
+    """Ids de usuários com pelo menos 1 device token nativo ativo (iOS ou
+    Android). Usado pelos broadcasts (ex.: Pet Sumido) que hoje só olham
     push_subscriptions (Web Push) — sem isso, usuários só-nativos (o app
     publicado, que nunca registra Web Push) nunca entram no envio."""
-    if not apns_configured():
+    if not apns_configured() and not fcm_configured():
         return set()
     db = SessionLocal()
     try:
@@ -273,11 +276,13 @@ def _send_push_devices(devices: list, payload: dict) -> tuple:
 
 
 def user_has_active_native_token(user_id: str) -> bool:
-    """True se o usuário tem pelo menos 1 device token nativo ativo E a APNs
-    está configurada. Nesse caso o app NATIVO é o canal — não mandamos
-    também Web Push pro mesmo usuário (senão o mesmo lembrete chega 2x: uma
-    pelo app nativo, outra pelo PWA/navegador, que pode nem estar logado)."""
-    if not apns_configured():
+    """True se o usuário tem pelo menos 1 device token nativo ativo (iOS ou
+    Android) E o canal correspondente (APNs/FCM) está configurado. Nesse
+    caso o app NATIVO é o canal — não mandamos também Web Push pro mesmo
+    usuário (senão o mesmo lembrete chega 2x: uma pelo app nativo, outra
+    pelo PWA/navegador, que pode nem estar logado)."""
+    configured_platforms = [p for p, ok in (("ios", apns_configured()), ("android", fcm_configured())) if ok]
+    if not configured_platforms:
         return False
     db = SessionLocal()
     try:
@@ -285,6 +290,7 @@ def user_has_active_native_token(user_id: str) -> bool:
             db.query(NativePushToken.id)
             .filter(
                 NativePushToken.user_id == str(user_id),
+                NativePushToken.platform.in_(configured_platforms),
                 NativePushToken.disabled_at.is_(None),
             )
             .first()
@@ -298,10 +304,16 @@ def user_has_active_native_token(user_id: str) -> bool:
 
 def push_native_ios_to_user(user_id: str, payload: dict) -> int:
     """Envia `payload` (mesmo formato do Web Push: title/body/badge/data)
-    para todos os device tokens iOS ativos do usuário via APNs. No-op se a
-    APNs não estiver configurada. Desativa tokens inválidos. Retorna quantos
-    dispositivos receberam."""
-    if not apns_configured():
+    para todos os device tokens nativos ativos do usuário — iOS via APNs,
+    Android via FCM. No-op por plataforma se o canal correspondente não
+    estiver configurado. Desativa tokens inválidos. Retorna quantos
+    dispositivos receberam.
+
+    Nome mantido por compatibilidade (vários call sites já usam este nome
+    diretamente) mesmo cobrindo os dois canais nativos agora — ver
+    fcm.py/apns.py para o "configured" de cada um."""
+    senders = {"ios": (apns_configured, send_apns), "android": (fcm_configured, send_fcm)}
+    if not any(is_configured() for is_configured, _ in senders.values()):
         return 0
     db = SessionLocal()
     try:
@@ -309,7 +321,7 @@ def push_native_ios_to_user(user_id: str, payload: dict) -> int:
             db.query(NativePushToken)
             .filter(
                 NativePushToken.user_id == str(user_id),
-                NativePushToken.platform == "ios",
+                NativePushToken.platform.in_(list(senders.keys())),
                 NativePushToken.disabled_at.is_(None),
             )
             .all()
@@ -317,7 +329,10 @@ def push_native_ios_to_user(user_id: str, payload: dict) -> int:
         ok = 0
         invalid_ids: list = []
         for t in tokens:
-            sent, invalid = send_apns(t.token, payload)
+            is_configured, send = senders.get(t.platform, (None, None))
+            if not is_configured or not send or not is_configured():
+                continue
+            sent, invalid = send(t.token, payload)
             if sent:
                 ok += 1
             if invalid:
@@ -487,10 +502,11 @@ def send_due_reminders() -> None:
                 for uid in recipient_ids
                 for sub_row in subs_by_user.get(uid, [])
             ]
-            # `apns_configured()` = pode haver destinatário iOS nativo (os
-            # tokens são conferidos por usuário no envio). Sem web nem APNs,
-            # não há pra onde mandar — consome o lembrete.
-            if not recipient_subs and not apns_configured():
+            # apns_configured()/fcm_configured() = pode haver destinatário
+            # nativo iOS/Android (os tokens são conferidos por usuário no
+            # envio). Sem web nem nenhum canal nativo, não há pra onde
+            # mandar — consome o lembrete.
+            if not recipient_subs and not apns_configured() and not fcm_configured():
                 logger.info(f"Reminder {reminder.id}: sem subscriptions para o pet/user — consumindo")
                 if is_duplicate:
                     logger.info(f"Reminder {reminder.id}: duplicado suprimido — marcado como enviado")
@@ -536,9 +552,10 @@ def send_due_reminders() -> None:
                     "type": reminder.type,
                 },
             }
-            # Quem tem app nativo recebe SÓ por APNs — nada de Web Push pro
-            # mesmo usuário (senão o lembrete chega 2x: app nativo + PWA/
-            # navegador, que pode até nem estar logado → cai no /login).
+            # Quem tem app nativo recebe SÓ pelo canal nativo (APNs/FCM) —
+            # nada de Web Push pro mesmo usuário (senão o lembrete chega 2x:
+            # app nativo + PWA/navegador, que pode até nem estar logado →
+            # cai no /login).
             native_recipient_ids = {
                 rid for rid in recipient_ids if user_has_active_native_token(rid)
             }
@@ -547,7 +564,7 @@ def send_due_reminders() -> None:
             hard_fail = False
             for recipient_id, sub_row in recipient_subs:
                 if recipient_id in native_recipient_ids:
-                    continue  # já vai receber por APNs abaixo
+                    continue  # já vai receber pelo canal nativo abaixo
                 sub_dict = {"endpoint": sub_row.endpoint, "keys": {"p256dh": sub_row.p256dh, "auth": sub_row.auth}}
                 ok, sub_invalid = _send_push(sub_dict, payload)
                 logger.info(
@@ -825,19 +842,23 @@ def test_push(current_user=Depends(get_current_user)):
         native_ok = push_native_ios_to_user(str(current_user.id), payload)
 
         if not subs and native_ok == 0:
-            # Nenhum canal: sem sub Web e (APNs off OU sem token iOS).
-            has_ios_token = (
-                db.query(NativePushToken)
+            # Nenhum canal: sem sub Web e (canal nativo off OU sem token).
+            native_token = (
+                db.query(NativePushToken.platform)
                 .filter(
                     NativePushToken.user_id == str(current_user.id),
-                    NativePushToken.platform == "ios",
                     NativePushToken.disabled_at.is_(None),
                 )
                 .first()
-                is not None
             )
-            if has_ios_token and not apns_configured():
-                raise HTTPException(status_code=503, detail="Push nativo iOS ainda não está ativo no servidor")
+            if native_token:
+                platform = native_token[0]
+                is_configured = apns_configured() if platform == "ios" else fcm_configured()
+                if not is_configured:
+                    raise HTTPException(
+                        status_code=503,
+                        detail=f"Push nativo {'iOS' if platform == 'ios' else 'Android'} ainda não está ativo no servidor",
+                    )
             raise HTTPException(status_code=404, detail="Sem dispositivo registrado para este usuário")
 
         any_ok = native_ok > 0
