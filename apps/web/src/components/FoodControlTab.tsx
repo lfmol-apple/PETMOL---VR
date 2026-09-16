@@ -1078,11 +1078,37 @@ export function FoodControlTab({
                     )}
                   </div>
 
+                  {/* 1) Identificar a ração primeiro — escanear é a via
+                      principal (mais preciso que digitar a mão e resolve
+                      oferta comercial por GTIN exato, AwinFeedProvider). A
+                      regra de controle (peso/duração, abaixo) só faz sentido
+                      depois que o produto já está identificado. */}
+                  <ProductBarcodeScanner
+                    label="Escanear código de barras"
+                    expectedCategory="food"
+                    defaultMode="scan"
+                    petId={petId}
+                    petName={_petName}
+                    onProductConfirmed={(product) => applyScannedProduct(item.id, product)}
+                  />
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Marca / Produto</label>
+                    <input
+                      type="text"
+                      value={item.brand}
+                      onChange={e => updateItem(item.id, (current) => ({ ...current, brand: e.target.value }))}
+                      placeholder="Ex: Royal Canin, Guabi Natural, petisco..."
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+                    />
+                  </div>
+
+                  {/* 2) Regra de controle — só depois da ração identificada. */}
                   {!isQuickSetup && showAdvanced && (
                     <div className="space-y-2">
-                      {!methodChosen && (
-                        <p className="text-xs font-bold text-amber-700">Selecione como controlar a ração:</p>
-                      )}
+                      <p className="text-xs font-bold text-amber-700">
+                        {methodChosen ? 'Como controlar a reposição desta ração:' : 'Selecione como controlar a ração:'}
+                      </p>
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
@@ -1109,29 +1135,6 @@ export function FoodControlTab({
                       </div>
                     </div>
                   )}
-
-                  {/* Escanear é a via principal de identificação — mais preciso
-                      que digitar a mão e resolve oferta comercial por GTIN
-                      exato (AwinFeedProvider). */}
-                  <ProductBarcodeScanner
-                    label="Escanear código de barras"
-                    expectedCategory="food"
-                    defaultMode="scan"
-                    petId={petId}
-                    petName={_petName}
-                    onProductConfirmed={(product) => applyScannedProduct(item.id, product)}
-                  />
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Marca / Produto</label>
-                    <input
-                      type="text"
-                      value={item.brand}
-                      onChange={e => updateItem(item.id, (current) => ({ ...current, brand: e.target.value }))}
-                      placeholder="Ex: Royal Canin, Guabi Natural, petisco..."
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
-                    />
-                  </div>
 
                   {isQuickSetup || !showAdvanced ? (
                     <div className="grid grid-cols-2 gap-2">
