@@ -1933,13 +1933,13 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         return (
           <div
             key={alert.id}
-            className="relative overflow-hidden rounded-2xl border border-rose-300 bg-gradient-to-br from-rose-500 to-rose-600 shadow-lg shadow-rose-900/20"
+            className="relative overflow-hidden rounded-2xl border border-rose-200 bg-white shadow-md shadow-rose-900/5"
           >
             <button
               type="button"
               aria-label="Recolher alerta"
               onClick={() => setAlertCollapsed(alert.id, true)}
-              className="absolute right-2 top-2 z-10 flex h-7 items-center gap-1 rounded-full bg-black/30 pl-2.5 pr-2 text-[11px] font-bold text-white/90 active:scale-95 transition-transform"
+              className="absolute right-2 top-2 z-10 flex h-7 items-center gap-1 rounded-full bg-slate-900/40 pl-2.5 pr-2 text-[11px] font-bold text-white active:scale-95 transition-transform"
             >
               Recolher
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden>
@@ -1952,7 +1952,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                 type="button"
                 onClick={() => setAlertCard(alert)}
                 aria-label={`Ver cartaz de ${alert.pet_name}`}
-                className="relative flex w-[45%] flex-shrink-0 items-center justify-center self-stretch overflow-hidden bg-white/15 text-5xl active:opacity-90 transition-opacity"
+                className="relative flex w-[42%] flex-shrink-0 items-center justify-center self-stretch overflow-hidden bg-rose-50 text-5xl active:opacity-90 transition-opacity"
                 style={{ minHeight: 168 }}
               >
                 {alertPhotoUrl ? (
@@ -1960,40 +1960,40 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                 ) : (
                   <span>{alert.species === 'cat' ? '🐱' : '🐶'}</span>
                 )}
-                <span className="absolute bottom-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-[12px] leading-none text-white">⤢</span>
+                <span className="absolute bottom-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/45 text-[12px] leading-none text-white">⤢</span>
               </button>
               <div className="min-w-0 flex-1 p-4">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-rose-100">
-                  Alerta · {speciesLabel} desaparecido
-                </p>
-                <h3 className="mt-0.5 text-[16px] font-black leading-tight text-white">
+                <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-rose-600">
+                  🚨 {speciesLabel} desaparecido
+                </span>
+                <h3 className="mt-2 text-[16px] font-black leading-tight text-slate-900">
                   {alert.pet_name} pode estar na sua região!
                 </h3>
                 {descricao && (
-                  <p className="mt-1 text-[12px] font-medium text-white/90 line-clamp-2">
+                  <p className="mt-1 text-[12px] font-medium text-slate-500 line-clamp-2">
                     {descricao}
                   </p>
                 )}
                 {alert.last_seen_location && (
-                  <p className="mt-1 text-[12px] font-medium text-rose-100 line-clamp-2">
+                  <p className="mt-1 text-[12px] font-medium text-slate-600 line-clamp-2">
                     Visto em: {alert.last_seen_location}
                   </p>
                 )}
-                <p className="mt-0.5 text-[11px] text-rose-200">{missingInfo}</p>
+                <p className="mt-0.5 text-[11px] text-slate-400">{missingInfo}</p>
               </div>
             </div>
             <div className="flex gap-2 px-4 pb-3 pt-1">
               <button
                 type="button"
                 onClick={() => setAlertCard(alert)}
-                className="flex-1 rounded-xl bg-white/15 py-2.5 text-[13px] font-bold text-white active:scale-95 transition-transform"
+                className="flex-1 rounded-xl bg-rose-50 py-2.5 text-[13px] font-bold text-rose-700 active:scale-95 transition-transform"
               >
                 Ver cartaz
               </button>
               <button
                 type="button"
                 onClick={() => router.push(`/achei-um-pet?id=${alert.id}`)}
-                className="flex-1 rounded-xl bg-white py-2.5 text-[13px] font-black text-rose-600 shadow-sm active:scale-95 transition-transform"
+                className="flex-1 rounded-xl bg-rose-600 py-2.5 text-[13px] font-black text-white shadow-sm shadow-rose-600/30 active:scale-95 transition-transform"
               >
                 Vi este pet
               </button>
@@ -2001,7 +2001,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
             {/* Ação secundária DELIBERADA de ocultar (não é o "recolher"):
                 esconde o alerta da Home por um tempo. Continua acessível
                 na área "Pets desaparecidos na região". Nunca um X ambíguo. */}
-            <div className="flex items-center border-t border-white/15">
+            <div className="flex items-center border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => {
@@ -2009,15 +2009,15 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                   setHandledAlertIds(prev => [...new Set([...prev, alert.id])]);
                   setNearbyAlerts(prev => prev.filter(a => a.id !== alert.id));
                 }}
-                className="flex-1 py-2 text-center text-[11px] font-semibold text-white/60 active:bg-black/10"
+                className="flex-1 py-2 text-center text-[11px] font-semibold text-slate-400 active:bg-slate-50"
               >
                 Não mostrar por enquanto
               </button>
-              <span className="text-white/20">·</span>
+              <span className="text-slate-200">·</span>
               <button
                 type="button"
                 onClick={() => setReportAlert(alert)}
-                className="flex-1 py-2 text-center text-[11px] font-semibold text-white/60 active:bg-black/10"
+                className="flex-1 py-2 text-center text-[11px] font-semibold text-slate-400 active:bg-slate-50"
               >
                 Denunciar
               </button>
