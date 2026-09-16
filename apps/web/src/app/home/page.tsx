@@ -1819,6 +1819,226 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     return <AppBootSplash />;
   }
   
+  // Resumo de "pets sumidos na região" (não são do usuário) — filtro extra
+  // por user_id além do que o backend já exclui, pra nunca mostrar pro
+  // próprio dono/família o alerta do próprio pet aqui (esse caso já tem o
+  // card certo "Baby está com alerta ativo", ver ownMissingAlerts). Extraído
+  // pra uma variável (em vez de JSX inline) porque a posição na Home mudou:
+  // o slot visual agora é passado como prop pra dentro de AppleControlButtons
+  // (ver regionalMissingPetsBanner ali) — antes ficava fixo aqui em cima,
+  // acima até do nome do pet, que era exatamente o problema de hierarquia
+  // relatado (urgência comunitária competindo com o conteúdo pessoal).
+  const regionalMissingPetsBanner = (() => {
+    const regionAlerts = nearbyAlerts.filter(a => a.user_id !== loggedUserId);
+    const visibleAlerts = regionAlerts.filter(a => !handledAlertIds.includes(a.id));
+    if (regionAlerts.length === 0) return null;
+
+    // Escala (set/2026): com 1 alerta só, o card cheio abaixo (foto,
+    // descrição, "Vi este pet"/"Denunciar") continua igual. Com 2+, o
+    // card cheio por alerta empurrava o resto da Home pra baixo sem
+    // limite (nada capava quantos ficavam expandidos ao mesmo tempo).
+    // Mockup comparado e aprovado com o dono do produto: nenhum alerta
+    // fica expandido nesse caso — só um resumo com UM pet em destaque
+    // (o mais próximo; a lista já vem ordenada por distância do
+    // backend, ver _nearby_active_missing_pets) mostrando a FOTO real
+    // dele (é o que desperta o "ei, eu vi esse ali" de quem passou por
+    // perto — um emoji genérico não faz isso), e o resto some num
+    // texto "+N outros" que leva pra /pets-desaparecidos.
+    if (visibleAlerts.length >= 2) {
+      const featured = visibleAlerts[0];
+      const featuredPhotoUrl = getPhotoUrl(featured.photo_url);
+      const restCount = visibleAlerts.length - 1;
+      return (
+        <div className="space-y-1.5">
+          <button
+            type="button"
+            onClick={() => router.push('/pets-desaparecidos')}
+            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-left active:opacity-90 transition-opacity"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="flex-shrink-0 text-base" aria-hidden>🚨</span>
+              <span className="truncate text-[13px] font-black text-rose-700">
+                {visibleAlerts.length} pets desaparecidos na sua região
+              </span>
+            </span>
+            <span className="flex-shrink-0 text-base text-rose-300">›</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAlertCard(featured)}
+            aria-label={`Ver cartaz de ${featured.pet_name}`}
+            className="flex w-full items-center gap-3 rounded-2xl border border-rose-200 bg-white px-3.5 py-2.5 text-left shadow-sm shadow-rose-900/5 transition-transform active:scale-[0.98]"
+          >
+            <span className="relative h-11 w-11 flex-shrink-0 overflow-hidden rounded-full border border-rose-200 bg-rose-50">
+              {featuredPhotoUrl ? (
+                <img src={featuredPhotoUrl} alt={featured.pet_name} className="h-full w-full object-cover" />
+              ) : (
+                <span className="flex h-full w-full items-center justify-center text-lg">
+                  {featured.species === 'cat' ? '🐱' : '🐶'}
+                </span>
+              )}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-black text-slate-800">{featured.pet_name}</span>
+              <span className="block text-[11px] font-bold text-rose-600">Mais próximo · toque pra ver</span>
+            </span>
+            <span className="flex-shrink-0 text-base text-rose-300">›</span>
+          </button>
+
+          {restCount > 0 && (
+            <button
+              type="button"
+              onClick={() => router.push('/pets-desaparecidos')}
+              className="w-full py-1 text-center text-[12px] font-bold text-rose-600 active:opacity-70"
+            >
+              + {restCount} {restCount > 1 ? 'outros pets desaparecidos' : 'outro pet desaparecido'} por perto ›
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    return (
+    <div className="space-y-2">
+      {visibleAlerts.map((alert) => {
+        const speciesLabel = alert.species === 'cat' ? 'Gato' : alert.species === 'dog' ? 'Cachorro' : 'Pet';
+        const missingInfo = alert.missing_date
+          ? `Desaparecido em ${formatLocalDateOnly(alert.missing_date, 'pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}${alert.missing_time ? ' às ' + alert.missing_time : ''}`
+          : 'Desaparecido recentemente';
+        const alertPhotoUrl = getPhotoUrl(alert.photo_url);
+        const descricao = [alert.breed, alert.characteristics].filter(Boolean).join(' · ');
+        const isCollapsed = collapsedAlertIds.includes(alert.id);
+
+        // ESTADO COMPACTO — o desaparecimento continua ativo; o card só
+        // ocupa menos espaço. Tocar reabre. "Recolher" NUNCA dispensa.
+        if (isCollapsed) {
+          return (
+            <button
+              key={alert.id}
+              type="button"
+              onClick={() => setAlertCollapsed(alert.id, false)}
+              aria-label={`Ver alerta de ${alert.pet_name}`}
+              className="flex w-full items-center gap-2.5 overflow-hidden rounded-2xl border border-rose-300 bg-rose-600 px-3.5 py-2.5 text-left shadow-md shadow-rose-900/20 active:opacity-90 transition-opacity"
+            >
+              <span className="flex-shrink-0 text-base" aria-hidden>🚨</span>
+              <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-white">
+                {alert.pet_name} continua desaparecido
+              </span>
+              <span className="flex-shrink-0 text-[11px] font-black uppercase tracking-wide text-white/90">Ver alerta ›</span>
+            </button>
+          );
+        }
+
+        return (
+          <div
+            key={alert.id}
+            className="relative overflow-hidden rounded-2xl border border-rose-300 bg-gradient-to-br from-rose-500 to-rose-600 shadow-lg shadow-rose-900/20"
+          >
+            <button
+              type="button"
+              aria-label="Recolher alerta"
+              onClick={() => setAlertCollapsed(alert.id, true)}
+              className="absolute right-2 top-2 z-10 flex h-7 items-center gap-1 rounded-full bg-black/30 pl-2.5 pr-2 text-[11px] font-bold text-white/90 active:scale-95 transition-transform"
+            >
+              Recolher
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden>
+                <path d="M18 15l-6-6-6 6" />
+              </svg>
+            </button>
+            <div className="flex items-stretch">
+              {/* Foto do pet — ~metade do alerta. Toque abre o cartaz. */}
+              <button
+                type="button"
+                onClick={() => setAlertCard(alert)}
+                aria-label={`Ver cartaz de ${alert.pet_name}`}
+                className="relative flex w-[45%] flex-shrink-0 items-center justify-center self-stretch overflow-hidden bg-white/15 text-5xl active:opacity-90 transition-opacity"
+                style={{ minHeight: 168 }}
+              >
+                {alertPhotoUrl ? (
+                  <img src={alertPhotoUrl} alt={alert.pet_name} className="absolute inset-0 h-full w-full object-cover" />
+                ) : (
+                  <span>{alert.species === 'cat' ? '🐱' : '🐶'}</span>
+                )}
+                <span className="absolute bottom-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-[12px] leading-none text-white">⤢</span>
+              </button>
+              <div className="min-w-0 flex-1 p-4">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-rose-100">
+                  Alerta · {speciesLabel} desaparecido
+                </p>
+                <h3 className="mt-0.5 text-[16px] font-black leading-tight text-white">
+                  {alert.pet_name} pode estar na sua região!
+                </h3>
+                {descricao && (
+                  <p className="mt-1 text-[12px] font-medium text-white/90 line-clamp-2">
+                    {descricao}
+                  </p>
+                )}
+                {alert.last_seen_location && (
+                  <p className="mt-1 text-[12px] font-medium text-rose-100 line-clamp-2">
+                    Visto em: {alert.last_seen_location}
+                  </p>
+                )}
+                <p className="mt-0.5 text-[11px] text-rose-200">{missingInfo}</p>
+              </div>
+            </div>
+            <div className="flex gap-2 px-4 pb-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setAlertCard(alert)}
+                className="flex-1 rounded-xl bg-white/15 py-2.5 text-[13px] font-bold text-white active:scale-95 transition-transform"
+              >
+                Ver cartaz
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push(`/achei-um-pet?id=${alert.id}`)}
+                className="flex-1 rounded-xl bg-white py-2.5 text-[13px] font-black text-rose-600 shadow-sm active:scale-95 transition-transform"
+              >
+                Vi este pet
+              </button>
+            </div>
+            {/* Ação secundária DELIBERADA de ocultar (não é o "recolher"):
+                esconde o alerta da Home por um tempo. Continua acessível
+                na área "Pets desaparecidos na região". Nunca um X ambíguo. */}
+            <div className="flex items-center border-t border-white/15">
+              <button
+                type="button"
+                onClick={() => {
+                  writeDismissedId(alert.id);
+                  setHandledAlertIds(prev => [...new Set([...prev, alert.id])]);
+                  setNearbyAlerts(prev => prev.filter(a => a.id !== alert.id));
+                }}
+                className="flex-1 py-2 text-center text-[11px] font-semibold text-white/60 active:bg-black/10"
+              >
+                Não mostrar por enquanto
+              </button>
+              <span className="text-white/20">·</span>
+              <button
+                type="button"
+                onClick={() => setReportAlert(alert)}
+                className="flex-1 py-2 text-center text-[11px] font-semibold text-white/60 active:bg-black/10"
+              >
+                Denunciar
+              </button>
+            </div>
+          </div>
+        );
+      })}
+      {/* Entrada para a área recuperável — visível sempre que houver
+          alerta ativo na região, inclusive quando todos foram
+          recolhidos/ocultados. Um alerta sério nunca depende só do card. */}
+      <button
+        type="button"
+        onClick={() => router.push('/pets-desaparecidos')}
+        className="w-full py-1.5 text-center text-[12px] font-bold text-rose-600 active:opacity-70"
+      >
+        Ver todos os pets desaparecidos na região ›
+      </button>
+    </div>
+    );
+  })();
+
   return (
     <div
       className="min-h-screen bg-gradient-to-b from-amber-50/40 via-white to-gray-50"
@@ -2112,155 +2332,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           </div>
         )}
 
-        {/* Banner vermelho: pets sumidos na região (não são do usuário) —
-            filtro extra por user_id além do que o backend já exclui, pra
-            nunca mostrar pro próprio dono/família o alerta do próprio pet
-            aqui (esse caso já tem o card certo "Baby está com alerta
-            ativo" logo abaixo, ver ownMissingAlerts). */}
-        {(() => {
-          const regionAlerts = nearbyAlerts.filter(a => a.user_id !== loggedUserId);
-          const visibleAlerts = regionAlerts.filter(a => !handledAlertIds.includes(a.id));
-          if (regionAlerts.length === 0) return null;
-          return (
-          <div className="mb-3 space-y-2">
-            {visibleAlerts.map((alert) => {
-              const speciesLabel = alert.species === 'cat' ? 'Gato' : alert.species === 'dog' ? 'Cachorro' : 'Pet';
-              const missingInfo = alert.missing_date
-                ? `Desaparecido em ${formatLocalDateOnly(alert.missing_date, 'pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}${alert.missing_time ? ' às ' + alert.missing_time : ''}`
-                : 'Desaparecido recentemente';
-              const alertPhotoUrl = getPhotoUrl(alert.photo_url);
-              const descricao = [alert.breed, alert.characteristics].filter(Boolean).join(' · ');
-              const isCollapsed = collapsedAlertIds.includes(alert.id);
-
-              // ESTADO COMPACTO — o desaparecimento continua ativo; o card só
-              // ocupa menos espaço. Tocar reabre. "Recolher" NUNCA dispensa.
-              if (isCollapsed) {
-                return (
-                  <button
-                    key={alert.id}
-                    type="button"
-                    onClick={() => setAlertCollapsed(alert.id, false)}
-                    aria-label={`Ver alerta de ${alert.pet_name}`}
-                    className="flex w-full items-center gap-2.5 overflow-hidden rounded-2xl border border-rose-300 bg-rose-600 px-3.5 py-2.5 text-left shadow-md shadow-rose-900/20 active:opacity-90 transition-opacity"
-                  >
-                    <span className="flex-shrink-0 text-base" aria-hidden>🚨</span>
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-white">
-                      {alert.pet_name} continua desaparecido
-                    </span>
-                    <span className="flex-shrink-0 text-[11px] font-black uppercase tracking-wide text-white/90">Ver alerta ›</span>
-                  </button>
-                );
-              }
-
-              return (
-                <div
-                  key={alert.id}
-                  className="relative overflow-hidden rounded-2xl border border-rose-300 bg-gradient-to-br from-rose-500 to-rose-600 shadow-lg shadow-rose-900/20"
-                >
-                  <button
-                    type="button"
-                    aria-label="Recolher alerta"
-                    onClick={() => setAlertCollapsed(alert.id, true)}
-                    className="absolute right-2 top-2 z-10 flex h-7 items-center gap-1 rounded-full bg-black/30 pl-2.5 pr-2 text-[11px] font-bold text-white/90 active:scale-95 transition-transform"
-                  >
-                    Recolher
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden>
-                      <path d="M18 15l-6-6-6 6" />
-                    </svg>
-                  </button>
-                  <div className="flex items-stretch">
-                    {/* Foto do pet — ~metade do alerta. Toque abre o cartaz. */}
-                    <button
-                      type="button"
-                      onClick={() => setAlertCard(alert)}
-                      aria-label={`Ver cartaz de ${alert.pet_name}`}
-                      className="relative flex w-[45%] flex-shrink-0 items-center justify-center self-stretch overflow-hidden bg-white/15 text-5xl active:opacity-90 transition-opacity"
-                      style={{ minHeight: 168 }}
-                    >
-                      {alertPhotoUrl ? (
-                        <img src={alertPhotoUrl} alt={alert.pet_name} className="absolute inset-0 h-full w-full object-cover" />
-                      ) : (
-                        <span>{alert.species === 'cat' ? '🐱' : '🐶'}</span>
-                      )}
-                      <span className="absolute bottom-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-[12px] leading-none text-white">⤢</span>
-                    </button>
-                    <div className="min-w-0 flex-1 p-4">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-rose-100">
-                        Alerta · {speciesLabel} desaparecido
-                      </p>
-                      <h3 className="mt-0.5 text-[16px] font-black leading-tight text-white">
-                        {alert.pet_name} pode estar na sua região!
-                      </h3>
-                      {descricao && (
-                        <p className="mt-1 text-[12px] font-medium text-white/90 line-clamp-2">
-                          {descricao}
-                        </p>
-                      )}
-                      {alert.last_seen_location && (
-                        <p className="mt-1 text-[12px] font-medium text-rose-100 line-clamp-2">
-                          Visto em: {alert.last_seen_location}
-                        </p>
-                      )}
-                      <p className="mt-0.5 text-[11px] text-rose-200">{missingInfo}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 px-4 pb-3 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setAlertCard(alert)}
-                      className="flex-1 rounded-xl bg-white/15 py-2.5 text-[13px] font-bold text-white active:scale-95 transition-transform"
-                    >
-                      Ver cartaz
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/achei-um-pet?id=${alert.id}`)}
-                      className="flex-1 rounded-xl bg-white py-2.5 text-[13px] font-black text-rose-600 shadow-sm active:scale-95 transition-transform"
-                    >
-                      Vi este pet
-                    </button>
-                  </div>
-                  {/* Ação secundária DELIBERADA de ocultar (não é o "recolher"):
-                      esconde o alerta da Home por um tempo. Continua acessível
-                      na área "Pets desaparecidos na região". Nunca um X ambíguo. */}
-                  <div className="flex items-center border-t border-white/15">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        writeDismissedId(alert.id);
-                        setHandledAlertIds(prev => [...new Set([...prev, alert.id])]);
-                        setNearbyAlerts(prev => prev.filter(a => a.id !== alert.id));
-                      }}
-                      className="flex-1 py-2 text-center text-[11px] font-semibold text-white/60 active:bg-black/10"
-                    >
-                      Não mostrar por enquanto
-                    </button>
-                    <span className="text-white/20">·</span>
-                    <button
-                      type="button"
-                      onClick={() => setReportAlert(alert)}
-                      className="flex-1 py-2 text-center text-[11px] font-semibold text-white/60 active:bg-black/10"
-                    >
-                      Denunciar
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-            {/* Entrada para a área recuperável — visível sempre que houver
-                alerta ativo na região, inclusive quando todos foram
-                recolhidos/ocultados. Um alerta sério nunca depende só do card. */}
-            <button
-              type="button"
-              onClick={() => router.push('/pets-desaparecidos')}
-              className="w-full py-1.5 text-center text-[12px] font-bold text-rose-600 active:opacity-70"
-            >
-              Ver todos os pets desaparecidos na região ›
-            </button>
-          </div>
-          );
-        })()}
-
         {/* Pet Management - if pets exist */}
         {pets.length > 0 ? (
           <div className="mx-auto max-w-2xl space-y-3 rounded-[26px] border border-slate-200 bg-gradient-to-b from-[#F0F4F8] to-[#E2E8F0] p-2 shadow-2xl min-[390px]:space-y-4 min-[390px]:rounded-3xl min-[390px]:p-2.5 sm:p-4">
@@ -2455,6 +2526,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     onOpenPetSumido={() => setShowPetSumidoSheet(true)}
                     onUpcomingCountChange={(_count, reminders) => setAllUpcomingReminders(reminders)}
                     onHealthItemClick={setHealthQuickAction}
+                    regionalMissingPetsBanner={regionalMissingPetsBanner}
                   />
                 </PetTabs>
               </div>
