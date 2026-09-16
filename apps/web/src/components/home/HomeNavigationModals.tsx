@@ -104,7 +104,7 @@ export function HomeNavigationModals({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header Mini-Home — bloco azul PETMOL, mesma linguagem dos sheets do pet */}
-            <div className={`flex items-center justify-between px-6 py-5 ${PETMOL_HEADER_BG} shadow-[0_6px_20px_-10px_rgba(0,66,126,0.7)]`}>
+            <div className={`flex items-center justify-between px-6 py-4 ${PETMOL_HEADER_BG} shadow-[0_6px_20px_-10px_rgba(0,66,126,0.7)]`}>
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 flex-shrink-0 rounded-full overflow-hidden bg-white shadow-[0_2px_10px_rgba(0,0,0,0.18)] ring-2 ring-white/70 flex items-center justify-center">
                   {petPhotoSrc ? (
@@ -129,8 +129,11 @@ export function HomeNavigationModals({
             </div>
 
             {/* Grid de Cuidados (Mini-Home) — rola se não couber */}
-            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50">
-              <div className="grid grid-cols-2 gap-3 mb-2">
+            <div
+              className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50"
+              style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
+            >
+              <div className="grid grid-cols-2 gap-2 mb-1">
                 {[
                   // Cards vivos, na mesma linguagem da Home: borda saturada +
                   // degradê forte + rótulo tingido. A arte .webp continua por cima.
@@ -190,7 +193,7 @@ export function HomeNavigationModals({
                       onCloseHealthOptionsModal();
                       onOpenHealthTab(tab);
                     }}
-                    className={`group relative overflow-hidden ${gradient} border rounded-2xl p-4 h-[134px] transition-all duration-200 hover:shadow-lg hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-sm ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
+                    className={`group relative overflow-hidden ${gradient} border rounded-2xl p-3 h-[108px] transition-all duration-200 hover:shadow-lg hover:-translate-y-1 active:scale-95 text-left flex flex-col justify-end shadow-sm ${isEmergency ? 'shadow-[0_8px_20px_rgba(239,68,68,0.10)] hover:shadow-[0_12px_24px_rgba(239,68,68,0.14)]' : ''}`}
                   >
                     {shouldShowAlert(tone, alert) && <ControlAlertBadge tone={tone} />}
                     {image ? (
@@ -200,12 +203,12 @@ export function HomeNavigationModals({
                           alt=""
                           className={
                             tab === 'collar'
-                              ? 'h-[92px] w-[92px] object-contain'
+                              ? 'h-[68px] w-[68px] object-contain'
                               : tab === 'flea_tick'
-                                ? 'h-[38px] w-[38px] object-contain'
+                                ? 'h-[32px] w-[32px] object-contain'
                                 : tab === 'medication'
-                                  ? 'h-[61px] w-[86px] object-contain'
-                                  : 'h-[76px] w-[76px] object-contain'
+                                  ? 'h-[50px] w-[70px] object-contain'
+                                  : 'h-[62px] w-[62px] object-contain'
                           }
                         />
                       </span>
@@ -222,11 +225,6 @@ export function HomeNavigationModals({
                   </button>
                 )})}
               </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-200/60 bg-white/50 text-center" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
-              <p className="text-[11px] text-slate-400 font-medium">Toque em cada item para ver detalhes e datas</p>
             </div>
           </div>
         </div>
