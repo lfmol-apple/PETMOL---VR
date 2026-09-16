@@ -72,18 +72,14 @@ Checklist de lançamento para App Store + Google Play, mantido a partir do push 
 
 ## Push nativo (Android/iOS) — pendências externas
 
-**iOS: resolvido e confirmado em aparelho físico (11/09/2026)** — ver Bloqueio 2 abaixo, mantido só como registro histórico. O registro do token (permissão, captura, envio ao backend, tabela `native_push_tokens`, cascade de exclusão de conta) está pronto de ponta a ponta nas duas plataformas — commit `09b9641`, CI verde. No iOS o envio de fato **já funciona**; no Android (FCM) o bloqueio abaixo segue sem confirmação registrada neste repositório:
+**iOS: resolvido e confirmado em aparelho físico (11/09/2026)** — ver Bloqueio 2 abaixo, mantido só como registro histórico.
 
-**Bloqueio 1 — Android (Firebase Cloud Messaging)**
-- AÇÃO HUMANA: criar um projeto no Firebase Console, registrar o app com `applicationId br.com.petmol.app`, baixar `google-services.json` e gerar uma Server Key/Service Account
-- LOCAL: https://console.firebase.google.com — precisa da conta Google que vai ser dona do projeto (decisão do usuário, não existe uma "conta certa" óbvia hoje)
-- VALOR NECESSÁRIO: nenhum custo — o tier gratuito do FCM cobre o volume esperado no lançamento
-- RESULTADO ESPERADO: `google-services.json` colocado em `apps/web/android/app/` (fora do Git, mesmo padrão do keystore) + credencial de servidor (Service Account JSON ou Server Key legada) configurada como secret no backend, pra o serviço poder chamar a API do FCM e efetivamente enviar os pushes cujos tokens já estão sendo coletados
+**Android (FCM): resolvido no servidor, falta confirmar entrega ponta a ponta (16/09/2026)** — projeto Firebase criado (`petmol-b8d1f`), `google-services.json` baixado e colocado em `apps/web/android/app/` (fora do Git), service account gerada e configurada no servidor (`FCM_SERVICE_ACCOUNT_JSON_FILE`, `/opt/petmol/shared/secrets/fcm-service-account.json`), `services/price-service/src/notifications/fcm.py` implementado (mesmo estilo de `apns.py` — JWT + HTTP direto, sem `firebase-admin`), `push_native_ios_to_user` generalizado pra despachar por plataforma (PR #402, merge `c0b1fdd`). Diagnóstico `GET /v1/admin/debug/fcm-log` confirma `"configured": true` em produção. **Falta**: reinstalar o app (build novo, já com `google-services.json`) num Android físico, deixar registrar um token real, e confirmar uma notificação de teste chegando de fato (`POST /v1/admin/debug/fcm-test?email=...`) — build novo já gerado e instalado nesta rodada, teste de entrega real ainda pendente.
+
+O registro do token (permissão, captura, envio ao backend, tabela `native_push_tokens`, cascade de exclusão de conta) está pronto de ponta a ponta nas duas plataformas — commit `09b9641`, CI verde.
 
 **Bloqueio 2 — iOS (Apple Push Notification service) — RESOLVIDO (11/09/2026)**
 A APNs Auth Key foi gerada e configurada, a capability "Push Notifications" está ativa no Xcode (`App.entitlements` com `aps-environment=production` já conectado ao `project.pbxproj`), e o envio ponta a ponta foi confirmado em aparelho físico. Nada pendente aqui.
-
-Registrar o token agora, mesmo sem poder enviar ainda, não tem custo nem risco — quando as duas credenciais acima existirem, os dispositivos que já instalaram o app vão precisar apenas reabrir uma vez pra o token já estar no banco.
 
 ## Metadados de loja
 

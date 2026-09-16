@@ -21,27 +21,31 @@ export function ReminderPicker({
   label,
 }: ReminderPickerProps) {
   return (
-    <div className="rounded-xl bg-blue-50 border border-blue-100 px-3 py-2.5">
+    <div className="rounded-xl bg-blue-50 border border-blue-100 px-2.5 py-1.5">
       {label && (
-        <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide mb-1.5">{label}</p>
+        <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide mb-1">{label}</p>
       )}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-[15px] leading-none flex-shrink-0">🔔</span>
-        <span className="text-sm text-gray-600 font-medium whitespace-nowrap">Lembrar</span>
+      {/* Largura calculada pra nunca quebrar linha num celular comum — a
+          versão anterior ("Lembrar [X] dias antes às [HH:MM]") passava da
+          largura útil em telas de ~360px e virava 2 linhas, dobrando a
+          altura da caixa. Texto mais curto + inputs menores. */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[13px] leading-none flex-shrink-0">🔔</span>
+        <span className="text-[12px] text-gray-600 font-medium whitespace-nowrap flex-shrink-0">Lembrar</span>
         <input
           type="number"
           min="0"
           max="30"
           value={days}
           onChange={e => onDaysChange(e.target.value)}
-          className="w-14 text-center text-sm font-bold bg-white border border-blue-200 rounded-lg py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="w-9 text-center text-[13px] font-bold bg-white border border-blue-200 rounded-lg py-1 flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-300"
         />
-        <span className="text-sm text-gray-600 font-medium whitespace-nowrap">dias antes às</span>
+        <span className="text-[12px] text-gray-600 font-medium whitespace-nowrap flex-shrink-0">dias antes</span>
         <input
           type="time"
           value={time}
           onChange={e => onTimeChange(e.target.value)}
-          className="text-sm font-bold bg-white border border-blue-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="text-[13px] font-bold bg-white border border-blue-200 rounded-lg px-1.5 py-1 ml-auto focus:outline-none focus:ring-2 focus:ring-blue-300"
         />
       </div>
     </div>

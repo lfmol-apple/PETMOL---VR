@@ -194,10 +194,10 @@ export function HomePetHeader({
         className="relative group mx-auto w-full overflow-hidden rounded-[22px] border border-white/50 bg-gradient-to-br from-blue-400 to-purple-500 shadow-lg shadow-blue-500/10 ring-1 ring-black/5 sm:rounded-[28px]"
         style={{
           aspectRatio: '1.25 / 1',
-          maxHeight: 'min(36dvh, 315px)',
+          maxHeight: 'min(26dvh, 230px)',
           // No mobile a foto deve ocupar a largura útil do card. Em telas
           // altas/largas, este teto evita uma foto desproporcionalmente alta.
-          maxWidth: 'min(100%, calc(min(36dvh, 315px) * 1.25))',
+          maxWidth: 'min(100%, calc(min(26dvh, 230px) * 1.25))',
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
           transform: 'translate3d(0,0,0)',

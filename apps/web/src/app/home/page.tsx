@@ -57,7 +57,8 @@ import { useQuickMark } from '@/hooks/useQuickMark';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { commonVaccines } from '@/data/vaccineInfo';
 
-import { hasCompletedOnboarding } from '@/lib/ownerProfile';
+import { hasCompletedOnboarding, getOwnerProfile } from '@/lib/ownerProfile';
+import { needsLeishmaniaseAwareness } from '@/lib/leishmaniaseAwareness';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
@@ -2689,7 +2690,11 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         colorVaccinesValue={selectedPetCardColors.vacinas}
         colorVermifugoValue={selectedPetCardColors.vermifugo}
         colorAntipulgasValue={selectedPetCardColors.antipulgas}
-        colorColeiraValue={selectedPetCardColors.coleira}
+        colorColeiraValue={
+          needsLeishmaniaseAwareness(currentPet?.species, parasiteControls, getOwnerProfile()?.address?.city)
+            ? 'critical'
+            : selectedPetCardColors.coleira
+        }
         colorMedicationValue={medicationCardStatus.color}
         colorGroomingValue={selectedPetCardColors.grooming}
         onOpenHealthTab={openHealthTab}

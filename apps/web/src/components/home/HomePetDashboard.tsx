@@ -12,28 +12,9 @@ import type { PetHealthProfile, VaccineRecord } from '@/lib/petHealth';
 import type { FeedingPlanEntry } from '@/lib/types/homeForms';
 import type { GroomingRecord, ParasiteControl } from '@/lib/types/home';
 import { getOwnerProfile } from '@/lib/ownerProfile';
+import { needsLeishmaniaseAwareness } from '@/lib/leishmaniaseAwareness';
 
 type CardTone = 'neutral' | 'ok' | 'warning' | 'critical';
-
-// Cidades brasileiras de alta incidência de leishmaniose visceral canina —
-// lista inicial/heurística (não exaustiva; expandir com dado epidemiológico
-// real quando disponível). Nessas regiões o aviso da Coleira fica sempre
-// ativo mesmo com proteção já registrada — o risco local justifica
-// vigilância contínua, não só "comprou uma vez" (feedback explícito do
-// usuário, que citou Belo Horizonte como exemplo).
-const LEISHMANIASIS_ENDEMIC_CITIES = new Set([
-  'belo horizonte', 'aracatuba', 'camacari', 'aracaju', 'fortaleza',
-  'teresina', 'palmas', 'campo grande', 'salvador', 'bauru', 'birigui',
-  'santarem', 'contagem', 'betim',
-]);
-
-function normalizeCityName(city: string | undefined | null): string {
-  return (city || '')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim()
-    .toLowerCase();
-}
 
 function createLocalDate(dateStr: string): Date {
   if (!dateStr) return new Date();
@@ -208,13 +189,12 @@ export function HomePetDashboard({
   // coleira é especificamente uma recomendação canina. Feedback explícito do
   // usuário: esse alerta precisa de local de fácil acesso, sem depender de
   // tour de onboarding pulável — o card de Saúde, sempre visível na home, é
-  // esse local.
-  const hasLeishmaniaseProtection = parasiteControls.some(
-    (p) => p.type === 'collar' || p.type === 'leishmaniasis',
+  // esse local. Extraído pra lib compartilhado (needsLeishmaniaseAwareness)
+  // porque a sheet Cuidados precisa do MESMO resultado pro card individual
+  // de Coleira piscar igual ao resumo da Home.
+  const petNeedsLeishmaniaseAwareness = needsLeishmaniaseAwareness(
+    currentPet.species, parasiteControls, getOwnerProfile()?.address?.city,
   );
-  const isInLeishmaniaseEndemicRegion = LEISHMANIASIS_ENDEMIC_CITIES.has(normalizeCityName(getOwnerProfile()?.address?.city));
-  const needsLeishmaniaseAwareness =
-    currentPet.species === 'dog' && (!hasLeishmaniaseProtection || isInLeishmaniaseEndemicRegion);
 
   // A pet with ZERO vaccine history ('neutral' — never registered) is a
   // real gap worth the red dot, same as an actually-overdue one — treated
@@ -228,7 +208,7 @@ export function HomePetDashboard({
   // gets the same "neutral -> critical" override, gated on
   // needsLeishmaniaseAwareness, for the same reason.
   const effectiveVaccineTone: CardTone = (colorVacinas === 'neutral' || colorVacinas === undefined) ? 'critical' : colorVacinas;
-  const effectiveColeiraTone: CardTone = needsLeishmaniaseAwareness ? 'critical' : (colorColeira ?? 'neutral');
+  const effectiveColeiraTone: CardTone = petNeedsLeishmaniaseAwareness ? 'critical' : (colorColeira ?? 'neutral');
   const healthTones = [effectiveVaccineTone, colorVermifugo, colorAntipulgas, effectiveColeiraTone, colorMedicacao, colorGrooming];
   const colorHealth: CardTone = healthTones.includes('critical')
     ? 'critical'
@@ -237,7 +217,7 @@ export function HomePetDashboard({
       : healthTones.includes('ok')
         ? 'ok'
         : 'neutral';
-  const alertHealth = colorHealth === 'warning' || colorHealth === 'critical' || alertVacinas || alertVermifugo || alertAntipulgas || alertColeira || alertMedicacao || alertGrooming || needsLeishmaniaseAwareness;
+  const alertHealth = colorHealth === 'warning' || colorHealth === 'critical' || alertVacinas || alertVermifugo || alertAntipulgas || alertColeira || alertMedicacao || alertGrooming || petNeedsLeishmaniaseAwareness;
   const reminders = useMemo(() => {
     if (!currentPet?.pet_id) return [];
     return buildPetCareReminders({
@@ -342,7 +322,7 @@ export function HomePetDashboard({
   // aparecia pro caso comum (pet com histórico real e nada vencendo agora).
   const healthHeadline = healthReminder && healthReminder.diff <= NEAR_TERM_REMINDER_DAYS
     ? formatReminderHeadline(healthReminder)
-    : needsLeishmaniaseAwareness
+    : petNeedsLeishmaniaseAwareness
       ? '🦟 Leishmaniose: proteja com coleira'
       : undefined;
 
