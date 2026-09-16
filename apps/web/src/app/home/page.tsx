@@ -11,6 +11,7 @@ import type { QuickActionContext } from '@/components/home/HealthQuickActionShee
 import { AppBootSplash } from '@/components/AppBootSplash';
 import { HomePetHeader } from '@/components/home/HomePetHeader';
 import { HomePetDashboard } from '@/components/home/HomePetDashboard';
+import { PermissionsNudgeCard } from '@/components/home/PermissionsNudgeCard';
 import { PetTabs } from '@/components/PetTabs';
 
 // Modais e sheets — carregados sob demanda (só quando o usuário abre)
@@ -2434,6 +2435,14 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     suppressed={showFoodSheet || showVaccineSheet || showAntipulgasSheet || showVermifugoSheet}
                   />
                   )}
+
+                  {/* Segunda chance pra quem já tinha conta antes do pedido
+                      proativo de permissão virar parte da tela "Tudo pronto"
+                      acima — sem isso, essas contas nunca veriam o pedido de
+                      novo. Só aparece se nunca foi pedido; nunca insiste. */}
+                  <div className="mt-3">
+                    <PermissionsNudgeCard hasPet={pets.length > 0} />
+                  </div>
 
                   <PetTabs
                     pets={pets.map(p => ({

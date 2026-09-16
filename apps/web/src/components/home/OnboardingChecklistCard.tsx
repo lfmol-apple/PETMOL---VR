@@ -14,8 +14,7 @@ import {
   type OnboardingStepKey,
 } from '@/lib/onboardingProgress';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
-import { API_BASE_URL } from '@/lib/api';
-import { getToken } from '@/lib/auth-token';
+import { requestLocationAndPersist } from '@/features/interactions/requestCorePermissions';
 
 interface OnboardingChecklistCardProps {
   petId: string;
@@ -148,21 +147,7 @@ export function OnboardingChecklistCard({
           if (granted) void subscribeToPush();
         } catch { /* melhor esforço — não bloqueia o fluxo */ }
       }
-      if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
-        try {
-          const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 }),
-          );
-          const token = getToken();
-          if (token) {
-            await fetch(`${API_BASE_URL}/auth/me`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-              body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-            }).catch(() => {});
-          }
-        } catch { /* usuário negou ou timeout — segue sem localização, igual ao Perfil */ }
-      }
+      await requestLocationAndPersist();
       writeOnboardingStore(petId, { completedShownAt: new Date().toISOString() });
       setOnboardingActiveFlag(false);
       setStoreTick((t) => t + 1);
