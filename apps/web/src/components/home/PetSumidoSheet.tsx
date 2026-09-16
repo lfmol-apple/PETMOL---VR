@@ -570,11 +570,11 @@ export function PetSumidoSheet({
           )}
 
           {(isEditMode || activeSection === 'report') && step === 'form' && (
-            <div className="px-5 py-5 space-y-5 pb-10">
+            <div className="px-5 py-4 space-y-3 pb-10">
 
               {/* Hero: foto + identidade do pet — é o que faz alguém reconhecer o pet na rua */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                   Foto atual do pet <span className="text-red-500 normal-case font-semibold">obrigatório</span>
                 </label>
                 <button
@@ -583,7 +583,7 @@ export function PetSumidoSheet({
                   className={`relative block w-full overflow-hidden rounded-3xl border-2 transition-all active:scale-[0.99] ${
                     hasPhoto ? 'border-emerald-300' : 'border-dashed border-red-300'
                   }`}
-                  style={{ aspectRatio: '4 / 3' }}
+                  style={{ aspectRatio: '16 / 9' }}
                 >
                   {hasPhoto ? (
                     <img
@@ -625,7 +625,7 @@ export function PetSumidoSheet({
 
               {/* Contato */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                   WhatsApp para contato <span className="text-red-500 normal-case font-semibold">obrigatório</span>
                 </label>
                 <input
@@ -637,7 +637,7 @@ export function PetSumidoSheet({
                   onFocus={() => setFocusedField('contact')}
                   onBlur={() => setFocusedField(null)}
                   className={`w-full border-2 rounded-2xl px-4 text-gray-900 placeholder-slate-500 outline-none transition-all ${
-                    focusedField === 'contact' ? 'border-red-400 py-5 text-xl' : 'border-slate-400 py-3 text-[15px]'
+                    focusedField === 'contact' ? 'border-red-400 py-4 text-xl' : 'border-slate-400 py-2.5 text-[15px]'
                   }`}
                 />
                 <p className="text-[11px] text-slate-400 mt-1">Aparece no card compartilhado</p>
@@ -645,7 +645,7 @@ export function PetSumidoSheet({
 
               {/* Quando sumiu */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                   Quando desapareceu
                 </label>
                 <div className="flex gap-2">
@@ -654,21 +654,21 @@ export function PetSumidoSheet({
                     value={missingDate}
                     max={todayISO()}
                     onChange={e => { setMissingDate(e.target.value); setLiveRadius(calcAutoRadius(e.target.value, missingTime, pet.species || 'dog')); }}
-                    className="flex-1 border-2 border-slate-400 rounded-2xl px-4 py-3 text-[15px] text-gray-900 outline-none focus:border-red-400 transition-colors"
+                    className="flex-1 border-2 border-slate-400 rounded-2xl px-4 py-2.5 text-[15px] text-gray-900 outline-none focus:border-red-400 transition-colors"
                     style={{ colorScheme: 'light' }}
                   />
                   <input
                     type="time"
                     value={missingTime}
                     onChange={e => { setMissingTime(e.target.value); setLiveRadius(calcAutoRadius(missingDate, e.target.value, pet.species || 'dog')); }}
-                    className="w-[116px] border-2 border-slate-400 rounded-2xl px-4 py-3 text-[15px] text-gray-900 outline-none focus:border-red-400 transition-colors"
+                    className="w-[116px] border-2 border-slate-400 rounded-2xl px-4 py-2.5 text-[15px] text-gray-900 outline-none focus:border-red-400 transition-colors"
                     style={{ colorScheme: 'light' }}
                   />
                 </div>
               </div>
 
               {/* Raio calculado */}
-              <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 flex items-center gap-3">
+              <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-2.5 flex items-center gap-3">
                 <span className="text-xl flex-shrink-0">📡</span>
                 <div className="flex-1">
                   <p className="text-[13px] font-bold text-amber-800">
@@ -684,19 +684,19 @@ export function PetSumidoSheet({
 
               {/* Onde sumiu — CEP */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                   Onde desapareceu <span className="normal-case font-normal text-slate-300 ml-1">(opcional)</span>
                 </label>
                 <button
                   type="button"
                   onClick={handleUseCurrentLocation}
                   disabled={gpsLoading}
-                  className="w-full mb-2 flex items-center justify-center gap-2 rounded-2xl border border-blue-100 bg-blue-50 py-2.5 text-[13px] font-bold text-blue-600 active:scale-[0.98] transition-all disabled:opacity-60"
+                  className="w-full mb-1.5 flex items-center justify-center gap-2 rounded-2xl border border-blue-100 bg-blue-50 py-2 text-[13px] font-bold text-blue-600 active:scale-[0.98] transition-all disabled:opacity-60"
                 >
                   {gpsLoading ? '⏳ Localizando...' : '📍 Usar minha localização atual'}
                 </button>
                 {gpsError && <p className="text-[11px] text-red-500 font-semibold mb-1.5 text-center">{gpsError}</p>}
-                <div className="relative mb-2">
+                <div className="relative mb-1.5">
                   <input
                     type="text"
                     inputMode="numeric"
@@ -706,7 +706,7 @@ export function PetSumidoSheet({
                     onFocus={() => setFocusedField('cep')}
                     onBlur={() => setFocusedField(null)}
                     className={`w-full border-2 rounded-2xl px-4 pr-10 text-[15px] text-gray-900 placeholder-slate-500 outline-none transition-colors ${
-                      focusedField === 'cep' ? 'border-red-400 py-5 text-xl' : 'border-slate-400 py-3'
+                      focusedField === 'cep' ? 'border-red-400 py-4 text-xl' : 'border-slate-400 py-2.5'
                     }`}
                   />
                   <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[13px]">
@@ -722,14 +722,14 @@ export function PetSumidoSheet({
                   onFocus={() => setFocusedField('location')}
                   onBlur={() => setFocusedField(null)}
                   className={`w-full border-2 rounded-2xl px-4 text-[15px] text-gray-900 placeholder-slate-500 outline-none transition-colors ${
-                    focusedField === 'location' ? 'border-red-400 py-5 text-lg' : 'border-slate-400 py-3'
+                    focusedField === 'location' ? 'border-red-400 py-4 text-lg' : 'border-slate-400 py-2.5'
                   }`}
                 />
               </div>
 
               {/* Características */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                   Características únicas
                   <span className="normal-case font-normal text-slate-300 ml-1">(opcional) — só você sabe</span>
                 </label>
@@ -737,15 +737,15 @@ export function PetSumidoSheet({
                   value={characteristics}
                   onChange={e => setCharacteristics(e.target.value)}
                   placeholder={`Descreva o que faz ${pet.pet_name} único — cor dos olhos, manchas, coleira, cicatriz, comportamento...`}
-                  rows={focusedField === 'characteristics' ? 6 : 3}
+                  rows={focusedField === 'characteristics' ? 5 : 2}
                   onFocus={() => setFocusedField('characteristics')}
                   onBlur={() => setFocusedField(null)}
-                  className="w-full border-2 border-slate-400 rounded-2xl px-4 py-3 text-[15px] text-gray-900 placeholder-slate-500 outline-none focus:border-red-400 transition-colors resize-none leading-relaxed"
+                  className="w-full border-2 border-slate-400 rounded-2xl px-4 py-2.5 text-[15px] text-gray-900 placeholder-slate-500 outline-none focus:border-red-400 transition-colors resize-none leading-relaxed"
                 />
               </div>
 
               {/* Info */}
-              <div className="bg-rose-50 border border-rose-100 rounded-2xl px-4 py-3 flex gap-3">
+              <div className="bg-rose-50 border border-rose-100 rounded-2xl px-4 py-2.5 flex gap-3">
                 <span className="text-lg flex-shrink-0 mt-0.5">🚨</span>
                 <p className="text-[12px] text-rose-600 leading-relaxed">
                   O PETMOL gera um <strong className="text-rose-700">card para Instagram e WhatsApp</strong> e envia um alerta push para usuários próximos.
