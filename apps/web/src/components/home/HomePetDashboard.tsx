@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, useEffect } from 'react';
 import { AppleControlButtons } from '@/components/AppleControlButtons';
 import { HomeShoppingSheet } from '@/features/commerce/HomeShoppingSheet';
 import { buildReorderCards } from '@/features/commerce/petStoreContent';
-import { fetchCommerceOffersWithStatus } from '@/features/commerce/productPricing';
+import { fetchCommerceOffersWithStatus, fetchPetzDirectLink } from '@/features/commerce/productPricing';
 import { buildPetCareReminders } from '@/lib/petCareDomain';
 import type { CareActionTarget, PetCareReminder } from '@/lib/petCareDomain';
 import type { PetEventRecord } from '@/lib/petEvents';
@@ -278,6 +278,12 @@ export function HomePetDashboard({
       if (!key || warmedProductKeysRef.current.has(key)) continue;
       warmedProductKeysRef.current.add(key);
       void fetchCommerceOffersWithStatus(card.searchQuery, card.packageSizeKg ?? undefined, card.gtin ?? undefined);
+      // Mesmo aquecimento acima, agora também pra Petz — ela nunca tinha
+      // isso (causa raiz real do "Ver na Petz" sumir só na 1ª abertura da
+      // Loja, ver cache dedicada em productPricing.ts). Mesmos argumentos
+      // que o card usa de verdade (gtin + searchQuery-ou-label) pra bater
+      // com a chave de cache exata quando a Loja abrir depois.
+      void fetchPetzDirectLink(card.gtin ?? undefined, card.searchQuery || card.label);
     }
   }, [reminders]);
 

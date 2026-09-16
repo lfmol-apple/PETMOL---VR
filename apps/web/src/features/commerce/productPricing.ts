@@ -241,6 +241,26 @@ export interface PetzDirectLink {
 // sumia só na 1ª abertura do app; Cobasi não, porque só ela tinha retry.
 const PETZ_RETRY_DELAYS_MS = [600, 1300];
 
+// CAUSA RAIZ de verdade (16/09/2026, não só o retry acima): a Cobasi tem um
+// aquecimento em HomePetDashboard.tsx que dispara fetchCommerceOffersWithStatus
+// assim que os produtos do pet são conhecidos — bem ANTES do usuário abrir a
+// Loja, dando à rede tempo de sobra pra estabilizar. A Petz nunca teve esse
+// aquecimento: sua primeira consulta sempre acontecia só quando a Loja
+// montava, no pior momento possível (às vezes segundos após o login). O
+// retry acima cobre ~2s de instabilidade; o aquecimento (ver a chamada em
+// HomePetDashboard.tsx) dá muito mais tempo real antes que o resultado seja
+// de fato necessário. Esta cache é o que faz o aquecimento valer a pena —
+// sem ela, a Loja chamaria a rede de novo do zero mesmo com o aquecimento já
+// resolvido. Só guarda resultado POSITIVO (guia real): um resultado
+// negativo pode ser só "ainda não deu tempo" — cachear isso travaria a
+// tentativa de verdade que a Loja faria mais tarde, com mais tempo passado.
+const PETZ_LINK_CACHE_TTL_MS = 45_000;
+const petzLinkCache = new Map<string, { result: PetzDirectLink; expiresAt: number }>();
+
+function petzLinkCacheKey(gtin: string, name: string, brand: string): string {
+  return `${gtin}|${name.toLowerCase()}|${brand.toLowerCase()}`;
+}
+
 export async function fetchPetzDirectLink(
   gtin?: string | null,
   productName?: string,
@@ -248,13 +268,19 @@ export async function fetchPetzDirectLink(
 ): Promise<PetzDirectLink> {
   const trimmedGtin = (gtin ?? '').trim();
   const trimmedName = (productName ?? '').trim();
+  const trimmedBrand = (brand ?? '').trim();
   // Sem GTIN a página exata não é possível, mas a busca da Petz pelo nome
   // sim — só desiste quando não há NENHUM dos dois.
   if (!trimmedGtin && !trimmedName) return { available: false, url: null };
+
+  const cacheKey = petzLinkCacheKey(trimmedGtin, trimmedName, trimmedBrand);
+  const cached = petzLinkCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.result;
+
   const params = new URLSearchParams();
   if (trimmedGtin) params.set('gtin', trimmedGtin);
   if (trimmedName) params.set('q', trimmedName);
-  if (brand?.trim()) params.set('brand', brand.trim());
+  if (trimmedBrand) params.set('brand', trimmedBrand);
 
   for (let attempt = 0; ; attempt++) {
     try {
@@ -270,7 +296,11 @@ export async function fetchPetzDirectLink(
         return { available: false, url: null };
       }
       const data = (await res.json()) as PetzDirectLink;
-      return data?.available && data.url ? data : { available: false, url: null };
+      const result = data?.available && data.url ? data : { available: false, url: null };
+      if (result.available) {
+        petzLinkCache.set(cacheKey, { result, expiresAt: Date.now() + PETZ_LINK_CACHE_TTL_MS });
+      }
+      return result;
     } catch (err) {
       if (isTransientFetchError(err) && attempt < PETZ_RETRY_DELAYS_MS.length) {
         await new Promise((resolve) => setTimeout(resolve, PETZ_RETRY_DELAYS_MS[attempt]));
@@ -279,6 +309,11 @@ export async function fetchPetzDirectLink(
       return { available: false, url: null };
     }
   }
+}
+
+/** Só para teste — isola cada caso limpando o cache entre eles. */
+export function __clearPetzDirectLinkCacheForTests(): void {
+  petzLinkCache.clear();
 }
 
 /**

@@ -121,6 +121,51 @@ describe('fetchPetzDirectLink — "Ver na Petz" (caminho separado do CommerceEng
     expect(result.available).toBe(true);
   });
 
+  it('resultado positivo fica em cache — 2ª chamada com os mesmos argumentos não bate na rede de novo', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ available: true, url: 'https://www.petz.com.br/produto/x-100223' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchPetzDirectLink } = await import('./productPricing');
+    const first = await fetchPetzDirectLink('7896181298090', 'Ração X');
+    const second = await fetchPetzDirectLink('7896181298090', 'Ração X');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(second).toEqual(first);
+  });
+
+  it('resultado negativo NÃO fica em cache — 2ª chamada tenta a rede de novo (pode ter sido só "ainda não deu tempo")', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ available: false, url: null }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchPetzDirectLink } = await import('./productPricing');
+    await fetchPetzDirectLink('7896181298090', 'Ração X');
+    await fetchPetzDirectLink('7896181298090', 'Ração X');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('aquecimento antecipado (Home) resolve na hora quando a Loja chama depois com os mesmos argumentos', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ available: true, url: 'https://www.petz.com.br/produto/x-100223' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchPetzDirectLink } = await import('./productPricing');
+    // Home "aquece" assim que os produtos do pet são conhecidos — mesmos
+    // argumentos que HomeShoppingSheet.tsx usa de verdade (gtin + searchQuery).
+    await fetchPetzDirectLink('7896181298090', 'Royal Canin ração');
+    fetchMock.mockClear();
+
+    // Loja abre bem depois — mesma chamada, deve vir do cache, sem rede.
+    const result = await fetchPetzDirectLink('7896181298090', 'Royal Canin ração');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.available).toBe(true);
+  });
+
   it('sem GTIN mas COM nome → busca a Petz pelo nome (só ?q=, sem gtin)', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
