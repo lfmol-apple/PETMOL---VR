@@ -512,7 +512,7 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
               media={<SheetIcon tone="onPetmol"><PawPrint className="h-5 w-5" strokeWidth={2.2} /></SheetIcon>}
             />
 
-            <SheetShell.Body className="space-y-5">
+            <SheetShell.Body className="space-y-4">
 
               {/* Foto */}
               <div className="flex flex-col items-center gap-2">

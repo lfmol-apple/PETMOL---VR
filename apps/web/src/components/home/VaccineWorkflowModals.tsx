@@ -175,7 +175,7 @@ export function VaccineWorkflowModals({
             ) : undefined}
           />
 
-          <SheetShell.Body className="space-y-4">
+          <SheetShell.Body className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Qual vacina? *</label>
                 <div className="flex flex-wrap gap-2">
