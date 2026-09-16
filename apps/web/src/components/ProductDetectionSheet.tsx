@@ -486,8 +486,6 @@ function describeScannerError(errorCode: string | null): string | null {
       return 'A câmera demorou demais para começar a reproduzir.';
     case 'camera_security_blocked':
       return 'O navegador bloqueou o acesso à câmera por segurança.';
-    case 'manual_invalid_barcode':
-      return 'Digite um código de barras válido com 8 a 14 números.';
     case 'lookup_timeout':
       return 'A busca demorou demais. Você pode continuar pelo código, foto ou nome do produto.';
     case 'product_not_found':
@@ -743,11 +741,11 @@ export function ProductDetectionSheetGold({
   const [scanSuccess, setScanSuccess] = useState(false);
   const [detectedBarcode, setDetectedBarcode] = useState('');
   const [scannerError, setScannerError] = useState<string | null>(null);
-  const [manualBarcode, setManualBarcode] = useState('');
   const [kbdBottom, setKbdBottom] = useState(0);
-  // Progressivo só para foto. Digitar código de barras fica disponível de
-  // cara em todos os fluxos que usam este sheet, para cobrir embalagem sem
-  // câmera funcional ou tutor que prefere inserir o EAN/GTIN.
+  // Progressivo só para foto. Buscar pelo nome/marca fica disponível de cara
+  // em todos os fluxos que usam este sheet, para cobrir embalagem sem câmera
+  // funcional. Decisão de produto (set/2026): não existe mais entrada manual
+  // de código de barras em lugar nenhum do PETMOL — só leitura/escaneamento.
   const [scanFailCount, setScanFailCount] = useState(0);
   const [photoFailCount, setPhotoFailCount] = useState(0);
   const photoUnlocked = photoFailCount > 0 || scanFailCount >= 2;
@@ -774,7 +772,6 @@ export function ProductDetectionSheetGold({
     setConfirmed(null);
     setFromHistory(false);
     setDetectedBarcode('');
-    setManualBarcode('');
     setScannerError(null);
     decisionSourceRef.current = 'manual';
     aiSuggestedNameRef.current = undefined;
@@ -1402,7 +1399,6 @@ export function ProductDetectionSheetGold({
 
     clearResolveTimeout();
     setDetectedBarcode(barcode);
-    setManualBarcode(barcode);
     setStep('resolving');
 
     resolveTimeoutRef.current = setTimeout(() => {
@@ -1511,16 +1507,6 @@ export function ProductDetectionSheetGold({
     });
   }, [clearResolveTimeout, emitProductTelemetry, hint]);
 
-  const handleManualBarcodeLookup = useCallback(async () => {
-    const barcode = manualBarcode.replace(/\D/g, '');
-    if (!/^\d{8,14}$/.test(barcode)) {
-      setScannerError('manual_invalid_barcode');
-      return;
-    }
-
-    setScannerError(null);
-    await resolveDetectedBarcode(barcode);
-  }, [manualBarcode, resolveDetectedBarcode]);
 
   const handleDetectedBarcode = useCallback(async (rawBarcode: string) => {
     const barcode = rawBarcode.replace(/\D/g, '');
@@ -1632,7 +1618,6 @@ export function ProductDetectionSheetGold({
     setCameraFailed(false);
     setScannerError(null);
     setDetectedBarcode('');
-    setManualBarcode('');
     cooldownRef.current = false;
   };
 
@@ -1723,7 +1708,6 @@ export function ProductDetectionSheetGold({
     }
 
     setScannerError(identifiedFromPhoto.errorCode ?? 'photo_barcode_not_found');
-    setManualBarcode('');
     setConfirmed(null);
     setPhotoFailCount((n) => n + 1);
     setStep('not-found');
@@ -2030,7 +2014,7 @@ export function ProductDetectionSheetGold({
             onClick={() => setStep('manual')}
             className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] font-bold text-slate-700 transition-all active:scale-[0.98]"
           >
-            ⌨️ Digitar o código de barras
+            ✏️ Buscar pelo nome
           </button>
         )}
       </div>
@@ -2180,7 +2164,7 @@ export function ProductDetectionSheetGold({
               }}
               className="rounded-2xl border border-white/15 bg-white/10 px-2 py-3 text-xs font-semibold text-white"
             >
-              ⌨️ Digitar o código de barras
+              ✏️ Buscar pelo nome
             </button>
             )}
           </div>
@@ -2388,7 +2372,7 @@ export function ProductDetectionSheetGold({
         </p>
       </div>
 
-      {(cameraFailed || scannerError === 'lookup_timeout' || scannerError === 'product_not_found' || scannerError === 'manual_invalid_barcode' || scannerError === 'photo_barcode_not_found') && describeScannerError(scannerError) && (
+      {(cameraFailed || scannerError === 'lookup_timeout' || scannerError === 'product_not_found' || scannerError === 'photo_barcode_not_found') && describeScannerError(scannerError) && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {describeScannerError(scannerError)}
         </div>
@@ -2412,34 +2396,6 @@ export function ProductDetectionSheetGold({
           </button>
         </div>
       )}
-
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Digite o código de barras (mais rápido)</p>
-        <div className="mt-2 flex gap-2">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={manualBarcode}
-            onChange={(event) => setManualBarcode(event.target.value.replace(/\D/g, ''))}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                void handleManualBarcodeLookup();
-              }
-            }}
-            className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm transition-colors focus:border-blue-400 focus:outline-none"
-            placeholder="Digite o código de barras"
-          />
-          <button
-            type="button"
-            onClick={() => void handleManualBarcodeLookup()}
-            className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition-all active:scale-95"
-          >
-            Buscar
-          </button>
-        </div>
-      </div>
-
-      <p className="text-center text-xs text-gray-400">Não tem o código à mão? Digite o nome ou marca abaixo.</p>
 
       <input
         type="text"
@@ -2653,8 +2609,8 @@ export function ProductDetectionSheetGold({
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-blue-100 text-2xl">✏️</div>
             <div className="flex-1">
-              <p className="text-[15px] font-bold text-blue-900">Digitar o código de barras</p>
-              <p className="mt-0.5 text-xs text-blue-600">Digite o código de barras ou busque por nome</p>
+              <p className="text-[15px] font-bold text-blue-900">Buscar pelo nome</p>
+              <p className="mt-0.5 text-xs text-blue-600">Digite o nome ou a marca do produto</p>
             </div>
             <span className="flex-shrink-0 text-xl text-blue-300">›</span>
           </div>
