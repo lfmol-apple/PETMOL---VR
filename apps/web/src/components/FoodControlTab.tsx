@@ -893,7 +893,7 @@ export function FoodControlTab({
   }, [formRequest]);
 
   return (
-    <div className="overflow-x-hidden p-3 space-y-3 pb-6 sm:p-4 sm:pb-8">
+    <div className="overflow-x-hidden p-2.5 space-y-2 pb-4 sm:p-3 sm:pb-6">
 
       {/* ── VIEW MODE ─────────────────────────────────────────────────────── */}
       {!showForm && (
@@ -1047,7 +1047,7 @@ export function FoodControlTab({
               const itemMetrics = getItemMetrics(item);
               const isQuickSetup = formMode === 'quick_setup';
               return (
-                <div key={item.id} className="rounded-2xl border border-slate-200 p-3 space-y-2.5 bg-slate-50">
+                <div key={item.id} className="rounded-2xl border border-slate-200 p-2.5 space-y-2 bg-slate-50">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-[13px] font-black uppercase tracking-wider text-slate-400">
@@ -1277,7 +1277,7 @@ export function FoodControlTab({
           <button type="button"
             onClick={handleSave}
             disabled={saving}
-            className="w-full py-3.5 min-h-[44px] rounded-2xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold shadow-md disabled:opacity-50 active:scale-[0.99] transition-all"
+            className="w-full py-3 min-h-[44px] rounded-2xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold shadow-md disabled:opacity-50 active:scale-[0.99] transition-all"
           >
             {saving ? 'Salvando...' : formMode === 'quick_setup' ? '✅ Confirmar alimentação' : hasExisting ? '✅ Atualizar alimentação' : '✅ Confirmar alimentação'}
           </button>

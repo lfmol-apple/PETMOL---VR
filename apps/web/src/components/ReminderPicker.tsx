@@ -21,7 +21,7 @@ export function ReminderPicker({
   label,
 }: ReminderPickerProps) {
   return (
-    <div className="rounded-xl bg-blue-50 border border-blue-100 px-3 py-2.5">
+    <div className="rounded-xl bg-blue-50 border border-blue-100 px-3 py-2">
       {label && (
         <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide mb-1.5">{label}</p>
       )}
