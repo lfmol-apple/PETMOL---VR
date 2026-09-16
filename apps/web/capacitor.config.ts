@@ -15,8 +15,17 @@ const config: CapacitorConfig = {
   // app nativo" de "web/PWA" no servidor (ex.: esconder a área Amazon US
   // pública, que é só para a web). O front também tem Capacitor.isNativePlatform().
   appendUserAgent: 'PetmolApp',
+  // Raiz do site, sem path. O bridge nativo do Capacitor (WebViewDelegationHandler.swift
+  // no iOS) só trata como navegação "do próprio app" a URL que comece literalmente com
+  // esta string — é comparação de prefixo, não só de host. Com '/home' fixo aqui,
+  // qualquer redirect de servidor pra outro path (ex.: sem sessão → middleware manda
+  // pra /login) falhava esse prefixo e o Capacitor cancelava a navegação no próprio
+  // WebView e abria no Safari externo, deixando o app nativo em branco pra sempre —
+  // essa é a causa confirmada da rejeição da Apple (tela branca no iPad). O middleware
+  // já trata o app acordando em "/" (ver NATIVE_APP_UA_MARKER em middleware.ts),
+  // redirecionando pra /home.
   server: {
-    url: 'https://www.petmol.com.br/home',
+    url: 'https://www.petmol.com.br',
     cleartext: false,
   },
   plugins: {
