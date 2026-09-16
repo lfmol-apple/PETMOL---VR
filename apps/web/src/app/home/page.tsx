@@ -2039,6 +2039,14 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     );
   })();
 
+  // Mesmo filtro usado dentro do IIFE acima (alertas de outras pessoas, não
+  // dispensados) — extraído como valor próprio pra alimentar o badge/
+  // subtítulo do botão "Pet Sumido" sem duplicar a lógica de construir a
+  // lista inteira.
+  const nearbyMissingCount = nearbyAlerts.filter(
+    (a) => a.user_id !== loggedUserId && !handledAlertIds.includes(a.id),
+  ).length;
+
   return (
     <div
       className="min-h-screen bg-gradient-to-b from-amber-50/40 via-white to-gray-50"
@@ -2526,7 +2534,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     onOpenPetSumido={() => setShowPetSumidoSheet(true)}
                     onUpcomingCountChange={(_count, reminders) => setAllUpcomingReminders(reminders)}
                     onHealthItemClick={setHealthQuickAction}
-                    regionalMissingPetsBanner={regionalMissingPetsBanner}
+                    nearbyMissingCount={nearbyMissingCount}
                   />
                 </PetTabs>
               </div>
@@ -2907,6 +2915,8 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           petPhotoUrl={currentPet.photo ? getPhotoUrl(currentPet.photo) : null}
           onClose={() => setShowPetSumidoSheet(false)}
           onGoHome={() => goHome(() => setShowPetSumidoSheet(false))}
+          nearbyContent={regionalMissingPetsBanner}
+          nearbyCount={nearbyMissingCount}
         />
       )}
 

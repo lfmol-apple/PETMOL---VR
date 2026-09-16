@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, type ReactNode } from 'react';
 import { Siren } from 'lucide-react';
 import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import type { PetHealthProfile } from '@/lib/petHealth';
@@ -19,9 +19,15 @@ interface PetSumidoSheetProps {
   initialCharacteristics?: string;
   initialMissingDate?: string;
   initialMissingTime?: string;
+  // Aba "Perto de você" — conteúdo pronto (mesma lista/estado que já mora em
+  // home/page.tsx, ver regionalMissingPetsBanner ali); esta sheet só decide
+  // ONDE mostrar, nunca refaz a busca/estado dos alertas da região.
+  nearbyContent?: ReactNode;
+  nearbyCount?: number;
 }
 
 type Step = 'form' | 'card';
+type Section = 'nearby' | 'report';
 
 function CameraIcon({ className }: { className?: string }) {
   return (
@@ -126,9 +132,13 @@ export function PetSumidoSheet({
   pet, petPhotoUrl, onClose,
   editAlertId, initialContact = '', initialLocation = '',
   initialCharacteristics = '', initialMissingDate, initialMissingTime,
+  nearbyContent, nearbyCount = 0,
 }: PetSumidoSheetProps) {
   const isEditMode = Boolean(editAlertId);
   const [step, setStep] = useState<Step>('form');
+  // Duas abas sempre visíveis (mesmo com a região vazia) — só existem no
+  // fluxo principal de criar alerta, não na edição de um alerta já existente.
+  const [activeSection, setActiveSection] = useState<Section>(nearbyCount > 0 ? 'nearby' : 'report');
   const [contact, setContact] = useState(() => formatBRPhoneInput(initialContact));
   const [lastSeenLocation, setLastSeenLocation] = useState(initialLocation);
   const [characteristics, setCharacteristics] = useState(initialCharacteristics);
@@ -523,10 +533,43 @@ export function PetSumidoSheet({
         onClose={onClose}
       />
 
+      {!isEditMode && step === 'form' && (
+        <div className="flex gap-2 border-b border-slate-100 px-5 py-2.5">
+          <button
+            type="button"
+            onClick={() => setActiveSection('nearby')}
+            className={`flex-1 rounded-xl py-2 text-[13px] font-bold transition-colors ${
+              activeSection === 'nearby' ? 'bg-rose-100 text-rose-700' : 'text-slate-400'
+            }`}
+          >
+            Perto de você{nearbyCount > 0 ? ` · ${nearbyCount}` : ''}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSection('report')}
+            className={`flex-1 rounded-xl py-2 text-[13px] font-bold transition-colors ${
+              activeSection === 'report' ? 'bg-rose-100 text-rose-700' : 'text-slate-400'
+            }`}
+          >
+            Reportar
+          </button>
+        </div>
+      )}
+
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
 
-          {step === 'form' && (
+          {!isEditMode && step === 'form' && activeSection === 'nearby' && (
+            <div className="px-5 py-5 pb-10">
+              {nearbyContent ?? (
+                <p className="py-8 text-center text-[13px] font-medium text-slate-400">
+                  Nenhum pet sumido reportado na sua região agora.
+                </p>
+              )}
+            </div>
+          )}
+
+          {(isEditMode || activeSection === 'report') && step === 'form' && (
             <div className="px-5 py-5 space-y-5 pb-10">
 
               {/* Hero: foto + identidade do pet — é o que faz alguém reconhecer o pet na rua */}
@@ -824,8 +867,9 @@ export function PetSumidoSheet({
           )}
         </div>
 
-        {/* CTA fixo — sempre visível, sem depender de rolar até o fim do form */}
-        {step === 'form' && (
+        {/* CTA fixo — sempre visível, sem depender de rolar até o fim do form.
+            Só na aba de reportar; "Perto de você" não tem CTA de geração. */}
+        {step === 'form' && (isEditMode || activeSection === 'report') && (
           <div
             className="flex-shrink-0 border-t border-gray-100 bg-white px-5 pt-3"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}
