@@ -42,6 +42,45 @@ function looksLikeChunkLoadFailure(message: string | undefined, name: string | u
   );
 }
 
+// Bug real (Android, set/2026): tocar em "Perfil" no Header não abria a
+// tela — voltava pra Home ou Loja, dependendo de onde o tutor estava antes.
+// Causa: o Next App Router só troca a URL (pushState) DEPOIS que o payload
+// RSC do destino termina de buscar. Se esse fetch pega 404 por version skew
+// (ver comentário do arquivo) bem no meio da navegação, window.location.href
+// ainda é a página de ORIGEM — reload() só recarregava ela de novo, nunca
+// chegava no Perfil. Pra recarregar pro lugar certo, guardamos qual link o
+// tutor realmente clicou (capturado no clique real do <a>, antes do Next
+// interceptar com preventDefault) e usamos isso como destino do reload.
+const INTENT_TTL_MS = 8000;
+let lastIntendedPath: { path: string; at: number } | null = null;
+
+function isPlainLeftClick(event: MouseEvent): boolean {
+  return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+}
+
+function trackLinkIntent(event: MouseEvent): void {
+  if (!isPlainLeftClick(event)) return;
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const anchor = target.closest('a');
+  if (!anchor || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
+  const href = anchor.getAttribute('href');
+  if (!href || !href.startsWith('/')) return;
+  lastIntendedPath = { path: href, at: Date.now() };
+}
+
+function consumeRecentIntent(): string | null {
+  if (!lastIntendedPath) return null;
+  const isRecent = Date.now() - lastIntendedPath.at <= INTENT_TTL_MS;
+  return isRecent ? lastIntendedPath.path : null;
+}
+
+/** Só para teste — variável é module-level (única fonte de verdade entre
+ * todos os cliques da sessão), então sobrevive entre `it()`s sem isso. */
+export function __resetLinkIntentForTests(): void {
+  lastIntendedPath = null;
+}
+
 async function reactToChunkFailure(reason: string): Promise<void> {
   let liveSha: string | null = null;
   try {
@@ -64,8 +103,13 @@ async function reactToChunkFailure(reason: string): Promise<void> {
     return;
   }
 
-  console.warn('[ChunkReloadGuard] falha de carregamento de chunk detectada, recarregando pra versão', liveSha, ':', reason);
-  window.location.reload();
+  const intendedPath = consumeRecentIntent();
+  console.warn('[ChunkReloadGuard] falha de carregamento de chunk detectada, recarregando pra versão', liveSha, intendedPath ? `(destino: ${intendedPath})` : '(destino: página atual)', ':', reason);
+  if (intendedPath) {
+    window.location.href = intendedPath;
+  } else {
+    window.location.reload();
+  }
 }
 
 export function ChunkReloadGuard() {
@@ -89,9 +133,13 @@ export function ChunkReloadGuard() {
 
     window.addEventListener('error', onError);
     window.addEventListener('unhandledrejection', onRejection);
+    // capture: true — precisa ver o clique ANTES do Next.js interceptar
+    // com preventDefault() no <Link>, senão o evento chega sem o href útil.
+    document.addEventListener('click', trackLinkIntent, { capture: true });
     return () => {
       window.removeEventListener('error', onError);
       window.removeEventListener('unhandledrejection', onRejection);
+      document.removeEventListener('click', trackLinkIntent, { capture: true });
     };
   }, []);
 

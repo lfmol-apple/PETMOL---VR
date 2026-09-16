@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useI18n } from '@/lib/I18nContext';
 import { petDo } from '@/lib/petGender';
 import { type HomeInactiveEligibleControlId } from '@/lib/homeControlPreferences';
@@ -51,6 +51,16 @@ interface AppleControlButtonsProps {
 
   inactiveControls?: HomeInactiveEligibleControlId[];
   onDeactivateControl?: (controlId: HomeInactiveEligibleControlId) => void;
+
+  // Resumo de "pets sumidos na região" (não são do usuário) — dono da
+  // lógica/estado continua em home/page.tsx (nearbyAlerts, handledAlertIds,
+  // setAlertCard); aqui é só o slot visual. Posição decidida com o dono do
+  // produto (set/2026): abaixo de tudo que é pessoal (cards, Plano de
+  // Saúde), logo acima de "Pet Sumido" — a Home mostra primeiro o que é do
+  // seu pet, urgência comunitária vem por último, agrupada com as ações de
+  // urgência (reportar/emergência). Antes ficava no topo da Home, acima até
+  // do nome do pet.
+  regionalMissingPetsBanner?: ReactNode;
 }
 
 type ControlTone = 'neutral' | 'ok' | 'warning' | 'critical';
@@ -96,6 +106,7 @@ export function AppleControlButtons({
   colorHealth,
   colorFood,
   colorVaccines,
+  regionalMissingPetsBanner,
 }: AppleControlButtonsProps) {
   const { t } = useI18n();
   const [showEmergencyChoice, setShowEmergencyChoice] = useState(false);
@@ -254,6 +265,12 @@ export function AppleControlButtons({
         <div className="mt-3 min-[390px]:mt-3.5">
           <PetHealthPlanCard petName={petName} petSex={petSex} />
         </div>
+
+        {regionalMissingPetsBanner && (
+          <div className="mt-2 min-[390px]:mt-2.5">
+            {regionalMissingPetsBanner}
+          </div>
+        )}
 
         {/* Abaixo: Pet Sumido + Emergência (agrupados — ambos de urgência) */}
         <div className="mt-2 space-y-2 min-[390px]:mt-2.5">

@@ -661,8 +661,14 @@ export default function ProfilePage() {
           )}
 
           <div className="space-y-4 animate-scaleIn" style={{ animationDelay: '100ms' }}>
-            {/* Dados pessoais */}
+            {/* Dados pessoais — único grupo sem título visível entre as
+                seções do Perfil (as demais já têm cabeçalho próprio);
+                mesma tipografia usada nos cabeçalhos colapsáveis abaixo,
+                só que fixo (este grupo não recolhe). */}
             <div className={G}>
+              <div className={`${ROW} !pb-2 !pt-4`}>
+                <span className="text-[13px] font-bold text-slate-700 uppercase tracking-[0.08em]">Dados pessoais</span>
+              </div>
               <div className={ROW}>
                 <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.1em] mb-1.5 pl-1">Nome completo</label>
                 <input

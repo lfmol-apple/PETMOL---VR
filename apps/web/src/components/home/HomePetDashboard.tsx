@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState, useEffect } from 'react';
+import { useMemo, useRef, useState, useEffect, type ReactNode } from 'react';
 import { AppleControlButtons } from '@/components/AppleControlButtons';
 import { HomeShoppingSheet } from '@/features/commerce/HomeShoppingSheet';
 import { buildReorderCards } from '@/features/commerce/petStoreContent';
@@ -157,6 +157,10 @@ interface HomePetDashboardProps {
     days_overdue?: number;
     source_record_id?: string;
   }) => void;
+  // Slot visual pro resumo de "pets sumidos na região" — estado/lógica
+  // fica em home/page.tsx, aqui só repassa pro lugar certo dentro de
+  // AppleControlButtons (ver comentário lá).
+  regionalMissingPetsBanner?: ReactNode;
 }
 
 export function HomePetDashboard({
@@ -194,6 +198,7 @@ export function HomePetDashboard({
   onOpenPetSumido,
   onUpcomingCountChange,
   onHealthItemClick,
+  regionalMissingPetsBanner,
 }: HomePetDashboardProps) {
 
   // Cão sem NENHUM registro de coleira/leishmaniose ainda — mesmo tratamento
@@ -414,6 +419,7 @@ export function HomePetDashboard({
         colorFood={colorFood}
         colorMedicacao={colorMedicacao}
         colorVaccines={colorVacinas}
+        regionalMissingPetsBanner={regionalMissingPetsBanner}
       />
       <HomeShoppingSheet
         open={showShoppingSheet}

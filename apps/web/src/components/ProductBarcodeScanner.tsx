@@ -47,8 +47,9 @@ export function ProductBarcodeScanner({
           quer usar código de barras ficava travado nesses dois botões
           orientados a código. O botão principal agora abre o sheet sem
           defaultMode, pousando na tela de busca (mesma base do catálogo
-          usada na Loja); escanear/digitar código de barras vira o
-          caminho secundário, pra quem já tem o código em mãos. */}
+          usada na Loja). Decisão de produto (set/2026): não existe mais
+          entrada manual de código de barras — só leitura/escaneamento ou
+          busca por nome. */}
       <div className="space-y-2">
         <button
           type="button"
@@ -75,7 +76,7 @@ export function ProductBarcodeScanner({
             onClick={() => openWithMode('manual')}
             className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] font-bold text-slate-700 active:scale-[0.98] transition-all"
           >
-            ⌨️ Digitar o código de barras
+            ✏️ Buscar pelo nome
           </button>
         </div>
       </div>
