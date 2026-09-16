@@ -166,6 +166,16 @@ class Settings(BaseSettings):
     apns_topic: str = "br.com.petmol.app"  # = bundle id do app
     apns_use_sandbox: bool = False  # True → api.sandbox.push.apple.com (builds dev)
 
+    # ── Push nativo Android (FCM) ─────────────────────────────────────────
+    # Sem isto, o envio nativo Android é no-op silencioso (token continua
+    # sendo coletado). Firebase Console → Configurações do projeto → Contas
+    # de serviço → Gerar nova chave privada (baixa um .json). Ligar = setar
+    # 1 env + restart. O mesmo projeto Firebase também precisa exportar
+    # google-services.json pro app Android (apps/web/android/app/) — sem
+    # isso o app nem gera token pra registrar. Ver docs/MOBILE_RELEASE_CHECKLIST.md.
+    fcm_service_account_json: Optional[str] = None       # conteúdo do .json inline
+    fcm_service_account_json_file: Optional[str] = None  # caminho pro .json no servidor (recomendado)
+
     # ── Fale com o Petmol (contato do tutor) ──────────────────────────────
     # Caixa que recebe as mensagens enviadas pela tela "Fale com o Petmol".
     # SMTP reaproveita as mesmas envs do OTP (SMTP_HOST/PORT/USER/PASS/FROM).
