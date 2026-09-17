@@ -78,20 +78,27 @@ function wrapText(
   return curY;
 }
 
+// Espelha o backend (services/price-service/src/missing_pets/__init__.py,
+// _effective_radius_km/_species_radius_cap_km): cresce com sqrt(horas) desde
+// o desaparecimento — não linear — e trava num teto por espécie por volta de
+// 72h. O backend recalcula o mesmo valor on-read a cada disparo/consulta.
+const SPECIES_RADIUS_CAP_KM: Record<string, number> = { cat: 5, dog: 15 };
+const DEFAULT_RADIUS_CAP_KM = 10;
+const RADIUS_CAP_REACHED_AT_HOURS = 72;
+
 function calcAutoRadius(missingDate: string, missingTime: string, species: string) {
-  // Raio livre pela velocidade de caminhada da espécie (cão 5 km/h, gato
-  // 3 km/h), mínimo 2 km, SEM teto — cresce sozinho com o tempo desde o
-  // desaparecimento. O backend recalcula o mesmo on-read a cada disparo.
   try {
     const [yr, mo, dy] = missingDate.split('-').map(Number);
     const [hh, mm] = (missingTime || '00:00').split(':').map(Number);
     const missingAt = new Date(yr, mo - 1, dy, hh, mm);
     const hoursElapsed = Math.max(0, (Date.now() - missingAt.getTime()) / 3600000);
-    const speedKmh = species === 'cat' ? 3 : 5;
-    const rawKm = Math.max(2, Math.ceil(hoursElapsed * speedKmh));
-    return { km: rawKm, hoursElapsed: Math.round(hoursElapsed * 10) / 10, speedKmh };
+    const capKm = SPECIES_RADIUS_CAP_KM[species] ?? DEFAULT_RADIUS_CAP_KM;
+    const growthRate = capKm / Math.sqrt(RADIUS_CAP_REACHED_AT_HOURS);
+    const grown = Math.ceil(growthRate * Math.sqrt(hoursElapsed));
+    const rawKm = Math.min(capKm, Math.max(2, grown));
+    return { km: rawKm, hoursElapsed: Math.round(hoursElapsed * 10) / 10, capKm };
   } catch {
-    return { km: 2, hoursElapsed: 0, speedKmh: 5 };
+    return { km: 2, hoursElapsed: 0, capKm: DEFAULT_RADIUS_CAP_KM };
   }
 }
 
@@ -684,7 +691,7 @@ export function PetSumidoSheet({
                   </p>
                   <p className="text-[11px] text-amber-600 leading-tight">
                     {liveRadius.hoursElapsed > 0
-                      ? `${liveRadius.hoursElapsed}h desaparecido × ${liveRadius.speedKmh} km/h`
+                      ? `Cresce com o tempo, até o teto de ${liveRadius.capKm} km`
                       : 'Raio mínimo de 2 km — cresce com o tempo'}
                   </p>
                 </div>
