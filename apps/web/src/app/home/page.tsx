@@ -33,16 +33,7 @@ const OnboardingChecklistCard = dynamic(() => import('@/components/home/Onboardi
 const PetSumidoSheet = dynamic(() => import('@/components/home/PetSumidoSheet').then(m => ({ default: m.PetSumidoSheet })), { ssr: false });
 const UpcomingEventsSheet = dynamic(() => import('@/components/home/UpcomingEventsSheet').then(m => ({ default: m.UpcomingEventsSheet })), { ssr: false });
 const ReportAlertSheet = dynamic(() => import('@/components/home/ReportAlertSheet').then(m => ({ default: m.ReportAlertSheet })), { ssr: false });
-const NearbyMissingPetsCarousel = dynamic(() => import('@/components/home/NearbyMissingPetsCarousel').then(m => ({ default: m.NearbyMissingPetsCarousel })), { ssr: false });
 import { MissingPetAlertCard, type NearbyAlert } from '@/components/home/MissingPetAlertCard';
-import { NearbyMissingPetsStoryRow } from '@/components/home/NearbyMissingPetsStoryRow';
-import {
-  registerHomeOpen,
-  shouldAutoShowNearbyCarousel,
-  markNearbyCarouselAutoShown,
-  markNearbyCarouselDismissed,
-  type SnoozeOption,
-} from '@/features/interactions/missingPetsCarouselCooldown';
 import type { PetCareReminder } from '@/lib/petCareDomain';
 import { useMultipetInteractions } from '@/features/interactions/useMultipetInteractions';
 import type { PetInteractionItem } from '@/features/interactions/types';
@@ -660,13 +651,6 @@ function HomePageInner() {
   // sem carregar página nova (o /pet-perdido é server-render e demora).
   const [alertCard, setAlertCard] = useState<NearbyAlert | null>(null);
   const [reportAlert, setReportAlert] = useState<NearbyAlert | null>(null);
-  // Aviso automático + carrossel "Tem pet sumido perto de você" — ver
-  // useEffect logo após setAlertCollapsed que decide QUANDO o aviso aparece
-  // sozinho.
-  const [showNearbyNotice, setShowNearbyNotice] = useState(false);
-  const [showNearbyCarousel, setShowNearbyCarousel] = useState(false);
-  const [nearbyCarouselInitialIndex, setNearbyCarouselInitialIndex] = useState(0);
-  useEffect(() => { registerHomeOpen(); }, []);
 
   const DISMISS_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
 
@@ -729,26 +713,11 @@ function HomePageInner() {
   }
 
   // Alertas de outras pessoas, ainda não dispensados/tratados — fonte única
-  // pro badge/subtítulo do botão "Pet Sumido", pro aviso automático/
-  // carrossel e pro resumo da região (ver regionalMissingPetsBanner mais
-  // abaixo). Precisa ficar ANTES do early-return de boot (linha ~1825) pra
-  // o useEffect a seguir nunca ser condicional (regra dos hooks).
+  // pro badge/subtítulo do botão "Pet Sumido" e pro resumo da região (ver
+  // regionalMissingPetsBanner mais abaixo).
   const visibleNearbyAlerts = nearbyAlerts.filter(
     (a) => a.user_id !== loggedUserId && !handledAlertIds.includes(a.id),
   );
-
-  // Aviso automático "Tem pet sumido perto de você" — decide, a cada
-  // mudança na lista visível, se deve aparecer AGORA (regra de soneca em
-  // missingPetsCarouselCooldown.ts: alerta novo sempre fura; conjunto já
-  // dispensado só reaparece depois de ~6h/3 aberturas; teto de 3x/dia).
-  useEffect(() => {
-    const ids = visibleNearbyAlerts.map((a) => a.id);
-    if (shouldAutoShowNearbyCarousel(ids)) {
-      setShowNearbyNotice(true);
-      markNearbyCarouselAutoShown();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleNearbyAlerts.map((a) => a.id).join(',')]);
 
   const fetchNearbyAlerts = useCallback(async () => {
     try {
@@ -2014,31 +1983,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         }
       }}
     >
-      {showNearbyCarousel && (
-        <NearbyMissingPetsCarousel
-          alerts={visibleNearbyAlerts}
-          initialIndex={nearbyCarouselInitialIndex}
-          getPhotoUrl={getPhotoUrl}
-          onClose={() => setShowNearbyCarousel(false)}
-          onViewCard={(alert) => {
-            setShowNearbyCarousel(false);
-            setAlertCard(alert);
-          }}
-          onSeeThis={(alert) => {
-            setShowNearbyCarousel(false);
-            router.push(`/achei-um-pet?id=${alert.id}`);
-          }}
-          onDismiss={(alert) => {
-            writeDismissedId(alert.id);
-            setHandledAlertIds(prev => [...new Set([...prev, alert.id])]);
-            setNearbyAlerts(prev => prev.filter(a => a.id !== alert.id));
-          }}
-          onReport={(alert) => {
-            setShowNearbyCarousel(false);
-            setReportAlert(alert);
-          }}
-        />
-      )}
       {/* Indicador de pull-to-refresh */}
       <div
         className="flex justify-center items-center overflow-hidden transition-all duration-200"
@@ -2385,25 +2329,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     onOpenDewormer={handleOpenVermifugo}
                     suppressed={showFoodSheet || showVaccineSheet || showAntipulgasSheet || showVermifugoSheet}
                   />
-                  )}
-
-                  {showNearbyNotice && (
-                    <NearbyMissingPetsStoryRow
-                      alerts={visibleNearbyAlerts}
-                      getPhotoUrl={getPhotoUrl}
-                      onOpen={(alert) => {
-                        setShowNearbyNotice(false);
-                        setNearbyCarouselInitialIndex(Math.max(0, visibleNearbyAlerts.findIndex((a) => a.id === alert.id)));
-                        setShowNearbyCarousel(true);
-                        // Abrir o carrossel também silencia a soneca (padrão,
-                        // não escolhida) pro mesmo conjunto de alertas.
-                        markNearbyCarouselDismissed(visibleNearbyAlerts.map((a) => a.id));
-                      }}
-                      onSnooze={(option: SnoozeOption) => {
-                        setShowNearbyNotice(false);
-                        markNearbyCarouselDismissed(visibleNearbyAlerts.map((a) => a.id), option);
-                      }}
-                    />
                   )}
 
                   <PetTabs
