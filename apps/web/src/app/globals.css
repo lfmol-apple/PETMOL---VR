@@ -251,7 +251,7 @@ body {
 }
 
 .animate-blink-slow {
-  animation: blinkSlow 2s ease-in-out infinite;
+  animation: blinkSlow 3.2s ease-in-out infinite;
 }
 
 /* ProductDetectionSheet — barcode scan line */
