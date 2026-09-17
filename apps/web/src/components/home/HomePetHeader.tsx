@@ -4,6 +4,9 @@ import { createPortal } from 'react-dom';
 
 import { useI18n } from '@/lib/I18nContext';
 import { HomeAttentionOverlays } from '@/components/home/HomeAttentionOverlays';
+import { NearbyMissingPetsNotice } from '@/components/home/NearbyMissingPetsNotice';
+import type { NearbyAlert } from '@/components/home/MissingPetAlertCard';
+import type { SnoozeOption } from '@/features/interactions/missingPetsCarouselCooldown';
 import type { PetInteractionItem } from '@/features/interactions/types';
 import type { PetHealthProfile } from '@/lib/petHealth';
 
@@ -51,6 +54,13 @@ interface HomePetHeaderProps {
   // once in useHomeInteractionCenter.ts and shared across the household,
   // not scoped to just the currently-selected pet.
   basicCareAttentionPetNames: string[];
+  // Chip "Tem pet sumido perto de você" sobre a foto grande — ver
+  // NearbyMissingPetsNotice.tsx. A decisão de QUANDO mostrar (soneca/teto
+  // diário) fica em home/page.tsx; aqui só é renderizado quando true.
+  showNearbyMissingNotice: boolean;
+  nearbyMissingAlerts: NearbyAlert[];
+  onOpenNearbyMissing: () => void;
+  onSnoozeNearbyMissing: (option: SnoozeOption) => void;
 }
 
 export function HomePetHeader({
@@ -78,6 +88,10 @@ export function HomePetHeader({
   upcomingUrgent,
   onOpenUpcoming,
   basicCareAttentionPetNames,
+  showNearbyMissingNotice,
+  nearbyMissingAlerts,
+  onOpenNearbyMissing,
+  onSnoozeNearbyMissing,
 }: HomePetHeaderProps) {
   const { t } = useI18n();
   const nameButtonRef = useRef<HTMLButtonElement>(null);
@@ -224,6 +238,15 @@ export function HomePetHeader({
 
         {/* Overlay premium gradient na parte inferior da foto */}
         <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+
+        {showNearbyMissingNotice && nearbyMissingAlerts.length > 0 && (
+          <NearbyMissingPetsNotice
+            alerts={nearbyMissingAlerts}
+            getPhotoUrl={(photoPath) => getPhotoUrl(photoPath)}
+            onOpen={onOpenNearbyMissing}
+            onSnooze={onSnoozeNearbyMissing}
+          />
+        )}
 
         {pets.length > 1 && (
           <>

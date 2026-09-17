@@ -69,4 +69,29 @@ describe('missingPetsCarouselCooldown', () => {
     markNearbyCarouselDismissed(['a1']);
     expect(shouldAutoShowNearbyCarousel(['a1'])).toBe(false);
   });
+
+  it('"silenciar por algumas horas" respeita 6h mesmo com 3+ aberturas', () => {
+    markNearbyCarouselDismissed(['a1'], 'hours');
+    registerHomeOpen();
+    registerHomeOpen();
+    registerHomeOpen();
+    registerHomeOpen();
+    // escolha explícita ignora o atalho de "N aberturas" — só o tempo conta
+    expect(shouldAutoShowNearbyCarousel(['a1'])).toBe(false);
+  });
+
+  it('"silenciar por 1 dia" só reabre depois de 24h, nunca antes por aberturas', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-16T10:00:00Z'));
+    markNearbyCarouselDismissed(['a1'], 'day');
+    registerHomeOpen();
+    registerHomeOpen();
+    registerHomeOpen();
+
+    vi.setSystemTime(new Date('2026-09-16T16:00:01Z')); // +6h01 — venceria a soneca padrão, mas não a de 1 dia
+    expect(shouldAutoShowNearbyCarousel(['a1'])).toBe(false);
+
+    vi.setSystemTime(new Date('2026-09-17T10:00:01Z')); // +24h01
+    expect(shouldAutoShowNearbyCarousel(['a1'])).toBe(true);
+  });
 });
