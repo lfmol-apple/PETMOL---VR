@@ -630,6 +630,10 @@ function HomePageInner() {
   const [showColeiraSheet, setShowColeiraSheet] = useState(false);
   const [showBanhoTosaSheet, setShowBanhoTosaSheet] = useState(false);
   const [showPetSumidoSheet, setShowPetSumidoSheet] = useState(false);
+  // Deep link do push de "pet sumido perto de você" (ver homeModalRouting.ts)
+  // decide em qual aba a sheet abre — undefined deixa a PetSumidoSheet usar
+  // sua própria regra padrão (baseada em nearbyCount).
+  const [petSumidoInitialTab, setPetSumidoInitialTab] = useState<'nearby' | 'report' | undefined>(undefined);
   const [showUpcomingSheet, setShowUpcomingSheet] = useState(false);
   const [allUpcomingReminders, setAllUpcomingReminders] = useState<PetCareReminder[]>([]);
   // Bell badge NUMBER shows everything (overdue + upcoming) — per feedback,
@@ -1417,6 +1421,8 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     setShowEditModal,
     setHealthModalMode,
     setHealthActiveTab,
+    setShowPetSumidoSheet,
+    setPetSumidoInitialTab,
   });
 
   // Targets que abrem o mini sheet de ação rápida em vez do sheet completo
@@ -2918,10 +2924,11 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         <PetSumidoSheet
           pet={currentPet}
           petPhotoUrl={currentPet.photo ? getPhotoUrl(currentPet.photo) : null}
-          onClose={() => setShowPetSumidoSheet(false)}
-          onGoHome={() => goHome(() => setShowPetSumidoSheet(false))}
+          onClose={() => { setShowPetSumidoSheet(false); setPetSumidoInitialTab(undefined); }}
+          onGoHome={() => goHome(() => { setShowPetSumidoSheet(false); setPetSumidoInitialTab(undefined); })}
           nearbyContent={regionalMissingPetsBanner}
           nearbyCount={nearbyMissingCount}
+          initialSection={petSumidoInitialTab}
         />
       )}
 

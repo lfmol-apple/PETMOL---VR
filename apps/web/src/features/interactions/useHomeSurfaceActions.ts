@@ -18,6 +18,8 @@ interface UseHomeSurfaceActionsInput {
   setShowEditModal: (value: boolean) => void;
   setHealthModalMode: (value: 'health' | 'grooming' | 'food' | 'full') => void;
   setHealthActiveTab: (value: 'vaccines' | 'parasites' | 'medication' | 'eventos') => void;
+  setShowPetSumidoSheet: (value: boolean) => void;
+  setPetSumidoInitialTab: (value: 'nearby' | 'report') => void;
 }
 
 export function useHomeSurfaceActions({
@@ -35,6 +37,8 @@ export function useHomeSurfaceActions({
   setShowEditModal,
   setHealthModalMode,
   setHealthActiveTab,
+  setShowPetSumidoSheet,
+  setPetSumidoInitialTab,
 }: UseHomeSurfaceActionsInput) {
   const openVaccines = useCallback(() => {
     setShowVaccineSheet(true);
@@ -107,11 +111,18 @@ export function useHomeSurfaceActions({
     if (resolution.kind === 'edit-pet') {
       setEditPetInitialSection(resolution.initialSection);
       setShowEditModal(true);
+      return;
+    }
+
+    if (resolution.kind === 'pet-sumido') {
+      setPetSumidoInitialTab(resolution.tab);
+      setShowPetSumidoSheet(true);
     }
   }, [
     setEditPetInitialSection,
     setHealthActiveTab,
     setHealthModalMode,
+    setPetSumidoInitialTab,
     setShowAntipulgasSheet,
     setShowBanhoTosaSheet,
     setShowColeiraSheet,
@@ -120,6 +131,7 @@ export function useHomeSurfaceActions({
     setShowHealthModal,
     setShowHealthOptionsModal,
     setShowMedicationSheet,
+    setShowPetSumidoSheet,
     setShowQuickAddVaccine,
     setShowVaccineSheet,
     setShowVermifugoSheet,
