@@ -28,10 +28,9 @@ interface MissingPetAlertCardProps {
 }
 
 // Card "pet sumido perto de você" — extraído de home/page.tsx pra ser
-// reaproveitado tanto na lista de sempre (aba "Perto de você" da
-// PetSumidoSheet) quanto no popup automático em carrossel
-// (NearbyMissingPetsCarousel). Comportamento idêntico ao original: nada de
-// UI nova aqui, só virou componente.
+// reaproveitado na lista de sempre (aba "Perto de você" da PetSumidoSheet).
+// O toque num círculo da NearbyMissingPetsStoryRow abre um visualizador em
+// tela cheia à parte (NearbyMissingPetsStoryOverlay), não este card.
 export function MissingPetAlertCard({
   alert, photoUrl, collapsed, onToggleCollapsed, onViewCard, onSeeThis, onDismiss, onReport,
   showCollapse = true,

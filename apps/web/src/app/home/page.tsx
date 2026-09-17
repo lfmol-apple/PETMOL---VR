@@ -33,7 +33,7 @@ const OnboardingChecklistCard = dynamic(() => import('@/components/home/Onboardi
 const PetSumidoSheet = dynamic(() => import('@/components/home/PetSumidoSheet').then(m => ({ default: m.PetSumidoSheet })), { ssr: false });
 const UpcomingEventsSheet = dynamic(() => import('@/components/home/UpcomingEventsSheet').then(m => ({ default: m.UpcomingEventsSheet })), { ssr: false });
 const ReportAlertSheet = dynamic(() => import('@/components/home/ReportAlertSheet').then(m => ({ default: m.ReportAlertSheet })), { ssr: false });
-const NearbyMissingPetsCarousel = dynamic(() => import('@/components/home/NearbyMissingPetsCarousel').then(m => ({ default: m.NearbyMissingPetsCarousel })), { ssr: false });
+const NearbyMissingPetsStoryOverlay = dynamic(() => import('@/components/home/NearbyMissingPetsStoryOverlay').then(m => ({ default: m.NearbyMissingPetsStoryOverlay })), { ssr: false });
 import { MissingPetAlertCard, type NearbyAlert } from '@/components/home/MissingPetAlertCard';
 import { NearbyMissingPetsStoryRow } from '@/components/home/NearbyMissingPetsStoryRow';
 import {
@@ -2015,7 +2015,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
       }}
     >
       {showNearbyCarousel && (
-        <NearbyMissingPetsCarousel
+        <NearbyMissingPetsStoryOverlay
           alerts={visibleNearbyAlerts}
           initialIndex={nearbyCarouselInitialIndex}
           getPhotoUrl={getPhotoUrl}
@@ -2027,15 +2027,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           onSeeThis={(alert) => {
             setShowNearbyCarousel(false);
             router.push(`/achei-um-pet?id=${alert.id}`);
-          }}
-          onDismiss={(alert) => {
-            writeDismissedId(alert.id);
-            setHandledAlertIds(prev => [...new Set([...prev, alert.id])]);
-            setNearbyAlerts(prev => prev.filter(a => a.id !== alert.id));
-          }}
-          onReport={(alert) => {
-            setShowNearbyCarousel(false);
-            setReportAlert(alert);
           }}
         />
       )}
