@@ -34,6 +34,7 @@ const PermissionsNudgeCard = dynamic(() => import('@/components/home/Permissions
 const PetSumidoSheet = dynamic(() => import('@/components/home/PetSumidoSheet').then(m => ({ default: m.PetSumidoSheet })), { ssr: false });
 const UpcomingEventsSheet = dynamic(() => import('@/components/home/UpcomingEventsSheet').then(m => ({ default: m.UpcomingEventsSheet })), { ssr: false });
 const ReportAlertSheet = dynamic(() => import('@/components/home/ReportAlertSheet').then(m => ({ default: m.ReportAlertSheet })), { ssr: false });
+const NearbyMissingPetsStoryOverlay = dynamic(() => import('@/components/home/NearbyMissingPetsStoryOverlay').then(m => ({ default: m.NearbyMissingPetsStoryOverlay })), { ssr: false });
 import { MissingPetAlertCard, type NearbyAlert } from '@/components/home/MissingPetAlertCard';
 import type { PetCareReminder } from '@/lib/petCareDomain';
 import { useMultipetInteractions } from '@/features/interactions/useMultipetInteractions';
@@ -634,6 +635,9 @@ function HomePageInner() {
   const [showColeiraSheet, setShowColeiraSheet] = useState(false);
   const [showBanhoTosaSheet, setShowBanhoTosaSheet] = useState(false);
   const [showPetSumidoSheet, setShowPetSumidoSheet] = useState(false);
+  // Toque no letreiro "pet sumido perto de você" (acima da foto) abre esse
+  // visualizador em tela cheia — toque intencional, não popup automático.
+  const [showNearbyStoryOverlay, setShowNearbyStoryOverlay] = useState(false);
   // Deep link do push de "pet sumido perto de você" (ver homeModalRouting.ts)
   // decide em qual aba a sheet abre — undefined deixa a PetSumidoSheet usar
   // sua própria regra padrão (baseada em nearbyCount).
@@ -1998,6 +2002,21 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         }
       }}
     >
+      {showNearbyStoryOverlay && (
+        <NearbyMissingPetsStoryOverlay
+          alerts={visibleNearbyAlerts}
+          getPhotoUrl={getPhotoUrl}
+          onClose={() => setShowNearbyStoryOverlay(false)}
+          onViewCard={(alert) => {
+            setShowNearbyStoryOverlay(false);
+            setAlertCard(alert);
+          }}
+          onSeeThis={(alert) => {
+            setShowNearbyStoryOverlay(false);
+            router.push(`/achei-um-pet?id=${alert.id}`);
+          }}
+        />
+      )}
       {/* Indicador de pull-to-refresh */}
       <div
         className="flex justify-center items-center overflow-hidden transition-all duration-200"
@@ -2392,10 +2411,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       onOpenUpcoming={() => setShowUpcomingSheet(true)}
                       basicCareAttentionPetNames={basicCareAttentionPetNames}
                       nearbyMissingCount={showNearbyTicker ? nearbyMissingCount : 0}
-                      onOpenNearbyMissing={() => {
-                        setPetSumidoInitialTab('nearby');
-                        setShowPetSumidoSheet(true);
-                      }}
+                      onOpenNearbyMissing={() => setShowNearbyStoryOverlay(true)}
                     />
 
                   {/* Compartilhar cuidado — só para o dono do pet */}

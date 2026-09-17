@@ -22,7 +22,7 @@ export function NearbyMissingPetsTicker({ count, onOpen }: NearbyMissingPetsTick
       type="button"
       onClick={onOpen}
       aria-label={message}
-      className="relative max-w-[65%] flex-shrink-0 overflow-hidden rounded-full bg-gradient-to-r from-rose-600 to-rose-500 py-1.5 shadow-sm active:scale-95 transition-transform"
+      className="relative w-full overflow-hidden rounded-full bg-gradient-to-r from-rose-600 to-rose-500 py-1.5 shadow-sm active:scale-95 transition-transform"
     >
       <div className="flex w-max animate-marquee whitespace-nowrap">
         <span className="pr-10 text-[10px] font-black tracking-wide text-white">🚨 {message}</span>
