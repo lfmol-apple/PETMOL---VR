@@ -62,6 +62,7 @@ import { commonVaccines } from '@/data/vaccineInfo';
 import { hasCompletedOnboarding, getOwnerProfile } from '@/lib/ownerProfile';
 import { isOnboardingActiveFlag } from '@/lib/onboardingProgress';
 import { needsLeishmaniaseAwareness } from '@/lib/leishmaniaseAwareness';
+import { shouldShowNearbyTicker, registerNearbyTickerShown } from '@/features/interactions/nearbyMissingTickerVisibility';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
@@ -720,6 +721,17 @@ function HomePageInner() {
   const visibleNearbyAlerts = nearbyAlerts.filter(
     (a) => a.user_id !== loggedUserId && !handledAlertIds.includes(a.id),
   );
+
+  // Regra de exibição do letreiro (NearbyMissingPetsTicker) — "não pode
+  // ficar chato": some sozinho depois de algumas aberturas do MESMO
+  // conjunto de alertas, mas o botão "Pet Sumido" (nearbyMissingCount cru,
+  // sem essa regra) continua avisando sem limite — nunca deixa de anunciar.
+  const nearbyAlertIdsForTicker = visibleNearbyAlerts.map((a) => a.id);
+  const showNearbyTicker = shouldShowNearbyTicker(nearbyAlertIdsForTicker);
+  useEffect(() => {
+    if (showNearbyTicker) registerNearbyTickerShown(nearbyAlertIdsForTicker);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showNearbyTicker, nearbyAlertIdsForTicker.join(',')]);
 
   const fetchNearbyAlerts = useCallback(async () => {
     try {
@@ -2378,7 +2390,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       upcomingUrgent={hasUrgentReminder}
                       onOpenUpcoming={() => setShowUpcomingSheet(true)}
                       basicCareAttentionPetNames={basicCareAttentionPetNames}
-                      nearbyMissingCount={nearbyMissingCount}
+                      nearbyMissingCount={showNearbyTicker ? nearbyMissingCount : 0}
                       onOpenNearbyMissing={() => {
                         setPetSumidoInitialTab('nearby');
                         setShowPetSumidoSheet(true);
