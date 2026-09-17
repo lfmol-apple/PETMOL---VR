@@ -138,11 +138,6 @@ interface HomePetDashboardProps {
     days_overdue?: number;
     source_record_id?: string;
   }) => void;
-  // Quantos pets sumidos existem na região agora — estado/lógica fica em
-  // home/page.tsx, aqui só repassa pro botão "Pet Sumido" dentro de
-  // AppleControlButtons (ver comentário lá; a lista em si vai direto pra
-  // PetSumidoSheet, não passa por este componente).
-  nearbyMissingCount?: number;
 }
 
 export function HomePetDashboard({
@@ -180,7 +175,6 @@ export function HomePetDashboard({
   onOpenPetSumido,
   onUpcomingCountChange,
   onHealthItemClick,
-  nearbyMissingCount,
 }: HomePetDashboardProps) {
 
   // Cão sem NENHUM registro de coleira/leishmaniose ainda — mesmo tratamento
@@ -400,7 +394,6 @@ export function HomePetDashboard({
         colorFood={colorFood}
         colorMedicacao={colorMedicacao}
         colorVaccines={colorVacinas}
-        nearbyMissingCount={nearbyMissingCount}
       />
       <HomeShoppingSheet
         open={showShoppingSheet}
