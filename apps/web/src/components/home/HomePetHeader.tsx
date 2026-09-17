@@ -197,6 +197,12 @@ export function HomePetHeader({
 
   return (
     <>    <div className="px-1.5 pt-1.5 space-y-2 min-[390px]:px-2.5 sm:px-4 sm:pt-4 sm:space-y-3">
+      {/* Pet sumido perto de você — acima da foto grande, largura cheia.
+          Some sozinho quando não há alerta (nunca ocupa espaço à toa). */}
+      {nearbyMissingCount > 0 && onOpenNearbyMissing && (
+        <NearbyMissingPetsTicker count={nearbyMissingCount} onOpen={onOpenNearbyMissing} />
+      )}
+
       {/* Container da Foto + Navegação Estilo Apple */}
       <div
         className="relative group mx-auto w-full overflow-hidden rounded-[22px] border border-white/50 bg-gradient-to-br from-blue-400 to-purple-500 shadow-lg shadow-blue-500/10 ring-1 ring-black/5 sm:rounded-[28px]"
@@ -329,13 +335,29 @@ export function HomePetHeader({
               </div>
             </button>
 
-            {/* Pet sumido perto de você tem prioridade absoluta nesse slot —
-                a pedido do dono, o selo de atenção de cuidados básicos saiu
-                daqui de vez (relocar em outro lugar fica pra depois). Sem
-                alerta na região, o espaço fica vazio — não volta o selo. */}
-            {nearbyMissingCount > 0 && onOpenNearbyMissing && (
-              <NearbyMissingPetsTicker count={nearbyMissingCount} onOpen={onOpenNearbyMissing} />
-            )}
+            {/* Badge de atenção — alinhado à direita com o nome. Texto
+                deliberadamente curto (a bolinha colorida já carrega a
+                urgência) e com teto de largura menor que o do nome, pra não
+                espremer o nome do pet — confirmado em produção: "Mingau"
+                virava "Ming..." porque o selo antigo ("2 pets precisam de
+                atenção") tomava até 52% da linha. */}
+            <div
+              onClick={hasVisibleAttention ? onOpenTopAttentionModal : undefined}
+              className={`inline-flex max-w-[38%] flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-sm transition-all ${
+                hasVisibleAttention
+                  ? 'bg-rose-50 border-rose-200 text-rose-700 cursor-pointer hover:bg-rose-100 active:scale-95'
+                  : 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default'
+              }`}
+            >
+              <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${hasVisibleAttention ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
+              <span className="truncate text-[10px] font-bold tracking-wide">
+                {hasVisibleAttention
+                  ? basicCareAttentionPetNames.length === 1
+                    ? basicCareAttentionPetNames[0]
+                    : `${basicCareAttentionPetNames.length} pets`
+                  : 'Em dia'}
+              </span>
+            </div>
           </div>
           
           {/* Chips de dados do pet */}
