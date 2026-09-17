@@ -147,13 +147,13 @@ export function PetSumidoSheet({
 }: PetSumidoSheetProps) {
   const isEditMode = Boolean(editAlertId);
   const [step, setStep] = useState<Step>('form');
-  // Duas abas sempre visíveis (mesmo com a região vazia) — só existem no
-  // fluxo principal de criar alerta, não na edição de um alerta já existente.
-  // Um deep link explícito (initialSection, ex.: toque num push) sempre
-  // vence a regra padrão de "abre em 'nearby' se já tiver contagem".
-  const [activeSection, setActiveSection] = useState<Section>(
-    initialSection ?? (nearbyCount > 0 ? 'nearby' : 'report'),
-  );
+  // O botão "Pet Sumido" agora só faz a função dele — reportar o próprio pet
+  // — sem nenhum desvio pra lista de "perto de você" (isso já vive no pisco
+  // ao lado do nome + visualizador em tela cheia). A aba "Perto de você"
+  // sobrevive só pro deep link explícito de um push sobre o pet de outra
+  // pessoa (initialSection), que continua sendo um fluxo totalmente
+  // diferente de "reportar o meu".
+  const [activeSection, setActiveSection] = useState<Section>(initialSection ?? 'report');
   const [contact, setContact] = useState(() => formatBRPhoneInput(initialContact));
   const [lastSeenLocation, setLastSeenLocation] = useState(initialLocation);
   const [characteristics, setCharacteristics] = useState(initialCharacteristics);
@@ -548,7 +548,10 @@ export function PetSumidoSheet({
         onClose={onClose}
       />
 
-      {!isEditMode && step === 'form' && (
+      {/* Só aparece quando um deep link explícito abriu direto na aba
+          regional (push sobre o pet de outra pessoa) — o toque comum no
+          botão "Pet Sumido" nunca passa por aqui, vai reto pro formulário. */}
+      {!isEditMode && step === 'form' && initialSection === 'nearby' && (
         <div className="flex gap-2 border-b border-slate-100 px-5 py-2.5">
           <button
             type="button"
