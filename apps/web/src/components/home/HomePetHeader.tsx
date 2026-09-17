@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 
 import { useI18n } from '@/lib/I18nContext';
 import { HomeAttentionOverlays } from '@/components/home/HomeAttentionOverlays';
+import { NearbyMissingPetsTicker } from '@/components/home/NearbyMissingPetsTicker';
 import type { PetInteractionItem } from '@/features/interactions/types';
 import type { PetHealthProfile } from '@/lib/petHealth';
 
@@ -51,6 +52,11 @@ interface HomePetHeaderProps {
   // once in useHomeInteractionCenter.ts and shared across the household,
   // not scoped to just the currently-selected pet.
   basicCareAttentionPetNames: string[];
+  // Letreiro "pet sumido perto de você" — substitui o selo de atenção nessa
+  // posição quando há alerta(s) na região (pedido do dono). 0/undefined =
+  // nada aqui, mesmo comportamento de antes de existir.
+  nearbyMissingCount?: number;
+  onOpenNearbyMissing?: () => void;
 }
 
 export function HomePetHeader({
@@ -78,6 +84,8 @@ export function HomePetHeader({
   upcomingUrgent,
   onOpenUpcoming,
   basicCareAttentionPetNames,
+  nearbyMissingCount = 0,
+  onOpenNearbyMissing,
 }: HomePetHeaderProps) {
   const { t } = useI18n();
   const nameButtonRef = useRef<HTMLButtonElement>(null);
@@ -321,29 +329,13 @@ export function HomePetHeader({
               </div>
             </button>
 
-            {/* Badge de atenção — alinhado à direita com o nome. Texto
-                deliberadamente curto (a bolinha colorida já carrega a
-                urgência) e com teto de largura menor que o do nome, pra não
-                espremer o nome do pet — confirmado em produção: "Mingau"
-                virava "Ming..." porque o selo antigo ("2 pets precisam de
-                atenção") tomava até 52% da linha. */}
-            <div
-              onClick={hasVisibleAttention ? onOpenTopAttentionModal : undefined}
-              className={`inline-flex max-w-[38%] flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-sm transition-all ${
-                hasVisibleAttention
-                  ? 'bg-rose-50 border-rose-200 text-rose-700 cursor-pointer hover:bg-rose-100 active:scale-95'
-                  : 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default'
-              }`}
-            >
-              <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${hasVisibleAttention ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
-              <span className="truncate text-[10px] font-bold tracking-wide">
-                {hasVisibleAttention
-                  ? basicCareAttentionPetNames.length === 1
-                    ? basicCareAttentionPetNames[0]
-                    : `${basicCareAttentionPetNames.length} pets`
-                  : 'Em dia'}
-              </span>
-            </div>
+            {/* Pet sumido perto de você tem prioridade absoluta nesse slot —
+                a pedido do dono, o selo de atenção de cuidados básicos saiu
+                daqui de vez (relocar em outro lugar fica pra depois). Sem
+                alerta na região, o espaço fica vazio — não volta o selo. */}
+            {nearbyMissingCount > 0 && onOpenNearbyMissing && (
+              <NearbyMissingPetsTicker count={nearbyMissingCount} onOpen={onOpenNearbyMissing} />
+            )}
           </div>
           
           {/* Chips de dados do pet */}

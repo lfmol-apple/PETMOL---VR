@@ -62,6 +62,7 @@ import { commonVaccines } from '@/data/vaccineInfo';
 import { hasCompletedOnboarding, getOwnerProfile } from '@/lib/ownerProfile';
 import { isOnboardingActiveFlag } from '@/lib/onboardingProgress';
 import { needsLeishmaniaseAwareness } from '@/lib/leishmaniaseAwareness';
+import { shouldShowNearbyTicker, registerNearbyTickerHomeOpen } from '@/features/interactions/nearbyMissingTickerVisibility';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
@@ -720,6 +721,18 @@ function HomePageInner() {
   const visibleNearbyAlerts = nearbyAlerts.filter(
     (a) => a.user_id !== loggedUserId && !handledAlertIds.includes(a.id),
   );
+
+  // Regra de exibição do letreiro (NearbyMissingPetsTicker) — "não pode
+  // ficar chato, mas também não pode deixar de anunciar": explosão inicial
+  // nas primeiras aberturas do MESMO conjunto de alertas, depois volta a
+  // cada N aberturas (nunca em silêncio pra sempre). O botão "Pet Sumido"
+  // (nearbyMissingCount cru, sem essa regra) continua avisando sem limite.
+  const nearbyAlertIdsForTicker = visibleNearbyAlerts.map((a) => a.id);
+  const showNearbyTicker = shouldShowNearbyTicker(nearbyAlertIdsForTicker);
+  useEffect(() => {
+    registerNearbyTickerHomeOpen(nearbyAlertIdsForTicker, showNearbyTicker);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nearbyAlertIdsForTicker.join(',')]);
 
   const fetchNearbyAlerts = useCallback(async () => {
     try {
@@ -2378,6 +2391,11 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       upcomingUrgent={hasUrgentReminder}
                       onOpenUpcoming={() => setShowUpcomingSheet(true)}
                       basicCareAttentionPetNames={basicCareAttentionPetNames}
+                      nearbyMissingCount={showNearbyTicker ? nearbyMissingCount : 0}
+                      onOpenNearbyMissing={() => {
+                        setPetSumidoInitialTab('nearby');
+                        setShowPetSumidoSheet(true);
+                      }}
                     />
 
                   {/* Compartilhar cuidado — só para o dono do pet */}
