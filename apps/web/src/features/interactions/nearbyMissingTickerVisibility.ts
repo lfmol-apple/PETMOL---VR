@@ -12,7 +12,11 @@
 // seguintes da Home — "momentos estratégicos de uso do app" — em vez de
 // desaparecer de vez. O botão "Pet Sumido" (bolinha vermelha + contagem)
 // continua avisando sem nenhuma dessas regras, é a fonte sempre confiável.
-const STORAGE_KEY = 'petmol_nearby_ticker_seen_v1';
+// v2: o pisco mudou de posição/estilo no PR #417 (letreiro acima da foto →
+// pill no lugar do selo de atenção) — a contagem antiga não pode contar
+// contra o desenho novo, senão ele nasce já em silêncio pra quem testou o
+// desenho antigo à exaustão.
+const STORAGE_KEY = 'petmol_nearby_ticker_seen_v2';
 const BURST_SHOWS = 3; // aparece nas 3 primeiras aberturas de um conjunto novo
 const PERIODIC_EVERY_OPENS = 5; // depois disso, volta a cada 5 aberturas
 
