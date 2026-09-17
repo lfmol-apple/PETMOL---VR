@@ -2014,7 +2014,8 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     >
       {showNearbyNotice && (
         <NearbyMissingPetsNotice
-          count={visibleNearbyAlerts.length}
+          alerts={visibleNearbyAlerts}
+          getPhotoUrl={getPhotoUrl}
           onOpen={() => {
             setShowNearbyNotice(false);
             setShowNearbyCarousel(true);
