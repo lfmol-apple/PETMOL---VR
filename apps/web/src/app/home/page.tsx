@@ -846,7 +846,7 @@ function HomePageInner() {
 
   // Alertas ATIVOS criados pelo próprio usuário (pets sumidos do dono)
   type AlertReach = { notified_active: number; new_in_radius: number; radius_km: number };
-  type OwnAlert = { id: string; pet_id: string | null; pet_name: string; contact: string; last_seen_location: string | null; characteristics: string | null; missing_date: string | null; missing_time: string | null; photo_url: string | null };
+  type OwnAlert = { id: string; pet_id: string | null; pet_name: string; contact: string; last_seen_location: string | null; characteristics: string | null; missing_date: string | null; missing_time: string | null; photo_url: string | null; expires_at: string | null };
   const [ownMissingAlerts, setOwnMissingAlerts] = useState<OwnAlert[]>([]);
   const [alertReach, setAlertReach] = useState<Record<string, AlertReach>>({});
   const [editingAlertId, setEditingAlertId] = useState<string | null>(null);
@@ -2284,6 +2284,15 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                   {ownMissingAlerts.some(a => a.pet_id === selectedPetId) && (() => {
                     const missingAlert = ownMissingAlerts.find(a => a.pet_id === selectedPetId)!;
                     const reach = alertReach[missingAlert.id];
+                    // Vencimento em 10 dias (services/price-service/src/missing_pets,
+                    // expire_stale_missing_pet_alerts) — o tutor precisa ver isso
+                    // aqui, na hora, pra decidir se gera um novo antes de sumir
+                    // da região sem aviso nenhum (o push de vencimento só chega
+                    // no dia exato; este selo cobre o "enquanto isso").
+                    const expiresAt = missingAlert.expires_at ? new Date(missingAlert.expires_at) : null;
+                    const daysRemaining = expiresAt
+                      ? Math.ceil((expiresAt.getTime() - Date.now()) / 86400000)
+                      : null;
                     return (
                       <div className="rounded-[24px] border border-rose-400/50 bg-gradient-to-br from-rose-600 to-rose-700 px-4 py-3.5 shadow-lg shadow-rose-900/30">
                         <div className="flex items-center gap-3">
@@ -2299,6 +2308,14 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                               </p>
                             ) : (
                               <p className="text-[11px] text-rose-200 mt-0.5">A comunidade está sendo notificada na região</p>
+                            )}
+                            {daysRemaining !== null && (
+                              <p className={`text-[11px] font-bold mt-0.5 ${daysRemaining <= 2 ? 'text-amber-200' : 'text-rose-200/90'}`}>
+                                {daysRemaining <= 0
+                                  ? 'Vence hoje'
+                                  : `Vence em ${daysRemaining} dia${daysRemaining !== 1 ? 's' : ''}`}
+                                {' '}— gere um novo se ainda não encontrou
+                              </p>
                             )}
                           </div>
                           <span className="flex-shrink-0 w-2 h-2 rounded-full bg-white animate-pulse" />

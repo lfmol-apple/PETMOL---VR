@@ -275,28 +275,28 @@ def test_effective_radius_grows_with_time_but_caps_by_species(_isolate):
         missing_time = None
         created_at = datetime.now(timezone.utc) - timedelta(hours=40)
 
-    # cresce com o tempo, mas às 40h ainda não bateu no teto do cão (15 km)
+    # cresce com o tempo, mas às 40h ainda não bateu no teto do cão (20 km)
     r = _effective_radius_km(_MP())
-    assert 10 <= r < 15
+    assert 10 <= r < 20
 
     class _MPCapped(_MP):
         created_at = datetime.now(timezone.utc) - timedelta(hours=200)
 
     # bem depois de 72h, trava no teto — não cresce mais indefinidamente
-    assert _effective_radius_km(_MPCapped()) == 15.0
+    assert _effective_radius_km(_MPCapped()) == 20.0
 
     class _Cat(_MP):
         species = "cat"
         created_at = datetime.now(timezone.utc) - timedelta(hours=40)
 
-    # gato anda menos e tem teto menor (5 km)
+    # gato anda menos e tem teto menor que o cão (15 km)
     r_cat = _effective_radius_km(_Cat())
-    assert 3 <= r_cat < 5
+    assert 8 <= r_cat < 15
 
     class _CatCapped(_Cat):
         created_at = datetime.now(timezone.utc) - timedelta(hours=200)
 
-    assert _effective_radius_km(_CatCapped()) == 5.0
+    assert _effective_radius_km(_CatCapped()) == 15.0
 
 
 def test_effective_radius_floor_is_stored_value(_isolate):
@@ -325,8 +325,8 @@ def test_effective_radius_never_exceeds_species_cap(_isolate):
         missing_time = None
         created_at = datetime.now(timezone.utc) - timedelta(minutes=2)
 
-    # mesmo o valor guardado é limitado pelo teto da espécie (15 km)
-    assert _effective_radius_km(_MP()) == 15.0
+    # mesmo o valor guardado é limitado pelo teto da espécie (20 km)
+    assert _effective_radius_km(_MP()) == 20.0
 
 
 def test_should_sighting_broadcast_throttle(_isolate, monkeypatch):
@@ -337,6 +337,71 @@ def test_should_sighting_broadcast_throttle(_isolate, monkeypatch):
     assert _should_sighting_broadcast("case-x") is True
     _mark_sighting_broadcast("case-x")
     assert _should_sighting_broadcast("case-x") is False
+
+
+# ── PS-9: alerta vence em 10 dias ────────────────────────────────────────────
+
+def test_is_missing_pet_stale(_isolate):
+    from datetime import datetime, timezone, timedelta
+    from src.missing_pets import _is_missing_pet_stale
+
+    class _Fresh:
+        created_at = datetime.now(timezone.utc) - timedelta(days=9)
+
+    class _Stale:
+        created_at = datetime.now(timezone.utc) - timedelta(days=11)
+
+    class _NoCreatedAt:
+        created_at = None
+
+    assert _is_missing_pet_stale(_Fresh()) is False
+    assert _is_missing_pet_stale(_Stale()) is True
+    assert _is_missing_pet_stale(_NoCreatedAt()) is False
+
+
+def test_expire_stale_missing_pet_alerts_flips_status_and_notifies_owner(_isolate):
+    from datetime import datetime, timezone, timedelta
+    from src.missing_pets import expire_stale_missing_pet_alerts
+
+    sent = _isolate
+    with SessionLocal() as db:
+        _sub(db, "owner", "owner-phone")
+        stale = _make_mp(db, owner_id="owner")
+        stale.created_at = datetime.now(timezone.utc) - timedelta(days=11)
+        fresh = _make_mp(db, owner_id="owner")
+        fresh.created_at = datetime.now(timezone.utc) - timedelta(days=2)
+        db.commit()
+        stale_id, fresh_id = stale.id, fresh.id
+
+    expired_count = expire_stale_missing_pet_alerts()
+    assert expired_count == 1
+
+    with SessionLocal() as db:
+        assert db.query(MissingPet).filter_by(id=stale_id).one().status == "expired"
+        assert db.query(MissingPet).filter_by(id=fresh_id).one().status == "active"
+
+    assert sent == ["https://push.example/owner-phone"]
+
+
+def test_expire_stale_missing_pet_alerts_skips_owner_without_user_id(_isolate):
+    from datetime import datetime, timezone, timedelta
+    from src.missing_pets import expire_stale_missing_pet_alerts
+
+    sent = _isolate
+    with SessionLocal() as db:
+        # relato público (sem conta) — reporter_type='finder_temp' costuma
+        # não ter user_id; expira igual, só não tem pra quem empurrar o push.
+        mp = _make_mp(db, owner_id=None)
+        mp.created_at = datetime.now(timezone.utc) - timedelta(days=15)
+        db.commit()
+        mp_id = mp.id
+
+    expired_count = expire_stale_missing_pet_alerts()
+    assert expired_count == 1
+    assert sent == []
+
+    with SessionLocal() as db:
+        assert db.query(MissingPet).filter_by(id=mp_id).one().status == "expired"
 
 
 # ── PS-6: anti-golpe ────────────────────────────────────────────────────────
