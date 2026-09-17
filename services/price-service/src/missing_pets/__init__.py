@@ -143,17 +143,17 @@ def _mark_sighting_broadcast(mp_id: str) -> None:
 
 
 # ── Raio de notificação ──────────────────────────────────────────────────────
-# Decisão de produto (06/09/2026, revisada 16/09/2026): o raio cresce SOZINHO
-# com o tempo desde o desaparecimento, mas de forma decrescente (raiz do
-# tempo, não linear — um pet perdido não anda em linha reta por dias a fio;
-# o modelo se aproxima mais de uma busca não-direcionada por área) e com um
-# TETO por espécie: cão não passa de 15 km, gato não passa de 5 km. O teto é
-# atingido por volta de 72h (3 dias) — depois disso alargar mais o raio deixa
-# de ajudar a achar o pet e só notifica gente cada vez mais longe à toa.
-# Mínimo 2 km. Não depende de cron nem de o tutor editar o alerta — é
-# calculado on-read a cada broadcast/consulta.
+# Decisão de produto (06/09/2026, revisada 16/09/2026 e 17/09/2026): o raio
+# cresce SOZINHO com o tempo desde o desaparecimento, mas de forma
+# decrescente (raiz do tempo, não linear — um pet perdido não anda em linha
+# reta por dias a fio; o modelo se aproxima mais de uma busca não-direcionada
+# por área) e com um TETO por espécie: cão não passa de 20 km, gato não passa
+# de 15 km. O teto é atingido por volta de 72h (3 dias) — depois disso
+# alargar mais o raio deixa de ajudar a achar o pet e só notifica gente cada
+# vez mais longe à toa. Mínimo 2 km. Não depende de cron nem de o tutor
+# editar o alerta — é calculado on-read a cada broadcast/consulta.
 
-_SPECIES_RADIUS_CAP_KM = {"dog": 15.0, "cachorro": 15.0, "cat": 5.0, "gato": 5.0}
+_SPECIES_RADIUS_CAP_KM = {"dog": 20.0, "cachorro": 20.0, "cat": 15.0, "gato": 15.0}
 _DEFAULT_RADIUS_CAP_KM = 10.0
 _RADIUS_CAP_REACHED_AT_HOURS = 72.0
 
@@ -275,6 +275,34 @@ class MissingPet(Base):
     current_radius_km = Column(Float, default=2.0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     found_at = Column(DateTime, nullable=True)
+
+
+# ── Vencimento do alerta ─────────────────────────────────────────────────────
+# Decisão de produto (17/09/2026): um alerta ativo pra sempre satura a região
+# com notificações de um pet que já pode ter sido encontrado há semanas sem o
+# tutor ter voltado pra confirmar. 10 dias é o teto — não precisa de coluna
+# nova no banco, calculado a partir de created_at (mesmo padrão do raio, que
+# também é on-read). `expire_stale_missing_pet_alerts` (varredura diária, ver
+# main.py) é quem de fato muda o status pra "expired"; o helper aqui também é
+# usado on-read no POST de criação, pra não bloquear um tutor tentando
+# reportar de novo só porque a varredura da noite ainda não passou.
+_MISSING_PET_EXPIRY_DAYS = 10
+
+
+def _missing_pet_expires_at(created_at: datetime | None) -> datetime | None:
+    if not created_at:
+        return None
+    return created_at + timedelta(days=_MISSING_PET_EXPIRY_DAYS)
+
+
+def _is_missing_pet_stale(p: "MissingPet") -> bool:
+    expires_at = _missing_pet_expires_at(p.created_at)
+    if not expires_at:
+        return False
+    now = datetime.now(timezone.utc)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    return now >= expires_at
 
 
 class MissingPetPhotoFingerprint(Base):
@@ -475,6 +503,10 @@ def _mp_to_dict(p: MissingPet) -> dict:
         "current_radius_km": p.current_radius_km,
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "found_at": p.found_at.isoformat() if p.found_at else None,
+        "expires_at": (
+            _missing_pet_expires_at(p.created_at).isoformat()
+            if _missing_pet_expires_at(p.created_at) else None
+        ),
     }
 
 
@@ -1157,6 +1189,47 @@ def _retro_match_recent_sightings_for_missing_pet(db: Session, mp: MissingPet) -
     return matched
 
 
+def expire_stale_missing_pet_alerts() -> int:
+    """Varredura diária (ver main.py, scheduler de startup): qualquer alerta
+    'active' passado dos 10 dias (_MISSING_PET_EXPIRY_DAYS) vira 'expired' —
+    some da lista pública, do "perto de você" e do broadcast de push, do
+    mesmo jeito que um alerta 'removed' some hoje. Avisa o tutor (se tiver
+    conta/user_id) que pode gerar um novo alerta se o pet ainda não voltou.
+    Roda fora de qualquer request (chamada pelo APScheduler), sessão própria
+    igual aos outros jobs deste módulo (_broadcast_missing_pet_async etc)."""
+    db = SessionLocal()
+    expired_count = 0
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=_MISSING_PET_EXPIRY_DAYS)
+        stale = (
+            db.query(MissingPet)
+            .filter(MissingPet.status == "active", MissingPet.created_at <= cutoff)
+            .all()
+        )
+        for mp in stale:
+            mp.status = "expired"
+            expired_count += 1
+            if mp.user_id:
+                try:
+                    push_to_user(mp.user_id, {
+                        "title": "⏳ Alerta de Pet Sumido venceu",
+                        "body": f"O alerta de {mp.pet_name} venceu após {_MISSING_PET_EXPIRY_DAYS} dias. "
+                                "Se ainda não encontrou, gere um novo alerta pra continuar avisando a região.",
+                        "tag": f"missing-pet-expired-{mp.id}",
+                        "icon": "/icons/icon-192x192.png",
+                        "data": {"url": "/home"},
+                    })
+                except Exception as exc:
+                    logger.error(f"Push de vencimento falhou pra alerta {mp.id}: {exc}")
+        if stale:
+            db.commit()
+    except Exception as exc:
+        logger.error(f"expire_stale_missing_pet_alerts falhou: {exc}")
+    finally:
+        db.close()
+    return expired_count
+
+
 def _retro_match_recent_sightings_for_missing_pet_id(mp_id: str) -> None:
     db = SessionLocal()
     try:
@@ -1254,10 +1327,18 @@ def create_missing_pet(
 
     existing_active = existing_q.first()
     if existing_active:
-        # Já existe alerta ativo pra este pet. Um segundo POST (toque duplo,
-        # retry do cliente numa request lenta) NÃO cria um novo alerta nem
-        # dispara um segundo broadcast — devolve o alerta que já existe.
-        return {"id": existing_active.id, "status": "already_active"}
+        # Um alerta "ativo" além dos 10 dias de vencimento não bloqueia um
+        # novo — a varredura noturna (expire_stale_missing_pet_alerts) ainda
+        # não passou por ele, mas o tutor tentando reportar de novo agora não
+        # devia esperar até lá. Expira on-read e segue pro create normal.
+        if _is_missing_pet_stale(existing_active):
+            existing_active.status = "expired"
+            db.commit()
+        else:
+            # Já existe alerta ativo pra este pet. Um segundo POST (toque
+            # duplo, retry do cliente numa request lenta) NÃO cria um novo
+            # alerta nem dispara um segundo broadcast — devolve o que já existe.
+            return {"id": existing_active.id, "status": "already_active"}
 
     mp = MissingPet(
         id=str(uuid.uuid4()),

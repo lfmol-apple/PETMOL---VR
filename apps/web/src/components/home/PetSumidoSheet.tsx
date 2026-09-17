@@ -82,7 +82,7 @@ function wrapText(
 // _effective_radius_km/_species_radius_cap_km): cresce com sqrt(horas) desde
 // o desaparecimento — não linear — e trava num teto por espécie por volta de
 // 72h. O backend recalcula o mesmo valor on-read a cada disparo/consulta.
-const SPECIES_RADIUS_CAP_KM: Record<string, number> = { cat: 5, dog: 15 };
+const SPECIES_RADIUS_CAP_KM: Record<string, number> = { cat: 15, dog: 20 };
 const DEFAULT_RADIUS_CAP_KM = 10;
 const RADIUS_CAP_REACHED_AT_HOURS = 72;
 
@@ -536,8 +536,13 @@ export function PetSumidoSheet({
 
   const hasPhoto = Boolean(photoPreview) && !photoLoadFailed;
   const hasContact = isValidBRPhone(contact);
-  const canGenerate = hasPhoto && hasContact;
-  const missingParts = [!hasPhoto && 'foto', !hasContact && 'WhatsApp'].filter(Boolean) as string[];
+  const hasLocation = lastSeenLocation.trim().length > 0;
+  // Todo campo obrigatório entra aqui, exceto "Características" (observações
+  // — a pedido do dono, fica sempre opcional). Local visto virou obrigatório
+  // junto com foto/WhatsApp porque um alerta sem NENHUMA pista de onde
+  // procurar ajuda pouco quem vê o card na região.
+  const canGenerate = hasPhoto && hasContact && hasLocation;
+  const missingParts = [!hasPhoto && 'foto', !hasContact && 'WhatsApp', !hasLocation && 'local visto'].filter(Boolean) as string[];
 
   return (
     <SheetShell open onClose={onClose} z={SHEET_Z.raised}>
@@ -703,7 +708,7 @@ export function PetSumidoSheet({
               {/* Onde sumiu — CEP */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                  Onde desapareceu <span className="normal-case font-normal text-slate-300 ml-1">(opcional)</span>
+                  Onde desapareceu <span className="text-red-500 normal-case font-semibold">obrigatório</span>
                 </label>
                 <button
                   type="button"
@@ -894,7 +899,9 @@ export function PetSumidoSheet({
           >
             {missingParts.length > 0 && (
               <p className="text-center text-[12px] text-slate-400 mb-2">
-                Falta: {missingParts.join(' e ')}
+                Falta: {missingParts.length > 1
+                  ? `${missingParts.slice(0, -1).join(', ')} e ${missingParts[missingParts.length - 1]}`
+                  : missingParts[0]}
               </p>
             )}
             <button
