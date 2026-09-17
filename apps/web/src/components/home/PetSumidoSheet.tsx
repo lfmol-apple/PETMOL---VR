@@ -24,6 +24,10 @@ interface PetSumidoSheetProps {
   // ONDE mostrar, nunca refaz a busca/estado dos alertas da região.
   nearbyContent?: ReactNode;
   nearbyCount?: number;
+  // Vem de um deep link (ex.: toque num push de "pet sumido perto de você")
+  // — sobrepõe a regra padrão de qual aba abre primeiro. Ver
+  // homeModalRouting.ts / home/page.tsx.
+  initialSection?: Section;
 }
 
 type Step = 'form' | 'card';
@@ -132,13 +136,17 @@ export function PetSumidoSheet({
   pet, petPhotoUrl, onClose,
   editAlertId, initialContact = '', initialLocation = '',
   initialCharacteristics = '', initialMissingDate, initialMissingTime,
-  nearbyContent, nearbyCount = 0,
+  nearbyContent, nearbyCount = 0, initialSection,
 }: PetSumidoSheetProps) {
   const isEditMode = Boolean(editAlertId);
   const [step, setStep] = useState<Step>('form');
   // Duas abas sempre visíveis (mesmo com a região vazia) — só existem no
   // fluxo principal de criar alerta, não na edição de um alerta já existente.
-  const [activeSection, setActiveSection] = useState<Section>(nearbyCount > 0 ? 'nearby' : 'report');
+  // Um deep link explícito (initialSection, ex.: toque num push) sempre
+  // vence a regra padrão de "abre em 'nearby' se já tiver contagem".
+  const [activeSection, setActiveSection] = useState<Section>(
+    initialSection ?? (nearbyCount > 0 ? 'nearby' : 'report'),
+  );
   const [contact, setContact] = useState(() => formatBRPhoneInput(initialContact));
   const [lastSeenLocation, setLastSeenLocation] = useState(initialLocation);
   const [characteristics, setCharacteristics] = useState(initialCharacteristics);
@@ -551,7 +559,7 @@ export function PetSumidoSheet({
               activeSection === 'report' ? 'bg-rose-100 text-rose-700' : 'text-slate-400'
             }`}
           >
-            Reportar
+            MEU PET SUMIU
           </button>
         </div>
       )}

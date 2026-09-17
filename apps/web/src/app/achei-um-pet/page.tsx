@@ -639,6 +639,22 @@ function AcheiUmPetInner() {
             </div>
           ) : (
             <>
+              {/* Ponte pra consciência regional — quem chegou aqui por um
+                  push sobre ESTE pet específico não sabia, até aqui, que
+                  pode haver outros sumidos perto. Um toque leva direto pra
+                  aba "Perto de você" da mesma sheet que o botão Pet Sumido
+                  da Home já usa (ver homeModalRouting.ts). */}
+              <Link
+                href="/home?modal=petSumido&tab=nearby"
+                className="flex items-center justify-between gap-2 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-left active:opacity-80 transition-opacity"
+              >
+                <span className="flex items-center gap-2 text-[13px] font-bold text-rose-700">
+                  <span aria-hidden>📍</span>
+                  Ver outros pets sumidos na região
+                </span>
+                <span className="flex-shrink-0 text-base text-rose-300">›</span>
+              </Link>
+
               {/* Chamada de ação */}
               <div>
                 <h2 className="text-[22px] font-black text-slate-900 leading-tight">

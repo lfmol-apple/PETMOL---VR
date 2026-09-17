@@ -60,6 +60,10 @@ export type HomeSurfaceResolution =
   | {
       kind: 'edit-pet';
       initialSection: 'food';
+    }
+  | {
+      kind: 'pet-sumido';
+      tab: 'nearby' | 'report';
     };
 
 export function resolveHomeDeepLinkDestination(
@@ -72,6 +76,13 @@ export function resolveHomeDeepLinkDestination(
 
   if (modal === 'food-setup') {
     return { kind: 'edit-pet', initialSection: 'food' };
+  }
+
+  // Deep link do push de "pet sumido perto de você" (ver
+  // achei-um-pet/page.tsx) — abre direto na aba regional, não na de
+  // reportar, já que é sobre o pet de OUTRA pessoa.
+  if (modal === 'petSumido') {
+    return { kind: 'pet-sumido', tab: tabParam === 'report' ? 'report' : 'nearby' };
   }
 
   if (modal === 'eventos') {
