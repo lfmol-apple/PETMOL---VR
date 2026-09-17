@@ -785,14 +785,6 @@ export function ParasiteItemSheet({
                     onDaysChange={v => setApplyForm(f => ({ ...f, reminder_days: v }))}
                     onTimeChange={v => setApplyForm(f => ({ ...f, reminder_time: v }))}
                   />
-
-                  <button
-                    onClick={handleApply}
-                    disabled={saving || !applyForm.date || !applyForm.product_name.trim()}
-                    className={`w-full py-4 rounded-2xl text-[15px] font-bold shadow-sm disabled:opacity-50 ${PRIMARY_BTN}`}
-                  >
-                    {saving ? 'Salvando...' : '✅ Confirmar registro'}
-                  </button>
                 </>
               )}
             </div>
@@ -862,14 +854,6 @@ export function ParasiteItemSheet({
                   onTimeChange={v => setEditForm(f => ({ ...f, reminder_time: v }))}
                 />
               </div>
-
-              <button
-                onClick={handleSaveEdit}
-                disabled={saving}
-                className={`w-full py-3.5 rounded-2xl text-[15px] font-bold shadow-sm disabled:opacity-50 ${PRIMARY_BTN}`}
-              >
-                {saving ? 'Salvando...' : '✅ Salvar alterações'}
-              </button>
             </div>
           )}
 
@@ -919,20 +903,14 @@ export function ParasiteItemSheet({
                   petId={petId}
                 />
               )}
-
-              <button
-                onClick={() => setMode('apply')}
-                className={`w-full py-3 rounded-xl text-sm font-semibold shadow-sm ${PRIMARY_BTN}`}
-              >
-                ✅ Já comprei — registrar aplicação
-              </button>
             </div>
           )}
 
         </div>
         {/* End scrollable body */}
 
-        {/* ── Pinned action footer (view mode only) ─────────────────────────── */}
+        {/* ── Pinned action footer (fora do scroll — o botão principal de
+            cada modo nunca fica escondido abaixo da rolagem) ──────────── */}
         {mode === 'view' && (
           <div className="flex-shrink-0 px-5 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-gray-100 bg-white">
             <button
@@ -941,6 +919,38 @@ export function ParasiteItemSheet({
             >
               <span>🛒</span>
               {cfg.buyLabel}
+            </button>
+          </div>
+        )}
+        {mode === 'apply' && showManualForm && (
+          <div className="flex-shrink-0 px-5 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-gray-100 bg-white">
+            <button
+              onClick={handleApply}
+              disabled={saving || !applyForm.date || !applyForm.product_name.trim()}
+              className={`w-full py-4 rounded-2xl text-[15px] font-bold shadow-sm disabled:opacity-50 ${PRIMARY_BTN}`}
+            >
+              {saving ? 'Salvando...' : '✅ Confirmar registro'}
+            </button>
+          </div>
+        )}
+        {mode === 'edit' && editRecord && (
+          <div className="flex-shrink-0 px-5 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-gray-100 bg-white">
+            <button
+              onClick={handleSaveEdit}
+              disabled={saving}
+              className={`w-full py-3.5 rounded-2xl text-[15px] font-bold shadow-sm disabled:opacity-50 ${PRIMARY_BTN}`}
+            >
+              {saving ? 'Salvando...' : '✅ Salvar alterações'}
+            </button>
+          </div>
+        )}
+        {mode === 'buy' && (
+          <div className="flex-shrink-0 px-5 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-gray-100 bg-white">
+            <button
+              onClick={() => setMode('apply')}
+              className={`w-full py-3 rounded-xl text-sm font-semibold shadow-sm ${PRIMARY_BTN}`}
+            >
+              ✅ Já comprei — registrar aplicação
             </button>
           </div>
         )}

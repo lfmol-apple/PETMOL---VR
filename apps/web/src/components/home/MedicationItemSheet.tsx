@@ -1251,20 +1251,24 @@ export function MedicationItemSheet({
                 />
               </div>
               </div>
-
-              <button
-                onClick={handleSave}
-                disabled={saving || !form.title.trim()}
-                className="w-full py-3.5 rounded-2xl bg-[#0056D2] hover:bg-[#004ab8] active:bg-[#003f9e] text-white text-[15px] font-bold shadow-md disabled:opacity-50 transition-colors"
-              >
-                {saving ? 'Salvando...' : 'Confirmar registro'}
-              </button>
               </>
               )}
             </div>
           )}
 
         </div>
+        {/* Fora do scroll — nunca fica escondido abaixo da rolagem */}
+        {(mode === 'add' || mode === 'edit') && showManualForm && (
+          <div className="flex-shrink-0 px-4 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-gray-100 bg-white">
+            <button
+              onClick={handleSave}
+              disabled={saving || !form.title.trim()}
+              className="w-full py-3.5 rounded-2xl bg-[#0056D2] hover:bg-[#004ab8] active:bg-[#003f9e] text-white text-[15px] font-bold shadow-md disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Salvando...' : 'Confirmar registro'}
+            </button>
+          </div>
+        )}
     </SheetShell>
   );
 }
