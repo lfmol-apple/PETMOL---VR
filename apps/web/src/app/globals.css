@@ -243,15 +243,15 @@ body {
   animation: scaleIn 0.3s ease-out;
 }
 
-/* NearbyMissingPetsTicker — letreiro passando (o conteúdo duplicado + -50%
-   é o truque padrão pra loop contínuo sem "pulo" no fim). */
-@keyframes marquee {
-  0% { transform: translateX(0%); }
-  100% { transform: translateX(-50%); }
+/* NearbyMissingPetsTicker — pisco lento pra chamar atenção sem ser
+   agressivo (nada de "letreiro passando" aqui, ver histórico do PR). */
+@keyframes blinkSlow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
 }
 
-.animate-marquee {
-  animation: marquee 10s linear infinite;
+.animate-blink-slow {
+  animation: blinkSlow 2s ease-in-out infinite;
 }
 
 /* ProductDetectionSheet — barcode scan line */
