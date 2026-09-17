@@ -6,6 +6,9 @@ import { MissingPetAlertCard, type NearbyAlert } from './MissingPetAlertCard';
 
 interface NearbyMissingPetsCarouselProps {
   alerts: NearbyAlert[];
+  /** Índice do alerta pra abrir já visível — toque num círculo específico
+   *  da NearbyMissingPetsStoryRow deve abrir naquele pet, não sempre no 1º. */
+  initialIndex?: number;
   onClose: () => void;
   getPhotoUrl: (photoPath: string | undefined | null) => string | null;
   onViewCard: (alert: NearbyAlert) => void;
@@ -14,16 +17,23 @@ interface NearbyMissingPetsCarouselProps {
   onReport: (alert: NearbyAlert) => void;
 }
 
-// Aberto ao tocar no NearbyMissingPetsNotice (ou no botão "Pet Sumido" já
-// existente) — um card por alerta, deslizando na horizontal via
+// Aberto ao tocar num círculo da NearbyMissingPetsStoryRow (ou no botão "Pet
+// Sumido" já existente) — um card por alerta, deslizando na horizontal via
 // scroll-snap nativo (sem lib: o mesmo container com overflow-x-auto já é
 // liberado pelo HorizontalSwipeGuard, que libera qualquer scroller
 // horizontal legítimo).
 export function NearbyMissingPetsCarousel({
-  alerts, onClose, getPhotoUrl, onViewCard, onSeeThis, onDismiss, onReport,
+  alerts, initialIndex = 0, onClose, getPhotoUrl, onViewCard, onSeeThis, onDismiss, onReport,
 }: NearbyMissingPetsCarouselProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el || initialIndex === 0) return;
+    el.scrollLeft = initialIndex * el.clientWidth;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const el = scrollerRef.current;
