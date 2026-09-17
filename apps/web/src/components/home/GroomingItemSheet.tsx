@@ -539,25 +539,6 @@ export function GroomingItemSheet({
                 </a>
               )}
 
-              {/* Main CTAs */}
-              <div className="space-y-2 pt-1">
-                <button
-                  onClick={startAdd}
-                  className={`w-full py-3.5 rounded-2xl text-[15px] font-black active:scale-[0.98] transition-all ${PRIMARY_BTN}`}
-                >
-                  Registrar banho/tosa
-                </button>
-                {last && (
-                  <button
-                    onClick={() => nextEditableRecord && startEdit(nextEditableRecord)}
-                    disabled={!nextEditableRecord}
-                    className="w-full py-3 text-[15px] font-medium text-slate-500 disabled:opacity-30 active:opacity-60 transition-opacity"
-                  >
-                    Editar próximo agendamento
-                  </button>
-                )}
-              </div>
-
               {/* History */}
               {sorted.length > 0 && (
                 <div>
@@ -713,14 +694,6 @@ export function GroomingItemSheet({
                 onDaysChange={v => setAddForm(f => ({ ...f, reminder_days: v }))}
                 onTimeChange={v => setAddForm(f => ({ ...f, reminder_time: v }))}
               />
-
-              <button
-                onClick={handleAdd}
-                disabled={saving || !addForm.date}
-                className={`w-full py-3.5 rounded-2xl text-[15px] font-black active:scale-[0.98] transition-all disabled:opacity-40 ${PRIMARY_BTN}`}
-              >
-                {saving ? 'Salvando...' : 'Confirmar serviço'}
-              </button>
             </div>
           )}
 
@@ -824,18 +797,55 @@ export function GroomingItemSheet({
                 />
               </div>
 
-              <button
-                onClick={handleSaveEdit}
-                disabled={saving}
-                className={`w-full py-3.5 rounded-2xl text-[15px] font-black active:scale-[0.98] transition-all disabled:opacity-40 ${PRIMARY_BTN}`}
-              >
-                {saving ? 'Salvando...' : 'Salvar alterações'}
-              </button>
             </div>
           )}
 
         </div>
         {/* End scrollable body */}
+
+        {/* Fora do scroll — o botão principal de cada modo nunca fica
+            escondido abaixo da rolagem */}
+        {mode === 'view' && (
+          <div className="flex-shrink-0 px-4 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-[#E5E5EA] bg-white space-y-2">
+            <button
+              onClick={startAdd}
+              className={`w-full py-3.5 rounded-2xl text-[15px] font-black active:scale-[0.98] transition-all ${PRIMARY_BTN}`}
+            >
+              Registrar banho/tosa
+            </button>
+            {last && (
+              <button
+                onClick={() => nextEditableRecord && startEdit(nextEditableRecord)}
+                disabled={!nextEditableRecord}
+                className="w-full py-1 text-[13px] font-medium text-slate-500 disabled:opacity-30 active:opacity-60 transition-opacity"
+              >
+                Editar próximo agendamento
+              </button>
+            )}
+          </div>
+        )}
+        {mode === 'add' && (
+          <div className="flex-shrink-0 px-4 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-[#E5E5EA] bg-white">
+            <button
+              onClick={handleAdd}
+              disabled={saving || !addForm.date}
+              className={`w-full py-3.5 rounded-2xl text-[15px] font-black active:scale-[0.98] transition-all disabled:opacity-40 ${PRIMARY_BTN}`}
+            >
+              {saving ? 'Salvando...' : 'Confirmar serviço'}
+            </button>
+          </div>
+        )}
+        {mode === 'edit' && editRecord && (
+          <div className="flex-shrink-0 px-4 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-[#E5E5EA] bg-white">
+            <button
+              onClick={handleSaveEdit}
+              disabled={saving}
+              className={`w-full py-3.5 rounded-2xl text-[15px] font-black active:scale-[0.98] transition-all disabled:opacity-40 ${PRIMARY_BTN}`}
+            >
+              {saving ? 'Salvando...' : 'Salvar alterações'}
+            </button>
+          </div>
+        )}
 
         {/* ── Delete confirm ────────────────────────────────────────────────── */}
         {confirmDeleteId && (
