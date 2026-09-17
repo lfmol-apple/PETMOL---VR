@@ -26,6 +26,13 @@ export function NearbyMissingPetsStoryRow({ alerts, getPhotoUrl, onOpen, onSnooz
 
   return (
     <div className="animate-fadeIn px-1.5 pt-1.5 min-[390px]:px-2.5 sm:px-4 sm:pt-4">
+      {/* Título explícito — o círculo sozinho (foto + nome) é ambíguo demais
+          perto da fileira de troca de pet do próprio tutor logo abaixo;
+          "são pets sumidos perto de você" não pode depender de alguém tocar
+          pra descobrir. */}
+      <p className="px-1 pb-1.5 text-[11px] font-black uppercase tracking-wide text-rose-600">
+        🚨 Pets sumidos perto de você
+      </p>
       <div className="flex items-center gap-3 overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
         {alerts.map((alert) => {
           const photoUrl = getPhotoUrl(alert.photo_url);
@@ -36,17 +43,25 @@ export function NearbyMissingPetsStoryRow({ alerts, getPhotoUrl, onOpen, onSnooz
               onClick={() => onOpen(alert)}
               className="flex w-16 flex-shrink-0 flex-col items-center gap-1 active:opacity-80 transition-opacity"
             >
-              <span className={`flex h-16 w-16 items-center justify-center rounded-full p-[2.5px] ${RING_GRADIENT}`}>
-                <span className="flex h-full w-full items-center justify-center rounded-full bg-white p-[2px]">
-                  <span className="block h-full w-full overflow-hidden rounded-full bg-rose-50">
-                    {photoUrl ? (
-                      <img src={photoUrl} alt={alert.pet_name} className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="flex h-full w-full items-center justify-center text-xl">
-                        {alert.species === 'cat' ? '🐱' : '🐶'}
-                      </span>
-                    )}
+              <span className="relative">
+                <span className={`flex h-16 w-16 items-center justify-center rounded-full p-[2.5px] ${RING_GRADIENT}`}>
+                  <span className="flex h-full w-full items-center justify-center rounded-full bg-white p-[2px]">
+                    <span className="block h-full w-full overflow-hidden rounded-full bg-rose-50">
+                      {photoUrl ? (
+                        <img src={photoUrl} alt={alert.pet_name} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center text-xl">
+                          {alert.species === 'cat' ? '🐱' : '🐶'}
+                        </span>
+                      )}
+                    </span>
                   </span>
+                </span>
+                {/* Mesmo selo "!" vermelho que o app já usa nos avatares dos
+                    próprios pets pra "precisa de atenção" — vocabulário
+                    visual reaproveitado, não inventado do zero. */}
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-rose-600 text-[11px] font-black leading-none text-white shadow-sm">
+                  !
                 </span>
               </span>
               <span className="w-full truncate text-center text-[10.5px] font-semibold text-slate-700">
