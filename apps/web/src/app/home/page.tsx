@@ -2378,6 +2378,11 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       upcomingUrgent={hasUrgentReminder}
                       onOpenUpcoming={() => setShowUpcomingSheet(true)}
                       basicCareAttentionPetNames={basicCareAttentionPetNames}
+                      nearbyMissingCount={nearbyMissingCount}
+                      onOpenNearbyMissing={() => {
+                        setPetSumidoInitialTab('nearby');
+                        setShowPetSumidoSheet(true);
+                      }}
                     />
 
                   {/* Compartilhar cuidado — só para o dono do pet */}

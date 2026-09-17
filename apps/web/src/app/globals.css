@@ -243,6 +243,17 @@ body {
   animation: scaleIn 0.3s ease-out;
 }
 
+/* NearbyMissingPetsTicker — letreiro passando (o conteúdo duplicado + -50%
+   é o truque padrão pra loop contínuo sem "pulo" no fim). */
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: marquee 10s linear infinite;
+}
+
 /* ProductDetectionSheet — barcode scan line */
 @keyframes scanline {
   0%, 100% { transform: translateY(0px); opacity: 1; }
