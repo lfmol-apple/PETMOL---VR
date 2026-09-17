@@ -143,13 +143,30 @@ def _mark_sighting_broadcast(mp_id: str) -> None:
 
 
 # ── Raio de notificação ──────────────────────────────────────────────────────
-# Decisão de produto (06/09/2026): o raio cresce SOZINHO com o tempo, pela
-# velocidade de caminhada da espécie (cão 5 km/h, gato 3 km/h), a partir do
-# momento em que o pet sumiu. Mínimo 2 km, SEM teto máximo. Não depende de
-# cron nem de o tutor editar o alerta — é calculado on-read a cada broadcast.
+# Decisão de produto (06/09/2026, revisada 16/09/2026): o raio cresce SOZINHO
+# com o tempo desde o desaparecimento, mas de forma decrescente (raiz do
+# tempo, não linear — um pet perdido não anda em linha reta por dias a fio;
+# o modelo se aproxima mais de uma busca não-direcionada por área) e com um
+# TETO por espécie: cão não passa de 15 km, gato não passa de 5 km. O teto é
+# atingido por volta de 72h (3 dias) — depois disso alargar mais o raio deixa
+# de ajudar a achar o pet e só notifica gente cada vez mais longe à toa.
+# Mínimo 2 km. Não depende de cron nem de o tutor editar o alerta — é
+# calculado on-read a cada broadcast/consulta.
 
-def _species_speed_kmh(species: str | None) -> float:
-    return 3.0 if (species or "").strip().lower() in ("cat", "gato") else 5.0
+_SPECIES_RADIUS_CAP_KM = {"dog": 15.0, "cachorro": 15.0, "cat": 5.0, "gato": 5.0}
+_DEFAULT_RADIUS_CAP_KM = 10.0
+_RADIUS_CAP_REACHED_AT_HOURS = 72.0
+
+
+def _species_radius_cap_km(species: str | None) -> float:
+    return _SPECIES_RADIUS_CAP_KM.get((species or "").strip().lower(), _DEFAULT_RADIUS_CAP_KM)
+
+
+def _species_radius_growth_rate(species: str | None) -> float:
+    """km por sqrt(hora) — calibrado para atingir o teto da espécie em
+    _RADIUS_CAP_REACHED_AT_HOURS horas."""
+    cap = _species_radius_cap_km(species)
+    return cap / math.sqrt(_RADIUS_CAP_REACHED_AT_HOURS)
 
 
 # missing_date/missing_time vêm do formulário no horário LOCAL do tutor.
@@ -188,14 +205,15 @@ def _missing_since(mp: "MissingPet") -> datetime | None:
 
 def _effective_radius_km(mp: "MissingPet") -> float:
     """Raio efetivo AGORA: o maior entre o valor guardado e o que o tempo
-    desde o desaparecimento já justifica. Mínimo 2 km, sem teto."""
-    base = float(mp.current_radius_km or 2.0)
+    desde o desaparecimento já justifica, respeitando o teto da espécie."""
+    cap = _species_radius_cap_km(mp.species)
+    base = min(cap, float(mp.current_radius_km or 2.0))
     since = _missing_since(mp)
     if since is None:
         return max(2.0, base)
     hours = max(0.0, (datetime.now(timezone.utc) - since).total_seconds() / 3600.0)
-    grown = math.ceil(hours * _species_speed_kmh(mp.species))
-    return float(max(2.0, base, grown))
+    grown = math.ceil(_species_radius_growth_rate(mp.species) * math.sqrt(hours))
+    return float(min(cap, max(2.0, base, grown)))
 
 
 # ── Geo helper ───────────────────────────────────────────────────────────────
