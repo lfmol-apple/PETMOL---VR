@@ -5,15 +5,27 @@
 // botão "Pet Sumido" sozinho. Guardado por CONJUNTO de IDs de alerta (não
 // uma flag global) — um alerta novo sempre fura a soneca de um antigo.
 const STORAGE_KEY = 'petmol_nearby_carousel_cooldown_v1';
-const SNOOZE_MS = 6 * 60 * 60 * 1000; // 6h
-const SNOOZE_OPENS = 3; // ou 3 aberturas da Home, o que vier primeiro
+const DEFAULT_SNOOZE_MS = 6 * 60 * 60 * 1000; // 6h — soneca implícita (ex.: abriu o carrossel)
+const SNOOZE_OPENS = 3; // ou 3 aberturas da Home, o que vier primeiro (só na soneca implícita)
 const MAX_AUTO_SHOWS_PER_DAY = 3;
+
+/** Escolha explícita do tutor no botão de silenciar — "algumas horas" ou
+ *  "um dia". Diferente da soneca implícita, uma escolha explícita NÃO
+ *  reabre antes por causa de "N aberturas" — o tutor decidiu por quanto
+ *  tempo, o app respeita literalmente esse tempo. */
+export const SNOOZE_OPTIONS = {
+  hours: 6 * 60 * 60 * 1000,
+  day: 24 * 60 * 60 * 1000,
+} as const;
+export type SnoozeOption = keyof typeof SNOOZE_OPTIONS;
 
 interface CooldownState {
   // último conjunto de IDs mostrado/dispensado, com quando e em qual "abertura"
   dismissedIds: string[];
   dismissedAt: number;
   dismissedAtOpenCount: number;
+  snoozeMs: number;
+  explicitSnooze: boolean;
   // aberturas da Home desde sempre (contador monotônico simples)
   homeOpenCount: number;
   // timestamps (ms) dos auto-shows de hoje, pra aplicar o teto diário
@@ -23,6 +35,7 @@ interface CooldownState {
 function readState(): CooldownState {
   const empty: CooldownState = {
     dismissedIds: [], dismissedAt: 0, dismissedAtOpenCount: 0,
+    snoozeMs: DEFAULT_SNOOZE_MS, explicitSnooze: false,
     homeOpenCount: 0, autoShowTimestamps: [],
   };
   try {
@@ -70,7 +83,8 @@ export function shouldAutoShowNearbyCarousel(activeAlertIds: string[]): boolean 
   // nenhum alerta novo: só reabre se a soneca do conjunto anterior já venceu
   const elapsedMs = Date.now() - state.dismissedAt;
   const opensSinceDismiss = state.homeOpenCount - state.dismissedAtOpenCount;
-  const snoozeExpired = elapsedMs >= SNOOZE_MS || opensSinceDismiss >= SNOOZE_OPENS;
+  const snoozeExpired = elapsedMs >= state.snoozeMs
+    || (!state.explicitSnooze && opensSinceDismiss >= SNOOZE_OPENS);
   if (!snoozeExpired) return false;
 
   const recentShows = pruneOldTimestamps(state.autoShowTimestamps);
@@ -84,13 +98,19 @@ export function markNearbyCarouselAutoShown(): void {
   writeState(state);
 }
 
-/** Chamar quando o tutor "trata" o aviso, seja dispensando-o (X) ou abrindo
- *  o carrossel — nos dois casos o mesmo conjunto de alertas já foi visto e
- *  não deve reaparecer sozinho de novo até a soneca vencer. */
-export function markNearbyCarouselDismissed(activeAlertIds: string[]): void {
+/** Chamar quando o tutor "trata" o aviso — dispensando-o (com ou sem escolher
+ *  uma duração de soneca explícita) ou abrindo o carrossel/cartaz — em todos
+ *  os casos o mesmo conjunto de alertas já foi visto. Sem `snoozeOption`
+ *  (ex.: abriu o carrossel), usa a soneca implícita padrão (6h ou 3
+ *  aberturas). Com `snoozeOption` (o tutor escolheu "algumas horas" ou
+ *  "um dia" no botão de silenciar), respeita literalmente esse prazo, sem o
+ *  atalho de reabrir cedo por causa de N aberturas. */
+export function markNearbyCarouselDismissed(activeAlertIds: string[], snoozeOption?: SnoozeOption): void {
   const state = readState();
   state.dismissedIds = activeAlertIds;
   state.dismissedAt = Date.now();
   state.dismissedAtOpenCount = state.homeOpenCount;
+  state.snoozeMs = snoozeOption ? SNOOZE_OPTIONS[snoozeOption] : DEFAULT_SNOOZE_MS;
+  state.explicitSnooze = Boolean(snoozeOption);
   writeState(state);
 }

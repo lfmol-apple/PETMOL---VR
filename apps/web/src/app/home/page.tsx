@@ -35,12 +35,12 @@ const UpcomingEventsSheet = dynamic(() => import('@/components/home/UpcomingEven
 const ReportAlertSheet = dynamic(() => import('@/components/home/ReportAlertSheet').then(m => ({ default: m.ReportAlertSheet })), { ssr: false });
 const NearbyMissingPetsCarousel = dynamic(() => import('@/components/home/NearbyMissingPetsCarousel').then(m => ({ default: m.NearbyMissingPetsCarousel })), { ssr: false });
 import { MissingPetAlertCard, type NearbyAlert } from '@/components/home/MissingPetAlertCard';
-import { NearbyMissingPetsNotice } from '@/components/home/NearbyMissingPetsNotice';
 import {
   registerHomeOpen,
   shouldAutoShowNearbyCarousel,
   markNearbyCarouselAutoShown,
   markNearbyCarouselDismissed,
+  type SnoozeOption,
 } from '@/features/interactions/missingPetsCarouselCooldown';
 import type { PetCareReminder } from '@/lib/petCareDomain';
 import { useMultipetInteractions } from '@/features/interactions/useMultipetInteractions';
@@ -2012,24 +2012,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         }
       }}
     >
-      {showNearbyNotice && (
-        <NearbyMissingPetsNotice
-          alerts={visibleNearbyAlerts}
-          getPhotoUrl={getPhotoUrl}
-          onOpen={() => {
-            setShowNearbyNotice(false);
-            setShowNearbyCarousel(true);
-            // Ver o carrossel também silencia a soneca pro mesmo conjunto de
-            // alertas — quem já abriu e viu não precisa ser interrompido de
-            // novo na próxima abertura da Home só por não ter "dispensado".
-            markNearbyCarouselDismissed(visibleNearbyAlerts.map((a) => a.id));
-          }}
-          onDismiss={() => {
-            setShowNearbyNotice(false);
-            markNearbyCarouselDismissed(visibleNearbyAlerts.map((a) => a.id));
-          }}
-        />
-      )}
       {showNearbyCarousel && (
         <NearbyMissingPetsCarousel
           alerts={visibleNearbyAlerts}
@@ -2437,6 +2419,19 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       upcomingUrgent={hasUrgentReminder}
                       onOpenUpcoming={() => setShowUpcomingSheet(true)}
                       basicCareAttentionPetNames={basicCareAttentionPetNames}
+                      showNearbyMissingNotice={showNearbyNotice}
+                      nearbyMissingAlerts={visibleNearbyAlerts}
+                      onOpenNearbyMissing={() => {
+                        setShowNearbyNotice(false);
+                        setShowNearbyCarousel(true);
+                        // Ver o carrossel também silencia a soneca (padrão,
+                        // não escolhida) pro mesmo conjunto de alertas.
+                        markNearbyCarouselDismissed(visibleNearbyAlerts.map((a) => a.id));
+                      }}
+                      onSnoozeNearbyMissing={(option: SnoozeOption) => {
+                        setShowNearbyNotice(false);
+                        markNearbyCarouselDismissed(visibleNearbyAlerts.map((a) => a.id), option);
+                      }}
                     />
 
                   {/* Compartilhar cuidado — só para o dono do pet */}
