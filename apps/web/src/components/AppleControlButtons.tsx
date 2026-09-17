@@ -52,13 +52,6 @@ interface AppleControlButtonsProps {
   inactiveControls?: HomeInactiveEligibleControlId[];
   onDeactivateControl?: (controlId: HomeInactiveEligibleControlId) => void;
 
-  // Quantos pets sumidos existem na região agora (não são do usuário) — dono
-  // da lógica/estado continua em home/page.tsx (nearbyAlerts,
-  // handledAlertIds). O botão "Pet Sumido" abaixo usa isso só pra mudar o
-  // subtítulo/badge; a lista em si (fotos, "Ver cartaz"/"Vi este pet") mora
-  // dentro da PetSumidoSheet agora — reportar e ver a região são a mesma
-  // porta de entrada, não dois blocos separados na Home.
-  nearbyMissingCount?: number;
 }
 
 type ControlTone = 'neutral' | 'ok' | 'warning' | 'critical';
@@ -104,7 +97,6 @@ export function AppleControlButtons({
   colorHealth,
   colorFood,
   colorVaccines,
-  nearbyMissingCount = 0,
 }: AppleControlButtonsProps) {
   const { t } = useI18n();
   const [showEmergencyChoice, setShowEmergencyChoice] = useState(false);
@@ -265,25 +257,23 @@ export function AppleControlButtons({
         </div>
 
         {/* Abaixo: Pet Sumido + Emergência (agrupados — ambos de urgência).
-            "Pet Sumido" é a mesma porta de entrada pra reportar E pra ver
-            quem está sumido na região (abas dentro da PetSumidoSheet) — por
-            isso o subtítulo muda quando há gente sumida perto de você. */}
+            "Pet Sumido" volta a ser só a função dele (reportar seu pet como
+            sumido) — o aviso de "tem gente sumida perto de você" agora é o
+            pisco ao lado do nome do pet (NearbyMissingPetsTicker), então
+            esse botão não precisa mais duplicar esse recado. */}
         <div className="mt-2 space-y-2 min-[390px]:mt-2.5">
           <button
             type="button"
             onClick={onPetSumidoClick}
             className="group relative flex min-h-[44px] w-full items-center gap-2 overflow-hidden rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 p-2.5 shadow-sm shadow-red-900/5 transition-all duration-300 hover:shadow-md active:scale-[0.98] min-[390px]:min-h-[52px] min-[390px]:gap-2.5 min-[390px]:rounded-2xl min-[390px]:p-3"
           >
-            {nearbyMissingCount > 0 && <AlertDot tone="critical" />}
             <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-red-100 transition-transform group-hover:scale-105 min-[390px]:h-8 min-[390px]:w-8">
               <span className="pointer-events-none text-base min-[390px]:text-lg">🚨</span>
             </div>
             <div className="min-w-0 flex-1 text-left">
               <h3 className="truncate text-[13px] font-black leading-tight text-red-800 min-[390px]:text-[14px] sm:text-base">Pet Sumido</h3>
               <p className="mt-0.5 truncate text-[9px] font-semibold leading-[1.1] text-red-600/80 min-[390px]:text-[10px] sm:text-xs">
-                {nearbyMissingCount > 0
-                  ? `${nearbyMissingCount} pet${nearbyMissingCount > 1 ? 's' : ''} sumido${nearbyMissingCount > 1 ? 's' : ''} perto de você`
-                  : 'Gerar alerta urgente'}
+                Gerar alerta urgente
               </p>
             </div>
             <span className="text-lg text-red-300 transition-transform group-hover:translate-x-1">›</span>
