@@ -22,16 +22,14 @@ interface MissingPetAlertCardProps {
   onSeeThis: () => void;
   onDismiss: () => void;
   onReport: () => void;
-  /** O carrossel automático não expõe "recolher" — cada slide já é a única
-   *  coisa na tela, encolher um deles não faz sentido ali (default true). */
   showCollapse?: boolean;
 }
 
-// Card "pet sumido perto de você" — extraído de home/page.tsx pra ser
-// reaproveitado tanto na lista de sempre (aba "Perto de você" da
-// PetSumidoSheet) quanto no popup automático em carrossel
-// (NearbyMissingPetsCarousel). Comportamento idêntico ao original: nada de
-// UI nova aqui, só virou componente.
+// Card "pet sumido perto de você" — reaproveitado na lista de sempre (aba
+// "Perto de você" da PetSumidoSheet). A superfície automática (fileira de
+// círculos/carrossel) foi removida a pedido do dono — "roubava a cena" da
+// Home e parecia que os pets sumidos eram do próprio tutor. O jeito de abrir
+// os cartazes vai ser redefinido; por ora só o botão "Pet Sumido" manual.
 export function MissingPetAlertCard({
   alert, photoUrl, collapsed, onToggleCollapsed, onViewCard, onSeeThis, onDismiss, onReport,
   showCollapse = true,
