@@ -30,6 +30,7 @@ const MedicationItemSheet = dynamic(() => import('@/components/home/MedicationIt
 const FoodItemSheet = dynamic(() => import('@/components/home/FoodItemSheet').then(m => ({ default: m.FoodItemSheet })), { ssr: false });
 const GroomingItemSheet = dynamic(() => import('@/components/home/GroomingItemSheet').then(m => ({ default: m.GroomingItemSheet })), { ssr: false });
 const OnboardingChecklistCard = dynamic(() => import('@/components/home/OnboardingChecklistCard').then(m => ({ default: m.OnboardingChecklistCard })), { ssr: false });
+const PermissionsNudgeCard = dynamic(() => import('@/components/home/PermissionsNudgeCard').then(m => ({ default: m.PermissionsNudgeCard })), { ssr: false });
 const PetSumidoSheet = dynamic(() => import('@/components/home/PetSumidoSheet').then(m => ({ default: m.PetSumidoSheet })), { ssr: false });
 const UpcomingEventsSheet = dynamic(() => import('@/components/home/UpcomingEventsSheet').then(m => ({ default: m.UpcomingEventsSheet })), { ssr: false });
 const ReportAlertSheet = dynamic(() => import('@/components/home/ReportAlertSheet').then(m => ({ default: m.ReportAlertSheet })), { ssr: false });
@@ -59,6 +60,7 @@ import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { commonVaccines } from '@/data/vaccineInfo';
 
 import { hasCompletedOnboarding, getOwnerProfile } from '@/lib/ownerProfile';
+import { isOnboardingActiveFlag } from '@/lib/onboardingProgress';
 import { needsLeishmaniaseAwareness } from '@/lib/leishmaniaseAwareness';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
@@ -2329,6 +2331,16 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     onOpenDewormer={handleOpenVermifugo}
                     suppressed={showFoodSheet || showVaccineSheet || showAntipulgasSheet || showVermifugoSheet}
                   />
+                  )}
+
+                  {/* "Segunda chance" pra contas já existentes antes do
+                      pedido de permissão virar parte do onboarding — só
+                      depois que o onboarding do novato (acima) terminou/não
+                      se aplica, senão pediríamos a mesma coisa duas vezes. */}
+                  {!isOnboardingActiveFlag() && (
+                    <div className="px-1.5 pb-1.5 min-[390px]:px-2.5 sm:px-4">
+                      <PermissionsNudgeCard hasPet={pets.length > 0} />
+                    </div>
                   )}
 
                   <PetTabs
