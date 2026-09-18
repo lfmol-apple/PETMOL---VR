@@ -428,8 +428,19 @@ function AcheiUmPetInner() {
           notes: sightingNotes.trim() || null,
         }),
       });
-      const data = await res.json() as { message?: string; detail?: string };
+      const data = await res.json() as { status?: string; message?: string; detail?: string };
       if (!res.ok) throw new Error(data.detail || 'Não foi possível registrar o avistamento agora.');
+      // Bug real (18/09/2026): o endpoint responde 201 mesmo quando a foto é
+      // rejeitada por qualidade (status="rejected_photo_quality") — sem essa
+      // checagem, a mensagem de rejeição aparecia dentro da caixa VERDE de
+      // sucesso, dando a impressão de que o avistamento foi registrado
+      // (nunca foi — a função retorna antes de salvar no banco), então o
+      // push pro tutor nunca saía e, pra quem ficava tentando de novo, o
+      // botão "parecia não aceitar" (sempre a mesma falsa confirmação).
+      if (data.status === 'rejected_photo_quality') {
+        setMatchError(data.message || 'A foto enviada não tem qualidade suficiente. Tente outra.');
+        return;
+      }
       setSightingMessage(data.message || 'Avistamento registrado para cruzamento futuro.');
       setSightingNotes('');
     } catch (err) {

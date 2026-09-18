@@ -422,6 +422,11 @@ def start_push_scheduler():
                               timezone="America/Sao_Paulo", id="expire_stale_missing_pet_alerts")
         except Exception as exc:
             push_logger.warning("[PETMOL] expiração de Pet Sumido não agendada: %s", exc)
+        try:
+            from .missing_pets import grow_missing_pet_radii
+            scheduler.add_job(grow_missing_pet_radii, "cron", minute=15, id="grow_missing_pet_radii")
+        except Exception as exc:
+            push_logger.warning("[PETMOL] crescimento de raio do Pet Sumido não agendado: %s", exc)
         scheduler.start()
         push_logger.info("[PETMOL] Push scheduler iniciado")
     except Exception as e:
