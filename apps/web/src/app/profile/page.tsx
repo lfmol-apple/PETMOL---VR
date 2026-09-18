@@ -13,10 +13,14 @@ import { trackV1Metric } from '@/lib/v1Metrics';
 import { fetchAiPhotoConsent, revokeAiPhotoConsent } from '@/features/ai/aiPhotoConsent';
 
 // ── Design tokens ─────────────────────────────────────────────
-import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
+import { BrandBackground } from '@/components/ui/BrandBackground';
 
-const G   = 'divide-y divide-slate-100 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.06),0_8px_24px_-12px_rgba(15,23,42,0.10)]';
-const ROW = 'px-4 py-3';
+// bg-slate-50 (não bg-white) — os grupos flutuavam invisíveis dentro do
+// cartão externo, que também é branco ("praticamente sem cor de fundo",
+// feedback direto do dono). O contraste sutil aqui é o que faz cada grupo
+// (Dados pessoais, Endereço, ...) ler como um bloco próprio.
+const G   = 'divide-y divide-slate-200/70 overflow-hidden rounded-[24px] border border-slate-200/80 bg-slate-50 shadow-[0_1px_3px_rgba(15,23,42,0.05)]';
+const ROW = 'px-4 py-2.5';
 const CTA = 'w-full py-4 bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-base font-black rounded-2xl active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xl shadow-blue-500/20 uppercase tracking-widest';
 const DEFAULT_CHECKIN_DAY = 1;
 const DEFAULT_CHECKIN_HOUR = 20;
@@ -484,7 +488,10 @@ export default function ProfilePage() {
   const tutorInitial = (tutorData?.name || 'T').trim().charAt(0).toUpperCase();
   // Leitura: parece um campo (fill suave azulado + texto forte), não texto
   // apagado. Edição: fica claramente ativo (borda azul + fundo branco no foco).
-  const inpCls = `w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 text-[15px] font-semibold text-slate-900 outline-none transition-all placeholder:font-medium placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-500/10 disabled:border-slate-200/70 disabled:bg-slate-50/70 disabled:text-slate-700 enabled:border-blue-200 enabled:bg-blue-50/40`;
+  // disabled:bg-white (não slate-50/70) — o grupo em volta (G, acima) agora
+  // É slate-50; o campo precisa continuar lendo como um campo branco
+  // destacado em cima do cartão cinza, não se misturar com ele de novo.
+  const inpCls = `w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-[15px] font-semibold text-slate-900 outline-none transition-all placeholder:font-medium placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-500/10 disabled:border-slate-200/70 disabled:bg-white disabled:text-slate-700 enabled:border-blue-200 enabled:bg-blue-50/40`;
   const pushPermissionLabel: Record<NotificationPermission, string> = {
     granted: 'Permitido',
     denied: 'Bloqueado',
@@ -601,19 +608,18 @@ export default function ProfilePage() {
     <BrandBackground showLogo={false}>
       <div className="flex flex-col items-center w-full px-4 py-6 animate-fadeIn pb-24">
         
-        {/* Header Navigation: Idêntico ao estilo de Auth */}
-        <div className="w-full max-w-sm flex flex-col items-center mb-10 animate-scaleIn">
-          <div className="w-full flex items-center justify-between mb-8">
-            <Link href="/home"
-              className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white hover:text-[#0056D2] transition-all group">
-              <span className="text-2xl group-active:scale-90 transition-transform">←</span>
-            </Link>
-            <div className="w-12 h-12" /> {/* alignment spacer */}
-          </div>
-          <PetmolTextLogo className="text-6xl drop-shadow-3xl" />
+        {/* Voltar — a marca já aparece fixa no Header global acima; repetir
+            o logo gigante aqui só empurrava o cartão pra baixo sem
+            necessidade (pedido explícito: menos espaço vazio no topo). */}
+        <div className="w-full max-w-sm flex items-center justify-between mb-4 animate-scaleIn">
+          <Link href="/home"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white hover:text-[#0056D2] transition-all group">
+            <span className="text-2xl group-active:scale-90 transition-transform">←</span>
+          </Link>
+          <div className="w-11 h-11" /> {/* alignment spacer */}
         </div>
 
-        <div className="w-full max-w-md bg-white/95 backdrop-blur-xl rounded-[40px] shadow-premium border border-white/60 p-8 md:p-10 flex flex-col gap-8 animate-scaleIn">
+        <div className="w-full max-w-md bg-gradient-to-b from-white to-slate-50/80 backdrop-blur-xl rounded-[40px] shadow-premium border border-white/60 p-6 md:p-8 flex flex-col gap-5 animate-scaleIn">
           
           {/* Tutor Mini Card: Estilo Premium */}
           <div className="flex items-center gap-5 p-2">
@@ -660,7 +666,7 @@ export default function ProfilePage() {
             </div>
           )}
 
-          <div className="space-y-4 animate-scaleIn" style={{ animationDelay: '100ms' }}>
+          <div className="space-y-3 animate-scaleIn" style={{ animationDelay: '100ms' }}>
             {/* Dados pessoais — único grupo sem título visível entre as
                 seções do Perfil (as demais já têm cabeçalho próprio);
                 mesma tipografia usada nos cabeçalhos colapsáveis abaixo,

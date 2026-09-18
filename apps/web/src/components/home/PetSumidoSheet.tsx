@@ -623,14 +623,15 @@ export function PetSumidoSheet({
                   className={`relative block w-full overflow-hidden rounded-3xl border-2 transition-all active:scale-[0.99] ${
                     hasPhoto ? 'border-emerald-300' : 'border-dashed border-red-300'
                   }`}
-                  style={{ aspectRatio: '16 / 9' }}
+                  style={{ aspectRatio: '1.25 / 1' }}
                 >
                   {hasPhoto ? (
                     <>
-                      {/* Fundo desfocado da mesma foto — preenche a caixa
-                          16:9 sem cortar/dar zoom na foto real (pedido
-                          explícito: aparecer em tamanho real, sem ficar
-                          menor que o normal). */}
+                      {/* Mesma proporção da foto do Perfil/Home
+                          (HomePetHeader, 1.25:1) — pedido explícito: as
+                          duas telas devem mostrar a foto do mesmo jeito.
+                          Fundo desfocado da mesma foto preenche a caixa
+                          sem cortar/dar zoom na foto real. */}
                       <img
                         src={photoPreview!}
                         alt=""
