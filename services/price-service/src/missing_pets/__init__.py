@@ -3303,6 +3303,14 @@ def report_found(
             existing.risk_level = _risk_level_from_flags(risk_flags)
             if finder_user_id and not existing.finder_user_id:
                 existing.finder_user_id = finder_user_id
+            # Bug real (18/09/2026): se o tutor já tinha dispensado esta
+            # linha antes (ex.: um relato mais fraco, só foto), a evidência
+            # NOVA que acabou de chegar (vídeo, local, notas) nunca reaparecia
+            # no banner de avaliação — dismissed=1 nunca era limpo, e
+            # /my-found-reports filtra por dismissed != 1 pra sempre. O
+            # tutor recebia o push mas o cartão laranja nunca voltava.
+            # Dispensar a versão antiga não deve esconder a versão nova.
+            existing.dismissed = 0
             db.commit()
             recipient_ids = _case_participant_user_ids(
                 db, mp, include_finders=False, include_followers=False,

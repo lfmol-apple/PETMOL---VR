@@ -133,3 +133,37 @@ def test_claiming_possession_still_requires_video_proof():
     })
     assert r.status_code == 422
     assert "vídeo" in r.json()["detail"].lower()
+
+
+def test_updating_a_dismissed_report_un_dismisses_it():
+    """Bug real (18/09/2026): o tutor descarta um relato fraco (só foto);
+    depois o mesmo achador manda evidência NOVA (nota extra) pro mesmo
+    contato -- isso batia no relato já existente e nunca limpava
+    dismissed=1, então a evidência nova nunca voltava a aparecer em
+    /my-found-reports (o push disparava, o cartão de avaliação não)."""
+    mp_id = _mk_alert()
+    contact = "(11) 96666-5555"
+
+    first = client.post(f"/missing-pets/{mp_id}/report-found", json={
+        "finder_contact": contact,
+        "has_possession": False,
+    })
+    assert first.status_code == 201
+    report_id = first.json()["id"]
+
+    with SessionLocal() as db:
+        report = db.query(FoundReport).filter_by(id=report_id).one()
+        report.dismissed = 1
+        db.commit()
+
+    again = client.post(f"/missing-pets/{mp_id}/report-found", json={
+        "finder_contact": contact,
+        "has_possession": False,
+        "notes": "Vi de novo, mais perto de casa agora",
+    })
+    assert again.status_code == 201
+    assert again.json()["status"] == "updated_existing_report"
+
+    with SessionLocal() as db:
+        report = db.query(FoundReport).filter_by(id=report_id).one()
+        assert report.dismissed == 0
