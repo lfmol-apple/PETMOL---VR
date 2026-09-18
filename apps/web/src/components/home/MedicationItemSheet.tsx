@@ -1096,16 +1096,21 @@ export function MedicationItemSheet({
                   />
                 </div>
 
-                <div className="grid grid-cols-[1fr_112px] gap-2.5 items-start">
-                  <div className="min-w-0">
-                    <label className={labelCls}>Data de início *</label>
-                    <input
-                      type="date"
-                      className={`${inputCls} px-2`}
-                      value={form.scheduled_date}
-                      onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))}
-                    />
-                  </div>
+                {/* O date input nativo do iOS não encolhe bem em coluna
+                    estreita (mesma lição de GroomingItemSheet.tsx) — Data
+                    fica sozinha na própria linha. 1ª dose/Dose são
+                    time/texto curto, sem esse problema. */}
+                <div>
+                  <label className={labelCls}>Data de início *</label>
+                  <input
+                    type="date"
+                    className={`${inputCls} px-2`}
+                    value={form.scheduled_date}
+                    onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
                   <div className="min-w-0">
                     <label className={labelCls}>1ª dose</label>
                     <input
@@ -1115,9 +1120,6 @@ export function MedicationItemSheet({
                       onChange={e => setForm(f => ({ ...f, first_dose_time: e.target.value }))}
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5">
                   <div className="min-w-0">
                     <label className={labelCls}>Dose</label>
                     <input
@@ -1128,7 +1130,9 @@ export function MedicationItemSheet({
                       onChange={e => setForm(f => ({ ...f, dose: e.target.value }))}
                     />
                   </div>
-                <div className="min-w-0">
+                </div>
+
+                <div>
                   <label className={labelCls}>Via</label>
                   <select
                     className={`${inputCls} px-2`}
@@ -1143,7 +1147,6 @@ export function MedicationItemSheet({
                     <option value="inalatorio">💨 Inalatório</option>
                   </select>
                 </div>
-              </div>
 
                 <div className="space-y-2">
                   <label className={labelCls}>Frequência</label>
