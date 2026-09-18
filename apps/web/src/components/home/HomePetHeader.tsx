@@ -46,9 +46,8 @@ interface HomePetHeaderProps {
   upcomingUrgent: boolean;
   onOpenUpcoming: () => void;
   // Names of pets across the WHOLE household that need attention on the
-  // basic-care minimum (vacina/vermífugo/antipulgas/ração — the items that
-  // apply to every pet regardless of health condition; medication/grooming
-  // excluded on purpose, since not every pet takes medication). Computed
+  // basic-care minimum (vermífugo/antipulgas/ração/medicação vencidos de
+  // verdade; vacina/grooming excluded on purpose). Computed
   // once in useHomeInteractionCenter.ts and shared across the household,
   // not scoped to just the currently-selected pet.
   basicCareAttentionPetNames: string[];
@@ -190,7 +189,7 @@ export function HomePetHeader({
 
   const currentPetPhotoUrl = getPhotoUrl(currentPet.photo, currentPet.pet_id, photoTimestamps);
   // Basic-care badge: which pets in the household need attention on
-  // vacina/vermífugo/antipulgas/ração — see basicCareAttentionPetIds'
+  // vermífugo/antipulgas/ração/medicação — see basicCareAttentionPetIds'
   // definition (useHomeInteractionCenter.ts) for what counts as "needing
   // attention" (actually overdue).
   const hasVisibleAttention = basicCareAttentionPetNames.length > 0;
@@ -360,7 +359,7 @@ export function HomePetHeader({
                     ? basicCareAttentionPetNames.length === 1
                       ? basicCareAttentionPetNames[0]
                       : `${basicCareAttentionPetNames.length} pets`
-                    : 'Em dia'}
+                    : 'Básicos ok'}
                 </span>
               </div>
             )}

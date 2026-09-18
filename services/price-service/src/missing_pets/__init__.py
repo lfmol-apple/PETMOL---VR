@@ -1085,7 +1085,12 @@ def _create_found_report_from_sighting(
     contact = (sighting.contact or "Avistamento público").strip()
     existing = (
         db.query(FoundReport)
-        .filter(FoundReport.missing_pet_id == mp.id, FoundReport.finder_contact == contact)
+        # Avistamentos públicos sem contato usam todos o mesmo texto sintético
+        # ("Avistamento público"). Deduplicar por contato fazia só o primeiro
+        # relato compatível gerar push; os seguintes retornavam aqui antes de
+        # avisar o tutor. O identificador estável deste relato é a própria
+        # lista de fotos salva para este sighting.
+        .filter(FoundReport.missing_pet_id == mp.id, FoundReport.finder_photos == sighting.photo_urls)
         .first()
     )
     if existing:
