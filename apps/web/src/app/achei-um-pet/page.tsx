@@ -528,6 +528,7 @@ function AcheiUmPetInner() {
           finder_user_id: finderUserId,
           pre_score: null,
           pre_analysis: null,
+          has_possession: hasPossession === true,
         }),
       });
       if (res.ok) {
