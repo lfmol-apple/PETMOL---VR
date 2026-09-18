@@ -703,17 +703,22 @@ export function GroomingItemSheet({
               <h3 className="text-[17px] font-bold text-[#1C1C1E]">Editar registro</h3>
 
               <div className={`rounded-2xl border ${theme.accentBorder} ${theme.accentBg}/40 p-3.5 space-y-3`}>
-                {/* O date input nativo do iOS ignora larguras estreitas; no mobile os campos ficam separados. */}
-                <div className="grid grid-cols-1 sm:grid-cols-[1fr_110px] gap-3 items-start">
-                  <div className="min-w-0">
-                    <label className={labelCls}>Data *</label>
-                    <input
-                      type="date"
-                      className={`${inputCls} w-full`}
-                      value={editForm.date}
-                      onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
-                    />
-                  </div>
+                {/* O date input nativo do iOS ignora larguras estreitas — Data
+                    fica sozinha na própria linha (nunca dividindo coluna).
+                    A cada/Tipo não têm esse problema (number/select
+                    encolhem normalmente), então esses dois ficam lado a lado
+                    pra reduzir rolagem (18/09/2026). */}
+                <div>
+                  <label className={labelCls}>Data *</label>
+                  <input
+                    type="date"
+                    className={`${inputCls} w-full`}
+                    value={editForm.date}
+                    onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
+                  />
+                </div>
+
+                <div className="grid grid-cols-[100px_1fr] gap-2.5 items-start">
                   <div className="min-w-0">
                     <label className={`${labelCls} whitespace-nowrap`}>A cada (dias)</label>
                     <input
@@ -726,19 +731,18 @@ export function GroomingItemSheet({
                       onChange={e => setEditForm(f => ({ ...f, frequency_days: e.target.value }))}
                     />
                   </div>
-                </div>
-
-                <div>
-                  <label className={labelCls}>Tipo</label>
-                  <select
-                    className={inputCls}
-                    value={editForm.type}
-                    onChange={e => setEditForm(f => ({ ...f, type: e.target.value as GroomingType }))}
-                  >
-                    <option value="bath">🚿 Somente Banho</option>
-                    <option value="grooming">✂️ Somente Tosa</option>
-                    <option value="bath_grooming">🛁 Banho + Tosa</option>
-                  </select>
+                  <div className="min-w-0">
+                    <label className={labelCls}>Tipo</label>
+                    <select
+                      className={`${inputCls} px-2`}
+                      value={editForm.type}
+                      onChange={e => setEditForm(f => ({ ...f, type: e.target.value as GroomingType }))}
+                    >
+                      <option value="bath">🚿 Somente Banho</option>
+                      <option value="grooming">✂️ Somente Tosa</option>
+                      <option value="bath_grooming">🛁 Banho + Tosa</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="bg-white rounded-2xl border border-black/5 overflow-hidden shadow-sm">
