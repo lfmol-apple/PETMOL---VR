@@ -208,7 +208,7 @@ export function ParasiteItemSheet({
         frequency_days: String(cfg.defaultFrequency),
         reminder_days: String((current as unknown as Record<string, unknown> | null)?.alert_days_before ?? 3),
         reminder_time: String((current as unknown as Record<string, unknown> | null)?.reminder_time ?? '09:00'),
-        barcode: '',
+        barcode: current?.barcode ?? '',
       });
     }
   }, [mode, current, cfg.defaultFrequency]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -704,6 +704,21 @@ export function ParasiteItemSheet({
                 ‹ Voltar
               </button>
               <h3 className="text-[16px] font-bold text-gray-900">{cfg.ctaLabel}</h3>
+
+              {!showManualForm && current?.product_name && (
+                <button
+                  type="button"
+                  onClick={() => setShowManualForm(true)}
+                  className={`w-full flex items-center gap-3 rounded-2xl border p-4 text-left transition-all active:scale-[0.98] ${theme.accentBorder} ${theme.accentBg}`}
+                >
+                  <span className="text-2xl flex-shrink-0">🔁</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[14px] font-black text-gray-900">Repetir {current.product_name}</span>
+                    <span className="block text-[12px] text-gray-500">Mesmo produto de antes — sem escanear de novo</span>
+                  </span>
+                  <span className="text-gray-400 text-lg flex-shrink-0">›</span>
+                </button>
+              )}
 
               {!showManualForm && (
                 <div className={`rounded-2xl border p-4 space-y-3 ${theme.accentBorder} ${theme.accentBg}`}>

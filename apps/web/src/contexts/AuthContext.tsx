@@ -1,8 +1,10 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { getToken, setToken, clearToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
+import { isPublic } from '@/middleware';
 
 interface Tutor {
   id: number;
@@ -51,6 +53,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, _setTokenState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Bug real (18/09/2026, pedido do dono): o app liberava acesso total logo
+  // após o cadastro, sem exigir confirmação de e-mail (email_verified só
+  // ficava marcado, nunca era checado em lugar nenhum). Agora, sempre que o
+  // tutor logado ainda não confirmou o e-mail e tenta abrir qualquer rota
+  // que não seja pública (Home, perfil, etc.), volta pra /auth/check-email
+  // até clicar no link. Contas convidadas (guest_*) já nascem com
+  // email_verified=true (não têm e-mail de verdade), então nunca são
+  // afetadas.
+  useEffect(() => {
+    if (isLoading || !tutor) return;
+    if (tutor.email_verified === false && !isPublic(pathname || '')) {
+      router.replace('/auth/check-email');
+    }
+  }, [tutor, isLoading, pathname, router]);
 
   // Helper: sets both React state and module-level token store
   const setAuthToken = (t: string | null) => {

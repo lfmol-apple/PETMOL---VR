@@ -72,6 +72,14 @@ function healthSeverityRank(actionTarget: CareActionTarget): number {
 const NEAR_TERM_REMINDER_DAYS = 30;
 
 function formatReminderHeadline(reminder: PetCareReminder): string {
+  // Bug real (18/09/2026): lembrete sintético "sem histórico" (diff
+  // sentinela -9999, ver processVaccines em petCareDomain.ts) caía direto
+  // na conta de dias abaixo e o card mostrava "Sem vacina registrada venceu
+  // há 9999 dias". Mesmo tratamento que diffLabel já tinha em
+  // UpcomingEventsSheet.tsx — só faltava aqui.
+  if (reminder.is_derived && reminder.diff <= -9000) {
+    return reminder.domain === 'vaccine' ? 'Sem vacina' : 'Sem registro';
+  }
   const days = reminder.diff;
   const when = days < 0
     ? `venceu há ${Math.abs(days)} dia${Math.abs(days) === 1 ? '' : 's'}`
