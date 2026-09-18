@@ -52,6 +52,13 @@ interface AppleControlButtonsProps {
   inactiveControls?: HomeInactiveEligibleControlId[];
   onDeactivateControl?: (controlId: HomeInactiveEligibleControlId) => void;
 
+  // Quantos pets sumidos existem na região agora (não são do usuário) — dono
+  // da lógica/estado continua em home/page.tsx (nearbyAlerts,
+  // handledAlertIds). Botão dedicado ao lado de "Pet Sumido" (a pedido do
+  // dono, 18/09) — abre o mesmo visualizador em tela cheia estilo Stories
+  // que o pisco ao lado do nome do pet já abre (onOpenNearbyMissing).
+  nearbyMissingCount?: number;
+  onOpenNearbyMissing?: () => void;
 }
 
 type ControlTone = 'neutral' | 'ok' | 'warning' | 'critical';
@@ -97,6 +104,8 @@ export function AppleControlButtons({
   colorHealth,
   colorFood,
   colorVaccines,
+  nearbyMissingCount = 0,
+  onOpenNearbyMissing,
 }: AppleControlButtonsProps) {
   const { t } = useI18n();
   const [showEmergencyChoice, setShowEmergencyChoice] = useState(false);
@@ -258,26 +267,64 @@ export function AppleControlButtons({
 
         {/* Abaixo: Pet Sumido + Emergência (agrupados — ambos de urgência).
             "Pet Sumido" volta a ser só a função dele (reportar seu pet como
-            sumido) — o aviso de "tem gente sumida perto de você" agora é o
-            pisco ao lado do nome do pet (NearbyMissingPetsTicker), então
-            esse botão não precisa mais duplicar esse recado. */}
+            sumido) — o aviso de "tem gente sumida perto de você" continua
+            vivendo no pisco ao lado do nome (NearbyMissingPetsTicker) E,
+            a pedido do dono (18/09), ganhou um segundo lugar aqui: um botão
+            dedicado ao lado de "Pet Sumido" (que encolhe pra meia largura
+            só quando há alerta pra mostrar — sem alerta, ocupa a linha
+            inteira como antes). Os dois abrem o mesmo visualizador em tela
+            cheia estilo Stories (onOpenNearbyMissing). */}
         <div className="mt-2 space-y-2 min-[390px]:mt-2.5">
-          <button
-            type="button"
-            onClick={onPetSumidoClick}
-            className="group relative flex min-h-[44px] w-full items-center gap-2 overflow-hidden rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 p-2.5 shadow-sm shadow-red-900/5 transition-all duration-300 hover:shadow-md active:scale-[0.98] min-[390px]:min-h-[52px] min-[390px]:gap-2.5 min-[390px]:rounded-2xl min-[390px]:p-3"
-          >
-            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-red-100 transition-transform group-hover:scale-105 min-[390px]:h-8 min-[390px]:w-8">
-              <span className="pointer-events-none text-base min-[390px]:text-lg">🚨</span>
+          {nearbyMissingCount > 0 && onOpenNearbyMissing ? (
+            <div className="grid grid-cols-2 gap-2 min-[390px]:gap-2.5">
+              <button
+                type="button"
+                onClick={onPetSumidoClick}
+                className="group relative flex min-h-[44px] items-center gap-1.5 overflow-hidden rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 p-2.5 shadow-sm shadow-red-900/5 transition-all duration-300 hover:shadow-md active:scale-[0.98] min-[390px]:min-h-[52px] min-[390px]:rounded-2xl min-[390px]:p-3"
+              >
+                <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-red-100 transition-transform group-hover:scale-105 min-[390px]:h-8 min-[390px]:w-8">
+                  <span className="pointer-events-none text-base min-[390px]:text-lg">🚨</span>
+                </div>
+                <div className="min-w-0 flex-1 text-left">
+                  <h3 className="truncate text-[12px] font-black leading-tight text-red-800 min-[390px]:text-[13px]">Pet Sumido</h3>
+                  <p className="mt-0.5 truncate text-[9px] font-semibold leading-[1.1] text-red-600/80">Alerta urgente</p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={onOpenNearbyMissing}
+                className="group relative flex min-h-[44px] items-center gap-1.5 overflow-hidden rounded-xl border border-rose-300 bg-gradient-to-r from-rose-100 to-rose-50 p-2.5 shadow-sm shadow-rose-900/10 transition-all duration-300 hover:shadow-md active:scale-[0.98] min-[390px]:min-h-[52px] min-[390px]:rounded-2xl min-[390px]:p-3"
+              >
+                <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-rose-200 transition-transform group-hover:scale-105 min-[390px]:h-8 min-[390px]:w-8">
+                  <span className="pointer-events-none text-base min-[390px]:text-lg">📍</span>
+                </div>
+                <div className="min-w-0 flex-1 text-left">
+                  <h3 className="truncate text-[12px] font-black leading-tight text-rose-800 min-[390px]:text-[13px]">Perto de você</h3>
+                  <p className="mt-0.5 truncate text-[9px] font-semibold leading-[1.1] text-rose-700/80">
+                    {nearbyMissingCount} sumido{nearbyMissingCount > 1 ? 's' : ''}
+                  </p>
+                </div>
+              </button>
             </div>
-            <div className="min-w-0 flex-1 text-left">
-              <h3 className="truncate text-[13px] font-black leading-tight text-red-800 min-[390px]:text-[14px] sm:text-base">Pet Sumido</h3>
-              <p className="mt-0.5 truncate text-[9px] font-semibold leading-[1.1] text-red-600/80 min-[390px]:text-[10px] sm:text-xs">
-                Gerar alerta urgente
-              </p>
-            </div>
-            <span className="text-lg text-red-300 transition-transform group-hover:translate-x-1">›</span>
-          </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onPetSumidoClick}
+              className="group relative flex min-h-[44px] w-full items-center gap-2 overflow-hidden rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-rose-50 p-2.5 shadow-sm shadow-red-900/5 transition-all duration-300 hover:shadow-md active:scale-[0.98] min-[390px]:min-h-[52px] min-[390px]:gap-2.5 min-[390px]:rounded-2xl min-[390px]:p-3"
+            >
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-red-100 transition-transform group-hover:scale-105 min-[390px]:h-8 min-[390px]:w-8">
+                <span className="pointer-events-none text-base min-[390px]:text-lg">🚨</span>
+              </div>
+              <div className="min-w-0 flex-1 text-left">
+                <h3 className="truncate text-[13px] font-black leading-tight text-red-800 min-[390px]:text-[14px] sm:text-base">Pet Sumido</h3>
+                <p className="mt-0.5 truncate text-[9px] font-semibold leading-[1.1] text-red-600/80 min-[390px]:text-[10px] sm:text-xs">
+                  Gerar alerta urgente
+                </p>
+              </div>
+              <span className="text-lg text-red-300 transition-transform group-hover:translate-x-1">›</span>
+            </button>
+          )}
 
           <button
             type="button"
