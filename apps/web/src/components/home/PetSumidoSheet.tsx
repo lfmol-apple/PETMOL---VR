@@ -626,12 +626,24 @@ export function PetSumidoSheet({
                   style={{ aspectRatio: '16 / 9' }}
                 >
                   {hasPhoto ? (
-                    <img
-                      src={photoPreview!}
-                      alt=""
-                      className="absolute inset-0 w-full h-full object-cover"
-                      onError={() => setPhotoLoadFailed(true)}
-                    />
+                    <>
+                      {/* Fundo desfocado da mesma foto — preenche a caixa
+                          16:9 sem cortar/dar zoom na foto real (pedido
+                          explícito: aparecer em tamanho real, sem ficar
+                          menor que o normal). */}
+                      <img
+                        src={photoPreview!}
+                        alt=""
+                        aria-hidden="true"
+                        className="absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-2xl"
+                      />
+                      <img
+                        src={photoPreview!}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-contain"
+                        onError={() => setPhotoLoadFailed(true)}
+                      />
+                    </>
                   ) : (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-red-50 px-6 text-center">
                       <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-red-500 shadow-md ring-1 ring-red-100">
