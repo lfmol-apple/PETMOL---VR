@@ -8,6 +8,7 @@ import { API_BASE_URL } from '@/lib/api';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { getToken } from '@/lib/auth-token';
 import { ReportAlertSheet } from '@/components/home/ReportAlertSheet';
+import { reverseGeocode, formatReverseGeocodeResult } from '@/lib/osm';
 
 interface MissingPetRecord {
   id: string;
@@ -116,6 +117,8 @@ function AcheiUmPetInner() {
   const [reportNotes, setReportNotes] = useState('');
   const [reportCep, setReportCep] = useState('');
   const [cepLoading, setCepLoading] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState('');
   const [reportPhotos, setReportPhotos] = useState<string[]>([]);
   const [reportVideoFile, setReportVideoFile] = useState<File | null>(null);
   const [reportVideoPreviewUrl, setReportVideoPreviewUrl] = useState('');
@@ -268,6 +271,36 @@ function AcheiUmPetInner() {
       } catch { /* silent */ }
       setCepLoading(false);
     }
+  };
+
+  // Mesma função do Pet Sumido (PetSumidoSheet) — GPS -> Nominatim/OSM ->
+  // nome da rua, não só bairro/cidade. Quem acha/avista o pet também se
+  // beneficia de reportar de onde está sem precisar digitar CEP.
+  const handleUseCurrentLocation = async () => {
+    setGpsError('');
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+      setGpsError('Geolocalização não disponível neste dispositivo');
+      return;
+    }
+    setGpsLoading(true);
+    try {
+      const pos = await new Promise<GeolocationPosition>((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000, maximumAge: 60000 })
+      );
+      const { latitude, longitude } = pos.coords;
+      const reverseResult = await reverseGeocode(latitude, longitude);
+      const formatted = reverseResult ? formatReverseGeocodeResult(reverseResult) : null;
+      if (formatted) {
+        setReportLocation(formatted);
+        const postcodeDigits = reverseResult?.postcode?.replace(/\D/g, '') ?? '';
+        setReportCep(postcodeDigits.length === 8 ? `${postcodeDigits.slice(0, 5)}-${postcodeDigits.slice(5)}` : '');
+      } else {
+        setGpsError('Não foi possível identificar o endereço');
+      }
+    } catch {
+      setGpsError('Permita acesso à localização para usar esta opção');
+    }
+    setGpsLoading(false);
   };
 
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -721,14 +754,23 @@ function AcheiUmPetInner() {
               {/* Onde está */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Onde você está — CEP <span className="normal-case font-normal text-slate-300 ml-1">(opcional)</span>
+                  Onde você está <span className="normal-case font-normal text-slate-300 ml-1">(opcional)</span>
                 </label>
+                <button
+                  type="button"
+                  onClick={handleUseCurrentLocation}
+                  disabled={gpsLoading}
+                  className="w-full mb-2 flex items-center justify-center gap-2 rounded-2xl border border-blue-100 bg-blue-50 py-2.5 text-[13px] font-bold text-blue-600 active:scale-[0.98] transition-all disabled:opacity-60"
+                >
+                  {gpsLoading ? '⏳ Localizando...' : '📍 Usar minha localização atual'}
+                </button>
+                {gpsError && <p className="text-[12px] text-red-500 font-semibold mb-2 text-center">{gpsError}</p>}
                 <input
                   type="text"
                   inputMode="numeric"
                   value={reportCep}
                   onChange={e => void handleCepChange(e.target.value)}
-                  placeholder="00000-000"
+                  placeholder="CEP (00000-000) — ou use sua localização"
                   onFocus={() => setFocusedField('cep')}
                   onBlur={() => setFocusedField(null)}
                   className={`w-full border-2 rounded-2xl px-4 pr-10 text-gray-900 placeholder-slate-500 outline-none transition-colors ${
@@ -741,7 +783,7 @@ function AcheiUmPetInner() {
                     Buscando endereço...
                   </p>
                 )}
-                {!cepLoading && reportLocation && reportCep.replace(/\D/g, '').length === 8 && reportLocation !== reportCep.replace(/\D/g, '') && (
+                {!cepLoading && reportLocation && (
                   <p className="text-[12px] text-red-500 mt-1.5 font-semibold">📍 {reportLocation}</p>
                 )}
               </div>
@@ -1316,6 +1358,36 @@ function PetCard({
 }) {
   const isFound = pet.status === 'found';
   const speciesEmoji = pet.species === 'cat' ? '🐈' : '🐕';
+  const [cardGpsLoading, setCardGpsLoading] = useState(false);
+  const [cardGpsError, setCardGpsError] = useState('');
+
+  // Mesma função do Pet Sumido/formulário principal desta página — GPS ->
+  // Nominatim/OSM -> nome da rua. onChangeLocation é um setter livre (só o
+  // <input> abaixo formata dígitos como CEP), então passar o endereço
+  // completo aqui não precisa de nenhuma prop nova.
+  const handleCardUseCurrentLocation = async () => {
+    setCardGpsError('');
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+      setCardGpsError('Geolocalização não disponível neste dispositivo');
+      return;
+    }
+    setCardGpsLoading(true);
+    try {
+      const pos = await new Promise<GeolocationPosition>((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000, maximumAge: 60000 })
+      );
+      const reverseResult = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+      const formatted = reverseResult ? formatReverseGeocodeResult(reverseResult) : null;
+      if (formatted) {
+        onChangeLocation(formatted);
+      } else {
+        setCardGpsError('Não foi possível identificar o endereço');
+      }
+    } catch {
+      setCardGpsError('Permita acesso à localização para usar esta opção');
+    }
+    setCardGpsLoading(false);
+  };
 
   return (
     <div className={`relative rounded-[28px] overflow-hidden border transition-all shadow-2xl shadow-black/25 ${
@@ -1462,13 +1534,22 @@ function PetCard({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-white/40 uppercase tracking-wide mb-1">CEP de onde você está (opcional)</label>
+                  <label className="block text-[11px] font-bold text-white/40 uppercase tracking-wide mb-1">Onde você está (opcional)</label>
+                  <button
+                    type="button"
+                    onClick={handleCardUseCurrentLocation}
+                    disabled={cardGpsLoading}
+                    className="w-full mb-1.5 flex items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/8 py-2 text-[12px] font-bold text-white/70 active:scale-[0.98] transition-all disabled:opacity-60"
+                  >
+                    {cardGpsLoading ? '⏳ Localizando...' : '📍 Usar minha localização atual'}
+                  </button>
+                  {cardGpsError && <p className="text-[11px] text-red-400 font-semibold mb-1.5">{cardGpsError}</p>}
                   <input
                     type="text"
                     inputMode="numeric"
                     value={reportLocation}
                     onChange={e => onChangeLocation(e.target.value.replace(/\D/g, '').replace(/^(\d{5})(\d)/, '$1-$2').slice(0, 9))}
-                    placeholder="00000-000"
+                    placeholder="CEP (00000-000) — ou use sua localização"
                     className="w-full bg-white/8 border border-white/12 rounded-xl px-3 py-2.5 text-[14px] text-white placeholder-white/25 outline-none focus:border-white/30 transition-colors"
                   />
                 </div>
