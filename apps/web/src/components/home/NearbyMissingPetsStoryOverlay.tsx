@@ -80,7 +80,21 @@ export function NearbyMissingPetsStoryOverlay({
       onTouchEnd={() => { touchStartY.current = null; }}
     >
       {photoUrl ? (
-        <img src={photoUrl} alt={alert.pet_name} className="absolute inset-0 h-full w-full object-cover" />
+        <>
+          {/* Fundo desfocado da mesma foto — preenche as bordas da tela
+              cheia sem precisar cortar/dar zoom na foto real (pedido
+              explícito: mostrar o pet inteiro). */}
+          <img
+            src={photoUrl}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-2xl"
+          />
+          <div className="absolute inset-0 bg-black/35" />
+          {/* Foto real, sempre inteira (object-contain, nunca cover) —
+              mesma resolução/qualidade do upload original. */}
+          <img src={photoUrl} alt={alert.pet_name} className="absolute inset-0 h-full w-full object-contain" />
+        </>
       ) : (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-900 text-8xl">
           {alert.species === 'cat' ? '🐱' : '🐶'}

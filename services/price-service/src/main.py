@@ -585,13 +585,46 @@ async def nominatim_search(
 ):
     """Proxy requests to Nominatim to avoid rate limits and CORS."""
     import httpx
-    
+
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             url = (
                 f"https://nominatim.openstreetmap.org/search?"
                 f"q={q}&lat={lat}&lon={lon}&format=json&limit={limit}"
                 f"&addressdetails=1&extratags=1"
+            )
+            response = await client.get(
+                url,
+                headers={"User-Agent": "PETMOL/1.0 (contact: petmol@example.com)"},
+            )
+            return JSONResponse(content=response.json())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Nominatim error: {str(e)}")
+
+
+@app.get("/api/nominatim-reverse", tags=["Proxy"])
+async def nominatim_reverse(
+    lat: float = Query(..., description="Latitude"),
+    lon: float = Query(..., description="Longitude"),
+):
+    """Reverse geocode (lat/lng -> endereço com rua) via Nominatim/OSM.
+
+    Sempre passa pelo backend (nunca fetch direto do browser pro Nominatim,
+    diferente de /api/nominatim-search que só usa o proxy em localhost):
+    browsers ignoram um header User-Agent customizado em fetch/XHR (é
+    "forbidden header name"), e a política de uso do Nominatim exige
+    identificação de verdade — só dá pra cumprir isso no servidor.
+
+    Usado por "Usar minha localização atual" no Pet Sumido (antes só dava
+    bairro/cidade via BigDataCloud; Nominatim devolve o nome da rua, que é
+    o que de fato ajuda quem procura o pet)."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            url = (
+                f"https://nominatim.openstreetmap.org/reverse?"
+                f"lat={lat}&lon={lon}&format=json&addressdetails=1&zoom=18"
             )
             response = await client.get(
                 url,

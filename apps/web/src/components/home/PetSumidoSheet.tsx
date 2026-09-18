@@ -6,6 +6,7 @@ import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/she
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { getToken } from '@/lib/auth-token';
 import { isNativeApp } from '@/lib/pwaPlatform';
+import { reverseGeocode, formatReverseGeocodeResult } from '@/lib/osm';
 
 interface PetSumidoSheetProps {
   pet: PetHealthProfile;
@@ -229,17 +230,30 @@ export function PetSumidoSheet({
         navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000, maximumAge: 60000 })
       );
       const { latitude, longitude } = pos.coords;
-      const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=pt`);
-      const data = await geoRes.json();
-      const parts = [data.locality, data.city, data.principalSubdivision].filter(
-        (v: unknown, i: number, arr: unknown[]) => Boolean(v) && arr.indexOf(v) === i
-      );
-      if (parts.length) {
-        setLastSeenLocation(parts.join(', '));
+      // Nominatim/OSM dá o nome da rua (logradouro) — BigDataCloud (usado
+      // antes) só dava bairro/cidade, informação bem mais rasa pra quem
+      // procura o pet. Cai pro BigDataCloud só se o Nominatim falhar
+      // (fora do ar, sem cobertura na zona) — CEP continua a alternativa
+      // manual de sempre, pro caso do GPS falhar por completo.
+      const reverseResult = await reverseGeocode(latitude, longitude);
+      const formatted = reverseResult ? formatReverseGeocodeResult(reverseResult) : null;
+      if (formatted) {
+        setLastSeenLocation(formatted);
         setCep('');
         setCepError('');
       } else {
-        setGpsError('Não foi possível identificar o endereço');
+        const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=pt`);
+        const data = await geoRes.json();
+        const parts = [data.locality, data.city, data.principalSubdivision].filter(
+          (v: unknown, i: number, arr: unknown[]) => Boolean(v) && arr.indexOf(v) === i
+        );
+        if (parts.length) {
+          setLastSeenLocation(parts.join(', '));
+          setCep('');
+          setCepError('');
+        } else {
+          setGpsError('Não foi possível identificar o endereço');
+        }
       }
     } catch {
       setGpsError('Permita acesso à localização para usar esta opção');
