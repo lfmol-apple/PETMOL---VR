@@ -19,6 +19,7 @@ from src.missing_pets import (
     MissingPetFollower,
     _broadcast_missing_pet,
     _case_participant_user_ids,
+    _push_found_report_recipients,
     mark_found,
 )
 
@@ -194,6 +195,27 @@ def test_push_case_notifies_all_participants_except_confirmer(_isolate, monkeypa
         "https://push.example/finder-dev",
         "https://push.example/follower-dev",
         "https://push.example/region-dev",
+    }
+
+
+def test_found_report_push_excludes_the_finder_but_notifies_caretakers(_isolate):
+    sent = _isolate
+    with SessionLocal() as db:
+        _sub(db, "owner", "owner-dev")
+        _sub(db, "caretaker", "caretaker-dev")
+        _sub(db, "finder", "finder-dev")
+
+    _push_found_report_recipients(
+        {"owner", "caretaker", "finder"},
+        "Rex",
+        "MP_ID",
+        score=87,
+        exclude={"finder"},
+    )
+
+    assert set(sent) == {
+        "https://push.example/owner-dev",
+        "https://push.example/caretaker-dev",
     }
 
 

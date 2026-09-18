@@ -4,7 +4,6 @@ import { createPortal } from 'react-dom';
 
 import { useI18n } from '@/lib/I18nContext';
 import { HomeAttentionOverlays } from '@/components/home/HomeAttentionOverlays';
-import { NearbyMissingPetsTicker } from '@/components/home/NearbyMissingPetsTicker';
 import type { PetInteractionItem } from '@/features/interactions/types';
 import type { PetHealthProfile } from '@/lib/petHealth';
 
@@ -33,7 +32,6 @@ interface HomePetHeaderProps {
   onTogglePetSelector: () => void;
   onClosePetSelector: () => void;
   topAttentionPetCount: number;
-  onOpenTopAttentionModal: () => void;
   onCloseTopAttentionModal: () => void;
   showTopAttentionModal: boolean;
   topAttentionAlerts: PetInteractionItem[];
@@ -45,17 +43,6 @@ interface HomePetHeaderProps {
   // made up entirely of "vence em 3 semanas" stays a calmer blue.
   upcomingUrgent: boolean;
   onOpenUpcoming: () => void;
-  // Names of pets across the WHOLE household that need attention on the
-  // basic-care minimum (vermífugo/antipulgas/ração/medicação vencidos de
-  // verdade; vacina/grooming excluded on purpose). Computed
-  // once in useHomeInteractionCenter.ts and shared across the household,
-  // not scoped to just the currently-selected pet.
-  basicCareAttentionPetNames: string[];
-  // Letreiro "pet sumido perto de você" — substitui o selo de atenção nessa
-  // posição quando há alerta(s) na região (pedido do dono). 0/undefined =
-  // nada aqui, mesmo comportamento de antes de existir.
-  nearbyMissingCount?: number;
-  onOpenNearbyMissing?: () => void;
 }
 
 export function HomePetHeader({
@@ -74,7 +61,6 @@ export function HomePetHeader({
   onTogglePetSelector,
   onClosePetSelector,
   topAttentionPetCount,
-  onOpenTopAttentionModal,
   onCloseTopAttentionModal,
   showTopAttentionModal,
   topAttentionAlerts,
@@ -82,9 +68,6 @@ export function HomePetHeader({
   upcomingCount,
   upcomingUrgent,
   onOpenUpcoming,
-  basicCareAttentionPetNames,
-  nearbyMissingCount = 0,
-  onOpenNearbyMissing,
 }: HomePetHeaderProps) {
   const { t } = useI18n();
   const nameButtonRef = useRef<HTMLButtonElement>(null);
@@ -188,11 +171,6 @@ export function HomePetHeader({
   ].filter(Boolean) as string[];
 
   const currentPetPhotoUrl = getPhotoUrl(currentPet.photo, currentPet.pet_id, photoTimestamps);
-  // Basic-care badge: which pets in the household need attention on
-  // vermífugo/antipulgas/ração/medicação — see basicCareAttentionPetIds'
-  // definition (useHomeInteractionCenter.ts) for what counts as "needing
-  // attention" (actually overdue).
-  const hasVisibleAttention = basicCareAttentionPetNames.length > 0;
 
   return (
     <>    <div className="px-2 pt-1.5 space-y-2 sm:pt-4 sm:space-y-3">
@@ -308,8 +286,7 @@ export function HomePetHeader({
       {/* Dados de Identidade do Pet (Abaixo da Foto) */}
       <div className="px-0.5 pb-1 min-[390px]:px-1 sm:px-1.5 sm:pb-2">
         <div className="flex flex-col">
-          {/* Nome do Pet e Badge de Status (Alinhados na mesma linha) */}
-          <div className="flex w-full items-center justify-between gap-2 pr-1">
+          <div className="flex w-full items-center pr-1">
             <button
               ref={nameButtonRef}
               onClick={onTogglePetSelector}
@@ -331,38 +308,6 @@ export function HomePetHeader({
                 </svg>
               </div>
             </button>
-
-            {/* Pet sumido perto de você tem prioridade nesse slot — a pedido
-                do dono, o selo de atenção de cuidados básicos sai daqui
-                enquanto houver alerta na região (ele vai realocar esse selo
-                em outro lugar depois). Sem alerta, o selo de sempre volta. */}
-            {nearbyMissingCount > 0 && onOpenNearbyMissing ? (
-              <NearbyMissingPetsTicker count={nearbyMissingCount} onOpen={onOpenNearbyMissing} />
-            ) : (
-              /* Badge de atenção — alinhado à direita com o nome. Texto
-                  deliberadamente curto (a bolinha colorida já carrega a
-                  urgência) e com teto de largura menor que o do nome, pra não
-                  espremer o nome do pet — confirmado em produção: "Mingau"
-                  virava "Ming..." porque o selo antigo ("2 pets precisam de
-                  atenção") tomava até 52% da linha. */
-              <div
-                onClick={hasVisibleAttention ? onOpenTopAttentionModal : undefined}
-                className={`inline-flex max-w-[38%] flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-sm transition-all ${
-                  hasVisibleAttention
-                    ? 'bg-rose-50 border-rose-200 text-rose-700 cursor-pointer hover:bg-rose-100 active:scale-95'
-                    : 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default'
-                }`}
-              >
-                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${hasVisibleAttention ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
-                <span className="truncate text-[10px] font-bold tracking-wide">
-                  {hasVisibleAttention
-                    ? basicCareAttentionPetNames.length === 1
-                      ? basicCareAttentionPetNames[0]
-                      : `${basicCareAttentionPetNames.length} pets`
-                    : 'Básicos ok'}
-                </span>
-              </div>
-            )}
           </div>
           
           {/* Chips de dados do pet */}

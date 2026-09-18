@@ -243,8 +243,6 @@ body {
   animation: scaleIn 0.3s ease-out;
 }
 
-/* NearbyMissingPetsTicker — pisco lento pra chamar atenção sem ser
-   agressivo (nada de "letreiro passando" aqui, ver histórico do PR). */
 @keyframes blinkSlow {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }

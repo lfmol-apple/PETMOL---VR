@@ -1126,34 +1126,16 @@ def _create_found_report_from_sighting(
         except Exception:
             minutes_ago = None
 
-    if mp.user_id:
+    recipient_ids = _case_participant_user_ids(
+        db, mp, include_finders=False, include_followers=False,
+    )
+    if recipient_ids:
         threading.Thread(
-            target=_push_owner_found,
-            args=(mp.user_id, mp.pet_name, sighting.location_text, mp.id),
+            target=_push_found_report_recipients,
+            args=(recipient_ids, mp.pet_name, mp.id),
             kwargs={"score": score, "minutes_ago": minutes_ago, "distance_km": distance_km},
             daemon=True,
         ).start()
-        # Avistamento forte (>=75%) — família e cuidadores também acompanham.
-        if score >= 75:
-            try:
-                fam_ids = _case_participant_user_ids(
-                    db, mp, include_finders=False, include_followers=False,
-                ) - {str(mp.user_id)}
-                if fam_ids:
-                    threading.Thread(
-                        target=_push_case,
-                        args=(fam_ids, {
-                            "title": f"🔎 Possível avistamento de {mp.pet_name}",
-                            "body": "Um avistamento compatível foi registrado. O tutor está avaliando.",
-                            "tag": f"found-report-fam-{mp.id}",
-                            "renotify": True,
-                            "icon": "/icons/icon-192x192.png",
-                            "data": {"url": "/pets-desaparecidos"},
-                        }),
-                        daemon=True,
-                    ).start()
-            except Exception as exc:
-                logger.warning(f"sighting family push failed: {exc}")
 
     # NOVO PONTO DE INTERESSE — avistamento forte, com coordenadas, fora do
     # raio atual de qualquer ponto já monitorado: abre um ponto extra ali
@@ -3136,44 +3118,70 @@ def _owner_found_body(score: int | None, minutes_ago: int | None, distance_km: f
     return f"{when_where}. {tail}".strip(" .·") + "."
 
 
-def _push_owner_found(
-    owner_user_id: str | None,
+def _found_report_push_payload(
     pet_name: str,
-    finder_location: str | None,
     mp_id: str,
     *,
     score: int | None = None,
     minutes_ago: int | None = None,
     distance_km: float | None = None,
+) -> dict:
+    emoji = "🔎" if score is None or score >= 90 else "⚠️" if score >= 75 else "❓"
+    return {
+        "title": f"{emoji} Possível avistamento de {pet_name}",
+        "body": _owner_found_body(score, minutes_ago, distance_km),
+        "tag": f"found-report-{mp_id}",
+        "renotify": True,
+        "requireInteraction": True,
+        "vibrate": [300, 150, 300, 150, 300],
+        "icon": "/icons/icon-192x192.png",
+        "data": {"url": "/home"},
+    }
+
+
+def _push_found_report_recipients(
+    recipient_user_ids,
+    pet_name: str,
+    mp_id: str,
+    *,
+    score: int | None = None,
+    minutes_ago: int | None = None,
+    distance_km: float | None = None,
+    exclude: set | None = None,
 ) -> None:
-    """Push ao dono quando surge um possível avistamento/relato do pet.
-    Uma notificação só (relato + %, quando conhecido), sem expor contato.
+    """Push de possível avistamento para quem cuida do pet.
 
-    Recebe valores já extraídos (não o objeto MissingPet): é chamada numa
-    thread em background, e por essa altura a sessão do SQLAlchemy que
-    carregou o MissingPet já foi fechada pelo FastAPI (get_db fecha no
-    fim da requisição) — ler um atributo do objeto "desconectado" dava
-    DetachedInstanceError, engolido pelo except abaixo, e o push nunca
-    saía (só o banner ao abrir o app, que busca os dados de novo)."""
+    O achador não recebe o push inicial do próprio avistamento; ele acompanha
+    pelo feedback da tela e só volta a receber push quando o tutor decide
+    (descarta ou encerra como encontrado)."""
     try:
-        if not owner_user_id:
+        if not recipient_user_ids:
             return
-        emoji = "🔎" if score is None or score >= 90 else "⚠️" if score >= 75 else "❓"
-        push_to_user(owner_user_id, {
-            "title": f"{emoji} Possível avistamento de {pet_name}",
-            "body": _owner_found_body(score, minutes_ago, distance_km),
-            "tag": f"found-report-{mp_id}",
-            "renotify": True,
-            "requireInteraction": True,
-            "vibrate": [300, 150, 300, 150, 300],
-            "icon": "/icons/icon-192x192.png",
-            "data": {"url": "/home"},
-        })
+        _push_case(
+            recipient_user_ids,
+            _found_report_push_payload(
+                pet_name,
+                mp_id,
+                score=score,
+                minutes_ago=minutes_ago,
+                distance_km=distance_km,
+            ),
+            exclude=exclude,
+        )
     except Exception as e:
-        logger.error(f"Push ao tutor falhou: {e}")
+        logger.error(f"Push aos cuidadores do pet sumido falhou: {e}")
 
 
-def _analyze_and_save(report_id: str, mp_photo_url: str, finder_photos: list, owner_user_id: str | None, pet_name: str, mp_id: str, characteristics: str | None = None) -> None:
+def _analyze_and_save(
+    report_id: str,
+    mp_photo_url: str,
+    finder_photos: list,
+    recipient_user_ids,
+    pet_name: str,
+    mp_id: str,
+    characteristics: str | None = None,
+    exclude_user_ids: set | None = None,
+) -> None:
     """Roda análise de foto em background e salva o score — depois envia push com o resultado."""
     try:
         from ..db import SessionLocal
@@ -3190,12 +3198,12 @@ def _analyze_and_save(report_id: str, mp_photo_url: str, finder_photos: list, ow
         finally:
             db.close()
         # Atualiza a MESMA notificação do avistamento (tag found-report-*) com o
-        # % de compatibilidade — não empilha uma segunda notificação no dono.
+        # % de compatibilidade — não empilha uma segunda notificação em quem cuida.
         try:
-            if owner_user_id:
+            if recipient_user_ids:
                 emoji = "🔎" if score >= 90 else "⚠️" if score >= 75 else "❓"
                 label = _compatibility_label(score)
-                push_to_user(owner_user_id, {
+                _push_case(recipient_user_ids, {
                     "title": f"{emoji} Possível avistamento de {pet_name}",
                     "body": f"{score}% — {label}. Abra o app para ver o relato e confirmar com cuidado.",
                     "tag": f"found-report-{mp_id}",
@@ -3203,7 +3211,7 @@ def _analyze_and_save(report_id: str, mp_photo_url: str, finder_photos: list, ow
                     "requireInteraction": True,
                     "icon": "/icons/icon-192x192.png",
                     "data": {"url": "/home"},
-                })
+                }, exclude=exclude_user_ids)
         except Exception as e:
             logger.error(f"Push compatibilidade falhou: {e}")
     except Exception as e:
@@ -3360,45 +3368,19 @@ def report_found(
     db.commit()
     report_id = report.id
 
-    # Uma notificação ao dono — com o % quando já conhecido, sem expor contato.
-    if mp.user_id:
-        threading.Thread(
-            target=_push_owner_found,
-            args=(mp.user_id, mp.pet_name, body.finder_location, mp_id),
-            kwargs={"score": body.pre_score if has_pre_score else None},
-            daemon=True,
-        ).start()
-        # Família e cuidadores acompanham um relato novo (já passou por vídeo +
-        # frase-desafio, então é sinal real) — sem o detalhe/contato do dono.
-        fam_ids = _case_participant_user_ids(
-            db, mp, include_finders=False, include_followers=False,
-        ) - {str(mp.user_id)}
-        if fam_ids:
-            threading.Thread(
-                target=_push_case,
-                args=(fam_ids, {
-                    "title": f"🔎 Novo aviso sobre {mp.pet_name}",
-                    "body": "Alguém enviou um possível avistamento. O tutor está avaliando.",
-                    "tag": f"found-report-fam-{mp_id}",
-                    "renotify": True,
-                    "icon": "/icons/icon-192x192.png",
-                    "data": {"url": "/pets-desaparecidos"},
-                }),
-                daemon=True,
-            ).start()
+    recipient_ids = _case_participant_user_ids(
+        db, mp, include_finders=False, include_followers=False,
+    )
+    excluded_finder_ids = {finder_user_id} if finder_user_id else set()
 
-    # Confirmação de recebimento para quem enviou (se for usuário logado).
-    if finder_user_id:
+    if recipient_ids:
         threading.Thread(
-            target=push_to_user,
-            args=(finder_user_id, {
-                "title": f"Recebemos seu aviso sobre {mp.pet_name}",
-                "body": "O tutor foi notificado e vai avaliar. Obrigado por ajudar.",
-                "tag": f"report-ack-{report_id}",
-                "renotify": False,
-                "icon": "/icons/icon-192x192.png",
-                "data": {"url": f"/achei-um-pet?id={mp_id}"},
-            }),
+            target=_push_found_report_recipients,
+            args=(recipient_ids, mp.pet_name, mp_id),
+            kwargs={
+                "score": body.pre_score if has_pre_score else None,
+                "exclude": excluded_finder_ids,
+            },
             daemon=True,
         ).start()
 
@@ -3406,13 +3388,14 @@ def report_found(
         # Sem pré-análise — roda Gemini em background e atualiza a notificação.
         threading.Thread(
             target=_analyze_and_save,
-            args=(report_id, mp.photo_url, body.finder_photos, mp.user_id, mp.pet_name, mp_id, mp.characteristics),
+            args=(report_id, mp.photo_url, body.finder_photos, recipient_ids, mp.pet_name, mp_id, mp.characteristics, excluded_finder_ids),
             daemon=True,
         ).start()
 
     return {
         "id": report_id,
         "status": "reported",
+        "message": "O tutor e quem cuida do pet foram notificados para avaliar.",
         **_compatibility_payload(body.pre_score if has_pre_score else None, body.pre_analysis if has_pre_score else None),
         "risk_level": risk_level,
     }
