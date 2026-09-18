@@ -703,8 +703,8 @@ export function GroomingItemSheet({
               <h3 className="text-[17px] font-bold text-[#1C1C1E]">Editar registro</h3>
 
               <div className={`rounded-2xl border ${theme.accentBorder} ${theme.accentBg}/40 p-3.5 space-y-3`}>
-                {/* O date input nativo do iOS ignora flex/min-w-0; grid impede sobreposição. */}
-                <div className="grid grid-cols-[1fr_92px] gap-3 items-start">
+                {/* O date input nativo do iOS ignora larguras estreitas; no mobile os campos ficam separados. */}
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_110px] gap-3 items-start">
                   <div className="min-w-0">
                     <label className={labelCls}>Data *</label>
                     <input
