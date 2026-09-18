@@ -595,7 +595,7 @@ async def nominatim_search(
             )
             response = await client.get(
                 url,
-                headers={"User-Agent": "PETMOL/1.0 (contact: petmol@example.com)"},
+                headers={"User-Agent": "PETMOL/1.0 (gerenciamento@petmol.com.br)"},
             )
             return JSONResponse(content=response.json())
     except Exception as e:
@@ -626,7 +626,17 @@ async def nominatim_reverse(
 
     Usado por "Usar minha localização atual" no Pet Sumido (antes só dava
     bairro/cidade via BigDataCloud; Nominatim devolve o nome da rua, que é
-    o que de fato ajuda quem procura o pet)."""
+    o que de fato ajuda quem procura o pet).
+
+    IMPORTANTE (2º bug real, mesmo dia): o User-Agent precisa de um
+    contato de VERDADE — a política do Nominatim rejeita domínios-
+    placeholder conhecidos como "example.com" com 403 "Access denied"
+    (corpo vazio, sem JSON). Isso fazia todo request falhar silenciosa-
+    mente aqui (JSONDecodeError no response.json()), e o reverseGeocode()
+    do frontend caía sempre no fallback BigDataCloud (só cidade, sem rua)
+    — mesmo depois de corrigir o prefixo /api acima. Testado e confirmado
+    via curl: "petmol@example.com" = 403; "gerenciamento@petmol.com.br"
+    (endereço público real, ver reference_petmol_emails) = 200."""
     import httpx
 
     try:
@@ -637,7 +647,7 @@ async def nominatim_reverse(
             )
             response = await client.get(
                 url,
-                headers={"User-Agent": "PETMOL/1.0 (contact: petmol@example.com)"},
+                headers={"User-Agent": "PETMOL/1.0 (gerenciamento@petmol.com.br)"},
             )
             return JSONResponse(content=response.json())
     except Exception as e:
