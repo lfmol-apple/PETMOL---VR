@@ -196,16 +196,20 @@ export function HomePetHeader({
   const hasVisibleAttention = basicCareAttentionPetNames.length > 0;
 
   return (
-    <>    <div className="px-1.5 pt-1.5 space-y-2 min-[390px]:px-2.5 sm:px-4 sm:pt-4 sm:space-y-3">
-      {/* Container da Foto + Navegação Estilo Apple */}
+    <>    <div className="px-2 pt-1.5 space-y-2 sm:pt-4 sm:space-y-3">
+      {/* Container da Foto + Navegação Estilo Apple — padding lateral igual
+          ao de HomePetDashboard/AppleControlButtons (px-2 flat, sem variar
+          por breakpoint) pra foto e cards ficarem com a MESMA borda lateral
+          em qualquer largura de tela; antes cada um tinha seu próprio px
+          responsivo e desalinhava dependendo do tamanho da tela. */}
       <div
         className="relative group mx-auto w-full overflow-hidden rounded-[22px] border border-white/50 bg-gradient-to-br from-blue-400 to-purple-500 shadow-lg shadow-blue-500/10 ring-1 ring-black/5 sm:rounded-[28px]"
         style={{
           aspectRatio: '1.25 / 1',
-          maxHeight: 'min(26dvh, 230px)',
+          maxHeight: 'min(36dvh, 315px)',
           // No mobile a foto deve ocupar a largura útil do card. Em telas
           // altas/largas, este teto evita uma foto desproporcionalmente alta.
-          maxWidth: 'min(100%, calc(min(26dvh, 230px) * 1.25))',
+          maxWidth: 'min(100%, calc(min(36dvh, 315px) * 1.25))',
           backfaceVisibility: 'hidden',
           WebkitBackfaceVisibility: 'hidden',
           transform: 'translate3d(0,0,0)',
