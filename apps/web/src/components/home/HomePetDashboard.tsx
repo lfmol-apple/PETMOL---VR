@@ -196,18 +196,24 @@ export function HomePetDashboard({
     currentPet.species, parasiteControls, getOwnerProfile()?.address?.city,
   );
 
-  // Revertido (18/09/2026, feedback explícito): vacina nunca registrada
-  // ('neutral') NÃO fica mais vermelha no card agregado "Cuidados" — só
-  // porque o tutor ainda não cadastrou não significa que o pet esteja
-  // desprotegido de fato, e forçar isso gerava falso-positivo. O card só
-  // fica crítico por (a) um cuidado que o tutor registrou e que venceu de
-  // verdade, ou (b) a coleira antiparasitária ausente em região endêmica
-  // (ver effectiveColeiraTone/needsLeishmaniaseAwareness abaixo — essa
-  // continua sendo a exceção, por ser recomendação de saúde pública, não
-  // só "falta de dado").
-  const effectiveVaccineTone: CardTone = colorVacinas ?? 'neutral';
+  // Vacina é um card INDEPENDENTE (feedback explícito e repetido do dono,
+  // 18/09/2026) — o card agregado "Cuidados" nunca mais deve olhar pra
+  // vacina, ponto final. Duas tentativas anteriores (aqui e em
+  // useHomeInteractionCenter.ts) só removiam um override que forçava
+  // 'neutral' a virar 'critical' — mas a causa raiz de verdade é mais
+  // profunda: petCareDomain.ts (processVaccines) já sintetiza um reminder
+  // com status='overdue' pra "vacina nunca registrada" (pro sino e pro
+  // card da Vacina em si, de propósito — ver comentário lá). Esse
+  // reminder chega aqui em colorVacinas já genuinamente 'critical', sem
+  // nenhum override pra remover — por isso o vermelho persistia mesmo
+  // depois das duas correções anteriores. A vacina simplesmente NÃO entra
+  // mais na lista de tons que decidem colorHealth — o card da Vacina
+  // continua livre pra ter sua própria cor/bolinha, sem nenhuma influência
+  // sobre "Cuidados". Só a coleira antiparasitária ausente em região
+  // endêmica continua sendo exceção (recomendação de saúde pública, não
+  // "falta de dado").
   const effectiveColeiraTone: CardTone = petNeedsLeishmaniaseAwareness ? 'critical' : (colorColeira ?? 'neutral');
-  const healthTones = [effectiveVaccineTone, colorVermifugo, colorAntipulgas, effectiveColeiraTone, colorMedicacao, colorGrooming];
+  const healthTones = [colorVermifugo, colorAntipulgas, effectiveColeiraTone, colorMedicacao, colorGrooming];
   const colorHealth: CardTone = healthTones.includes('critical')
     ? 'critical'
     : healthTones.includes('warning')
@@ -215,7 +221,7 @@ export function HomePetDashboard({
       : healthTones.includes('ok')
         ? 'ok'
         : 'neutral';
-  const alertHealth = colorHealth === 'warning' || colorHealth === 'critical' || alertVacinas || alertVermifugo || alertAntipulgas || alertColeira || alertMedicacao || alertGrooming || petNeedsLeishmaniaseAwareness;
+  const alertHealth = colorHealth === 'warning' || colorHealth === 'critical' || alertVermifugo || alertAntipulgas || alertColeira || alertMedicacao || alertGrooming || petNeedsLeishmaniaseAwareness;
   const reminders = useMemo(() => {
     if (!currentPet?.pet_id) return [];
     return buildPetCareReminders({
