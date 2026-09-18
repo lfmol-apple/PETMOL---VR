@@ -2494,6 +2494,8 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     onOpenPetSumido={() => setShowPetSumidoSheet(true)}
                     onUpcomingCountChange={(_count, reminders) => setAllUpcomingReminders(reminders)}
                     onHealthItemClick={setHealthQuickAction}
+                    nearbyMissingCount={nearbyMissingCount}
+                    onOpenNearbyMissing={() => setShowNearbyStoryOverlay(true)}
                   />
                 </PetTabs>
               </div>

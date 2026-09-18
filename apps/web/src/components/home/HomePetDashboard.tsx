@@ -138,6 +138,10 @@ interface HomePetDashboardProps {
     days_overdue?: number;
     source_record_id?: string;
   }) => void;
+  // Repassado direto pro botão "Perto de você" ao lado de "Pet Sumido" em
+  // AppleControlButtons — estado/lógica fica em home/page.tsx.
+  nearbyMissingCount?: number;
+  onOpenNearbyMissing?: () => void;
 }
 
 export function HomePetDashboard({
@@ -175,6 +179,8 @@ export function HomePetDashboard({
   onOpenPetSumido,
   onUpcomingCountChange,
   onHealthItemClick,
+  nearbyMissingCount,
+  onOpenNearbyMissing,
 }: HomePetDashboardProps) {
 
   // Cão sem NENHUM registro de coleira/leishmaniose ainda — mesmo tratamento
@@ -392,6 +398,8 @@ export function HomePetDashboard({
         colorFood={colorFood}
         colorMedicacao={colorMedicacao}
         colorVaccines={colorVacinas}
+        nearbyMissingCount={nearbyMissingCount}
+        onOpenNearbyMissing={onOpenNearbyMissing}
       />
       <HomeShoppingSheet
         open={showShoppingSheet}
