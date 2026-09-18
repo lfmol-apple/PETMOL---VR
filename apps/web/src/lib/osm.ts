@@ -323,12 +323,24 @@ export interface ReverseGeocodeResult {
 }
 
 export async function reverseGeocode(lat: number, lon: number): Promise<ReverseGeocodeResult | null> {
+  // AbortController manual em vez de AbortSignal.timeout(): essa API só
+  // chegou recentemente no WebKit — num WKWebView de iPhone mais antigo ela
+  // nem existe, e chamar AbortSignal.timeout(...) lança um TypeError
+  // SÍNCRONO antes do fetch sequer rodar. Esse throw caía direto no catch
+  // abaixo, que devolve null — ou seja, a função nunca tentava a rede de
+  // verdade no iOS, sempre caindo no fallback BigDataCloud (só cidade). Bug
+  // real (18/09): funcionava no Android (Chromium tem a API há muito mais
+  // tempo), nunca no iPhone. AbortController+setTimeout tem suporte bem
+  // mais antigo/universal.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
   try {
     // Sempre via backend (nunca direto pro Nominatim do browser) — ver
     // comentário do endpoint /api/nominatim-reverse pro motivo.
     const response = await fetch(`${API_BASE_URL}/nominatim-reverse?lat=${lat}&lon=${lon}`, {
-      signal: AbortSignal.timeout(10000),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
     if (!response.ok) return null;
     const data = await response.json();
     const address = data.address as Record<string, string> | undefined;
@@ -342,6 +354,7 @@ export async function reverseGeocode(lat: number, lon: number): Promise<ReverseG
       postcode: address.postcode || null,
     };
   } catch {
+    clearTimeout(timeoutId);
     return null;
   }
 }
