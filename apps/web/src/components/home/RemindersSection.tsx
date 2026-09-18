@@ -33,6 +33,7 @@ type SimpleMed = {
 type Chip = {
   icon: string; label: string; sublabel?: string; date: Date;
   diff: number; dateStr: string; id?: string; evType?: string;
+  isDerived?: boolean;
   onClick: () => void;
 };
 
@@ -194,6 +195,7 @@ export function RemindersSection({
       date: d,
       diff: r.diff,
       dateStr: fmtD(d),
+      isDerived: r.is_derived,
       id: r.source_record_id,
       evType: r.domain === 'medication' ? 'medicacao' : undefined,
       onClick: resolveCareCTA(r.action_target, careHandlers),
@@ -210,7 +212,11 @@ export function RemindersSection({
     const s = CARE_STATE[key];
     return { row: s.row, badge: `${s.chip} ${s.chipText}`, dot: s.dot };
   };
-  const badgeLabel = (diff: number) => {
+  const badgeLabel = (diff: number, isDerived?: boolean) => {
+    // Mesmo sentinela de "sem histórico" (diff -9999, ver processVaccines
+    // em petCareDomain.ts) que já é tratado em UpcomingEventsSheet.tsx e
+    // HomePetDashboard.tsx — sem isso o badge mostrava "9999d atrás".
+    if (isDerived && diff <= -9000) return '';
     if (diff < 0) return `${Math.abs(diff)}d atrás`;
     if (diff === 0) return 'Hoje';
     if (diff === 1) return 'Amanhã';
@@ -258,9 +264,11 @@ export function RemindersSection({
                     {c.sublabel && <span className="block text-[10px] text-gray-400 leading-tight truncate">{c.sublabel}</span>}
                   </span>
                   <span className="text-[11px] text-gray-400 flex-shrink-0 mr-1">{c.dateStr}</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${s.badge}`}>
-                    {badgeLabel(c.diff)}
-                  </span>
+                  {badgeLabel(c.diff, c.isDerived) && (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${s.badge}`}>
+                      {badgeLabel(c.diff, c.isDerived)}
+                    </span>
+                  )}
                   {c.evType === 'medicacao' && (
                     <span className="text-gray-300 text-[10px] ml-0.5">{isExpanded ? '▲' : '▼'}</span>
                   )}

@@ -72,6 +72,22 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   // dentro da sheet; com um campo focado, só fecha o teclado.
   const lastFocusInsideAt = useRef(0);
 
+  // Barra de progresso "carregando a loja" (pedido do dono, 18/09/2026):
+  // cada ReorderCardItem busca preço/Petz por conta própria e mostrava só
+  // um texto estático ("Buscando opções de compra...") por card, sem
+  // indicação visual de quanto falta pro tutor. Agrupa aqui por stableKey
+  // pra saber quantos dos cards visíveis ainda estão resolvendo.
+  const [resolvingKeys, setResolvingKeys] = useState<Set<string>>(new Set());
+  const handleCardResolvingChange = (stableKey: string, resolving: boolean) => {
+    setResolvingKeys((prev) => {
+      const has = prev.has(stableKey);
+      if (resolving === has) return prev;
+      const next = new Set(prev);
+      if (resolving) next.add(stableKey); else next.delete(stableKey);
+      return next;
+    });
+  };
+
   function handleBackdropClick() {
     if (Date.now() - lastFocusInsideAt.current < 800) return;
     const active = typeof document !== 'undefined' ? document.activeElement : null;
@@ -239,6 +255,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
           card={card}
           isPickerOpen={quickBuyFor === pickerKey}
           visibleQuickBuyPartners={visibleQuickBuyPartners}
+          onResolvingChange={(resolving) => handleCardResolvingChange(stableKey, resolving)}
           onTogglePicker={() => setQuickBuyFor(quickBuyFor === pickerKey ? null : pickerKey)}
           onQuickBuy={(partnerId) => handleQuickBuy(partnerId, card.searchQuery, 'shop_reorder_click', { domain: card.domain, gtin: card.gtin ?? undefined })}
           onDirectBuy={(offer) => {
@@ -383,7 +400,26 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
                   frente") — a prioridade é dada pela ordem e pelo texto de
                   prazo de cada card. `grouped` fica só pra analítica. */}
               {sortedReorderCards.length > 0 && (
-                <div className="space-y-2.5">{renderReorderCards(sortedReorderCards)}</div>
+                <>
+                  {resolvingKeys.size > 0 && (
+                    <div aria-hidden className="px-0.5">
+                      <div className="h-1 w-full overflow-hidden rounded-full bg-slate-200/80">
+                        <div
+                          className="h-full rounded-full bg-emerald-500 transition-[width] duration-300 ease-out"
+                          style={{
+                            width: `${Math.round(
+                              ((sortedReorderCards.length - resolvingKeys.size) / sortedReorderCards.length) * 100,
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                      <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                        Buscando preços... {sortedReorderCards.length - resolvingKeys.size}/{sortedReorderCards.length}
+                      </p>
+                    </div>
+                  )}
+                  <div className="space-y-2.5">{renderReorderCards(sortedReorderCards)}</div>
+                </>
               )}
 
               <PartnerStoreGrid partners={visibleStorePartners} onOpen={handleStorePartnerOpen} />
@@ -451,6 +487,11 @@ interface ReorderCardItemProps {
   onQuickBuy: (partnerId: HomeShoppingPartnerId) => void;
   onDirectBuy: (offer: CommerceOffer) => void;
   onPetzBuy: (petzLink: PetzDirectLink) => void;
+  /** Reporta se ESTE card ainda está buscando preço/Petz — usado pela sheet
+   * pra desenhar a barra de progresso agregada no topo da lista. Opcional:
+   * outros lugares que reaproveitam este card (ex.: MedicationItemSheet)
+   * não precisam se importar com isso. */
+  onResolvingChange?: (resolving: boolean) => void;
 }
 
 // Busca a lista de ofertas monetizáveis (mesma fonte usada em toda tela de
@@ -460,7 +501,7 @@ interface ReorderCardItemProps {
 // Exportado pra ser reaproveitado fora desta sheet (ver
 // MedicationItemSheet.tsx "onde comprar") — mesma lógica de preço/picker já
 // validada aqui, sem duplicar useCommerceOffers numa segunda cópia.
-export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy, onPetzBuy }: ReorderCardItemProps) {
+export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, onTogglePicker, onQuickBuy, onDirectBuy, onPetzBuy, onResolvingChange }: ReorderCardItemProps) {
   const { offers: offersByPrice, loading } = useCommerceOffers(card.searchQuery, card.packageSizeKg, card.gtin);
   // Loja preferida nos cards de "produtos cadastrados do pet": Cobasi
   // primeiro quando tiver preço confiável, mesmo que outra loja seja mais
@@ -525,6 +566,14 @@ export function ReorderCardItem({ card, isPickerOpen, visibleQuickBuyPartners, o
   // (preço Cobasi via useCommerceOffers + link Petz) já resolveram pro
   // gtin/query atuais — evita mostrar um resultado parcial que depois muda.
   const stillResolving = loading || !petzResolved;
+
+  useEffect(() => {
+    onResolvingChange?.(stillResolving);
+    // Some da contagem se o card desmontar ainda "resolvendo" (troca de
+    // pet/lista) — sem isso a barra de progresso do pai ficava presa.
+    return () => onResolvingChange?.(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stillResolving]);
 
   // Toda oferta na lista é o mesmo SKU físico — o GTIN da oferta pode ser
   // um EAN irmão do grupo (ver offerOriginLabel). Nem toda loja tem imagem

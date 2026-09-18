@@ -1270,11 +1270,22 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                     </CoachMark>
                   )}
                   {/* ── SEM RAÇÃO ──────────────────────────────────────────── */}
+                  {/* Redesenho (18/09/2026, pedido do dono — "principal canal
+                      de monetização, está muito mal feita"): a versão antiga
+                      usava bg-amber-50 como preenchimento do cartão inteiro,
+                      contrariando a própria regra já documentada em
+                      lib/careAreaTheme.ts ("Modelo C" — a cor da área aparece
+                      só em ícone/eyebrow/detalhe, nunca em superfície grande
+                      saturada). Base branca + borda/sombra âmbar sutis,
+                      mesmo tratamento já usado em MedicationItemSheet.tsx. */}
                   {(!hasFood || showFreshChoice) && (
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 space-y-4">
-                      <div>
-                        <h3 className="text-[20px] font-black text-gray-900 leading-tight">Como {pet.pet_name} se alimenta?</h3>
-                        <p className="text-[13px] text-amber-900/80 mt-1">Busque o produto pelo nome ou marca — sem código de barras à mão também dá.</p>
+                    <div className="rounded-2xl border border-amber-200 bg-white/95 p-5 space-y-4 shadow-sm shadow-amber-100">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-[22px]">🍽️</span>
+                        <div className="min-w-0">
+                          <h3 className="text-[18px] font-black text-gray-900 leading-tight">Como {pet.pet_name} se alimenta?</h3>
+                          <p className="text-[12.5px] text-gray-500 mt-0.5">Busque pelo nome ou marca — sem código de barras à mão também dá.</p>
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <ProductBarcodeScanner
