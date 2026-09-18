@@ -203,17 +203,35 @@ def _missing_since(mp: "MissingPet") -> datetime | None:
     return created
 
 
-def _effective_radius_km(mp: "MissingPet") -> float:
-    """Raio efetivo AGORA: o maior entre o valor guardado e o que o tempo
-    desde o desaparecimento já justifica, respeitando o teto da espécie."""
-    cap = _species_radius_cap_km(mp.species)
-    base = min(cap, float(mp.current_radius_km or 2.0))
-    since = _missing_since(mp)
+def _grown_radius_km(species: str | None, base_radius: float | None, since: datetime | None) -> float:
+    """Núcleo do cálculo de raio (usado tanto pelo ponto original quanto por
+    qualquer ponto extra aberto por avistamento, ver MissingPetMonitorPoint
+    abaixo): o maior entre o valor-base já guardado e o que o tempo desde
+    `since` já justifica, respeitando o teto da espécie."""
+    cap = _species_radius_cap_km(species)
+    base = min(cap, float(base_radius or 2.0))
     if since is None:
         return max(2.0, base)
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=timezone.utc)
     hours = max(0.0, (datetime.now(timezone.utc) - since).total_seconds() / 3600.0)
-    grown = math.ceil(_species_radius_growth_rate(mp.species) * math.sqrt(hours))
+    grown = math.ceil(_species_radius_growth_rate(species) * math.sqrt(hours))
     return float(min(cap, max(2.0, base, grown)))
+
+
+def _effective_radius_km(mp: "MissingPet") -> float:
+    """Raio efetivo AGORA do ponto ORIGINAL (onde o pet sumiu): o maior
+    entre o valor guardado e o que o tempo desde o desaparecimento já
+    justifica, respeitando o teto da espécie."""
+    return _grown_radius_km(mp.species, mp.current_radius_km, _missing_since(mp))
+
+
+def _point_effective_radius_km(point: "MissingPetMonitorPoint", species: str | None) -> float:
+    """Mesma conta de _effective_radius_km, mas pro relógio de UM ponto
+    monitorado específico — o original (criado no desaparecimento) ou um
+    extra aberto por avistamento em região diferente (o relógio desse
+    conta a partir do avistamento, não do desaparecimento original)."""
+    return _grown_radius_km(species, point.current_radius_km, point.created_at)
 
 
 # ── Geo helper ───────────────────────────────────────────────────────────────
@@ -303,6 +321,29 @@ def _is_missing_pet_stale(p: "MissingPet") -> bool:
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     return now >= expires_at
+
+
+# ── Pontos monitorados (raio que cresce com o tempo) ────────────────────────
+# Decisão de produto (18/09/2026): além do ponto original (onde o pet
+# sumiu), um avistamento plausível em REGIÃO DIFERENTE (fora do raio atual
+# de qualquer ponto já monitorado) abre um segundo ponto — com o MESMO
+# tamanho de raio que o ponto original já tinha naquele momento (não
+# recomeça pequeno) — e os dois passam a crescer e notificar de forma
+# independente. `grow_missing_pet_radii` (cron horário, ver main.py) é quem
+# de fato faz os raios crescerem e dispara os pushes de "entrou no raio
+# agora"; o ponto "original" é criado de forma lazy por essa mesma função
+# na primeira vez que processa um alerta que ainda não tem nenhum ponto
+# (todo alerta ativo antes desta feature cai nesse caso).
+class MissingPetMonitorPoint(Base):
+    __tablename__ = "missing_pet_monitor_points"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    missing_pet_id = Column(String(36), nullable=False, index=True)
+    lat = Column(Float, nullable=False)
+    lng = Column(Float, nullable=False)
+    current_radius_km = Column(Float, default=2.0)
+    source = Column(String(20), default="original")  # "original" | "sighting"
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class MissingPetPhotoFingerprint(Base):
@@ -1103,24 +1144,19 @@ def _create_found_report_from_sighting(
             except Exception as exc:
                 logger.warning(f"sighting family push failed: {exc}")
 
-    # NOVO PONTO DE INTERESSE — avistamento forte, com coordenadas, longe do
-    # ponto original (ou o original não tem coords): re-alerta a comunidade
+    # NOVO PONTO DE INTERESSE — avistamento forte, com coordenadas, fora do
+    # raio atual de qualquer ponto já monitorado: abre um ponto extra ali
+    # (mesmo raio que o ponto mais largo já tinha) e re-alerta a comunidade
     # perto do AVISTAMENTO. Nunca altera mp.lat/lng (o ponto do tutor segue
-    # sendo "visto pela última vez pelo tutor"). No máx. 1 a cada ~6h.
-    if (
-        score >= 75
-        and sighting.lat is not None
-        and sighting.lng is not None
-        and (distance_km is None or distance_km > 3.0)
-        and _should_sighting_broadcast(mp.id)
-    ):
-        _mark_sighting_broadcast(mp.id)
-        threading.Thread(
-            target=_broadcast_missing_pet_async,
-            args=(mp.id,),
-            kwargs={"center": (sighting.lat, sighting.lng), "radius_km": 5.0, "origin": "sighting"},
-            daemon=True,
-        ).start()
+    # sendo "visto pela última vez pelo tutor"). _maybe_open_sighting_
+    # monitor_point já faz a checagem de "é região nova?" e o gate de
+    # ~6h (_should_sighting_broadcast) por dentro — daqui só decide se o
+    # avistamento é forte o bastante (score) pra justificar abrir um ponto.
+    if score >= 75 and sighting.lat is not None and sighting.lng is not None:
+        try:
+            _maybe_open_sighting_monitor_point(db, mp, sighting)
+        except Exception as exc:
+            logger.error(f"Abertura de ponto monitorado por avistamento falhou pra {mp.id}: {exc}")
 
     return report
 
@@ -1228,6 +1264,142 @@ def expire_stale_missing_pet_alerts() -> int:
     finally:
         db.close()
     return expired_count
+
+
+def _ensure_original_monitor_point(db: Session, mp: "MissingPet") -> "MissingPetMonitorPoint | None":
+    """Cria (uma vez, se ainda não existir) o ponto monitorado ORIGINAL de
+    um alerta — todo alerta ativo criado antes desta feature (18/09/2026)
+    ainda não tem nenhuma linha na tabela nova; recebe a dela aqui, na
+    primeira vez que alguma função precisar iterar os pontos dele."""
+    if mp.lat is None or mp.lng is None:
+        return None
+    existing = (
+        db.query(MissingPetMonitorPoint)
+        .filter(MissingPetMonitorPoint.missing_pet_id == mp.id, MissingPetMonitorPoint.source == "original")
+        .first()
+    )
+    if existing:
+        return existing
+    point = MissingPetMonitorPoint(
+        id=str(uuid.uuid4()),
+        missing_pet_id=mp.id,
+        lat=mp.lat,
+        lng=mp.lng,
+        current_radius_km=mp.current_radius_km or 2.0,
+        source="original",
+        created_at=_missing_since(mp) or mp.created_at or datetime.now(timezone.utc),
+    )
+    db.add(point)
+    db.commit()
+    return point
+
+
+def _maybe_open_sighting_monitor_point(db: Session, mp: "MissingPet", sighting: "PetSighting") -> None:
+    """Avistamento com foto compatível, numa coordenada FORA do raio atual
+    de qualquer ponto já monitorado, abre um ponto extra ali — com o MESMO
+    raio que o ponto mais largo já tinha nesse momento (pedido do tutor:
+    "um novo raio do mesmo tamanho do primeiro", não recomeça em 2km) — e
+    dispara o broadcast pra essa região na hora. origin="sighting" não
+    filtra quem já foi notificado em OUTRO ponto: é uma região que nunca
+    ouviu falar do alerta, a graça é justamente alcançá-la."""
+    if sighting.lat is None or sighting.lng is None:
+        return
+    if not _should_sighting_broadcast(mp.id):
+        return
+
+    original = _ensure_original_monitor_point(db, mp)
+    points = db.query(MissingPetMonitorPoint).filter(MissingPetMonitorPoint.missing_pet_id == mp.id).all()
+    if not points and original:
+        points = [original]
+    if not points:
+        return
+
+    widest_radius = 2.0
+    for point in points:
+        radius = _point_effective_radius_km(point, mp.species)
+        widest_radius = max(widest_radius, radius)
+        if _haversine_km(point.lat, point.lng, sighting.lat, sighting.lng) <= radius:
+            return  # já coberto por um ponto existente — não é região nova
+
+    new_point = MissingPetMonitorPoint(
+        id=str(uuid.uuid4()),
+        missing_pet_id=mp.id,
+        lat=sighting.lat,
+        lng=sighting.lng,
+        current_radius_km=widest_radius,
+        source="sighting",
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(new_point)
+    db.commit()
+    _mark_sighting_broadcast(mp.id)
+
+    # Broadcast em thread própria (mesmo padrão de _broadcast_missing_pet_async
+    # nos outros pontos de chamada deste módulo) — não trava a resposta HTTP
+    # do registro de avistamento esperando N web-pushes, e recarrega o
+    # MissingPet numa sessão nova dentro da thread (o `mp` daqui pode ficar
+    # "desconectado" quando a sessão do request fechar).
+    threading.Thread(
+        target=_broadcast_missing_pet_async,
+        args=(mp.id,),
+        kwargs={"center": (sighting.lat, sighting.lng), "radius_km": widest_radius, "origin": "sighting"},
+        daemon=True,
+    ).start()
+
+
+def grow_missing_pet_radii() -> int:
+    """Job horário (ver main.py, scheduler de startup): cresce o raio de
+    cada ponto monitorado de todo alerta 'active' — o original (onde o pet
+    sumiu) e qualquer ponto extra aberto por avistamento em região
+    diferente — e, quando um raio cresce de verdade, notifica só quem
+    passou a estar dentro dele agora. A exclusão de quem já foi notificado
+    é por mp.id (não por ponto), então ninguém que já recebeu o alerta
+    recebe de novo, em nenhum dos pontos — só o total de pessoas com o
+    alerta muda na tela. Avisa o tutor por push a cada vez que algum raio
+    cresce, com esse total."""
+    db = SessionLocal()
+    grown_points = 0
+    try:
+        active_mps = db.query(MissingPet).filter(MissingPet.status == "active").all()
+        for mp in active_mps:
+            if mp.lat is None or mp.lng is None:
+                continue
+            original = _ensure_original_monitor_point(db, mp)
+            points = db.query(MissingPetMonitorPoint).filter(MissingPetMonitorPoint.missing_pet_id == mp.id).all()
+            if not points and original:
+                points = [original]
+
+            any_grew = False
+            for point in points:
+                new_radius = _point_effective_radius_km(point, mp.species)
+                if new_radius > (point.current_radius_km or 0) + 0.01:
+                    point.current_radius_km = new_radius
+                    db.commit()
+                    grown_points += 1
+                    any_grew = True
+                    try:
+                        _broadcast_missing_pet(mp, center=(point.lat, point.lng), radius_km=new_radius, origin="initial")
+                    except Exception as exc:
+                        logger.error(f"Crescimento de raio (broadcast) falhou pet={mp.id} ponto={point.id}: {exc}")
+
+            if any_grew and mp.user_id:
+                try:
+                    total_notified = len(_load_mp_notified().get(mp.id, {}).get("notified", []))
+                    push_to_user(mp.user_id, {
+                        "title": f"📡 O raio de busca de {mp.pet_name} aumentou",
+                        "body": f"{total_notified} pessoa{'s' if total_notified != 1 else ''} na região "
+                                f"{'estão' if total_notified != 1 else 'está'} com o alerta agora.",
+                        "tag": f"missing-pet-radius-{mp.id}",
+                        "icon": "/icons/icon-192x192.png",
+                        "data": {"url": "/home"},
+                    })
+                except Exception as exc:
+                    logger.error(f"Push de crescimento de raio pro tutor falhou pet={mp.id}: {exc}")
+    except Exception as exc:
+        logger.error(f"grow_missing_pet_radii falhou: {exc}")
+    finally:
+        db.close()
+    return grown_points
 
 
 def _retro_match_recent_sightings_for_missing_pet_id(mp_id: str) -> None:

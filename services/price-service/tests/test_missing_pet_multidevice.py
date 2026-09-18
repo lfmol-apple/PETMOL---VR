@@ -565,3 +565,161 @@ def test_rebroadcast_is_quiet(_isolate, monkeypatch):
     assert captured["tag"] == f"missing-pet-{mp.id}"
     assert captured["renotify"] is False
     assert not captured["vibrate"]
+
+
+# ── PS-10: pontos monitorados + raio que cresce de hora em hora ─────────────
+
+class _SyncThread:
+    """threading.Thread fake que roda o target na hora, sem thread real —
+    os testes de abertura de ponto por avistamento disparam o broadcast
+    numa thread de verdade em produção (não travar a resposta HTTP); nos
+    testes, rodar sync é o que permite verificar o resultado sem sleep."""
+    def __init__(self, target=None, args=(), kwargs=None, daemon=None):
+        self._target = target
+        self._args = args
+        self._kwargs = kwargs or {}
+
+    def start(self):
+        self._target(*self._args, **self._kwargs)
+
+
+def test_ensure_original_monitor_point_creates_once(_isolate):
+    from src.missing_pets import _ensure_original_monitor_point, MissingPetMonitorPoint
+
+    with SessionLocal() as db:
+        mp = _make_mp(db, owner_id="owner", lat=10.0, lng=10.0, radius=3.0)
+        first = _ensure_original_monitor_point(db, mp)
+        second = _ensure_original_monitor_point(db, mp)
+        assert first.id == second.id
+        assert first.source == "original"
+        assert first.lat == 10.0 and first.lng == 10.0
+        assert first.current_radius_km == 3.0
+        count = db.query(MissingPetMonitorPoint).filter_by(missing_pet_id=mp.id).count()
+        assert count == 1
+
+
+def test_sighting_inside_existing_radius_opens_no_new_point(_isolate, monkeypatch):
+    from src.missing_pets import _maybe_open_sighting_monitor_point, MissingPetMonitorPoint
+
+    store: dict = {}
+    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: store)
+    monkeypatch.setattr(mp_mod, "_save_mp_notified", lambda d: store.update(d))
+    monkeypatch.setattr(mp_mod.threading, "Thread", _SyncThread)
+
+    class _Sighting:
+        lat, lng = 10.02, 10.0  # ~2.2km do ponto original — dentro do raio de 5km
+
+    with SessionLocal() as db:
+        mp = _make_mp(db, owner_id="owner", lat=10.0, lng=10.0, radius=5.0)
+        mp.missing_date = None
+        mp.missing_time = None
+        _maybe_open_sighting_monitor_point(db, mp, _Sighting())
+        count = db.query(MissingPetMonitorPoint).filter_by(missing_pet_id=mp.id).count()
+        # só o ponto original (criado pelo _ensure_original_monitor_point
+        # interno) — nenhum ponto extra, o avistamento já estava coberto.
+        assert count == 1
+
+
+def test_sighting_outside_radius_opens_new_point_same_size(_isolate, monkeypatch):
+    from src.missing_pets import _maybe_open_sighting_monitor_point, MissingPetMonitorPoint
+
+    sent = _isolate
+    store: dict = {}
+    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: store)
+    monkeypatch.setattr(mp_mod, "_save_mp_notified", lambda d: store.update(d))
+    monkeypatch.setattr(mp_mod.threading, "Thread", _SyncThread)
+
+    class _Sighting:
+        lat, lng = 10.5, 10.0  # ~55km do ponto original — bem fora do raio de 5km
+
+    with SessionLocal() as db:
+        _sub(db, "nearby-sighting-user", "phone", lat=10.5, lng=10.0)
+        mp = _make_mp(db, owner_id="owner", lat=10.0, lng=10.0, radius=5.0)
+        mp.missing_date = None
+        mp.missing_time = None
+        db.commit()
+        _maybe_open_sighting_monitor_point(db, mp, _Sighting())
+
+        points = db.query(MissingPetMonitorPoint).filter_by(missing_pet_id=mp.id).all()
+        assert len(points) == 2
+        sighting_point = next(p for p in points if p.source == "sighting")
+        assert sighting_point.lat == 10.5 and sighting_point.lng == 10.0
+        # "mesmo tamanho do primeiro" — herda o raio atual do ponto original
+        assert sighting_point.current_radius_km == 5.0
+
+    # o usuário perto do NOVO ponto recebeu o push (origin="sighting" não
+    # exclui quem já foi notificado em outro ponto — região nunca alcançada).
+    assert "https://push.example/phone" in sent
+
+
+def test_grow_radii_updates_point_and_pushes_newly_covered_user(_isolate, monkeypatch):
+    from datetime import datetime, timezone, timedelta
+    from src.missing_pets import grow_missing_pet_radii, MissingPetMonitorPoint
+
+    sent = _isolate
+    store: dict = {}
+    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: store)
+    monkeypatch.setattr(mp_mod, "_save_mp_notified", lambda d: store.update(d))
+
+    tutor_pushes: list = []
+    real_push_to_user = mp_mod.push_to_user
+    def spy_push_to_user(user_id, payload, *a, **k):
+        if user_id == "owner":
+            tutor_pushes.append(payload)
+            return 1
+        return real_push_to_user(user_id, payload, *a, **k)
+    monkeypatch.setattr(mp_mod, "push_to_user", spy_push_to_user)
+
+    with SessionLocal() as db:
+        _sub(db, "owner", "owner-phone")
+        # usuário só alcançável pelo raio JÁ CRESCIDO (não pelos 5km iniciais)
+        _sub(db, "far-user", "far-phone", lat=10.09, lng=10.0)  # ~10km do centro
+        mp = _make_mp(db, owner_id="owner", lat=10.0, lng=10.0, radius=5.0)
+        mp.species = "dog"
+        mp.missing_date = None
+        mp.missing_time = None
+        # 30h desde o desaparecimento — o teto do cão (20km) ainda não bateu,
+        # mas já cresceu bem além dos 5km iniciais (ver fórmula em
+        # _grown_radius_km): rate_dog=20/sqrt(72)≈2.36, ceil(2.36*sqrt(30))≈13km.
+        mp.created_at = datetime.now(timezone.utc) - timedelta(hours=30)
+        db.commit()
+        mp_id = mp.id
+
+        grown = grow_missing_pet_radii()
+        assert grown >= 1
+
+        points = db.query(MissingPetMonitorPoint).filter_by(missing_pet_id=mp_id).all()
+        assert len(points) == 1
+        assert points[0].current_radius_km > 5.0
+
+    assert len(tutor_pushes) == 1
+    assert "aumentou" in tutor_pushes[0]["title"].lower()
+    assert "https://push.example/far-phone" in sent
+
+
+def test_grow_radii_no_change_does_not_push_tutor(_isolate, monkeypatch):
+    from src.missing_pets import grow_missing_pet_radii
+
+    store: dict = {}
+    monkeypatch.setattr(mp_mod, "_load_mp_notified", lambda: store)
+    monkeypatch.setattr(mp_mod, "_save_mp_notified", lambda d: store.update(d))
+
+    tutor_pushes: list = []
+    def spy_push_to_user(user_id, payload, *a, **k):
+        if user_id == "owner":
+            tutor_pushes.append(payload)
+        return 0
+    monkeypatch.setattr(mp_mod, "push_to_user", spy_push_to_user)
+
+    with SessionLocal() as db:
+        # raio já no teto (30 > teto de 15 pra espécie default/"dog") —
+        # nada mais pra crescer, nenhum push de "raio aumentou".
+        mp = _make_mp(db, owner_id="owner", lat=10.0, lng=10.0, radius=30.0)
+        mp.species = "dog"
+        mp.missing_date = None
+        mp.missing_time = None
+        db.commit()
+
+        grow_missing_pet_radii()
+
+    assert tutor_pushes == []
