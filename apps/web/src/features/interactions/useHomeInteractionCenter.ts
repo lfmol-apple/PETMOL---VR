@@ -98,21 +98,22 @@ export function useHomeInteractionCenter(
         && event.domain !== 'grooming'
         && isEventVisibleOnHome(event, rules)
       ));
-      const vaccineTone = resolveTone(petEvents.filter((event) => event.domain === 'vaccine'));
+      // Vacina é card INDEPENDENTE (feedback explícito e repetido do dono,
+      // 18/09/2026) — NUNCA entra nesse badge, ponto final. Raiz real do
+      // vermelho persistente: petCareDomain.ts (processVaccines) sintetiza
+      // um reminder com status='overdue' pra "vacina nunca registrada" (de
+      // propósito, pro sino e pro card da Vacina) — então vaccineTone
+      // chegava aqui já genuinamente 'critical', não 'neutral' virando
+      // 'critical' por override (a correção anterior só removia um
+      // override que já não era mais a causa). Excluir vaccine da lista
+      // resolve na raiz, sem depender do status exato desse reminder.
       const otherTones = [
         resolveTone(petEvents.filter((event) => event.action_target === 'health/parasites/dewormer')),
         resolveTone(petEvents.filter((event) => event.action_target === 'health/parasites/flea_tick')),
         resolveTone(petEvents.filter((event) => event.domain === 'food')),
         resolveTone(petEvents.filter((event) => event.domain === 'medication')),
       ];
-      // Revertido (18/09/2026, feedback explícito): vacina nunca registrada
-      // ('neutral') NÃO conta mais como "precisa de atenção" — vacina foi
-      // desvinculada de "Cuidados" por completo (mesma decisão já aplicada
-      // no card agregado, ver HomePetDashboard.tsx/effectiveVaccineTone).
-      // Toda a família de domínios (vacina/vermífugo/antipulgas/ração/
-      // medicação) agora trata 'neutral' igual: nunca crítico só por falta
-      // de dado, só por vencimento real ('critical' de verdade).
-      return [vaccineTone, ...otherTones].some((tone) => tone === 'critical');
+      return otherTones.some((tone) => tone === 'critical');
     });
 
     return {
