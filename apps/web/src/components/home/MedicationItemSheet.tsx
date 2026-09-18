@@ -9,6 +9,7 @@ import { Check, Home, Trash2 } from 'lucide-react';
 import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { CARE_STATE } from '@/lib/careState';
+import { CARE_AREA_THEME } from '@/lib/careAreaTheme';
 import { listReminders, deleteReminder, createReminder, refreshSubscription } from '@/features/notifications/pushService';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
 import type { ScannedProduct } from '@/lib/productScanner';
@@ -97,7 +98,7 @@ function parseMedNotes(notes: string) {
   return { dose: '', route: 'oral', frequency: '2x_dia', barcode: '', cleanNotes: notes };
 }
 
-type MedicationFrequencyMode = 'dose_unica' | 'vezes_dia' | 'intervalo' | 'conforme_necessidade';
+type MedicationFrequencyMode = 'dose_unica' | 'vezes_dia' | 'intervalo' | 'intervalo_dias' | 'conforme_necessidade';
 
 function normalizeFrequencyForForm(
   rawFrequency: string,
@@ -108,11 +109,15 @@ function normalizeFrequencyForForm(
   interval_hours: string;
   interval_minutes: string;
   first_dose_time: string;
+  custom_interval_days: string;
+  total_doses: string;
 } {
   const raw = (rawFrequency || '').toLowerCase();
   const savedMode = typeof extra?.frequency_mode === 'string' ? extra.frequency_mode : '';
   const savedTimesPerDay = extra?.times_per_day != null ? String(extra.times_per_day) : '';
   const savedIntervalMinutes = parseInt(String(extra?.interval_minutes ?? ''), 10);
+  const savedCustomIntervalDays = extra?.custom_interval_days != null ? String(extra.custom_interval_days) : '';
+  const savedTotalDoses = extra?.total_doses != null ? String(extra.total_doses) : '';
   const savedReminderTimes = extra?.reminder_times;
   const savedFirstDoseTime =
     typeof extra?.first_dose_time === 'string' && extra.first_dose_time
@@ -122,12 +127,29 @@ function normalizeFrequencyForForm(
         : Array.isArray(savedReminderTimes) && typeof savedReminderTimes[0] === 'string'
           ? savedReminderTimes[0]
           : '08:00';
+  const base = { interval_hours: '8', interval_minutes: '0', custom_interval_days: '15', total_doses: '2' };
 
   if (savedMode === 'dose_unica' || raw === 'dose_unica') {
-    return { frequency: 'dose_unica', times_per_day: '1', interval_hours: '0', interval_minutes: '0', first_dose_time: savedFirstDoseTime };
+    return { ...base, frequency: 'dose_unica', times_per_day: '1', first_dose_time: savedFirstDoseTime };
   }
   if (savedMode === 'conforme_necessidade' || raw.includes('conforme')) {
-    return { frequency: 'conforme_necessidade', times_per_day: '1', interval_hours: '0', interval_minutes: '0', first_dose_time: savedFirstDoseTime };
+    return { ...base, frequency: 'conforme_necessidade', times_per_day: '1', first_dose_time: savedFirstDoseTime };
+  }
+  // Restaurado (18/09/2026, pedido do dono — "tínhamos uma forma de
+  // registrar as doses do tratamento e você a removeu"): tratamentos com
+  // intervalo em DIAS e número finito de doses (ex.: reforço de vacina em
+  // 15 dias, 2 doses só) — era o modo "personalizado" antigo, tinha
+  // "Próxima dose em X dias" + "Total de doses". Continua distinto do
+  // "intervalo" em horas/minutos (uso contínuo tipo antibiótico 8/8h).
+  if (savedMode === 'intervalo_dias' || (raw === 'personalizado' && extra?.total_doses)) {
+    return {
+      ...base,
+      frequency: 'intervalo_dias',
+      times_per_day: '1',
+      custom_interval_days: savedCustomIntervalDays || '15',
+      total_doses: savedTotalDoses || '2',
+      first_dose_time: savedFirstDoseTime,
+    };
   }
   if (savedMode === 'intervalo' || raw === '8h' || raw === '12h' || raw === '48h' || raw === 'personalizado') {
     const totalMinutes = Number.isFinite(savedIntervalMinutes) && savedIntervalMinutes > 0
@@ -140,6 +162,7 @@ function normalizeFrequencyForForm(
             ? parseInt(String(extra.custom_interval_days), 10) * 1440
             : 480;
     return {
+      ...base,
       frequency: 'intervalo',
       times_per_day: '2',
       interval_hours: String(Math.floor(totalMinutes / 60)),
@@ -150,10 +173,9 @@ function normalizeFrequencyForForm(
 
   const timesMatch = raw.match(/(\d+)x/);
   return {
+    ...base,
     frequency: 'vezes_dia',
     times_per_day: savedTimesPerDay || (timesMatch?.[1] ?? '2'),
-    interval_hours: '8',
-    interval_minutes: '0',
     first_dose_time: savedFirstDoseTime,
   };
 }
@@ -161,6 +183,11 @@ function normalizeFrequencyForForm(
 function buildFrequencyLabel(form: MedForm): string {
   if (form.frequency === 'dose_unica') return 'Dose única';
   if (form.frequency === 'conforme_necessidade') return 'SOS / conforme necessidade';
+  if (form.frequency === 'intervalo_dias') {
+    const days = Math.max(1, parseInt(form.custom_interval_days, 10) || 1);
+    const doses = Math.max(1, parseInt(form.total_doses, 10) || 1);
+    return `A cada ${days} dia${days === 1 ? '' : 's'} · ${doses} dose${doses === 1 ? '' : 's'}`;
+  }
   if (form.frequency === 'intervalo') {
     const hours = parseInt(form.interval_hours, 10) || 0;
     const minutes = parseInt(form.interval_minutes, 10) || 0;
@@ -219,6 +246,17 @@ function buildMedicationReminderPayloads(
     return pushPayloads;
   }
 
+  if (form.frequency === 'intervalo_dias') {
+    const days = Math.max(1, parseInt(form.custom_interval_days, 10) || 1);
+    const doses = Math.max(1, Math.min(60, parseInt(form.total_doses, 10) || 1));
+    let current = buildLocalDateTime(form.scheduled_date, form.first_dose_time);
+    for (let i = 0; i < doses; i++) {
+      addPayload(current);
+      current = addMinutes(current, days * 1440);
+    }
+    return pushPayloads;
+  }
+
   if (form.frequency === 'vezes_dia') {
     const times = getDailyDoseTimes(form.times_per_day, form.first_dose_time);
     for (let day = 0; day < totalDays; day++) {
@@ -252,6 +290,8 @@ interface MedForm {
   times_per_day: string;
   interval_hours: string;
   interval_minutes: string;
+  custom_interval_days: string;
+  total_doses: string;
   first_dose_time: string;
   treatment_days: string;
   notes: string;
@@ -270,6 +310,8 @@ const EMPTY_FORM: MedForm = {
   times_per_day: '2',
   interval_hours: '8',
   interval_minutes: '0',
+  custom_interval_days: '15',
+  total_doses: '2',
   first_dose_time: '08:00',
   treatment_days: '',
   notes: '',
@@ -293,9 +335,10 @@ export interface MedicationItemSheetProps {
 
 type Mode = 'view' | 'add' | 'edit' | 'buy';
 
+const medTheme = CARE_AREA_THEME.medication;
 const labelCls = 'block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5';
 const inputCls =
-  'w-full min-w-0 border border-gray-200 rounded-xl px-3 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300';
+  `w-full min-w-0 border border-gray-200 rounded-xl px-3 py-3 text-sm bg-white focus:outline-none focus:ring-2 ${medTheme.focusRing}`;
 
 // ── Component ────────────────────────────────────────────────────────────────
 export function MedicationItemSheet({
@@ -426,6 +469,14 @@ export function MedicationItemSheet({
       showToast('⚠️ Informe um intervalo maior que zero.');
       return;
     }
+    if (form.frequency === 'intervalo_dias') {
+      const days = parseInt(form.custom_interval_days, 10) || 0;
+      const doses = parseInt(form.total_doses, 10) || 0;
+      if (days <= 0 || doses <= 0) {
+        showToast('⚠️ Informe o intervalo em dias e o total de doses.');
+        return;
+      }
+    }
     setSaving(true);
     try {
       const token = getToken();
@@ -483,16 +534,22 @@ export function MedicationItemSheet({
           delete extra.interval_minutes;
         }
 
-        delete extra.custom_interval_days;
         if (form.frequency === 'dose_unica') {
           extra.total_doses = 1;
+          delete extra.treatment_days;
+          delete extra.custom_interval_days;
+        } else if (form.frequency === 'intervalo_dias') {
+          extra.custom_interval_days = Math.max(1, parseInt(form.custom_interval_days, 10) || 1);
+          extra.total_doses = Math.max(1, Math.min(60, parseInt(form.total_doses, 10) || 1));
           delete extra.treatment_days;
         } else if (form.treatment_days) {
           extra.treatment_days = parseInt(form.treatment_days, 10);
           delete extra.total_doses;
+          delete extra.custom_interval_days;
         } else {
           delete extra.treatment_days;
           delete extra.total_doses;
+          delete extra.custom_interval_days;
         }
 
         payload.next_due_date = form.frequency === 'conforme_necessidade'
@@ -1059,7 +1116,7 @@ export function MedicationItemSheet({
           {(mode === 'add' || mode === 'edit') && (
             <div className="px-4 pt-3 pb-4 space-y-3">
               {!showManualForm && mode === 'add' && (
-                <div className="rounded-2xl border border-purple-200 bg-white/90 p-4 space-y-3 shadow-sm shadow-purple-100">
+                <div className={`rounded-2xl border ${medTheme.accentBorder} ${medTheme.accentBg}/40 p-4 space-y-3`}>
                   <div>
                     <h3 className="text-[18px] font-black text-gray-900 leading-tight">Identifique o medicamento</h3>
                     <p className="text-[13px] text-gray-600 mt-1">Busque pelo nome ou marca — código de barras também funciona, se preferir.</p>
@@ -1084,7 +1141,7 @@ export function MedicationItemSheet({
 
               {showManualForm && (
               <>
-              <div className="rounded-2xl border border-violet-200 bg-white/95 p-3.5 space-y-3 shadow-sm shadow-violet-100">
+              <div className={`rounded-2xl border ${medTheme.accentBorder} ${medTheme.accentBg}/40 p-3.5 space-y-3`}>
                 <div>
                   <label className={labelCls}>Nome do medicamento *</label>
                   <input
@@ -1098,8 +1155,7 @@ export function MedicationItemSheet({
 
                 {/* O date input nativo do iOS não encolhe bem em coluna
                     estreita (mesma lição de GroomingItemSheet.tsx) — Data
-                    fica sozinha na própria linha. 1ª dose/Dose são
-                    time/texto curto, sem esse problema. */}
+                    fica sozinha na própria linha. */}
                 <div>
                   <label className={labelCls}>Data de início *</label>
                   <input
@@ -1110,6 +1166,11 @@ export function MedicationItemSheet({
                   />
                 </div>
 
+                {/* 1ª dose (hora) + Via (select) — os dois compactos, sem
+                    risco do date-input. Dose ganhou linha própria (pedido do
+                    dono, 18/09/2026: "os campos de dose ficaram encavalados,
+                    ganha espaço") — é texto livre, pode ser longo demais
+                    (ex: "2 comprimidos e meio de 500mg") pra caber em 50%. */}
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="min-w-0">
                     <label className={labelCls}>1ª dose</label>
@@ -1121,60 +1182,53 @@ export function MedicationItemSheet({
                     />
                   </div>
                   <div className="min-w-0">
-                    <label className={labelCls}>Dose</label>
-                    <input
-                      type="text"
-                      className={inputCls}
-                      placeholder="Ex: 1 comprimido"
-                      value={form.dose}
-                      onChange={e => setForm(f => ({ ...f, dose: e.target.value }))}
-                    />
+                    <label className={labelCls}>Via</label>
+                    <select
+                      className={`${inputCls} px-2`}
+                      value={form.route}
+                      onChange={e => setForm(f => ({ ...f, route: e.target.value }))}
+                    >
+                      <option value="oral">💊 Oral</option>
+                      <option value="injetavel">💉 Injetável</option>
+                      <option value="topico">🖐 Tópico</option>
+                      <option value="oftalmico">👁️ Oftálmico</option>
+                      <option value="auricular">👂 Auricular</option>
+                      <option value="inalatorio">💨 Inalatório</option>
+                    </select>
                   </div>
                 </div>
 
                 <div>
-                  <label className={labelCls}>Via</label>
+                  <label className={labelCls}>Dose</label>
+                  <input
+                    type="text"
+                    className={inputCls}
+                    placeholder="Ex: 1 comprimido"
+                    value={form.dose}
+                    onChange={e => setForm(f => ({ ...f, dose: e.target.value }))}
+                  />
+                </div>
+
+                {/* Frequência como lista recolhida (pedido do dono,
+                    18/09/2026), em vez dos 4 botões sempre visíveis — só o
+                    bloco da opção escolhida abre embaixo. */}
+                <div>
+                  <label className={labelCls}>Frequência</label>
                   <select
                     className={`${inputCls} px-2`}
-                    value={form.route}
-                    onChange={e => setForm(f => ({ ...f, route: e.target.value }))}
+                    value={form.frequency}
+                    onChange={e => setForm(f => ({ ...f, frequency: e.target.value as MedicationFrequencyMode }))}
                   >
-                    <option value="oral">💊 Oral</option>
-                    <option value="injetavel">💉 Injetável</option>
-                    <option value="topico">🖐 Tópico</option>
-                    <option value="oftalmico">👁️ Oftálmico</option>
-                    <option value="auricular">👂 Auricular</option>
-                    <option value="inalatorio">💨 Inalatório</option>
+                    <option value="vezes_dia">🔁 X vezes ao dia</option>
+                    <option value="intervalo">⏱️ A cada X horas</option>
+                    <option value="intervalo_dias">📆 A cada X dias, doses limitadas</option>
+                    <option value="dose_unica">1️⃣ Dose única</option>
+                    <option value="conforme_necessidade">🆘 SOS / conforme necessidade</option>
                   </select>
                 </div>
 
-                <div className="space-y-2">
-                  <label className={labelCls}>Frequência</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {([
-                      ['vezes_dia', 'X vezes ao dia'],
-                      ['intervalo', 'A cada'],
-                      ['dose_unica', 'Dose única'],
-                      ['conforme_necessidade', 'SOS'],
-                    ] as const).map(([value, label]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setForm(f => ({ ...f, frequency: value }))}
-                        className={`min-h-[44px] rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all ${
-                          form.frequency === value
-                            ? 'border-purple-300 bg-purple-50 text-purple-900'
-                            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 {form.frequency === 'vezes_dia' && (
-                  <div className="grid grid-cols-[92px_1fr] gap-2.5 rounded-2xl border border-purple-200 bg-purple-50 p-3">
+                  <div className={`grid grid-cols-[92px_1fr] gap-2.5 rounded-2xl border ${medTheme.accentBorder} ${medTheme.accentBg} p-3`}>
                     <div className="min-w-0">
                       <label className={labelCls}>Vezes/dia</label>
                       <input
@@ -1182,14 +1236,14 @@ export function MedicationItemSheet({
                         min="1"
                         max="12"
                         placeholder="2"
-                        className="w-full min-w-0 border border-purple-200 rounded-xl px-2 py-3 text-sm text-center bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+                        className={`w-full min-w-0 border ${medTheme.accentBorder} rounded-xl px-2 py-3 text-sm text-center bg-white focus:outline-none focus:ring-2 ${medTheme.focusRing}`}
                         value={form.times_per_day}
                         onChange={e => setForm(f => ({ ...f, times_per_day: e.target.value }))}
                       />
                     </div>
                     <div className="min-w-0">
                       <label className={labelCls}>Próximos</label>
-                      <div className="min-h-[46px] flex items-center rounded-xl border border-purple-200 bg-white px-3 py-2 text-[12px] font-semibold text-purple-900 leading-snug">
+                      <div className={`min-h-[46px] flex items-center rounded-xl border ${medTheme.accentBorder} bg-white px-3 py-2 text-[12px] font-semibold ${medTheme.accentText} leading-snug`}>
                         {getDailyDoseTimes(form.times_per_day, form.first_dose_time).slice(0, 4).join(' · ')}
                       </div>
                     </div>
@@ -1197,7 +1251,7 @@ export function MedicationItemSheet({
                 )}
 
                 {form.frequency === 'intervalo' && (
-                  <div className="grid grid-cols-2 gap-3 rounded-2xl border border-purple-200 bg-purple-50 p-3">
+                  <div className={`grid grid-cols-2 gap-3 rounded-2xl border ${medTheme.accentBorder} ${medTheme.accentBg} p-3`}>
                     <div className="min-w-0">
                       <label className={labelCls}>Horas</label>
                       <input
@@ -1206,7 +1260,7 @@ export function MedicationItemSheet({
                         min="0"
                         max="168"
                         placeholder="8"
-                        className="w-full border border-purple-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+                        className={`w-full border ${medTheme.accentBorder} rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 ${medTheme.focusRing}`}
                         value={form.interval_hours}
                         onChange={e => setForm(f => ({ ...f, interval_hours: e.target.value }))}
                       />
@@ -1219,7 +1273,7 @@ export function MedicationItemSheet({
                         min="0"
                         max="59"
                         placeholder="0"
-                        className="w-full border border-purple-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+                        className={`w-full border ${medTheme.accentBorder} rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 ${medTheme.focusRing}`}
                         value={form.interval_minutes}
                         onChange={e => setForm(f => ({ ...f, interval_minutes: e.target.value }))}
                       />
@@ -1227,7 +1281,46 @@ export function MedicationItemSheet({
                   </div>
                 )}
 
-                {form.frequency !== 'dose_unica' && form.frequency !== 'conforme_necessidade' && (
+                {/* Restaurado (18/09/2026, pedido do dono): tratamento com
+                    intervalo em DIAS e total de doses limitado — reforço de
+                    vacina em 15 dias/2 doses, por exemplo. Existia antes
+                    ("Intervalo personalizado"), foi removido no redesenho
+                    anterior sem avisar; o calendário de doses (ver "active"
+                    no modo view, mais acima) sempre soube ler
+                    total_doses/custom_interval_days — só faltava este
+                    formulário pra preenchê-los de novo. */}
+                {form.frequency === 'intervalo_dias' && (
+                  <div className={`grid grid-cols-2 gap-3 rounded-2xl border ${medTheme.accentBorder} ${medTheme.accentBg} p-3`}>
+                    <div className="min-w-0">
+                      <label className={labelCls}>A cada (dias)</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min="1"
+                        max="365"
+                        placeholder="15"
+                        className={`w-full border ${medTheme.accentBorder} rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 ${medTheme.focusRing}`}
+                        value={form.custom_interval_days}
+                        onChange={e => setForm(f => ({ ...f, custom_interval_days: e.target.value }))}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label className={labelCls}>Total de doses</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min="1"
+                        max="60"
+                        placeholder="2"
+                        className={`w-full border ${medTheme.accentBorder} rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 ${medTheme.focusRing}`}
+                        value={form.total_doses}
+                        onChange={e => setForm(f => ({ ...f, total_doses: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {form.frequency !== 'dose_unica' && form.frequency !== 'conforme_necessidade' && form.frequency !== 'intervalo_dias' && (
                   <div>
                     <label className={labelCls}>Duração do tratamento (dias)</label>
                     <input
@@ -1241,10 +1334,6 @@ export function MedicationItemSheet({
                     />
                   </div>
                 )}
-
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[12px] font-semibold text-emerald-800">
-                  🔔 Lembretes serão criados automaticamente.
-                </div>
               </div>
               </>
               )}

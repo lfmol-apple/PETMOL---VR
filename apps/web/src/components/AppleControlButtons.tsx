@@ -315,7 +315,7 @@ export function AppleControlButtons({
                 }`}>
                   {nearbyMissingCount > 0
                     ? `sumido${nearbyMissingCount > 1 ? 's' : ''} na região`
-                    : 'Região tranquila'}
+                    : 'Aqui não tem pet sumido'}
                 </p>
               </div>
             </button>
