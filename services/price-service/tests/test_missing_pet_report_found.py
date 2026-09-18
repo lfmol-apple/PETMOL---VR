@@ -74,7 +74,26 @@ def test_sighting_without_possession_never_needs_video():
         assert db.query(FoundReport).filter_by(missing_pet_id=mp_id).count() == 1
 
 
-def test_report_found_notifies_owner_immediately(_clean):
+class _SyncThread:
+    """threading.Thread fake que roda o target na hora, sem thread real.
+
+    report_found() dispara o push numa thread de verdade em produção (não
+    travar a resposta HTTP) -- mas isso torna a asserção de `sent` logo
+    depois do client.post() uma corrida real contra essa thread (bug
+    encontrado ao vivo 18/09/2026: falhou no CI, thread não tinha
+    terminado ainda). Rodar sync aqui garante que o push já aconteceu
+    antes da asserção, sem mudar o comportamento assíncrono de produção."""
+    def __init__(self, target=None, args=(), kwargs=None, daemon=None):
+        self._target = target
+        self._args = args
+        self._kwargs = kwargs or {}
+
+    def start(self):
+        self._target(*self._args, **self._kwargs)
+
+
+def test_report_found_notifies_owner_immediately(_clean, monkeypatch):
+    monkeypatch.setattr(mp_mod.threading, "Thread", _SyncThread)
     sent = _clean
     mp_id = _mk_alert()
     _sub("owner", "owner-dev")
@@ -89,7 +108,8 @@ def test_report_found_notifies_owner_immediately(_clean):
     assert [endpoint for endpoint, _payload in sent] == ["https://push.example/owner-dev"]
 
 
-def test_updating_report_with_video_notifies_owner_again(_clean):
+def test_updating_report_with_video_notifies_owner_again(_clean, monkeypatch):
+    monkeypatch.setattr(mp_mod.threading, "Thread", _SyncThread)
     sent = _clean
     mp_id = _mk_alert()
     _sub("owner", "owner-dev")
@@ -133,3 +153,37 @@ def test_claiming_possession_still_requires_video_proof():
     })
     assert r.status_code == 422
     assert "vídeo" in r.json()["detail"].lower()
+
+
+def test_updating_a_dismissed_report_un_dismisses_it():
+    """Bug real (18/09/2026): o tutor descarta um relato fraco (só foto);
+    depois o mesmo achador manda evidência NOVA (nota extra) pro mesmo
+    contato -- isso batia no relato já existente e nunca limpava
+    dismissed=1, então a evidência nova nunca voltava a aparecer em
+    /my-found-reports (o push disparava, o cartão de avaliação não)."""
+    mp_id = _mk_alert()
+    contact = "(11) 96666-5555"
+
+    first = client.post(f"/missing-pets/{mp_id}/report-found", json={
+        "finder_contact": contact,
+        "has_possession": False,
+    })
+    assert first.status_code == 201
+    report_id = first.json()["id"]
+
+    with SessionLocal() as db:
+        report = db.query(FoundReport).filter_by(id=report_id).one()
+        report.dismissed = 1
+        db.commit()
+
+    again = client.post(f"/missing-pets/{mp_id}/report-found", json={
+        "finder_contact": contact,
+        "has_possession": False,
+        "notes": "Vi de novo, mais perto de casa agora",
+    })
+    assert again.status_code == 201
+    assert again.json()["status"] == "updated_existing_report"
+
+    with SessionLocal() as db:
+        report = db.query(FoundReport).filter_by(id=report_id).one()
+        assert report.dismissed == 0

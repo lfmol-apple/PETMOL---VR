@@ -3303,17 +3303,31 @@ def report_found(
             existing.risk_level = _risk_level_from_flags(risk_flags)
             if finder_user_id and not existing.finder_user_id:
                 existing.finder_user_id = finder_user_id
+            # Bug real (18/09/2026): se o tutor já tinha dispensado esta
+            # linha antes (ex.: um relato mais fraco, só foto), a evidência
+            # NOVA que acabou de chegar (vídeo, local, notas) nunca reaparecia
+            # no banner de avaliação — dismissed=1 nunca era limpo, e
+            # /my-found-reports filtra por dismissed != 1 pra sempre. O
+            # tutor recebia o push mas o cartão laranja nunca voltava.
+            # Dispensar a versão antiga não deve esconder a versão nova.
+            existing.dismissed = 0
             db.commit()
             recipient_ids = _case_participant_user_ids(
                 db, mp, include_finders=False, include_followers=False,
             )
-            _push_found_report_recipients(
-                recipient_ids,
-                mp.pet_name,
-                mp_id,
-                score=existing.compatibility_score,
-                exclude={finder_user_id} if finder_user_id else set(),
-            )
+            # Em thread própria — não travar a resposta HTTP esperando N
+            # web-pushes (mesmo padrão documentado no resto deste módulo;
+            # regressão real introduzida ao restaurar este push, corrigida
+            # 18/09/2026).
+            threading.Thread(
+                target=_push_found_report_recipients,
+                args=(recipient_ids, mp.pet_name, mp_id),
+                kwargs={
+                    "score": existing.compatibility_score,
+                    "exclude": {finder_user_id} if finder_user_id else set(),
+                },
+                daemon=True,
+            ).start()
         return {
             "id": existing.id,
             "status": "updated_existing_report" if updated else "already_reported",
@@ -3386,13 +3400,16 @@ def report_found(
     )
     excluded_finder_ids = {finder_user_id} if finder_user_id else set()
 
-    _push_found_report_recipients(
-        recipient_ids,
-        mp.pet_name,
-        mp_id,
-        score=body.pre_score if has_pre_score else None,
-        exclude=excluded_finder_ids,
-    )
+    # Em thread própria — mesmo motivo do outro ponto de chamada acima.
+    threading.Thread(
+        target=_push_found_report_recipients,
+        args=(recipient_ids, mp.pet_name, mp_id),
+        kwargs={
+            "score": body.pre_score if has_pre_score else None,
+            "exclude": excluded_finder_ids,
+        },
+        daemon=True,
+    ).start()
 
     if not has_pre_score and body.finder_photos and mp.photo_url:
         # Sem pré-análise — roda Gemini em background e atualiza a notificação.

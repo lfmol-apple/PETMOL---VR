@@ -422,11 +422,21 @@ def start_push_scheduler():
                               timezone="America/Sao_Paulo", id="expire_stale_missing_pet_alerts")
         except Exception as exc:
             push_logger.warning("[PETMOL] expiração de Pet Sumido não agendada: %s", exc)
-        try:
-            from .missing_pets import grow_missing_pet_radii
-            scheduler.add_job(grow_missing_pet_radii, "cron", minute=15, id="grow_missing_pet_radii")
-        except Exception as exc:
-            push_logger.warning("[PETMOL] crescimento de raio do Pet Sumido não agendado: %s", exc)
+        # DESATIVADO (18/09/2026, feedback direto do dono): o job horário de
+        # crescimento de raio estava empurrando push pra contas que não
+        # tinham nada a ver com o alerta original — "coloquei o alerta numa
+        # conta e disparou em outras também". Voltando ao comportamento de
+        # antes desta feature (PR #432): alerta cresce de raio só on-read
+        # (_effective_radius_km, calculado na hora que alguém consulta),
+        # sem broadcast automático repetido de hora em hora. O código de
+        # grow_missing_pet_radii/MissingPetMonitorPoint fica no lugar,
+        # intacto, pra religar depois de investigar a fundo — só o
+        # AGENDAMENTO está desligado.
+        # try:
+        #     from .missing_pets import grow_missing_pet_radii
+        #     scheduler.add_job(grow_missing_pet_radii, "cron", minute=15, id="grow_missing_pet_radii")
+        # except Exception as exc:
+        #     push_logger.warning("[PETMOL] crescimento de raio do Pet Sumido não agendado: %s", exc)
         scheduler.start()
         push_logger.info("[PETMOL] Push scheduler iniciado")
     except Exception as e:
