@@ -3307,13 +3307,19 @@ def report_found(
             recipient_ids = _case_participant_user_ids(
                 db, mp, include_finders=False, include_followers=False,
             )
-            _push_found_report_recipients(
-                recipient_ids,
-                mp.pet_name,
-                mp_id,
-                score=existing.compatibility_score,
-                exclude={finder_user_id} if finder_user_id else set(),
-            )
+            # Em thread própria — não travar a resposta HTTP esperando N
+            # web-pushes (mesmo padrão documentado no resto deste módulo;
+            # regressão real introduzida ao restaurar este push, corrigida
+            # 18/09/2026).
+            threading.Thread(
+                target=_push_found_report_recipients,
+                args=(recipient_ids, mp.pet_name, mp_id),
+                kwargs={
+                    "score": existing.compatibility_score,
+                    "exclude": {finder_user_id} if finder_user_id else set(),
+                },
+                daemon=True,
+            ).start()
         return {
             "id": existing.id,
             "status": "updated_existing_report" if updated else "already_reported",
@@ -3386,13 +3392,16 @@ def report_found(
     )
     excluded_finder_ids = {finder_user_id} if finder_user_id else set()
 
-    _push_found_report_recipients(
-        recipient_ids,
-        mp.pet_name,
-        mp_id,
-        score=body.pre_score if has_pre_score else None,
-        exclude=excluded_finder_ids,
-    )
+    # Em thread própria — mesmo motivo do outro ponto de chamada acima.
+    threading.Thread(
+        target=_push_found_report_recipients,
+        args=(recipient_ids, mp.pet_name, mp_id),
+        kwargs={
+            "score": body.pre_score if has_pre_score else None,
+            "exclude": excluded_finder_ids,
+        },
+        daemon=True,
+    ).start()
 
     if not has_pre_score and body.finder_photos and mp.photo_url:
         # Sem pré-análise — roda Gemini em background e atualiza a notificação.
