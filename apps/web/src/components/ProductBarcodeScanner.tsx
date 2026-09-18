@@ -11,6 +11,8 @@ interface ProductBarcodeScannerProps {
   petName?: string;
   defaultMode?: 'scan' | 'manual' | 'photo';
   allowScanning?: boolean;
+  manualEntryLabel?: string;
+  onManualEntry?: () => void;
   onProductConfirmed: (product: ScannedProduct) => void;
   /** Disparado quando o sheet é fechado sem confirmar produto (escaneou e
    * cancelou, ou fechou direto) — permite ao chamador liberar um caminho
@@ -30,6 +32,8 @@ export function ProductBarcodeScanner({
   petName,
   defaultMode,
   allowScanning,
+  manualEntryLabel = 'Preencher manualmente',
+  onManualEntry,
   onProductConfirmed,
   onDismiss,
 }: ProductBarcodeScannerProps) {
@@ -63,6 +67,15 @@ export function ProductBarcodeScanner({
           </span>
           <span className="text-blue-300 text-lg">›</span>
         </button>
+        {onManualEntry && (
+          <button
+            type="button"
+            onClick={onManualEntry}
+            className="w-full flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[12px] font-bold text-emerald-700 active:scale-[0.98] transition-all"
+          >
+            ✍️ {manualEntryLabel}
+          </button>
+        )}
         {/* "Buscar pelo nome" saiu daqui — era a mesma tela que "Buscar
             produto" já abre acima, só forçando outro modo (duplicava a
             entrada, feedback do usuário). Só o scanner fica como via

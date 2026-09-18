@@ -3301,10 +3301,23 @@ def report_found(
         if updated:
             existing.risk_flags = json.dumps(risk_flags)
             existing.risk_level = _risk_level_from_flags(risk_flags)
+            if finder_user_id and not existing.finder_user_id:
+                existing.finder_user_id = finder_user_id
             db.commit()
+            recipient_ids = _case_participant_user_ids(
+                db, mp, include_finders=False, include_followers=False,
+            )
+            _push_found_report_recipients(
+                recipient_ids,
+                mp.pet_name,
+                mp_id,
+                score=existing.compatibility_score,
+                exclude={finder_user_id} if finder_user_id else set(),
+            )
         return {
             "id": existing.id,
             "status": "updated_existing_report" if updated else "already_reported",
+            "message": "O tutor e quem cuida do pet foram notificados para avaliar." if updated else None,
             **_compatibility_payload(existing.compatibility_score, existing.compatibility_analysis),
             **_risk_payload(existing),
         }
@@ -3373,16 +3386,13 @@ def report_found(
     )
     excluded_finder_ids = {finder_user_id} if finder_user_id else set()
 
-    if recipient_ids:
-        threading.Thread(
-            target=_push_found_report_recipients,
-            args=(recipient_ids, mp.pet_name, mp_id),
-            kwargs={
-                "score": body.pre_score if has_pre_score else None,
-                "exclude": excluded_finder_ids,
-            },
-            daemon=True,
-        ).start()
+    _push_found_report_recipients(
+        recipient_ids,
+        mp.pet_name,
+        mp_id,
+        score=body.pre_score if has_pre_score else None,
+        exclude=excluded_finder_ids,
+    )
 
     if not has_pre_score and body.finder_photos and mp.photo_url:
         # Sem pré-análise — roda Gemini em background e atualiza a notificação.

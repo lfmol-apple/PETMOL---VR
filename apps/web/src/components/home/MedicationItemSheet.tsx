@@ -717,7 +717,7 @@ export function MedicationItemSheet({
         />
 
         {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain bg-gradient-to-b from-sky-50 via-white to-violet-50">
           <p className="mx-4 mt-3 mb-1 text-[11.5px] font-medium text-slate-500 text-center">ℹ️ Aqui é pra acompanhar e não esquecer os cuidados — o tratamento é sempre com o veterinário.</p>
 
           {/* ── VIEW MODE ─────────────────────────────────────────────────── */}
@@ -1057,9 +1057,9 @@ export function MedicationItemSheet({
 
           {/* ── ADD / EDIT FORM ───────────────────────────────────────────── */}
           {(mode === 'add' || mode === 'edit') && (
-            <div className="px-4 pt-2 pb-4 space-y-3">
+            <div className="px-4 pt-3 pb-4 space-y-3">
               {!showManualForm && mode === 'add' && (
-                <div className="rounded-2xl border border-purple-200 bg-purple-50 p-4 space-y-3">
+                <div className="rounded-2xl border border-purple-200 bg-white/90 p-4 space-y-3 shadow-sm shadow-purple-100">
                   <div>
                     <h3 className="text-[18px] font-black text-gray-900 leading-tight">Identifique o medicamento</h3>
                     <p className="text-[13px] text-gray-600 mt-1">Busque pelo nome ou marca — código de barras também funciona, se preferir.</p>
@@ -1071,6 +1071,8 @@ export function MedicationItemSheet({
                     petId={petId}
                     petName={petName}
                     allowScanning
+                    manualEntryLabel="Preencher manualmente"
+                    onManualEntry={() => setShowManualForm(true)}
                     onProductConfirmed={(product) => {
                       applyScannedProduct(product);
                       setShowManualForm(true);
@@ -1082,7 +1084,7 @@ export function MedicationItemSheet({
 
               {showManualForm && (
               <>
-              <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-3.5 space-y-3">
+              <div className="rounded-2xl border border-violet-200 bg-white/95 p-3.5 space-y-3 shadow-sm shadow-violet-100">
                 <div>
                   <label className={labelCls}>Nome do medicamento *</label>
                   <input
@@ -1094,7 +1096,7 @@ export function MedicationItemSheet({
                   />
                 </div>
 
-                <div className="grid grid-cols-[1fr_116px] gap-3 items-start">
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_116px] gap-3 items-start">
                   <div className="min-w-0">
                     <label className={labelCls}>Data de início *</label>
                     <input
@@ -1115,7 +1117,7 @@ export function MedicationItemSheet({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="min-w-0">
                     <label className={labelCls}>Dose</label>
                     <input
@@ -1169,7 +1171,7 @@ export function MedicationItemSheet({
                 </div>
 
                 {form.frequency === 'vezes_dia' && (
-                  <div className="grid grid-cols-[1fr_116px] gap-3 rounded-2xl border border-purple-200 bg-purple-50 p-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_116px] gap-3 rounded-2xl border border-purple-200 bg-purple-50 p-3">
                     <div className="min-w-0">
                       <label className={labelCls}>Vezes ao dia</label>
                       <input
