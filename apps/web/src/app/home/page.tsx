@@ -63,7 +63,6 @@ import { commonVaccines } from '@/data/vaccineInfo';
 import { hasCompletedOnboarding, getOwnerProfile } from '@/lib/ownerProfile';
 import { isOnboardingActiveFlag } from '@/lib/onboardingProgress';
 import { needsLeishmaniaseAwareness } from '@/lib/leishmaniaseAwareness';
-import { shouldShowNearbyTicker, registerNearbyTickerHomeOpen } from '@/features/interactions/nearbyMissingTickerVisibility';
 import { API_BACKEND_BASE, API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
@@ -635,8 +634,6 @@ function HomePageInner() {
   const [showColeiraSheet, setShowColeiraSheet] = useState(false);
   const [showBanhoTosaSheet, setShowBanhoTosaSheet] = useState(false);
   const [showPetSumidoSheet, setShowPetSumidoSheet] = useState(false);
-  // Toque no letreiro "pet sumido perto de você" (acima da foto) abre esse
-  // visualizador em tela cheia — toque intencional, não popup automático.
   const [showNearbyStoryOverlay, setShowNearbyStoryOverlay] = useState(false);
   // Deep link do push de "pet sumido perto de você" (ver homeModalRouting.ts)
   // decide em qual aba a sheet abre — undefined deixa a PetSumidoSheet usar
@@ -725,18 +722,6 @@ function HomePageInner() {
   const visibleNearbyAlerts = nearbyAlerts.filter(
     (a) => a.user_id !== loggedUserId && !handledAlertIds.includes(a.id),
   );
-
-  // Regra de exibição do letreiro (NearbyMissingPetsTicker) — "não pode
-  // ficar chato, mas também não pode deixar de anunciar": explosão inicial
-  // nas primeiras aberturas do MESMO conjunto de alertas, depois volta a
-  // cada N aberturas (nunca em silêncio pra sempre). O botão "Pet Sumido"
-  // (nearbyMissingCount cru, sem essa regra) continua avisando sem limite.
-  const nearbyAlertIdsForTicker = visibleNearbyAlerts.map((a) => a.id);
-  const showNearbyTicker = shouldShowNearbyTicker(nearbyAlertIdsForTicker);
-  useEffect(() => {
-    registerNearbyTickerHomeOpen(nearbyAlertIdsForTicker, showNearbyTicker);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nearbyAlertIdsForTicker.join(',')]);
 
   const fetchNearbyAlerts = useCallback(async () => {
     try {
@@ -1322,23 +1307,12 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     topAttentionPetCount,
     selectedPetCardAlerts,
     selectedPetCardColors,
-    basicCareAttentionPetIds,
   } = useHomeInteractionCenter(
     multipetInteractions.interactions,
     multipetInteractions.canonicalEvents,
     selectedPetId,
     allPetIds,
   );
-  // Names for the basic-care badge — shown instead of a bare count when
-  // exactly one pet needs attention, so the badge can say "Mingau precisa
-  // de atenção" instead of a generic "1 pet precisa de atenção".
-  const basicCareAttentionPetNames = useMemo(
-    () => basicCareAttentionPetIds
-      .map((id) => pets.find((p) => p.pet_id === id)?.pet_name)
-      .filter((name): name is string => Boolean(name)),
-    [basicCareAttentionPetIds, pets],
-  );
-
   // Dispatcher frontend e pendencies sem superfície foram desativados.
 
   const homePreferenceScopeId = useMemo(
@@ -1535,7 +1509,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     openEditPetModal,
     togglePetSelector,
     closePetSelector,
-    openTopAttentionModal,
     closeTopAttentionModal,
     navigateToSaudeFromHealthOptions,
     closeHealthOptionsModal,
@@ -2418,7 +2391,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       onTogglePetSelector={togglePetSelector}
                       onClosePetSelector={closePetSelector}
                       topAttentionPetCount={topAttentionPetCount}
-                      onOpenTopAttentionModal={openTopAttentionModal}
                       onCloseTopAttentionModal={closeTopAttentionModal}
                       showTopAttentionModal={showTopAttentionModal}
                       topAttentionAlerts={topAttentionAlerts}
@@ -2426,9 +2398,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                       upcomingCount={allUpcomingReminders.length}
                       upcomingUrgent={hasUrgentReminder}
                       onOpenUpcoming={() => setShowUpcomingSheet(true)}
-                      basicCareAttentionPetNames={basicCareAttentionPetNames}
-                      nearbyMissingCount={showNearbyTicker ? nearbyMissingCount : 0}
-                      onOpenNearbyMissing={() => setShowNearbyStoryOverlay(true)}
                     />
 
                   {/* Compartilhar cuidado — só para o dono do pet */}

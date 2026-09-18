@@ -498,7 +498,9 @@ function AcheiUmPetInner() {
         }
       }
 
-      // Pega user_id do token JWT (sub) se o achador estiver logado — para o push de agradecimento
+      // Pega user_id do token JWT (sub) se o achador estiver logado — o backend
+      // não manda o push inicial para quem fez o relato, mas usa esse vínculo
+      // para avisar a decisão do tutor depois.
       let finderUserId: string | null = null;
       try {
         const token = getToken();
