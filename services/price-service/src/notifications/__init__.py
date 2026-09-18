@@ -746,6 +746,21 @@ def subscribe(body: SubscribeRequest, current_user=Depends(get_current_user)):
             cleanup = cleanup.filter(PushSubscription.last_seen_at < stale_cutoff)
         cleanup.update({PushSubscription.disabled_at: now}, synchronize_session=False)
 
+        # Bug real (18/09/2026, "uma conta disparando na outra"): o endpoint
+        # do Web Push é do NAVEGADOR/instalação, não da conta. Se a conta A
+        # se inscreveu neste mesmo aparelho antes e depois alguém troca pra
+        # conta B no mesmo navegador/app, a linha antiga (user_id=A,
+        # endpoint=E) nunca era desativada — A continuava "ativo" nesse
+        # endpoint pra sempre, então um lembrete/alerta de A empurrava push
+        # pro aparelho que agora está logado como B. Um endpoint só pode
+        # estar ativo pra UMA conta por vez: desativa qualquer outra conta
+        # que ainda esteja "dona" deste mesmo endpoint.
+        db.query(PushSubscription).filter(
+            PushSubscription.endpoint == endpoint,
+            PushSubscription.user_id != user_id,
+            PushSubscription.disabled_at.is_(None),
+        ).update({PushSubscription.disabled_at: now}, synchronize_session=False)
+
         db.commit()
 
         # Alerta atrasado de Pet Sumido: se este usuário estava deslogado
@@ -807,6 +822,18 @@ def register_native_device(body: RegisterNativeDeviceRequest, current_user=Depen
                 user_id=user_id, platform=body.platform, token=body.token,
                 created_at=now, last_seen_at=now,
             ))
+
+        # Mesmo bug do /subscribe (Web Push) acontece aqui: o token
+        # nativo (FCM/APNs) é do APARELHO, não da conta. Trocar de conta
+        # no mesmo celular sem isso deixava a conta antiga "dona" do token
+        # pra sempre -- ela continuava recebendo os pushes desse aparelho
+        # mesmo depois de outra conta logar nele.
+        db.query(NativePushToken).filter(
+            NativePushToken.token == body.token,
+            NativePushToken.user_id != user_id,
+            NativePushToken.disabled_at.is_(None),
+        ).update({NativePushToken.disabled_at: now}, synchronize_session=False)
+
         db.commit()
         return {"status": "registered"}
     finally:
