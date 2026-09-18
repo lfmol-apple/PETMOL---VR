@@ -3,6 +3,8 @@
  * Uses Overpass API for POI search and basic distance calculations
  */
 
+import { API_BASE_URL } from '@/lib/api';
+
 // Types
 export interface OsmPlace {
   id: string;
@@ -305,6 +307,52 @@ export function formatAddress(tags: Record<string, string>): string | null {
   }
 
   return parts.length > 0 ? parts.join(' — ') : null;
+}
+
+// ── Reverse geocoding (lat/lng -> endereço com nome de rua) ─────────────────
+// Usado pelo "Usar minha localização atual" do Pet Sumido — antes o GPS só
+// dava bairro/cidade (BigDataCloud), sem logradouro; Nominatim devolve a rua,
+// que é a informação que de fato ajuda quem procura o pet na região.
+export interface ReverseGeocodeResult {
+  street: string | null;
+  houseNumber: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  state: string | null;
+  postcode: string | null;
+}
+
+export async function reverseGeocode(lat: number, lon: number): Promise<ReverseGeocodeResult | null> {
+  try {
+    // Sempre via backend (nunca direto pro Nominatim do browser) — ver
+    // comentário do endpoint /api/nominatim-reverse pro motivo.
+    const response = await fetch(`${API_BASE_URL}/nominatim-reverse?lat=${lat}&lon=${lon}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const address = data.address as Record<string, string> | undefined;
+    if (!address) return null;
+    return {
+      street: address.road || address.pedestrian || address.footway || null,
+      houseNumber: address.house_number || null,
+      neighborhood: address.suburb || address.neighbourhood || address.quarter || null,
+      city: address.city || address.town || address.village || null,
+      state: address.state || null,
+      postcode: address.postcode || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Junta o resultado do reverse geocode num endereço legível — mesma ordem
+// (rua+número, bairro, cidade/estado) usada hoje pro resultado de CEP.
+export function formatReverseGeocodeResult(r: ReverseGeocodeResult): string | null {
+  const streetPart = r.street ? (r.houseNumber ? `${r.street}, ${r.houseNumber}` : r.street) : null;
+  const cityState = r.city && r.state ? `${r.city}/${r.state}` : (r.city || r.state || null);
+  const parts = [streetPart, r.neighborhood, cityState].filter(Boolean) as string[];
+  return parts.length > 0 ? parts.join(', ') : null;
 }
 
 // Extract phone number

@@ -190,18 +190,16 @@ export function HomePetDashboard({
     currentPet.species, parasiteControls, getOwnerProfile()?.address?.city,
   );
 
-  // A pet with ZERO vaccine history ('neutral' — never registered) is a
-  // real gap worth the red dot, same as an actually-overdue one — treated
-  // as 'critical' here specifically for vaccine (per explicit feedback;
-  // vermífugo/antipulgas/ração intentionally stay untouched, since
-  // treating "no data" as critical for every domain was what caused the
-  // earlier false-positive household count). Without this, a pet with no
-  // vaccines but an otherwise-fine health card resolved to colorHealth=
-  // 'ok', and the dot never showed — shouldShowAlert only checks the tone
-  // string, so alertVacinas being true didn't matter on its own. Coleira
-  // gets the same "neutral -> critical" override, gated on
-  // needsLeishmaniaseAwareness, for the same reason.
-  const effectiveVaccineTone: CardTone = (colorVacinas === 'neutral' || colorVacinas === undefined) ? 'critical' : colorVacinas;
+  // Revertido (18/09/2026, feedback explícito): vacina nunca registrada
+  // ('neutral') NÃO fica mais vermelha no card agregado "Cuidados" — só
+  // porque o tutor ainda não cadastrou não significa que o pet esteja
+  // desprotegido de fato, e forçar isso gerava falso-positivo. O card só
+  // fica crítico por (a) um cuidado que o tutor registrou e que venceu de
+  // verdade, ou (b) a coleira antiparasitária ausente em região endêmica
+  // (ver effectiveColeiraTone/needsLeishmaniaseAwareness abaixo — essa
+  // continua sendo a exceção, por ser recomendação de saúde pública, não
+  // só "falta de dado").
+  const effectiveVaccineTone: CardTone = colorVacinas ?? 'neutral';
   const effectiveColeiraTone: CardTone = petNeedsLeishmaniaseAwareness ? 'critical' : (colorColeira ?? 'neutral');
   const healthTones = [effectiveVaccineTone, colorVermifugo, colorAntipulgas, effectiveColeiraTone, colorMedicacao, colorGrooming];
   const colorHealth: CardTone = healthTones.includes('critical')
