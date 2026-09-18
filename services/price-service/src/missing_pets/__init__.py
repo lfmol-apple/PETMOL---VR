@@ -473,6 +473,12 @@ class FoundReportCreate(BaseModel):
     finder_user_id: Optional[str] = None
     pre_score: Optional[int] = None
     pre_analysis: Optional[str] = None
+    # Vídeo-prova só faz sentido pra quem alega ter o pet FISICAMENTE (achei
+    # um pet e estou com ele) — quem só avistou de longe, ou reportou pelo
+    # mini-formulário do PetCard (que nunca oferece gravar vídeo), não tem
+    # como cumprir essa exigência. Sem este campo (clientes antigos), cai em
+    # False — nunca bloqueia quem nunca teve a opção de gravar.
+    has_possession: Optional[bool] = None
 
 
 class PhotoAnalysisBody(BaseModel):
@@ -3217,7 +3223,15 @@ def report_found(
         raise HTTPException(status_code=404, detail="Alerta não encontrado ou pet já foi encontrado")
     if not body.finder_contact.strip():
         raise HTTPException(status_code=400, detail="Contato do achador é obrigatório")
-    if not body.finder_video or not body.proof_challenge_id or not body.proof_challenge:
+    # Bug real (18/09/2026): esta exigência era incondicional, mas o
+    # frontend só oferece a etapa de vídeo quando has_possession=True ("está
+    # comigo") — quem só avistou ("visto no local"), ou reportou pelo
+    # mini-formulário do PetCard (nunca oferece vídeo), nunca tinha como
+    # cumprir isso. Toda tentativa de "Enviar aviso para o tutor" (sem
+    # posse) batia nesse 422 sem exceção — o botão "não funcionava" porque
+    # o backend rejeitava sempre, silenciosamente pra quem não visse a
+    # mensagem de erro.
+    if body.has_possession and (not body.finder_video or not body.proof_challenge_id or not body.proof_challenge):
         raise HTTPException(
             status_code=422,
             detail="Para proteger o tutor contra golpes, envie um vídeo curto mostrando o pet antes de notificar.",
