@@ -1096,12 +1096,12 @@ export function MedicationItemSheet({
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-[1fr_116px] gap-3 items-start">
+                <div className="grid grid-cols-[1fr_112px] gap-2.5 items-start">
                   <div className="min-w-0">
                     <label className={labelCls}>Data de início *</label>
                     <input
                       type="date"
-                      className={inputCls}
+                      className={`${inputCls} px-2`}
                       value={form.scheduled_date}
                       onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))}
                     />
@@ -1117,7 +1117,7 @@ export function MedicationItemSheet({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2.5">
                   <div className="min-w-0">
                     <label className={labelCls}>Dose</label>
                     <input
@@ -1128,10 +1128,10 @@ export function MedicationItemSheet({
                       onChange={e => setForm(f => ({ ...f, dose: e.target.value }))}
                     />
                   </div>
-                <div>
+                <div className="min-w-0">
                   <label className={labelCls}>Via</label>
                   <select
-                    className={inputCls}
+                    className={`${inputCls} px-2`}
                     value={form.route}
                     onChange={e => setForm(f => ({ ...f, route: e.target.value }))}
                   >
@@ -1171,22 +1171,22 @@ export function MedicationItemSheet({
                 </div>
 
                 {form.frequency === 'vezes_dia' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_116px] gap-3 rounded-2xl border border-purple-200 bg-purple-50 p-3">
+                  <div className="grid grid-cols-[92px_1fr] gap-2.5 rounded-2xl border border-purple-200 bg-purple-50 p-3">
                     <div className="min-w-0">
-                      <label className={labelCls}>Vezes ao dia</label>
+                      <label className={labelCls}>Vezes/dia</label>
                       <input
                         type="number"
                         min="1"
                         max="12"
                         placeholder="2"
-                        className="w-full border border-purple-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+                        className="w-full min-w-0 border border-purple-200 rounded-xl px-2 py-3 text-sm text-center bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
                         value={form.times_per_day}
                         onChange={e => setForm(f => ({ ...f, times_per_day: e.target.value }))}
                       />
                     </div>
                     <div className="min-w-0">
                       <label className={labelCls}>Próximos</label>
-                      <div className="min-h-[46px] rounded-xl border border-purple-200 bg-white px-3 py-2 text-[12px] font-semibold text-purple-900">
+                      <div className="min-h-[46px] flex items-center rounded-xl border border-purple-200 bg-white px-3 py-2 text-[12px] font-semibold text-purple-900 leading-snug">
                         {getDailyDoseTimes(form.times_per_day, form.first_dose_time).slice(0, 4).join(' · ')}
                       </div>
                     </div>
