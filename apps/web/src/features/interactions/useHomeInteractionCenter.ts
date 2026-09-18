@@ -105,21 +105,14 @@ export function useHomeInteractionCenter(
         resolveTone(petEvents.filter((event) => event.domain === 'food')),
         resolveTone(petEvents.filter((event) => event.domain === 'medication')),
       ];
-      // 'neutral' (never registered at all) counts as needing attention
-      // ONLY for vaccine — a pet with zero vaccine history is a real,
-      // deliberate gap worth flagging, not just a missing data point (per
-      // explicit feedback). vermífugo/antipulgas/ração/medicação stay
-      // 'critical'-only: a household-wide count needs to be trustworthy,
-      // and letting 'neutral' count on every domain previously inflated
-      // the total past the number of pets with an actually overdue
-      // problem ("system says 7 pets need attention, really only 3 do" —
-      // every pet simply missing ONE domain's data, e.g. never logged
-      // "ração" for a secondary pet, got flagged even though nothing was
-      // really due). Medication in particular must stay 'critical'-only —
-      // most pets have no medication at all, and 'neutral' there is the
-      // normal, expected case, not a gap.
-      if (vaccineTone === 'critical' || vaccineTone === 'neutral') return true;
-      return otherTones.some((tone) => tone === 'critical');
+      // Revertido (18/09/2026, feedback explícito): vacina nunca registrada
+      // ('neutral') NÃO conta mais como "precisa de atenção" — vacina foi
+      // desvinculada de "Cuidados" por completo (mesma decisão já aplicada
+      // no card agregado, ver HomePetDashboard.tsx/effectiveVaccineTone).
+      // Toda a família de domínios (vacina/vermífugo/antipulgas/ração/
+      // medicação) agora trata 'neutral' igual: nunca crítico só por falta
+      // de dado, só por vencimento real ('critical' de verdade).
+      return [vaccineTone, ...otherTones].some((tone) => tone === 'critical');
     });
 
     return {
