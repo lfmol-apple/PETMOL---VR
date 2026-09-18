@@ -126,7 +126,14 @@ export function Header() {
                   aria-label="Perfil"
                 >
                   <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white/20 text-sm">👤</span>
-                  <span className="truncate max-w-[120px] font-bold">{userLabel}</span>
+                  {/* Legenda embaixo do nome — a versão desktop já tinha
+                      "abrir perfil"/"perfil aberto" (linha ~81), só a
+                      mobile ficava sem nenhuma pista de que aquilo é
+                      tocável (pedido explícito do dono). */}
+                  <span className="flex min-w-0 flex-col items-start leading-none">
+                    <span className="truncate max-w-[110px]">{userLabel}</span>
+                    <span className="text-[8px] font-black uppercase tracking-[0.18em] text-white/70">{profileCaption}</span>
+                  </span>
                 </Link>
                 <button
                   onClick={handleLogout}
