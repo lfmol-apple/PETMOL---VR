@@ -239,7 +239,10 @@ export function PetSumidoSheet({
       const formatted = reverseResult ? formatReverseGeocodeResult(reverseResult) : null;
       if (formatted) {
         setLastSeenLocation(formatted);
-        setCep('');
+        // Preenche o campo de CEP também quando o Nominatim devolve um —
+        // pedido explícito do tutor: ver o CEP de onde está, não só a rua.
+        const postcodeDigits = reverseResult?.postcode?.replace(/\D/g, '') ?? '';
+        setCep(postcodeDigits.length === 8 ? `${postcodeDigits.slice(0, 5)}-${postcodeDigits.slice(5)}` : '');
         setCepError('');
       } else {
         const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=pt`);

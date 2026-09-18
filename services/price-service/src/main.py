@@ -602,15 +602,24 @@ async def nominatim_search(
         raise HTTPException(status_code=500, detail=f"Nominatim error: {str(e)}")
 
 
-@app.get("/api/nominatim-reverse", tags=["Proxy"])
+@app.get("/nominatim-reverse", tags=["Proxy"])
 async def nominatim_reverse(
     lat: float = Query(..., description="Latitude"),
     lon: float = Query(..., description="Longitude"),
 ):
     """Reverse geocode (lat/lng -> endereço com rua) via Nominatim/OSM.
 
-    Sempre passa pelo backend (nunca fetch direto do browser pro Nominatim,
-    diferente de /api/nominatim-search que só usa o proxy em localhost):
+    SEM prefixo /api no path (diferente do /api/nominatim-search vizinho,
+    que só é chamado direto pro backend em localhost, nunca através do
+    proxy): nginx (deploy/nginx/petmol.conf, location /api/) faz
+    `rewrite ^/api/(.*) /$1 break` antes de repassar pro backend — ou seja,
+    o browser chama /api/nominatim-reverse (via API_BASE_URL) e o backend
+    recebe /nominatim-reverse, sem o prefixo. Registrar com /api aqui
+    (erro real, 18/09/2026) fazia essa rota nunca ser alcançada em
+    produção — 404 silencioso, reverseGeocode() caía sempre no fallback
+    BigDataCloud (só cidade, sem rua).
+
+    Sempre passa pelo backend (nunca fetch direto do browser pro Nominatim):
     browsers ignoram um header User-Agent customizado em fetch/XHR (é
     "forbidden header name"), e a política de uso do Nominatim exige
     identificação de verdade — só dá pra cumprir isso no servidor.
