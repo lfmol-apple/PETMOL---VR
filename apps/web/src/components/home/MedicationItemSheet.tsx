@@ -9,9 +9,8 @@ import { Check, Home, Trash2 } from 'lucide-react';
 import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { CARE_STATE } from '@/lib/careState';
-import { buildRemindAt, listReminders, deleteReminder, createReminder, refreshSubscription } from '@/features/notifications/pushService';
+import { listReminders, deleteReminder, createReminder, refreshSubscription } from '@/features/notifications/pushService';
 import { ProductBarcodeScanner } from '@/components/ProductBarcodeScanner';
-import { IosSwitch } from '@/components/ui/IosSwitch';
 import type { ScannedProduct } from '@/lib/productScanner';
 import { requestUserDecision } from '@/features/interactions/userPromptChannel';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
@@ -37,6 +36,18 @@ function fmtDate(s?: string | null): string {
 function createLocalDate(str: string) {
   const [y, m, d] = str.split('-').map(Number);
   return new Date(y, m - 1, d);
+}
+
+function addMinutes(date: Date, minutes: number): Date {
+  const next = new Date(date);
+  next.setMinutes(next.getMinutes() + minutes);
+  return next;
+}
+
+function buildLocalDateTime(dateStr: string, timeStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const [hour, minute] = (timeStr || '08:00').split(':').map(Number);
+  return new Date(year, month - 1, day, hour || 0, minute || 0, 0, 0);
 }
 
 const MONTH_FULL_NAMES = [
@@ -86,21 +97,163 @@ function parseMedNotes(notes: string) {
   return { dose: '', route: 'oral', frequency: '2x_dia', barcode: '', cleanNotes: notes };
 }
 
+type MedicationFrequencyMode = 'dose_unica' | 'vezes_dia' | 'intervalo' | 'conforme_necessidade';
+
+function normalizeFrequencyForForm(
+  rawFrequency: string,
+  extra?: Record<string, unknown>,
+): {
+  frequency: MedicationFrequencyMode;
+  times_per_day: string;
+  interval_hours: string;
+  interval_minutes: string;
+  first_dose_time: string;
+} {
+  const raw = (rawFrequency || '').toLowerCase();
+  const savedMode = typeof extra?.frequency_mode === 'string' ? extra.frequency_mode : '';
+  const savedTimesPerDay = extra?.times_per_day != null ? String(extra.times_per_day) : '';
+  const savedIntervalMinutes = parseInt(String(extra?.interval_minutes ?? ''), 10);
+  const savedReminderTimes = extra?.reminder_times;
+  const savedFirstDoseTime =
+    typeof extra?.first_dose_time === 'string' && extra.first_dose_time
+      ? extra.first_dose_time
+      : typeof extra?.reminder_time === 'string' && extra.reminder_time
+        ? extra.reminder_time
+        : Array.isArray(savedReminderTimes) && typeof savedReminderTimes[0] === 'string'
+          ? savedReminderTimes[0]
+          : '08:00';
+
+  if (savedMode === 'dose_unica' || raw === 'dose_unica') {
+    return { frequency: 'dose_unica', times_per_day: '1', interval_hours: '0', interval_minutes: '0', first_dose_time: savedFirstDoseTime };
+  }
+  if (savedMode === 'conforme_necessidade' || raw.includes('conforme')) {
+    return { frequency: 'conforme_necessidade', times_per_day: '1', interval_hours: '0', interval_minutes: '0', first_dose_time: savedFirstDoseTime };
+  }
+  if (savedMode === 'intervalo' || raw === '8h' || raw === '12h' || raw === '48h' || raw === 'personalizado') {
+    const totalMinutes = Number.isFinite(savedIntervalMinutes) && savedIntervalMinutes > 0
+      ? savedIntervalMinutes
+      : raw === '48h'
+        ? 2880
+        : raw === '12h'
+          ? 720
+          : raw === 'personalizado' && extra?.custom_interval_days
+            ? parseInt(String(extra.custom_interval_days), 10) * 1440
+            : 480;
+    return {
+      frequency: 'intervalo',
+      times_per_day: '2',
+      interval_hours: String(Math.floor(totalMinutes / 60)),
+      interval_minutes: String(totalMinutes % 60),
+      first_dose_time: savedFirstDoseTime,
+    };
+  }
+
+  const timesMatch = raw.match(/(\d+)x/);
+  return {
+    frequency: 'vezes_dia',
+    times_per_day: savedTimesPerDay || (timesMatch?.[1] ?? '2'),
+    interval_hours: '8',
+    interval_minutes: '0',
+    first_dose_time: savedFirstDoseTime,
+  };
+}
+
+function buildFrequencyLabel(form: MedForm): string {
+  if (form.frequency === 'dose_unica') return 'Dose única';
+  if (form.frequency === 'conforme_necessidade') return 'SOS / conforme necessidade';
+  if (form.frequency === 'intervalo') {
+    const hours = parseInt(form.interval_hours, 10) || 0;
+    const minutes = parseInt(form.interval_minutes, 10) || 0;
+    const chunks = [
+      hours > 0 ? `${hours}h` : '',
+      minutes > 0 ? `${minutes}min` : '',
+    ].filter(Boolean);
+    return `A cada ${chunks.join(' ') || '0min'}`;
+  }
+  const times = Math.max(1, parseInt(form.times_per_day, 10) || 1);
+  return `${times}x ao dia`;
+}
+
+function getDailyDoseTimes(timesPerDayRaw: string, firstDoseTime: string): string[] {
+  const timesPerDay = Math.max(1, Math.min(12, parseInt(timesPerDayRaw, 10) || 1));
+  const start = buildLocalDateTime('2000-01-01', firstDoseTime || '08:00');
+  const spacing = Math.round(1440 / timesPerDay);
+  return Array.from({ length: timesPerDay }, (_, index) => {
+    const next = addMinutes(start, spacing * index);
+    return `${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')}`;
+  });
+}
+
+const CONTINUOUS_REMINDER_DAYS = 365;
+const MAX_MEDICATION_REMINDERS = 1500;
+
+function buildMedicationReminderPayloads(
+  form: MedForm,
+  petId: string,
+  title: string,
+  petName?: string,
+): Parameters<typeof createReminder>[0][] {
+  if (form.frequency === 'conforme_necessidade') return [];
+
+  const body = `Hora de dar ${form.title.trim()} para ${petName || 'seu pet'}. Toque para registrar a dose.`;
+  const now = new Date();
+  const totalDays = Math.min(
+    Math.max(1, parseInt(form.treatment_days, 10) || CONTINUOUS_REMINDER_DAYS),
+    CONTINUOUS_REMINDER_DAYS,
+  );
+  const pushPayloads: Parameters<typeof createReminder>[0][] = [];
+
+  const addPayload = (date: Date) => {
+    if (date < now || pushPayloads.length >= MAX_MEDICATION_REMINDERS) return;
+    pushPayloads.push({
+      pet_id: petId,
+      type: 'medication',
+      title,
+      body,
+      remind_at: date.toISOString(),
+    });
+  };
+
+  if (form.frequency === 'dose_unica') {
+    addPayload(buildLocalDateTime(form.scheduled_date, form.first_dose_time));
+    return pushPayloads;
+  }
+
+  if (form.frequency === 'vezes_dia') {
+    const times = getDailyDoseTimes(form.times_per_day, form.first_dose_time);
+    for (let day = 0; day < totalDays; day++) {
+      const dateStr = addDays(form.scheduled_date, day);
+      for (const time of times) {
+        addPayload(buildLocalDateTime(dateStr, time));
+      }
+    }
+    return pushPayloads;
+  }
+
+  const intervalMinutes =
+    (parseInt(form.interval_hours, 10) || 0) * 60 + (parseInt(form.interval_minutes, 10) || 0);
+  if (intervalMinutes <= 0) return pushPayloads;
+
+  const start = buildLocalDateTime(form.scheduled_date, form.first_dose_time);
+  const end = addMinutes(start, totalDays * 1440);
+  for (let current = start; current < end && pushPayloads.length < MAX_MEDICATION_REMINDERS; current = addMinutes(current, intervalMinutes)) {
+    addPayload(current);
+  }
+  return pushPayloads;
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 interface MedForm {
   title: string;
   scheduled_date: string;
-  professional_name: string;
   dose: string;
   route: string;
-  frequency: string;
-  reminder_enabled: boolean;
-  reminder_date: string;
-  reminder_times: string[];
+  frequency: MedicationFrequencyMode;
+  times_per_day: string;
+  interval_hours: string;
+  interval_minutes: string;
+  first_dose_time: string;
   treatment_days: string;
-  custom_interval_days: string;
-  total_doses: string;
-  cost: string;
   notes: string;
   manufacturer: string;
   presentation: string;
@@ -111,17 +264,14 @@ interface MedForm {
 const EMPTY_FORM: MedForm = {
   title: '',
   scheduled_date: localTodayISO(),
-  professional_name: '',
   dose: '',
   route: 'oral',
-  frequency: '2x_dia',
-  reminder_enabled: false,
-  reminder_date: '',
-  reminder_times: ['08:00'],
+  frequency: 'vezes_dia',
+  times_per_day: '2',
+  interval_hours: '8',
+  interval_minutes: '0',
+  first_dose_time: '08:00',
   treatment_days: '',
-  custom_interval_days: '',
-  total_doses: '',
-  cost: '',
   notes: '',
   manufacturer: '',
   presentation: '',
@@ -208,7 +358,6 @@ export function MedicationItemSheet({
     setForm(f => ({
       ...f,
       title: product.name || f.title,
-      professional_name: f.professional_name,
       manufacturer: product.manufacturer || product.brand || f.manufacturer,
       presentation: product.presentation || product.weight || f.presentation,
       concentration: product.concentration || f.concentration,
@@ -230,6 +379,8 @@ export function MedicationItemSheet({
       setShowManualForm(true);
       sessionStorage.removeItem('petmol_pending_scanned_product');
     } catch { /* silent */ }
+    // This should run when the pet changes; applyScannedProduct is intentionally stable enough here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [petId]);
 
   function openAdd() {
@@ -240,40 +391,22 @@ export function MedicationItemSheet({
   }
 
   function openEdit(ev: PetEventRecord) {
-    const { dose, route, frequency, barcode, cleanNotes } = parseMedNotes(ev.notes || '');
+    const { dose, route, frequency: rawFrequency, barcode, cleanNotes } = parseMedNotes(ev.notes || '');
     let treatmentDays = '';
-    let customIntervalDays = '';
-    let totalDoses = '';
-    let reminderTimes = ['08:00'];
-    let reminderTime = '08:00';
-    let reminderDate = '';
-    const nextDue = ev.next_due_date ? ev.next_due_date.split('T')[0] : '';
+    let extra: Record<string, unknown> = {};
     try {
-      const ex = parsePetEventExtraData(ev.extra_data);
-      if (typeof ex.reminder_time === 'string' && ex.reminder_time) reminderTime = ex.reminder_time;
-      if (ex.treatment_days) treatmentDays = String(ex.treatment_days);
-      if (ex.custom_interval_days) customIntervalDays = String(ex.custom_interval_days);
-      if (ex.total_doses) totalDoses = String(ex.total_doses);
-      if (Array.isArray(ex.reminder_times) && (ex.reminder_times as string[]).length > 0)
-        reminderTimes = ex.reminder_times as string[];
-      else reminderTimes = [reminderTime];
+      extra = parsePetEventExtraData(ev.extra_data);
+      if (extra.treatment_days) treatmentDays = String(extra.treatment_days);
     } catch {}
-    if (nextDue) reminderDate = nextDue < localTodayISO() ? localTodayISO() : nextDue;
+    const frequencyForm = normalizeFrequencyForForm(rawFrequency, extra);
 
     setForm({
       title: ev.title || '',
       scheduled_date: (ev.scheduled_at || '').slice(0, 10) || localTodayISO(),
-      professional_name: ev.professional_name || '',
       dose,
       route,
-      frequency,
-      reminder_enabled: !!nextDue,
-      reminder_date: reminderDate,
-      reminder_times: reminderTimes,
+      ...frequencyForm,
       treatment_days: treatmentDays,
-      custom_interval_days: customIntervalDays,
-      total_doses: totalDoses,
-      cost: ev.cost != null ? String(ev.cost) : '',
       notes: cleanNotes,
       manufacturer: '',
       presentation: '',
@@ -287,6 +420,12 @@ export function MedicationItemSheet({
 
   async function handleSave() {
     if (!form.title.trim()) return;
+    const intervalMinutes =
+      (parseInt(form.interval_hours, 10) || 0) * 60 + (parseInt(form.interval_minutes, 10) || 0);
+    if (form.frequency === 'intervalo' && intervalMinutes <= 0) {
+      showToast('⚠️ Informe um intervalo maior que zero.');
+      return;
+    }
     setSaving(true);
     try {
       const token = getToken();
@@ -298,16 +437,10 @@ export function MedicationItemSheet({
       const medMeta = [
         form.dose ? `Dose: ${form.dose}` : '',
         form.route ? `Via: ${form.route}` : '',
-        form.frequency ? `Frequência: ${form.frequency.replace('_', ' ')}` : '',
-        form.manufacturer ? `Fabricante: ${form.manufacturer}` : '',
-        form.presentation ? `Apresentação: ${form.presentation}` : '',
-        form.concentration ? `Concentração: ${form.concentration}` : '',
+        `Frequência: ${buildFrequencyLabel(form)}`,
         form.barcode ? `Código de barras: ${form.barcode}` : '',
       ].filter(Boolean).join(' | ');
       const finalNotes = medMeta + (form.notes.trim() ? '\n' + form.notes.trim() : '');
-
-      const shouldKeepTreatmentActive =
-        form.reminder_enabled || Boolean(form.treatment_days) || Boolean(form.custom_interval_days);
 
       const payload: Record<string, unknown> = {
         pet_id: petId,
@@ -315,10 +448,8 @@ export function MedicationItemSheet({
         scheduled_at: new Date(form.scheduled_date + 'T00:00:00').toISOString(),
         title: form.title.trim(),
         source: 'manual',
-        status: shouldKeepTreatmentActive ? 'active' : 'completed',
+        status: 'active',
       };
-      if (form.professional_name.trim()) payload.professional_name = form.professional_name.trim();
-      if (form.cost) payload.cost = parseFloat(form.cost);
       if (finalNotes) payload.notes = finalNotes;
 
       {
@@ -331,57 +462,42 @@ export function MedicationItemSheet({
           }
         }
 
-        // A duração do tratamento (treatment_days pra frequência regular,
-        // custom_interval_days/total_doses pra "personalizado") nunca
-        // depende do toggle de lembrete — é isso que liga o calendário/
-        // contagem de doses (ver a lista "active" mais acima). Bug real
-        // corrigido aqui: antes isso só era gravado dentro do bloco de
-        // lembretes, então registrar uma medicação sem lembrete nunca
-        // salvava a duração, e o calendário nunca aparecia. Os campos do
-        // formulário (Duração do tratamento / Total de doses) já eram
-        // sempre visíveis — só a gravação estava presa ao toggle.
-        if (form.frequency === 'personalizado') {
-          delete extra.treatment_days;
-          if (form.custom_interval_days) extra.custom_interval_days = parseInt(form.custom_interval_days, 10);
-          else delete extra.custom_interval_days;
-          if (form.total_doses) extra.total_doses = parseInt(form.total_doses, 10);
-          else delete extra.total_doses;
+        const dailyTimes = form.frequency === 'vezes_dia'
+          ? getDailyDoseTimes(form.times_per_day, form.first_dose_time)
+          : [form.first_dose_time || '08:00'];
+
+        extra.frequency = buildFrequencyLabel(form);
+        extra.frequency_mode = form.frequency;
+        extra.first_dose_time = form.first_dose_time || '08:00';
+        extra.reminder_time = form.first_dose_time || '08:00';
+        extra.reminder_times = dailyTimes;
+
+        if (form.frequency === 'vezes_dia') {
+          extra.times_per_day = Math.max(1, Math.min(12, parseInt(form.times_per_day, 10) || 1));
+          delete extra.interval_minutes;
+        } else if (form.frequency === 'intervalo') {
+          extra.interval_minutes = intervalMinutes;
+          delete extra.times_per_day;
         } else {
-          delete extra.custom_interval_days;
-          delete extra.total_doses;
-          if (form.treatment_days) extra.treatment_days = parseInt(form.treatment_days);
-          else delete extra.treatment_days;
+          delete extra.times_per_day;
+          delete extra.interval_minutes;
         }
 
-        if (form.reminder_enabled) {
-          const normalizedTimes = form.reminder_times.filter(Boolean);
-          extra.frequency = form.frequency;
-          if (normalizedTimes.length > 0) {
-            extra.reminder_times = normalizedTimes;
-            extra.reminder_time = normalizedTimes[0];
-          } else {
-            extra.reminder_times = ['08:00'];
-            extra.reminder_time = '08:00';
-          }
-          if (form.frequency === 'personalizado' && form.custom_interval_days) {
-            const days = parseInt(form.custom_interval_days, 10);
-            payload.next_due_date = Number.isFinite(days) && days > 0
-              ? new Date(addDays(form.scheduled_date, days) + 'T00:00:00').toISOString()
-              : null;
-          } else {
-            payload.next_due_date = form.reminder_date
-              ? new Date(form.reminder_date + 'T00:00:00').toISOString()
-              : null;
-          }
+        delete extra.custom_interval_days;
+        if (form.frequency === 'dose_unica') {
+          extra.total_doses = 1;
+          delete extra.treatment_days;
+        } else if (form.treatment_days) {
+          extra.treatment_days = parseInt(form.treatment_days, 10);
+          delete extra.total_doses;
         } else {
-          // Ao desativar lembretes, limpar só o rastro de agendamento —
-          // treatment_days/custom_interval_days/total_doses/applied_dates/
-          // skipped_dates ficam intactos.
-          delete extra.reminder_time;
-          delete extra.reminder_times;
-          delete extra.frequency;
-          payload.next_due_date = null;
+          delete extra.treatment_days;
+          delete extra.total_doses;
         }
+
+        payload.next_due_date = form.frequency === 'conforme_necessidade'
+          ? null
+          : buildLocalDateTime(form.scheduled_date, form.first_dose_time || '08:00').toISOString();
 
         payload.extra_data = Object.keys(extra).length > 0 ? JSON.stringify(extra) : null;
       }
@@ -397,11 +513,8 @@ export function MedicationItemSheet({
 
       if (res.ok) {
         showToast(editingId ? '✅ Medicação atualizada' : '✅ Medicação registrada');
-        if (form.reminder_enabled && form.reminder_date && form.reminder_times.length > 0) {
+        if (form.frequency !== 'conforme_necessidade') {
           const title = `💊 ${form.title.trim()}`;
-          const times = form.reminder_times.filter(Boolean);
-          const totalDays = Math.min(parseInt(form.treatment_days) || 1, 365);
-          const todayStr = new Date().toISOString().slice(0, 10);
 
           try {
             // Limpar lembretes antigos desta medicação (caso de edição, inclusive se o título mudou)
@@ -416,24 +529,7 @@ export function MedicationItemSheet({
             );
             await Promise.all(stale.map(r => deleteReminder(r.id, token)));
 
-            // Coletar payloads: um por dia × por horário
-            const payloads: Parameters<typeof createReminder>[0][] = [];
-            if (form.frequency === 'personalizado' && form.custom_interval_days) {
-              const nextDate = addDays(form.scheduled_date, parseInt(form.custom_interval_days, 10));
-              if (nextDate >= todayStr) {
-                for (const time of times) {
-                  payloads.push({ pet_id: petId, type: 'medication', title, body: `Hora de dar ${form.title.trim()} para ${petName}. Toque para registrar a dose.`, remind_at: buildRemindAt(nextDate, time) });
-                }
-              }
-            } else {
-              for (let day = 0; day < totalDays; day++) {
-                const dateStr = addDays(form.reminder_date, day);
-                if (dateStr < todayStr) continue;
-                for (const time of times) {
-                  payloads.push({ pet_id: petId, type: 'medication', title, body: `Hora de dar ${form.title.trim()} para ${petName}. Toque para registrar a dose.`, remind_at: buildRemindAt(dateStr, time) });
-                }
-              }
-            }
+            const payloads = buildMedicationReminderPayloads(form, petId, title, petName);
 
             if (payloads.length > 0) {
               // Renovar subscription com a VAPID key atual (resolve VapidPkHashMismatch)
@@ -572,7 +668,6 @@ export function MedicationItemSheet({
     : medications.length > 0
       ? 'Sem tratamentos ativos'
       : 'Nenhuma medicação';
-  const nextActive = active[0] ?? null;
 
   return (
     <SheetShell open onClose={onClose} hideHandle z={SHEET_Z.top}>
@@ -988,83 +1083,49 @@ export function MedicationItemSheet({
               {showManualForm && (
               <>
               <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-3.5 space-y-3">
-              <div>
-                <label className={labelCls}>Nome do medicamento *</label>
-                <input
-                  type="text"
-                  className={inputCls}
-                  placeholder="Ex: Amoxicilina, Prednisolona..."
-                  value={form.title}
-                  onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="min-w-0">
-                  <label className={labelCls}>Fabricante</label>
-                  <input
-                    type="text"
-                    className={inputCls}
-                    placeholder="Ex: MSD"
-                    value={form.manufacturer}
-                    onChange={e => setForm(f => ({ ...f, manufacturer: e.target.value }))}
-                  />
-                </div>
                 <div>
-                  <label className={labelCls}>Apresentação</label>
+                  <label className={labelCls}>Nome do medicamento *</label>
                   <input
                     type="text"
                     className={inputCls}
-                    placeholder="Ex: caixa, frasco 30 ml"
-                    value={form.presentation}
-                    onChange={e => setForm(f => ({ ...f, presentation: e.target.value }))}
+                    placeholder="Ex: Amoxicilina, Prednisolona..."
+                    value={form.title}
+                    onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className={labelCls}>Concentração</label>
-                <input
-                  type="text"
-                  className={inputCls}
-                  placeholder="Ex: 50 mg/ml"
-                  value={form.concentration}
-                  onChange={e => setForm(f => ({ ...f, concentration: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <label className={labelCls}>Data de início *</label>
-                <input
-                  type="date"
-                  className={inputCls}
-                  value={form.scheduled_date}
-                  onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <label className={labelCls}>Veterinário prescritor (opcional)</label>
-                <input
-                  type="text"
-                  className={inputCls}
-                  placeholder="Dr. Nome"
-                  value={form.professional_name}
-                  onChange={e => setForm(f => ({ ...f, professional_name: e.target.value }))}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="min-w-0">
-                  <label className={labelCls}>Dose</label>
-                  <input
-                    type="text"
-                    className={inputCls}
-                    placeholder="Ex: 1 comprimido"
-                    value={form.dose}
-                    onChange={e => setForm(f => ({ ...f, dose: e.target.value }))}
-                  />
+                <div className="grid grid-cols-[1fr_116px] gap-3 items-start">
+                  <div className="min-w-0">
+                    <label className={labelCls}>Data de início *</label>
+                    <input
+                      type="date"
+                      className={inputCls}
+                      value={form.scheduled_date}
+                      onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <label className={labelCls}>1ª dose</label>
+                    <input
+                      type="time"
+                      className={`${inputCls} px-2 text-center`}
+                      value={form.first_dose_time}
+                      onChange={e => setForm(f => ({ ...f, first_dose_time: e.target.value }))}
+                    />
+                  </div>
                 </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="min-w-0">
+                    <label className={labelCls}>Dose</label>
+                    <input
+                      type="text"
+                      className={inputCls}
+                      placeholder="Ex: 1 comprimido"
+                      value={form.dose}
+                      onChange={e => setForm(f => ({ ...f, dose: e.target.value }))}
+                    />
+                  </div>
                 <div>
                   <label className={labelCls}>Via</label>
                   <select
@@ -1082,174 +1143,103 @@ export function MedicationItemSheet({
                 </div>
               </div>
 
-              <div>
-                <label className={labelCls}>Frequência</label>
-                <select
-                  className={inputCls}
-                  value={form.frequency}
-                  onChange={e => setForm(f => ({ ...f, frequency: e.target.value }))}
-                >
-                  <option value="dose_unica">💊 Dose única</option>
-                  <option value="1x_dia">1× ao dia</option>
-                  <option value="2x_dia">2× ao dia</option>
-                  <option value="3x_dia">3× ao dia</option>
-                  <option value="8h">A cada 8 horas</option>
-                  <option value="12h">A cada 12 horas</option>
-                  <option value="48h">A cada 48 horas</option>
-                  <option value="personalizado">Intervalo personalizado</option>
-                  <option value="semanal">Semanal</option>
-                  <option value="conforme_necessidade">Conforme necessidade (SOS)</option>
-                </select>
-              </div>
+                <div className="space-y-2">
+                  <label className={labelCls}>Frequência</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      ['vezes_dia', 'X vezes ao dia'],
+                      ['intervalo', 'A cada'],
+                      ['dose_unica', 'Dose única'],
+                      ['conforme_necessidade', 'SOS'],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, frequency: value }))}
+                        className={`min-h-[44px] rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all ${
+                          form.frequency === value
+                            ? 'border-purple-300 bg-purple-50 text-purple-900'
+                            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-              {form.frequency === 'personalizado' && (
-                <div className="grid grid-cols-2 gap-3 px-4 py-3 bg-purple-50 rounded-2xl border border-purple-200">
-                  <div className="min-w-0">
-                    <label className={labelCls}>Próxima dose em</label>
-                    <div className="flex items-center gap-2">
+                {form.frequency === 'vezes_dia' && (
+                  <div className="grid grid-cols-[1fr_116px] gap-3 rounded-2xl border border-purple-200 bg-purple-50 p-3">
+                    <div className="min-w-0">
+                      <label className={labelCls}>Vezes ao dia</label>
                       <input
                         type="number"
                         min="1"
-                        max="365"
-                        placeholder="15"
+                        max="12"
+                        placeholder="2"
                         className="w-full border border-purple-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
-                        value={form.custom_interval_days}
-                        onChange={e => {
-                          const value = e.target.value;
-                          const days = parseInt(value, 10);
-                          setForm(f => ({
-                            ...f,
-                            custom_interval_days: value,
-                            reminder_date: Number.isFinite(days) && days > 0 ? addDays(f.scheduled_date, days) : f.reminder_date,
-                          }));
-                        }}
+                        value={form.times_per_day}
+                        onChange={e => setForm(f => ({ ...f, times_per_day: e.target.value }))}
                       />
-                      <span className="text-xs text-gray-500 whitespace-nowrap">dias</span>
+                    </div>
+                    <div className="min-w-0">
+                      <label className={labelCls}>Próximos</label>
+                      <div className="min-h-[46px] rounded-xl border border-purple-200 bg-white px-3 py-2 text-[12px] font-semibold text-purple-900">
+                        {getDailyDoseTimes(form.times_per_day, form.first_dose_time).slice(0, 4).join(' · ')}
+                      </div>
                     </div>
                   </div>
-                  <div className="min-w-0">
-                    <label className={labelCls}>Total de doses</label>
+                )}
+
+                {form.frequency === 'intervalo' && (
+                  <div className="grid grid-cols-2 gap-3 rounded-2xl border border-purple-200 bg-purple-50 p-3">
+                    <div className="min-w-0">
+                      <label className={labelCls}>Horas</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min="0"
+                        max="168"
+                        placeholder="8"
+                        className="w-full border border-purple-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+                        value={form.interval_hours}
+                        onChange={e => setForm(f => ({ ...f, interval_hours: e.target.value }))}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label className={labelCls}>Minutos</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min="0"
+                        max="59"
+                        placeholder="0"
+                        className="w-full border border-purple-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+                        value={form.interval_minutes}
+                        onChange={e => setForm(f => ({ ...f, interval_minutes: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {form.frequency !== 'dose_unica' && form.frequency !== 'conforme_necessidade' && (
+                  <div>
+                    <label className={labelCls}>Duração do tratamento (dias)</label>
                     <input
                       type="number"
                       min="1"
-                      max="30"
-                      placeholder="2"
-                      className="w-full border border-purple-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
-                      value={form.total_doses}
-                      onChange={e => setForm(f => ({ ...f, total_doses: e.target.value }))}
+                      max="365"
+                      placeholder="Em branco = contínuo"
+                      className={inputCls}
+                      value={form.treatment_days}
+                      onChange={e => setForm(f => ({ ...f, treatment_days: e.target.value }))}
                     />
                   </div>
+                )}
+
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[12px] font-semibold text-emerald-800">
+                  🔔 Lembretes serão criados automaticamente.
                 </div>
-              )}
-
-              {/* Lembretes toggle */}
-              <div className="flex items-center justify-between gap-3 p-3 bg-amber-50 rounded-2xl border border-amber-200">
-                <span className="text-sm font-semibold text-amber-800">🔔 Quero lembretes desta medicação</span>
-                <IosSwitch
-                  checked={form.reminder_enabled}
-                  onChange={() => setForm(f => ({
-                    ...f,
-                    reminder_enabled: !f.reminder_enabled,
-                    reminder_date: !f.reminder_enabled ? (f.reminder_date || f.scheduled_date) : '',
-                  }))}
-                  size="sm"
-                />
-              </div>
-
-              {form.reminder_enabled && (
-                <div className="space-y-3 px-4 py-3 bg-amber-50 rounded-2xl border border-amber-200">
-                  <div>
-                    <label className={labelCls}>📅 Data do 1º lembrete</label>
-                    <input
-                      type="date"
-                      className="w-full border border-amber-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                      value={form.reminder_date}
-                      onChange={e => setForm(f => ({ ...f, reminder_date: e.target.value }))}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelCls}>⏰ Horários dos lembretes</label>
-                    <div className="space-y-2">
-                      {form.reminder_times.map((time, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <input
-                            type="time"
-                            value={time}
-                            onChange={e => {
-                              const updated = [...form.reminder_times];
-                              updated[idx] = e.target.value;
-                              setForm(f => ({ ...f, reminder_times: updated }));
-                            }}
-                            className="flex-1 border border-amber-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                          />
-                          {form.reminder_times.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => setForm(f => ({ ...f, reminder_times: f.reminder_times.filter((_, i) => i !== idx) }))}
-                              className="w-9 h-9 rounded-full bg-red-100 text-red-500 flex items-center justify-center text-sm hover:bg-red-200 flex-shrink-0"
-                            >✕</button>
-                          )}
-                        </div>
-                      ))}
-                      {form.reminder_times.length < 6 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const last = form.reminder_times[form.reminder_times.length - 1] || '08:00';
-                            const [h, m] = last.split(':').map(Number);
-                            const nextH = (h + 8) % 24;
-                            setForm(f => ({ ...f, reminder_times: [...f.reminder_times, `${String(nextH).padStart(2, '0')}:${String(m).padStart(2, '0')}`] }));
-                          }}
-                          className="w-full py-2.5 border border-dashed border-amber-300 rounded-xl text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
-                        >
-                          + Adicionar horário
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Duração do tratamento — sempre visível, independente do
-                  toggle de lembretes: é isto que preenche extra_data.
-                  treatment_days e liga o calendário de doses do tratamento
-                  (ver a lista "active" e a grade de dias mais acima). Antes
-                  ficava dentro do bloco de lembretes, então um tutor que só
-                  queria registrar a medicação sem lembrete nunca via este
-                  campo, nunca preenchia treatment_days, e o calendário nunca
-                  aparecia pra esse tratamento. Frequência "personalizado" já
-                  tem seu próprio par de campos (Total de doses/Próxima dose
-                  em) mais acima, que já era incondicional — só este aqui
-                  estava preso ao toggle. */}
-              {form.frequency !== 'personalizado' && (
-                <div>
-                  <label className={labelCls}>📆 Duração do tratamento (dias)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="365"
-                    placeholder="Ex: 7"
-                    className={inputCls}
-                    value={form.treatment_days}
-                    onChange={e => setForm(f => ({ ...f, treatment_days: e.target.value }))}
-                  />
-                  <p className="text-xs text-gray-400 mt-1">Assim você acompanha cada dose num calendário do tratamento.</p>
-                </div>
-              )}
-
-              <div>
-                <label className={labelCls}>Custo R$ (opcional)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0,00"
-                  className={inputCls}
-                  value={form.cost}
-                  onChange={e => setForm(f => ({ ...f, cost: e.target.value }))}
-                />
-              </div>
               </div>
               </>
               )}

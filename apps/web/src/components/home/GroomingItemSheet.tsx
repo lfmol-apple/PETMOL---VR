@@ -703,24 +703,25 @@ export function GroomingItemSheet({
               <h3 className="text-[17px] font-bold text-[#1C1C1E]">Editar registro</h3>
 
               <div className={`rounded-2xl border ${theme.accentBorder} ${theme.accentBg}/40 p-3.5 space-y-3`}>
-                <div className="flex items-start gap-2.5">
-                  <div className="min-w-0 flex-1">
+                {/* O date input nativo do iOS ignora flex/min-w-0; grid impede sobreposição. */}
+                <div className="grid grid-cols-[1fr_92px] gap-3 items-start">
+                  <div className="min-w-0">
                     <label className={labelCls}>Data *</label>
                     <input
                       type="date"
-                      className={inputCls}
+                      className={`${inputCls} w-full`}
                       value={editForm.date}
                       onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
                     />
                   </div>
-                  <div className="w-[120px] flex-shrink-0">
+                  <div className="min-w-0">
                     <label className={`${labelCls} whitespace-nowrap`}>A cada (dias)</label>
                     <input
                       type="number"
                       inputMode="numeric"
                       min="1"
                       max="365"
-                      className={`${inputCls} text-center`}
+                      className={`${inputCls} w-full text-center`}
                       value={editForm.frequency_days}
                       onChange={e => setEditForm(f => ({ ...f, frequency_days: e.target.value }))}
                     />

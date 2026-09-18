@@ -28,9 +28,8 @@ interface HomeInteractionCenterResult {
     food: CardTone;
   };
   // Which pets across the whole household need attention on the basic-care
-  // minimum (vacina/vermífugo/antipulgas/ração — the items that apply to
-  // every pet regardless of health condition; medication/coleira/grooming
-  // excluded on purpose). Distinct from topAttentionPetCount (which covers
+  // minimum (vermífugo/antipulgas/ração/medicação vencidos de verdade;
+  // vacina/coleira/grooming excluded on purpose). Distinct from topAttentionPetCount (which covers
   // a broader interaction set) and from selectedPetCard* (which is scoped
   // to only the currently-selected pet) — this one is cross-pet, for the
   // badge below the pet photo on Home. Returns pet_ids (not just a count)
