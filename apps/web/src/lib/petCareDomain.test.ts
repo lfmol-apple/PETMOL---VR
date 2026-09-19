@@ -47,9 +47,13 @@ describe('buildPetCareReminders — gtin em lembretes de medicação', () => {
   });
 
   it('extrai o gtin no caminho de tratamento diário (treatment_days)', () => {
+    // Datas relativas a hoje: com data fixa o tratamento "vencia" com o tempo
+    // e passava a ser considerado concluído (ver lib/medicationTreatment.ts).
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const ev = medicationEvent({
-      scheduled_at: '2026-08-20T00:00:00Z',
-      next_due_date: '2026-08-25T00:00:00Z',
+      scheduled_at: `${today}T00:00:00Z`,
+      next_due_date: `${today}T00:00:00Z`,
       extra_data: JSON.stringify({ treatment_days: 10, applied_dates: [] }),
     });
     const reminders = buildPetCareReminders(baseParams([ev]));
