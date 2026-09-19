@@ -23,6 +23,8 @@ from ..user_auth.models import User
 from ..user_auth.security import hash_password
 from ..user_auth.router import COOKIE_NAME
 from ..pets.models import Pet
+from ..events.models import Event
+from ..events.schemas import EventOut
 from .deps import get_current_admin, get_current_admin_or_readonly_key
 from .models import AdminUser
 from .schemas import (
@@ -744,3 +746,29 @@ def admin_delete_pet(
     db.commit()
 
     return DeletedOut(success=True, message=f"Pet {pet.name} excluído com sucesso")
+
+
+# === EVENT RECOVERY ===
+# Eventos (vacina, medicação, alimentação etc.) usam soft-delete
+# (Event.deleted_at) desde sempre — a linha nunca some do banco, só some das
+# consultas do tutor. Faltava o outro lado desse desenho: um jeito de
+# desfazer uma exclusão sem acesso direto ao banco. 19/09/2026, pedido do
+# dono: restaurar uma medicação apagada por engano.
+@router.post("/events/{event_id}/restore", response_model=EventOut)
+def admin_restore_event(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current=Depends(get_current_admin),
+):
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento não encontrado")
+    if event.deleted_at is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Evento não está excluído")
+
+    event.deleted_at = None
+    event.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(event)
+
+    return event
