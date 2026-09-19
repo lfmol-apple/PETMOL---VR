@@ -435,12 +435,6 @@ export async function fetchCommerceOffersWithStatus(
       ? data.offers
           .map((offer) => ({ ...offer, url: normalizeOfferUrl(offer.url) }))
           .filter((offer) => offer.is_available !== false && Boolean(offer.url))
-          // Shopee em remoção total (06/09/2026 — ver
-          // project_remover_shopee / docs/AFFILIATES.md). Enquanto os
-          // providers de backend não saem, este filtro garante que
-          // nenhuma oferta Shopee chegue aos preços por produto. Só o
-          // card estático do rodapé (resolvePartnerUrl/shortlink) fica.
-          .filter((offer) => offer.merchant !== 'shopee')
       : [];
     const result: CommerceOffersResult = {
       offers,

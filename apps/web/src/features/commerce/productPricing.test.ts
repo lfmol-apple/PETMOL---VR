@@ -106,12 +106,12 @@ describe('preferCobasiOffer — Cobasi primeiro nos cards da Loja do Pet (produt
   });
 });
 
-describe('fetchCommerceOffers — Shopee só vitrine (05/09/2026)', () => {
+describe('fetchCommerceOffers — Shopee por produto monetizada', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('descarta ofertas da Shopee; mantém as demais lojas', async () => {
+  it('mantém ofertas da Shopee quando o backend devolve link monetizado', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -124,16 +124,17 @@ describe('fetchCommerceOffers — Shopee só vitrine (05/09/2026)', () => {
     }));
 
     const result = await fetchCommerceOffers('racao', undefined, '7890000000001');
-    expect(result.map((o) => o.merchant)).toEqual(['cobasi', 'mercadolivre']);
-    expect(result.some((o) => o.merchant === 'shopee')).toBe(false);
+    expect(result.map((o) => o.merchant)).toEqual(['cobasi', 'shopee', 'mercadolivre']);
   });
 
-  it('só Shopee no backend → nenhuma oferta por produto', async () => {
+  it('só Shopee no backend → oferta por produto aparece', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ offers: [{ merchant: 'shopee', url: 'https://s.shopee.com.br/x', price: 50, is_available: true }] }),
     }));
-    expect(await fetchCommerceOffers('racao')).toEqual([]);
+    expect(await fetchCommerceOffers('racao')).toEqual([
+      { merchant: 'shopee', url: 'https://s.shopee.com.br/x', price: 50, is_available: true },
+    ]);
   });
 
   // query.trim() rodava FORA do try/catch — se query chegasse undefined/null
