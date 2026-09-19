@@ -808,14 +808,29 @@ export function MedicationItemSheet({
                     const startDateStr = (ev.scheduled_at || todayStr).split('T')[0];
                     const startDate = createLocalDate(startDateStr);
 
-                    // totalDoses/intervalDays cobre os dois modos de tratamento
+                    // totalDays/intervalDays cobre os dois modos de tratamento
                     // com o mesmo grid: frequência regular (treatment_days —
-                    // uma dose por dia, intervalo 1) e "intervalo
+                    // um DIA por célula, intervalo 1) e "intervalo
                     // personalizado" (total_doses doses espaçadas por
-                    // custom_interval_days). Mesmo comportamento pros dois —
-                    // nunca dependia do modo, só faltava generalizar aqui.
-                    let totalDoses = 0;
+                    // custom_interval_days, 1 dose por célula). O
+                    // backend (POST .../apply-dose) dedup por DATA — só dá
+                    // pra marcar um "aconteceu hoje" por dia, nunca uma
+                    // dose específica dentro do dia — então a grade sempre
+                    // foi e continua sendo 1 célula = 1 dia, nunca 1 célula
+                    // = 1 dose.
+                    //
+                    // Bug real (18/09/2026, "o calendário não dialoga com a
+                    // frequência"): pra frequências com MAIS de uma dose por
+                    // dia (ex.: "a cada 8 horas" = 3x/dia, ou "X vezes ao
+                    // dia" com X>1), o texto chamava o número de DIAS de
+                    // "doses" (ex.: tratamento de 10 dias a cada 8h virava
+                    // "10 doses", quando na real são 30). dosesPerDay separa
+                    // as duas contagens: a grade continua com 1 célula/dia,
+                    // mas o texto agora mostra dias E doses/dia quando são
+                    // números diferentes.
+                    let totalDays = 0;
                     let intervalDays = 1;
+                    let dosesPerDay = 1;
                     let appliedDates: string[] = [];
                     let skippedDates: string[] = [];
                     try {
@@ -824,20 +839,28 @@ export function MedicationItemSheet({
                       const customDoses = parseInt(String(ex.total_doses), 10) || 0;
                       const customInterval = parseInt(String(ex.custom_interval_days), 10) || 0;
                       if (treatmentDays > 0) {
-                        totalDoses = treatmentDays;
+                        totalDays = treatmentDays;
                         intervalDays = 1;
+                        const freqMode = String(ex.frequency_mode || '');
+                        if (freqMode === 'vezes_dia') {
+                          dosesPerDay = Math.max(1, parseInt(String(ex.times_per_day), 10) || 1);
+                        } else if (freqMode === 'intervalo') {
+                          const intervalMinutes = parseInt(String(ex.interval_minutes), 10) || 0;
+                          if (intervalMinutes > 0) dosesPerDay = Math.max(1, Math.round(1440 / intervalMinutes));
+                        }
                       } else if (customDoses > 0) {
-                        totalDoses = customDoses;
+                        totalDays = customDoses;
                         intervalDays = customInterval > 0 ? customInterval : 1;
                       }
                       appliedDates = Array.isArray(ex.applied_dates) ? ex.applied_dates as string[] : [];
                       skippedDates = Array.isArray(ex.skipped_dates) ? ex.skipped_dates as string[] : [];
                     } catch {}
 
-                    if (!totalDoses) return null;
+                    if (!totalDays) return null;
+                    const totalDoses = totalDays * dosesPerDay;
 
                     const allDayDates: string[] = [];
-                    for (let i = 0; i < totalDoses; i++) {
+                    for (let i = 0; i < totalDays; i++) {
                       const d = new Date(startDate);
                       d.setDate(d.getDate() + i * intervalDays);
                       allDayDates.push(dateToLocalISO(d));
@@ -873,9 +896,16 @@ export function MedicationItemSheet({
                       ? monthGroups.filter(g => g.key === collapsedMonthKey)
                       : monthGroups;
 
-                    const pct = Math.min(100, Math.round(appliedDates.length / totalDoses * 100));
-                    const daysLeft = totalDoses - appliedDates.length;
+                    // Progresso é sempre em DIAS (o que o backend de fato
+                    // rastreia) — "doses" só aparece como informação extra
+                    // quando dosesPerDay > 1, nunca substitui a contagem real
+                    // de dias marcados.
+                    const pct = Math.min(100, Math.round(appliedDates.length / totalDays * 100));
+                    const daysLeft = totalDays - appliedDates.length;
                     const isBusy = saving && applyingId === ev.id;
+                    const progressLabel = dosesPerDay > 1
+                      ? `${appliedDates.length}/${totalDays} dias · ${dosesPerDay}× ao dia · ${totalDoses} doses`
+                      : `${appliedDates.length}/${totalDays} doses`;
 
                     return (
                       <div key={ev.id} className="rounded-2xl border border-purple-200 bg-white shadow-sm">
@@ -885,7 +915,7 @@ export function MedicationItemSheet({
                             <div className="flex-1 min-w-0">
                               <p className="text-[13px] font-bold text-gray-900 leading-tight">{ev.title}</p>
                               <p className="text-[10px] text-gray-400 mt-0.5">
-                                {appliedDates.length}/{totalDoses} doses · {fmtDate(startDateStr)}
+                                {progressLabel} · {fmtDate(startDateStr)}
                                 {ev.professional_name ? ` · ${ev.professional_name}` : ''}
                               </p>
                             </div>
@@ -911,7 +941,7 @@ export function MedicationItemSheet({
                             <div className="h-1 bg-purple-100 rounded-full overflow-hidden">
                               <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                             </div>
-                            <p className="text-[10px] text-gray-400 mt-0.5">{pct}% · {appliedDates.length} de {totalDoses} doses</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">{pct}% · {appliedDates.length} de {totalDays} dia{totalDays === 1 ? '' : 's'}{dosesPerDay > 1 ? ` (${dosesPerDay}× ao dia)` : ''}</p>
                           </div>
                         </div>
 
@@ -1166,36 +1196,35 @@ export function MedicationItemSheet({
                   />
                 </div>
 
-                {/* 1ª dose (hora) + Via (select) — os dois compactos, sem
-                    risco do date-input. Dose ganhou linha própria (pedido do
-                    dono, 18/09/2026: "os campos de dose ficaram encavalados,
-                    ganha espaço") — é texto livre, pode ser longo demais
-                    (ex: "2 comprimidos e meio de 500mg") pra caber em 50%. */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="min-w-0">
-                    <label className={labelCls}>1ª dose</label>
-                    <input
-                      type="time"
-                      className={`${inputCls} px-2 text-center`}
-                      value={form.first_dose_time}
-                      onChange={e => setForm(f => ({ ...f, first_dose_time: e.target.value }))}
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <label className={labelCls}>Via</label>
-                    <select
-                      className={`${inputCls} px-2`}
-                      value={form.route}
-                      onChange={e => setForm(f => ({ ...f, route: e.target.value }))}
-                    >
-                      <option value="oral">💊 Oral</option>
-                      <option value="injetavel">💉 Injetável</option>
-                      <option value="topico">🖐 Tópico</option>
-                      <option value="oftalmico">👁️ Oftálmico</option>
-                      <option value="auricular">👂 Auricular</option>
-                      <option value="inalatorio">💨 Inalatório</option>
-                    </select>
-                  </div>
+                {/* 1ª dose, Via e Dose cada um na própria linha (pedido do
+                    dono, 18/09/2026: mesmo 1ª dose+Via emparelhados ficaram
+                    "encavalados" no aparelho real — depois de duas rodadas
+                    de queixa de campo apertado, para de arriscar pareamento
+                    nesta seção e dá largura total pra cada um). */}
+                <div>
+                  <label className={labelCls}>1ª dose</label>
+                  <input
+                    type="time"
+                    className={`${inputCls} px-2`}
+                    value={form.first_dose_time}
+                    onChange={e => setForm(f => ({ ...f, first_dose_time: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelCls}>Via</label>
+                  <select
+                    className={`${inputCls} px-2`}
+                    value={form.route}
+                    onChange={e => setForm(f => ({ ...f, route: e.target.value }))}
+                  >
+                    <option value="oral">💊 Oral</option>
+                    <option value="injetavel">💉 Injetável</option>
+                    <option value="topico">🖐 Tópico</option>
+                    <option value="oftalmico">👁️ Oftálmico</option>
+                    <option value="auricular">👂 Auricular</option>
+                    <option value="inalatorio">💨 Inalatório</option>
+                  </select>
                 </div>
 
                 <div>
