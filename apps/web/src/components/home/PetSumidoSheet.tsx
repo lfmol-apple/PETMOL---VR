@@ -12,6 +12,9 @@ interface PetSumidoSheetProps {
   pet: PetHealthProfile;
   petPhotoUrl?: string | null;
   onClose: () => void;
+  /** Chamado assim que o alerta é criado/atualizado no servidor — a Home
+   *  atualiza o banner na hora, sem esperar o polling. */
+  onAlertSaved?: () => void;
   onGoHome?: () => void;
   // Modo edição: alerta já existe, preenche os campos e chama PATCH
   editAlertId?: string;
@@ -141,7 +144,7 @@ export function isValidBRPhone(value: string): boolean {
 }
 
 export function PetSumidoSheet({
-  pet, petPhotoUrl, onClose,
+  pet, petPhotoUrl, onClose, onAlertSaved,
   editAlertId, initialContact = '', initialLocation = '',
   initialCharacteristics = '', initialMissingDate, initialMissingTime,
   nearbyContent, nearbyCount = 0, initialSection,
@@ -321,7 +324,7 @@ export function PetSumidoSheet({
             radius_km: liveRadius.km,
           }),
         });
-        if (patchRes.ok) setAlertSent(true);
+        if (patchRes.ok) { setAlertSent(true); onAlertSaved?.(); }
       } else {
         const checkRes = await fetch('/api/missing-pets', {
           method: 'POST',
@@ -349,13 +352,13 @@ export function PetSumidoSheet({
           submitInFlightRef.current = false; // deixa o dono corrigir e tentar de novo
           return;
         }
-        if (checkRes.ok) setAlertSent(true);
+        if (checkRes.ok) { setAlertSent(true); onAlertSaved?.(); }
       }
     } catch {
       // Falha de rede: libera a trava para permitir nova tentativa manual.
       submitInFlightRef.current = false;
     }
-  }, [pet, petPhotoUrl, photoPreview, contact, lastSeenLocation, characteristics, missingDate, missingTime, liveRadius, isEditMode, editAlertId]);
+  }, [onAlertSaved, pet, petPhotoUrl, photoPreview, contact, lastSeenLocation, characteristics, missingDate, missingTime, liveRadius, isEditMode, editAlertId]);
 
   const generateCard = useCallback(async () => {
     const canvas = canvasRef.current;

@@ -1,5 +1,6 @@
 'use client';
 
+import { invalidateMe } from '@/lib/fetchMe';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 
@@ -20,5 +21,6 @@ export async function requestLocationAndPersist(): Promise<void> {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
     }).catch(() => {});
+    invalidateMe();
   } catch { /* usuário negou ou timeout */ }
 }

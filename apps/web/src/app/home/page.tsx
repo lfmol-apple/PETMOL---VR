@@ -971,15 +971,24 @@ function HomePageInner() {
     if (!token) return;
     foundInFlight.current.add(missingPetId);
     setConfirmFoundFor(null);
+    // Atualização OTIMISTA: o alerta some da tela no toque, sem esperar o
+    // PATCH nem o próximo polling de 15s (antes o banner vermelho só virava
+    // "verde" depois de sair e entrar no app).
+    setOwnMissingAlerts((prev) => prev.filter((a) => a.id !== missingPetId));
+    setNearbyAlerts((prev) => prev.filter((a) => a.id !== missingPetId));
     try {
-      await fetch(`${API_BASE_URL}/missing-pets/${missingPetId}/found`, {
+      const res = await fetch(`${API_BASE_URL}/missing-pets/${missingPetId}/found`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) foundInFlight.current.delete(missingPetId);
     } catch {
       foundInFlight.current.delete(missingPetId); // deixa tentar de novo
     }
-  }, []);
+    // Reconcilia com o servidor (cobre falha do PATCH: o alerta volta).
+    void fetchOwnMissingAlerts();
+    void fetchNearbyAlerts();
+  }, [fetchOwnMissingAlerts, fetchNearbyAlerts]);
   const fetchFoundReports = useCallback(async () => {
     try {
       const token = getToken();
@@ -1274,7 +1283,11 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     } else {
       setCaretakers([]);
     }
-  }, [currentPet, loggedUserId, fetchCaretakers]);
+  // Depende do ID/dono do pet, não do objeto inteiro: `currentPet` troca de
+  // identidade a cada refresh de dados (vacina, ração...) e refazia a busca
+  // de cuidadores 4× por carregamento da Home.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPet?.pet_id, currentPet?.owner_user_id, loggedUserId, fetchCaretakers]);
 
   const currentPetIndex = useMemo(() => {
     if (pets.length === 0) return -1;
@@ -2852,8 +2865,9 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         <PetSumidoSheet
           pet={currentPet}
           petPhotoUrl={currentPet.photo ? getPhotoUrl(currentPet.photo) : null}
-          onClose={() => { setShowPetSumidoSheet(false); setPetSumidoInitialTab(undefined); }}
-          onGoHome={() => goHome(() => { setShowPetSumidoSheet(false); setPetSumidoInitialTab(undefined); })}
+          onClose={() => { setShowPetSumidoSheet(false); setPetSumidoInitialTab(undefined); void fetchOwnMissingAlerts(); }}
+          onGoHome={() => goHome(() => { setShowPetSumidoSheet(false); setPetSumidoInitialTab(undefined); void fetchOwnMissingAlerts(); })}
+          onAlertSaved={() => { void fetchOwnMissingAlerts(); }}
           nearbyContent={regionalMissingPetsBanner}
           nearbyCount={nearbyMissingCount}
           initialSection={petSumidoInitialTab}
@@ -2874,6 +2888,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
             initialCharacteristics={alert.characteristics ?? ''}
             initialMissingDate={alert.missing_date ?? undefined}
             initialMissingTime={alert.missing_time ?? undefined}
+            onAlertSaved={() => { void fetchOwnMissingAlerts(); }}
             onClose={() => { setEditingAlertId(null); fetchOwnMissingAlerts(); }}
             onGoHome={() => goHome(() => { setEditingAlertId(null); fetchOwnMissingAlerts(); })}
           />
