@@ -1,15 +1,40 @@
 package br.com.petmol.app;
 
 import android.app.Application;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.os.Build;
 import android.util.Log;
 
 public class PetmolApplication extends Application {
 
     private static final String TAG = "PetmolApplication";
 
+    // Mesmo id referenciado em AndroidManifest.xml
+    // (com.google.firebase.messaging.default_notification_channel_id) — sem
+    // o canal existir de fato (Android 8+ exige criação explícita), o FCM
+    // cai no canal genérico "Miscellaneous" do sistema, e o tutor não
+    // consegue silenciar/configurar os avisos do PETMOL separadamente dos
+    // de outros apps. Achado na auditoria física de 19/09/2026 (logcat:
+    // "Missing Default Notification Channel metadata in AndroidManifest").
+    public static final String DEFAULT_NOTIFICATION_CHANNEL_ID = "petmol_default";
+
     @Override
     public void onCreate() {
         super.onCreate();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                DEFAULT_NOTIFICATION_CHANNEL_ID,
+                "PETMOL",
+                NotificationManager.IMPORTANCE_HIGH
+            );
+            channel.setDescription("Lembretes de cuidado e alertas de Pet Sumido");
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+        }
 
         // google-services.json não é versionado (como o keystore) e builds locais/CI podem
         // não ter Firebase configurado. Nesse caso, FirebaseApp nunca inicializa, e a chamada

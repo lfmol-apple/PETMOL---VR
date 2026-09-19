@@ -31,6 +31,16 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Sem isso, o FCM usa o canal genérico "Miscellaneous" do sistema
+             em vez de um canal "PETMOL" próprio (o tutor não consegue achar
+             o app pra silenciar/configurar os avisos separadamente). O
+             canal em si é criado em runtime (ver
+             PetmolApplication.DEFAULT_NOTIFICATION_CHANNEL_ID); isto só diz
+             ao FCM qual id usar quando a mensagem não especifica um. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="petmol_default" />
     </application>
 
     <!-- Permissions -->
