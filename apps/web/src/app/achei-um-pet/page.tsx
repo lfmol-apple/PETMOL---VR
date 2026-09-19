@@ -83,6 +83,8 @@ function timeAgo(iso: string): string {
   return `há ${d} dias`;
 }
 
+const MAX_PROOF_VIDEO_BYTES = 12 * 1024 * 1024;
+
 export default function AcheiUmPetPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#0E0C0B]" />}>
@@ -131,6 +133,7 @@ function AcheiUmPetInner() {
   const [preLoading, setPreLoading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const videoErrorRef = useRef<HTMLParagraphElement>(null);
   const matchInputRef = useRef<HTMLInputElement>(null);
   const matchCameraInputRef = useRef<HTMLInputElement>(null);
   const [matchPhotos, setMatchPhotos] = useState<string[]>([]);
@@ -318,9 +321,14 @@ function AcheiUmPetInner() {
   const handleVideoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 8 * 1024 * 1024) {
-      setReportMediaError('Envie um vídeo curto, de até 8 MB. No iPhone, grave poucos segundos.');
+    // Limite alinhado ao servidor (nginx 20 MB no corpo JSON; vídeo vai em
+    // base64, +33%). Antes era 8 MB: uma gravação normal de celular (~1–2
+    // MB por segundo) estourava em ~5 s, o vídeo era descartado e só
+    // aparecia um aviso vermelho de 11px — parecia que "usar" não fazia nada.
+    if (file.size > MAX_PROOF_VIDEO_BYTES) {
+      setReportMediaError('Esse vídeo ficou grande demais. Grave de novo com 5 a 8 segundos e toque em "Usar vídeo".');
       e.target.value = '';
+      requestAnimationFrame(() => videoErrorRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
       return;
     }
     // createObjectURL em vez de base64 pro preview: o <video> decodifica um
@@ -865,7 +873,7 @@ function AcheiUmPetInner() {
                     Prova obrigatória PETMOL Protege
                   </label>
                   <p className="mt-1 text-[12px] leading-snug text-amber-900/80">
-                    Grave até 10 segundos mostrando o pet. Não precisa falar nada durante a gravação.
+                    Grave de 5 a 8 segundos mostrando o pet. Não precisa falar nada durante a gravação.
                     {proofChallengeLoading
                       ? ' Gerando desafio seguro...'
                       : proofChallenge
@@ -902,7 +910,11 @@ function AcheiUmPetInner() {
                       {proofChallenge ? 'Gravar vídeo do pet' : 'Aguardando desafio...'}
                     </button>
                   )}
-                  {reportMediaError && <p className="mt-2 text-[11px] font-bold text-red-600">{reportMediaError}</p>}
+                  {reportMediaError && (
+                    <p ref={videoErrorRef} role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-[13px] font-bold leading-snug text-red-700">
+                      {reportMediaError}
+                    </p>
+                  )}
                 </div>
               )}
 

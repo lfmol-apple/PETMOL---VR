@@ -31,10 +31,8 @@ export async function generateMetadata(
   const title = `${pet.owner_name} te convidou para cuidar de ${pet.pet_name} 🐾`;
   const description = `Clique para confirmar que você vai cuidar de ${pet.pet_name} e receber alertas se ele sumir.`;
 
-  // Preview do link: card de marca 1200×630 (sempre proporção certa no
-  // WhatsApp). Não usamos a foto do pet crua como og:image porque ela tem
-  // proporção qualquer e o WhatsApp esticava/cortava de forma feia.
-  const shareImage = { url: '/og-image.png', width: 1200, height: 630, alt: 'PETMOL' };
+  // og:image vem de ./opengraph-image.tsx (cartão de convite dinâmico com a
+  // foto do pet, todo dentro da faixa central segura pro recorte quadrado).
 
   return {
     title,
@@ -42,14 +40,12 @@ export async function generateMetadata(
     openGraph: {
       title,
       description,
-      images: [shareImage],
       type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      images: [shareImage.url],
     },
   };
 }
