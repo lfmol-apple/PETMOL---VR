@@ -2124,8 +2124,8 @@ export function ProductDetectionSheetGold({
             </div>
           ) : (
             <div className="mb-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-              <p className="text-sm font-semibold text-white">Scanner rápido ativado</p>
-              <p className="mt-1 text-xs text-white/70">Procurando código... leitura contínua com ZXing e debounce curto.</p>
+              <p className="text-sm font-semibold text-white">Procurando o código…</p>
+              <p className="mt-1 text-xs text-white/70">Deixe o código de barras da embalagem dentro do quadro. Se não ler, use “Buscar pelo nome”.</p>
             </div>
           )}
 
