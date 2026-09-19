@@ -634,7 +634,7 @@ export function MedicationItemSheet({
     }
   }
 
-  async function handleApplyDose(evId: string, action: 'apply' | 'skip' | 'unskip' | 'remove', date: string) {
+  async function handleApplyDose(evId: string, action: 'apply' | 'skip' | 'unskip' | 'remove', date: string, slot?: string) {
     const token = getToken();
     if (!token) {
       showToast('⚠️ Sessão expirada. Faça login novamente.');
@@ -654,7 +654,7 @@ export function MedicationItemSheet({
       const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ date }),
+        body: JSON.stringify(slot ? { date, scheduled_time: slot } : { date }),
       });
       if (res.ok) {
         showToast(
@@ -812,32 +812,32 @@ export function MedicationItemSheet({
                     // com o mesmo grid: frequência regular (treatment_days —
                     // um DIA por célula, intervalo 1) e "intervalo
                     // personalizado" (total_doses doses espaçadas por
-                    // custom_interval_days, 1 dose por célula). O
-                    // backend (POST .../apply-dose) dedup por DATA — só dá
-                    // pra marcar um "aconteceu hoje" por dia, nunca uma
-                    // dose específica dentro do dia — então a grade sempre
-                    // foi e continua sendo 1 célula = 1 dia, nunca 1 célula
-                    // = 1 dose.
+                    // custom_interval_days, 1 dose por célula).
                     //
                     // Bug real (18/09/2026, "o calendário não dialoga com a
-                    // frequência"): pra frequências com MAIS de uma dose por
-                    // dia (ex.: "a cada 8 horas" = 3x/dia, ou "X vezes ao
-                    // dia" com X>1), o texto chamava o número de DIAS de
-                    // "doses" (ex.: tratamento de 10 dias a cada 8h virava
-                    // "10 doses", quando na real são 30). dosesPerDay separa
-                    // as duas contagens: a grade continua com 1 célula/dia,
-                    // mas o texto agora mostra dias E doses/dia quando são
-                    // números diferentes.
+                    // frequência" + "não sei como registro a 2ª dose do
+                    // dia"): pra frequências com MAIS de uma dose por dia
+                    // (ex.: "a cada 8 horas" = 3x/dia, ou "X vezes ao dia"
+                    // com X>1), o texto chamava o número de DIAS de "doses",
+                    // E não tinha como registrar cada dose do dia
+                    // separadamente. O backend já tinha applied_slots
+                    // (POST .../apply-dose aceita scheduled_time) pra isso —
+                    // só faltava esta tela usar. daySlots computa os N
+                    // horários do dia (mesma getDailyDoseTimes do form);
+                    // cada toque marca o PRÓXIMO horário ainda não feito.
                     let totalDays = 0;
                     let intervalDays = 1;
                     let dosesPerDay = 1;
+                    let firstDoseTime = '08:00';
                     let appliedDates: string[] = [];
                     let skippedDates: string[] = [];
+                    let appliedSlots: Record<string, string[]> = {};
                     try {
                       const ex = parsePetEventExtraData(ev.extra_data);
                       const treatmentDays = parseInt(String(ex.treatment_days), 10) || 0;
                       const customDoses = parseInt(String(ex.total_doses), 10) || 0;
                       const customInterval = parseInt(String(ex.custom_interval_days), 10) || 0;
+                      if (typeof ex.first_dose_time === 'string' && ex.first_dose_time) firstDoseTime = ex.first_dose_time;
                       if (treatmentDays > 0) {
                         totalDays = treatmentDays;
                         intervalDays = 1;
@@ -854,10 +854,14 @@ export function MedicationItemSheet({
                       }
                       appliedDates = Array.isArray(ex.applied_dates) ? ex.applied_dates as string[] : [];
                       skippedDates = Array.isArray(ex.skipped_dates) ? ex.skipped_dates as string[] : [];
+                      if (ex.applied_slots && typeof ex.applied_slots === 'object') {
+                        appliedSlots = ex.applied_slots as Record<string, string[]>;
+                      }
                     } catch {}
 
                     if (!totalDays) return null;
                     const totalDoses = totalDays * dosesPerDay;
+                    const daySlots = dosesPerDay > 1 ? getDailyDoseTimes(String(dosesPerDay), firstDoseTime) : [];
 
                     const allDayDates: string[] = [];
                     for (let i = 0; i < totalDays; i++) {
@@ -899,13 +903,22 @@ export function MedicationItemSheet({
                     // Progresso é sempre em DIAS (o que o backend de fato
                     // rastreia) — "doses" só aparece como informação extra
                     // quando dosesPerDay > 1, nunca substitui a contagem real
-                    // de dias marcados.
-                    const pct = Math.min(100, Math.round(appliedDates.length / totalDays * 100));
-                    const daysLeft = totalDays - appliedDates.length;
+                    // de dias marcados. Um dia só conta como "feito" quando
+                    // TODOS os horários daquele dia foram registrados
+                    // (appliedSlots), não só o primeiro — applied_dates
+                    // ganha uma entrada já na 1ª dose do dia, então usá-lo
+                    // direto aqui inflava o progresso de dias parcialmente
+                    // feitos.
+                    const daysFullyDone = dosesPerDay > 1
+                      ? allDayDates.filter(d => (appliedSlots[d] || []).length >= dosesPerDay).length
+                      : appliedDates.length;
+                    const doneToday = dosesPerDay > 1 ? (appliedSlots[todayStr] || []).length : (appliedDates.includes(todayStr) ? 1 : 0);
+                    const pct = Math.min(100, Math.round(daysFullyDone / totalDays * 100));
+                    const daysLeft = totalDays - daysFullyDone;
                     const isBusy = saving && applyingId === ev.id;
                     const progressLabel = dosesPerDay > 1
-                      ? `${appliedDates.length}/${totalDays} dias · ${dosesPerDay}× ao dia · ${totalDoses} doses`
-                      : `${appliedDates.length}/${totalDays} doses`;
+                      ? `${daysFullyDone}/${totalDays} dias · ${dosesPerDay}× ao dia · ${totalDoses} doses`
+                      : `${daysFullyDone}/${totalDays} doses`;
 
                     return (
                       <div key={ev.id} className="rounded-2xl border border-purple-200 bg-white shadow-sm">
@@ -921,13 +934,19 @@ export function MedicationItemSheet({
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
                               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                                appliedDates.includes(todayStr)
+                                doneToday >= dosesPerDay
                                   ? `${CARE_STATE.ok.chip} ${CARE_STATE.ok.chipText}`
-                                  : daysLeft <= 3
-                                    ? `${CARE_STATE.attention.chip} ${CARE_STATE.attention.chipText}`
-                                    : 'bg-purple-50 text-purple-700 border border-purple-200'
+                                  : doneToday > 0
+                                    ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                                    : daysLeft <= 3
+                                      ? `${CARE_STATE.attention.chip} ${CARE_STATE.attention.chipText}`
+                                      : 'bg-purple-50 text-purple-700 border border-purple-200'
                               }`}>
-                                {appliedDates.includes(todayStr) ? '✓ Hoje' : daysLeft === 0 ? 'Último' : intervalDays > 1 ? `${daysLeft} rest.` : `${daysLeft}d`}
+                                {doneToday >= dosesPerDay
+                                  ? '✓ Hoje'
+                                  : doneToday > 0
+                                    ? `${doneToday}/${dosesPerDay} hoje`
+                                    : daysLeft === 0 ? 'Último' : intervalDays > 1 ? `${daysLeft} rest.` : `${daysLeft}d`}
                               </span>
                               <button
                                 type="button"
@@ -941,7 +960,7 @@ export function MedicationItemSheet({
                             <div className="h-1 bg-purple-100 rounded-full overflow-hidden">
                               <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                             </div>
-                            <p className="text-[10px] text-gray-400 mt-0.5">{pct}% · {appliedDates.length} de {totalDays} dia{totalDays === 1 ? '' : 's'}{dosesPerDay > 1 ? ` (${dosesPerDay}× ao dia)` : ''}</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">{pct}% · {daysFullyDone} de {totalDays} dia{totalDays === 1 ? '' : 's'}{dosesPerDay > 1 ? ` (${dosesPerDay}× ao dia)` : ''}</p>
                           </div>
                         </div>
 
@@ -978,24 +997,41 @@ export function MedicationItemSheet({
                                     );
                                   }
 
-                                  const isApplied = appliedDates.includes(dateStr);
+                                  // Multi-dose/dia: doneToday conta os HORÁRIOS
+                                  // já registrados (applied_slots[dia]), não
+                                  // só "aconteceu ou não" — é o que permite
+                                  // marcar a 2ª/3ª dose do mesmo dia.
+                                  const doneToday = dosesPerDay > 1 ? (appliedSlots[dateStr] || []).length : (appliedDates.includes(dateStr) ? 1 : 0);
                                   const isSkipped = skippedDates.includes(dateStr);
+                                  const isFullyApplied = !isSkipped && doneToday >= dosesPerDay;
+                                  const isPartial = !isSkipped && doneToday > 0 && !isFullyApplied;
                                   const isToday = dateStr === todayStr;
                                   const isFuture = dateStr > todayStr;
+                                  // Pedido do dono (18/09/2026): destacar em
+                                  // cor diferente os dias que ainda precisam
+                                  // de dose — hoje ou atrasado, nada feito
+                                  // ainda, sem ter sido pulado.
+                                  const needsDose = !isFullyApplied && !isSkipped && !isFuture && doneToday === 0;
 
                                   let cls = '';
-                                  if (isApplied) cls = 'bg-green-500 text-white shadow-sm shadow-green-500/40';
+                                  if (isFullyApplied) cls = 'bg-green-500 text-white shadow-sm shadow-green-500/40';
+                                  else if (isPartial) cls = 'bg-orange-400 text-white shadow-sm shadow-orange-400/40';
                                   else if (isSkipped) cls = 'bg-amber-500 text-white';
                                   else if (isFuture) cls = 'bg-gray-50 text-gray-300 border border-gray-100';
-                                  else if (isToday) cls = 'bg-purple-500 text-white';
+                                  else if (needsDose) cls = 'bg-rose-500 text-white shadow-sm shadow-rose-500/40';
                                   else cls = 'bg-gray-100 text-gray-500 border border-gray-200';
 
                                   const dateLabel = `${dateStr.slice(8, 10)}/${dateStr.slice(5, 7)}`;
-                                  const label = isApplied
-                                    ? `${dateLabel}, dose aplicada — toque pra desfazer`
+                                  const doseWord = dosesPerDay > 1 ? `${doneToday}/${dosesPerDay} doses` : 'dose aplicada';
+                                  const label = isFullyApplied
+                                    ? `${dateLabel}, ${doseWord} — toque pra desfazer a última`
                                     : isSkipped
-                                      ? `${dateLabel}, dose pulada — toque pra desfazer`
-                                      : `${dateLabel} — toque pra marcar aplicada, toque e segure pra pular`;
+                                      ? `${dateLabel}, dia pulado — toque pra desfazer`
+                                      : isPartial
+                                        ? `${dateLabel}, ${doseWord} — toque pra marcar a próxima`
+                                        : needsDose
+                                          ? `${dateLabel}, precisa registrar a dose`
+                                          : `${dateLabel} — toque pra marcar aplicada, toque e segure pra pular`;
 
                                   return (
                                     <button
@@ -1006,12 +1042,25 @@ export function MedicationItemSheet({
                                       aria-label={label}
                                       onClick={() => {
                                         if (longPressFiredRef.current) { longPressFiredRef.current = false; return; }
-                                        if (isApplied) handleApplyDose(ev.id, 'remove', dateStr);
-                                        else if (isSkipped) handleApplyDose(ev.id, 'unskip', dateStr);
+                                        if (isSkipped) { handleApplyDose(ev.id, 'unskip', dateStr); return; }
+                                        if (dosesPerDay > 1) {
+                                          if (isFullyApplied) {
+                                            // Desfaz a última dose registrada do dia.
+                                            const done = appliedSlots[dateStr] || [];
+                                            const lastSlot = done[done.length - 1];
+                                            handleApplyDose(ev.id, 'remove', dateStr, lastSlot);
+                                          } else {
+                                            const done = appliedSlots[dateStr] || [];
+                                            const nextSlot = daySlots.find(s => !done.includes(s)) || daySlots[done.length];
+                                            handleApplyDose(ev.id, 'apply', dateStr, nextSlot);
+                                          }
+                                          return;
+                                        }
+                                        if (isFullyApplied) handleApplyDose(ev.id, 'remove', dateStr);
                                         else handleApplyDose(ev.id, 'apply', dateStr);
                                       }}
                                       onPointerDown={() => {
-                                        if (isApplied || isSkipped || isFuture) return;
+                                        if (doneToday > 0 || isSkipped || isFuture) return;
                                         startLongPress(() => handleApplyDose(ev.id, 'skip', dateStr));
                                       }}
                                       onPointerUp={cancelLongPress}
@@ -1020,7 +1069,10 @@ export function MedicationItemSheet({
                                       className={`aspect-square rounded-lg text-[10px] font-bold transition-all active:scale-90 flex flex-col items-center justify-center ${cls} ${isFuture ? 'cursor-default opacity-50' : 'cursor-pointer'} disabled:opacity-40`}
                                     >
                                       <span>{dayNum}</span>
-                                      {(isApplied || isSkipped) && <span className="text-[7px] leading-none mt-0.5">{isApplied ? '✓' : '↷'}</span>}
+                                      {isFullyApplied && <span className="text-[7px] leading-none mt-0.5">✓</span>}
+                                      {isPartial && <span className="text-[7px] leading-none mt-0.5">{doneToday}/{dosesPerDay}</span>}
+                                      {isSkipped && <span className="text-[7px] leading-none mt-0.5">↷</span>}
+                                      {needsDose && <span className="text-[7px] leading-none mt-0.5">!</span>}
                                     </button>
                                   );
                                 })}
