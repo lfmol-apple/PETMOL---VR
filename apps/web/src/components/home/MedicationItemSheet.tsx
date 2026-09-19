@@ -1005,7 +1005,6 @@ export function MedicationItemSheet({
                                   const isSkipped = skippedDates.includes(dateStr);
                                   const isFullyApplied = !isSkipped && doneToday >= dosesPerDay;
                                   const isPartial = !isSkipped && doneToday > 0 && !isFullyApplied;
-                                  const isToday = dateStr === todayStr;
                                   const isFuture = dateStr > todayStr;
                                   // Pedido do dono (18/09/2026): destacar em
                                   // cor diferente os dias que ainda precisam
@@ -1017,7 +1016,15 @@ export function MedicationItemSheet({
                                   if (isFullyApplied) cls = 'bg-green-500 text-white shadow-sm shadow-green-500/40';
                                   else if (isPartial) cls = 'bg-orange-400 text-white shadow-sm shadow-orange-400/40';
                                   else if (isSkipped) cls = 'bg-amber-500 text-white';
-                                  else if (isFuture) cls = 'bg-gray-50 text-gray-300 border border-gray-100';
+                                  // Pedido do dono (18/09/2026): "falta
+                                  // colorir os dias de tratamento" — dias
+                                  // futuros dentro do tratamento (ainda não
+                                  // vencidos) ficavam quase idênticos aos
+                                  // dias de fora (mesmo cinza claro sem
+                                  // contraste) — agora usam o tom da própria
+                                  // área (roxo) pra dar pra ver de longe até
+                                  // onde o tratamento vai.
+                                  else if (isFuture) cls = `${medTheme.accentBg} ${medTheme.accentText} border ${medTheme.accentBorder}`;
                                   else if (needsDose) cls = 'bg-rose-500 text-white shadow-sm shadow-rose-500/40';
                                   else cls = 'bg-gray-100 text-gray-500 border border-gray-200';
 
