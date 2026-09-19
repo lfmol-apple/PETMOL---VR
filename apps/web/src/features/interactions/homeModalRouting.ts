@@ -1,5 +1,6 @@
 import type { CanonicalEventActionTarget } from '@/features/events/types';
 import type { ProductCategory } from '@/lib/productScanner';
+import { MEDICATIONS_ENABLED } from '@/lib/featureFlags';
 
 export type HomePushActionType = 'vaccines' | 'medication' | 'parasites' | 'food' | 'grooming';
 
@@ -33,7 +34,7 @@ export function resolveTopAttentionDestination(target: CanonicalEventActionTarge
 
 export function resolveScannedProductDestination(category: ProductCategory): HomeSurfaceResolution | null {
   if (category === 'food') return { kind: 'sheet', sheet: 'food' };
-  if (category === 'medication') return { kind: 'sheet', sheet: 'medication' };
+  if (category === 'medication' && MEDICATIONS_ENABLED) return { kind: 'sheet', sheet: 'medication' };
   if (category === 'dewormer') return { kind: 'sheet', sheet: 'vermifugo' };
   if (category === 'collar') return { kind: 'sheet', sheet: 'coleira' };
   if (category === 'antiparasite') return { kind: 'sheet', sheet: 'antipulgas' };
@@ -150,7 +151,7 @@ export function resolveHomeDeepLinkDestination(
     return { kind: 'sheet', sheet: 'grooming' };
   }
 
-  if (modal === 'medication') {
+  if (modal === 'medication' && MEDICATIONS_ENABLED) {
     return { kind: 'sheet', sheet: 'medication' };
   }
 

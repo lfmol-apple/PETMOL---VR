@@ -90,6 +90,14 @@ class Settings(BaseSettings):
     marketplace_offer_refresh_after_minutes: int = 360
     marketplace_offer_inline_refresh_enabled: bool = False
 
+    # Medicamentos: decisão de produto (18/09/2026) — não faz parte do
+    # PETMOL 1.0. Feature completa (rotas /events/{id}/apply-dose etc.,
+    # UI, dados) fica intacta, só desativada. Ver docs/MEDICAMENTOS_
+    # DESATIVADOS.md pra reativar. Único gate usado por send_due_reminders
+    # (notifications/__init__.py) pra parar de DISPARAR lembretes de
+    # medicação sem apagar as linhas pendentes na tabela.
+    medications_enabled: bool = False
+
     # Preço real da Cobasi (API pública de catálogo VTEX) para a Loja do Baby.
     # Cache longo de propósito — reduz volume de chamadas à Cobasi (evitar
     # bloqueio) e o preço não precisa ser por segundo para o caso de uso.

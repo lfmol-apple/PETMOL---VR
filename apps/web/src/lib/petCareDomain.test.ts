@@ -1,6 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildPetCareReminders, type PetCareDomainParams } from './petCareDomain';
 import type { PetEventRecord } from './petEvents';
+
+// Medicamentos desativados no PETMOL 1.0 (MEDICATIONS_ENABLED=false, ver
+// docs/MEDICAMENTOS_DESATIVADOS.md) — este arquivo testa a lógica de
+// extração de gtin que fica PRESERVADA sob a flag, não removida. Força
+// a flag ligada aqui pra continuar validando essa lógica (é exatamente
+// o teste a rodar antes de reativar a feature). O comportamento real
+// "desligado por padrão, nenhum lembrete de medicação nasce" tem seu
+// próprio teste em petCareDomain.medicationsFlag.test.ts, sem este mock.
+vi.mock('./featureFlags', () => ({ MEDICATIONS_ENABLED: true }));
 
 // Regressão: lembretes de medicação nunca carregavam `gtin`, mesmo quando o
 // tutor escaneou o código de barras no cadastro — MedicationItemSheet.tsx
