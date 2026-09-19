@@ -424,3 +424,23 @@ input[type="range"]::-moz-range-progress {
   0%   { background-position: 200% center; }
   100% { background-position: -200% center; }
 }
+
+/* iOS (WKWebView/Safari): <input type="date|time"> ignora width:100% e estoura
+   a borda do cartão (achado no iPhone 17 Pro, 19/09/2026, "Editar plano" da
+   Alimentação: ~35px pra fora). O WebKit dá a esses inputs uma largura mínima
+   intrínseca; zera isso e força o box a caber no pai. Só iOS
+   (-webkit-touch-callout existe apenas lá) — no Android o ícone nativo do
+   calendário continua aparecendo. */
+@supports (-webkit-touch-callout: none) {
+  input[type="date"],
+  input[type="time"],
+  input[type="month"],
+  input[type="datetime-local"] {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    -webkit-min-logical-width: 0;
+  }
+}

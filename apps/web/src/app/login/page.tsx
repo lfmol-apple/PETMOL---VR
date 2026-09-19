@@ -159,7 +159,6 @@ export default function LoginPage() {
           </div>
         </div>
         
-        <p className="mt-8 text-white/40 text-[10px] font-black uppercase tracking-[0.3em] font-mono">PETMOL CORE SYNC</p>
       </div>
     </BrandBackground>
   );
