@@ -16,6 +16,7 @@ export type V1MetricEvent =
   | 'collar_replaced'
   | 'vaccine_record_created'
   | 'food_cycle_created'
+  | 'food_restock_clicked'
   | 'food_restock_confirmed'
   | 'food_alert_sent'
   | 'food_alert_opened'

@@ -1420,17 +1420,41 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                           {/* Feedback banner */}
                           <FeedbackBanner />
 
-                          {/* 3. Ações principais — mesma cor do botão "Comprar" da
-                              Loja do Pet (emerald-500), pra reforçar que é a
-                              mesma ação em qualquer tela do app. */}
+                          {/* 3. Ações principais (18/09/2026, pedido do dono
+                              — "assim como na coleira tem um botão registrar
+                              aplicação sempre visível, temos que agir da
+                              mesma forma para a ração"). "Registrar
+                              reposição" é o caminho rápido de quem JÁ COMPROU
+                              o saco reserva — reconecta a tela "Você comprou
+                              novamente? / Mesmo pacote / Outro pacote"
+                              (subMode='restockConfirm') e o handler
+                              handleCompreiMesmoPacote, que já existiam prontos
+                              no código mas ficaram órfãos, sem nenhum botão
+                              que os chamasse, num redesenho anterior.
+                              "Comprar novamente" continua sempre visível
+                              também (pedido explícito: o botão comprar tem
+                              que estar em todo fluxo) pra quem ainda não
+                              comprou. */}
+                          <button type="button"
+                            onClick={() => {
+                              trackV1Metric('food_restock_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
+                              setFeedback(null);
+                              setSubMode('restockConfirm');
+                            }}
+                            className="w-full py-4 rounded-2xl bg-[#0056D2] hover:bg-[#004ab8] active:scale-[0.97] transition-all text-white text-[16px] font-black shadow-lg shadow-blue-900/20 flex items-center justify-center gap-3"
+                          >
+                            <span className="text-xl">🔁</span>
+                            Registrar reposição
+                          </button>
+
                           <button type="button"
                             onClick={() => {
                               trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
                               setMode('buy');
                             }}
-                            className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.97] transition-all text-white text-[16px] font-black shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-3"
+                            className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.97] transition-all text-white text-[15px] font-black shadow-md shadow-emerald-500/25 flex items-center justify-center gap-2.5"
                           >
-                            <span className="text-xl">🛒</span>
+                            <span className="text-lg">🛒</span>
                             Comprar novamente
                           </button>
 
@@ -1665,6 +1689,23 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                               Outro pacote
                             </button>
                           </div>
+
+                          {/* Comprar continua acessível mesmo aqui — pedido
+                              do dono: o botão comprar tem que estar em todo
+                              fluxo, pra quem abriu "Registrar reposição" mas
+                              na verdade ainda não comprou. */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: foodState.daysLeft });
+                              setSubMode('main');
+                              setMode('buy');
+                            }}
+                            className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] transition-all text-white text-[14px] font-black shadow-sm shadow-emerald-500/20 flex items-center justify-center gap-2"
+                          >
+                            <span>🛒</span>
+                            Ainda não comprei — ir para Comprar
+                          </button>
 
                           <FeedbackBanner />
                         </div>
