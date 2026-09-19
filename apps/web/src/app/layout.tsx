@@ -16,6 +16,7 @@ import { TravelDetectionNotification } from '@/components/TravelDetectionNotific
 import { OfflineIndicator, ConnectivityStatus } from '@/components/OfflineIndicator';
 import { PushAutoRefresh } from '@/components/PushAutoRefresh';
 import { NativePushBridge } from '@/components/NativePushBridge';
+import { AndroidBackButtonHandler } from '@/components/AndroidBackButtonHandler';
 import { BuildVersionGate } from '@/components/BuildVersionGate';
 import { ChunkReloadGuard } from '@/components/ChunkReloadGuard';
 import { AppInstallPing } from '@/components/AppInstallPing';
@@ -105,6 +106,7 @@ export default function RootLayout({
             <HorizontalSwipeGuard />
             <PushAutoRefresh />
             <NativePushBridge />
+            <AndroidBackButtonHandler />
             <BuildVersionGate />
             <ChunkReloadGuard />
             <AppInstallPing />
