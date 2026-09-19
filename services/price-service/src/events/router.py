@@ -35,6 +35,44 @@ def _get_accessible_event_or_404(db: Session, user_id: str, event_id: str) -> Ev
     return event
 
 
+def _medication_doses_per_day(extra: dict) -> int:
+    """Quantas doses reais por dia essa frequência representa (ver
+    MedicationItemSheet.tsx buildMedicationReminderPayloads/dosesPerDay —
+    mesmo cálculo, pra "está completo?" bater com o que o app mostra).
+    'vezes_dia' = times_per_day; 'intervalo' (horas) = 1440/interval_minutes;
+    qualquer outro modo (intervalo_dias, dose_unica) = 1 dose por célula."""
+    freq_mode = extra.get('frequency_mode')
+    if freq_mode == 'vezes_dia':
+        times_per_day = int(extra.get('times_per_day') or 0)
+        return max(1, times_per_day) if times_per_day > 0 else 1
+    if freq_mode == 'intervalo':
+        interval_minutes = int(extra.get('interval_minutes') or 0)
+        if interval_minutes > 0:
+            return max(1, round(1440 / interval_minutes))
+    return 1
+
+
+def _medication_treatment_complete(extra: dict) -> Optional[bool]:
+    """None = sem tratamento configurado (nada a checar). Bug real
+    (18/09/2026): pra frequências com mais de uma dose/dia, o total
+    configurado (treatment_days) conta DIAS, não doses — comparar direto
+    com len(applied_dates) (que já fica >= 1 assim que a 1ª dose do dia é
+    registrada) completava o tratamento cedo demais, sem esperar as demais
+    doses do dia. Quando há applied_slots (doses fracionadas por horário),
+    conta doses reais; senão cai no comportamento antigo (1 dia = 1 dose)."""
+    total_configured = extra.get('total_doses') or extra.get('treatment_days')
+    if not total_configured:
+        return None
+    total_configured = int(total_configured)
+    doses_per_day = _medication_doses_per_day(extra)
+    applied_slots = extra.get('applied_slots') or {}
+    if doses_per_day > 1 and applied_slots:
+        done = sum(len(v) for v in applied_slots.values())
+        return done >= total_configured * doses_per_day
+    applied_dates = extra.get('applied_dates') or []
+    return len(applied_dates) >= total_configured
+
+
 @router.post("", response_model=EventOut, status_code=status.HTTP_201_CREATED)
 def create_event(
     payload: EventCreate,
@@ -291,17 +329,13 @@ def apply_dose(
         extra['skip_notes'] = skip_notes
     event.extra_data = json.dumps(extra)
 
-    # Se todas as doses foram aplicadas, marca como conclu\u00eddo \u2014 mesma
-    # contagem que o frontend usa pra decidir se um tratamento est\u00e1
-    # "ativo" (ver MedicationItemSheet.tsx): treatment_days pra frequ\u00eancia
-    # regular, total_doses pra "intervalo personalizado". Sem o segundo
-    # caso aqui, um tratamento personalizado nunca era marcado conclu\u00eddo
-    # no backend mesmo depois de todas as doses registradas.
-    total_configured = extra.get('total_doses') or extra.get('treatment_days')
-    if total_configured and len(applied_dates) >= int(total_configured):
+    # Se todas as doses foram aplicadas, marca como conclu\u00eddo (ver
+    # _medication_treatment_complete \u2014 considera doses/dia, n\u00e3o s\u00f3 dias).
+    is_complete = _medication_treatment_complete(extra)
+    if is_complete:
         event.status = 'completed'
         event.completed_at = datetime.utcnow()
-    else:
+    elif is_complete is not None:
         # Garante que o evento continua ativo durante o tratamento
         event.status = 'active'
 
@@ -357,8 +391,7 @@ def remove_dose(
     event.extra_data = json.dumps(extra)
 
     # Reativa o evento se estava completed (mesma contagem de apply_dose acima)
-    total_configured = extra.get('total_doses') or extra.get('treatment_days')
-    if total_configured and len(applied_dates) < int(total_configured):
+    if _medication_treatment_complete(extra) is False:
         event.status = 'active'
         event.completed_at = None
 
