@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getToken } from '@/lib/auth-token';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { trackV1Metric } from '@/lib/v1Metrics';
+import { WELCOME_VIDEO_ENABLED } from '@/lib/featureFlags';
 
 export default function WelcomePage() {
   const router = useRouter();
@@ -61,15 +62,20 @@ export default function WelcomePage() {
               Leva cerca de 2 minutos. Você pode completar o restante depois.
             </p>
 
-            {/* Vídeo — espaço opcional, ajuda complementar (ainda sem vídeo hospedado) */}
-            <button
-              type="button"
-              onClick={() => setShowVideoSoon(true)}
-              className="mt-5 flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left active:bg-slate-100 transition-colors"
-            >
-              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#0056D2] text-white text-sm">▶</span>
-              <span className="text-[13px] font-bold text-slate-700">Como funciona o PETMOL — 45 segundos</span>
-            </button>
+            {/* Vídeo — espaço opcional, ajuda complementar. Desativado pro 1.0
+                (19/09/2026): sem vídeo hospedado ainda, o botão só abria um
+                modal "Vídeo em breve" — fricção logo nos primeiros minutos.
+                Implementação preservada atrás da flag. */}
+            {WELCOME_VIDEO_ENABLED && (
+              <button
+                type="button"
+                onClick={() => setShowVideoSoon(true)}
+                className="mt-5 flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left active:bg-slate-100 transition-colors"
+              >
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#0056D2] text-white text-sm">▶</span>
+                <span className="text-[13px] font-bold text-slate-700">Como funciona o PETMOL — 45 segundos</span>
+              </button>
+            )}
 
             {/* Divider */}
             <div className="my-6 h-px bg-slate-100" />
