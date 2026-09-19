@@ -12,6 +12,7 @@ Google, e chama a API HTTP v1 do FCM com esse token. Mesmo estilo de
 apns.py (JWT + HTTP direto), pra manter os dois arquivos parecidos.
 """
 import json
+import threading
 import logging
 import time
 from base64 import urlsafe_b64encode
@@ -141,6 +142,26 @@ def _get_access_token() -> Optional[str]:
         return None
 
 
+_send_client = None
+_send_client_lock = threading.Lock()
+
+
+def _get_send_client():
+    """Cliente httpx compartilhado (pool de conexões keep-alive). Antes cada
+    push abria um cliente novo = handshake TCP+TLS com o FCM a cada envio,
+    somando centenas de ms POR usuário num alerta de Pet Sumido."""
+    global _send_client
+    if _send_client is None:
+        with _send_client_lock:
+            if _send_client is None:
+                import httpx
+                _send_client = httpx.Client(
+                    timeout=10.0,
+                    limits=httpx.Limits(max_connections=32, max_keepalive_connections=16),
+                )
+    return _send_client
+
+
 def send_fcm(device_token: str, payload: dict) -> Tuple[bool, bool]:
     """Envia UMA notificação para um device token Android.
 
@@ -170,17 +191,15 @@ def send_fcm(device_token: str, payload: dict) -> Tuple[bool, bool]:
         message["data"] = data
 
     try:
-        import httpx
-
-        with httpx.Client(timeout=10.0) as client:
-            resp = client.post(
-                f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send",
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Content-Type": "application/json",
-                },
-                content=json.dumps({"message": message}).encode("utf-8"),
-            )
+        client = _get_send_client()
+        resp = client.post(
+            f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            content=json.dumps({"message": message}).encode("utf-8"),
+        )
         if resp.status_code == 200:
             _log_attempt(device_token, 200, "", True)
             return (True, False)

@@ -1,3 +1,4 @@
+import { fetchMe } from '@/lib/fetchMe';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -194,11 +195,7 @@ export function usePetBootstrap() {
           let meIdForSort = '';
           try {
             const savedToken2 = getToken();
-            const meRes = await fetch(`${API_BASE_URL}/auth/me`, {
-              credentials: 'include',
-              headers: savedToken2 ? { Authorization: `Bearer ${savedToken2}` } : {},
-              signal: AbortSignal.timeout(BOOTSTRAP_FETCH_TIMEOUT_MS),
-            });
+            const meRes = await fetchMe(API_BASE_URL, savedToken2, BOOTSTRAP_FETCH_TIMEOUT_MS);
             if (meRes.ok) {
               const meData = await meRes.json();
               setTutorName(meData.name || '');
@@ -260,11 +257,7 @@ export function usePetBootstrap() {
       void syncPushSubscriptionOnce(token);
 
       try {
-        const tutorResponse = await fetch(`${API_BASE_URL}/auth/me`, {
-          credentials: 'include',
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          signal: AbortSignal.timeout(BOOTSTRAP_FETCH_TIMEOUT_MS),
-        });
+        const tutorResponse = await fetchMe(API_BASE_URL, token, BOOTSTRAP_FETCH_TIMEOUT_MS);
 
         let meIdForSort = '';
         if (tutorResponse.ok) {

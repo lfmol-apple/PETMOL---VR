@@ -718,6 +718,31 @@ def _family_missing_pets_query(db: Session, user_id: str, status: str | None = N
     return q
 
 
+_PUSH_FANOUT_WORKERS = 8
+
+
+def _parallel_push(user_ids, payload: dict, subs_by_user: dict | None = None) -> list:
+    """push_to_user() pra vários usuários ao mesmo tempo. Devolve
+    [(user_id, dispositivos_ok)]. Erro de um usuário nunca derruba o lote.
+    O pool de conexões do SQLAlchemy (20+40) comporta os 8 workers."""
+    user_ids = list(user_ids)
+    if not user_ids:
+        return []
+
+    def _one(uid):
+        try:
+            return uid, push_to_user(uid, payload, subs_by_user)
+        except Exception as exc:
+            logger.warning(f"push to {str(uid)[:8]} failed: {exc}")
+            return uid, 0
+
+    if len(user_ids) == 1:
+        return [_one(user_ids[0])]
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(_PUSH_FANOUT_WORKERS, len(user_ids))) as pool:
+        return list(pool.map(_one, user_ids))
+
+
 def _broadcast_missing_pet(
     mp: MissingPet,
     *,
@@ -818,10 +843,11 @@ def _broadcast_missing_pet(
         MAX_NO_LOCATION = 50        # alertas sem localização
         MAX_NO_COORD_SUB = 15       # assinantes sem coordenadas quando alerta TEM localização
 
+        targets: list = []          # usuários selecionados (envio em paralelo depois)
         for user_id in candidate_user_ids:
             if user_id in excluded or (mp.user_id and user_id == str(mp.user_id)):
                 continue
-            if not has_location and sent >= MAX_NO_LOCATION:
+            if not has_location and len(targets) >= MAX_NO_LOCATION:
                 skipped += 1
                 continue
 
@@ -853,9 +879,14 @@ def _broadcast_missing_pet(
                         skipped += 1
                         continue
 
-            # push_to_user() decide o canal (nativo/APNs quando existe,
-            # senão Web Push) e já desativa subscriptions/tokens inválidos.
-            ok_count = push_to_user(user_id, payload, subs_by_user)
+            targets.append(user_id)
+
+        # Envio em PARALELO. Antes era um push por vez: cada um é uma ida e
+        # volta de rede (FCM/APNs/Web Push) — com N usuários no raio o último
+        # só recebia depois de N × latência ("demora vários segundos").
+        # push_to_user() decide o canal (nativo/APNs quando existe, senão Web
+        # Push) e já desativa subscriptions/tokens inválidos.
+        for user_id, ok_count in _parallel_push(targets, payload, subs_by_user):
             print(f"[broadcast]   user={user_id[:8]} devices_ok={ok_count}", flush=True)
             if ok_count > 0:
                 sent += 1
@@ -3093,14 +3124,8 @@ def _push_case(user_ids, payload: dict, *, exclude: set | None = None) -> int:
     de subscriptions para o lote todo, dedup por user_id."""
     excluded = {str(x) for x in (exclude or set())}
     subs_by_user = _load_subscriptions_by_user()
-    sent = 0
-    for uid in {str(u) for u in user_ids} - excluded:
-        try:
-            if push_to_user(uid, payload, subs_by_user) > 0:
-                sent += 1
-        except Exception as exc:
-            logger.warning(f"_push_case to {uid[:8]} failed: {exc}")
-    return sent
+    targets = list({str(u) for u in user_ids} - excluded)
+    return sum(1 for _, ok in _parallel_push(targets, payload, subs_by_user) if ok > 0)
 
 
 def _owner_found_body(score: int | None, minutes_ago: int | None, distance_km: float | None) -> str:

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { getToken, setToken, clearToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
 import { isPublic } from '@/middleware';
+import { fetchMe, invalidateMe } from '@/lib/fetchMe';
 
 interface Tutor {
   id: number;
@@ -122,11 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const response = await fetch(`${API_URL}/auth/me`, {
-        credentials: 'include',
-        headers: { 'Authorization': `Bearer ${savedToken}` },
-        signal: AbortSignal.timeout(15000),
-      });
+      const response = await fetchMe(API_URL, savedToken, 15000);
 
       if (response.ok) {
         const data = await response.json();
@@ -220,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Fazer login automaticamente após registro
+    invalidateMe();
     await login(email, password);
 
     // Persistir preferências (monthly_checkin_*, whatsapp) via PATCH /me
@@ -234,6 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(prefs),
           });
+          invalidateMe();
         }
       } catch { /* não bloqueia o registro */ }
     }
@@ -247,6 +246,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
     }
+    invalidateMe();
     clearToken();
     clearSensitiveBrowserCaches();
     setAuthToken(null);

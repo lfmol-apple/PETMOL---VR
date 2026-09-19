@@ -6,6 +6,7 @@ não estiverem configurados — o token do dispositivo continua sendo coletado
 setar as 3 envs + restart. Ver docs/MOBILE_RELEASE_CHECKLIST.md.
 """
 import json
+import threading
 import logging
 import time
 from base64 import urlsafe_b64encode
@@ -109,6 +110,22 @@ def _build_jwt() -> Optional[str]:
         return None
 
 
+_send_client = None
+_send_client_lock = threading.Lock()
+
+
+def _get_send_client():
+    """Cliente httpx HTTP/2 compartilhado: uma conexão multiplexada com a
+    Apple em vez de um handshake TLS novo a cada push."""
+    global _send_client
+    if _send_client is None:
+        with _send_client_lock:
+            if _send_client is None:
+                import httpx
+                _send_client = httpx.Client(http2=True, timeout=10.0)
+    return _send_client
+
+
 def send_apns(device_token: str, payload: dict, *, host_override: Optional[str] = None) -> Tuple[bool, bool]:
     """Envia UMA notificação para um device token iOS.
 
@@ -147,19 +164,17 @@ def send_apns(device_token: str, payload: dict, *, host_override: Optional[str] 
                 body[k] = v
 
     try:
-        import httpx
-
-        with httpx.Client(http2=True, timeout=10.0) as client:
-            resp = client.post(
-                f"https://{host}/3/device/{device_token}",
-                headers={
-                    "authorization": f"bearer {jwt}",
-                    "apns-topic": s.apns_topic,
-                    "apns-push-type": "alert",
-                    "apns-priority": "10",
-                },
-                content=json.dumps(body).encode("utf-8"),
-            )
+        client = _get_send_client()
+        resp = client.post(
+            f"https://{host}/3/device/{device_token}",
+            headers={
+                "authorization": f"bearer {jwt}",
+                "apns-topic": s.apns_topic,
+                "apns-push-type": "alert",
+                "apns-priority": "10",
+            },
+            content=json.dumps(body).encode("utf-8"),
+        )
         if resp.status_code == 200:
             _log_attempt(device_token, host, 200, "", True)
             return (True, False)
