@@ -45,3 +45,10 @@ export const MEDICATIONS_ENABLED = true;
 // variáveis de ambiente que nunca foram setadas; esta flag some também com
 // a versão neutra "Em breve" que aparecia mesmo assim. Reativar: true aqui.
 export const HEALTH_PLAN_CARD_ENABLED = false;
+
+// Vídeo "Como funciona o PETMOL — 45 segundos" na tela de boas-vindas
+// (welcome/page.tsx) desativado pro lançamento 1.0 (19/09/2026): não existe
+// vídeo hospedado ainda — tocar no botão só abria um modal "Vídeo em breve".
+// Mesmo achado de padrão do Plano de Saúde: fricção logo nos primeiros
+// minutos do app. Implementação preservada; reativar quando o vídeo existir.
+export const WELCOME_VIDEO_ENABLED = false;
