@@ -15,7 +15,7 @@ function renderWithI18n(ui: React.ReactElement) {
 }
 
 describe('Home — reorganização (Plano de Saúde / PetShops / Fale com o PETMOL)', () => {
-  it('AppleControlButtons: Plano de Saúde entre os cards e Pet Sumido; sem PetShops nem Fale com o Petmol', () => {
+  it('AppleControlButtons: Plano de Saúde desativado pro 1.0; sem PetShops nem Fale com o Petmol', () => {
     const { container } = renderWithI18n(
       <AppleControlButtons
         onHealthClick={() => {}}
@@ -25,9 +25,11 @@ describe('Home — reorganização (Plano de Saúde / PetShops / Fale com o PETM
         onPetSumidoClick={() => {}}
       />,
     );
-    // bloco Plano de Saúde presente (versão neutra)
-    expect(screen.getByText('Plano de saúde para o Baby')).toBeTruthy();
-    expect(screen.getByText('Em breve')).toBeTruthy();
+    // Plano de Saúde desativado pro 1.0 (19/09/2026, HEALTH_PLAN_CARD_ENABLED
+    // em lib/featureFlags.ts) — card "Em breve" não tinha função nenhuma por
+    // trás e só gerava expectativa sem entrega (achado da auditoria final).
+    expect(screen.queryByText('Plano de saúde para o Baby')).toBeNull();
+    expect(screen.queryByText('Em breve')).toBeNull();
     // saíram da Home
     expect(screen.queryByText('PetShops perto de você')).toBeNull();
     expect(screen.queryByText('Fale com o Petmol')).toBeNull();
@@ -38,11 +40,6 @@ describe('Home — reorganização (Plano de Saúde / PetShops / Fale com o PETM
     const txt = (container.textContent || '').toLowerCase();
     expect(txt).not.toContain('petlove');
     expect(txt).not.toContain('seguro');
-
-    // ordem: Plano de Saúde aparece ANTES de "Pet Sumido" no DOM
-    const html = container.innerHTML;
-    expect(html.indexOf('Plano de saúde para')).toBeGreaterThan(-1);
-    expect(html.indexOf('Plano de saúde para')).toBeLessThan(html.indexOf('Pet Sumido'));
   });
 
   it('HomeNavigationModals: "PetShops perto de você" agora está dentro de Cuidados', () => {

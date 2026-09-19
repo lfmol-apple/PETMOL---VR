@@ -51,9 +51,10 @@ export default function CheckEmailPage() {
             </svg>
           </div>
 
-          <h1 className="text-xl font-black text-slate-900">Confirme seu e-mail</h1>
+          <h1 className="text-xl font-black text-slate-900">Confirme seu e-mail para continuar</h1>
           <p className="mt-2 text-sm text-slate-500 leading-relaxed">
-            Enviamos um link de verificação para o seu e-mail. Clique no link para ativar sua conta.
+            Para continuar utilizando o PETMOL, confirme seu e-mail. Enviamos um link de verificação
+            para sua caixa de entrada — clique nele para voltar a usar o app normalmente.
           </p>
 
           <div className="mt-6 space-y-3">

@@ -5,6 +5,7 @@ import { useI18n } from '@/lib/I18nContext';
 import { petDo } from '@/lib/petGender';
 import { type HomeInactiveEligibleControlId } from '@/lib/homeControlPreferences';
 import { PetHealthPlanCard } from '@/components/home/PetHealthPlanCard';
+import { HEALTH_PLAN_CARD_ENABLED } from '@/lib/featureFlags';
 
 // ── Props H1 logic preserved ──────────────────────────────────────────────────
 interface AppleControlButtonsProps {
@@ -260,10 +261,15 @@ export function AppleControlButtons({
         </div>
 
         {/* Plano de Saúde — área complementar/destaque, fora da grade de
-            cards funcionais. Entre os cards e "Pet Sumido". */}
-        <div className="mt-3 min-[390px]:mt-3.5">
-          <PetHealthPlanCard petName={petName} petSex={petSex} />
-        </div>
+            cards funcionais. Entre os cards e "Pet Sumido". Desativado pro
+            1.0 (19/09/2026): sem parceria aprovada, virou só um card "Em
+            breve" sem função nenhuma — implementação preservada atrás da
+            flag, ver lib/featureFlags.ts. */}
+        {HEALTH_PLAN_CARD_ENABLED && (
+          <div className="mt-3 min-[390px]:mt-3.5">
+            <PetHealthPlanCard petName={petName} petSex={petSex} />
+          </div>
+        )}
 
         {/* Abaixo: Pet Sumido + "Perto de você" (agrupados, meia largura cada
             — pedido do dono, 18/09). "Pet Sumido" continua só a função dele

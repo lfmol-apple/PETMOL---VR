@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { getToken, setToken, clearToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
@@ -56,18 +56,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Bug real (18/09/2026, pedido do dono): o app liberava acesso total logo
-  // após o cadastro, sem exigir confirmação de e-mail (email_verified só
-  // ficava marcado, nunca era checado em lugar nenhum). Agora, sempre que o
-  // tutor logado ainda não confirmou o e-mail e tenta abrir qualquer rota
-  // que não seja pública (Home, perfil, etc.), volta pra /auth/check-email
-  // até clicar no link. Contas convidadas (guest_*) já nascem com
-  // email_verified=true (não têm e-mail de verdade), então nunca são
-  // afetadas.
+  // Decisão de 18/09/2026 (pedido do dono): o app liberava acesso total logo
+  // após o cadastro, sem exigir confirmação de e-mail em lugar nenhum.
+  // Ajustada em 19/09/2026 depois da auditoria final mostrar o custo real:
+  // bloquear IMEDIATAMENTE depois do cadastro tirava o tutor novo antes de
+  // ele ver qualquer valor do app (nem Home, nem 1º pet). Agora a 1ª sessão
+  // depois do cadastro fica livre — o tutor cadastra o pet e usa a Home
+  // normalmente. Só na PRÓXIMA vez que abrir o app (novo boot/reload), se o
+  // e-mail continuar sem confirmar, é que a gente pede: "Para continuar
+  // utilizando o PETMOL, confirme seu e-mail." Contas convidadas (guest_*)
+  // já nascem com email_verified=true, então nunca são afetadas.
+  //
+  // `emailGateDecisionRef` guarda a decisão só pra esta sessão do app (reseta
+  // sozinho a cada boot/reload, sem precisar de lógica extra): a 1ª checagem
+  // decide "allow" (1ª sessão, ainda não gastou a cortesia) ou "block" (já
+  // gastou numa sessão anterior); as checagens seguintes dentro do mesmo
+  // boot só repetem a mesma decisão, sem interromper a navegação no meio da
+  // sessão livre.
+  const emailGateDecisionRef = useRef<'unchecked' | 'allow' | 'block'>('unchecked');
+
   useEffect(() => {
     if (isLoading || !tutor) return;
     if (tutor.email_verified === false && !isPublic(pathname || '')) {
-      router.replace('/auth/check-email');
+      if (emailGateDecisionRef.current === 'unchecked') {
+        const graceKey = `petmol_email_grace_used_${tutor.id}`;
+        let graceUsed = false;
+        try { graceUsed = localStorage.getItem(graceKey) === '1'; } catch {}
+        if (graceUsed) {
+          emailGateDecisionRef.current = 'block';
+        } else {
+          try { localStorage.setItem(graceKey, '1'); } catch {}
+          emailGateDecisionRef.current = 'allow';
+        }
+      }
+      if (emailGateDecisionRef.current === 'block') {
+        router.replace('/auth/check-email');
+      }
     }
   }, [tutor, isLoading, pathname, router]);
 
