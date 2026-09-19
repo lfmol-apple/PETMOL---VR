@@ -18,6 +18,9 @@ interface ProductBarcodeScannerProps {
    * cancelou, ou fechou direto) — permite ao chamador liberar um caminho
    * alternativo (ex: formulário manual) sem travar o tutor no scanner. */
   onDismiss?: () => void;
+  /** Botões de altura/proporção iguais (uma linha cada), pra tela que empilha
+   *  outros botões junto (ex.: Alimentação sem ração). Padrão: layout original. */
+  uniform?: boolean;
 }
 
 /**
@@ -36,6 +39,7 @@ export function ProductBarcodeScanner({
   onManualEntry,
   onProductConfirmed,
   onDismiss,
+  uniform = false,
 }: ProductBarcodeScannerProps) {
   const [open, setOpen] = useState(false);
   const [openMode, setOpenMode] = useState<'scan' | 'manual' | 'photo' | undefined>(defaultMode);
@@ -55,6 +59,16 @@ export function ProductBarcodeScanner({
           entrada manual de código de barras — só leitura/escaneamento ou
           busca por nome. */}
       <div className="space-y-2">
+        {uniform ? (
+          <button
+            type="button"
+            onClick={() => openWithMode(undefined)}
+            className="w-full flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl border border-blue-200 bg-blue-50 px-4 text-[14px] font-bold text-blue-900 active:scale-[0.98] transition-all"
+          >
+            <span className="text-lg">🔎</span>
+            Buscar produto
+          </button>
+        ) : (
         <button
           type="button"
           onClick={() => openWithMode(undefined)}
@@ -67,6 +81,7 @@ export function ProductBarcodeScanner({
           </span>
           <span className="text-blue-300 text-lg">›</span>
         </button>
+        )}
         {onManualEntry && (
           <button
             type="button"
@@ -83,9 +98,12 @@ export function ProductBarcodeScanner({
         <button
           type="button"
           onClick={() => openWithMode(defaultMode ?? 'scan')}
-          className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] font-bold text-slate-700 active:scale-[0.98] transition-all"
+          className={uniform
+            ? 'w-full flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl border border-slate-200 bg-slate-50 px-4 text-[14px] font-bold text-slate-700 active:scale-[0.98] transition-all'
+            : 'w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] font-bold text-slate-700 active:scale-[0.98] transition-all'}
         >
-          📷 {label}
+          {uniform ? <span className="text-lg">📷</span> : '📷 '}
+          {label}
         </button>
       </div>
 

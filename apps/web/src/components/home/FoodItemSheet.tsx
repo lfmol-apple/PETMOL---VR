@@ -1295,33 +1295,38 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
                           petId={pet.pet_id}
                           petName={pet.pet_name}
                           allowScanning
+                          uniform
                           onProductConfirmed={(product) => {
                             setFoodScanIntent('ask');
                             handleFoodProductConfirmed(product, 'ask');
                           }}
                         />
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: null });
-                            setMode('buy');
-                          }}
-                          className="w-full flex items-center justify-center gap-2.5 py-3 min-h-[44px] rounded-2xl bg-emerald-500 text-[14px] font-black text-white shadow-md shadow-emerald-500/25 active:scale-95 transition-all"
-                        >
-                          <span className="text-lg">🛒</span>
-                          Comprar ração
-                        </button>
+
 
                         {/* Não usa ração de saco */}
                         <button
                           type="button"
                           onClick={handleDeclareNonKibble}
                           disabled={declaringNonKibble}
-                          className="w-full flex items-center justify-center gap-2 py-3 min-h-[44px] rounded-2xl border border-gray-200 bg-white text-[14px] font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 disabled:opacity-50 transition-all"
+                          className="w-full flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl border border-gray-200 bg-white px-4 text-[14px] font-bold text-gray-700 hover:bg-gray-50 active:scale-[0.98] disabled:opacity-50 transition-all"
                         >
                           <span className="text-lg">🍲</span>
                           {declaringNonKibble ? 'Salvando...' : 'Alimentação Caseira'}
+                        </button>
+
+                        {/* Comprar por último (pedido do dono, 19/09/2026): mesmos
+                            tamanho/proporção dos outros botões, ação de compra embaixo. */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            trackV1Metric('food_buy_clicked', { pet_id: pet.pet_id, days_left: null });
+                            setMode('buy');
+                          }}
+                          className="w-full flex items-center justify-center gap-2.5 min-h-[52px] rounded-2xl bg-emerald-500 px-4 text-[14px] font-bold text-white shadow-md shadow-emerald-500/25 active:scale-[0.98] transition-all"
+                        >
+                          <span className="text-lg">🛒</span>
+                          Comprar ração
                         </button>
 
                         <button
