@@ -28,6 +28,7 @@ import type { PetEventRecord } from '@/lib/petEvents';
 import { parsePetEventExtraData } from '@/lib/petEvents';
 import { latestVaccinePerGroup, vaccineGroupKey } from '@/lib/vaccineUtils';
 import { dateToLocalISO } from '@/lib/localDate';
+import { MEDICATIONS_ENABLED } from '@/lib/featureFlags';
 
 // ─── Public Types ─────────────────────────────────────────────────────────────
 
@@ -523,6 +524,14 @@ function processEvents(p: PetCareDomainParams): PetCareReminder[] {
       ev.status === 'cancelled' ||
       ev.type === 'vaccine'   // auto-gerado por _ensure_vaccine_reminders — não exibir na UI
     ) continue;
+
+    // Medicamentos desativados no PETMOL 1.0 (ver docs/MEDICAMENTOS_
+    // DESATIVADOS.md) — nenhum lembrete de medicação nasce daqui, o que
+    // por tabela também tira o chip em RemindersSection, o card de Saúde
+    // em HomePetDashboard e o card de recompra na Loja do Pet (todos
+    // consomem esta mesma lista). Dados/eventos existentes continuam
+    // intactos no banco, só não geram mais lembrete algum.
+    if (ev.type === 'medicacao' && !MEDICATIONS_ENABLED) continue;
 
     const extra = parsePetEventExtraData(ev.extra_data);
 

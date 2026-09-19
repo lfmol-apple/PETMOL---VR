@@ -468,8 +468,15 @@ def send_due_reminders() -> None:
         # recente) é o que dispara.
         _UNIQUE_PER_PET_TYPES = {"food", "dewormer", "flea", "collar", "grooming"}
         seen: set = set()
+        medications_enabled = get_settings().medications_enabled
 
         for reminder in due:
+            # Medicamentos desativados no PETMOL 1.0 (ver
+            # docs/MEDICAMENTOS_DESATIVADOS.md) — pula sem marcar `sent`,
+            # a linha fica pendente pra sempre (nada é apagado) e volta a
+            # disparar normalmente se medications_enabled=True um dia.
+            if not medications_enabled and reminder.type in ("medication", "medicacao"):
+                continue
             if reminder.type in _UNIQUE_PER_PET_TYPES:
                 dedup_key = (reminder.user_id, reminder.pet_id or "", reminder.type)
             else:

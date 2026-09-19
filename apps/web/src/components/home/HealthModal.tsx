@@ -20,6 +20,7 @@ import type {
   ParasiteFormData,
 } from '@/lib/types/homeForms';
 import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
+import { MEDICATIONS_ENABLED } from '@/lib/featureFlags';
 import { PETMOL_HEADER_BG, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 type VaccineCardOcrRecord = {
   tipo_vacina?: string | null; nome_comercial: string | null;
@@ -272,7 +273,8 @@ export function HealthModal({
   const healthTabs = [
     { id: 'vaccines', label: t('health.vaccines'), icon: '💉', urgent: overdueVaccines > 0 },
     { id: 'parasites', label: t('health.parasite_control'), icon: '🛡️', urgent: overdueParasites > 0 },
-    { id: 'medication', label: 'Medicação', icon: '💊', urgent: false },
+    // Medicamentos desativados no PETMOL 1.0 — ver docs/MEDICAMENTOS_DESATIVADOS.md
+    ...(MEDICATIONS_ENABLED ? [{ id: 'medication', label: 'Medicação', icon: '💊', urgent: false }] : []),
     ...(healthModalMode === 'full' ? [
       { id: 'grooming', label: t('health.grooming'), icon: '🛁', urgent: overdueGroomingCount > 0 },
       { id: 'food', label: t('health.food'), icon: '🥣', urgent: false },
@@ -527,8 +529,11 @@ export function HealthModal({
                 />
               )}
 
-              {/* Aba Medicação */}
-              {(healthActiveTab === 'medication' || healthActiveTab === 'medications') && (
+              {/* Aba Medicação — desativada no PETMOL 1.0. Guarda aqui também
+                  (além de tirar do array healthTabs acima) porque
+                  usePetEventManagement.ts pode setar healthActiveTab pra
+                  'medication' ao editar um evento existente. */}
+              {MEDICATIONS_ENABLED && (healthActiveTab === 'medication' || healthActiveTab === 'medications') && (
                 <div className="space-y-4">
                   {offerMedicationRestore && (
                     <DraftRestoreBanner

@@ -28,3 +28,10 @@ export function isAdmin(email?: string): boolean {
   // Apenas leonardofmol@gmail.com é admin
   return email === 'leonardofmol@gmail.com';
 }
+
+// Medicamentos: decisão de produto (18/09/2026) — não faz parte do PETMOL
+// 1.0. Implementação completa preservada (código, dados, testes); só a
+// experiência do usuário é desligada. Ponto de recuperação: branch/tag
+// `archive/medicamentos-pre-1.0` no commit cbacba4. Ver
+// docs/MEDICAMENTOS_DESATIVADOS.md pra reativar.
+export const MEDICATIONS_ENABLED = false;

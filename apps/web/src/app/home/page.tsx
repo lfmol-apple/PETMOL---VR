@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '@/lib/I18nContext';
+import { MEDICATIONS_ENABLED } from '@/lib/featureFlags';
 import dynamic from 'next/dynamic';
 import type { ActionSheetType } from '@/components/PushActionSheet';
 import type { QuickActionContext } from '@/components/home/HealthQuickActionSheet';
@@ -1598,7 +1599,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
       setShowFoodSheet(true);
       return;
     }
-    if (product.category === 'medication') {
+    if (product.category === 'medication' && MEDICATIONS_ENABLED) {
       setShowMedicationSheet(true);
       return;
     }
@@ -2576,7 +2577,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         <EditPetModal
           pet={currentPet}
           photoVersion={currentPet?.updated_at || (selectedPetId ? photoTimestamps[selectedPetId] : undefined)}
-          careSummary={{ ...selectedPetCardColors, medicacao: medicationCardStatus.color }}
+          careSummary={{ ...selectedPetCardColors, ...(MEDICATIONS_ENABLED ? { medicacao: medicationCardStatus.color } : {}) }}
           onClose={closeEditPetModal}
           onSave={handleSavePet}
           onDelete={handleDeletePet}
@@ -2661,6 +2662,10 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
       {/* ── PushActionSheet — tela curta de decisão (push → ação rápida) ── */}
       {pushActionSheet && (() => {
+        // Medicamentos desativados no PETMOL 1.0 — mesmo que um push antigo
+        // (já agendado antes da desativação) ainda dispare, não abre a
+        // tela de ação rápida de medicação.
+        if (pushActionSheet.type === 'medication' && !MEDICATIONS_ENABLED) return null;
         const pushSheetPet = pets.find((pet) => pet.pet_id === pushActionSheet.petId) || currentPet;
         if (!pushSheetPet) return null;
         return (
@@ -2783,7 +2788,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         />
       )}
 
-      {showMedicationSheet && selectedPetId && (
+      {MEDICATIONS_ENABLED && showMedicationSheet && selectedPetId && (
         <MedicationItemSheet
           petId={selectedPetId}
           petName={currentPet?.pet_name}
