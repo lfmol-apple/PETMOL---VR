@@ -55,7 +55,12 @@ export interface DeriveOnboardingInput {
   feedingPlan: FeedingPlanEntry | null | undefined;
 }
 
-const STEP_ORDER: OnboardingStepKey[] = ['profile', 'food', 'vaccine', 'flea', 'dewormer'];
+// Ordem por risco pra saúde do pet, não por ordem alfabética/arbitrária
+// (auditoria final, 19/09/2026): vacina e antiparasitários resolvem um
+// problema de saúde real quando ficam pendentes; alimentação é conveniência
+// de compra. profile sempre primeiro (é automático — vira "feito" assim que
+// o pet existe).
+const STEP_ORDER: OnboardingStepKey[] = ['profile', 'vaccine', 'flea', 'dewormer', 'food'];
 
 const storeKey = (petId: string) => `petmol_onboarding_v2:${petId}`;
 const ACTIVE_FLAG = 'petmol_onboarding_active';

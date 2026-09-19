@@ -210,18 +210,12 @@ export function OnboardingChecklistCard({
   }
 
   // ── checklist ─────────────────────────────────────────────────────────────
+  // Ordem por risco pra saúde do pet (auditoria final, 19/09/2026): vacina e
+  // antiparasitários primeiro — ficar pendente tem custo de saúde real;
+  // alimentação é conveniência de compra e vem por último. Mesma ordem de
+  // STEP_ORDER em lib/onboardingProgress.ts.
   const rows: RowConfig[] = [
     { key: 'profile', label: `Perfil ${artigo} ${name}`, why: '' },
-    {
-      key: 'food',
-      label: 'Alimentação',
-      why: `O que ${name} come hoje? Assim o Petmol estima quando a ração vai acabar e facilita a próxima compra.`,
-      open: onOpenFood,
-      skipChoices: [
-        { value: 'later', label: 'Depois' },
-        { value: 'na', label: 'Não uso ração de saco' },
-      ],
-    },
     {
       key: 'vaccine',
       label: 'Vacinas',
@@ -252,6 +246,16 @@ export function OnboardingChecklistCard({
         { value: 'later', label: 'Agora não' },
         { value: 'none', label: 'Não uso' },
         { value: 'unknown', label: 'Não sei' },
+      ],
+    },
+    {
+      key: 'food',
+      label: 'Alimentação',
+      why: `O que ${name} come hoje? Assim o Petmol estima quando a ração vai acabar e facilita a próxima compra.`,
+      open: onOpenFood,
+      skipChoices: [
+        { value: 'later', label: 'Depois' },
+        { value: 'na', label: 'Não uso ração de saco' },
       ],
     },
   ];

@@ -8,13 +8,6 @@ import { getToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
 import { BrandBackground, PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { trackV1Metric } from '@/lib/v1Metrics';
-import { subscribeToPush } from '@/features/notifications/pushService';
-import {
-  isNativePushPlatform,
-  requestNativePushPermission,
-  registerNativePush,
-} from '@/features/notifications/nativePushService';
-import { needsIosInstallForPush } from '@/lib/pwaPlatform';
 
 type FieldKey = 'name' | 'email' | 'password' | 'terms';
 
@@ -54,11 +47,6 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<FieldKey, string>>({ name: '', email: '', password: '', terms: '' });
   const [currentField, setCurrentField] = useState<FieldKey>('name');
-  const [subscribing, setSubscribing] = useState(false);
-  const [sharingLocation, setSharingLocation] = useState(false);
-  const [pushSupported, setPushSupported] = useState(false);
-  const [iosNeedsInstall, setIosNeedsInstall] = useState(false);
-  const [postNotifRoute, setPostNotifRoute] = useState('/welcome');
   const [emailPanelOpen, setEmailPanelOpen] = useState(false);
   const [passwordPanelOpen, setPasswordPanelOpen] = useState(false);
   const [showPasswordInPanel, setShowPasswordInPanel] = useState(false);
@@ -75,24 +63,6 @@ export default function RegisterPage() {
     setInviteToken(params.get('invite'));
     setRedirectAfter(params.get('redirect'));
     nameRef.current?.focus();
-    // App nativo (TestFlight/App Store): push é APNs/FCM — sempre oferece o
-    // passo de ativar, nunca a instrução de "Adicionar à Tela de Início".
-    if (isNativePushPlatform()) {
-      setPushSupported(true);
-      setIosNeedsInstall(false);
-      trackV1Metric('signup_started', {});
-      return;
-    }
-    const webPushSupported =
-      'Notification' in window &&
-      'serviceWorker' in navigator &&
-      'PushManager' in window &&
-      Notification.permission !== 'granted';
-    setPushSupported(webPushSupported);
-    // On iOS Safari outside an installed PWA, PushManager doesn't exist at
-    // all — webPushSupported is false the same as "no push support",
-    // but here it's actually "would work if installed first".
-    setIosNeedsInstall(!webPushSupported && needsIosInstallForPush());
     trackV1Metric('signup_started', {});
   }, []);
 
@@ -143,48 +113,6 @@ export default function RegisterPage() {
     router.push('/login');
   };
 
-  const handleActivateNotifications = async () => {
-    setSubscribing(true);
-    try {
-      const token = getToken();
-      if (token) {
-        if (isNativePushPlatform()) {
-          const state = await requestNativePushPermission();
-          if (state === 'granted') await registerNativePush(token);
-        } else {
-          await subscribeToPush(token);
-        }
-      }
-    } catch {
-      // best-effort — falhas não bloqueiam o cadastro
-    }
-    setSubscribing(false);
-    setStep(4);
-  };
-
-  const finishOnboarding = () => router.push(postNotifRoute);
-
-  const handleShareLocation = async () => {
-    setSharingLocation(true);
-    try {
-      const pos = await new Promise<GeolocationPosition>((res, rej) =>
-        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000 }),
-      );
-      const token = getToken();
-      if (token) {
-        await fetch(`${API_BASE_URL}/auth/me`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        }).catch(() => {});
-      }
-    } catch {
-      // negou ou falhou — segue; a cidade digitada vira a localização aproximada
-    }
-    setSharingLocation(false);
-    finishOnboarding();
-  };
-
   const handleSubmit = async () => {
     const values = { name, email, password, termsAccepted };
     const ordered: FieldKey[] = ['name', 'email', 'password', 'terms'];
@@ -233,20 +161,19 @@ export default function RegisterPage() {
         }
       }
 
+      // Cadastro termina aqui, direto pro app — sem pedir notificação/
+      // localização "no vácuo" (auditoria final, 19/09/2026: bloqueava/
+      // atrasava 100% dos cadastros novos antes de qualquer valor
+      // percebido). Essas permissões são pedidas depois, com contexto:
+      // ao concluir o checklist "Primeiros passos" (OnboardingChecklistCard)
+      // ou, pra quem pula isso, pelo card de segunda chance na Home
+      // (PermissionsNudgeCard) — nunca mais às cegas no meio do cadastro.
       const dest = redirectAfter || (inviteToken ? '/home' : null);
       if (dest) {
-        setPostNotifRoute(dest);
+        router.push(dest);
       } else {
         trackV1Metric('register_completed', {});
-        setPostNotifRoute('/welcome');
-      }
-
-      if (dest?.startsWith('/cuidar/')) {
-        router.push(dest);
-      } else if (pushSupported || iosNeedsInstall) {
-        setStep(3);
-      } else {
-        setStep(4);
+        router.push('/welcome');
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao criar conta.';
@@ -286,156 +213,10 @@ export default function RegisterPage() {
 
           <div className="mb-4">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-500">Cadastro rápido</p>
-            <p className="mt-2 text-sm font-bold text-slate-900">Passo {Math.min(step, (pushSupported || iosNeedsInstall) ? 4 : 3)} de {(pushSupported || iosNeedsInstall) ? 4 : 3}</p>
+            <p className="mt-2 text-sm font-bold text-slate-900">Passo {step} de 2</p>
           </div>
 
-          {step === 3 ? (
-            <div className="space-y-6">
-              {/* Ícone */}
-              <div className="flex justify-center">
-                <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center shadow-inner">
-                  <svg viewBox="0 0 24 24" fill="none" className="w-10 h-10 text-blue-600" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Texto */}
-              <div className="text-center">
-                <p className="text-2xl font-black text-slate-900 leading-tight">Ative os lembretes</p>
-                <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-                  {iosNeedsInstall
-                    ? 'No iPhone, as notificações só funcionam depois de instalar o PETMOL na tela de início.'
-                    : 'Receba avisos no celular antes que vacinas vençam, medicamentos acabem ou a ração esgote.'}
-                </p>
-              </div>
-
-              {iosNeedsInstall ? (
-                /* Instruções de instalação — PushManager não existe fora do modo standalone no iOS,
-                   então o botão "Ativar notificações" falharia silenciosamente aqui. */
-                <ol className="space-y-2.5 text-left">
-                  {[
-                    { icon: '📤', text: 'Toque no ícone de compartilhar, na barra do Safari' },
-                    { icon: '➕', text: 'Escolha "Adicionar à Tela de Início"' },
-                    { icon: '🔔', text: 'Abra o PETMOL pelo ícone novo — os lembretes passam a funcionar' },
-                  ].map(({ icon, text }, i) => (
-                    <li key={text} className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
-                      <span className="text-lg leading-none">{icon}</span>
-                      <span className="text-sm font-semibold text-slate-700">{i + 1}. {text}</span>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                /* Benefícios */
-                <ul className="space-y-2.5">
-                  {[
-                    { icon: '💉', text: 'Vacinas prestes a vencer' },
-                    { icon: '💊', text: 'Hora do remédio e antiparasitários' },
-                    { icon: '🍽️', text: 'Estoque de ração acabando' },
-                  ].map(({ icon, text }) => (
-                    <li key={text} className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
-                      <span className="text-lg leading-none">{icon}</span>
-                      <span className="text-sm font-semibold text-slate-700">{text}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Botões */}
-              <div className="space-y-2 pt-1">
-                {iosNeedsInstall ? (
-                  <button
-                    type="button"
-                    onClick={() => setStep(4)}
-                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-[15px] font-black shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform"
-                  >
-                    Entendi
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleActivateNotifications}
-                    disabled={subscribing}
-                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-[15px] font-black shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
-                  >
-                    {subscribing ? (
-                      <>
-                        <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.3" /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>
-                        Ativando...
-                      </>
-                    ) : (
-                      '🔔  Ativar notificações'
-                    )}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setStep(4)}
-                  className={`w-full py-3 text-sm font-semibold text-slate-400 active:text-slate-600 transition-colors ${iosNeedsInstall ? 'hidden' : ''}`}
-                >
-                  Agora não
-                </button>
-              </div>
-            </div>
-          ) : step === 4 ? (
-            <div className="space-y-6">
-              <div className="flex justify-center">
-                <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center shadow-inner">
-                  <svg viewBox="0 0 24 24" fill="none" className="w-10 h-10 text-blue-600" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
-                    <circle cx="12" cy="10" r="3" />
-                  </svg>
-                </div>
-              </div>
-
-              <div className="text-center">
-                <p className="text-2xl font-black text-slate-900 leading-tight">Alertas de pet sumido</p>
-                <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-                  Se um pet sumir na sua região, você recebe um aviso na hora e pode ajudar.
-                  Para isso o PETMOL precisa saber onde você fica.
-                </p>
-              </div>
-
-              <ul className="space-y-2.5">
-                {[
-                  { icon: '📍', text: 'Só a sua região — nunca seu endereço exato' },
-                  { icon: '🔕', text: 'Você não recebe nada de propaganda por isso' },
-                  { icon: '🐾', text: 'Se o seu pet sumir, a vizinhança também é avisada' },
-                ].map(({ icon, text }) => (
-                  <li key={text} className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
-                    <span className="text-lg leading-none">{icon}</span>
-                    <span className="text-sm font-semibold text-slate-700">{text}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="space-y-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleShareLocation}
-                  disabled={sharingLocation}
-                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#0066ff] to-[#0056D2] text-white text-[15px] font-black shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
-                >
-                  {sharingLocation ? (
-                    <>
-                      <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.3" /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>
-                      Aguardando...
-                    </>
-                  ) : (
-                    '📍  Permitir localização'
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={finishOnboarding}
-                  className="w-full py-3 text-sm font-semibold text-slate-400 active:text-slate-600 transition-colors"
-                >
-                  {city.trim() ? `Usar só "${city.trim()}"` : 'Agora não'}
-                </button>
-              </div>
-            </div>
-          ) : step === 1 ? (
+          {step === 1 ? (
             <div className="space-y-5">
               <div>
                 <p className="text-2xl font-black text-slate-900">Qual o seu nome?</p>
