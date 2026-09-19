@@ -426,21 +426,29 @@ input[type="range"]::-moz-range-progress {
 }
 
 /* iOS (WKWebView/Safari): <input type="date|time"> ignora width:100% e estoura
-   a borda do cartão (achado no iPhone 17 Pro, 19/09/2026, "Editar plano" da
-   Alimentação: ~35px pra fora). O WebKit dá a esses inputs uma largura mínima
-   intrínseca; zera isso e força o box a caber no pai. Só iOS
-   (-webkit-touch-callout existe apenas lá) — no Android o ícone nativo do
-   calendário continua aparecendo. */
+   a borda do cartão (~35px pra fora; achado no iPhone 17 Pro em Alimentação >
+   Editar plano e Medicação > Novo registro). Só zerar min-width NÃO resolve
+   (testado no simulador): o controle nativo mantém a largura intrínseca. O que
+   resolve é tirar a aparência nativa (appearance:none) — o seletor nativo de
+   data/hora continua abrindo ao tocar. Só iOS (-webkit-touch-callout existe
+   apenas lá); no Android nada muda. */
 @supports (-webkit-touch-callout: none) {
   input[type="date"],
   input[type="time"],
   input[type="month"],
   input[type="datetime-local"] {
+    -webkit-appearance: none;
+    appearance: none;
     display: block;
     width: 100%;
     min-width: 0;
     max-width: 100%;
-    box-sizing: border-box;
-    -webkit-min-logical-width: 0;
+    min-height: 3rem;
+    color: #111;
+    text-align: center;
+  }
+  input::-webkit-date-and-time-value {
+    text-align: center;
+    min-width: 0;
   }
 }
