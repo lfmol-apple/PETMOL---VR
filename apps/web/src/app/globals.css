@@ -426,29 +426,26 @@ input[type="range"]::-moz-range-progress {
 }
 
 /* iOS (WKWebView/Safari): <input type="date|time"> ignora width:100% e estoura
-   a borda do cartão (~35px pra fora; achado no iPhone 17 Pro em Alimentação >
-   Editar plano e Medicação > Novo registro). Só zerar min-width NÃO resolve
-   (testado no simulador): o controle nativo mantém a largura intrínseca. O que
-   resolve é tirar a aparência nativa (appearance:none) — o seletor nativo de
-   data/hora continua abrindo ao tocar. Só iOS (-webkit-touch-callout existe
-   apenas lá); no Android nada muda. */
+   a borda do cartão (~35px pra fora). Só zerar min-width NÃO resolve (testado no
+   simulador iOS): é preciso tirar a aparência nativa (appearance:none) — o
+   seletor nativo de data/hora continua abrindo ao tocar.
+   ATENÇÃO: tudo dentro de :where() (especificidade 0) DE PROPÓSITO. A versão
+   anterior forçava width:100%, min-height, color e text-align com
+   especificidade maior que as classes Tailwind e desalinhou todos os sheets
+   (data do Pet Sumido espremida, linha "Lembrar" torta). Aqui só mudamos o
+   padrão; qualquer classe da tela (w-*, flex-1, text-left, py-*) continua
+   vencendo. Só iOS (-webkit-touch-callout existe apenas lá). */
 @supports (-webkit-touch-callout: none) {
-  input[type="date"],
-  input[type="time"],
-  input[type="month"],
-  input[type="datetime-local"] {
+  :where(input[type="date"], input[type="time"], input[type="month"], input[type="datetime-local"]) {
     -webkit-appearance: none;
     appearance: none;
-    display: block;
-    width: 100%;
     min-width: 0;
     max-width: 100%;
-    min-height: 3rem;
-    color: #111;
+    color: inherit;
     text-align: center;
   }
-  input::-webkit-date-and-time-value {
-    text-align: center;
+  :where(input)::-webkit-date-and-time-value {
+    text-align: inherit;
     min-width: 0;
   }
 }
