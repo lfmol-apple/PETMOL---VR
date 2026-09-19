@@ -29,6 +29,7 @@ import { parsePetEventExtraData } from '@/lib/petEvents';
 import { latestVaccinePerGroup, vaccineGroupKey } from '@/lib/vaccineUtils';
 import { dateToLocalISO } from '@/lib/localDate';
 import { MEDICATIONS_ENABLED } from '@/lib/featureFlags';
+import { isMedicationTreatmentStale } from '@/lib/medicationTreatment';
 
 // ─── Public Types ─────────────────────────────────────────────────────────────
 
@@ -573,6 +574,8 @@ function processEvents(p: PetCareDomainParams): PetCareReminder[] {
       const skippedDates: string[] = Array.isArray(extra.skipped_dates) ? extra.skipped_dates : [];
       // Tratamento já completo por contagem de doses?
       if (appliedDates.length >= totalDoses) continue;
+      // Período previsto acabou e parado há dias = concluído (não pede dose de hoje).
+      if (isMedicationTreatmentStale(ev.scheduled_at, extra, todayIso)) continue;
       // Calcular data de término com dias perdidos
       const daysSinceStart = Math.max(0, Math.floor((today.getTime() - startDate.getTime()) / 86400000));
       const appliedBefore = appliedDates.filter(d => d < todayIso).length;

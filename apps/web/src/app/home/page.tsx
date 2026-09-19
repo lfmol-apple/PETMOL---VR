@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '@/lib/I18nContext';
 import { MEDICATIONS_ENABLED } from '@/lib/featureFlags';
+import { isMedicationTreatmentStale } from '@/lib/medicationTreatment';
 import dynamic from 'next/dynamic';
 import type { ActionSheetType } from '@/components/PushActionSheet';
 import type { QuickActionContext } from '@/components/home/HealthQuickActionSheet';
@@ -1337,6 +1338,10 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   const activeMedicationCount = useMemo(() => {
     return petEvents.filter(ev => {
       if ((ev.type !== 'medicacao' && ev.type !== 'medication') || ev.source === 'document' || ev.status === 'cancelled') return false;
+      try {
+        const ex0 = JSON.parse(String((ev as unknown as Record<string, unknown>).extra_data || '{}')) as Record<string, unknown>;
+        if (isMedicationTreatmentStale(ev.scheduled_at, ex0, localTodayISO())) return false;
+      } catch {}
       if (ev.status !== 'completed') return true;
       try {
         const ex = JSON.parse(String((ev as unknown as Record<string, unknown>).extra_data || '{}')) as Record<string, unknown>;
@@ -1354,6 +1359,10 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     const todayRef = new Date(`${todayStr}T00:00:00`);
     const activeMeds = petEvents.filter(ev => {
       if ((ev.type !== 'medicacao' && ev.type !== 'medication') || ev.source === 'document' || ev.status === 'cancelled') return false;
+      try {
+        const ex0 = JSON.parse(String((ev as unknown as Record<string, unknown>).extra_data || '{}')) as Record<string, unknown>;
+        if (isMedicationTreatmentStale(ev.scheduled_at, ex0, todayStr)) return false;
+      } catch {}
       if (ev.status !== 'completed') return true;
       try {
         const ex = JSON.parse(String((ev as unknown as Record<string, unknown>).extra_data || '{}')) as Record<string, unknown>;

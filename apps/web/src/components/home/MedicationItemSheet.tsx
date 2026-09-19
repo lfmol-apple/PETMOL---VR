@@ -1,5 +1,6 @@
 'use client';
 
+import { isMedicationTreatmentStale } from '@/lib/medicationTreatment';
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
@@ -55,21 +56,10 @@ const MONTH_FULL_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
-const WEEKDAY_LETTERS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
 /** Todos os dias do mês (year/monthIndex0based), com blanks (null) de
  * preenchimento antes do dia 1 pra alinhar com a coluna do dia da semana
  * certa — o calendário sempre começa no domingo da semana do dia 1. */
-function buildMonthCalendarCells(year: number, monthIndex: number): (string | null)[] {
-  const firstOfMonth = new Date(year, monthIndex, 1);
-  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-  const cells: (string | null)[] = new Array(firstOfMonth.getDay()).fill(null);
-  for (let day = 1; day <= daysInMonth; day++) {
-    cells.push(dateToLocalISO(new Date(year, monthIndex, day)));
-  }
-  return cells;
-}
-
 function parseMedNotes(notes: string) {
   const lines = notes.split('\n');
   const firstLine = lines[0] || '';
@@ -383,6 +373,7 @@ export function MedicationItemSheet({
   const active = medications.filter(ev => {
     try {
       const ex = parsePetEventExtraData(ev.extra_data);
+      if (isMedicationTreatmentStale(ev.scheduled_at, ex, dateToLocalISO(new Date()))) return false;
       const totalConfigured = ex.total_doses || ex.treatment_days;
       if (totalConfigured) {
         const applied = (ex.applied_dates as string[] || []).length;
@@ -870,7 +861,6 @@ export function MedicationItemSheet({
                       allDayDates.push(dateToLocalISO(d));
                     }
 
-                    const allDayDatesSet = new Set(allDayDates);
                     const isDayGridExpanded = expandedDayGridIds.has(ev.id);
 
                     // Um calendário de verdade por mês (Março completo,
@@ -980,22 +970,13 @@ export function MedicationItemSheet({
                               <p className="text-[11px] font-black text-gray-500 mb-1.5">
                                 {MONTH_FULL_NAMES[group.monthIndex]} {group.year}
                               </p>
+                              {/* Só os dias do TRATAMENTO (pedido do dono, 19/09/2026):
+                                  com 4 medicações o mês inteiro com dias apagados
+                                  deixava a tela enorme. Sem cabeçalho de semana,
+                                  sem dias de enchimento — 7 dias = 1 linha. */}
                               <div className="grid grid-cols-7 gap-1">
-                                {WEEKDAY_LETTERS.map((letter, i) => (
-                                  <div key={i} className="text-center text-[9px] font-bold text-gray-300">{letter}</div>
-                                ))}
-                                {buildMonthCalendarCells(group.year, group.monthIndex).map((dateStr, i) => {
-                                  if (!dateStr) return <div key={`blank-${i}`} />;
-                                  const inTreatment = allDayDatesSet.has(dateStr);
+                                {allDayDates.filter(d => d.startsWith(group.key)).map((dateStr) => {
                                   const dayNum = parseInt(dateStr.slice(8, 10), 10);
-
-                                  if (!inTreatment) {
-                                    return (
-                                      <div key={dateStr} className="aspect-square flex items-center justify-center text-[10px] text-gray-300">
-                                        {dayNum}
-                                      </div>
-                                    );
-                                  }
 
                                   // Multi-dose/dia: doneToday conta os HORÁRIOS
                                   // já registrados (applied_slots[dia]), não
