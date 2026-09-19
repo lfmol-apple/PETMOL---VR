@@ -742,6 +742,22 @@ export function ParasiteItemSheet({
                 </div>
               )}
 
+              {/* Comprar continua acessível aqui também (pedido do dono,
+                  18/09/2026: "o botão comprar tem que estar em todo fluxo" —
+                  o único erro no fluxo de Repetir era não ter isso). Pra quem
+                  abriu "Registrar aplicação" mas na verdade ainda não
+                  comprou o produto novo. */}
+              {!showManualForm && (
+                <button
+                  type="button"
+                  onClick={() => setMode('buy')}
+                  className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] transition-all text-white text-[14px] font-black shadow-sm shadow-emerald-500/20 flex items-center justify-center gap-2"
+                >
+                  <span>🛒</span>
+                  Ainda não comprei — {cfg.buyLabel}
+                </button>
+              )}
+
               {showManualForm && (
                 <>
                   <div>
