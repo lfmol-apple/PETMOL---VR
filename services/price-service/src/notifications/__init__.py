@@ -6,6 +6,7 @@ scheduler (1 min) detecta remind_at <= now → envia push via VAPID.
 """
 import json
 import logging
+import re
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
@@ -433,6 +434,35 @@ _TYPE_CONFIG: dict = {
 
 # ── Scheduler job ────────────────────────────────────────────────────────────
 
+_MED_TYPES = ("medication", "medicacao")
+_MED_RETRY_WINDOW = timedelta(hours=2)
+
+
+def _reminder_minute(remind_at):
+    return remind_at.replace(second=0, microsecond=0) if remind_at else remind_at
+
+
+def _medication_name(reminder) -> str:
+    m = re.search(r"Hora de dar (.+?) para ", reminder.body or "")
+    return ((m.group(1) if m else (reminder.title or "medicação")).strip())[:60]
+
+
+def _combine_medication_reminders(group, pet_name: Optional[str]):
+    """Vários remédios do mesmo pet no mesmo horário viram UM aviso que lista
+    todos (antes só um chegava e os outros eram descartados como 'duplicados').
+    Devolve (title, body) ou None quando há um só remédio."""
+    names: list = []
+    for r in group:
+        n = _medication_name(r)
+        if n not in names:
+            names.append(n)
+    if len(names) < 2:
+        return None
+    listed = ", ".join(names[:-1]) + " e " + names[-1]
+    title = f"💊 Hora dos remédios{' do ' + pet_name if pet_name else ''}"
+    return title, f"Hora de dar: {listed}. Toque para registrar as doses."
+
+
 def send_due_reminders() -> None:
     db = SessionLocal()
     try:
@@ -470,6 +500,15 @@ def send_due_reminders() -> None:
         seen: set = set()
         medications_enabled = get_settings().medications_enabled
 
+        # Remédios do mesmo pet e horário: um só aviso (o mais recente lidera).
+        med_groups: dict = {}
+        for r in due:
+            if medications_enabled and r.type in _MED_TYPES:
+                med_groups.setdefault(
+                    (r.user_id, r.pet_id or "", r.type, _reminder_minute(r.remind_at)), []
+                ).append(r)
+        med_followers: list = []  # (líder, seguidor)
+
         for reminder in due:
             # Medicamentos desativados no PETMOL 1.0 (ver
             # docs/MEDICAMENTOS_DESATIVADOS.md) — pula sem marcar `sent`,
@@ -479,17 +518,26 @@ def send_due_reminders() -> None:
                 continue
             if reminder.type in _UNIQUE_PER_PET_TYPES:
                 dedup_key = (reminder.user_id, reminder.pet_id or "", reminder.type)
+            elif reminder.type in _MED_TYPES:
+                dedup_key = (reminder.user_id, reminder.pet_id or "", reminder.type, _reminder_minute(reminder.remind_at))
             else:
                 dedup_key = (reminder.user_id, reminder.pet_id or "", reminder.type, reminder.remind_at)
             is_duplicate = dedup_key in seen
             seen.add(dedup_key)
 
             if is_duplicate:
+                if reminder.type in _MED_TYPES:
+                    # Seguidor: vai junto no aviso do líder e só é dado como
+                    # enviado quando o líder for (ver pós-passo abaixo).
+                    leader = med_groups[dedup_key][0]
+                    med_followers.append((leader, reminder))
+                    continue
                 logger.info(f"Reminder {reminder.id}: duplicado suprimido — marcado como enviado")
                 reminder.sent = True
                 continue
 
             recipient_ids = {str(reminder.user_id)}
+            pet = None
             if reminder.pet_id:
                 pet = db.query(Pet).filter(Pet.id == reminder.pet_id).first()
                 if pet:
@@ -536,8 +584,16 @@ def send_due_reminders() -> None:
                 action_label = cfg.get("action_label", "Abrir PETMOL")
                 action_id = cfg.get("action_id", "open")
 
+            title = reminder.title
+            if reminder.type in _MED_TYPES:
+                combo = _combine_medication_reminders(
+                    med_groups.get(dedup_key, [reminder]), getattr(pet, "name", None)
+                )
+                if combo:
+                    title, body = combo
+
             payload = {
-                "title": reminder.title,
+                "title": title,
                 "body": body,
                 "icon": cfg.get("icon", "/icons/icon-192x192.png"),
                 "badge": cfg.get("badge", "/icons/badge-mono.png"),
@@ -589,13 +645,25 @@ def send_due_reminders() -> None:
             for rid in native_recipient_ids:
                 ok_count += push_native_ios_to_user(rid, payload)
 
-            if ok_count > 0 or not hard_fail:
+            if ok_count == 0 and not hard_fail and reminder.type in _MED_TYPES:
+                # Ninguém pra receber agora (sem token/assinatura ativa): não
+                # descarta o lembrete de remédio na hora — tenta de novo por
+                # até 2h (ex.: token nativo ainda registrando).
+                idade = datetime.utcnow() - reminder.remind_at.replace(tzinfo=None)
+                if idade < _MED_RETRY_WINDOW:
+                    logger.info(f"Reminder {reminder.id}: sem destino ativo — mantido pra tentar de novo")
+                else:
+                    reminder.sent = True
+            elif ok_count > 0 or not hard_fail:
                 reminder.sent = True
             else:
                 reminder.retry_count = (reminder.retry_count or 0) + 1
                 if reminder.retry_count >= _MAX_RETRY:
                     logger.warning(f"Reminder {reminder.id}: desistindo após {_MAX_RETRY} tentativas")
                     reminder.sent = True
+
+        for leader, follower in med_followers:
+            follower.sent = bool(leader.sent)
 
         if invalid_sub_ids:
             now2 = datetime.now(timezone.utc)
