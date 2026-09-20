@@ -1,6 +1,6 @@
 'use client';
 
-import { isMedicationTreatmentStale } from '@/lib/medicationTreatment';
+import { medicationTreatmentState, EXPIRED_UNCONFIRMED_LABEL } from '@/lib/medicationTreatment';
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
@@ -370,10 +370,17 @@ export function MedicationItemSheet({
     ev => ev.type === 'medicacao' || ev.type === 'medication',
   );
 
+  const stateOf = (ev: PetEventRecord) => {
+    try {
+      return medicationTreatmentState(ev, parsePetEventExtraData(ev.extra_data), dateToLocalISO(new Date()));
+    } catch {
+      return 'active' as const;
+    }
+  };
   const active = medications.filter(ev => {
+    if (stateOf(ev) !== 'active') return false;
     try {
       const ex = parsePetEventExtraData(ev.extra_data);
-      if (isMedicationTreatmentStale(ev.scheduled_at, ex, dateToLocalISO(new Date()))) return false;
       const totalConfigured = ex.total_doses || ex.treatment_days;
       if (totalConfigured) {
         const applied = (ex.applied_dates as string[] || []).length;
@@ -382,6 +389,7 @@ export function MedicationItemSheet({
     } catch {}
     return false;
   });
+  const expiredUnconfirmed = medications.filter(ev => stateOf(ev) === 'expired_unconfirmed');
 
   function showToast(msg: string) {
     setToast(msg);
@@ -713,7 +721,9 @@ export function MedicationItemSheet({
   // ── Status badge ──────────────────────────────────────────────────────────
   const statusLabel = active.length > 0
     ? `${active.length} em tratamento`
-    : medications.length > 0
+    : expiredUnconfirmed.length > 0
+      ? EXPIRED_UNCONFIRMED_LABEL
+      : medications.length > 0
       ? 'Sem tratamentos ativos'
       : 'Nenhuma medicação';
 
@@ -1447,7 +1457,12 @@ function MedRow({
     // treatment_days pra regular. Ignorar total_doses aqui fazia um
     // tratamento personalizado ativo cair no "Pendente" genérico.
     const totalConfigured = parseInt(String(ex.total_doses || ex.treatment_days), 10);
-    if (totalConfigured) {
+    const treatmentState = medicationTreatmentState(ev, ex, dateToLocalISO(new Date()));
+    if (treatmentState === 'interrupted') {
+      badgeCls = 'bg-gray-100 text-gray-600'; badgeTxt = 'Interrompido';
+    } else if (treatmentState === 'expired_unconfirmed') {
+      badgeCls = 'bg-amber-100 text-amber-800'; badgeTxt = EXPIRED_UNCONFIRMED_LABEL;
+    } else if (totalConfigured) {
       const applied = (ex.applied_dates as string[] || []).length;
       if (applied >= totalConfigured) {
         badgeCls = 'bg-green-100 text-green-700'; badgeTxt = 'Concluído';

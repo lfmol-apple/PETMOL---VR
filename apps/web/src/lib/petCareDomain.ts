@@ -29,7 +29,7 @@ import { parsePetEventExtraData } from '@/lib/petEvents';
 import { latestVaccinePerGroup, vaccineGroupKey } from '@/lib/vaccineUtils';
 import { dateToLocalISO } from '@/lib/localDate';
 import { MEDICATIONS_ENABLED } from '@/lib/featureFlags';
-import { isMedicationTreatmentStale } from '@/lib/medicationTreatment';
+import { medicationTreatmentState } from '@/lib/medicationTreatment';
 
 // ─── Public Types ─────────────────────────────────────────────────────────────
 
@@ -536,6 +536,13 @@ function processEvents(p: PetCareDomainParams): PetCareReminder[] {
 
     const extra = parsePetEventExtraData(ev.extra_data);
 
+    // Prazo encerrado sem conclusão confirmada: nenhum lembrete (nem o
+    // "atrasado" de intervalo personalizado) até o tutor registrar algo.
+    if (
+      ev.type === 'medicacao' &&
+      medicationTreatmentState(ev, extra, dateToLocalISO(todayMidnight())) === 'expired_unconfirmed'
+    ) continue;
+
     // Medicações de intervalo personalizado (ex: vermífugo com segunda dose
     // 15 dias depois) usam next_due_date. Não são tratamento diário.
     if (ev.type === 'medicacao' && extra.custom_interval_days) {
@@ -575,7 +582,6 @@ function processEvents(p: PetCareDomainParams): PetCareReminder[] {
       // Tratamento já completo por contagem de doses?
       if (appliedDates.length >= totalDoses) continue;
       // Período previsto acabou e parado há dias = concluído (não pede dose de hoje).
-      if (isMedicationTreatmentStale(ev.scheduled_at, extra, todayIso)) continue;
       // Calcular data de término com dias perdidos
       const daysSinceStart = Math.max(0, Math.floor((today.getTime() - startDate.getTime()) / 86400000));
       const appliedBefore = appliedDates.filter(d => d < todayIso).length;

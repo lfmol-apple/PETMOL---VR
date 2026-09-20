@@ -93,3 +93,57 @@ describe('buildPetCareReminders — gtin em lembretes de medicação', () => {
     expect(consulta?.gtin).toBeUndefined();
   });
 });
+
+describe('buildPetCareReminders — prazo encerrado sem conclusão confirmada', () => {
+  const daysAgo = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  it('tratamento diário vencido e parado não gera lembrete', () => {
+    const ev = medicationEvent({
+      scheduled_at: `${daysAgo(60)}T00:00:00Z`,
+      next_due_date: `${daysAgo(59)}T00:00:00Z`,
+      extra_data: JSON.stringify({ treatment_days: 10, applied_dates: [daysAgo(58)] }),
+    });
+    expect(buildPetCareReminders(baseParams([ev])).some(r => r.domain === 'medication')).toBe(false);
+  });
+
+  it('intervalo personalizado vencido e parado não vira lembrete atrasado eterno', () => {
+    const ev = medicationEvent({
+      scheduled_at: `${daysAgo(90)}T00:00:00Z`,
+      next_due_date: `${daysAgo(60)}T00:00:00Z`,
+      extra_data: JSON.stringify({ custom_interval_days: 10, total_doses: 3, applied_dates: [daysAgo(90)] }),
+    });
+    expect(buildPetCareReminders(baseParams([ev])).some(r => r.domain === 'medication')).toBe(false);
+  });
+
+  it('intervalo personalizado ainda dentro do prazo continua lembrando', () => {
+    const ev = medicationEvent({
+      scheduled_at: `${daysAgo(5)}T00:00:00Z`,
+      next_due_date: `${daysAgo(-5)}T00:00:00Z`,
+      extra_data: JSON.stringify({ custom_interval_days: 10, total_doses: 3, applied_dates: [daysAgo(5)] }),
+    });
+    expect(buildPetCareReminders(baseParams([ev])).some(r => r.domain === 'medication')).toBe(true);
+  });
+
+  it('tratamento vencido mas com dose recente continua lembrando', () => {
+    const ev = medicationEvent({
+      scheduled_at: `${daysAgo(12)}T00:00:00Z`,
+      next_due_date: `${daysAgo(11)}T00:00:00Z`,
+      extra_data: JSON.stringify({ treatment_days: 10, applied_dates: [daysAgo(3)] }),
+    });
+    expect(buildPetCareReminders(baseParams([ev])).some(r => r.domain === 'medication')).toBe(true);
+  });
+
+  it('cancelado (interrompido) nunca gera lembrete', () => {
+    const ev = medicationEvent({
+      status: 'cancelled',
+      scheduled_at: `${daysAgo(2)}T00:00:00Z`,
+      next_due_date: `${daysAgo(1)}T00:00:00Z`,
+      extra_data: JSON.stringify({ treatment_days: 10, applied_dates: [] }),
+    });
+    expect(buildPetCareReminders(baseParams([ev])).some(r => r.domain === 'medication')).toBe(false);
+  });
+});
