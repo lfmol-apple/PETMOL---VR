@@ -499,6 +499,27 @@ def _medication_deep_link(db, group, pet_id: Optional[str]) -> str:
     return f"{base}&eventId={','.join(ids)}" if ids else base
 
 
+def _alert_admin_medication_lost(db, group, reason: str) -> None:
+    """Aviso de remédio que NÃO pôde ser entregue: e-mail ao admin (o push do
+    próprio tutor é justamente o que falhou), para o problema nunca ficar mudo."""
+    try:
+        from ..mailer import send_mail
+
+        first = group[0]
+        pet = db.query(Pet).filter(Pet.id == first.pet_id).first() if first.pet_id else None
+        nomes = ", ".join(dict.fromkeys(_medication_name(r) for r in group))
+        when = first.remind_at.astimezone(timezone.utc).strftime("%d/%m %H:%M UTC") if first.remind_at else "?"
+        body = (
+            f"⚠️ Aviso de remédio NÃO entregue\n\nPet: {getattr(pet, 'name', '?')}\n"
+            f"Remédio(s): {nomes}\nHorário previsto: {when}\nMotivo: {reason}\n\n"
+            "Verifique o push do aparelho (token nativo/assinatura) do tutor."
+        )
+        send_mail(to=get_settings().admin_master_email, subject="⚠️ PETMOL — aviso de remédio não entregue",
+                  body_text=body)
+    except Exception as exc:  # nunca deixa o alerta derrubar o envio
+        logger.warning(f"alerta de remédio perdido falhou: {exc}")
+
+
 def send_due_reminders() -> None:
     db = SessionLocal()
     try:
@@ -692,6 +713,7 @@ def send_due_reminders() -> None:
                     logger.info(f"Reminder {reminder.id}: sem destino ativo — mantido pra tentar de novo")
                 else:
                     reminder.sent = True
+                    _alert_admin_medication_lost(db, med_groups.get(dedup_key, [reminder]), "sem destino ativo por mais de 2h")
             elif ok_count > 0 or not hard_fail:
                 reminder.sent = True
             else:
@@ -699,6 +721,8 @@ def send_due_reminders() -> None:
                 if reminder.retry_count >= _MAX_RETRY:
                     logger.warning(f"Reminder {reminder.id}: desistindo após {_MAX_RETRY} tentativas")
                     reminder.sent = True
+                    if reminder.type in _MED_TYPES:
+                        _alert_admin_medication_lost(db, med_groups.get(dedup_key, [reminder]), f"falha de envio após {_MAX_RETRY} tentativas")
 
         for leader, follower in med_followers:
             follower.sent = bool(leader.sent)
