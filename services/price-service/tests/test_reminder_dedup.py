@@ -248,3 +248,17 @@ def test_grouped_medication_push_deep_link_carries_event_ids(_iso):
     url = sent[0]["data"]["url"]
     assert url.startswith(f"/home?modal=medication&petId={pid}&eventId=")
     assert set(url.split("eventId=")[1].split(",")) == set(ev_ids)
+
+
+def test_lost_medication_reminder_alerts_admin_by_email(_iso, monkeypatch):
+    """Remédio sem destino por mais de 2h: consome E avisa o admin por e-mail."""
+    monkeypatch.setattr(notif, "apns_configured", lambda: True)
+    mails = []
+    monkeypatch.setattr("src.mailer.send_mail", lambda **kw: mails.append(kw) or True)
+    uid, pid = str(uuid.uuid4()), str(uuid.uuid4())
+    velho = datetime.now(timezone.utc) - timedelta(hours=3)
+    with SessionLocal() as db:
+        _med(db, uid, pid, "Zelotril 50mg", velho, datetime.now(timezone.utc))
+    notif.send_due_reminders()
+    assert len(mails) == 1
+    assert "não entregue" in mails[0]["subject"] and "Zelotril 50mg" in mails[0]["body_text"]
