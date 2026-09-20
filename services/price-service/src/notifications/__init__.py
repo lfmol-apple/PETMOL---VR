@@ -952,6 +952,30 @@ def test_push(current_user=Depends(get_current_user)):
                "data": {"url": "/home"}}
     db = SessionLocal()
     try:
+        # Se o usuário tem remédio em tratamento, o teste manda o toque para a
+        # Medicação: assim dá pra provar, na hora, o caminho completo
+        # (aviso → toque → sheet) sem esperar o horário de uma dose real.
+        from ..events.models import Event
+        med = (
+            db.query(Event)
+            .filter(
+                Event.user_id == str(current_user.id),
+                Event.type.in_(("medicacao", "medication")),
+                Event.deleted_at.is_(None),
+                Event.status.notin_(("cancelled", "completed")),
+            )
+            .order_by(Event.created_at.desc() if hasattr(Event, "created_at") else Event.scheduled_at.desc())
+            .first()
+        )
+        if med is not None:
+            pet = db.query(Pet).filter(Pet.id == med.pet_id).first()
+            url = f"/home?modal=medication&petId={med.pet_id}"
+            payload = {
+                "title": "🐾 Teste PETMOL",
+                "body": f"Toque para abrir a Medicação{' de ' + pet.name if pet else ''}.",
+                "tag": "test",
+                "data": {"url": url, "action_urls": {"open": url}, "pet_id": med.pet_id, "type": "medication"},
+            }
         subs = (
             db.query(PushSubscription)
             .filter(PushSubscription.user_id == str(current_user.id), PushSubscription.disabled_at.is_(None))
