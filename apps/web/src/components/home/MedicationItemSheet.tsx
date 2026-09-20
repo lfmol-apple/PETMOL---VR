@@ -321,6 +321,8 @@ export interface MedicationItemSheetProps {
   onRefresh: () => Promise<void>;
   onGoHome?: () => void;
   initialMode?: 'view' | 'buy';
+  /** Remédios do aviso tocado: a lista rola até eles e os destaca. */
+  focusEventIds?: string[];
 }
 
 type Mode = 'view' | 'add' | 'edit' | 'buy';
@@ -341,9 +343,20 @@ export function MedicationItemSheet({
   onRefresh,
   onGoHome,
   initialMode,
+  focusEventIds,
 }: MedicationItemSheetProps) {
   const petPhotoSrc = resolvePetPhotoUrl(petPhotoUrl);
   const [mode, setMode] = useState<Mode>(initialMode === 'buy' ? 'buy' : 'view');
+  const [focusActive, setFocusActive] = useState<boolean>(Boolean(focusEventIds?.length));
+  useEffect(() => {
+    if (!focusEventIds?.length) return;
+    setFocusActive(true);
+    const scroll = () => document.getElementById(`med-${focusEventIds[0]}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const t1 = setTimeout(scroll, 400);
+    const t2 = setTimeout(scroll, 1200);
+    const t3 = setTimeout(() => setFocusActive(false), 9000);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [focusEventIds]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<MedForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -935,7 +948,15 @@ export function MedicationItemSheet({
                       : `${daysFullyDone}/${totalDays} doses`;
 
                     return (
-                      <div key={ev.id} className="rounded-2xl border border-purple-200 bg-white shadow-sm">
+                      <div
+                        key={ev.id}
+                        id={`med-${ev.id}`}
+                        className={`rounded-2xl border bg-white shadow-sm transition-shadow ${
+                          focusActive && focusEventIds?.includes(ev.id)
+                            ? 'border-purple-500 ring-4 ring-purple-300'
+                            : 'border-purple-200'
+                        }`}
+                      >
                         {/* Compact header */}
                         <div className="px-4 pt-3 pb-2">
                           <div className="flex items-start justify-between gap-2">

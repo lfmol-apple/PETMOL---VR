@@ -1046,6 +1046,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
   const [vaccineSheetInitialMode, setVaccineSheetInitialMode] = useState<'view' | 'buy'>('view');
   const [vaccineFormJustSaved, setVaccineFormJustSaved] = useState(false);
   const [medicationSheetInitialMode, setMedicationSheetInitialMode] = useState<'view' | 'buy'>('view');
+  const [medicationFocusIds, setMedicationFocusIds] = useState<string[]>([]);
   const [parasiteSheetInitialMode, setParasiteSheetInitialMode] = useState<'view' | 'buy'>('view');
 
   // Helper para criar data local a partir de string YYYY-MM-DD
@@ -1787,6 +1788,9 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
     }
 
     const eventId = params.get('eventId') || undefined;
+    if (modal === 'medication') {
+      setMedicationFocusIds(eventId ? eventId.split(',').filter(Boolean) : []);
+    }
     const itemName = params.get('itemName') || undefined;
     const pushFoodAction = params.get('push_food_action') || params.get('push_action');
     const mode = params.get('mode');
@@ -2849,8 +2853,9 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           petPhotoUrl={currentPet?.photo}
           petEvents={petEvents}
           initialMode={medicationSheetInitialMode}
-          onClose={() => { setMedicationSheetInitialMode('view'); closeMedicationSheet(); }}
-          onGoHome={() => goHome(() => { setMedicationSheetInitialMode('view'); closeMedicationSheet(); })}
+          focusEventIds={medicationFocusIds}
+          onClose={() => { setMedicationSheetInitialMode('view'); setMedicationFocusIds([]); closeMedicationSheet(); }}
+          onGoHome={() => goHome(() => { setMedicationSheetInitialMode('view'); setMedicationFocusIds([]); closeMedicationSheet(); })}
           onRefresh={refreshMedicationHistory}
         />
       )}

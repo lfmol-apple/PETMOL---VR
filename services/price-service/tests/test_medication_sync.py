@@ -83,3 +83,11 @@ def test_reconcile_skips_cancelled_and_completed_events():
     reconcile_medication_reminders(now=_now())
     with SessionLocal() as db:
         assert db.query(Reminder).filter(Reminder.pet_id == pid).count() == 0
+
+
+def test_every_8_hours_from_17h_matches_the_baby_dipirona():
+    """Dipirona do Baby: 'a cada 8 horas', 1ª dose 17:00 → 17:00, 01:00, 09:00."""
+    extra = {"frequency_mode": "intervalo", "interval_minutes": 480, "first_dose_time": "17:00",
+             "reminder_times": ["17:00"], "treatment_days": 7}
+    slots = expected_slots(extra, datetime(2026, 9, 19).date(), _now(hhmm="19:00"))
+    assert [s.strftime("%d %H:%M") for s in slots] == ["21 01:00", "21 09:00", "21 17:00", "22 01:00"]
