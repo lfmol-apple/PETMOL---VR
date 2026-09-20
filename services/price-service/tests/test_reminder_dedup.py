@@ -107,6 +107,27 @@ def _med(db, uid, pid, name, remind_at, created_at):
     return r.id
 
 
+def test_medication_short_names_in_grouped_push(_iso):
+    """Nomes longos cadastrados (com ' para ' no meio) viram nome curto no aviso."""
+    sent = _iso
+    uid, pid = str(uuid.uuid4()), str(uuid.uuid4())
+    past = datetime.now(timezone.utc) - timedelta(minutes=1)
+    with SessionLocal() as db:
+        _sub(db, uid)
+        for i, n in enumerate([
+            "Zelotril 50mg Antibacteriano para Cães e Gatos - 12 comprimidos",
+            "Prediderm 5 mg Anti-inflamatório para Cães - 10 comprimidos",
+            "Cistimicin Vet Suplemento Alimentar para Cães e Gatos - 30 comprimidos",
+        ]):
+            _med(db, uid, pid, n, past, datetime.now(timezone.utc) - timedelta(seconds=i))
+    notif.send_due_reminders()
+    assert len(sent) == 1
+    assert sent[0]["title"].startswith("💊 Hora dos remédios")
+    body = sent[0]["body"]
+    assert "Zelotril 50mg" in body and "Prediderm 5 mg" in body and "Cistimicin" in body
+    assert "Antibacteriano" not in body and "comprimidos" not in body
+
+
 def test_four_medications_same_time_send_one_push_listing_all(_iso):
     """Antes: só 1 dos 4 remédios do mesmo horário chegava (os outros eram
     descartados como 'duplicados'). Agora: 1 aviso que lista os 4."""
@@ -123,7 +144,7 @@ def test_four_medications_same_time_send_one_push_listing_all(_iso):
 
     assert len(sent) == 1
     body = sent[0]["body"]
-    for n in ["Zelotril 50mg", "Prediderm 5 mg", "Dipirona Gotas", "Cistimicin"]:
+    for n in ["Zelotril 50mg", "Prediderm 5 mg", "Dipirona", "Cistimicin"]:
         assert n in body
     with SessionLocal() as db:
         assert all(db.query(Reminder).get(i).sent is True for i in ids)
