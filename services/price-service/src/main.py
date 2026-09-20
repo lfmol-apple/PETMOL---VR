@@ -411,6 +411,12 @@ def start_push_scheduler():
         except Exception as exc:
             push_logger.warning("[PETMOL] guest-prune não agendado: %s", exc)
         try:
+            from .notifications.medication_sync import reconcile_medication_reminders
+            scheduler.add_job(reconcile_medication_reminders, "interval", minutes=10,
+                              id="reconcile_medication_reminders", max_instances=1, coalesce=True)
+        except Exception as exc:
+            push_logger.warning("[PETMOL] med-sync não agendado: %s", exc)
+        try:
             from .analytics.install_report import send_daily_install_report
             scheduler.add_job(send_daily_install_report, "cron", hour=9, minute=0,
                               timezone="America/Sao_Paulo", id="daily_install_report")
