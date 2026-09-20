@@ -1,5 +1,6 @@
 'use client';
 
+import { useBackHandler } from '@/lib/backStack';
 import { useState } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
@@ -29,6 +30,7 @@ export function ReportAlertSheet({ alertId, petName, open, onClose }: ReportAler
   const [reason, setReason] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [state, setState] = useState<'form' | 'sending' | 'done'>('form');
+  useBackHandler(open, onClose);
 
   if (!open) return null;
 

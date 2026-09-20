@@ -1,5 +1,6 @@
 'use client';
 
+import { useBackHandler } from '@/lib/backStack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { FoodControlTab, type FoodControlTabFormRequest, type FoodControlTabState } from '@/components/FoodControlTab';
@@ -604,6 +605,8 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
     clearPendingScannedProduct();
     onClose();
   }, [onClose]);
+  useBackHandler(true, handleClose);
+  useBackHandler(Boolean(pendingClassifyProduct), () => setPendingClassifyProduct(null));
 
   type RefreshedPlanAlert = { recommendedAlertDate: string | null; reminderTime: string | null; brand: string } | null;
 

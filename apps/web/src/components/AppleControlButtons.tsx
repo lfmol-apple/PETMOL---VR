@@ -1,5 +1,6 @@
 'use client';
 
+import { useBackHandler } from '@/lib/backStack';
 import { useState } from 'react';
 import { useI18n } from '@/lib/I18nContext';
 import { petDo } from '@/lib/petGender';
@@ -110,6 +111,7 @@ export function AppleControlButtons({
 }: AppleControlButtonsProps) {
   const { t } = useI18n();
   const [showEmergencyChoice, setShowEmergencyChoice] = useState(false);
+  useBackHandler(showEmergencyChoice, () => setShowEmergencyChoice(false));
   const shoppingTitle = petName ? `Loja ${petDo({ sex: petSex })} ${petName}` : t('home.shopping.title');
   const foodHeadlineText = !hasFoodData
     ? 'Cuidado em aberto'

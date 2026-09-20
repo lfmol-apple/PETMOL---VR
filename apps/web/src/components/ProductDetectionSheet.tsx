@@ -1,5 +1,6 @@
 'use client';
 
+import { useBackHandler } from '@/lib/backStack';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { BrowserCodeReader, BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
@@ -626,6 +627,7 @@ export function ProductDetectionSheetGold({
   onProductConfirmed,
   onClose,
 }: ProductDetectionSheetProps) {
+  useBackHandler(true, onClose);
   const { tutor } = useAuth();
   const cooldownRef = useRef(false);
   const cameraPhotoInputRef = useRef<HTMLInputElement>(null);

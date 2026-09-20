@@ -1,5 +1,6 @@
 'use client';
 
+import { useBackHandler } from '@/lib/backStack';
 import { useEffect, useRef, useState } from 'react';
 import type { NearbyAlert } from './MissingPetAlertCard';
 
@@ -24,6 +25,7 @@ interface NearbyMissingPetsStoryOverlayProps {
 export function NearbyMissingPetsStoryOverlay({
   alerts, initialIndex = 0, getPhotoUrl, onClose, onViewCard, onSeeThis,
 }: NearbyMissingPetsStoryOverlayProps) {
+  useBackHandler(true, onClose);
   const [index, setIndex] = useState(initialIndex);
   const [progress, setProgress] = useState(0);
   const startRef = useRef(0);

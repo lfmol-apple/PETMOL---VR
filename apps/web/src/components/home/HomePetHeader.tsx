@@ -1,4 +1,5 @@
 'use client';
+import { useBackHandler } from '@/lib/backStack';
 import { useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -72,6 +73,7 @@ export function HomePetHeader({
   const { t } = useI18n();
   const nameButtonRef = useRef<HTMLButtonElement>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
+  useBackHandler(showPetSelector, onClosePetSelector);
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => {

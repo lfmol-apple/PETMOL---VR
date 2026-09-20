@@ -1,5 +1,6 @@
 'use client';
 
+import { useBackHandler } from '@/lib/backStack';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { ChevronRight, Search } from 'lucide-react';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
@@ -59,6 +60,7 @@ type ShoppingView = 'store' | 'search';
 // novo. `groupReorderCardsByUrgency` continua existindo só pra analítica
 // (composição do que está em tela), não pra layout.
 export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders }: HomeShoppingSheetProps) {
+  useBackHandler(open, onClose);
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
   const [view, setView] = useState<ShoppingView>('store');
   // Mantém a sheet colada ao viewport visível quando o teclado abre (busca) —

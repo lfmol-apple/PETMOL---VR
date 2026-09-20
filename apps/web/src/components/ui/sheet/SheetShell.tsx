@@ -12,6 +12,7 @@
  *     <SheetShell.Footer>…ações fixas…</SheetShell.Footer>
  *   </SheetShell>
  */
+import { useBackHandler } from '@/lib/backStack';
 import { useEffect, type ReactNode } from 'react';
 import { ModalPortal } from '@/components/ModalPortal';
 
@@ -100,6 +101,7 @@ export function SheetShell({
   z = 50,
   hideHandle = false,
 }: SheetShellProps) {
+  useBackHandler(open, onClose);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {

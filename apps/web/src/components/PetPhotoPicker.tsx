@@ -1,5 +1,6 @@
 'use client';
 
+import { useBackHandler } from '@/lib/backStack';
 import React, {
   useRef, useState, useCallback, useEffect, useLayoutEffect, ChangeEvent,
 } from 'react';
@@ -21,6 +22,7 @@ interface PetPhotoPickerProps {
 interface TR { scale: number; x: number; y: number }
 
 export function PetPhotoPicker({ initialSrc, onConfirm, onCancel }: PetPhotoPickerProps) {
+  useBackHandler(true, onCancel);
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
