@@ -190,3 +190,36 @@ def test_medication_without_destination_is_kept_for_retry_then_dropped(_iso, mon
     with SessionLocal() as db:
         assert db.query(Reminder).get(novo).sent is False    # tenta de novo
         assert db.query(Reminder).get(antigo).sent is True   # janela de 2h passou
+
+
+def test_push_test_opens_medication_when_user_has_active_medication(monkeypatch, client):
+    """O 'Enviar teste' do Perfil leva ao sheet da Medicação quando há remédio ativo."""
+    from src.events.models import Event
+    from src.pets.models import Pet
+
+    sent = []
+    monkeypatch.setattr(notif, "_send_push", lambda sub, payload: (sent.append(payload) or (True, False)))
+    monkeypatch.setattr(notif, "apns_configured", lambda: False)
+
+    cid = "cid-push-test-med"
+    su = client.post("/auth/signup", json={"name": "Tutor Teste", "email": "push.test.med@example.com", "password": "senha123", "terms_accepted": True},
+                     headers={"X-PETMOL-CLIENT-ID": cid})
+    assert su.status_code in (200, 201), su.text
+    login = client.post("/auth/login", json={"email": "push.test.med@example.com", "password": "senha123"},
+                        headers={"X-PETMOL-CLIENT-ID": cid})
+    token = login.json()["access_token"]
+    h = {"X-PETMOL-CLIENT-ID": cid, "Authorization": f"Bearer {token}"}
+    uid = client.get("/auth/me", headers=h).json()["id"]
+    pet = client.post("/pets", json={"name": "Baby", "species": "dog"}, headers=h).json()
+    pid = pet.get("id") or pet.get("pet_id")
+
+    with SessionLocal() as db:
+        _sub(db, uid)
+        db.add(Event(id=str(uuid.uuid4()), user_id=uid, pet_id=pid, type="medicacao", title="Dipirona",
+                     status="active", scheduled_at=datetime.now(timezone.utc)))
+        db.commit()
+
+    r = client.post("/notifications/test", headers=h)
+    assert r.status_code == 200, r.text
+    assert sent and sent[0]["data"]["url"] == f"/home?modal=medication&petId={pid}"
+    assert "Medicação de Baby" in sent[0]["body"]
