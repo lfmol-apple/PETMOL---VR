@@ -442,12 +442,13 @@ def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) ->
         admin = db.query(User).filter(func.lower(User.email) == settings.admin_master_email.lower()).first()
         if admin:
             where = " · ".join(p for p in (row.city, row.region, row.country) if p) or "local desconhecido"
+            acumulado = db.query(func.count(AppInstall.id)).scalar() or 0
             _PLATFORM_LABEL = {"ios": "iPhone", "android": "Android", "pwa": "app instalado", "web": "navegador"}
             try:
                 from ..notifications import push_to_user
                 push_to_user(str(admin.id), {
                     "title": "📲 Novo download do PETMOL",
-                    "body": f"{where} — {_PLATFORM_LABEL.get(platform, platform)}",
+                    "body": f"{where} — {_PLATFORM_LABEL.get(platform, platform)} · {acumulado} no total",
                     "tag": "petmol-install",
                     "data": {"url": "/admin/dashboard"},
                 })

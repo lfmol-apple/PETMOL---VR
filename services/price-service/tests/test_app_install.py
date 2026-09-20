@@ -40,44 +40,37 @@ def test_daily_install_report_runs():
     assert send_daily_install_report() in (True, False)
 
 
-def test_daily_install_report_warns_about_petz_id_conflicts(monkeypatch):
-    """O e-mail diário avisa sozinho quando algum mapeamento Petz já
-    confirmado compartilha id com peso/tamanho diferente — o admin não
-    precisa testar produto por produto pra descobrir."""
-    from src.db import SessionLocal
-    from src.product_catalog_lookup import ProductCatalog
-    from src.petz_mapping import confirm_petz_mapping
-    from src.analytics import install_report as report_mod
+def test_daily_install_report_only_downloads_with_cumulative(monkeypatch):
+    """E-mail diário: só downloads — total do dia e acumulado por local;
+    nenhum bloco de Petz/outros avisos."""
+    from datetime import datetime, timedelta, timezone
 
+    from src.analytics import install_report as report_mod
+    from src.analytics.install_models import AppInstall
+    from src.db import SessionLocal
+
+    ontem = datetime.now(timezone.utc) - timedelta(days=1)
     db = SessionLocal()
     try:
-        p1 = ProductCatalog(barcode="9990000000901", barcode_normalized="9990000000901",
-                             name="Ração Conflito 2kg", brand="X", weight_kg=2.0)
-        p2 = ProductCatalog(barcode="9990000000902", barcode_normalized="9990000000902",
-                             name="Ração Conflito 7,5kg", brand="X", weight_kg=7.5)
-        db.add_all([p1, p2])
+        db.query(AppInstall).delete()
+        db.add_all([
+            AppInstall(platform="ios", ip_hash="a", user_agent="x", city="Belo Horizonte", region="MG", country="BR", created_at=ontem),
+            AppInstall(platform="android", ip_hash="b", user_agent="x", city="Belo Horizonte", region="MG", country="BR", created_at=ontem),
+            AppInstall(platform="ios", ip_hash="c", user_agent="x", city="Recife", region="PE", country="BR",
+                       created_at=datetime.now(timezone.utc) - timedelta(days=30)),
+        ])
         db.commit()
-        db.refresh(p1)
-        db.refresh(p2)
-        confirm_petz_mapping(db, p2.id, petz_product_id="999900",
-                              product_url="https://www.petz.com.br/produto/racao-conflito-999900")
     finally:
         db.close()
 
-    from src.affiliate_links import _PETZ_GTIN_PRODUCT_ID_SEED, _petz_gtin_product_id_map
-    monkeypatch.setitem(_PETZ_GTIN_PRODUCT_ID_SEED, "9990000000901", "999900")
-    _petz_gtin_product_id_map.cache_clear()
-
     captured = {}
     def fake_send_mail(*, to, subject, body_text, body_html=None, **kw):
-        captured["text"] = body_text
-        captured["html"] = body_html
+        captured.update(subject=subject, text=body_text, html=body_html)
         return True
     monkeypatch.setattr("src.mailer.send_mail", fake_send_mail)
 
-    try:
-        assert report_mod.send_daily_install_report() is True
-        assert "id compartilhado por peso" in captured["text"]
-        assert "id compartilhado" in captured["html"]
-    finally:
-        _petz_gtin_product_id_map.cache_clear()
+    assert report_mod.send_daily_install_report() is True
+    assert "3 no total" in captured["subject"]
+    assert "Acumulado: 3" in captured["text"]
+    assert "Belo Horizonte" in captured["text"] and "Recife" in captured["text"]
+    assert "Petz" not in captured["text"] and "Petz" not in captured["html"]
