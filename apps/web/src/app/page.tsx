@@ -7,6 +7,7 @@ import { getToken } from '@/lib/auth-token';
 import { PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { AppBootSplash } from '@/components/AppBootSplash';
 import { isNativeAppClient } from '@/lib/nativeApp';
+import { DownloadButton, StickyDownloadBar } from '@/components/landing/DownloadButton';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -70,11 +71,10 @@ export default function LandingPage() {
         <p className="mt-4 text-base text-slate-500 leading-relaxed font-medium max-w-xs mx-auto">
           Acompanha a alimentação, as vacinas, os remédios e a proteção — e mostra o que vem a seguir, na hora certa.
         </p>
-        <Link href="/register"
-          className="mt-8 inline-flex w-full max-w-xs items-center justify-center rounded-2xl bg-[#0056D2] px-6 py-4 text-base font-black text-white shadow-lg shadow-blue-500/25 active:scale-[0.98]">
-          Criar conta
-        </Link>
-        <p className="mt-3 text-xs text-slate-400 font-semibold">Leva menos de 1 minuto.</p>
+        <div className="mx-auto mt-8 w-full max-w-xs">
+          <DownloadButton placement="hero" withWebLink />
+        </div>
+        <p className="mt-2 text-xs text-slate-400 font-semibold">Grátis · leva menos de 1 minuto.</p>
       </section>
 
       {/* Como o PETMOL acompanha — benefício → como funciona */}
@@ -113,6 +113,15 @@ export default function LandingPage() {
         />
       </section>
 
+      {/* Download no meio da página, logo depois dos benefícios */}
+      <section className="px-5 pb-10">
+        <div className="mx-auto max-w-xs rounded-3xl bg-[#0056D2] p-6 text-center text-white">
+          <p className="text-lg font-black leading-snug">Tenha os avisos do seu pet no bolso.</p>
+          <p className="mt-1 text-sm text-blue-100">Notificação na hora certa, mesmo com o app fechado.</p>
+          <div className="mt-4"><DownloadButton placement="meio" className="!bg-white !text-[#0056D2] !shadow-none" /></div>
+        </div>
+      </section>
+
       {/* Fechamento — sem depoimento fabricado */}
       <section className="px-5 pb-10">
         <div className="rounded-3xl bg-slate-50 border border-slate-100 p-6 text-center">
@@ -127,16 +136,15 @@ export default function LandingPage() {
 
       {/* CTA final */}
       <section className="px-5 pb-12 flex flex-col items-center text-center">
-        <h2 className="text-2xl font-black text-slate-900">Comece agora.</h2>
-        <p className="mt-2 text-sm text-slate-500 font-medium">Crie a conta e adicione o seu pet.</p>
-        <Link href="/register"
-          className="mt-6 inline-flex w-full max-w-xs items-center justify-center rounded-2xl bg-[#0056D2] px-6 py-4 text-base font-black text-white shadow-lg shadow-blue-500/25 active:scale-[0.98]">
-          Criar conta
-        </Link>
+        <h2 className="text-2xl font-black text-slate-900">Baixe o PETMOL e comece agora.</h2>
+        <p className="mt-2 text-sm text-slate-500 font-medium">Adicione o seu pet em menos de 1 minuto.</p>
+        <div className="mt-6 w-full max-w-xs"><DownloadButton placement="final" withWebLink /></div>
         <Link href="/login" className="mt-3 text-sm text-slate-400 font-semibold">
           Já tenho conta
         </Link>
       </section>
+
+      <StickyDownloadBar />
 
       {/* Footer */}
       <footer className="mt-auto border-t border-slate-100 px-5 py-5 text-center">
