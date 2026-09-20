@@ -19,12 +19,14 @@
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
+import { runTopBackHandler } from '@/lib/backStack';
 
 export function AndroidBackButtonHandler() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
     const sub = App.addListener('backButton', ({ canGoBack }) => {
+      if (runTopBackHandler()) return;
       if (document.querySelector('[role="dialog"]')) {
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
         return;

@@ -1,5 +1,6 @@
 'use client';
 
+import { useBackHandler } from '@/lib/backStack';
 import { useState } from 'react';
 import { useI18n } from '@/lib/I18nContext';
 import { ModalPortal } from '@/components/ModalPortal';
@@ -94,6 +95,7 @@ export function HomeNavigationModals({
   const petPhotoSrc = resolvePetPhotoUrl(currentPet?.photo);
   // "PetShops perto de você" saiu da Home e agora vive aqui dentro de Cuidados.
   const [showPetShopsNearby, setShowPetShopsNearby] = useState(false);
+  useBackHandler(showHealthOptionsModal, onCloseHealthOptionsModal);
 
   return (
     <ModalPortal>
