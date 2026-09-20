@@ -27,3 +27,29 @@ export function hasRecentDeepLinkIntent(windowMs = 15_000): boolean {
     return false;
   }
 }
+
+const PENDING_DEEP_LINK_KEY = 'petmol_pending_deeplink';
+
+/** Guarda o destino do toque no push de forma síncrona (localStorage), para a
+ * Home conseguir ler mesmo que o toque chegue antes de ela montar. */
+export function savePendingDeepLink(url: string, now = Date.now()): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(PENDING_DEEP_LINK_KEY, JSON.stringify({ url, ts: now }));
+  } catch {}
+}
+
+/** Lê e consome o destino guardado (uma vez). null se não há ou se venceu. */
+export function takePendingDeepLink(maxAgeMs = 300_000, now = Date.now()): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(PENDING_DEEP_LINK_KEY);
+    if (!raw) return null;
+    localStorage.removeItem(PENDING_DEEP_LINK_KEY);
+    const { url, ts } = JSON.parse(raw) as { url?: string; ts?: number };
+    if (!url || typeof ts !== 'number' || now - ts > maxAgeMs) return null;
+    return url;
+  } catch {
+    return null;
+  }
+}

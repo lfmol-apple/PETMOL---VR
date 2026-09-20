@@ -11,7 +11,7 @@
  */
 import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core';
 import { showAppToast } from '@/features/interactions/userPromptChannel';
-import { markDeepLinkIntent } from '@/lib/deepLinkIntent';
+import { markDeepLinkIntent, savePendingDeepLink } from '@/lib/deepLinkIntent';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
@@ -294,6 +294,7 @@ export async function initNativePushDeepLink(): Promise<void> {
 function deliverNativeDeepLink(url: string) {
   const ts = Date.now();
   markDeepLinkIntent();
+  savePendingDeepLink(url, ts);
   // 1. BroadcastChannel — app já aberto numa página que escuta (Home)
   try {
     const bc = new BroadcastChannel('petmol-deeplink');

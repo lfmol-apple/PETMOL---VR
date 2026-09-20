@@ -1,5 +1,6 @@
 'use client';
 
+import { takePendingDeepLink } from '@/lib/deepLinkIntent';
 import { useBackHandler } from '@/lib/backStack';
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -280,7 +281,12 @@ function HomePageInner() {
   // 4 mecanismos redundantes para cobrir todos os estados do app (ativo, background, frozen, recém-aberto).
   // Todos chamam router.push() diretamente ao receber a URL, garantindo que searchParams atualize.
 
+  const lastDeepLinkRef = useRef<{ url: string; at: number } | null>(null);
   const applyDeepLinkUrl = useCallback((url: string) => {
+    // Vários caminhos (canal, cache, localStorage) podem entregar o mesmo toque.
+    const last = lastDeepLinkRef.current;
+    if (last && last.url === url && Date.now() - last.at < 6000) return;
+    lastDeepLinkRef.current = { url, at: Date.now() };
     try {
       const parsed = new URL(url, window.location.origin);
       router.push(parsed.pathname + parsed.search);
@@ -330,6 +336,29 @@ function HomePageInner() {
       }
     })();
     return () => { cancelled = true; };
+  }, [applyDeepLinkUrl]);
+
+  // 1b. localStorage (síncrono): o toque no push grava o destino ali; a Home
+  // confere por ~15s após montar e sempre que o app volta ao primeiro plano.
+  // Cobre a abertura a frio pelo aviso, em que o toque chega antes da Home.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const check = () => {
+      const url = takePendingDeepLink();
+      if (url) applyDeepLinkUrl(url);
+    };
+    check();
+    const id = window.setInterval(check, 500);
+    const stop = window.setTimeout(() => window.clearInterval(id), 15000);
+    const onVisible = () => { if (document.visibilityState === 'visible') check(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', check);
+    return () => {
+      window.clearInterval(id);
+      window.clearTimeout(stop);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', check);
+    };
   }, [applyDeepLinkUrl]);
 
   // 2. visibilitychange + window.focus — cobre app vindo do background
