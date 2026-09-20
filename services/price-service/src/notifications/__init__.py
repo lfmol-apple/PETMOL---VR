@@ -479,6 +479,26 @@ def _combine_medication_reminders(group, pet_name: Optional[str]):
     return title, f"Hora de dar: {listed}. Toque para registrar as doses."
 
 
+def _medication_deep_link(db, group, pet_id: Optional[str]) -> str:
+    """Toque no aviso → Medicação já destacando os remédios DESTE aviso."""
+    from ..events.models import Event
+
+    ids: list = []
+    for r in group:
+        title = (r.title or "").replace("💊", "").strip()
+        if not title or not r.pet_id:
+            continue
+        ev = (
+            db.query(Event)
+            .filter(Event.pet_id == r.pet_id, Event.type.in_(_MED_TYPES), Event.deleted_at.is_(None), Event.title == title)
+            .first()
+        )
+        if ev and ev.id not in ids:
+            ids.append(ev.id)
+    base = _build_deep_link("medication", pet_id)
+    return f"{base}&eventId={','.join(ids)}" if ids else base
+
+
 def send_due_reminders() -> None:
     db = SessionLocal()
     try:
@@ -585,6 +605,8 @@ def send_due_reminders() -> None:
                 continue
 
             deep_url = _build_deep_link(reminder.type, reminder.pet_id)
+            if reminder.type in _MED_TYPES:
+                deep_url = _medication_deep_link(db, med_groups.get(dedup_key, [reminder]), reminder.pet_id)
             cfg = _TYPE_CONFIG.get(reminder.type, {})
             body = reminder.body or cfg.get("fallback_body", "Toque para ver detalhes no PETMOL.")
 

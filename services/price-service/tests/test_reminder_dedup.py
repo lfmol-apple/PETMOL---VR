@@ -223,3 +223,28 @@ def test_push_test_opens_medication_when_user_has_active_medication(monkeypatch,
     assert r.status_code == 200, r.text
     assert sent and sent[0]["data"]["url"] == f"/home?modal=medication&petId={pid}"
     assert "Medicação de Baby" in sent[0]["body"]
+
+
+def test_grouped_medication_push_deep_link_carries_event_ids(_iso):
+    """O toque leva ao(s) remédio(s) do aviso: eventId=<id1>,<id2>."""
+    from src.events.models import Event
+
+    sent = _iso
+    uid, pid = str(uuid.uuid4()), str(uuid.uuid4())
+    past = datetime.now(timezone.utc) - timedelta(minutes=1)
+    ev_ids = []
+    with SessionLocal() as db:
+        _sub(db, uid)
+        for i, n in enumerate(["Zelotril 50mg", "Prediderm 5 mg"]):
+            e = Event(id=str(uuid.uuid4()), user_id=uid, pet_id=pid, type="medicacao", title=n,
+                      status="active", scheduled_at=datetime.now(timezone.utc))
+            db.add(e); db.commit(); ev_ids.append(e.id)
+            r = Reminder(id=str(uuid.uuid4()), user_id=uid, pet_id=pid, type="medication", title=f"💊 {n}",
+                         body=f"Hora de dar {n} para Baby. Toque para registrar a dose.",
+                         remind_at=past, sent=False, created_at=datetime.now(timezone.utc) - timedelta(seconds=i))
+            db.add(r); db.commit()
+    notif.send_due_reminders()
+    assert len(sent) == 1
+    url = sent[0]["data"]["url"]
+    assert url.startswith(f"/home?modal=medication&petId={pid}&eventId=")
+    assert set(url.split("eventId=")[1].split(",")) == set(ev_ids)
