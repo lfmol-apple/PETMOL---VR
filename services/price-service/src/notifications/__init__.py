@@ -978,7 +978,7 @@ def test_push(current_user=Depends(get_current_user)):
         # Medicação: assim dá pra provar, na hora, o caminho completo
         # (aviso → toque → sheet) sem esperar o horário de uma dose real.
         from ..events.models import Event
-        med = (
+        meds = (
             db.query(Event)
             .filter(
                 Event.user_id == str(current_user.id),
@@ -986,12 +986,14 @@ def test_push(current_user=Depends(get_current_user)):
                 Event.deleted_at.is_(None),
                 Event.status.notin_(("cancelled", "completed")),
             )
-            .order_by(Event.created_at.desc() if hasattr(Event, "created_at") else Event.scheduled_at.desc())
-            .first()
+            .order_by(Event.scheduled_at.desc())
+            .limit(3)
+            .all()
         )
+        med = meds[0] if meds else None
         if med is not None:
             pet = db.query(Pet).filter(Pet.id == med.pet_id).first()
-            url = f"/home?modal=medication&petId={med.pet_id}"
+            url = f"/home?modal=medication&petId={med.pet_id}&eventId={','.join(m.id for m in meds if m.pet_id == med.pet_id)}"
             payload = {
                 "title": "🐾 Teste PETMOL",
                 "body": f"Toque para abrir a Medicação{' de ' + pet.name if pet else ''}.",
