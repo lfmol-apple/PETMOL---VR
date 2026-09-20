@@ -221,7 +221,7 @@ def test_push_test_opens_medication_when_user_has_active_medication(monkeypatch,
 
     r = client.post("/notifications/test", headers=h)
     assert r.status_code == 200, r.text
-    assert sent and sent[0]["data"]["url"] == f"/home?modal=medication&petId={pid}"
+    assert sent and sent[0]["data"]["url"].startswith(f"/home?modal=medication&petId={pid}&eventId=")
     assert "Medicação de Baby" in sent[0]["body"]
 
 
