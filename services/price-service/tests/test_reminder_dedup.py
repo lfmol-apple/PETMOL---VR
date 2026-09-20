@@ -94,3 +94,78 @@ def test_two_vaccines_different_dates_both_send(_iso):
 
     notif.send_due_reminders()
     assert len(sent) == 2
+
+
+def _med(db, uid, pid, name, remind_at, created_at):
+    r = Reminder(
+        id=str(uuid.uuid4()), user_id=uid, pet_id=pid, type="medication",
+        title="💊 Medicação", body=f"Hora de dar {name} para Baby. Toque para registrar a dose.",
+        remind_at=remind_at, sent=False, created_at=created_at,
+    )
+    db.add(r)
+    db.commit()
+    return r.id
+
+
+def test_four_medications_same_time_send_one_push_listing_all(_iso):
+    """Antes: só 1 dos 4 remédios do mesmo horário chegava (os outros eram
+    descartados como 'duplicados'). Agora: 1 aviso que lista os 4."""
+    sent = _iso
+    uid, pid = str(uuid.uuid4()), str(uuid.uuid4())
+    past = datetime.now(timezone.utc) - timedelta(minutes=1)
+    ids = []
+    with SessionLocal() as db:
+        _sub(db, uid)
+        for i, n in enumerate(["Zelotril 50mg", "Prediderm 5 mg", "Dipirona Gotas", "Cistimicin"]):
+            ids.append(_med(db, uid, pid, n, past, datetime.now(timezone.utc) - timedelta(seconds=i)))
+
+    notif.send_due_reminders()
+
+    assert len(sent) == 1
+    body = sent[0]["body"]
+    for n in ["Zelotril 50mg", "Prediderm 5 mg", "Dipirona Gotas", "Cistimicin"]:
+        assert n in body
+    with SessionLocal() as db:
+        assert all(db.query(Reminder).get(i).sent is True for i in ids)
+
+
+def test_single_medication_keeps_its_own_text(_iso):
+    sent = _iso
+    uid, pid = str(uuid.uuid4()), str(uuid.uuid4())
+    past = datetime.now(timezone.utc) - timedelta(minutes=1)
+    with SessionLocal() as db:
+        _sub(db, uid)
+        _med(db, uid, pid, "Zelotril 50mg", past, datetime.now(timezone.utc))
+    notif.send_due_reminders()
+    assert len(sent) == 1 and sent[0]["title"] == "💊 Medicação"
+    assert "Hora de dar Zelotril 50mg para Baby" in sent[0]["body"]
+
+
+def test_same_medication_twice_is_still_deduplicated(_iso):
+    sent = _iso
+    uid, pid = str(uuid.uuid4()), str(uuid.uuid4())
+    past = datetime.now(timezone.utc) - timedelta(minutes=1)
+    with SessionLocal() as db:
+        _sub(db, uid)
+        _med(db, uid, pid, "Zelotril 50mg", past, datetime.now(timezone.utc))
+        _med(db, uid, pid, "Zelotril 50mg", past, datetime.now(timezone.utc) - timedelta(seconds=5))
+    notif.send_due_reminders()
+    assert len(sent) == 1 and "Zelotril 50mg" in sent[0]["body"]
+
+
+def test_medication_without_destination_is_kept_for_retry_then_dropped(_iso, monkeypatch):
+    """Sem destino ativo o lembrete de remédio não é descartado na hora; passada
+    a janela de 2h, é consumido para não acumular."""
+    monkeypatch.setattr(notif, "apns_configured", lambda: True)  # canal existe, mas o usuário não tem token
+    uid, pid = str(uuid.uuid4()), str(uuid.uuid4())
+    recente = datetime.now(timezone.utc) - timedelta(minutes=3)
+    velho = datetime.now(timezone.utc) - timedelta(hours=3)
+    with SessionLocal() as db:
+        novo = _med(db, uid, pid, "Zelotril 50mg", recente, datetime.now(timezone.utc))
+        antigo = _med(db, str(uuid.uuid4()), str(uuid.uuid4()), "Prediderm", velho, datetime.now(timezone.utc))
+
+    notif.send_due_reminders()
+
+    with SessionLocal() as db:
+        assert db.query(Reminder).get(novo).sent is False    # tenta de novo
+        assert db.query(Reminder).get(antigo).sent is True   # janela de 2h passou

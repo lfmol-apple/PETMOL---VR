@@ -591,8 +591,22 @@ export function MedicationItemSheet({
               // Renovar subscription com a VAPID key atual (resolve VapidPkHashMismatch)
               try { await refreshSubscription(token); } catch { /* best-effort */ }
 
-              // Criar reminders no banco independentemente do estado da subscription
-              await Promise.all(payloads.map(p => createReminder(p, token)));
+              // Criar reminders no banco independentemente do estado da subscription.
+              // Em lotes pequenos (dezenas de POSTs em paralelo podem falhar) e com
+              // uma 2ª tentativa; se algum ainda falhar, avisa em vez de ficar mudo.
+              const failed: typeof payloads = [];
+              for (let i = 0; i < payloads.length; i += 5) {
+                const batch = payloads.slice(i, i + 5);
+                const results = await Promise.allSettled(batch.map(p => createReminder(p, token)));
+                results.forEach((r, idx) => { if (r.status === 'rejected') failed.push(batch[idx]); });
+              }
+              let missing = 0;
+              for (const p of failed) {
+                try { await createReminder(p, token); } catch { missing += 1; }
+              }
+              if (missing > 0) {
+                showToast(`⚠️ ${missing} lembrete(s) não foram criados. Abra a medicação e salve de novo.`);
+              }
             }
           } catch { /* lembretes são best-effort; nunca bloqueiam o fluxo */ }
         }
