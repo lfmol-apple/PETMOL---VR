@@ -1,11 +1,19 @@
 /**
- * Um tratamento "ativo" no papel (menos doses registradas que o total) mas que
- * já passou do período previsto e está parado há dias deve contar como
- * CONCLUÍDO. Sem isso, uma medicação de 90 dias com 61 doses marcadas (última
- * em 23/08) ficava "em tratamento" pra sempre: o dia de hoje aparecia pendente
- * e o card da Medicação piscava vermelho sem nada realmente ativo (relato do dono,
- * 19/09/2026).
+ * Estado do tratamento, derivado só dos dados já gravados (nada é escrito, nada
+ * é apagado):
+ *  - completed: o tutor registrou todas as doses (ou o backend marcou concluído).
+ *  - interrupted: evento cancelado.
+ *  - expired_unconfirmed: o prazo previsto acabou, faltam doses registradas e não
+ *    há dose/pulo há MEDICATION_STALE_DAYS. O decurso do prazo NÃO prova que o
+ *    remédio foi dado nem que o tratamento terminou, então não vira "concluído":
+ *    só deixa de contar como ativo (Home não pisca, sem lembrete diário) e a UI
+ *    diz "Prazo encerrado — conclusão não confirmada". Se o tutor registrar uma
+ *    dose depois, volta a ser ativo.
+ *  - active: em andamento (inclui prazo vencido com atividade recente, e
+ *    tratamento sem duração definida, que nunca expira sozinho).
  */
+export type MedicationTreatmentState = 'active' | 'completed' | 'interrupted' | 'expired_unconfirmed';
+
 export const MEDICATION_STALE_DAYS = 14;
 
 function iso(d: Date): string {
@@ -51,3 +59,19 @@ export function isMedicationTreatmentStale(
   cutoff.setDate(cutoff.getDate() - MEDICATION_STALE_DAYS);
   return !last || last < iso(cutoff);
 }
+
+export function medicationTreatmentState(
+  ev: { status?: string | null; scheduled_at?: string | null },
+  ex: Record<string, unknown>,
+  todayIso: string,
+): MedicationTreatmentState {
+  if (ev.status === 'cancelled') return 'interrupted';
+  const configured = parseInt(String(ex.total_doses || ex.treatment_days), 10) || 0;
+  const applied = Array.isArray(ex.applied_dates) ? (ex.applied_dates as string[]).length : 0;
+  if (configured > 0 && applied >= configured) return 'completed';
+  if (ev.status === 'completed' && !(configured > 0 && applied < configured)) return 'completed';
+  if (isMedicationTreatmentStale(ev.scheduled_at, ex, todayIso)) return 'expired_unconfirmed';
+  return 'active';
+}
+
+export const EXPIRED_UNCONFIRMED_LABEL = 'Prazo encerrado — conclusão não confirmada';
