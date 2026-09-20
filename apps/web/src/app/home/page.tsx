@@ -1,5 +1,6 @@
 'use client';
 
+import { useBackHandler } from '@/lib/backStack';
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '@/lib/I18nContext';
@@ -656,6 +657,7 @@ function HomePageInner() {
   // Cartaz ampliado do alerta — abre na hora com os dados que já temos,
   // sem carregar página nova (o /pet-perdido é server-render e demora).
   const [alertCard, setAlertCard] = useState<NearbyAlert | null>(null);
+  useBackHandler(Boolean(alertCard), () => setAlertCard(null));
   const [reportAlert, setReportAlert] = useState<NearbyAlert | null>(null);
 
   const DISMISS_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
