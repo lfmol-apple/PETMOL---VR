@@ -442,9 +442,25 @@ def _reminder_minute(remind_at):
     return remind_at.replace(second=0, microsecond=0) if remind_at else remind_at
 
 
+_QTY = re.compile(r"^\d+([.,]\d+)?(mg|mcg|ml|g|kg|ui)?$", re.IGNORECASE)
+_UNIT = {"mg", "mcg", "ml", "g", "kg", "ui"}
+
+
 def _medication_name(reminder) -> str:
-    m = re.search(r"Hora de dar (.+?) para ", reminder.body or "")
-    return ((m.group(1) if m else (reminder.title or "medicação")).strip())[:60]
+    """Nome curto do remédio para o aviso: 1ª palavra + dosagem
+    ("Zelotril 50mg Antibacteriano para Cães…" → "Zelotril 50mg")."""
+    m = re.search(r"Hora de dar (.+) para [^.]+\. Toque", reminder.body or "")
+    full = ((m.group(1) if m else (reminder.title or "medicação")).replace("💊", "")).strip()
+    words = full.split()
+    if not words:
+        return "medicação"
+    out = [words[0]]
+    for w in words[1:4]:
+        if _QTY.match(w) or (w.lower() in _UNIT and _QTY.match(out[-1])):
+            out.append(w)
+        else:
+            break
+    return " ".join(out)[:40]
 
 
 def _combine_medication_reminders(group, pet_name: Optional[str]):
