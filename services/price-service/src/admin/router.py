@@ -576,10 +576,14 @@ def admin_delete_user(
     if admin and admin.user_id == current_user.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Não é possível excluir seu próprio usuário")
 
-    db.delete(user)
-    db.commit()
+    from ..user_auth.purge import purge_user_data, remove_storage_files
 
-    return DeletedOut(success=True, message=f"Usuário {user.email} excluído com sucesso")
+    email = user.email
+    storage_keys = purge_user_data(db, user)
+    db.commit()
+    remove_storage_files(storage_keys)
+
+    return DeletedOut(success=True, message=f"Usuário {email} excluído com sucesso")
 
 
 # Nota: não há mais endpoints /tutors/* aqui — o modelo Tutor foi
