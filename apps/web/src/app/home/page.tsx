@@ -1,6 +1,6 @@
 'use client';
 
-import { takePendingDeepLink } from '@/lib/deepLinkIntent';
+import { takePendingDeepLink, withDeepLinkNonce } from '@/lib/deepLinkIntent';
 import { useBackHandler } from '@/lib/backStack';
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -247,6 +247,7 @@ function HomePageInner() {
   const refreshAllRef = useRef<() => void>(() => {});
   // Deep link fallback: ref+trigger para casos onde router.push não pode ser chamado diretamente
   const cachedDeepLinkRef = useRef<string | null>(null);
+  const handledDeepLinkKeyRef = useRef<string | null>(null);
   const [deepLinkTrigger, setDeepLinkTrigger] = useState(0);
 
   // Aquecimento dos módulos dos sheets mais comuns — medido no console do
@@ -289,7 +290,7 @@ function HomePageInner() {
     lastDeepLinkRef.current = { url, at: Date.now() };
     try {
       const parsed = new URL(url, window.location.origin);
-      router.push(parsed.pathname + parsed.search);
+      router.push(withDeepLinkNonce(parsed.pathname + parsed.search));
     } catch {
       cachedDeepLinkRef.current = url;
       setDeepLinkTrigger((t) => t + 1);
@@ -1752,6 +1753,14 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
     const modal = params.get('modal');
     if (!modal) return;
+    // Cada deep link é tratado uma única vez: este efeito re-roda quando `pets`
+    // ou `selectedPetId` mudam, e com a query ainda na URL reabriria o sheet
+    // que o usuário acabou de fechar (o X "não funcionava").
+    if (params === (searchParams as unknown)) {
+      const key = searchParams.toString();
+      if (handledDeepLinkKeyRef.current === key) return;
+      handledDeepLinkKeyRef.current = key;
+    }
     closeAllTransientModals();
 
     const requestedPetId = params.get('petId');

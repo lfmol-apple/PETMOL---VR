@@ -53,3 +53,16 @@ export function takePendingDeepLink(maxAgeMs = 300_000, now = Date.now()): strin
     return null;
   }
 }
+
+const DEEP_LINK_NONCE_PARAM = '_dl';
+
+/** Marca cada entrega de deep link com um id único na query. A Home só abre o
+ * destino de uma query que ainda não tratou; sem isso, qualquer re-render dela
+ * (pets recarregados ao voltar pro app) reabria o sheet que o usuário acabou
+ * de fechar, enquanto a query ainda estivesse na URL. */
+export function withDeepLinkNonce(url: string, now = Date.now()): string {
+  const [path, query = ''] = url.split('?');
+  const params = new URLSearchParams(query);
+  params.set(DEEP_LINK_NONCE_PARAM, String(now));
+  return `${path}?${params.toString()}`;
+}

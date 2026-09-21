@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { savePendingDeepLink, takePendingDeepLink } from './deepLinkIntent';
+import { savePendingDeepLink, takePendingDeepLink, withDeepLinkNonce } from './deepLinkIntent';
 
 function fakeStorage() {
   const m = new Map<string, string>();
@@ -22,5 +22,17 @@ describe('deep link pendente do push', () => {
   });
   it('sem nada guardado devolve null', () => {
     expect(takePendingDeepLink()).toBeNull();
+  });
+});
+
+describe('withDeepLinkNonce', () => {
+  it('mantém os parâmetros e acrescenta um id único por entrega', () => {
+    const a = withDeepLinkNonce('/home?modal=medication&petId=p1', 1);
+    const b = withDeepLinkNonce('/home?modal=medication&petId=p1', 2);
+    expect(a).toBe('/home?modal=medication&petId=p1&_dl=1');
+    expect(a).not.toBe(b);
+  });
+  it('funciona sem query', () => {
+    expect(withDeepLinkNonce('/home', 5)).toBe('/home?_dl=5');
   });
 });
