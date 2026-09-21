@@ -23,7 +23,7 @@ def send_daily_install_report() -> bool:
     from ..db import SessionLocal
     from ..config import get_settings
     from ..mailer import send_mail
-    from .install_models import AppInstall
+    from .install_models import AppInstall, campaign_total, install_count_cutoff
 
     now_br = datetime.now(_BR)
     start_br = (now_br - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -34,18 +34,21 @@ def send_daily_install_report() -> bool:
 
     db = SessionLocal()
     try:
+        cutoff = install_count_cutoff()
+        # Só conta a partir do corte da campanha (o que veio antes é teste).
         rows = (
             db.query(AppInstall)
-            .filter(AppInstall.created_at >= start_utc, AppInstall.created_at < end_utc)
+            .filter(AppInstall.created_at >= max(start_utc, cutoff), AppInstall.created_at < end_utc)
             .order_by(AppInstall.created_at)
             .all()
         )
         total = len(rows)
-        acumulado = db.query(func.count(AppInstall.id)).scalar() or 0
+        acumulado, base, camp = campaign_total(db)
 
         cum_by_place: dict[tuple, int] = {}
         for city, region, country, n in (
             db.query(AppInstall.city, AppInstall.region, AppInstall.country, func.count(AppInstall.id))
+            .filter(AppInstall.created_at >= cutoff)
             .group_by(AppInstall.city, AppInstall.region, AppInstall.country)
             .all()
         ):
@@ -84,18 +87,19 @@ def send_daily_install_report() -> bool:
     <thead><tr>
       <th style="text-align:left;padding:6px 12px;border-bottom:2px solid #0056D2">Local (por IP — cidade/estado/país)</th>
       <th style="text-align:right;padding:6px 12px;border-bottom:2px solid #0056D2">Dia</th>
-      <th style="text-align:right;padding:6px 12px;border-bottom:2px solid #0056D2">Acumulado</th>
+      <th style="text-align:right;padding:6px 12px;border-bottom:2px solid #0056D2">Campanha</th>
     </tr></thead>
     <tbody>{place_rows}</tbody>
   </table>
   <p style="margin:18px 0 0;font-size:16px;font-weight:800">Total do dia: {total} · Acumulado: {acumulado}</p>
+  <p style="margin:4px 0 0;font-size:12px;color:#6b7280">{base} usuários já existentes + {camp} da campanha (desde o corte)</p>
   <p style="margin:6px 0 0;font-size:11px;color:#9ca3af">
     Localização vem do IP — só cidade, sem rua/bairro (nenhum geo-IP dá isso).
   </p>
 </div>"""
         text = f"Downloads PETMOL {dia} (dia / acumulado)\n" + "\n".join(
             f"  {_place_label(*k)}: {by_place.get(k, 0)} / {cum_by_place[k]}" for k in places
-        ) + f"\n\nTotal do dia: {total}\nAcumulado: {acumulado}"
+        ) + f"\n\nTotal do dia: {total}\nAcumulado: {acumulado} ({base} já existentes + {camp} da campanha)"
 
         ok = send_mail(to=to_email, subject=subject, body_text=text, body_html=html)
         logger.info("[install-report] %s → %s (enviado=%s)", subject, to_email, ok)

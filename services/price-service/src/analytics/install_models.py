@@ -27,3 +27,28 @@ class AppInstall(Base):
     country: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     user_agent: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+def install_count_cutoff():
+    """Corte da campanha como datetime aware (UTC)."""
+    from datetime import datetime, timezone
+
+    from ..config import get_settings
+
+    return datetime.fromisoformat(get_settings().install_count_since).astimezone(timezone.utc)
+
+
+def campaign_installs_count(db) -> int:
+    """Instalações registradas a partir do corte da campanha."""
+    from sqlalchemy import func
+
+    return int(db.query(func.count(AppInstall.id)).filter(AppInstall.created_at >= install_count_cutoff()).scalar() or 0)
+
+
+def campaign_total(db) -> tuple:
+    """(total, base, campanha): base configurada + instalações desde o corte."""
+    from ..config import get_settings
+
+    base = int(get_settings().install_count_baseline)
+    camp = campaign_installs_count(db)
+    return base + camp, base, camp

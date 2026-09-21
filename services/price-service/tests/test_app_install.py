@@ -40,9 +40,43 @@ def test_daily_install_report_runs():
     assert send_daily_install_report() in (True, False)
 
 
-def test_daily_install_report_only_downloads_with_cumulative(monkeypatch):
-    """E-mail diário: só downloads — total do dia e acumulado por local;
-    nenhum bloco de Petz/outros avisos."""
+def _set_campaign(monkeypatch, since_iso, baseline=13):
+    from src.config import get_settings
+
+    st = get_settings()
+    monkeypatch.setattr(st, "install_count_since", since_iso, raising=False)
+    monkeypatch.setattr(st, "install_count_baseline", baseline, raising=False)
+
+
+def test_campaign_total_is_baseline_plus_installs_since_cutoff(monkeypatch):
+    """Total = 13 já existentes + só as instalações a partir do corte; o que veio
+    antes é teste e não conta (mas continua no banco)."""
+    from datetime import datetime, timedelta, timezone
+
+    from src.analytics.install_models import AppInstall, campaign_total
+    from src.db import SessionLocal
+
+    corte = datetime.now(timezone.utc) - timedelta(hours=2)
+    _set_campaign(monkeypatch, corte.isoformat())
+    db = SessionLocal()
+    try:
+        db.query(AppInstall).delete()
+        db.add_all([
+            AppInstall(platform="web", ip_hash="a", user_agent="x", created_at=corte - timedelta(days=3)),   # teste (antes)
+            AppInstall(platform="ios", ip_hash="b", user_agent="x", created_at=corte - timedelta(minutes=1)),  # antes do corte
+            AppInstall(platform="web", ip_hash="c", user_agent="x", created_at=corte + timedelta(minutes=5)),  # campanha
+            AppInstall(platform="android", ip_hash="d", user_agent="x", created_at=corte + timedelta(minutes=30)),  # campanha
+        ])
+        db.commit()
+        total, base, camp = campaign_total(db)
+        assert (total, base, camp) == (15, 13, 2)
+        assert db.query(AppInstall).count() == 4  # nada foi apagado
+    finally:
+        db.close()
+
+
+def test_daily_install_report_counts_only_from_campaign_cutoff(monkeypatch):
+    """E-mail diário: dia e acumulado só desde o corte; total = base + campanha."""
     from datetime import datetime, timedelta, timezone
 
     from src.analytics import install_report as report_mod
@@ -50,6 +84,7 @@ def test_daily_install_report_only_downloads_with_cumulative(monkeypatch):
     from src.db import SessionLocal
 
     ontem = datetime.now(timezone.utc) - timedelta(days=1)
+    _set_campaign(monkeypatch, (ontem - timedelta(hours=1)).isoformat())
     db = SessionLocal()
     try:
         db.query(AppInstall).delete()
@@ -57,7 +92,7 @@ def test_daily_install_report_only_downloads_with_cumulative(monkeypatch):
             AppInstall(platform="ios", ip_hash="a", user_agent="x", city="Belo Horizonte", region="MG", country="BR", created_at=ontem),
             AppInstall(platform="android", ip_hash="b", user_agent="x", city="Belo Horizonte", region="MG", country="BR", created_at=ontem),
             AppInstall(platform="ios", ip_hash="c", user_agent="x", city="Recife", region="PE", country="BR",
-                       created_at=datetime.now(timezone.utc) - timedelta(days=30)),
+                       created_at=datetime.now(timezone.utc) - timedelta(days=30)),  # antes do corte: teste
         ])
         db.commit()
     finally:
@@ -70,7 +105,8 @@ def test_daily_install_report_only_downloads_with_cumulative(monkeypatch):
     monkeypatch.setattr("src.mailer.send_mail", fake_send_mail)
 
     assert report_mod.send_daily_install_report() is True
-    assert "3 no total" in captured["subject"]
-    assert "Acumulado: 3" in captured["text"]
-    assert "Belo Horizonte" in captured["text"] and "Recife" in captured["text"]
+    assert "15 no total" in captured["subject"]           # 13 base + 2 campanha
+    assert "Acumulado: 15 (13 já existentes + 2 da campanha)" in captured["text"]
+    assert "Belo Horizonte" in captured["text"]
+    assert "Recife" not in captured["text"]                # instalação antiga não entra
     assert "Petz" not in captured["text"] and "Petz" not in captured["html"]
