@@ -1464,6 +1464,17 @@ export function MedicationItemSheet({
           )}
 
         </div>
+        {/* Fechar sempre alcançável embaixo: banners de notificação do iOS cobrem o X do topo */}
+        {mode === 'view' && (
+          <div className="flex-shrink-0 px-4 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-gray-100 bg-white">
+            <button
+              onClick={onClose}
+              className="w-full py-3 rounded-2xl bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 text-[15px] font-bold transition-colors"
+            >
+              Fechar
+            </button>
+          </div>
+        )}
         {/* Fora do scroll — nunca fica escondido abaixo da rolagem */}
         {(mode === 'add' || mode === 'edit') && showManualForm && (
           <div className="flex-shrink-0 px-4 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] border-t border-gray-100 bg-white">
