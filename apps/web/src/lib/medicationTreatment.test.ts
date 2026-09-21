@@ -111,4 +111,22 @@ describe('medicationDosesToday (card da Home: alerta vermelho só com dose atras
     expect(medicationDosesToday('2026-09-21', ex, HOJE, '10:00')).toEqual({ due: 1, done: 0 });    // dia 0
     expect(medicationDosesToday('2026-09-10', ex, HOJE, '10:00')).toEqual({ due: 0, done: 0 });    // dia 11: não é dia de dose
   });
+  it('Ursacol de março (60 dias, 61 doses, status ainda "active" no banco) nunca vira dose devida hoje', () => {
+    const apps = Array.from({ length: 61 }, (_, k) => `2026-03-${String((k % 28) + 1).padStart(2, '0')}`);
+    const ex = { frequency_mode: 'vezes_dia', times_per_day: 1, first_dose_time: '11:33', reminder_times: ['11:33'], treatment_days: 60, applied_dates: apps };
+    expect(medicationDosesToday('2026-03-07T03:00:00+00:00', ex, HOJE, '19:24')).toEqual({ due: 0, done: 0 });
+  });
+  it('Baby hoje às 19:24: as 5 medicações somadas → nada atrasado (card verde)', () => {
+    const daily = { frequency_mode: 'vezes_dia', times_per_day: 1, first_dose_time: '19:00', reminder_times: ['19:00'], treatment_days: 10, applied_dates: [HOJE] };
+    const dipirona = { frequency_mode: 'intervalo', interval_minutes: 480, first_dose_time: '17:00', treatment_days: 7, applied_slots: { [HOJE]: ['01:00', '09:00', '17:00'] } };
+    const ursacol = { frequency_mode: 'vezes_dia', times_per_day: 1, first_dose_time: '11:33', treatment_days: 60, applied_dates: [] };
+    const rows = [
+      medicationDosesToday('2026-09-19', daily, HOJE, '19:24'), medicationDosesToday('2026-09-19', daily, HOJE, '19:24'),
+      medicationDosesToday('2026-09-19', daily, HOJE, '19:24'), medicationDosesToday('2026-09-19', dipirona, HOJE, '19:24'),
+      medicationDosesToday('2026-03-07', ursacol, HOJE, '19:24'),
+    ];
+    const due = rows.reduce((a, r) => a + r.due, 0);
+    const done = rows.reduce((a, r) => a + Math.min(r.done, r.due), 0);
+    expect({ due, done }).toEqual({ due: 6, done: 6 });
+  });
 });
