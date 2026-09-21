@@ -205,7 +205,16 @@ def delete_event(
 ):
     """Deletar evento"""
     event = _get_accessible_event_or_404(db, str(current_user.id), event_id)
-    
+
+    if event.type in ("medicacao", "medication"):
+        from ..notifications import Reminder
+        db.query(Reminder).filter(
+            Reminder.pet_id == event.pet_id,
+            Reminder.type == "medication",
+            Reminder.title == f"💊 {(event.title or '').strip()}",
+            Reminder.sent == False,
+        ).delete(synchronize_session=False)
+
     event.deleted_at = datetime.utcnow()
     event.updated_at = datetime.utcnow()
     db.commit()

@@ -148,3 +148,21 @@ def test_reminder_falls_back_and_tries_again_without_destination(ctx, monkeypatc
     _due_now(c)
     notif.send_due_reminders()
     assert any(not r.sent for r in _reminders(c) if _aware(r.remind_at) <= datetime.now(timezone.utc))
+
+
+def test_deleting_medication_event_purges_its_pending_reminders(ctx):
+    """DELETE /events/{id} de uma medicação apaga os lembretes pendentes dela
+    (achado real: dono excluiu o remédio, aviso continuou chegando)."""
+    c = ctx
+    t = _now_hhmm_plus(30)
+    eid = _create(c, "Meloxinew 1mg", {"frequency_mode": "intervalo", "interval_minutes": 480, "first_dose_time": t, "reminder_times": [t], "treatment_days": 10})
+    reconcile_medication_reminders()
+    assert _reminders(c, "Meloxinew 1mg") != []
+
+    r = c.client.delete(f"/events/{eid}", headers=c.h)
+    assert r.status_code == 204, r.text
+    assert _reminders(c, "Meloxinew 1mg") == []
+
+    _due_now(c)
+    notif.send_due_reminders()
+    assert c.sent == []

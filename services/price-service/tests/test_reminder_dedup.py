@@ -10,6 +10,7 @@ import pytest
 from src.db import SessionLocal, Base, engine
 import src.notifications as notif
 from src.notifications import Reminder, PushSubscription
+from src.events.models import Event
 
 
 @pytest.fixture(autouse=True)
@@ -96,10 +97,16 @@ def test_two_vaccines_different_dates_both_send(_iso):
     assert len(sent) == 2
 
 
-def _med(db, uid, pid, name, remind_at, created_at):
+def _med(db, uid, pid, name, remind_at, created_at, live=True):
+    """`live=True` (padrão) cria também o evento de medicação por trás — é
+    isso que existe de verdade em produção (o evento nasce antes do lembrete).
+    `live=False` simula um lembrete órfão (a medicação já foi excluída)."""
+    if live:
+        db.add(Event(id=str(uuid.uuid4()), user_id=uid, pet_id=pid, type="medicacao", title=name,
+                     status="active", scheduled_at=remind_at))
     r = Reminder(
         id=str(uuid.uuid4()), user_id=uid, pet_id=pid, type="medication",
-        title="💊 Medicação", body=f"Hora de dar {name} para Baby. Toque para registrar a dose.",
+        title=f"💊 {name}", body=f"Hora de dar {name} para Baby. Toque para registrar a dose.",
         remind_at=remind_at, sent=False, created_at=created_at,
     )
     db.add(r)
@@ -158,7 +165,7 @@ def test_single_medication_keeps_its_own_text(_iso):
         _sub(db, uid)
         _med(db, uid, pid, "Zelotril 50mg", past, datetime.now(timezone.utc))
     notif.send_due_reminders()
-    assert len(sent) == 1 and sent[0]["title"] == "💊 Medicação"
+    assert len(sent) == 1 and sent[0]["title"] == "💊 Zelotril 50mg"
     assert "Hora de dar Zelotril 50mg para Baby" in sent[0]["body"]
 
 
@@ -262,3 +269,35 @@ def test_lost_medication_reminder_alerts_admin_by_email(_iso, monkeypatch):
     notif.send_due_reminders()
     assert len(mails) == 1
     assert "não entregue" in mails[0]["subject"] and "Zelotril 50mg" in mails[0]["body_text"]
+
+
+def test_orphaned_medication_reminder_is_consumed_without_sending(_iso):
+    """Remédio excluído: um lembrete que sobrou dele nunca chega ao usuário
+    (achado real: dono excluiu o remédio e o aviso continuou chegando)."""
+    sent = _iso
+    uid, pid = str(uuid.uuid4()), str(uuid.uuid4())
+    past = datetime.now(timezone.utc) - timedelta(minutes=1)
+    with SessionLocal() as db:
+        _sub(db, uid)
+        rid = _med(db, uid, pid, "Meloxinew 1mg", past, datetime.now(timezone.utc), live=False)
+    notif.send_due_reminders()
+    assert sent == []
+    with SessionLocal() as db:
+        assert db.query(Reminder).get(rid).sent is True
+
+
+def test_live_medication_reminder_still_sends_normally(_iso):
+    """Rede de segurança não pode confundir remédio ATIVO com órfão."""
+    from src.events.models import Event
+
+    sent = _iso
+    uid, pid = str(uuid.uuid4()), str(uuid.uuid4())
+    past = datetime.now(timezone.utc) - timedelta(minutes=1)
+    with SessionLocal() as db:
+        _sub(db, uid)
+        db.add(Event(id=str(uuid.uuid4()), user_id=uid, pet_id=pid, type="medicacao", title="Meloxinew 1mg",
+                     status="active", scheduled_at=past))
+        db.commit()
+        _med(db, uid, pid, "Meloxinew 1mg", past, datetime.now(timezone.utc))
+    notif.send_due_reminders()
+    assert len(sent) == 1 and "Meloxinew 1mg" in sent[0]["body"]

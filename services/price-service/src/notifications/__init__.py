@@ -520,6 +520,21 @@ def _alert_admin_medication_lost(db, group, reason: str) -> None:
         logger.warning(f"alerta de remédio perdido falhou: {exc}")
 
 
+def _live_medication_pet_titles(db) -> set:
+    """(pet_id, título do aviso) de toda medicação viva — não excluída, não
+    cancelada/concluída. Um lembrete que não bate com nenhum destes é órfão:
+    sobrou de uma medicação já excluída (ou editada e renomeada) e o próprio
+    dono nem vê mais na lista — nunca deveria continuar avisando."""
+    from ..events.models import Event
+
+    rows = (
+        db.query(Event.pet_id, Event.title)
+        .filter(Event.type.in_(_MED_TYPES), Event.deleted_at.is_(None), Event.status.notin_(("cancelled", "completed")))
+        .all()
+    )
+    return {(pet_id, f"💊 {(title or '').strip()}") for pet_id, title in rows}
+
+
 def send_due_reminders() -> None:
     db = SessionLocal()
     try:
@@ -532,6 +547,21 @@ def send_due_reminders() -> None:
         )
         if not due:
             return
+
+        # Auto-cura: lembrete de remédio sem uma medicação viva por trás (ela
+        # foi excluída — ou renomeada — depois que o lembrete já existia; a
+        # exclusão de evento só marca deleted_at e nunca apagava os lembretes
+        # já criados). Consome sem enviar; nunca chega no usuário.
+        live_meds = _live_medication_pet_titles(db)
+        orphaned = [r for r in due if r.type in _MED_TYPES and (r.pet_id, r.title) not in live_meds]
+        if orphaned:
+            for r in orphaned:
+                r.sent = True
+            logger.info(f"[med-orphan] {len(orphaned)} lembrete(s) de remédio já excluído consumido(s) sem enviar")
+            due = [r for r in due if r not in orphaned]
+            if not due:
+                db.commit()
+                return
 
         # Uma query só pra todas as subscriptions ativas, reaproveitada por
         # todos os reminders deste batch (mesmo padrão de antes, só que lendo
