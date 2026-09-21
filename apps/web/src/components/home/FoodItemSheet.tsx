@@ -2,7 +2,7 @@
 
 import { useBackHandler } from '@/lib/backStack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, X } from 'lucide-react';
 import { FoodControlTab, type FoodControlTabFormRequest, type FoodControlTabState } from '@/components/FoodControlTab';
 import type { PetHealthProfile } from '@/lib/petHealth';
 import { SheetAvatar, SheetHeader, SheetIcon } from '@/components/ui/sheet';
@@ -1113,6 +1113,15 @@ export function FoodItemSheet({ pet, onClose, onSaved, onGoHome, initialMode, pe
           {/* Success overlay */}
           {justSaved && (
             <div className="absolute inset-0 bg-white z-20 flex flex-col items-center justify-center gap-6 text-center p-8 rounded-[28px]">
+              {/* Esta tela cobre o cabeçalho (onde fica o X do sheet), então precisa do próprio X. */}
+              <button
+                type="button"
+                onClick={handleClose}
+                aria-label="Fechar"
+                className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200 active:scale-95"
+              >
+                <X className="h-5 w-5" strokeWidth={2.3} />
+              </button>
               <div className="text-6xl">✅</div>
               <div>
                 <h3 className="text-xl font-bold text-gray-900 mb-1">Ração registrada!</h3>
