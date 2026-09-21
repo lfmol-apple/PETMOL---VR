@@ -113,6 +113,8 @@ def reconcile_medication_reminders(now: Optional[datetime] = None) -> int:
             return 0
         pet_ids = {e.pet_id for e in events}
         pets = {p.id: p for p in db.query(Pet).filter(Pet.id.in_(pet_ids)).all()}
+        # Pet apagado (linha órfã de antes da correção de DELETE /pets/{id}):
+        # sem o pet não há pra quem lembrar, e o loop abaixo pula sem pet.
         existing = {
             (r.pet_id, _utc(r.remind_at).replace(second=0, microsecond=0), (r.title or "").strip())
             for r in db.query(Reminder).filter(

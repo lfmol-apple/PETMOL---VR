@@ -91,3 +91,43 @@ def test_every_8_hours_from_17h_matches_the_baby_dipirona():
              "reminder_times": ["17:00"], "treatment_days": 7}
     slots = expected_slots(extra, datetime(2026, 9, 19).date(), _now(hhmm="19:00"))
     assert [s.strftime("%d %H:%M") for s in slots] == ["21 01:00", "21 09:00", "21 17:00", "22 01:00"]
+
+
+def test_deleting_pet_purges_its_events_and_reminders():
+    """DELETE /pets/{id} não pode deixar lembrete órfão (achado real: usuário
+    apagou o pet e continuou recebendo lembrete de remédio dele)."""
+    import uuid as _uuid
+
+    from src.notifications import Reminder
+    from src.pets.models import Pet
+    from src.user_auth.purge import purge_pet_data
+
+    with SessionLocal() as db:
+        uid, pid = str(_uuid.uuid4()), str(_uuid.uuid4())
+        db.add(Pet(id=pid, user_id=uid, name="Apagado", species="dog"))
+        db.add(Event(id=str(_uuid.uuid4()), user_id=uid, pet_id=pid, type="medicacao", title="Zelotril",
+                     status="active", scheduled_at=datetime(2026, 9, 19, tzinfo=timezone.utc)))
+        db.add(Reminder(id=str(_uuid.uuid4()), user_id=uid, pet_id=pid, type="medication", title="💊 Zelotril",
+                        body="x", remind_at=datetime.now(timezone.utc)))
+        db.commit()
+
+        purge_pet_data(db, pid)
+        db.commit()
+
+        assert db.query(Event).filter(Event.pet_id == pid).count() == 0
+        assert db.query(Reminder).filter(Reminder.pet_id == pid).count() == 0
+
+
+def test_reconcile_skips_events_of_a_deleted_pet():
+    """Rede de segurança: mesmo se sobrar um evento órfão (pet já não existe
+    mais na tabela pets), o job de lembretes não tenta avisar por ele."""
+    import uuid as _uuid
+
+    with SessionLocal() as db:
+        uid, pid = str(_uuid.uuid4()), str(_uuid.uuid4())
+        db.add(Event(id=str(_uuid.uuid4()), user_id=uid, pet_id=pid, type="medicacao", title="Órfão",
+                     status="active", scheduled_at=datetime.now(timezone.utc),
+                     extra_data='{"frequency_mode": "vezes_dia", "reminder_times": ["08:00"], "first_dose_time": "08:00", "treatment_days": 7}'))
+        db.commit()
+
+    assert reconcile_medication_reminders() == 0

@@ -137,7 +137,10 @@ def delete_pet(
     user: User = Depends(get_current_user),
 ):
     pet = get_owned_pet_or_404(db, user.id, pet_id)
-    
+
+    from ..user_auth.purge import purge_pet_data
+    purge_pet_data(db, pet_id)
+
     # Deletar foto se existir
     if pet.photo:
         delete_pet_photo(pet.photo)

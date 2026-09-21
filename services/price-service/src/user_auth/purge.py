@@ -13,6 +13,38 @@ from sqlalchemy import inspect as _sa_inspect, text
 from sqlalchemy.orm import Session
 
 
+# Tabelas com pet_id (ordem não importa entre si; todas filhas de pets).
+_PET_CHILD_TABLES = [
+    'analytics_events',
+    'care_plans',
+    'events',
+    'feeding_plans',
+    'grooming_records',
+    'notification_pendencies',
+    'parasite_control_records',
+    'product_correction_events',
+    'product_learning_events',
+    'reminders',
+    'user_monthly_checkins',
+    'vaccine_records',
+]
+
+
+def purge_pet_data(db: Session, pet_id: str) -> None:
+    """Apaga tudo que depende de UM pet (sem apagar o pet em si nem a conta).
+
+    Usado por DELETE /pets/{id}. Sem isso, apagar um pet deixava eventos e
+    lembretes órfãos — o job de medicação (medication_sync.py) e o envio de
+    lembretes não sabem que o pet sumiu, e continuavam criando/mandando
+    avisos de remédios de um pet que não existe mais (achado real: usuário
+    apagou um pet e continuou recebendo lembrete dele)."""
+    existing = set(_sa_inspect(db.get_bind()).get_table_names())
+    for t in _PET_CHILD_TABLES:
+        if t not in existing:
+            continue
+        db.execute(text(f"DELETE FROM {t} WHERE pet_id = :pid"), {"pid": pet_id})
+
+
 def purge_user_data(db: Session, user) -> list[str]:
     """Apaga o usuário e os dados relacionados (sem commit). Devolve os
     caminhos de arquivos legados para o chamador apagar do disco após o commit."""
@@ -44,20 +76,7 @@ def purge_user_data(db: Session, user) -> list[str]:
         ]
 
     # Tabelas com pet_id (ordem importa: filhas antes de pets).
-    pet_child_tables = [
-        'analytics_events',
-        'care_plans',
-        'events',
-        'feeding_plans',
-        'grooming_records',
-        'notification_pendencies',
-        'parasite_control_records',
-        'product_correction_events',
-        'product_learning_events',
-        'user_monthly_checkins',
-        'vaccine_records',
-    ]
-    for t in pet_child_tables:
+    for t in _PET_CHILD_TABLES:
         if t not in _existing_tables:
             continue
         db.execute(text(f"DELETE FROM {t} WHERE pet_id IN (SELECT id FROM pets WHERE user_id = :uid)"), {"uid": uid})
