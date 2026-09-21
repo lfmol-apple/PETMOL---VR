@@ -75,3 +75,63 @@ export function medicationTreatmentState(
 }
 
 export const EXPIRED_UNCONFIRMED_LABEL = 'Prazo encerrado — conclusão não confirmada';
+
+
+/** Horários (HH:MM) das doses de UM dia, espaçados igualmente a partir da 1ª dose
+ * — a mesma regra do formulário/lista de medicação (getDailyDoseTimes). */
+export function medicationSlotTimes(ex: Record<string, unknown>): string[] {
+  const first = String(ex.first_dose_time || ex.reminder_time || '08:00');
+  const [h, m] = first.split(':').map((x) => parseInt(x, 10));
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return [];
+  const mode = String(ex.frequency_mode || '');
+  let n = 1;
+  if (mode === 'vezes_dia') n = Math.max(1, Math.min(12, parseInt(String(ex.times_per_day), 10) || 1));
+  else if (mode === 'intervalo') {
+    const step = parseInt(String(ex.interval_minutes), 10) || 0;
+    if (step > 0) n = Math.max(1, Math.round(1440 / step));
+  }
+  const spacing = Math.round(1440 / n);
+  return Array.from({ length: n }, (_, i) => {
+    const total = (h * 60 + m + spacing * i) % 1440;
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  }).sort();
+}
+
+/**
+ * Doses de HOJE de uma medicação: `due` = as que já chegaram na hora (horário <= agora),
+ * `done` = as já registradas (aplicadas ou puladas). Doses de mais tarde no dia ainda não
+ * contam como atrasadas, e o que foi registrado em applied_slots/applied_dates conta como feito
+ * (o card da Home lia um campo que ninguém gravava e ficava vermelho mesmo com tudo em dia).
+ */
+export function medicationDosesToday(
+  scheduledAt: string | null | undefined,
+  ex: Record<string, unknown>,
+  todayIso: string,
+  nowHHMM: string,
+): { due: number; done: number } {
+  const mode = String(ex.frequency_mode || '');
+  if (mode === 'conforme_necessidade') return { due: 0, done: 0 };
+  const start = parseIsoDay(String(scheduledAt || '').replace(' ', 'T').split('T')[0]);
+  const today = parseIsoDay(todayIso);
+  if (!today) return { due: 0, done: 0 };
+  if (start) {
+    const dayIndex = Math.round((today.getTime() - start.getTime()) / 86400000);
+    if (dayIndex < 0) return { due: 0, done: 0 };
+    const days = parseInt(String(ex.treatment_days), 10) || 0;
+    if (days > 0 && dayIndex >= days) return { due: 0, done: 0 };
+    const customInterval = parseInt(String(ex.custom_interval_days), 10) || 0;
+    const totalDoses = parseInt(String(ex.total_doses), 10) || 0;
+    if (customInterval > 0) {
+      if (dayIndex % customInterval !== 0) return { due: 0, done: 0 };
+      if (totalDoses > 0 && dayIndex / customInterval >= totalDoses) return { due: 0, done: 0 };
+    }
+  }
+  const slots = ex.custom_interval_days ? [String(ex.first_dose_time || '08:00')] : medicationSlotTimes(ex);
+  const due = slots.filter((t) => t <= nowHHMM).length;
+  const asArr = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
+  const map = (v: unknown): Record<string, string[]> => (v && typeof v === 'object' ? (v as Record<string, string[]>) : {});
+  const doneSlots = asArr(map(ex.applied_slots)[todayIso]).length + asArr(map(ex.skipped_slots)[todayIso]).length;
+  let done = doneSlots;
+  if (done === 0 && (asArr(ex.applied_dates).includes(todayIso) || asArr(ex.skipped_dates).includes(todayIso))) done = 1;
+  return { due, done: Math.min(done, slots.length) };
+}
