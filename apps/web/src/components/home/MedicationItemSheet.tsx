@@ -6,7 +6,7 @@ import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { parsePetEventExtraData, type PetEventRecord } from '@/lib/petEvents';
 import { extractMedicationBarcode } from '@/lib/petCareDomain';
-import { Check, Home, Trash2 } from 'lucide-react';
+import { Check, Home, Trash2, X } from 'lucide-react';
 import { SheetAvatar, SheetHeader, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { dateToLocalISO, localTodayISO } from '@/lib/localDate';
 import { CARE_STATE } from '@/lib/careState';
@@ -759,6 +759,15 @@ export function MedicationItemSheet({
         {/* Success overlay */}
         {justSaved && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-white p-8 text-center">
+            {/* Esta tela cobre o cabeçalho (onde fica o X do sheet), então precisa do próprio X. */}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fechar"
+              className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200 active:scale-95"
+            >
+              <X className="h-5 w-5" strokeWidth={2.3} />
+            </button>
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
               <Check className="h-8 w-8" strokeWidth={2.5} />
             </div>
