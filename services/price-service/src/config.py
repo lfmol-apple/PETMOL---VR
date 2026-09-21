@@ -117,6 +117,14 @@ class Settings(BaseSettings):
     # Overridable via env var, but defaults to the real value so this holds
     # even if the server's env file doesn't set it.
     admin_master_email: str = "leonardofmol@gmail.com"
+
+    # Contagem de alcance da campanha (push "Novo download" e e-mail diário):
+    # total = base (usuários reais que já existiam) + instalações registradas
+    # a partir do corte. Tudo antes do corte é conta/aparelho de teste e não
+    # entra na conta (os registros continuam no banco, só não são somados).
+    # Ajustável por env: INSTALL_COUNT_BASELINE / INSTALL_COUNT_SINCE.
+    install_count_baseline: int = 13
+    install_count_since: str = "2026-09-21T17:00:00-03:00"
     admin_master_password: Optional[str] = None
     admin_master_name: Optional[str] = None
     admin_master_role: str = "master"
