@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '@/lib/I18nContext';
 import { MEDICATIONS_ENABLED } from '@/lib/featureFlags';
-import { medicationTreatmentState } from '@/lib/medicationTreatment';
+import { medicationTreatmentState, medicationDosesToday } from '@/lib/medicationTreatment';
 import dynamic from 'next/dynamic';
 import type { ActionSheetType } from '@/components/PushActionSheet';
 import type { QuickActionContext } from '@/components/home/HealthQuickActionSheet';
@@ -1388,7 +1388,6 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
 
   const medicationCardStatus = useMemo(() => {
     const todayStr = localTodayISO();
-    const todayRef = new Date(`${todayStr}T00:00:00`);
     const activeMeds = petEvents.filter(ev => {
       if ((ev.type !== 'medicacao' && ev.type !== 'medication') || ev.source === 'document' || ev.status === 'cancelled') return false;
       try {
@@ -1406,41 +1405,20 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
       return false;
     });
     if (activeMeds.length === 0) return { alert: false as const, color: 'neutral' as const };
-    let totalSlots = 0;
-    let doneSlots = 0;
+    const nowRef = new Date();
+    const nowHHMM = `${String(nowRef.getHours()).padStart(2, '0')}:${String(nowRef.getMinutes()).padStart(2, '0')}`;
+    let totalDue = 0;
+    let totalDone = 0;
     activeMeds.forEach(ev => {
       try {
         const ex = JSON.parse(String((ev as unknown as Record<string, unknown>).extra_data || '{}')) as Record<string, unknown>;
-        const startRaw = String(ev.scheduled_at || '').replace('T', ' ').split(' ')[0];
-        const startDate = startRaw ? createLocalDate(startRaw) : null;
-        const nextDueRaw = ev.next_due_date ? String(ev.next_due_date).replace('T', ' ').split(' ')[0] : '';
-        const nextDueDate = nextDueRaw ? createLocalDate(nextDueRaw) : null;
-        const isFutureStart = startDate && !Number.isNaN(startDate.getTime()) && startDate.getTime() > todayRef.getTime();
-        const isFutureDue = nextDueDate && !Number.isNaN(nextDueDate.getTime()) && nextDueDate.getTime() > todayRef.getTime();
-
-        if (isFutureStart || isFutureDue) return;
-
-        const times = Array.isArray(ex.reminder_times) && (ex.reminder_times as string[]).length > 0
-          ? ex.reminder_times as string[]
-          : null;
-        if (ex.custom_interval_days) {
-          totalSlots += 1;
-          const appliedDates: string[] = Array.isArray(ex.applied_dates) ? ex.applied_dates as string[] : [];
-          doneSlots += appliedDates.includes(todayStr) ? 1 : 0;
-        } else if (times) {
-          const appliedDatetimes: string[] = Array.isArray(ex.applied_datetimes) ? ex.applied_datetimes as string[] : [];
-          totalSlots += times.length;
-          doneSlots += times.filter((t: string) => appliedDatetimes.includes(`${todayStr}_${t}`)).length;
-        } else {
-          const appliedDates: string[] = Array.isArray(ex.applied_dates) ? ex.applied_dates as string[] : [];
-          totalSlots += 1;
-          doneSlots += appliedDates.includes(todayStr) ? 1 : 0;
-        }
+        const { due, done } = medicationDosesToday(ev.scheduled_at, ex, todayStr, nowHHMM);
+        totalDue += due;
+        totalDone += Math.min(done, due);
       } catch {}
     });
-    if (totalSlots === 0) return { alert: false as const, color: 'ok' as const };
-    if (doneSlots === totalSlots) return { alert: false as const, color: 'ok' as const };
-    if (doneSlots > 0) return { alert: true as const, color: 'warning' as const };
+    if (totalDue === 0 || totalDone >= totalDue) return { alert: false as const, color: 'ok' as const };
+    if (totalDone > 0) return { alert: true as const, color: 'warning' as const };
     return { alert: true as const, color: 'critical' as const };
   }, [petEvents]);
 

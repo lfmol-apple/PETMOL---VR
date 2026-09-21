@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isMedicationTreatmentStale, medicationTreatmentState, treatmentNominalEnd } from './medicationTreatment';
+import { isMedicationTreatmentStale, medicationDosesToday, medicationSlotTimes, medicationTreatmentState, treatmentNominalEnd } from './medicationTreatment';
 
 const ursacol = {
   treatment_days: 90,
@@ -70,5 +70,45 @@ describe('medicationTreatmentState', () => {
   });
   it('registrar dose depois de expirado reativa o tratamento', () => {
     expect(medicationTreatmentState({ scheduled_at: '2026-03-07' }, { ...ursacol, applied_dates: [...ursacol.applied_dates, '2026-09-18'] }, TODAY)).toBe('active');
+  });
+});
+
+
+describe('medicationDosesToday (card da Home: alerta vermelho só com dose atrasada de verdade)', () => {
+  const HOJE = '2026-09-21';
+  const diaria19 = { frequency_mode: 'vezes_dia', times_per_day: 1, first_dose_time: '19:00', reminder_times: ['19:00'], treatment_days: 10 };
+
+  it('dose diária marcada hoje (applied_dates) → em dia', () => {
+    const ex = { ...diaria19, applied_dates: ['2026-09-19', HOJE] };
+    expect(medicationDosesToday('2026-09-19', ex, HOJE, '19:24')).toEqual({ due: 1, done: 1 });
+  });
+  it('Dipirona a cada 8h com as 3 doses de hoje em applied_slots → em dia', () => {
+    const ex = { frequency_mode: 'intervalo', interval_minutes: 480, first_dose_time: '17:00', reminder_times: ['17:00'], treatment_days: 7,
+      applied_dates: [HOJE], applied_slots: { [HOJE]: ['01:00', '09:00', '17:00'] } };
+    expect(medicationSlotTimes(ex)).toEqual(['01:00', '09:00', '17:00']);
+    expect(medicationDosesToday('2026-09-19', ex, HOJE, '19:24')).toEqual({ due: 3, done: 3 });
+  });
+  it('só 1 das 3 doses registrada → 1/3 (atrasado de verdade)', () => {
+    const ex = { frequency_mode: 'intervalo', interval_minutes: 480, first_dose_time: '17:00', treatment_days: 7, applied_slots: { [HOJE]: ['01:00'] } };
+    expect(medicationDosesToday('2026-09-19', ex, HOJE, '19:24')).toEqual({ due: 3, done: 1 });
+  });
+  it('dose das 11:33 sem registro às 19:24 → atrasada; antes das 11:33 ainda não conta', () => {
+    const ex = { frequency_mode: 'vezes_dia', times_per_day: 1, first_dose_time: '11:33', reminder_times: ['11:33'], treatment_days: 30, applied_dates: [] };
+    expect(medicationDosesToday('2026-09-21', ex, HOJE, '19:24')).toEqual({ due: 1, done: 0 });
+    expect(medicationDosesToday('2026-09-21', ex, HOJE, '10:00')).toEqual({ due: 0, done: 0 });
+  });
+  it('dose pulada conta como resolvida', () => {
+    const ex = { ...diaria19, skipped_dates: [HOJE] };
+    expect(medicationDosesToday('2026-09-19', ex, HOJE, '20:00')).toEqual({ due: 1, done: 1 });
+  });
+  it('tratamento que ainda não começou, já terminou, ou SOS → nada devido', () => {
+    expect(medicationDosesToday('2026-09-22', diaria19, HOJE, '23:00')).toEqual({ due: 0, done: 0 });
+    expect(medicationDosesToday('2026-09-01', { ...diaria19, treatment_days: 5 }, HOJE, '23:00')).toEqual({ due: 0, done: 0 });
+    expect(medicationDosesToday('2026-09-19', { frequency_mode: 'conforme_necessidade' }, HOJE, '23:00')).toEqual({ due: 0, done: 0 });
+  });
+  it('intervalo em dias: só é dia de dose a cada N dias', () => {
+    const ex = { frequency_mode: 'intervalo_dias', custom_interval_days: 15, total_doses: 2, first_dose_time: '09:00' };
+    expect(medicationDosesToday('2026-09-21', ex, HOJE, '10:00')).toEqual({ due: 1, done: 0 });    // dia 0
+    expect(medicationDosesToday('2026-09-10', ex, HOJE, '10:00')).toEqual({ due: 0, done: 0 });    // dia 11: não é dia de dose
   });
 });
