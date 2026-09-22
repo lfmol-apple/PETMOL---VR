@@ -14,6 +14,7 @@ from ...db import get_db
 from ..deps import get_current_admin_or_readonly_key
 from . import feeding_bi
 from . import journey_bi
+from . import map_bi
 from . import queries as q
 from .filters import AnalyticsFilters
 
@@ -116,6 +117,16 @@ def get_journey_step_population(
     if result.get("error"):
         raise HTTPException(status_code=404, detail=result["error"])
     return result
+
+
+@router.get("/map-tutors")
+def get_map_tutors(
+    has_feeding: Optional[bool] = Query(None),
+    db: Session = Depends(get_db),
+    f: AnalyticsFilters = Depends(_filters),
+    _=_Auth,
+):
+    return map_bi.map_tutors(db, f, has_feeding=has_feeding)
 
 
 @router.get("/users")
