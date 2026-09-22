@@ -120,7 +120,10 @@ export function FeedingSection({ filter }: { filter: GlobalFilter }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {/* xl:grid-cols-2 desfaz o md:grid-cols-4: a partir de xl (1280px) a
+          página do Mission Control divide em 2 colunas (ver page.tsx) e
+          esta seção fica com ~metade da largura da tela. */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-2">
         <button type="button" onClick={() => setDrilldown({ stage: 'controle_ativo', label: 'Controle alimentar ativo' })}
           className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-left hover:border-emerald-400">
           <div className="text-[11px] font-bold uppercase text-emerald-700">Controle ativo</div>

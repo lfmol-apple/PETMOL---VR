@@ -71,7 +71,11 @@ export function OverviewSection({ filter, onCrossFilterPlatform, onOpenFeeding }
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {/* xl:grid-cols-2 desfaz o md:grid-cols-4 de propósito: a partir de
+          xl (1280px) a página do Mission Control divide em 2 colunas lado a
+          lado (ver page.tsx), então esta seção só tem ~metade da largura da
+          tela ali — 4-por-linha ficava espremido/cortado nesse ponto. */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-2">
         <StatCard label="Tutores" tone="green" value={numberFmt(data.totals.users)}
           sub={`+${data.totals.new_users_today} hoje · +${data.totals.new_users_7d} 7d · +${data.totals.new_users_30d} 30d`}
           trend={data.series.new_users} />
@@ -94,7 +98,7 @@ export function OverviewSection({ filter, onCrossFilterPlatform, onOpenFeeding }
         <StatCard label="Tutores sem pet" value={numberFmt(data.tutors.without_pet)} tone={data.tutors.without_pet > 0 ? 'warn' : 'default'} />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-2">
         <StatCard label="Tutores c/ alimentação" value={numberFmt(data.tutors.with_feeding_configured)}
           sub={`${numberFmt(data.tutors.pets_with_feeding_configured)} pets`} />
         <StatCard label="Pets c/ controle ativo" value={numberFmt(data.tutors.pets_with_active_control)} tone="good" />
@@ -424,7 +428,7 @@ export function CommerceSection({ filter }: { filter: GlobalFilter }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-2">
         <StatCard label="Abriram a Loja" value={numberFmt(data.store_opened_users)} sub="usuários únicos" />
         <StatCard label="Ofertas vistas" value={numberFmt(data.offer_viewed)} sub={`${numberFmt(data.offer_viewed_users)} usuários`} />
         <StatCard label="Cliques" value={numberFmt(data.commerce_click)} sub={`${numberFmt(data.commerce_click_users)} usuários`} />
