@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { detectStorePlatform, storeUrlFor, PLAY_STORE_URL, APP_STORE_URL, playStoreUrl, type StorePlatform } from '@/lib/appStores';
 
@@ -27,18 +26,11 @@ export function DownloadButton({ placement, className = '', withWebLink = false 
   ) : null;
 
   if (url) {
-    // Selo oficial (Apple/Google), sem o pill azul por trás — as duas marcas
-    // já vêm com a própria arte/cor prontas para qualquer fundo.
     return (
-      <div className="w-full flex flex-col items-center">
-        <a href={url} target="_blank" rel="noopener noreferrer" data-placement={placement}
-          aria-label={platform === 'android' ? 'Disponível no Google Play' : 'Baixar na App Store'}
-          className="inline-block active:scale-[0.97] transition-transform">
-          {platform === 'android' ? (
-            <Image src="/landing/google-play-badge-ptbr.png" alt="Disponível no Google Play" width={189} height={56} className="h-14 w-auto" />
-          ) : (
-            <Image src="/landing/apple-badge-ptbr.svg" alt="Baixar na App Store" width={168} height={56} className="h-14 w-auto" />
-          )}
+      <div className="w-full">
+        <a href={url} className={`${base} bg-[#0056D2] text-white shadow-blue-500/25`} data-placement={placement}>
+          <span aria-hidden>{platform === 'android' ? '▶' : ''}</span>
+          {platform === 'android' ? 'Baixar no Google Play' : 'Baixar na App Store'}
         </a>
         {webLink}
       </div>
