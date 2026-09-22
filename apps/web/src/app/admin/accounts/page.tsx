@@ -32,6 +32,30 @@ interface AccountOut {
   pets: PetOut[];
 }
 
+interface InstallOut {
+  id: string;
+  platform: string;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  created_at: string;
+}
+
+interface InstallsResponse {
+  success: boolean;
+  total: number;
+  base: number;
+  campaign: number;
+  data: InstallOut[];
+}
+
+const PLATFORM_LABEL: Record<string, string> = {
+  ios: 'iPhone',
+  android: 'Android',
+  pwa: 'App instalado',
+  web: 'Navegador',
+};
+
 interface AccountsListResponse {
   success: boolean;
   data: AccountOut[];
@@ -46,6 +70,7 @@ export default function AdminAccountsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [query, setQuery] = useState('');
+  const [installs, setInstalls] = useState<InstallsResponse | null>(null);
 
   useEffect(() => {
     if (adminLoading) return;
@@ -54,6 +79,7 @@ export default function AdminAccountsPage() {
       return;
     }
     void loadAccounts();
+    void loadInstalls();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminLoading, isAdmin]);
 
@@ -83,6 +109,18 @@ export default function AdminAccountsPage() {
       setAccounts([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadInstalls = async () => {
+    try {
+      const response = await fetch('/api/v1/admin/app-installs?limit=100', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+      setInstalls((await response.json()) as InstallsResponse);
+    } catch {
+      setInstalls(null);
     }
   };
 
@@ -153,6 +191,36 @@ export default function AdminAccountsPage() {
           <h1 className="text-3xl font-bold mb-2">📋 Contas Cadastradas</h1>
           <p className="text-gray-600">Lista mundial (usuários, tutor e pets)</p>
         </div>
+
+        {installs && (
+          <div className="bg-white rounded-[20px] shadow-sm ring-1 ring-slate-100/50 p-4 mb-6 border border-slate-200">
+            <div className="flex items-baseline justify-between gap-3 mb-3">
+              <div className="font-semibold text-slate-900">📲 Downloads</div>
+              <div className="text-sm text-slate-600">
+                {installs.total} no total ({installs.base} base + {installs.campaign} campanha)
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 mb-3">
+              Local aproximado pelo IP na 1ª abertura do app (cidade, sem endereço).
+            </p>
+            {installs.data.length === 0 ? (
+              <p className="text-sm text-slate-500">Nenhum download registrado.</p>
+            ) : (
+              <ul className="max-h-72 overflow-y-auto divide-y divide-slate-100 text-sm">
+                {installs.data.map((i) => (
+                  <li key={i.id} className="flex items-center justify-between gap-3 py-2">
+                    <span className="text-slate-900">
+                      {[i.city, i.region, i.country].filter(Boolean).join(' · ') || 'local desconhecido'}
+                    </span>
+                    <span className="flex-shrink-0 text-xs text-slate-500">
+                      {PLATFORM_LABEL[i.platform] || i.platform} · {formatDate(i.created_at)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         <div className="bg-white rounded-[20px] shadow-sm ring-1 ring-slate-100/50 p-4 mb-6 border border-slate-200 overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">

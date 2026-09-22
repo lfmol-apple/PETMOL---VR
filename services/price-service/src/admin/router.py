@@ -455,6 +455,37 @@ def admin_all_accounts(
     return AccountsListOut(success=True, data=out)
 
 
+@router.get("/app-installs")
+def admin_app_installs(
+    db: Session = Depends(get_db),
+    current=Depends(get_current_admin_or_readonly_key),
+    limit: int = 100,
+):
+    """Downloads (1ª abertura do app): quando, plataforma e cidade aproximada (IP)."""
+    from ..analytics.install_models import AppInstall, campaign_total
+
+    limit = max(1, min(limit, 500))
+    rows = db.query(AppInstall).order_by(AppInstall.created_at.desc()).limit(limit).all()
+    total, base, camp = campaign_total(db)
+    return {
+        "success": True,
+        "total": total,
+        "base": base,
+        "campaign": camp,
+        "data": [
+            {
+                "id": r.id,
+                "platform": r.platform,
+                "city": r.city,
+                "region": r.region,
+                "country": r.country,
+                "created_at": r.created_at,
+            }
+            for r in rows
+        ],
+    }
+
+
 @router.post("/logout", response_model=OkOut)
 def admin_logout(response: Response):
     response.delete_cookie(COOKIE_NAME, path="/")
