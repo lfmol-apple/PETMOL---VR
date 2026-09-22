@@ -14,6 +14,7 @@ import {
 } from '@/components/admin/sections/sections';
 import { FeedingSection } from '@/components/admin/sections/FeedingSection';
 import { JourneySection } from '@/components/admin/sections/JourneySection';
+import { TacticalSection } from '@/components/admin/sections/TacticalSection';
 import dynamic from 'next/dynamic';
 import { OperationsSection } from '@/components/admin/sections/OperationsSection';
 
@@ -27,6 +28,11 @@ const MapSection = dynamic(
 const PERIODS = [
   { label: '7d', v: 7 }, { label: '30d', v: 30 }, { label: '90d', v: 90 }, { label: 'Tudo', v: undefined },
 ];
+
+type SectionLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J';
+const SECTION_IDS: Record<SectionLetter, string> = {
+  A: 'mc-a', B: 'mc-b', C: 'mc-c', D: 'mc-d', E: 'mc-e', F: 'mc-f', G: 'mc-g', H: 'mc-h', I: 'mc-i', J: 'mc-j',
+};
 
 /** Telas admin completas (fora do BI) — atalhos fixos no topo do painel. */
 const ADMIN_TOOLS: { href: string; label: string; highlight?: boolean }[] = [
@@ -49,11 +55,31 @@ export default function AdminDashboardPage() {
   const { logout } = useAuth();
   const { isAdmin, adminData, isLoading: adminLoading } = useAdmin();
   const [filter, setFilter] = useState<GlobalFilter>({ period_days: 30 });
+  const [open, setOpen] = useState<Record<SectionLetter, boolean>>({
+    A: true, B: true, C: true, D: false, E: false, F: false, G: false, H: false, I: false, J: false,
+  });
 
   useEffect(() => {
     if (adminLoading) return;
     if (!isAdmin) router.push('/home');
   }, [adminLoading, isAdmin, router]);
+
+  const toggle = (letter: SectionLetter) => setOpen((o) => ({ ...o, [letter]: !o[letter] }));
+
+  /** Filtro cruzado: abre a seção e rola até ela — usado quando um card ou
+   * gráfico de outra seção aponta pra um recorte de Tutores & Pets. */
+  const openAndScroll = (letter: SectionLetter) => {
+    setOpen((o) => ({ ...o, [letter]: true }));
+    requestAnimationFrame(() => {
+      document.getElementById(SECTION_IDS[letter])?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const crossFilterPlatform = (platform: string) => {
+    setFilter((f) => ({ ...f, platform }));
+    openAndScroll('H');
+  };
+  const openFeeding = () => openAndScroll('C');
 
   if (adminLoading || !isAdmin || !adminData) {
     return (
@@ -122,36 +148,37 @@ export default function AdminDashboardPage() {
           )}
         </div>
 
-        {/* A–I: tudo numa página só, seções recolhíveis. A/B/C abertas de
-            cara (visão geral + as duas prioridades apontadas pelo dono —
-            jornada e ração); o resto começa fechado e só busca dado quando
-            aberto (ver AccordionPanel). */}
+        {/* A–J: tudo numa página só, seções recolhíveis e controladas — A/B/C
+            abertas de cara (visão geral + as duas prioridades apontadas pelo
+            dono — jornada e ração); o resto começa fechado e só busca dado
+            quando aberto. Filtro cruzado: clicar numa barra de plataforma ou
+            no card "Sem alimentação" abre e rola até a seção certa. */}
         <div className="space-y-3">
-          <AccordionPanel letter="A" title="Indicadores Executivos" defaultOpen>
-            <OverviewSection filter={filter} />
+          <AccordionPanel id={SECTION_IDS.A} letter="A" title="Indicadores Executivos" open={open.A} onToggle={() => toggle('A')}>
+            <OverviewSection filter={filter} onCrossFilterPlatform={crossFilterPlatform} onOpenFeeding={openFeeding} />
           </AccordionPanel>
 
-          <AccordionPanel letter="B" title="Jornada e Conversão" defaultOpen>
+          <AccordionPanel id={SECTION_IDS.B} letter="B" title="Jornada e Conversão" open={open.B} onToggle={() => toggle('B')}>
             <JourneySection filter={filter} />
           </AccordionPanel>
 
-          <AccordionPanel letter="C" title="Alimentação e Ração" subtitle="Prioridade comercial" defaultOpen>
+          <AccordionPanel id={SECTION_IDS.C} letter="C" title="Alimentação e Ração" subtitle="Prioridade comercial" open={open.C} onToggle={() => toggle('C')}>
             <FeedingSection filter={filter} />
           </AccordionPanel>
 
-          <AccordionPanel letter="D" title="Utilização das Funcionalidades">
+          <AccordionPanel id={SECTION_IDS.D} letter="D" title="Utilização das Funcionalidades" open={open.D} onToggle={() => toggle('D')}>
             <FeaturesSection filter={filter} />
           </AccordionPanel>
 
-          <AccordionPanel letter="E" title="Retenção">
+          <AccordionPanel id={SECTION_IDS.E} letter="E" title="Retenção" open={open.E} onToggle={() => toggle('E')}>
             <RetentionSection filter={filter} />
           </AccordionPanel>
 
-          <AccordionPanel letter="F" title="Loja e Monetização">
+          <AccordionPanel id={SECTION_IDS.F} letter="F" title="Loja e Monetização" open={open.F} onToggle={() => toggle('F')}>
             <CommerceSection filter={filter} />
           </AccordionPanel>
 
-          <AccordionPanel letter="G" title="Mapa dos Tutores">
+          <AccordionPanel id={SECTION_IDS.G} letter="G" title="Mapa dos Tutores" open={open.G} onToggle={() => toggle('G')}>
             <div className="space-y-4">
               <MapSection filter={filter} />
               <div className="border-t border-slate-100 pt-4">
@@ -161,11 +188,11 @@ export default function AdminDashboardPage() {
             </div>
           </AccordionPanel>
 
-          <AccordionPanel letter="H" title="Tutores e Pets" subtitle="Tabela completa, com busca e filtros">
+          <AccordionPanel id={SECTION_IDS.H} letter="H" title="Tutores e Pets" subtitle="Tabela completa, com busca e filtros" open={open.H} onToggle={() => toggle('H')}>
             <UsersSection filter={filter} />
           </AccordionPanel>
 
-          <AccordionPanel letter="I" title="Indicadores Técnicos Avançados">
+          <AccordionPanel id={SECTION_IDS.I} letter="I" title="Indicadores Técnicos Avançados" open={open.I} onToggle={() => toggle('I')}>
             <div className="space-y-4">
               <div>
                 <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Qualidade dos dados</p>
@@ -176,6 +203,10 @@ export default function AdminDashboardPage() {
                 <OperationsSection />
               </div>
             </div>
+          </AccordionPanel>
+
+          <AccordionPanel id={SECTION_IDS.J} letter="J" title="Inteligência Tática" subtitle="O sistema recomenda; você decide" open={open.J} onToggle={() => toggle('J')}>
+            <TacticalSection filter={filter} />
           </AccordionPanel>
         </div>
       </div>

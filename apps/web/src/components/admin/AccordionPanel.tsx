@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 /**
  * Seção recolhível do Mission Control (fusão das abas numa página só).
@@ -8,18 +8,23 @@ import { useState, type ReactNode } from 'react';
  * dispara nenhuma chamada de API; abrir busca na hora. Fechar desmonta de
  * novo, então um painel com polling (Operação) para de bater no servidor
  * quando ninguém está olhando.
+ *
+ * Controlado pelo pai (open/onToggle) — assim outra seção pode abrir esta
+ * de fora (filtro cruzado: clicar numa barra da Visão Geral abre e rola
+ * até Tutores & Pets já filtrado).
  */
-export function AccordionPanel({ letter, title, subtitle, defaultOpen = false, children }: {
+export function AccordionPanel({ id, letter, title, subtitle, open, onToggle, children }: {
+  id?: string;
   letter: string;
   title: string;
   subtitle?: string;
-  defaultOpen?: boolean;
+  open: boolean;
+  onToggle: () => void;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <button type="button" onClick={() => setOpen((o) => !o)}
+    <section id={id} className="scroll-mt-4 rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <button type="button" onClick={onToggle}
         className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[12px] font-black text-slate-500">
