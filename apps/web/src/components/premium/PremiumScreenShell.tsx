@@ -33,6 +33,11 @@ interface PremiumScreenShellProps {
   hideBack?: boolean;
   /** URL para o botão Voltar (padrão: router.back()) */
   backHref?: string;
+  /** Sai do teto de largura de tela de celular (`max-w-2xl`, pensado pras
+   * telas secundárias — cadastro, termos, etc.). Usar só em painéis de
+   * desktop de verdade (hoje: só o Mission Control) — a página fica dona
+   * da própria largura/padding em vez de herdar o padrão de tela mobile. */
+  wide?: boolean;
   children: ReactNode;
 }
 
@@ -44,6 +49,7 @@ export function PremiumScreenShell({
   footerSecondary,
   hideBack = false,
   backHref,
+  wide = false,
   children,
 }: PremiumScreenShellProps) {
   const router = useRouter();
@@ -85,7 +91,7 @@ export function PremiumScreenShell({
 
       {/* ── Conteúdo ── */}
       <main
-        className={`flex-1 overflow-y-auto ${tokens.pageMaxWidth} w-full ${hasFooter ? 'pb-4' : 'pb-8'}`}
+        className={`flex-1 overflow-y-auto w-full ${wide ? '' : tokens.pageMaxWidth} ${hasFooter ? 'pb-4' : 'pb-8'}`}
       >
         {children}
       </main>
