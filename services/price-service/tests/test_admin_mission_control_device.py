@@ -50,7 +50,7 @@ def test_app_version_label():
     assert _app_version_label("web", "817911ad7f32df581044c02078ae3291a7a2cf65-1790093721") == "Web (build 817911a)"
     assert _app_version_label("pwa", "817911ad7f32df581044c02078ae3291a7a2cf65-1790093721") == "PWA (build 817911a)"
     # versão real do nativo passa direto, com prefixo da plataforma
-    assert _app_version_label("ios", "1.0 (7)") == "iOS 1.0 (7)"
+    assert _app_version_label("ios", "1.0 (7)") == "iPhone 1.0 (7)"  # rótulo alinhado com a coluna Dispositivo
     assert _app_version_label("android", "1.0 (4)") == "Android 1.0 (4)"
 
 
@@ -103,7 +103,7 @@ def test_users_list_shows_most_recent_device_and_thumbnail(client):
 
     a = items[ids["a"]]
     assert a["device_type"] == "iphone"  # o mais recente, não o desktop antigo
-    assert a["app_version_label"] == "iOS 1.0 (7)"
+    assert a["app_version_label"] == "iPhone 1.0 (7)"
     assert len(a["pet_thumbnails"]) == 1
     assert a["pet_thumbnails"][0]["name"] == "Rex"
     assert a["pet_thumbnails"][0]["photo_url"]
@@ -139,7 +139,7 @@ def test_user_and_pet_detail_expose_photo_url_and_device(client):
     r = client.get(f"/v1/admin/analytics/users/{ids['a']}", headers=headers)
     body = r.json()
     assert body["activity"]["device_type"] == "iphone"
-    assert body["activity"]["last_app_version_label"] == "iOS 1.0 (7)"
+    assert body["activity"]["last_app_version_label"] == "iPhone 1.0 (7)"
     assert body["pets"][0]["photo_url"]
 
     r2 = client.get(f"/v1/admin/analytics/pets/{ids['pet']}", headers=headers)
@@ -156,7 +156,7 @@ def test_overview_version_ranking_collapses_web_builds(client):
         u = User(email=f"c-{uuid4().hex[:8]}@example.com", password_hash=hash_password("x"), name="Carla")
         db.add(u)
         db.commit()
-        for i, sha in enumerate(["aaaaaaa1111111111111111111111111111111-1000", "bbbbbbb2222222222222222222222222222222-2000"]):
+        for i, sha in enumerate(["aaaaaaa1111111111111111111111111111111-1790000000000", "bbbbbbb2222222222222222222222222222222-1790000001000"]):
             db.add(AnalyticsProductEvent(
                 event_id=f"v{i}-{uuid4().hex[:8]}", event_name="app_open", user_id=u.id,
                 platform="web", app_version=sha, received_at=NOW - timedelta(days=i),
@@ -174,5 +174,43 @@ def test_overview_version_ranking_collapses_web_builds(client):
     versions = {row["version"]: row["users"] for row in r.json()["app_versions"]}
     assert "Web" in versions
     assert versions["Web"] == 1  # 1 tutor, 2 builds diferentes — não 2 barras
-    assert any(k.startswith("iOS") for k in versions)
+    assert any(k.startswith("iPhone") for k in versions)
     assert not any(len(k) > 30 for k in versions)  # nenhum hash cru sobrando
+
+
+def test_app_version_label_matches_real_capacitor_platform_values():
+    """Em produção o app nativo reporta platform='ios_capacitor'/'android_capacitor'
+    (não 'ios'/'android' puro) e, hoje, a MESMA sha de build do web — sem o
+    sufixo '-timestamp' (bare hash). As duas formas têm que virar rótulo
+    curto, não o hash cru (era exatamente a reclamação original)."""
+    bare_sha = "817911ad7f32df581044c02078ae3291a7a2cf65"
+    assert _app_version_label("ios_capacitor", bare_sha) == "iPhone (build 817911a)"
+    assert _app_version_label("android_capacitor", bare_sha) == "Android (build 817911a)"
+    assert _app_version_label("web", bare_sha) == "Web (build 817911a)"
+    # quando existir versão real (App.getInfo() nativo, futuro), passa direto
+    assert _app_version_label("ios_capacitor", "1.0 (7)") == "iPhone 1.0 (7)"
+
+
+def test_overview_version_ranking_collapses_capacitor_builds_too(client):
+    headers = _admin_headers()
+    db = SessionLocal()
+    try:
+        u = User(email=f"d-{uuid4().hex[:8]}@example.com", password_hash=hash_password("x"), name="Duda")
+        db.add(u)
+        db.commit()
+        for i, sha in enumerate([
+            "817911ad7f32df581044c02078ae3291a7a2cf65",
+            "df537c7afb53d8702cc1099411538650e340f7a0",
+        ]):
+            db.add(AnalyticsProductEvent(
+                event_id=f"cap{i}-{uuid4().hex[:8]}", event_name="app_open", user_id=u.id,
+                platform="ios_capacitor", app_version=sha, received_at=NOW - timedelta(days=i),
+            ))
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.get("/v1/admin/analytics/overview", headers=headers)
+    versions = {row["version"]: row["users"] for row in r.json()["app_versions"]}
+    assert versions.get("iPhone") == 1  # 1 tutora, 2 builds — 1 barra, não 2
+    assert not any(len(k) > 20 for k in versions)

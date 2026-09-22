@@ -212,33 +212,50 @@ def _platform_breakdown(db: Session, since: datetime) -> list[dict[str, Any]]:
 
 
 def _version_breakdown(db: Session, since: datetime) -> list[dict[str, Any]]:
-    # Web/PWA publicam um build novo a cada deploy — agrupar pelo app_version
-    # cru rachava "Web" em dezenas de barras de 1 usuário cada (uma por
-    # deploy), com o hash inteiro como rótulo, e um mesmo tutor que passou
-    # por 2 builds contava 2x se a gente só somasse os grupos brutos. Por
-    # isso Web/PWA são contados à parte, por identidade distinta, ignorando
-    # o app_version; só nativo (iOS/Android) agrupa por versão real.
+    # TODA plataforma publica um build novo a cada deploy — inclusive dentro
+    # do app nativo hoje (ver nota em _BUILD_SHA_RE): agrupar pelo app_version
+    # cru rachava o ranking em dezenas de barras de 1 usuário cada, com o
+    # hash inteiro como rótulo, e um mesmo tutor que passou por 2 builds
+    # contava 2x se a gente só somasse os grupos brutos. Plataformas sem
+    # NENHUMA versão real no período são contadas à parte, por identidade
+    # distinta (ignorando qual build exatamente); só quando existir versão
+    # real (App.getInfo() nativo, uma vez implementado) essa plataforma
+    # passa a agrupar por versão de verdade.
     base = db.query(AnalyticsProductEvent).filter(AnalyticsProductEvent.received_at >= since)
+    platforms_with_real_version = {
+        p for p, v in base.with_entities(AnalyticsProductEvent.platform, AnalyticsProductEvent.app_version).distinct().all()
+        if v and v != "unknown" and not _BUILD_SHA_RE.match(v)
+    }
+
     buckets: dict[str, int] = {}
-    for platform, label in (("web", "Web"), ("pwa", "PWA")):
+    all_platforms = [p for (p,) in base.with_entities(AnalyticsProductEvent.platform).distinct().all()]
+    for platform in all_platforms:
+        if platform in platforms_with_real_version:
+            continue
+        if platform is None:
+            label = "Plataforma desconhecida"
+        elif platform == "pwa":
+            label = "PWA"
+        else:
+            label = _NATIVE_PLATFORM_LABEL.get(platform, "Web")
         n = base.filter(AnalyticsProductEvent.platform == platform) \
             .with_entities(func.count(func.distinct(_identity_expr()))).scalar() or 0
         if n:
-            buckets[label] = int(n)
+            buckets[label] = buckets.get(label, 0) + int(n)
 
-    native_rows = (
-        base.filter(~AnalyticsProductEvent.platform.in_(["web", "pwa"]))
-        .with_entities(
-            func.coalesce(AnalyticsProductEvent.platform, "unknown"),
-            AnalyticsProductEvent.app_version,
-            func.count(func.distinct(_identity_expr())),
+    if platforms_with_real_version:
+        real_rows = (
+            base.filter(AnalyticsProductEvent.platform.in_(platforms_with_real_version))
+            .with_entities(
+                AnalyticsProductEvent.platform, AnalyticsProductEvent.app_version,
+                func.count(func.distinct(_identity_expr())),
+            )
+            .group_by(AnalyticsProductEvent.platform, AnalyticsProductEvent.app_version)
+            .all()
         )
-        .group_by(AnalyticsProductEvent.platform, AnalyticsProductEvent.app_version)
-        .all()
-    )
-    for platform, raw_version, c in native_rows:
-        label = _app_version_label(platform, raw_version)
-        buckets[label] = buckets.get(label, 0) + int(c)
+        for platform, raw_version, c in real_rows:
+            label = _app_version_label(platform, raw_version)
+            buckets[label] = buckets.get(label, 0) + int(c)
 
     return sorted(
         [{"version": k, "users": v} for k, v in buckets.items()],
@@ -755,12 +772,22 @@ _DEVICE_TYPE_LABEL = {
     "desktop": "Desktop", "outros": "Outros",
 }
 
-# app_version do web/PWA vem de /version.json: "<sha 40 hex>-<epoch ms>"
-# (ver apps/web/src/lib/analytics/session.ts readBuildVersion) — não é uma
-# versão pra mostrar crua na tela. iOS/Android reportam versão real
-# (App.getInfo()) quando o app foi aberto depois dessa mudança; até lá, e
-# pra sessões antigas, cai no "não identificada".
-_BUILD_SHA_RE = re.compile(r"^([0-9a-f]{7,40})-(\d{10,13})$")
+# app_version vem de /version.json: "<sha 40 hex>[-<epoch ms>]" (ver
+# apps/web/src/lib/analytics/session.ts readBuildVersion) — não é uma versão
+# pra mostrar crua na tela. Isso vale hoje pra TODA plataforma, inclusive
+# dentro do app nativo (ios_capacitor/android_capacitor): o WebView carrega
+# o mesmo bundle web (server.url no capacitor.config.ts) e session.ts ainda
+# não chama App.getInfo() pra reportar a versão nativa real — plataforma web
+# confirmada em produção manda a mesma sha às vezes sem o "-timestamp" (só
+# o hash puro). Até isso mudar, qualquer sha (com ou sem timestamp) vira
+# "build curto"; só um app_version que NÃO bate com esse formato (uma
+# versão real, tipo "1.0 (7)") ganha o prefixo da plataforma.
+_BUILD_SHA_RE = re.compile(r"^([0-9a-f]{7,40})(-\d{10,13})?$")
+
+_NATIVE_PLATFORM_LABEL = {
+    "ios": "iPhone", "ios_capacitor": "iPhone",
+    "android": "Android", "android_capacitor": "Android",
+}
 
 
 def _resolve_photo_url(photo: Optional[str]) -> Optional[str]:
@@ -778,12 +805,16 @@ def _resolve_photo_url(photo: Optional[str]) -> Optional[str]:
 def _app_version_label(platform: Optional[str], raw_version: Optional[str]) -> str:
     if not raw_version or raw_version == "unknown":
         return "Versão não identificada"
-    m = _BUILD_SHA_RE.match(raw_version)
-    if m:
-        short_sha = m.group(1)[:7]
-        label = "PWA" if platform == "pwa" else "Web"
+    if _BUILD_SHA_RE.match(raw_version):
+        short_sha = raw_version[:7]
+        if platform == "pwa":
+            label = "PWA"
+        elif platform in _NATIVE_PLATFORM_LABEL:
+            label = _NATIVE_PLATFORM_LABEL[platform]
+        else:
+            label = "Web"
         return f"{label} (build {short_sha})"
-    prefix = {"ios": "iOS", "android": "Android"}.get(platform or "", "")
+    prefix = _NATIVE_PLATFORM_LABEL.get(platform or "", "")
     return f"{prefix} {raw_version}".strip()
 
 
