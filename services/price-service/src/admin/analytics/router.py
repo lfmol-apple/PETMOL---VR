@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from ...db import get_db
 from ..deps import get_current_admin_or_readonly_key
+from . import feeding_bi
 from . import queries as q
 from .filters import AnalyticsFilters
 
@@ -69,6 +70,31 @@ def get_feature_population(
     if result.get("error"):
         raise HTTPException(status_code=404, detail=result["error"])
     return result
+
+
+@router.get("/feeding-funnel")
+def get_feeding_funnel(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_filters), _=_Auth):
+    return feeding_bi.feeding_funnel(db, f)
+
+
+@router.get("/feeding-funnel/{stage}/population")
+def get_feeding_stage_population(
+    stage: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    f: AnalyticsFilters = Depends(_filters),
+    _=_Auth,
+):
+    result = feeding_bi.feeding_stage_population(db, stage, f, page=page, page_size=page_size)
+    if result.get("error"):
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@router.get("/commerce-funnel")
+def get_commerce_funnel(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_filters), _=_Auth):
+    return feeding_bi.commerce_funnel(db, f)
 
 
 @router.get("/users")
