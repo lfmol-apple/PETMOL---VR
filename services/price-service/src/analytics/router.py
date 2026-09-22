@@ -446,6 +446,13 @@ def _install_platform_label(platform: str, ua: Optional[str]) -> str:
     return base
 
 
+def _is_real_download(platform: str) -> bool:
+    """web = só abriu o site no navegador, sem instalar nada — não é
+    download. ios/android (app nativo) e pwa (instalado na tela de início)
+    são instalação de verdade."""
+    return platform in ("ios", "android", "pwa")
+
+
 def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) -> None:
     """Geo-IP + push pro admin, fora do request."""
     from ..db import SessionLocal
@@ -472,8 +479,10 @@ def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) ->
             acumulado, base, camp = campaign_total(db)
             try:
                 from ..notifications import push_to_user
+                is_download = _is_real_download(platform)
+                title = "📲 Novo download do PETMOL" if is_download else "🌐 Novo acesso ao PETMOL"
                 push_to_user(str(admin.id), {
-                    "title": "📲 Novo download do PETMOL",
+                    "title": title,
                     "body": f"{where} — {_install_platform_label(platform, row.user_agent)} · {acumulado} no total ({base} base + {camp} campanha)",
                     "tag": "petmol-install",
                     "data": {"url": "/admin/dashboard"},
