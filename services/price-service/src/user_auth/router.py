@@ -124,6 +124,15 @@ def signup(payload: UserCreate, response: Response, request: Request, db: Sessio
     # Envia email de verificação (best-effort, não bloqueia o cadastro)
     _send_verification_for_user(user, db)
 
+    # Avisa o admin (best-effort, em thread): conta criada, onde, gênero provável.
+    try:
+        from ..admin_alerts import notify_account_created
+        from ..analytics.router import _real_client_ip
+
+        notify_account_created(str(user.id), _real_client_ip(request))
+    except Exception:
+        pass
+
     token = create_access_token(user_id=str(user.id))
     response.set_cookie(COOKIE_NAME, token, **_cookie_settings())
 

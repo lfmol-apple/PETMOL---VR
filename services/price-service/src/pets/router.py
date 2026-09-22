@@ -81,6 +81,12 @@ def create_pet(
     db.add(pet)
     db.commit()
     db.refresh(pet)
+    try:
+        from ..admin_alerts import notify_first_pet
+
+        notify_first_pet(str(user.id), pet.species)
+    except Exception:
+        pass
     return pet
 
 
