@@ -21,6 +21,9 @@ class AnalyticsFilters:
     platform: Optional[str] = None
     app_version: Optional[str] = None
     os: Optional[str] = None
+    # device_type é derivado de os+device_class (ver device_type() em
+    # queries.py) — "iphone" | "ipad" | "android" | "desktop" | "outros"
+    device_type: Optional[str] = None
 
     # geo (users columns)
     state: Optional[str] = None
@@ -44,6 +47,7 @@ class AnalyticsFilters:
         platform: Optional[str] = None,
         app_version: Optional[str] = None,
         os: Optional[str] = None,
+        device_type: Optional[str] = None,
         state: Optional[str] = None,
         city: Optional[str] = None,
         neighborhood: Optional[str] = None,
@@ -65,6 +69,7 @@ class AnalyticsFilters:
             platform=_clean(platform),
             app_version=_clean(app_version),
             os=_clean(os),
+            device_type=_clean(device_type).lower() if _clean(device_type) else None,
             state=_clean(state),
             city=_clean(city),
             neighborhood=_clean(neighborhood),

@@ -5,9 +5,10 @@ import {
   adminGet, filterParams, type GlobalFilter,
   type OverviewResponse, type FeatureMatrixResponse, type FeatureRow,
   type UsersListResponse, type DataQualityResponse,
+  type DeviceType, type PetThumbnail, DEVICE_TYPE_LABEL,
 } from '@/lib/admin/analyticsApi';
 import { LineChart, BarRanking, StatCard, PercentBar } from '@/components/admin/charts/Charts';
-import { DataTable, Pagination, StatePill, fmtDate, type Column } from '@/components/admin/DataTable';
+import { DataTable, Pagination, StatePill, fmtDateTime, type Column } from '@/components/admin/DataTable';
 import { UserDetailDrawer, PetDetailDrawer, PopulationDrawer } from './detail';
 
 const numberFmt = (n: number | null | undefined) => (typeof n === 'number' ? n.toLocaleString('pt-BR') : '—');
@@ -140,10 +141,35 @@ export function OverviewSection({ filter }: { filter: GlobalFilter }) {
 //  USERS & PETS
 // ═══════════════════════════════════════════════════════════════════════════
 
+/** Miniaturas dos pets (32px, arredondadas) — identifica os pets do tutor sem
+ * abrir o cadastro. Sem foto: ícone discreto no lugar, mesmo tamanho. */
+function PetAvatarStack({ pets, size = 32 }: { pets: PetThumbnail[]; size?: number }) {
+  if (pets.length === 0) return <span className="text-[11px] text-slate-300">—</span>;
+  return (
+    <div className="flex items-center -space-x-2">
+      {pets.map((p) => (
+        <div key={p.pet_id} title={p.name}
+          className="overflow-hidden rounded-full border-2 border-white bg-slate-100 shadow-sm"
+          style={{ width: size, height: size, flexShrink: 0 }}>
+          {p.photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element -- foto de usuário; mesmo padrão de SheetAvatar, sem remotePatterns novo
+            <img src={p.photo_url} alt={p.name} width={size} height={size} className="h-full w-full object-cover" loading="lazy" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[13px]" aria-hidden>🐾</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const DEVICE_TYPE_OPTIONS: DeviceType[] = ['iphone', 'ipad', 'android', 'desktop', 'outros'];
+
 export function UsersSection({ filter }: { filter: GlobalFilter }) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
+  const [deviceType, setDeviceType] = useState<DeviceType | ''>('');
   const [sort, setSort] = useState('created_at');
   const [direction, setDirection] = useState<'asc' | 'desc'>('desc');
   const [openUser, setOpenUser] = useState<string | null>(null);
@@ -151,14 +177,14 @@ export function UsersSection({ filter }: { filter: GlobalFilter }) {
 
   const filterKey = JSON.stringify(filter);
   useEffect(() => { const t = setTimeout(() => setDebounced(search), 350); return () => clearTimeout(t); }, [search]);
-  useEffect(() => { setPage(1); }, [debounced, sort, direction, filterKey]);
+  useEffect(() => { setPage(1); }, [debounced, deviceType, sort, direction, filterKey]);
 
   const { data, error, loading } = useAsync<UsersListResponse>(
     () => adminGet('/users', {
       ...filterParams(filter), page, page_size: 50,
-      search: debounced || undefined, sort, direction,
+      search: debounced || undefined, device_type: deviceType || undefined, sort, direction,
     }),
-    [page, debounced, sort, direction, filterKey],
+    [page, debounced, deviceType, sort, direction, filterKey],
   );
 
   const onSort = (key: string) => {
@@ -171,22 +197,37 @@ export function UsersSection({ filter }: { filter: GlobalFilter }) {
       <div><div className="font-semibold text-slate-900">{r.name || '(sem nome)'}</div>
         <div className="text-[11px] text-slate-500">{r.email}</div></div>
     ) },
-    { key: 'created_at', header: 'Cadastro', sortable: true, render: (r) => fmtDate(r.created_at) },
+    { key: 'created_at', header: 'Cadastro', sortable: true, render: (r) => fmtDateTime(r.created_at) },
     { key: 'last_activity', header: 'Última ativ.', render: (r) => (
-      <div className="flex items-center gap-2"><span>{fmtDate(r.last_activity)}</span><StatePill state={r.activity_status} /></div>
+      <div className="flex items-center gap-2"><span>{fmtDateTime(r.last_activity)}</span><StatePill state={r.activity_status} /></div>
     ) },
-    { key: 'pets', header: 'Pets', align: 'right', render: (r) => r.pets },
+    { key: 'pets', header: 'Pets', render: (r) => (
+      <div className="flex items-center gap-2">
+        <span className="text-[13px] font-semibold text-slate-700">{r.pets}</span>
+        <PetAvatarStack pets={r.pet_thumbnails} />
+      </div>
+    ) },
     { key: 'feeding', header: 'Alim.', render: (r) => r.has_feeding ? '✓' : '—' },
     { key: 'controls', header: 'Ctrl ativos', align: 'right', render: (r) => r.active_control_pets },
-    { key: 'platform', header: 'Plataforma', render: (r) => r.last_platform || '—' },
+    { key: 'device', header: 'Dispositivo', render: (r) => (
+      <div>
+        <div className="font-medium text-slate-700">{r.device_type ? DEVICE_TYPE_LABEL[r.device_type] : 'Não identificado'}</div>
+        <div className="text-[11px] text-slate-400">{r.app_version_label}</div>
+      </div>
+    ) },
     { key: 'geo', header: 'Local', render: (r) => [r.city, r.state].filter(Boolean).join(' / ') || '—' },
   ];
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome ou e-mail…"
           className="w-72 rounded-lg border border-slate-300 px-3 py-2 text-[13px] outline-none focus:border-blue-400" />
+        <select value={deviceType} onChange={(e) => setDeviceType(e.target.value as DeviceType | '')}
+          className="rounded-lg border border-slate-300 px-2.5 py-2 text-[13px] text-slate-600 outline-none focus:border-blue-400">
+          <option value="">Todos os dispositivos</option>
+          {DEVICE_TYPE_OPTIONS.map((d) => <option key={d} value={d}>{DEVICE_TYPE_LABEL[d]}</option>)}
+        </select>
         {data && <span className="text-[12px] text-slate-500">{numberFmt(data.total)} tutores</span>}
       </div>
       {error && <ErrorBox msg={error} />}

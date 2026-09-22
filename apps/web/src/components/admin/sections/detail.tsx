@@ -14,14 +14,35 @@ interface UserDetail {
     events_by_name: Record<string, number>;
     platforms: { platform: string; events: number }[];
     app_versions: { version: string; events: number }[];
+    device_type: string | null; last_app_version_label: string;
   };
   engagement_flags: Record<string, number>;
   pets: Array<{
     pet_id: string; name: string; species: string; breed: string | null;
     sex: string | null; birth_date: string | null; age_months: number | null;
     weight_value: number | null; weight_unit: string | null; neutered: boolean | null;
-    has_photo: boolean; created_at: string; feature_states: Record<string, string>;
+    has_photo: boolean; photo_url: string | null; created_at: string; feature_states: Record<string, string>;
   }>;
+}
+
+const DEVICE_TYPE_LABEL: Record<string, string> = {
+  iphone: 'iPhone', ipad: 'iPad', android: 'Android', desktop: 'Desktop', outros: 'Outros',
+};
+
+/** Avatar do pet (40px) — mesma regra em toda a Etapa 4/5: foto real, sem
+ * carregar em resolução original (o navegador já baixa no tamanho exibido
+ * por ser um <img> com largura/altura fixas), ícone discreto sem foto. */
+function PetAvatar({ src, size = 40 }: { src: string | null; size?: number }) {
+  return (
+    <div className="flex-shrink-0 overflow-hidden rounded-full bg-slate-100" style={{ width: size, height: size }}>
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element -- foto de usuário; sem remotePatterns novo
+        <img src={src} alt="" width={size} height={size} className="h-full w-full object-cover" loading="lazy" />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-[15px]" aria-hidden>🐾</div>
+      )}
+    </div>
+  );
 }
 
 export function UserDetailDrawer({ userId, onClose, onOpenPet }: {
@@ -62,8 +83,10 @@ export function UserDetailDrawer({ userId, onClose, onOpenPet }: {
               <KV k="Status" v={<StatePill state={data.activity.activity_status} />} />
               <KV k="Dias ativos (30d)" v={String(data.activity.active_days_last_30)} />
               <KV k="Eventos totais" v={data.activity.events_total.toLocaleString('pt-BR')} />
+              <KV k="Dispositivo (mais recente)" v={data.activity.device_type ? DEVICE_TYPE_LABEL[data.activity.device_type] || data.activity.device_type : 'Não identificado'} />
+              <KV k="Versão (mais recente)" v={data.activity.last_app_version_label} />
               <KV k="Plataformas" v={data.activity.platforms.map((p) => `${p.platform} (${p.events})`).join(', ') || '—'} />
-              <KV k="Versões" v={data.activity.app_versions.map((p) => `${p.version} (${p.events})`).join(', ') || '—'} />
+              <KV k="Versões — detalhe técnico" v={data.activity.app_versions.map((p) => `${p.version} (${p.events})`).join(', ') || '—'} />
             </Grid>
             {Object.keys(data.activity.events_by_name).length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -88,9 +111,12 @@ export function UserDetailDrawer({ userId, onClose, onOpenPet }: {
               {data.pets.map((p) => (
                 <button key={p.pet_id} type="button" onClick={() => onOpenPet(p.pet_id)}
                   className="w-full rounded-lg border border-slate-200 p-3 text-left hover:border-blue-300 hover:bg-blue-50/40">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-900">{p.name}</span>
-                    <span className="text-[12px] text-slate-500">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <PetAvatar src={p.photo_url} />
+                      <span className="font-bold text-slate-900">{p.name}</span>
+                    </div>
+                    <span className="flex-shrink-0 text-[12px] text-slate-500">
                       {p.species} · {p.breed || 'sem raça'} · {p.age_months != null ? `${p.age_months}m` : 'idade —'}
                       {p.weight_value ? ` · ${p.weight_value}${p.weight_unit || 'kg'}` : ''}
                     </span>
@@ -114,7 +140,7 @@ export function UserDetailDrawer({ userId, onClose, onOpenPet }: {
 // ── Pet detail ────────────────────────────────────────────────────────────
 
 interface PetDetail {
-  pet: Record<string, unknown>;
+  pet: Record<string, unknown> & { photo_url: string | null };
   tutor: { user_id: string; email: string | null; name: string | null };
   feature_states: Record<string, string>;
   feeding: Record<string, unknown> | null;
@@ -142,6 +168,13 @@ export function PetDetailDrawer({ petId, onClose }: { petId: string | null; onCl
       {!data && !err && <p className="text-slate-400">Carregando…</p>}
       {data && (
         <div className="space-y-5">
+          <div className="flex items-center gap-3">
+            <PetAvatar src={data.pet.photo_url} size={56} />
+            <div>
+              <div className="text-lg font-bold text-slate-900">{String(data.pet.name)}</div>
+              <div className="text-[12px] text-slate-500">{String(data.pet.species)} · {String(data.pet.breed || 'sem raça')}</div>
+            </div>
+          </div>
           <Section title="Cadastro">
             <Grid>
               <KV k="Espécie" v={String(data.pet.species)} />

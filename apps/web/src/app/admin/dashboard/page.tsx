@@ -37,7 +37,9 @@ const ADMIN_TOOLS: { href: string; label: string; highlight?: boolean }[] = [
   { href: '/admin/accounts', label: '👤 Contas' },
   { href: '/admin/pets', label: '🐾 Pets' },
   { href: '/admin/notifications', label: '🔔 Notificações' },
-  { href: '/admin/petz', label: '🔗 Casamento Petz' },
+  // 'Casamento Petz' saiu do menu (não do app) — página, endpoints e
+  // integração Petz seguem intactos em /admin/petz, só não tem mais atalho
+  // aqui. Se ainda usa em rotina, o link continua funcionando direto.
   // Página PÚBLICA (GET /missing-pets sem filtro geográfico — até 200 mais
   // recentes, ativos + já encontrados) — não existe uma tela "admin" à
   // parte porque esta já mostra a plataforma inteira, não só "perto de
