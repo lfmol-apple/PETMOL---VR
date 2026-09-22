@@ -13,8 +13,8 @@ describe('appStores', () => {
     expect(u).toContain('id=br.com.petmol.app');
     expect(decodeURIComponent(u)).toContain('utm_medium=hero');
   });
-  it('iPhone sem URL da App Store → null (mostra "Em breve")', () => {
-    expect(storeUrlFor('ios', 'hero')).toBeNull();
+  it('iPhone leva à App Store; desktop mostra QR (sem link direto); Android leva ao Play', () => {
+    expect(storeUrlFor('ios', 'hero')).toContain('apps.apple.com');
     expect(storeUrlFor('desktop', 'hero')).toBeNull();
     expect(storeUrlFor('android', 'hero')).toContain('play.google.com');
   });

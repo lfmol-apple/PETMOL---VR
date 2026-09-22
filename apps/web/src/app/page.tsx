@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import Link from 'next/link';
 import { getToken } from '@/lib/auth-token';
 import { PetmolTextLogo } from '@/components/ui/BrandBackground';
@@ -71,6 +72,23 @@ export default function LandingPage() {
         <p className="mt-4 text-base text-slate-500 leading-relaxed font-medium max-w-xs mx-auto">
           Acompanha a alimentação, as vacinas, os remédios e a proteção — e mostra o que vem a seguir, na hora certa.
         </p>
+
+        {/* Print real da Home (mesmo asset já aprovado pela Apple na ficha do app) */}
+        <div className="mx-auto mt-8 w-[200px]">
+          <div className="rounded-[2rem] border-[6px] border-slate-900 bg-slate-900 shadow-2xl shadow-slate-900/20 overflow-hidden">
+            <div className="relative w-full" style={{ aspectRatio: '1320 / 2868' }}>
+              <Image
+                src="/landing/home-hero.png"
+                alt="Tela inicial do PETMOL mostrando o perfil do pet, alimentação, vacina e loja"
+                fill
+                sizes="200px"
+                className="object-cover"
+                priority
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="mx-auto mt-8 w-full max-w-xs">
           <DownloadButton placement="hero" withWebLink />
         </div>
