@@ -278,8 +278,12 @@ export function AppleControlButtons({
             (reportar seu pet). "Perto de você" agora vive SEMPRE aqui, não
             só quando há alerta: número grande + pisco lento (igual o
             letreiro antigo) quando há pet sumido na região; verde claro e
-            calmo quando não há nenhum. Os dois abrem o mesmo visualizador
-            em tela cheia estilo Stories (onOpenNearbyMissing). */}
+            calmo quando não há nenhum. onOpenNearbyMissing decide, do lado
+            de fora (home/page.tsx), qual tela cheia abrir: com alerta, o
+            visualizador estilo Stories; sem alerta, um aviso verde de
+            conscientização — antes o toque não fazia nada nesse estado
+            (o Stories não tem slide sem alerta pra mostrar), virou botão
+            morto até o dono pedir pra consertar (22/09). */}
         <div className="mt-2 space-y-2 min-[390px]:mt-2.5">
           <div className="grid grid-cols-2 gap-2 min-[390px]:gap-2.5">
             <button
@@ -323,7 +327,7 @@ export function AppleControlButtons({
                 }`}>
                   {nearbyMissingCount > 0
                     ? `sumido${nearbyMissingCount > 1 ? 's' : ''} na região`
-                    : 'Aqui não tem pet sumido'}
+                    : 'Tudo tranquilo — toque aqui'}
                 </p>
               </div>
             </button>
