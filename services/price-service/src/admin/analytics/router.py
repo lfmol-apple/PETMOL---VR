@@ -1,21 +1,27 @@
 """Admin BI endpoints — /v1/admin/analytics/*.
 
-All GET, all guarded by ``get_current_admin_or_readonly_key`` (master JWT or
-the standing read-only ops key). No writes here — the dashboard only reads.
+Quase tudo GET, guardado por ``get_current_admin_or_readonly_key`` (master
+JWT ou a chave de operação de só-leitura) — o dashboard só lê. A única
+exceção é POST /tactical-decisions (registrar aprovar/adiar/descartar uma
+sugestão tática): guardado por ``get_current_admin`` puro (só JWT, sem a
+chave de API), porque é uma escrita e a chave de API não tem rastro de
+quem decidiu — nunca dispara push, só registra a decisão do master.
 """
 from __future__ import annotations
 
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ...db import get_db
-from ..deps import get_current_admin_or_readonly_key
+from ..deps import get_current_admin, get_current_admin_or_readonly_key
 from . import feeding_bi
 from . import journey_bi
 from . import map_bi
 from . import queries as q
+from . import tactical_bi
 from .filters import AnalyticsFilters
 
 router = APIRouter(prefix="/v1/admin/analytics", tags=["Admin Analytics"])
@@ -127,6 +133,37 @@ def get_map_tutors(
     _=_Auth,
 ):
     return map_bi.map_tutors(db, f, has_feeding=has_feeding)
+
+
+@router.get("/missing-pets-summary")
+def get_missing_pets_summary(db: Session = Depends(get_db), _=_Auth):
+    return tactical_bi.missing_pets_summary(db)
+
+
+@router.get("/tactical-suggestions")
+def get_tactical_suggestions(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_filters), _=_Auth):
+    return tactical_bi.tactical_suggestions(db, f)
+
+
+class TacticalDecisionIn(BaseModel):
+    decision: str = Field(pattern="^(approved_for_review|postponed|discarded)$")
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+@router.post("/tactical-decisions/{suggestion_key}")
+def post_tactical_decision(
+    suggestion_key: str,
+    payload: TacticalDecisionIn,
+    db: Session = Depends(get_db),
+    current=Depends(get_current_admin),
+):
+    admin_user, _admin_row = current
+    result = tactical_bi.record_tactical_decision(
+        db, suggestion_key, payload.decision, payload.note, decided_by=admin_user.email,
+    )
+    if result.get("error"):
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
 
 
 @router.get("/users")

@@ -214,3 +214,16 @@ def test_overview_version_ranking_collapses_capacitor_builds_too(client):
     versions = {row["version"]: row["users"] for row in r.json()["app_versions"]}
     assert versions.get("iPhone") == 1  # 1 tutora, 2 builds — 1 barra, não 2
     assert not any(len(k) > 20 for k in versions)
+
+
+def test_users_list_filters_by_platform(client):
+    """f.platform era aceito pela API mas nunca aplicado — filtro cruzado
+    (clicar na barra de plataforma da Visão Geral) dependia disso."""
+    headers = _admin_headers()
+    ids = _seed_two_tutors_different_devices()  # a: web+ios eventos; b: android
+
+    r = client.get("/v1/admin/analytics/users?platform=android", headers=headers)
+    assert [row["user_id"] for row in r.json()["items"]] == [ids["b"]]
+
+    r2 = client.get("/v1/admin/analytics/users?platform=ios", headers=headers)
+    assert [row["user_id"] for row in r2.json()["items"]] == [ids["a"]]

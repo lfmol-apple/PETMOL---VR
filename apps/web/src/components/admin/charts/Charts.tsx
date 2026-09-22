@@ -85,27 +85,39 @@ export function LineChart({
 
 export function BarRanking({
   data, valueKey = 'value', labelKey = 'label', color = '#0056D2', max: forcedMax,
-  formatValue,
+  formatValue, onBarClick,
 }: {
   data: Array<Record<string, unknown>>;
   valueKey?: string; labelKey?: string; color?: string; max?: number;
   formatValue?: (v: number) => string;
+  /** Quando passado, cada barra vira um botão — filtro cruzado (ex.: clicar
+   * em "Android" filtra a tabela de Tutores por essa plataforma). */
+  onBarClick?: (label: string) => void;
 }) {
   const max = forcedMax ?? Math.max(1, ...data.map((d) => Number(d[valueKey]) || 0));
   return (
     <div className="space-y-1.5">
       {data.map((d, i) => {
         const v = Number(d[valueKey]) || 0;
-        return (
-          <div key={i} className="flex items-center gap-2 text-[12px]">
-            <div className="w-32 flex-shrink-0 truncate text-slate-600" title={String(d[labelKey])}>{String(d[labelKey])}</div>
+        const label = String(d[labelKey]);
+        const row = (
+          <>
+            <div className="w-32 flex-shrink-0 truncate text-slate-600" title={label}>{label}</div>
             <div className="h-4 flex-1 rounded bg-slate-100">
               <div className="h-full rounded" style={{ width: `${(v / max) * 100}%`, background: color }} />
             </div>
             <div className="w-16 flex-shrink-0 text-right font-semibold tabular-nums text-slate-700">
               {formatValue ? formatValue(v) : v.toLocaleString('pt-BR')}
             </div>
-          </div>
+          </>
+        );
+        return onBarClick ? (
+          <button key={i} type="button" onClick={() => onBarClick(label)}
+            className="flex w-full items-center gap-2 rounded text-[12px] hover:bg-slate-50">
+            {row}
+          </button>
+        ) : (
+          <div key={i} className="flex items-center gap-2 text-[12px]">{row}</div>
         );
       })}
       {data.length === 0 && <div className="text-[12px] text-slate-400">Sem dados.</div>}
@@ -155,13 +167,37 @@ export function Donut({ segments, size = 130 }: { segments: { label: string; val
 
 // ── StatCard ──────────────────────────────────────────────────────────────
 
+/** Tons vivos — cards de indicador executivo chamam atenção de propósito
+ * (mesma diretriz já usada nos cards da Home: não suavizar). */
+const VIVID_GRADIENT: Record<string, string> = {
+  green: 'bg-gradient-to-br from-emerald-500 to-emerald-700 border-emerald-800/40',
+  blue: 'bg-gradient-to-br from-[#2d6fd8] to-[#173a72] border-blue-900/40',
+  violet: 'bg-gradient-to-br from-violet-500 to-violet-800 border-violet-900/40',
+  amber: 'bg-gradient-to-br from-amber-500 to-amber-700 border-amber-800/40',
+  red: 'bg-gradient-to-br from-rose-500 to-rose-800 border-rose-900/40',
+  teal: 'bg-gradient-to-br from-teal-500 to-teal-800 border-teal-900/40',
+};
+
 export function StatCard({
   label, value, sub, tone = 'default', onClick, trend,
 }: {
   label: string; value: ReactNode; sub?: ReactNode;
-  tone?: 'default' | 'good' | 'warn' | 'bad';
+  tone?: 'default' | 'good' | 'warn' | 'bad' | keyof typeof VIVID_GRADIENT;
   onClick?: () => void; trend?: Point[];
 }) {
+  if (tone in VIVID_GRADIENT) {
+    return (
+      <button type="button" onClick={onClick} disabled={!onClick}
+        className={`flex flex-col rounded-xl border p-4 text-left text-white shadow-sm transition-transform ${VIVID_GRADIENT[tone]} ${onClick ? 'hover:-translate-y-0.5 cursor-pointer' : 'cursor-default'}`}>
+        <span className="text-[11px] font-bold uppercase tracking-wide text-white/85">{label}</span>
+        <span className="mt-1 text-2xl font-black tabular-nums">{value}</span>
+        {sub && <span className="mt-1 text-[11px] font-medium text-white/75">{sub}</span>}
+        {trend && trend.length > 1 && (
+          <div className="mt-2 -mb-1"><Sparkline data={trend} color="#ffffff" /></div>
+        )}
+      </button>
+    );
+  }
   const toneClass = {
     default: 'border-slate-200',
     good: 'border-emerald-200 bg-emerald-50/40',
