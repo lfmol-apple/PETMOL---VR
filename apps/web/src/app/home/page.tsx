@@ -39,6 +39,7 @@ const PetSumidoSheet = dynamic(() => import('@/components/home/PetSumidoSheet').
 const UpcomingEventsSheet = dynamic(() => import('@/components/home/UpcomingEventsSheet').then(m => ({ default: m.UpcomingEventsSheet })), { ssr: false });
 const ReportAlertSheet = dynamic(() => import('@/components/home/ReportAlertSheet').then(m => ({ default: m.ReportAlertSheet })), { ssr: false });
 const NearbyMissingPetsStoryOverlay = dynamic(() => import('@/components/home/NearbyMissingPetsStoryOverlay').then(m => ({ default: m.NearbyMissingPetsStoryOverlay })), { ssr: false });
+const NoNearbyMissingPetsOverlay = dynamic(() => import('@/components/home/NoNearbyMissingPetsOverlay').then(m => ({ default: m.NoNearbyMissingPetsOverlay })), { ssr: false });
 import { MissingPetAlertCard, type NearbyAlert } from '@/components/home/MissingPetAlertCard';
 import type { PetCareReminder } from '@/lib/petCareDomain';
 import { useMultipetInteractions } from '@/features/interactions/useMultipetInteractions';
@@ -668,6 +669,10 @@ function HomePageInner() {
   const [showBanhoTosaSheet, setShowBanhoTosaSheet] = useState(false);
   const [showPetSumidoSheet, setShowPetSumidoSheet] = useState(false);
   const [showNearbyStoryOverlay, setShowNearbyStoryOverlay] = useState(false);
+  // Toque em "Perto de você" sem nenhum alerta ativo — antes não fazia
+  // nada (o Stories não tem slide sem alerta pra mostrar). Agora mostra um
+  // aviso verde de conscientização (pedido do dono, 22/09).
+  const [showNoNearbyMissingOverlay, setShowNoNearbyMissingOverlay] = useState(false);
   // Deep link do push de "pet sumido perto de você" (ver homeModalRouting.ts)
   // decide em qual aba a sheet abre — undefined deixa a PetSumidoSheet usar
   // sua própria regra padrão (baseada em nearbyCount).
@@ -2035,6 +2040,9 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           }}
         />
       )}
+      {showNoNearbyMissingOverlay && (
+        <NoNearbyMissingPetsOverlay onClose={() => setShowNoNearbyMissingOverlay(false)} />
+      )}
       {/* Indicador de pull-to-refresh */}
       <div
         className="flex justify-center items-center overflow-hidden transition-all duration-200"
@@ -2509,7 +2517,14 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
                     onUpcomingCountChange={(_count, reminders) => setAllUpcomingReminders(reminders)}
                     onHealthItemClick={setHealthQuickAction}
                     nearbyMissingCount={nearbyMissingCount}
-                    onOpenNearbyMissing={() => setShowNearbyStoryOverlay(true)}
+                    onOpenNearbyMissing={() => {
+                      // Com alerta, o visualizador estilo Stories; sem
+                      // nenhum por perto, o aviso verde de conscientização
+                      // — antes esse estado deixava o toque sem efeito
+                      // nenhum (pedido do dono, 22/09).
+                      if (nearbyMissingCount > 0) setShowNearbyStoryOverlay(true);
+                      else setShowNoNearbyMissingOverlay(true);
+                    }}
                   />
                 </PetTabs>
               </div>
