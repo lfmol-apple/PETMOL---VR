@@ -94,7 +94,7 @@ export default function AdminDashboardPage() {
 
   if (adminLoading || !isAdmin || !adminData) {
     return (
-      <PremiumScreenShell title="PETMOL Admin" hideBack>
+      <PremiumScreenShell title="PETMOL Admin" hideBack wide>
         <p className="py-16 text-center text-slate-500">Verificando autenticação…</p>
       </PremiumScreenShell>
     );
@@ -105,14 +105,18 @@ export default function AdminDashboardPage() {
       title="Mission Control"
       subtitle={`${adminData.email} • ${adminData.role}`}
       hideBack
+      wide
       rightAction={
         <button onClick={() => { logout(); router.push('/home'); }}
           className="rounded-lg bg-red-100 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-200">Sair</button>
       }
     >
-      {/* Sem teto de largura — um painel BI de desktop usa a tela toda; o
-          teto anterior (1400px, depois 1800px, nenhum dos dois bastou)
-          deixava faixas vazias enormes nas laterais em monitor largo. As
+      {/* Sem teto de largura — um painel BI de desktop usa a tela toda. As
+          tentativas anteriores (1400px, depois 1800px) mexiam só aqui, mas
+          o teto de verdade era o PremiumScreenShell por fora — `max-w-2xl`
+          pensado pra tela secundária de celular, aplicado incondicionalmente
+          no <main>. `wide` (acima) tira esse teto pra esta página; este
+          w-full aqui é o que efetivamente passa a mandar na largura. As
           grades de card por trás usam auto-fit, então se ajustam sozinhas
           à largura real de cada coluna em vez de depender de breakpoint. */}
       <div className="w-full px-4 py-4 sm:px-6 lg:px-10">
