@@ -1,8 +1,9 @@
 export type StorePlatform = 'ios' | 'android' | 'desktop';
 
 export const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=br.com.petmol.app';
-// Aprovado pela Apple em 22/09/2026 (id 6809570555).
-export const APP_STORE_URL: string | null = 'https://apps.apple.com/app/id6809570555';
+// Ainda em revisão da Apple. Ao aprovar, preencher com a URL da App Store:
+// os botões de iPhone viram download real sem mais nenhuma mudança.
+export const APP_STORE_URL: string | null = null;
 
 export function detectStorePlatform(ua: string, maxTouchPoints = 0, platform = ''): StorePlatform {
   if (/iPhone|iPad|iPod/.test(ua)) return 'ios';
