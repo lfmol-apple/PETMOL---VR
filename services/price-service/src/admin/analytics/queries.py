@@ -889,6 +889,15 @@ def list_users(
                 .filter(AnalyticsProductEvent.user_id == User.id, clause)
                 .exists()
             )
+    if f.platform:
+        # aceito pela API desde sempre mas nunca aplicado aqui — filtro
+        # cruzado "clicar na barra de plataforma" dependia disso.
+        q = q.filter(
+            db.query(AnalyticsProductEvent.id)
+            .filter(AnalyticsProductEvent.user_id == User.id,
+                    AnalyticsProductEvent.platform == f.platform)
+            .exists()
+        )
 
     total = q.count()
     col = _USER_SORTS.get(sort, User.created_at)

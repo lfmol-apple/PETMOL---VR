@@ -44,31 +44,57 @@ export function Panel({ title, children, right }: { title: string; children: Rea
 //  OVERVIEW
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function OverviewSection({ filter }: { filter: GlobalFilter }) {
+interface MissingPetsSummary {
+  active: number; found_total: number; found_with_petmol_participation: number; note: string;
+}
+
+export function OverviewSection({ filter, onCrossFilterPlatform, onOpenFeeding }: {
+  filter: GlobalFilter;
+  /** Clicar numa barra de plataforma filtra Tutores & Pets por ela (filtro
+   * cruzado real — o backend agora aplica f.platform, antes era ignorado). */
+  onCrossFilterPlatform?: (platform: string) => void;
+  /** Clicar em "Sem alimentação" abre a Seção C, que já tem o drill-down
+   * certo (por estágio do cadastro) — melhor que replicar em tabela. */
+  onOpenFeeding?: () => void;
+}) {
   const { data, error, loading } = useAsync<OverviewResponse>(
     () => adminGet('/overview', filterParams(filter)), [JSON.stringify(filter)],
+  );
+  const missing = useAsync<MissingPetsSummary>(
+    () => adminGet('/missing-pets-summary'), [],
   );
   if (loading) return <Loading />;
   if (error || !data) return <ErrorBox msg={error} />;
 
+  const semAlimentacao = Math.max(0, data.totals.pets - data.tutors.pets_with_feeding_configured);
+  const semAlimentacaoPct = data.totals.pets ? Math.round((semAlimentacao / data.totals.pets) * 1000) / 10 : 0;
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Tutores" value={numberFmt(data.totals.users)}
+        <StatCard label="Tutores" tone="green" value={numberFmt(data.totals.users)}
           sub={`+${data.totals.new_users_today} hoje · +${data.totals.new_users_7d} 7d · +${data.totals.new_users_30d} 30d`}
           trend={data.series.new_users} />
-        <StatCard label="Pets" value={numberFmt(data.totals.pets)}
+        <StatCard label="Pets" tone="blue" value={numberFmt(data.totals.pets)}
           sub={`+${data.totals.new_pets_7d} 7d · ${data.tutors.avg_pets_per_tutor} por tutor`}
           trend={data.series.new_pets} />
-        <StatCard label="Ativos 24h" value={numberFmt(data.engagement.active_users_24h)}
+        <StatCard label="Ativos 24h" tone="violet" value={numberFmt(data.engagement.active_users_24h)}
           sub={`WAU ${numberFmt(data.engagement.wau)} · MAU ${numberFmt(data.engagement.mau)}`}
           trend={data.series.active_users} />
+        <StatCard label="Sem alimentação" tone="amber" value={numberFmt(semAlimentacao)}
+          sub={`${semAlimentacaoPct}% dos pets · investigar`} onClick={onOpenFeeding} />
+        <StatCard label="Pets desaparecidos" tone="red"
+          value={missing.data ? numberFmt(missing.data.active) : '—'}
+          sub="Ativos agora" />
+        <StatCard label="Encontrados c/ ajuda do PETMOL" tone="teal"
+          value={missing.data ? numberFmt(missing.data.found_with_petmol_participation) : '—'}
+          sub={missing.data ? `${numberFmt(missing.data.found_total)} encontrados no total` : undefined} />
         <StatCard label="DAU / MAU" value={data.engagement.dau_mau != null ? `${(data.engagement.dau_mau * 100).toFixed(0)}%` : '—'}
           sub={`${numberFmt(data.engagement.sessions_7d)} sessões 7d`} />
+        <StatCard label="Tutores sem pet" value={numberFmt(data.tutors.without_pet)} tone={data.tutors.without_pet > 0 ? 'warn' : 'default'} />
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Tutores sem pet" value={numberFmt(data.tutors.without_pet)} tone={data.tutors.without_pet > 0 ? 'warn' : 'default'} />
         <StatCard label="Tutores c/ alimentação" value={numberFmt(data.tutors.with_feeding_configured)}
           sub={`${numberFmt(data.tutors.pets_with_feeding_configured)} pets`} />
         <StatCard label="Pets c/ controle ativo" value={numberFmt(data.tutors.pets_with_active_control)} tone="good" />
@@ -81,8 +107,9 @@ export function OverviewSection({ filter }: { filter: GlobalFilter }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Plataformas (usuários, 30d)">
-          <BarRanking data={data.platforms.map((p) => ({ label: p.platform, value: p.users }))} />
+        <Panel title="Plataformas (usuários, 30d)" right={onCrossFilterPlatform ? <span className="text-[11px] text-slate-400">clique filtra Tutores & Pets</span> : undefined}>
+          <BarRanking data={data.platforms.map((p) => ({ label: p.platform, value: p.users }))}
+            onBarClick={onCrossFilterPlatform} />
         </Panel>
         <Panel title="Versões do app (usuários, 30d)">
           <BarRanking data={data.app_versions.map((p) => ({ label: p.version, value: p.users }))} color="#8b5cf6" />
