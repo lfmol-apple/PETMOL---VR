@@ -166,3 +166,49 @@ def test_app_install_push_includes_device_hint_for_web(monkeypatch):
     _enrich_and_notify_install(row_id, None, "web")
     assert len(sent) == 1
     assert "navegador (iPhone)" in sent[0]["body"]
+    # web = só acessou o site, não instalou nada — não é "download"
+    assert sent[0]["title"] == "🌐 Novo acesso ao PETMOL"
+
+
+def test_app_install_push_title_distinguishes_acesso_from_download(monkeypatch):
+    """web = acesso (só abriu o site); ios/android/pwa = download de verdade
+    (app nativo ou instalado na tela de início)."""
+    from uuid import uuid4
+
+    from src.config import get_settings
+    from src.db import SessionLocal
+    from src.user_auth.models import User
+
+    db = SessionLocal()
+    try:
+        admin_email = get_settings().admin_master_email.lower()
+        if not db.query(User).filter(User.email == admin_email).first():
+            db.add(User(email=admin_email, password_hash="x", name="Admin"))
+            db.commit()
+    finally:
+        db.close()
+
+    sent = []
+    monkeypatch.setattr("src.notifications.push_to_user", lambda uid, payload: sent.append(payload))
+
+    from src.analytics.router import _enrich_and_notify_install
+    from src.analytics.install_models import AppInstall
+
+    titles = {}
+    for platform in ("web", "pwa", "ios", "android"):
+        db = SessionLocal()
+        try:
+            row = AppInstall(platform=platform, ip_hash=f"t{uuid4().hex[:12]}")
+            db.add(row)
+            db.commit()
+            row_id = row.id
+        finally:
+            db.close()
+        sent.clear()
+        _enrich_and_notify_install(row_id, None, platform)
+        titles[platform] = sent[0]["title"]
+
+    assert titles["web"] == "🌐 Novo acesso ao PETMOL"
+    assert titles["pwa"] == "📲 Novo download do PETMOL"
+    assert titles["ios"] == "📲 Novo download do PETMOL"
+    assert titles["android"] == "📲 Novo download do PETMOL"
