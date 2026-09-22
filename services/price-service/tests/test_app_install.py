@@ -105,11 +105,58 @@ def test_daily_install_report_counts_only_from_campaign_cutoff(monkeypatch):
     monkeypatch.setattr("src.mailer.send_mail", fake_send_mail)
 
     assert report_mod.send_daily_install_report() is True
-    assert "15 no total" in captured["subject"]           # 13 base + 2 campanha
-    assert "Acumulado: 15 (13 já existentes + 2 da campanha)" in captured["text"]
+    assert "2 downloads" in captured["subject"]
+    assert "0 acessos" in captured["subject"]
+    assert "2 downloads no total" in captured["subject"]   # só ios/android — sem web nesse cenário
+    assert "Downloads — dia: 2 · acumulado: 2" in captured["text"]
+    assert "Acessos — dia: 0 · acumulado: 0" in captured["text"]
+    assert "Contador da campanha (tudo somado, como antes): 15 (13 já existentes + 2 desde o corte)" in captured["text"]
     assert "Belo Horizonte" in captured["text"]
     assert "Recife" not in captured["text"]                # instalação antiga não entra
     assert "Petz" not in captured["text"] and "Petz" not in captured["html"]
+
+
+def test_daily_install_report_separates_downloads_from_web_access(monkeypatch):
+    """web (só abriu o navegador) nunca conta como download — nem no dia,
+    nem no acumulado, nem no local. A pedido do dono, mesma distinção do
+    push de 'novo acesso' vs 'novo download'."""
+    from datetime import datetime, timedelta, timezone
+
+    from src.analytics import install_report as report_mod
+    from src.analytics.install_models import AppInstall
+    from src.db import SessionLocal
+
+    ontem = datetime.now(timezone.utc) - timedelta(days=1)
+    _set_campaign(monkeypatch, (ontem - timedelta(hours=1)).isoformat())
+    db = SessionLocal()
+    try:
+        db.query(AppInstall).delete()
+        db.add_all([
+            AppInstall(platform="ios", ip_hash="a", user_agent="x", city="Belo Horizonte", region="MG", country="BR", created_at=ontem),
+            AppInstall(platform="pwa", ip_hash="b", user_agent="x", city="Belo Horizonte", region="MG", country="BR", created_at=ontem),
+            AppInstall(platform="web", ip_hash="c", user_agent="x", city="Curitiba", region="PR", country="BR", created_at=ontem),
+            AppInstall(platform="web", ip_hash="d", user_agent="x", city="Curitiba", region="PR", country="BR", created_at=ontem),
+        ])
+        db.commit()
+    finally:
+        db.close()
+
+    captured = {}
+    def fake_send_mail(*, to, subject, body_text, body_html=None, **kw):
+        captured.update(subject=subject, text=body_text, html=body_html)
+        return True
+    monkeypatch.setattr("src.mailer.send_mail", fake_send_mail)
+
+    assert report_mod.send_daily_install_report() is True
+    assert "2 downloads" in captured["subject"]
+    assert "2 acessos" in captured["subject"]
+    assert "2 downloads no total" in captured["subject"]   # Curitiba (web) não entra no total de downloads
+    assert "Downloads — dia: 2 · acumulado: 2" in captured["text"]
+    assert "Acessos — dia: 2 · acumulado: 2" in captured["text"]
+    # Belo Horizonte (ios+pwa) só na seção de downloads; Curitiba (web) só na de acessos
+    down_section, acc_section = captured["text"].split("Acessos (dia / acumulado):")
+    assert "Belo Horizonte" in down_section and "Curitiba" not in down_section
+    assert "Curitiba" in acc_section and "Belo Horizonte" not in acc_section
 
 
 def test_install_platform_label_qualifies_web_by_user_agent():
