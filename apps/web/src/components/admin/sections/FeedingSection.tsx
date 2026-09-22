@@ -106,7 +106,7 @@ function StageDrilldown({ stage, label, filter, onClose }: {
   );
 }
 
-export function FeedingSection({ filter }: { filter: GlobalFilter }) {
+export function FeedingSection({ filter, onOpenTutors }: { filter: GlobalFilter; onOpenTutors?: () => void }) {
   const [drilldown, setDrilldown] = useState<{ stage: string; label: string } | null>(null);
   const { data, error, loading } = useAsync<FeedingFunnelResponse>(
     () => adminGet('/feeding-funnel', filterParams(filter)), [JSON.stringify(filter)],
@@ -120,31 +120,40 @@ export function FeedingSection({ filter }: { filter: GlobalFilter }) {
 
   return (
     <div className="space-y-4">
-      {/* xl:grid-cols-2 desfaz o md:grid-cols-4: a partir de xl (1280px) a
-          página do Mission Control divide em 2 colunas (ver page.tsx) e
-          esta seção fica com ~metade da largura da tela. */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-2">
+      {/* auto-fit: cada card pega no mínimo 170px e a grade decide sozinha
+          quantos cabem por linha — não depende de breakpoint de viewport
+          (o md:/xl:grid-cols-N anterior quebrava sempre que a coluna real
+          ficava mais estreita do que o breakpoint assumia). */}
+      <div className="grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]">
         <button type="button" onClick={() => setDrilldown({ stage: 'controle_ativo', label: 'Controle alimentar ativo' })}
-          className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-left hover:border-emerald-400">
+          className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-left transition-shadow hover:shadow-md hover:border-emerald-400">
           <div className="text-[11px] font-bold uppercase text-emerald-700">Controle ativo</div>
           <div className="text-2xl font-black text-emerald-900">{numberFmt(data.funnel.find((s) => s.key === 'controle_ativo')?.pets)}</div>
         </button>
         <button type="button" onClick={() => setDrilldown({ stage: 'sem_inicio', label: 'Sem alimentação cadastrada' })}
-          className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-left hover:border-rose-400">
+          className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-left transition-shadow hover:shadow-md hover:border-rose-400">
           <div className="text-[11px] font-bold uppercase text-rose-700">Sem alimentação</div>
           <div className="text-2xl font-black text-rose-900">{numberFmt(data.funnel.find((s) => s.key === 'sem_inicio')?.pets)}</div>
           <div className="text-[11px] text-rose-600">
             {data.total_pets ? `${Math.round(((data.funnel.find((s) => s.key === 'sem_inicio')?.pets || 0) / data.total_pets) * 1000) / 10}% dos pets` : ''}
           </div>
         </button>
+        {/* Sem população própria hoje no backend (é uma contagem calculada
+            em Python a partir da previsão de término, não um estágio do
+            funil) — sem endpoint real de drill-down, o card fica mudo em
+            vez de abrir uma lista que finge ser a coisa certa. */}
         <div className="rounded-xl border border-slate-200 bg-white p-3">
           <div className="text-[11px] font-bold uppercase text-slate-400">Ração acabando (7d)</div>
           <div className="text-2xl font-black text-slate-900">{numberFmt(data.ending_soon_7d)}</div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-3">
+        {/* "Total de pets" não é um estágio do funil (o drill-down por
+            estágio só mostra quem está EXATAMENTE ali) — o destino honesto
+            pra "todo mundo" é a tabela de Tutores & Pets. */}
+        <button type="button" onClick={onOpenTutors} disabled={!onOpenTutors}
+          className={`rounded-xl border border-slate-200 bg-white p-3 text-left transition-shadow ${onOpenTutors ? 'hover:shadow-md hover:border-slate-400 cursor-pointer' : 'cursor-default'}`}>
           <div className="text-[11px] font-bold uppercase text-slate-400">Total de pets</div>
           <div className="text-2xl font-black text-slate-900">{numberFmt(data.total_pets)}</div>
-        </div>
+        </button>
       </div>
 
       <Panel title="Onde o cadastro da ração para — clique numa etapa pra ver os pets/tutores">

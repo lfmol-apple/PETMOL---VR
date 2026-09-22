@@ -84,6 +84,13 @@ export default function AdminDashboardPage() {
     openAndScroll('H');
   };
   const openFeeding = () => openAndScroll('C');
+  /** Todo indicador cujo drill-down natural é "quem são essas pessoas/pets"
+   * leva pra Seção H (tabela real, com busca) — nenhum card deve ficar
+   * decorativo. */
+  const openTutors = () => openAndScroll('H');
+  /** "Pets desaparecidos" / "Encontrados" levam pra tela real do recurso —
+   * é conteúdo público, não uma seção do BI, então navega mesmo. */
+  const openMissingPets = () => router.push('/achei-um-pet');
 
   if (adminLoading || !isAdmin || !adminData) {
     return (
@@ -103,7 +110,12 @@ export default function AdminDashboardPage() {
           className="rounded-lg bg-red-100 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-200">Sair</button>
       }
     >
-      <div className="mx-auto max-w-[1800px] px-4 py-4">
+      {/* Sem teto de largura — um painel BI de desktop usa a tela toda; o
+          teto anterior (1400px, depois 1800px, nenhum dos dois bastou)
+          deixava faixas vazias enormes nas laterais em monitor largo. As
+          grades de card por trás usam auto-fit, então se ajustam sozinhas
+          à largura real de cada coluna em vez de depender de breakpoint. */}
+      <div className="w-full px-4 py-4 sm:px-6 lg:px-10">
         {/* atalhos para as telas admin completas (fora do BI) */}
         <div className="mb-4 flex flex-wrap gap-1.5">
           {ADMIN_TOOLS.map((t) => (
@@ -159,11 +171,12 @@ export default function AdminDashboardPage() {
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
           <div className="space-y-4">
             <AccordionPanel id={SECTION_IDS.A} letter="A" title="Indicadores Executivos" open={open.A} onToggle={() => toggle('A')}>
-              <OverviewSection filter={filter} onCrossFilterPlatform={crossFilterPlatform} onOpenFeeding={openFeeding} />
+              <OverviewSection filter={filter} onCrossFilterPlatform={crossFilterPlatform} onOpenFeeding={openFeeding}
+                onOpenTutors={openTutors} onOpenMissingPets={openMissingPets} />
             </AccordionPanel>
 
             <AccordionPanel id={SECTION_IDS.C} letter="C" title="Alimentação e Ração" subtitle="Prioridade comercial" open={open.C} onToggle={() => toggle('C')}>
-              <FeedingSection filter={filter} />
+              <FeedingSection filter={filter} onOpenTutors={openTutors} />
             </AccordionPanel>
           </div>
 
@@ -193,11 +206,11 @@ export default function AdminDashboardPage() {
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
           <div className="space-y-4">
             <AccordionPanel id={SECTION_IDS.E} letter="E" title="Retenção" open={open.E} onToggle={() => toggle('E')}>
-              <RetentionSection filter={filter} />
+              <RetentionSection filter={filter} onOpenTutors={openTutors} />
             </AccordionPanel>
 
             <AccordionPanel id={SECTION_IDS.F} letter="F" title="Loja e Monetização" open={open.F} onToggle={() => toggle('F')}>
-              <CommerceSection filter={filter} />
+              <CommerceSection filter={filter} onOpenTutors={openTutors} />
             </AccordionPanel>
           </div>
 

@@ -48,14 +48,20 @@ interface MissingPetsSummary {
   active: number; found_total: number; found_with_petmol_participation: number; note: string;
 }
 
-export function OverviewSection({ filter, onCrossFilterPlatform, onOpenFeeding }: {
+export function OverviewSection({ filter, onCrossFilterPlatform, onOpenFeeding, onOpenTutors, onOpenMissingPets }: {
   filter: GlobalFilter;
   /** Clicar numa barra de plataforma filtra Tutores & Pets por ela (filtro
    * cruzado real — o backend agora aplica f.platform, antes era ignorado). */
   onCrossFilterPlatform?: (platform: string) => void;
-  /** Clicar em "Sem alimentação" abre a Seção C, que já tem o drill-down
-   * certo (por estágio do cadastro) — melhor que replicar em tabela. */
+  /** Clicar em "Sem alimentação"/"c/ alimentação"/"controle ativo" abre a
+   * Seção C, que já tem o drill-down certo (por estágio do cadastro) —
+   * melhor que replicar em tabela. */
   onOpenFeeding?: () => void;
+  /** Todo card cujo drill-down natural é "quem são" abre a Seção H (tabela
+   * de Tutores & Pets, com busca) — nenhum indicador deve ficar mudo. */
+  onOpenTutors?: () => void;
+  /** "Pets desaparecidos" / "Encontrados" levam pra tela real do recurso. */
+  onOpenMissingPets?: () => void;
 }) {
   const { data, error, loading } = useAsync<OverviewResponse>(
     () => adminGet('/overview', filterParams(filter)), [JSON.stringify(filter)],
@@ -71,38 +77,41 @@ export function OverviewSection({ filter, onCrossFilterPlatform, onOpenFeeding }
 
   return (
     <div className="space-y-4">
-      {/* xl:grid-cols-2 desfaz o md:grid-cols-4 de propósito: a partir de
-          xl (1280px) a página do Mission Control divide em 2 colunas lado a
-          lado (ver page.tsx), então esta seção só tem ~metade da largura da
-          tela ali — 4-por-linha ficava espremido/cortado nesse ponto. */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-2">
+      {/* auto-fit: cada card pega no mínimo 170px e a grade decide sozinha
+          quantos cabem por linha — não depende de breakpoint de viewport
+          (o md:/xl:grid-cols-N anterior quebrava sempre que a coluna real
+          ficava mais estreita do que o breakpoint assumia; era o caso aqui,
+          dentro da divisão de 2 colunas da página). */}
+      <div className="grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]">
         <StatCard label="Tutores" tone="green" value={numberFmt(data.totals.users)}
           sub={`+${data.totals.new_users_today} hoje · +${data.totals.new_users_7d} 7d · +${data.totals.new_users_30d} 30d`}
-          trend={data.series.new_users} />
+          trend={data.series.new_users} onClick={onOpenTutors} />
         <StatCard label="Pets" tone="blue" value={numberFmt(data.totals.pets)}
           sub={`+${data.totals.new_pets_7d} 7d · ${data.tutors.avg_pets_per_tutor} por tutor`}
-          trend={data.series.new_pets} />
+          trend={data.series.new_pets} onClick={onOpenTutors} />
         <StatCard label="Ativos 24h" tone="violet" value={numberFmt(data.engagement.active_users_24h)}
           sub={`WAU ${numberFmt(data.engagement.wau)} · MAU ${numberFmt(data.engagement.mau)}`}
-          trend={data.series.active_users} />
+          trend={data.series.active_users} onClick={onOpenTutors} />
         <StatCard label="Sem alimentação" tone="amber" value={numberFmt(semAlimentacao)}
           sub={`${semAlimentacaoPct}% dos pets · investigar`} onClick={onOpenFeeding} />
         <StatCard label="Pets desaparecidos" tone="red"
           value={missing.data ? numberFmt(missing.data.active) : '—'}
-          sub="Ativos agora" />
+          sub="Ativos agora" onClick={onOpenMissingPets} />
         <StatCard label="Encontrados c/ ajuda do PETMOL" tone="teal"
           value={missing.data ? numberFmt(missing.data.found_with_petmol_participation) : '—'}
-          sub={missing.data ? `${numberFmt(missing.data.found_total)} encontrados no total` : undefined} />
+          sub={missing.data ? `${numberFmt(missing.data.found_total)} encontrados no total` : undefined}
+          onClick={onOpenMissingPets} />
         <StatCard label="DAU / MAU" value={data.engagement.dau_mau != null ? `${(data.engagement.dau_mau * 100).toFixed(0)}%` : '—'}
-          sub={`${numberFmt(data.engagement.sessions_7d)} sessões 7d`} />
-        <StatCard label="Tutores sem pet" value={numberFmt(data.tutors.without_pet)} tone={data.tutors.without_pet > 0 ? 'warn' : 'default'} />
+          sub={`${numberFmt(data.engagement.sessions_7d)} sessões 7d`} onClick={onOpenTutors} />
+        <StatCard label="Tutores sem pet" value={numberFmt(data.tutors.without_pet)} tone={data.tutors.without_pet > 0 ? 'warn' : 'default'}
+          onClick={onOpenTutors} />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-2">
+      <div className="grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]">
         <StatCard label="Tutores c/ alimentação" value={numberFmt(data.tutors.with_feeding_configured)}
-          sub={`${numberFmt(data.tutors.pets_with_feeding_configured)} pets`} />
-        <StatCard label="Pets c/ controle ativo" value={numberFmt(data.tutors.pets_with_active_control)} tone="good" />
-        <StatCard label="Pets com alimentação" value={numberFmt(data.tutors.pets_with_feeding_configured)} />
+          sub={`${numberFmt(data.tutors.pets_with_feeding_configured)} pets`} onClick={onOpenFeeding} />
+        <StatCard label="Pets c/ controle ativo" value={numberFmt(data.tutors.pets_with_active_control)} tone="good" onClick={onOpenFeeding} />
+        <StatCard label="Pets com alimentação" value={numberFmt(data.tutors.pets_with_feeding_configured)} onClick={onOpenFeeding} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -381,7 +390,7 @@ export function DataQualitySection() {
 //  RETENTION
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function RetentionSection({ filter }: { filter: GlobalFilter }) {
+export function RetentionSection({ filter, onOpenTutors }: { filter: GlobalFilter; onOpenTutors?: () => void }) {
   const { data, error, loading } = useAsync<{
     status: string; message?: string; users_with_history?: number;
     d1?: number | null; d7?: number | null; d30?: number | null; note?: string;
@@ -400,10 +409,10 @@ export function RetentionSection({ filter }: { filter: GlobalFilter }) {
   }
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Retenção D1" value={data.d1 != null ? `${(data.d1 * 100).toFixed(1)}%` : 'insuf.'} />
-        <StatCard label="Retenção D7" value={data.d7 != null ? `${(data.d7 * 100).toFixed(1)}%` : 'insuf.'} />
-        <StatCard label="Retenção D30" value={data.d30 != null ? `${(data.d30 * 100).toFixed(1)}%` : 'insuf.'} />
+      <div className="grid grid-cols-3 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]">
+        <StatCard label="Retenção D1" value={data.d1 != null ? `${(data.d1 * 100).toFixed(1)}%` : 'insuf.'} onClick={onOpenTutors} />
+        <StatCard label="Retenção D7" value={data.d7 != null ? `${(data.d7 * 100).toFixed(1)}%` : 'insuf.'} onClick={onOpenTutors} />
+        <StatCard label="Retenção D30" value={data.d30 != null ? `${(data.d30 * 100).toFixed(1)}%` : 'insuf.'} onClick={onOpenTutors} />
       </div>
       <p className="text-[11px] text-slate-400">{data.note} · coorte com {numberFmt(data.users_with_history)} usuários.</p>
     </div>
@@ -414,7 +423,7 @@ export function RetentionSection({ filter }: { filter: GlobalFilter }) {
 //  COMMERCE
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function CommerceSection({ filter }: { filter: GlobalFilter }) {
+export function CommerceSection({ filter, onOpenTutors }: { filter: GlobalFilter; onOpenTutors?: () => void }) {
   const { data, error, loading } = useAsync<{
     store_opened_users: number; offer_viewed: number; offer_viewed_users: number;
     commerce_click: number; commerce_click_users: number;
@@ -428,12 +437,12 @@ export function CommerceSection({ filter }: { filter: GlobalFilter }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-2">
-        <StatCard label="Abriram a Loja" value={numberFmt(data.store_opened_users)} sub="usuários únicos" />
-        <StatCard label="Ofertas vistas" value={numberFmt(data.offer_viewed)} sub={`${numberFmt(data.offer_viewed_users)} usuários`} />
-        <StatCard label="Cliques" value={numberFmt(data.commerce_click)} sub={`${numberFmt(data.commerce_click_users)} usuários`} />
+      <div className="grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]">
+        <StatCard label="Abriram a Loja" value={numberFmt(data.store_opened_users)} sub="usuários únicos" onClick={onOpenTutors} />
+        <StatCard label="Ofertas vistas" value={numberFmt(data.offer_viewed)} sub={`${numberFmt(data.offer_viewed_users)} usuários`} onClick={onOpenTutors} />
+        <StatCard label="Cliques" value={numberFmt(data.commerce_click)} sub={`${numberFmt(data.commerce_click_users)} usuários`} onClick={onOpenTutors} />
         <StatCard label="CTR" value={data.ctr_by_exposure != null ? `${(data.ctr_by_exposure * 100).toFixed(1)}%` : '—'}
-          sub={data.ctr_by_user != null ? `${(data.ctr_by_user * 100).toFixed(0)}% por usuário` : undefined} />
+          sub={data.ctr_by_user != null ? `${(data.ctr_by_user * 100).toFixed(0)}% por usuário` : undefined} onClick={onOpenTutors} />
       </div>
       <Panel title="Por loja">
         <div className="overflow-x-auto">
