@@ -3,6 +3,8 @@ e download (cidade por IP), agregado num só endpoint em vez de precisar
 vasculhar centenas de notificações avulsas."""
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from src.admin.models import AdminUser
 from src.analytics.install_models import AppInstall
 from src.db import SessionLocal
@@ -76,6 +78,54 @@ def test_locations_summary_splits_download_vs_acesso_by_city(client, monkeypatch
     assert [p["city"] for p in body["places"]] == ["Belo Horizonte", "Curitiba"]
     assert body["places_total"] == 2
     assert "IP" in body["note"]
+
+    # sem tutor geocodificado nessas cidades no cenário — nenhuma cidade
+    # tem coordenada, e o painel deixa isso explícito (não inventa ponto)
+    assert by_city["Belo Horizonte"]["lat"] is None
+    assert by_city["Curitiba"]["lng"] is None
+    assert body["mapped_places"] == 0
+    assert body["unmapped_places"] == 2
+
+
+def test_locations_summary_resolves_coordinate_from_geocoded_tutors_same_city(client, monkeypatch):
+    """A cidade de um acesso/download ganha lat/lng quando existe pelo
+    menos um tutor JÁ geocodificado (User.lat/lng) na mesma cidade — a
+    mesma fonte do Mapa dos Tutores, nunca uma coordenada inventada."""
+    headers = _admin_headers()
+    now = datetime.now(timezone.utc)
+    _set_campaign(monkeypatch, (now - timedelta(days=1)).isoformat())
+
+    db = SessionLocal()
+    try:
+        db.query(AppInstall).delete()
+        # dois tutores em Belo Horizonte, geocodificados — a média dos dois
+        # vira o centro aproximado da cidade
+        db.add_all([
+            User(email="a@x.com", password_hash="x", name="A", city="Belo Horizonte",
+                 lat=-19.90, lng=-43.93, location_source="gps"),
+            User(email="b@x.com", password_hash="x", name="B", city="Belo Horizonte",
+                 lat=-19.92, lng=-43.95, location_source="city"),
+            # tutor sem lat/lng não entra na média
+            User(email="c@x.com", password_hash="x", name="C", city="Belo Horizonte"),
+        ])
+        # Curitiba não tem nenhum tutor geocodificado no cenário
+        db.add(AppInstall(platform="ios", ip_hash="a", city="Belo Horizonte", region="MG", country="BR", created_at=now))
+        db.add(AppInstall(platform="android", ip_hash="b", city="Curitiba", region="PR", country="BR", created_at=now))
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.get("/v1/admin/analytics/locations", headers=headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    by_city = {p["city"]: p for p in body["places"]}
+
+    assert by_city["Belo Horizonte"]["lat"] == pytest.approx(-19.91)   # média de -19.90 e -19.92
+    assert by_city["Belo Horizonte"]["lng"] == pytest.approx(-43.94)
+    assert by_city["Curitiba"]["lat"] is None
+    assert by_city["Curitiba"]["lng"] is None
+    assert body["mapped_places"] == 1
+    assert body["unmapped_places"] == 1
 
 
 def test_locations_summary_empty_when_no_installs(client, monkeypatch):

@@ -206,7 +206,7 @@ export default function AdminDashboardPage() {
         <div className="mt-4">
           <AccordionPanel id={SECTION_IDS.G} letter="G" title="Mapa dos Tutores" open={open.G} onToggle={() => toggle('G')}>
             <div className="space-y-4">
-              <MapSection filter={filter} />
+              <MapSection filter={filter} onFilterByCity={filterByCity} />
               <div className="border-t border-slate-100 pt-4">
                 <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Agregado por UF/cidade (sem coordenada)</p>
                 <GeoSection />
