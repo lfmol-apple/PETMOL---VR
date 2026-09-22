@@ -19,6 +19,7 @@ from ...db import get_db
 from ..deps import get_current_admin, get_current_admin_or_readonly_key
 from . import feeding_bi
 from . import journey_bi
+from . import locations_bi
 from . import map_bi
 from . import queries as q
 from . import tactical_bi
@@ -138,6 +139,13 @@ def get_map_tutors(
 @router.get("/missing-pets-summary")
 def get_missing_pets_summary(db: Session = Depends(get_db), _=_Auth):
     return tactical_bi.missing_pets_summary(db)
+
+
+@router.get("/locations")
+def get_locations_summary(db: Session = Depends(get_db), _=_Auth):
+    """Mesmo dado do push/e-mail de acesso e download, agregado por
+    cidade — sem depender do filtro global (ver `locations_bi.py`)."""
+    return locations_bi.locations_summary(db)
 
 
 @router.get("/tactical-suggestions")

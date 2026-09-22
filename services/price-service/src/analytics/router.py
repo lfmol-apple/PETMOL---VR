@@ -450,7 +450,9 @@ def _is_real_download(platform: str) -> bool:
     """web = só abriu o site no navegador, sem instalar nada — não é
     download. ios/android (app nativo) e pwa (instalado na tela de início)
     são instalação de verdade."""
-    return platform in ("ios", "android", "pwa")
+    from .install_models import DOWNLOAD_PLATFORMS
+
+    return platform in DOWNLOAD_PLATFORMS
 
 
 def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) -> None:
