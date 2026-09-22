@@ -11,9 +11,9 @@ import { LineChart, BarRanking, StatCard, PercentBar } from '@/components/admin/
 import { DataTable, Pagination, StatePill, fmtDateTime, type Column } from '@/components/admin/DataTable';
 import { UserDetailDrawer, PetDetailDrawer, PopulationDrawer } from './detail';
 
-const numberFmt = (n: number | null | undefined) => (typeof n === 'number' ? n.toLocaleString('pt-BR') : '—');
+export const numberFmt = (n: number | null | undefined) => (typeof n === 'number' ? n.toLocaleString('pt-BR') : '—');
 
-function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
+export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,7 +28,7 @@ function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
   return { data, error, loading };
 }
 
-function Panel({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
+export function Panel({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
@@ -143,7 +143,7 @@ export function OverviewSection({ filter }: { filter: GlobalFilter }) {
 
 /** Miniaturas dos pets (32px, arredondadas) — identifica os pets do tutor sem
  * abrir o cadastro. Sem foto: ícone discreto no lugar, mesmo tamanho. */
-function PetAvatarStack({ pets, size = 32 }: { pets: PetThumbnail[]; size?: number }) {
+export function PetAvatarStack({ pets, size = 32 }: { pets: PetThumbnail[]; size?: number }) {
   if (pets.length === 0) return <span className="text-[11px] text-slate-300">—</span>;
   return (
     <div className="flex items-center -space-x-2">
@@ -491,9 +491,9 @@ export function GeoSection() {
 
 // ── shared ────────────────────────────────────────────────────────────────
 
-function Loading() {
+export function Loading() {
   return <div className="py-16 text-center text-[13px] text-slate-400">Carregando…</div>;
 }
-function ErrorBox({ msg }: { msg: string | null }) {
+export function ErrorBox({ msg }: { msg: string | null }) {
   return <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-[13px] text-rose-700">{msg || 'Erro ao carregar.'}</div>;
 }

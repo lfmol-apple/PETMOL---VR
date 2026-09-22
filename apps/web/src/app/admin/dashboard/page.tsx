@@ -11,13 +11,15 @@ import {
   OverviewSection, UsersSection, FeaturesSection, DataQualitySection,
   RetentionSection, CommerceSection, GeoSection,
 } from '@/components/admin/sections/sections';
+import { FeedingSection } from '@/components/admin/sections/FeedingSection';
 import { OperationsSection } from '@/components/admin/sections/OperationsSection';
 
 type SectionKey =
-  | 'overview' | 'users' | 'features' | 'retention' | 'commerce' | 'geo' | 'quality' | 'ops';
+  | 'overview' | 'users' | 'feeding' | 'features' | 'retention' | 'commerce' | 'geo' | 'quality' | 'ops';
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'overview', label: 'Visão Geral' },
+  { key: 'feeding', label: '🍽️ Alimentação e Ração' },
   { key: 'users', label: 'Tutores & Pets' },
   { key: 'features', label: 'Funcionalidades' },
   { key: 'quality', label: 'Qualidade dos Dados' },
@@ -141,6 +143,7 @@ export default function AdminDashboardPage() {
         )}
 
         {section === 'overview' && <OverviewSection filter={filter} />}
+        {section === 'feeding' && <FeedingSection filter={filter} />}
         {section === 'users' && <UsersSection filter={filter} />}
         {section === 'features' && <FeaturesSection filter={filter} />}
         {section === 'quality' && <DataQualitySection />}
