@@ -420,6 +420,32 @@ def record_app_install(body: AppInstallRequest, request: Request, db: Session = 
     return {"ok": True}
 
 
+def _device_hint_from_ua(ua: Optional[str]) -> Optional[str]:
+    """Só pra platform=web/pwa: o UA já nos diz o aparelho por trás do
+    navegador — sem isso 'navegador' não distinguia celular de computador."""
+    if not ua:
+        return None
+    u = ua.lower()
+    if "ipad" in u:
+        return "iPad"
+    if "iphone" in u or "ipod" in u:
+        return "iPhone"
+    if "android" in u:
+        return "Android"
+    if any(k in u for k in ("windows", "macintosh", "linux", "cros")):
+        return "computador"
+    return None
+
+
+def _install_platform_label(platform: str, ua: Optional[str]) -> str:
+    base = {"ios": "iPhone", "android": "Android", "pwa": "app instalado", "web": "navegador"}.get(platform, platform)
+    if platform in ("web", "pwa"):
+        device = _device_hint_from_ua(ua)
+        if device:
+            return f"{base} ({device})"
+    return base
+
+
 def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) -> None:
     """Geo-IP + push pro admin, fora do request."""
     from ..db import SessionLocal
@@ -444,12 +470,11 @@ def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) ->
             where = " · ".join(p for p in (row.city, row.region, row.country) if p) or "local desconhecido"
             from ..analytics.install_models import campaign_total
             acumulado, base, camp = campaign_total(db)
-            _PLATFORM_LABEL = {"ios": "iPhone", "android": "Android", "pwa": "app instalado", "web": "navegador"}
             try:
                 from ..notifications import push_to_user
                 push_to_user(str(admin.id), {
                     "title": "📲 Novo download do PETMOL",
-                    "body": f"{where} — {_PLATFORM_LABEL.get(platform, platform)} · {acumulado} no total ({base} base + {camp} campanha)",
+                    "body": f"{where} — {_install_platform_label(platform, row.user_agent)} · {acumulado} no total ({base} base + {camp} campanha)",
                     "tag": "petmol-install",
                     "data": {"url": "/admin/dashboard"},
                 })

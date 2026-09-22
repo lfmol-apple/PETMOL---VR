@@ -110,3 +110,59 @@ def test_daily_install_report_counts_only_from_campaign_cutoff(monkeypatch):
     assert "Belo Horizonte" in captured["text"]
     assert "Recife" not in captured["text"]                # instalação antiga não entra
     assert "Petz" not in captured["text"] and "Petz" not in captured["html"]
+
+
+def test_install_platform_label_qualifies_web_by_user_agent():
+    from src.analytics.router import _install_platform_label
+
+    iphone_ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
+    android_ua = "Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36"
+    desktop_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+    assert _install_platform_label("web", iphone_ua) == "navegador (iPhone)"
+    assert _install_platform_label("web", android_ua) == "navegador (Android)"
+    assert _install_platform_label("web", desktop_ua) == "navegador (computador)"
+    assert _install_platform_label("web", None) == "navegador"
+    assert _install_platform_label("pwa", android_ua) == "app instalado (Android)"
+    # nativo já é inequívoco — UA não altera o rótulo
+    assert _install_platform_label("ios", android_ua) == "iPhone"
+
+
+def test_app_install_push_includes_device_hint_for_web(monkeypatch):
+    from uuid import uuid4
+
+    from src.config import get_settings
+    from src.db import SessionLocal
+    from src.user_auth.models import User
+
+    db = SessionLocal()
+    try:
+        admin_email = get_settings().admin_master_email.lower()
+        if not db.query(User).filter(User.email == admin_email).first():
+            db.add(User(email=admin_email, password_hash="x", name="Admin"))
+            db.commit()
+    finally:
+        db.close()
+
+    sent = []
+    monkeypatch.setattr("src.notifications.push_to_user", lambda uid, payload: sent.append(payload))
+
+    from src.analytics.router import _enrich_and_notify_install
+    from src.analytics.install_models import AppInstall
+
+    db = SessionLocal()
+    try:
+        row = AppInstall(
+            platform="web",
+            ip_hash=f"t{uuid4().hex[:12]}",
+            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+        )
+        db.add(row)
+        db.commit()
+        row_id = row.id
+    finally:
+        db.close()
+
+    _enrich_and_notify_install(row_id, None, "web")
+    assert len(sent) == 1
+    assert "navegador (iPhone)" in sent[0]["body"]
