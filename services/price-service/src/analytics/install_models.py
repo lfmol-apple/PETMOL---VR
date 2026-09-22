@@ -8,6 +8,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from ..db import Base
 
+# Plataformas que são instalação de verdade (app nativo ou "adicionar à tela
+# de início"). `web` = só abriu o site no navegador — não é download. Fonte
+# única: o push (`analytics/router.py`), o e-mail diário (`install_report.py`)
+# e o painel "Locais" do Mission Control (`admin/router.py`) usam esta mesma
+# constante — antes cada um tinha sua própria cópia da tupla.
+DOWNLOAD_PLATFORMS = ("ios", "android", "pwa")
+
 
 class AppInstall(Base):
     """Uma linha por 1ª abertura do PETMOL num dispositivo.

@@ -11,8 +11,6 @@ logger = logging.getLogger(__name__)
 
 _BR = ZoneInfo("America/Sao_Paulo")
 _PLATFORM = {"ios": "iPhone", "android": "Android", "pwa": "App instalado", "web": "Navegador"}
-# web = só abriu o site, não instalou nada — não é download.
-_DOWNLOAD_PLATFORMS = ("ios", "android", "pwa")
 
 
 def _place_label(city: str, region: str, country: str) -> str:
@@ -40,7 +38,7 @@ def send_daily_install_report() -> bool:
     from ..db import SessionLocal
     from ..config import get_settings
     from ..mailer import send_mail
-    from .install_models import AppInstall, campaign_total, install_count_cutoff
+    from .install_models import AppInstall, DOWNLOAD_PLATFORMS, campaign_total, install_count_cutoff
 
     now_br = datetime.now(_BR)
     start_br = (now_br - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -59,8 +57,8 @@ def send_daily_install_report() -> bool:
             .order_by(AppInstall.created_at)
             .all()
         )
-        download_rows = [r for r in rows if r.platform in _DOWNLOAD_PLATFORMS]
-        acesso_rows = [r for r in rows if r.platform not in _DOWNLOAD_PLATFORMS]
+        download_rows = [r for r in rows if r.platform in DOWNLOAD_PLATFORMS]
+        acesso_rows = [r for r in rows if r.platform not in DOWNLOAD_PLATFORMS]
 
         # "Acumulado" que já existia (mistura tudo) continua igual — é o
         # mesmo número mostrado no push e no painel, pra não divergir. Além
@@ -68,12 +66,12 @@ def send_daily_install_report() -> bool:
         acumulado, base, camp = campaign_total(db)
         downloads_acumulado = int(
             db.query(func.count(AppInstall.id))
-            .filter(AppInstall.created_at >= cutoff, AppInstall.platform.in_(_DOWNLOAD_PLATFORMS))
+            .filter(AppInstall.created_at >= cutoff, AppInstall.platform.in_(DOWNLOAD_PLATFORMS))
             .scalar() or 0
         )
         acessos_acumulado = int(
             db.query(func.count(AppInstall.id))
-            .filter(AppInstall.created_at >= cutoff, ~AppInstall.platform.in_(_DOWNLOAD_PLATFORMS))
+            .filter(AppInstall.created_at >= cutoff, ~AppInstall.platform.in_(DOWNLOAD_PLATFORMS))
             .scalar() or 0
         )
 
@@ -83,13 +81,13 @@ def send_daily_install_report() -> bool:
             if platforms is not None:
                 q = q.filter(AppInstall.platform.in_(platforms))
             else:
-                q = q.filter(~AppInstall.platform.in_(_DOWNLOAD_PLATFORMS))
+                q = q.filter(~AppInstall.platform.in_(DOWNLOAD_PLATFORMS))
             return {
                 (city or "—", region or "", country or ""): int(n)
                 for city, region, country, n in q.group_by(AppInstall.city, AppInstall.region, AppInstall.country).all()
             }
 
-        cum_downloads = _cum_by_place(_DOWNLOAD_PLATFORMS)
+        cum_downloads = _cum_by_place(DOWNLOAD_PLATFORMS)
         cum_acessos = _cum_by_place(None)
 
         settings = get_settings()
