@@ -13,15 +13,24 @@ import {
 } from '@/components/admin/sections/sections';
 import { FeedingSection } from '@/components/admin/sections/FeedingSection';
 import { JourneySection } from '@/components/admin/sections/JourneySection';
+import dynamic from 'next/dynamic';
 import { OperationsSection } from '@/components/admin/sections/OperationsSection';
 
+// Leaflet toca em `window`/`document` no import — dinâmico e sem SSR, senão
+// quebra a renderização no servidor.
+const MapSection = dynamic(
+  () => import('@/components/admin/sections/MapSection').then((m) => m.MapSection),
+  { ssr: false, loading: () => <p className="py-16 text-center text-[13px] text-slate-400">Carregando mapa…</p> },
+);
+
 type SectionKey =
-  | 'overview' | 'journey' | 'users' | 'feeding' | 'features' | 'retention' | 'commerce' | 'geo' | 'quality' | 'ops';
+  | 'overview' | 'journey' | 'users' | 'feeding' | 'map' | 'features' | 'retention' | 'commerce' | 'geo' | 'quality' | 'ops';
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'overview', label: 'Visão Geral' },
   { key: 'journey', label: '🧭 Jornada e Conversão' },
   { key: 'feeding', label: '🍽️ Alimentação e Ração' },
+  { key: 'map', label: '🗺️ Mapa' },
   { key: 'users', label: 'Tutores & Pets' },
   { key: 'features', label: 'Funcionalidades' },
   { key: 'quality', label: 'Qualidade dos Dados' },
@@ -147,6 +156,7 @@ export default function AdminDashboardPage() {
         {section === 'overview' && <OverviewSection filter={filter} />}
         {section === 'journey' && <JourneySection filter={filter} />}
         {section === 'feeding' && <FeedingSection filter={filter} />}
+        {section === 'map' && <MapSection filter={filter} />}
         {section === 'users' && <UsersSection filter={filter} />}
         {section === 'features' && <FeaturesSection filter={filter} />}
         {section === 'quality' && <DataQualitySection />}
