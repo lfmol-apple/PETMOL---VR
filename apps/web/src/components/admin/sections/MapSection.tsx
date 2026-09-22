@@ -68,10 +68,16 @@ function LeafletMapView({ markers, onOpenTutor }: { markers: MapMarkerData[]; on
     let alive = true;
 
     // Import dinâmico, só no cliente — leaflet mexe em `window`/`document`
-    // direto e quebra em SSR.
-    Promise.all([import('leaflet'), import('leaflet.markercluster')]).then(([leafletMod]) => {
+    // direto e quebra em SSR. leaflet.markercluster é um plugin no formato
+    // antigo (assume `window.L` já existir, como um <script> global) — por
+    // isso importa leaflet PRIMEIRO, expõe em window.L, só depois importa
+    // o plugin; import em paralelo (Promise.all) dá "L is not defined".
+    import('leaflet').then(async (leafletMod) => {
       if (!alive || !containerRef.current) return;
       const L = leafletMod.default;
+      (window as unknown as { L: typeof L }).L = L;
+      await import('leaflet.markercluster');
+      if (!alive || !containerRef.current) return;
 
       if (!mapRef.current) {
         const map = L.map(containerRef.current).setView([-14.235, -51.9253], 4); // centro do Brasil
