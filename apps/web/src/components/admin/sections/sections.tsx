@@ -48,10 +48,6 @@ export function OverviewSection({ filter }: { filter: GlobalFilter }) {
   const { data, error, loading } = useAsync<OverviewResponse>(
     () => adminGet('/overview', filterParams(filter)), [JSON.stringify(filter)],
   );
-  const funnel = useAsync<{ steps: { key: string; label: string; users: number; pct_of_total: number; pct_from_previous: number | null }[]; note: string }>(
-    () => adminGet('/activation-funnel', filterParams(filter)), [JSON.stringify(filter)],
-  );
-
   if (loading) return <Loading />;
   if (error || !data) return <ErrorBox msg={error} />;
 
@@ -92,28 +88,6 @@ export function OverviewSection({ filter }: { filter: GlobalFilter }) {
           <BarRanking data={data.app_versions.map((p) => ({ label: p.version, value: p.users }))} color="#8b5cf6" />
         </Panel>
       </div>
-
-      <Panel title="Funil de ativação — usuários únicos" right={<span className="text-[11px] text-slate-400">estado do banco, não soma de eventos</span>}>
-        {funnel.data ? (
-          <div className="space-y-2">
-            {funnel.data.steps.map((s) => (
-              <div key={s.key} className="flex items-center gap-3 text-[13px]">
-                <div className="w-48 flex-shrink-0 text-slate-600">{s.label}</div>
-                <div className="h-5 flex-1 rounded bg-slate-100">
-                  <div className="flex h-full items-center rounded bg-[#0056D2] px-2 text-[11px] font-bold text-white"
-                    style={{ width: `${Math.max(4, s.pct_of_total * 100)}%` }}>
-                    {numberFmt(s.users)}
-                  </div>
-                </div>
-                <div className="w-32 flex-shrink-0 text-right text-[12px] text-slate-500">
-                  {(s.pct_of_total * 100).toFixed(1)}% do total
-                  {s.pct_from_previous != null && <span className="text-slate-400"> · {(s.pct_from_previous * 100).toFixed(0)}% do anterior</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : <span className="text-[13px] text-slate-400">Carregando…</span>}
-      </Panel>
 
       <Panel title="Top funcionalidades (adoção por pet)">
         <BarRanking data={data.top_features.map((f) => ({ label: f.label, value: Math.round(f.adoption_pct * 1000) / 10 }))}

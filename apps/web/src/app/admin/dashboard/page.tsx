@@ -12,13 +12,15 @@ import {
   RetentionSection, CommerceSection, GeoSection,
 } from '@/components/admin/sections/sections';
 import { FeedingSection } from '@/components/admin/sections/FeedingSection';
+import { JourneySection } from '@/components/admin/sections/JourneySection';
 import { OperationsSection } from '@/components/admin/sections/OperationsSection';
 
 type SectionKey =
-  | 'overview' | 'users' | 'feeding' | 'features' | 'retention' | 'commerce' | 'geo' | 'quality' | 'ops';
+  | 'overview' | 'journey' | 'users' | 'feeding' | 'features' | 'retention' | 'commerce' | 'geo' | 'quality' | 'ops';
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'overview', label: 'Visão Geral' },
+  { key: 'journey', label: '🧭 Jornada e Conversão' },
   { key: 'feeding', label: '🍽️ Alimentação e Ração' },
   { key: 'users', label: 'Tutores & Pets' },
   { key: 'features', label: 'Funcionalidades' },
@@ -143,6 +145,7 @@ export default function AdminDashboardPage() {
         )}
 
         {section === 'overview' && <OverviewSection filter={filter} />}
+        {section === 'journey' && <JourneySection filter={filter} />}
         {section === 'feeding' && <FeedingSection filter={filter} />}
         {section === 'users' && <UsersSection filter={filter} />}
         {section === 'features' && <FeaturesSection filter={filter} />}
