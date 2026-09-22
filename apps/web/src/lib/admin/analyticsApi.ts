@@ -44,11 +44,18 @@ export async function adminGet<T = unknown>(path: string, params?: Record<string
 
 // ── Global filter ──────────────────────────────────────────────────────────
 
+export type DeviceType = 'iphone' | 'ipad' | 'android' | 'desktop' | 'outros';
+
+export const DEVICE_TYPE_LABEL: Record<DeviceType, string> = {
+  iphone: 'iPhone', ipad: 'iPad', android: 'Android', desktop: 'Desktop', outros: 'Outros',
+};
+
 export interface GlobalFilter {
   period_days?: number;
   platform?: string;
   app_version?: string;
   os?: string;
+  device_type?: DeviceType;
   state?: string;
   city?: string;
 }
@@ -59,6 +66,7 @@ export function filterParams(f: GlobalFilter): Record<string, string | number | 
     platform: f.platform,
     app_version: f.app_version,
     os: f.os,
+    device_type: f.device_type,
     state: f.state,
     city: f.city,
   };
@@ -99,11 +107,15 @@ export interface FeatureMatrixResponse {
   features: FeatureRow[]; state_rules: Record<string, string>;
 }
 
+export interface PetThumbnail {
+  pet_id: string; name: string; species: string; photo_url: string | null;
+}
 export interface UserRow {
   user_id: string; email: string; name: string | null;
   created_at: string; last_activity: string | null; activity_status: string;
-  pets: number; has_feeding: boolean; active_control_pets: number;
-  last_platform: string | null; city: string | null; state: string | null;
+  pets: number; pet_thumbnails: PetThumbnail[]; has_feeding: boolean; active_control_pets: number;
+  last_platform: string | null; device_type: DeviceType | null; app_version_label: string;
+  city: string | null; state: string | null;
   email_verified: boolean;
 }
 export interface UsersListResponse {

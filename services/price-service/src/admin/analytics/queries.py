@@ -7,6 +7,8 @@ is mandatory on any list endpoint.
 """
 from __future__ import annotations
 
+import os as _os_module
+import re
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional
@@ -210,17 +212,36 @@ def _platform_breakdown(db: Session, since: datetime) -> list[dict[str, Any]]:
 
 
 def _version_breakdown(db: Session, since: datetime) -> list[dict[str, Any]]:
-    rows = (
-        db.query(
-            func.coalesce(AnalyticsProductEvent.app_version, "unknown"),
+    # Web/PWA publicam um build novo a cada deploy — agrupar pelo app_version
+    # cru rachava "Web" em dezenas de barras de 1 usuário cada (uma por
+    # deploy), com o hash inteiro como rótulo, e um mesmo tutor que passou
+    # por 2 builds contava 2x se a gente só somasse os grupos brutos. Por
+    # isso Web/PWA são contados à parte, por identidade distinta, ignorando
+    # o app_version; só nativo (iOS/Android) agrupa por versão real.
+    base = db.query(AnalyticsProductEvent).filter(AnalyticsProductEvent.received_at >= since)
+    buckets: dict[str, int] = {}
+    for platform, label in (("web", "Web"), ("pwa", "PWA")):
+        n = base.filter(AnalyticsProductEvent.platform == platform) \
+            .with_entities(func.count(func.distinct(_identity_expr()))).scalar() or 0
+        if n:
+            buckets[label] = int(n)
+
+    native_rows = (
+        base.filter(~AnalyticsProductEvent.platform.in_(["web", "pwa"]))
+        .with_entities(
+            func.coalesce(AnalyticsProductEvent.platform, "unknown"),
+            AnalyticsProductEvent.app_version,
             func.count(func.distinct(_identity_expr())),
         )
-        .filter(AnalyticsProductEvent.received_at >= since)
-        .group_by(func.coalesce(AnalyticsProductEvent.app_version, "unknown"))
+        .group_by(AnalyticsProductEvent.platform, AnalyticsProductEvent.app_version)
         .all()
     )
+    for platform, raw_version, c in native_rows:
+        label = _app_version_label(platform, raw_version)
+        buckets[label] = buckets.get(label, 0) + int(c)
+
     return sorted(
-        [{"version": v, "users": int(c)} for v, c in rows],
+        [{"version": k, "users": v} for k, v in buckets.items()],
         key=lambda r: r["users"],
         reverse=True,
     )[:15]
@@ -729,6 +750,84 @@ _USER_SORTS = {
     "name": User.name,
 }
 
+_DEVICE_TYPE_LABEL = {
+    "iphone": "iPhone", "ipad": "iPad", "android": "Android",
+    "desktop": "Desktop", "outros": "Outros",
+}
+
+# app_version do web/PWA vem de /version.json: "<sha 40 hex>-<epoch ms>"
+# (ver apps/web/src/lib/analytics/session.ts readBuildVersion) — não é uma
+# versão pra mostrar crua na tela. iOS/Android reportam versão real
+# (App.getInfo()) quando o app foi aberto depois dessa mudança; até lá, e
+# pra sessões antigas, cai no "não identificada".
+_BUILD_SHA_RE = re.compile(r"^([0-9a-f]{7,40})-(\d{10,13})$")
+
+
+def _resolve_photo_url(photo: Optional[str]) -> Optional[str]:
+    if not photo:
+        return None
+    if photo.startswith("http"):
+        return photo
+    clean = photo.lstrip("/")
+    if not clean.startswith("uploads/"):
+        clean = f"uploads/{clean}"
+    base = _os_module.environ.get("FRONTEND_URL", "https://petmol.com.br")
+    return f"{base}/{clean}"
+
+
+def _app_version_label(platform: Optional[str], raw_version: Optional[str]) -> str:
+    if not raw_version or raw_version == "unknown":
+        return "Versão não identificada"
+    m = _BUILD_SHA_RE.match(raw_version)
+    if m:
+        short_sha = m.group(1)[:7]
+        label = "PWA" if platform == "pwa" else "Web"
+        return f"{label} (build {short_sha})"
+    prefix = {"ios": "iOS", "android": "Android"}.get(platform or "", "")
+    return f"{prefix} {raw_version}".strip()
+
+
+def _classify_device(os_: Optional[str], device_class: Optional[str]) -> Optional[str]:
+    """os+device_class (já coletados por evento, ver session.ts detectOs/
+    detectDeviceClass) → 'iphone'|'ipad'|'android'|'desktop'|'outros'. None
+    quando não há evento nenhum — mostrado como 'Não identificado', nunca um
+    palpite."""
+    if not os_:
+        return None
+    os_ = os_.lower()
+    if os_ == "ios":
+        return "ipad" if device_class == "tablet" else "iphone"
+    if os_ == "android":
+        return "android"
+    if os_ in ("macos", "windows", "linux"):
+        return "desktop"
+    return "outros"
+
+
+def _device_type_filter_clause(device_type: str):
+    """Mesma classificação de `_classify_device`, em SQL, pra filtrar direto
+    no banco (EXISTS contra analytics_product_events).
+
+    Semântica: "já teve algum evento desse tipo de dispositivo" — diferente
+    da coluna `device_type` da listagem, que mostra o dispositivo do evento
+    MAIS RECENTE. Um tutor que trocou de desktop pro iPhone aparece como
+    "iPhone" na tabela, mas ainda é encontrado filtrando por "Desktop"."""
+    device_type = device_type.lower()
+    if device_type == "iphone":
+        return and_(AnalyticsProductEvent.os == "ios", AnalyticsProductEvent.device_class != "tablet")
+    if device_type == "ipad":
+        return and_(AnalyticsProductEvent.os == "ios", AnalyticsProductEvent.device_class == "tablet")
+    if device_type == "android":
+        return AnalyticsProductEvent.os == "android"
+    if device_type == "desktop":
+        return AnalyticsProductEvent.os.in_(["macos", "windows", "linux"])
+    if device_type == "outros":
+        return and_(
+            AnalyticsProductEvent.os.isnot(None),
+            ~AnalyticsProductEvent.os.in_(["ios", "android", "macos", "windows", "linux"]),
+        )
+    return None
+
 
 def list_users(
     db: Session, f: AnalyticsFilters, *,
@@ -751,6 +850,14 @@ def list_users(
         q = q.filter(User.created_at >= f.since)
     if f.until:
         q = q.filter(User.created_at <= f.until)
+    if f.device_type:
+        clause = _device_type_filter_clause(f.device_type)
+        if clause is not None:
+            q = q.filter(
+                db.query(AnalyticsProductEvent.id)
+                .filter(AnalyticsProductEvent.user_id == User.id, clause)
+                .exists()
+            )
 
     total = q.count()
     col = _USER_SORTS.get(sort, User.created_at)
@@ -767,18 +874,40 @@ def list_users(
         .filter(AnalyticsProductEvent.user_id.in_(uids or {"__none__"}))
         .group_by(AnalyticsProductEvent.user_id).all()
     )
-    last_platform = dict(
-        db.query(AnalyticsProductEvent.user_id, func.max(AnalyticsProductEvent.platform))
-        .filter(AnalyticsProductEvent.user_id.in_(uids or {"__none__"}))
-        .filter(AnalyticsProductEvent.platform.isnot(None))
-        .group_by(AnalyticsProductEvent.user_id).all()
-    )
+    # Dispositivo/plataforma/versão do evento MAIS RECENTE de cada tutor —
+    # não `func.max()` de cada coluna solta (que casa valores de eventos
+    # diferentes por acidente, ex.: plataforma de um evento com o os de
+    # outro). Casa pelo (user_id, received_at) exato do último evento.
+    latest_meta: dict[str, dict[str, Optional[str]]] = {}
+    latest_pairs = [(uid, ts) for uid, ts in last_seen.items() if ts is not None]
+    if latest_pairs:
+        cond = or_(*[
+            and_(AnalyticsProductEvent.user_id == uid, AnalyticsProductEvent.received_at == ts)
+            for uid, ts in latest_pairs
+        ])
+        for uid, plat, os_, dclass, ver in (
+            db.query(
+                AnalyticsProductEvent.user_id, AnalyticsProductEvent.platform,
+                AnalyticsProductEvent.os, AnalyticsProductEvent.device_class,
+                AnalyticsProductEvent.app_version,
+            ).filter(cond).all()
+        ):
+            # se houver mais de um evento no mesmo timestamp exato, fica o 1º
+            latest_meta.setdefault(uid, {
+                "platform": plat, "os": os_, "device_class": dclass, "app_version": ver,
+            })
     pet_ids_by_user = defaultdict(list)
     for pid, uid in db.query(Pet.id, Pet.user_id).filter(Pet.user_id.in_(uids or {"__none__"})).all():
         pet_ids_by_user[uid].append(pid)
     feeding_pet_ids = _feeding_configured_pet_ids(db)
     all_pet_ids = [pid for pids in pet_ids_by_user.values() for pid in pids]
     states = _pet_feature_states(db, pet_ids=all_pet_ids) if all_pet_ids else {}
+    pet_thumbs = {}
+    if all_pet_ids:
+        for pid, name, species, photo in (
+            db.query(Pet.id, Pet.name, Pet.species, Pet.photo).filter(Pet.id.in_(all_pet_ids)).all()
+        ):
+            pet_thumbs[pid] = {"name": name, "species": species, "photo_url": _resolve_photo_url(photo)}
 
     items = []
     for u in users:
@@ -789,6 +918,7 @@ def list_users(
                    for k in ("vaccine", "dewormer", "flea_tick", "grooming", "medication", "food"))
         )
         seen = _aware(last_seen.get(u.id))
+        meta = latest_meta.get(u.id, {})
         items.append({
             "user_id": u.id,
             "email": u.email,
@@ -797,9 +927,14 @@ def list_users(
             "last_activity": _iso(seen),
             "activity_status": _activity_status(seen, now),
             "pets": pet_counts.get(u.id, 0),
+            "pet_thumbnails": [
+                {"pet_id": pid, **pet_thumbs[pid]} for pid in pids[:4] if pid in pet_thumbs
+            ],
             "has_feeding": any(pid in feeding_pet_ids for pid in pids),
             "active_control_pets": active_controls,
-            "last_platform": last_platform.get(u.id),
+            "last_platform": meta.get("platform"),
+            "device_type": _classify_device(meta.get("os"), meta.get("device_class")),
+            "app_version_label": _app_version_label(meta.get("platform"), meta.get("app_version")),
             "city": u.city,
             "state": u.state,
             "email_verified": bool(u.email_verified),
@@ -868,6 +1003,19 @@ def user_detail(db: Session, user_id: str) -> Optional[dict[str, Any]]:
         .scalar() or 0
     )
 
+    # Dispositivo do evento mais recente (mesmo critério de list_users).
+    latest_row = None
+    if last_seen is not None:
+        latest_row = (
+            db.query(
+                AnalyticsProductEvent.platform, AnalyticsProductEvent.os,
+                AnalyticsProductEvent.device_class, AnalyticsProductEvent.app_version,
+            )
+            .filter(AnalyticsProductEvent.user_id == user_id, AnalyticsProductEvent.received_at == last_seen)
+            .first()
+        )
+    last_meta_platform, last_meta_os, last_meta_device_class, last_meta_version = latest_row or (None, None, None, None)
+
     push_web = db.query(func.count(PushSubscription.id)).filter(
         PushSubscription.user_id == user_id, PushSubscription.disabled_at.is_(None)
     ).scalar() or 0
@@ -908,6 +1056,8 @@ def user_detail(db: Session, user_id: str) -> Optional[dict[str, Any]]:
             "events_by_name": events_by_name,
             "platforms": platforms,
             "app_versions": versions,
+            "device_type": _classify_device(last_meta_os, last_meta_device_class),
+            "last_app_version_label": _app_version_label(last_meta_platform, last_meta_version),
         },
         "engagement_flags": {
             "push_web_devices": int(push_web),
@@ -920,7 +1070,7 @@ def user_detail(db: Session, user_id: str) -> Optional[dict[str, Any]]:
                 "pet_id": p.id, "name": p.name, "species": p.species, "breed": p.breed,
                 "sex": p.sex, "birth_date": _iso(p.birth_date), "age_months": _age_months(p.birth_date, now),
                 "weight_value": p.weight_value, "weight_unit": p.weight_unit,
-                "neutered": p.neutered, "has_photo": bool(p.photo),
+                "neutered": p.neutered, "has_photo": bool(p.photo), "photo_url": _resolve_photo_url(p.photo),
                 "created_at": _iso(p.created_at),
                 "feature_states": {k: v.value for k, v in states.get(p.id, {}).items()},
             }
@@ -964,7 +1114,7 @@ def pet_detail(db: Session, pet_id: str) -> Optional[dict[str, Any]]:
             "sex": p.sex, "birth_date": _iso(p.birth_date),
             "age_months": _age_months(p.birth_date, now),
             "weight_value": p.weight_value, "weight_unit": p.weight_unit,
-            "neutered": p.neutered, "has_photo": bool(p.photo),
+            "neutered": p.neutered, "has_photo": bool(p.photo), "photo_url": _resolve_photo_url(p.photo),
             "insurance_provider": p.insurance_provider,
             "created_at": _iso(p.created_at), "updated_at": _iso(p.updated_at),
         },

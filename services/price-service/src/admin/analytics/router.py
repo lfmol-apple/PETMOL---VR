@@ -27,6 +27,7 @@ def _filters(
     platform: Optional[str] = Query(None),
     app_version: Optional[str] = Query(None),
     os: Optional[str] = Query(None),
+    device_type: Optional[str] = Query(None, description="iphone|ipad|android|desktop|outros"),
     state: Optional[str] = Query(None),
     city: Optional[str] = Query(None),
     neighborhood: Optional[str] = Query(None),
@@ -35,7 +36,7 @@ def _filters(
 ) -> AnalyticsFilters:
     return AnalyticsFilters.build(
         period_days=period_days, since=since, until=until, platform=platform,
-        app_version=app_version, os=os, state=state, city=city,
+        app_version=app_version, os=os, device_type=device_type, state=state, city=city,
         neighborhood=neighborhood, user_id=user_id, pet_id=pet_id,
     )
 
