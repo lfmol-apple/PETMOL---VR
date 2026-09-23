@@ -135,15 +135,33 @@ export function middleware(request: NextRequest) {
   if (canonicalSiteUrl) {
     try {
       const canonical = new URL(canonicalSiteUrl);
-      const requestHostname = forwardedHost.split(':')[0]?.toLowerCase() || '';
-      const requestHost = forwardedHost.toLowerCase();
-      const canonicalHost = canonical.host.toLowerCase();
-      const canonicalProto = canonical.protocol.replace(':', '').toLowerCase();
-      const requestProto = forwardedProto.toLowerCase();
+      // Apagão de 23/09/2026: um build feito fora do pipeline oficial (sem
+      // passar por CI/deploy-atomic) assou NEXT_PUBLIC_SITE_URL com o valor
+      // de dev (http://localhost:3000) no bundle de produção — isso fazia
+      // ESTE bloco redirecionar toda rota autenticada (/home, /admin/*,
+      // /profile...) pra um host que só existe dentro do próprio servidor,
+      // inacessível pra qualquer usuário real. Páginas públicas (PUBLIC_PATHS,
+      // checado acima) não passam por aqui, por isso pareciam normais. Guarda
+      // de defesa em profundidade: canônico local/loopback nunca é válido em
+      // produção — se acontecer de novo (env mal configurada em algum
+      // build), ignora o redirecionamento em vez de levar usuário real pra
+      // um endereço morto.
+      // Não faz `return` aqui — só pula o redirecionamento canônico e
+      // deixa cair na checagem de sessão logo abaixo, como sempre. Um
+      // `return NextResponse.next()` aqui pularia TAMBÉM a checagem de
+      // login (`if (!session)`, abaixo), liberando rota autenticada sem
+      // sessão — pior que o apagão que esta guarda evita.
+      if (!isLocalHost(canonical.hostname)) {
+        const requestHostname = forwardedHost.split(':')[0]?.toLowerCase() || '';
+        const requestHost = forwardedHost.toLowerCase();
+        const canonicalHost = canonical.host.toLowerCase();
+        const canonicalProto = canonical.protocol.replace(':', '').toLowerCase();
+        const requestProto = forwardedProto.toLowerCase();
 
-      if (!isLocalHost(requestHostname) && (requestHost !== canonicalHost || requestProto !== canonicalProto)) {
-        const target = new URL(`${request.nextUrl.pathname}${request.nextUrl.search}`, canonical.origin);
-        return NextResponse.redirect(target, 308);
+        if (!isLocalHost(requestHostname) && (requestHost !== canonicalHost || requestProto !== canonicalProto)) {
+          const target = new URL(`${request.nextUrl.pathname}${request.nextUrl.search}`, canonical.origin);
+          return NextResponse.redirect(target, 308);
+        }
       }
     } catch {
       // NEXT_PUBLIC_SITE_URL inválida: ignora redirecionamento canônico
