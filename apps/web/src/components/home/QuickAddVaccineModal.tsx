@@ -5,6 +5,7 @@ import { Zap } from 'lucide-react';
 import { useI18n } from '@/lib/I18nContext';
 import type { VaccineType } from '@/lib/petHealth';
 import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
+import { VaccineDateStep } from './VaccineDateStep';
 
 type QuickAddData = {
   vaccine_type: VaccineType;
@@ -24,9 +25,11 @@ type CommonVaccine = {
 interface QuickAddVaccineModalProps {
   quickAddData: QuickAddData;
   commonVaccines: CommonVaccine[];
-  handleQuickAddVaccine: (selectedVaccine: CommonVaccine, when: 'today' | 'this_month' | 'unknown') => Promise<void>;
+  /** `appliedOn` = a data que o tutor escolheu (YYYY-MM-DD); sem ela vale o `when` antigo. */
+  handleQuickAddVaccine: (selectedVaccine: CommonVaccine, when: 'today' | 'this_month' | 'unknown', appliedOn?: string) => Promise<void>;
   onClose: () => void;
-  onOpenFullForm: () => void;
+  /** Leva pro formulário completo levando a vacina já escolhida (se houver). */
+  onOpenFullForm: (prefill?: { vaccine_type: VaccineType; vaccine_name: string }) => void;
 }
 
 export function QuickAddVaccineModal({
@@ -61,11 +64,23 @@ export function QuickAddVaccineModal({
     ];
   }, [commonVaccines]);
 
-  const handleWhen = async (when: 'today' | 'this_month' | 'unknown') => {
+  // Salvar SÓ acontece nestes dois caminhos, ambos por toque explícito no
+  // passo de data — escolher a vacina nunca grava nada.
+  const handleSaveWithDate = async (appliedOn: string) => {
     if (!selectedVaccine || saving) return;
     setSaving(true);
     try {
-      await handleQuickAddVaccine(selectedVaccine, when);
+      await handleQuickAddVaccine(selectedVaccine, 'today', appliedOn);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUnknownDate = async () => {
+    if (!selectedVaccine || saving) return;
+    setSaving(true);
+    try {
+      await handleQuickAddVaccine(selectedVaccine, 'unknown');
     } finally {
       setSaving(false);
     }
@@ -102,35 +117,14 @@ export function QuickAddVaccineModal({
             </div>
           </div>
         ) : (
-          <div>
-            <p className="text-sm text-gray-600 mb-3">Quando foi?</p>
-            <div className="space-y-2.5">
-              <button
-                onClick={() => handleWhen('today')}
-                disabled={saving}
-                className="w-full py-3.5 rounded-2xl bg-[#0056D2] text-white font-semibold hover:bg-[#0047ad] disabled:opacity-60 shadow-md shadow-blue-600/20"
-              >
-                Hoje
-              </button>
-              <button
-                onClick={() => handleWhen('this_month')}
-                disabled={saving}
-                className="w-full py-3.5 rounded-2xl bg-white border border-slate-300 text-slate-800 font-semibold hover:bg-slate-50 disabled:opacity-60"
-              >
-                Esse mês
-              </button>
-              <button
-                onClick={() => handleWhen('unknown')}
-                disabled={saving}
-                className="w-full py-3.5 rounded-2xl bg-white border border-slate-300 text-slate-800 font-semibold hover:bg-slate-50 disabled:opacity-60"
-              >
-                Não lembro
-              </button>
-            </div>
-            <p className="text-xs text-slate-500 mt-3">
-              Se não lembrar a data, salvamos uma referência para você revisar depois.
-            </p>
-          </div>
+          <VaccineDateStep
+            key={selectedVaccine.code}
+            vaccineName={selectedVaccine.name === 'V10' ? 'V10 / V8' : selectedVaccine.name}
+            icon={selectedVaccine.icon}
+            saving={saving}
+            onSave={handleSaveWithDate}
+            onUnknown={handleUnknownDate}
+          />
         )}
       </SheetShell.Body>
 
@@ -143,7 +137,7 @@ export function QuickAddVaccineModal({
             {selectedVaccine ? 'Voltar' : t('common.cancel')}
           </button>
           <button
-            onClick={onOpenFullForm}
+            onClick={() => onOpenFullForm(selectedVaccine ? { vaccine_type: selectedVaccine.type, vaccine_name: selectedVaccine.name } : undefined)}
             className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 font-semibold text-[#0056D2] transition-all hover:bg-slate-50 active:scale-[0.98]"
           >
             {t('health.full_form')}

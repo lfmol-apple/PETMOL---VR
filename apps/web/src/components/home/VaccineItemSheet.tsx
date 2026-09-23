@@ -7,6 +7,7 @@ import { latestVaccinePerGroup } from '@/lib/vaccineUtils';
 import { Camera, Check, Home, X } from 'lucide-react';
 import { SheetAvatar, SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { localTodayISO } from '@/lib/localDate';
+import { VaccineDateStep } from './VaccineDateStep';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { CARE_STATE, careStateFromDaysUntilDue } from '@/lib/careState';
 import { useAuth } from '@/contexts/AuthContext';
@@ -89,7 +90,8 @@ export interface VaccineItemSheetProps {
   onGoHome?: () => void;
   onQuickAdd: () => void;
   onFullFormVaccine: (prefill: Partial<VaccineFormData>) => void;
-  onDirectSaveVaccine?: (vaccine: { type: VaccineType; name: string; icon: string; code: string }, when: 'today' | 'this_month' | 'unknown') => Promise<void>;
+  /** `appliedOn` = a data que o tutor escolheu (YYYY-MM-DD). */
+  onDirectSaveVaccine?: (vaccine: { type: VaccineType; name: string; icon: string; code: string }, when: 'today' | 'this_month' | 'unknown', appliedOn?: string) => Promise<void>;
   onEditVaccine: (v: VaccineRecord) => void;
   onDeleteVaccine: (v: VaccineRecord) => void;
   onConfirmVaccine?: (v: VaccineRecord) => void;
@@ -223,6 +225,9 @@ export function VaccineItemSheet({
     return () => window.clearInterval(id);
   }, [importingCard]);
 
+  // Chip escolhido, aguardando o tutor confirmar a DATA — tocar no chip não grava mais nada.
+  const [pendingChip, setPendingChip] = useState<{ label: string; type: string; name: string; icon: string; code: string; notes: string } | null>(null);
+
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -278,7 +283,12 @@ export function VaccineItemSheet({
     setTimeout(() => setToast(null), 3000);
   }
 
-  async function handleChipClick(chip: ChipDef) {
+  // Tocar no chip só ESCOLHE a vacina e abre o passo de data (sugere hoje,
+  // aceita data anterior). Antes gravava na hora com a data de hoje — o que
+  // impedia registrar uma vacina aplicada meses atrás sem abrir o formulário
+  // completo. Quem não tem `onDirectSaveVaccine` continua caindo no formulário
+  // completo, que já tem o seletor de data.
+  function handleChipClick(chip: ChipDef) {
     if (chip.disabled) {
       showToast('Esta vacina não está disponível no momento.');
       return;
@@ -287,16 +297,8 @@ export function VaccineItemSheet({
       onQuickAdd();
       return;
     }
-    if (onDirectSaveVaccine && savingChip === null) {
-      setSavingChip(chip.code);
-      try {
-        await onDirectSaveVaccine({ type: chip.type as VaccineType, name: chip.name, icon: chip.icon, code: chip.code }, 'today');
-        setSavedChip(chip.code);
-        setTimeout(() => { setSavedChip(null); setSavingChip(null); setJustSaved(true); }, 800);
-      } catch {
-        setSavingChip(null);
-        showToast('Erro ao registrar. Tente novamente.');
-      }
+    if (onDirectSaveVaccine) {
+      setPendingChip(chip);
       return;
     }
     onFullFormVaccine({
@@ -310,6 +312,21 @@ export function VaccineItemSheet({
       clinic_name: '',
       record_type: 'confirmed_application',
     });
+  }
+
+  async function handleConfirmChipDate(appliedOn: string) {
+    const chip = pendingChip;
+    if (!chip || !onDirectSaveVaccine || savingChip !== null) return;
+    setSavingChip(chip.code);
+    try {
+      await onDirectSaveVaccine({ type: chip.type as VaccineType, name: chip.name, icon: chip.icon, code: chip.code }, 'today', appliedOn);
+      setSavedChip(chip.code);
+      setPendingChip(null);
+      setTimeout(() => { setSavedChip(null); setSavingChip(null); setJustSaved(true); }, 800);
+    } catch {
+      setSavingChip(null);
+      showToast('Erro ao registrar. Tente novamente.');
+    }
   }
 
   function handleDeleteClick(v: VaccineRecord) {
@@ -417,6 +434,16 @@ export function VaccineItemSheet({
               </button>
               {quickRegisterExpanded && (
                 <div className="border-t border-gray-100 p-4 space-y-2">
+                  {pendingChip ? (
+                    <VaccineDateStep
+                      key={pendingChip.code}
+                      vaccineName={pendingChip.label}
+                      icon={pendingChip.icon}
+                      saving={savingChip !== null}
+                      onSave={handleConfirmChipDate}
+                      onCancel={() => setPendingChip(null)}
+                    />
+                  ) : (<>
                   {chips.map((chip) => {
                     const isSaving = savingChip === chip.code;
                     const isSaved = savedChip === chip.code;
@@ -452,6 +479,7 @@ export function VaccineItemSheet({
                   >
                     Não sei o histórico — começar daqui
                   </button>
+                  </>)}
                 </div>
               )}
             </div>
