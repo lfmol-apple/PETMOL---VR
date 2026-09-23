@@ -128,6 +128,73 @@ def test_locations_summary_resolves_coordinate_from_geocoded_tutors_same_city(cl
     assert body["unmapped_places"] == 1
 
 
+def test_locations_summary_resolves_coordinate_from_persistent_geocode_cache(client, monkeypatch):
+    """Sem tutor geocodificado na cidade (camada 1), mas já existe uma
+    geocodificação anterior guardada em `GeocodeCache` (camada 2, uma
+    consulta passada ao Nominatim) — usa ela, sem pedir geocodificação de
+    novo (a cidade já está resolvida pra sempre)."""
+    from src.geocoding import GeocodeCache, _cache_key
+
+    headers = _admin_headers()
+    now = datetime.now(timezone.utc)
+    _set_campaign(monkeypatch, (now - timedelta(days=1)).isoformat())
+
+    db = SessionLocal()
+    try:
+        db.query(AppInstall).delete()
+        db.query(GeocodeCache).delete()
+        db.add(AppInstall(platform="ios", ip_hash="a", city="Sorocaba", region="São Paulo", country="Brasil", created_at=now))
+        db.add(GeocodeCache(
+            key=_cache_key("Sorocaba", "São Paulo", "Brasil"),
+            city="Sorocaba", region="São Paulo", country="Brasil", lat=-23.5, lng=-47.45,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    calls = []
+    monkeypatch.setattr("src.admin.analytics.locations_bi.queue_geocode",
+                        lambda *a, **k: calls.append(a))
+
+    r = client.get("/v1/admin/analytics/locations", headers=headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    place = next(p for p in body["places"] if p["city"] == "Sorocaba")
+
+    assert place["lat"] == pytest.approx(-23.5)
+    assert place["lng"] == pytest.approx(-47.45)
+    assert calls == []   # já resolvida — não pede geocodificação de novo
+
+
+def test_locations_summary_queues_geocoding_when_neither_tier_resolves(client, monkeypatch):
+    """Sem tutor na cidade e sem cache prévio: a cidade fica sem coordenada
+    NESTA resposta (nunca inventa um ponto), mas o painel pede a
+    geocodificação em segundo plano pra aparecer numa próxima consulta."""
+    headers = _admin_headers()
+    now = datetime.now(timezone.utc)
+    _set_campaign(monkeypatch, (now - timedelta(days=1)).isoformat())
+
+    db = SessionLocal()
+    try:
+        db.query(AppInstall).delete()
+        db.add(AppInstall(platform="android", ip_hash="a", city="Diamantina", region="Minas Gerais", country="Brasil", created_at=now))
+        db.commit()
+    finally:
+        db.close()
+
+    calls = []
+    monkeypatch.setattr("src.admin.analytics.locations_bi.queue_geocode",
+                        lambda city, region, country: calls.append((city, region, country)))
+
+    r = client.get("/v1/admin/analytics/locations", headers=headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    place = next(p for p in body["places"] if p["city"] == "Diamantina")
+
+    assert place["lat"] is None and place["lng"] is None
+    assert calls == [("Diamantina", "Minas Gerais", "Brasil")]
+
+
 def test_locations_summary_empty_when_no_installs(client, monkeypatch):
     headers = _admin_headers()
     _set_campaign(monkeypatch, (datetime.now(timezone.utc) - timedelta(days=1)).isoformat())

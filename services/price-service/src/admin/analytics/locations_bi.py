@@ -21,6 +21,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ...analytics.install_models import AppInstall, DOWNLOAD_PLATFORMS, install_count_cutoff
+from ...geocoding import get_cached_geocode, queue_geocode
 from ...user_auth.models import User
 
 _BR = ZoneInfo("America/Sao_Paulo")
@@ -80,7 +81,18 @@ def locations_summary(db: Session, *, limit_places: int = 80) -> dict[str, Any]:
     centroids = _city_centroids(db)
     places: list[dict[str, Any]] = []
     for (city, region, country), v in by_place.items():
-        coord: Optional[tuple[float, float]] = centroids.get(city.lower()) if city != "—" else None
+        coord: Optional[tuple[float, float]] = None
+        if city != "—":
+            # 1) Tutor já geocodificado na mesma cidade (instantâneo,
+            #    mesma fonte do Mapa). 2) Cache persistente de uma
+            #    geocodificação anterior dessa cidade (Nominatim, gravada
+            #    por `queue_geocode` numa chamada passada). 3) Nenhum dos
+            #    dois: pede a geocodificação em BACKGROUND (worker
+            #    sequencial, nunca bloqueia este request) — aparece no
+            #    mapa a partir da próxima vez que o painel for aberto.
+            coord = centroids.get(city.lower()) or get_cached_geocode(db, city, region, country)
+            if not coord:
+                queue_geocode(city, region, country)
         places.append({
             "city": city, "region": region, "country": country,
             "downloads": v["downloads"], "acessos": v["acessos"],
@@ -105,8 +117,9 @@ def locations_summary(db: Session, *, limit_places: int = 80) -> dict[str, Any]:
             "Local vem do IP (cidade aproximada) — sem rua/bairro. Download = "
             "instalou o app (iPhone/Android) ou adicionou à tela de início "
             "(PWA). Acesso = só abriu o site no navegador, sem instalar nada. "
-            "A coordenada no mapa (quando existe) é a média da localização de "
-            "tutores já geocodificados na mesma cidade — nunca inventada; sem "
-            "isso, a cidade fica de fora do mapa mas continua no ranking."
+            "Coordenada no mapa: primeiro a média de tutores já geocodificados "
+            "na mesma cidade; sem isso, o centro da cidade (OpenStreetMap), "
+            "geocodificado uma vez e guardado — cidades novas aparecem no mapa "
+            "em até alguns minutos, não na hora."
         ),
     }
