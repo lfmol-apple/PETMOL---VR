@@ -257,7 +257,7 @@ export function MapSection({ filter, onFilterByCity }: {
         <p className="text-[11px] text-slate-400">
           {numberFmt(locations.data.mapped_places)} de {numberFmt(locations.data.places_total)} cidade(s) de acesso/download no mapa
           {locations.data.unmapped_places > 0
-            ? ` — ${numberFmt(locations.data.unmapped_places)} sem tutor geocodificado na mesma cidade ainda (seguem no ranking da Seção Locais)`
+            ? ` — ${numberFmt(locations.data.unmapped_places)} ainda sendo geocodificada(s) em segundo plano (aparecem sozinhas aqui em alguns minutos; já estão no ranking da Seção Locais)`
             : ''}.
         </p>
       )}

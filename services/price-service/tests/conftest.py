@@ -85,3 +85,35 @@ def _hermetic_settings():
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _no_background_geocoding(monkeypatch):
+    """`queue_geocode` (painel "Locais" do Mission Control) dispara uma
+    geocodificação de verdade (rede, Nominatim) numa thread de fundo que
+    sobrevive entre testes — sem isso, um teste dispararia uma chamada real
+    e o worker escreveria depois numa tabela que `_reset_db` já dropou/
+    recriou pro próximo teste. Sem-op aqui em todos os testes; quem quiser
+    testar o comportamento real faz o monkeypatch de volta no próprio teste."""
+    import src.admin.analytics.locations_bi as locations_bi
+
+    monkeypatch.setattr(locations_bi, "queue_geocode", lambda *a, **k: None)
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _fast_geocode_pacing(monkeypatch):
+    """O worker de `queue_geocode` (geocoding.py) dorme ~1.1s entre jobs de
+    propósito em produção (limite do Nominatim) — mas se algum teste (ver
+    test_geocode_cache.py) disparar o worker de verdade, essa pausa deixa a
+    thread de background ACORDADA por até 1.1s depois, competindo pela GIL
+    com QUALQUER teste que rode nesse intervalo. Foi exatamente isso que
+    derrubou um assert de tempo (`elapsed < 1.0`) num teste sem relação
+    nenhuma com geocodificação, só por rodar por perto na suíte completa.
+    Zera o intervalo pra todos os testes — a lógica de pacing em si (que
+    existe pra produção, não pra correção) não precisa de tempo real pra
+    ser testada."""
+    import src.geocoding as geocoding
+
+    monkeypatch.setattr(geocoding, "_PACING_SECONDS", 0, raising=False)
+    yield
