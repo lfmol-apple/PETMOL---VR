@@ -14,14 +14,31 @@ recorte pequeno e o dono quer "os 300 locais", não um corte fatiado.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ...analytics.install_models import AppInstall, DOWNLOAD_PLATFORMS, install_count_cutoff
+from ...user_auth.models import User
 
 _BR = ZoneInfo("America/Sao_Paulo")
+
+
+def _city_centroids(db: Session) -> dict[str, tuple[float, float]]:
+    """Coordenada aproximada de cada cidade = média das coordenadas reais
+    dos tutores dessa cidade (mesma fonte do Mapa — `User.lat/lng`, nunca
+    inventada). Só ajuda a plotar o local de um acesso/download quando
+    algum tutor JÁ geocodificado mora na mesma cidade; sem isso, o local
+    fica de fora do mapa (mas continua no ranking por cidade)."""
+    rows = (
+        db.query(func.lower(User.city), func.avg(User.lat), func.avg(User.lng))
+        .filter(User.city.isnot(None), User.lat.isnot(None), User.lng.isnot(None))
+        .group_by(func.lower(User.city))
+        .all()
+    )
+    return {city: (float(lat), float(lng)) for city, lat, lng in rows if city and lat is not None and lng is not None}
 
 
 def locations_summary(db: Session, *, limit_places: int = 80) -> dict[str, Any]:
@@ -60,15 +77,19 @@ def locations_summary(db: Session, *, limit_places: int = 80) -> dict[str, Any]:
         else:
             slot["acessos"] += 1
 
-    places = [
-        {
+    centroids = _city_centroids(db)
+    places: list[dict[str, Any]] = []
+    for (city, region, country), v in by_place.items():
+        coord: Optional[tuple[float, float]] = centroids.get(city.lower()) if city != "—" else None
+        places.append({
             "city": city, "region": region, "country": country,
             "downloads": v["downloads"], "acessos": v["acessos"],
             "total": v["downloads"] + v["acessos"],
-        }
-        for (city, region, country), v in by_place.items()
-    ]
+            "lat": coord[0] if coord else None,
+            "lng": coord[1] if coord else None,
+        })
     places.sort(key=lambda p: -p["total"])
+    mapped_places = sum(1 for p in places if p["lat"] is not None)
 
     return {
         "downloads_today": downloads_today,
@@ -78,9 +99,14 @@ def locations_summary(db: Session, *, limit_places: int = 80) -> dict[str, Any]:
         "total_campaign": len(rows),
         "places": places[:limit_places],
         "places_total": len(places),
+        "mapped_places": mapped_places,
+        "unmapped_places": len(places) - mapped_places,
         "note": (
             "Local vem do IP (cidade aproximada) — sem rua/bairro. Download = "
             "instalou o app (iPhone/Android) ou adicionou à tela de início "
-            "(PWA). Acesso = só abriu o site no navegador, sem instalar nada."
+            "(PWA). Acesso = só abriu o site no navegador, sem instalar nada. "
+            "A coordenada no mapa (quando existe) é a média da localização de "
+            "tutores já geocodificados na mesma cidade — nunca inventada; sem "
+            "isso, a cidade fica de fora do mapa mas continua no ranking."
         ),
     }

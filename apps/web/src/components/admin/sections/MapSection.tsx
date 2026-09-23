@@ -37,6 +37,23 @@ interface MapResponse {
   note: string;
 }
 
+// Locais (acessos/downloads do app, seção K — LocationsSection) — mesma
+// fonte de dado, camada extra no mesmo mapa. Só as cidades com coordenada
+// resolvida (ver locations_bi.py: média da posição de tutores JÁ
+// geocodificados na mesma cidade) entram aqui; as outras continuam só no
+// ranking da seção K.
+interface LocationPlaceData {
+  city: string; region: string; country: string;
+  downloads: number; acessos: number; total: number;
+  lat: number | null; lng: number | null;
+}
+interface LocationsResponse {
+  places: LocationPlaceData[];
+  places_total: number;
+  mapped_places: number;
+  unmapped_places: number;
+}
+
 function popupHtml(m: MapMarkerData): string {
   const petLine = m.pet_thumbnails
     .map((p) => `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:6px;">
@@ -56,12 +73,34 @@ function popupHtml(m: MapMarkerData): string {
     </div>`;
 }
 
-function LeafletMapView({ markers, onOpenTutor }: { markers: MapMarkerData[]; onOpenTutor: (id: string) => void }) {
+function locationPopupHtml(p: LocationPlaceData): string {
+  return `
+    <div style="min-width:180px">
+      <div style="font-weight:700;color:#0f172a">${[p.city, p.region].filter(Boolean).join(' · ')}</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:2px">${p.country || ''}</div>
+      <div style="margin-top:6px;font-size:12px;color:#475569">
+        <b>${p.downloads}</b> download${p.downloads === 1 ? '' : 's'} · <b>${p.acessos}</b> acesso${p.acessos === 1 ? '' : 's'}
+      </div>
+      <button data-filter-city="${p.city}" style="margin-top:8px;width:100%;padding:6px 10px;border-radius:8px;background:#7c3aed;color:white;font-size:12px;font-weight:700;border:none;cursor:pointer">
+        Ver Tutores & Pets em ${p.city}
+      </button>
+    </div>`;
+}
+
+function LeafletMapView({ markers, locationPlaces, onOpenTutor, onFilterByCity }: {
+  markers: MapMarkerData[];
+  locationPlaces: LocationPlaceData[];
+  onOpenTutor: (id: string) => void;
+  onFilterByCity?: (city: string) => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const clusterRef = useRef<MarkerClusterGroup | null>(null);
+  const locationLayerRef = useRef<import('leaflet').LayerGroup | null>(null);
   const onOpenTutorRef = useRef(onOpenTutor);
   onOpenTutorRef.current = onOpenTutor;
+  const onFilterByCityRef = useRef(onFilterByCity);
+  onFilterByCityRef.current = onFilterByCity;
 
   useEffect(() => {
     if (typeof window === 'undefined' || !containerRef.current) return;
@@ -86,8 +125,10 @@ function LeafletMapView({ markers, onOpenTutor }: { markers: MapMarkerData[]; on
           maxZoom: 18,
         }).addTo(map);
         map.getContainer().addEventListener('click', (e) => {
-          const btn = (e.target as HTMLElement).closest('[data-open-tutor]');
-          if (btn) onOpenTutorRef.current(btn.getAttribute('data-open-tutor')!);
+          const tutorBtn = (e.target as HTMLElement).closest('[data-open-tutor]');
+          if (tutorBtn) onOpenTutorRef.current(tutorBtn.getAttribute('data-open-tutor')!);
+          const cityBtn = (e.target as HTMLElement).closest('[data-filter-city]');
+          if (cityBtn) onFilterByCityRef.current?.(cityBtn.getAttribute('data-filter-city')!);
         });
         mapRef.current = map;
       }
@@ -113,21 +154,50 @@ function LeafletMapView({ markers, onOpenTutor }: { markers: MapMarkerData[]; on
       map.addLayer(cluster);
       clusterRef.current = cluster;
 
-      if (markers.length > 0) {
-        const bounds = L.latLngBounds(markers.map((m) => [m.lat, m.lng] as [number, number]));
+      // Locais (acessos/downloads) — camada separada, SEM cluster: já é um
+      // ponto por cidade (agregado no backend), não um ponto por evento, e
+      // círculo roxo distingue de cara dos pins de tutor (azul/âmbar).
+      if (locationLayerRef.current) {
+        map.removeLayer(locationLayerRef.current);
+      }
+      const locationLayer = L.layerGroup();
+      const mappedPlaces = locationPlaces.filter((p): p is LocationPlaceData & { lat: number; lng: number } =>
+        p.lat != null && p.lng != null);
+      mappedPlaces.forEach((p) => {
+        const radius = Math.max(8, Math.min(26, 6 + Math.sqrt(p.total) * 3));
+        const circle = L.circleMarker([p.lat, p.lng], {
+          radius, color: '#ffffff', weight: 2, fillColor: '#7c3aed', fillOpacity: 0.75,
+        });
+        circle.bindPopup(locationPopupHtml(p));
+        locationLayer.addLayer(circle);
+      });
+      locationLayer.addTo(map);
+      locationLayerRef.current = locationLayer;
+
+      const allCoords: [number, number][] = [
+        ...markers.map((m) => [m.lat, m.lng] as [number, number]),
+        ...mappedPlaces.map((p) => [p.lat, p.lng] as [number, number]),
+      ];
+      if (allCoords.length > 0) {
+        const bounds = L.latLngBounds(allCoords);
         map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
       }
     });
 
     return () => { alive = false; };
-  }, [markers]);
+  }, [markers, locationPlaces]);
 
   useEffect(() => () => { mapRef.current?.remove(); mapRef.current = null; }, []);
 
   return <div ref={containerRef} className="h-[520px] w-full rounded-xl border border-slate-200" />;
 }
 
-export function MapSection({ filter }: { filter: GlobalFilter }) {
+export function MapSection({ filter, onFilterByCity }: {
+  filter: GlobalFilter;
+  /** Clicar num círculo roxo (local de acesso/download) filtra Tutores &
+   * Pets por essa cidade — mesmo cross-filter da Seção K (Locais). */
+  onFilterByCity?: (city: string) => void;
+}) {
   const [feedingFilter, setFeedingFilter] = useState<'' | 'true' | 'false'>('');
   const [openUser, setOpenUser] = useState<string | null>(null);
   const [openPet, setOpenPet] = useState<string | null>(null);
@@ -135,6 +205,8 @@ export function MapSection({ filter }: { filter: GlobalFilter }) {
     () => adminGet('/map-tutors', { ...filterParams(filter), has_feeding: feedingFilter || undefined }),
     [feedingFilter, JSON.stringify(filter)],
   );
+  // Locais (Seção K) — sem filtro próprio, mesmo critério da própria seção.
+  const locations = useAsync<LocationsResponse>(() => adminGet('/locations'), []);
 
   if (loading) return <Loading />;
   if (error || !data) return <ErrorBox msg={error} />;
@@ -170,10 +242,25 @@ export function MapSection({ filter }: { filter: GlobalFilter }) {
         <span className="flex items-center gap-1 text-[11px] text-slate-400">
           <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#0056D2]" /> GPS
           <span className="ml-2 inline-block h-2.5 w-2.5 rounded-full bg-amber-500" /> centro da cidade
+          <span className="ml-2 inline-block h-2.5 w-2.5 rounded-full bg-violet-600" /> acessos/downloads (Locais)
         </span>
       </div>
 
-      <LeafletMapView markers={data.markers} onOpenTutor={setOpenUser} />
+      <LeafletMapView
+        markers={data.markers}
+        locationPlaces={locations.data?.places ?? []}
+        onOpenTutor={setOpenUser}
+        onFilterByCity={onFilterByCity}
+      />
+
+      {locations.data && (
+        <p className="text-[11px] text-slate-400">
+          {numberFmt(locations.data.mapped_places)} de {numberFmt(locations.data.places_total)} cidade(s) de acesso/download no mapa
+          {locations.data.unmapped_places > 0
+            ? ` — ${numberFmt(locations.data.unmapped_places)} sem tutor geocodificado na mesma cidade ainda (seguem no ranking da Seção Locais)`
+            : ''}.
+        </p>
+      )}
 
       <p className="text-[11px] text-slate-400">{data.note}</p>
 
