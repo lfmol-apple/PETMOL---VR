@@ -101,3 +101,20 @@ def _parse_dt(raw: str) -> Optional[datetime]:
         return datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError:
         return None
+
+
+# Plataforma normalizada: a UI oferece iOS/Android/PWA/Web, mas o valor cru no
+# banco varia por tabela/origem (analytics_product_events manda
+# "ios_capacitor"/"android_capacitor" de dentro do app nativo;
+# app_installs usa "ios"/"android"). "ios" tem que casar com os dois.
+PLATFORM_GROUPS: dict[str, tuple[str, ...]] = {
+    "ios": ("ios", "ios_capacitor"),
+    "android": ("android", "android_capacitor"),
+}
+
+
+def platform_clause(column, value: str):
+    """Cláusula SQL `coluna casa com a plataforma pedida` — aceita o grupo
+    normalizado ("ios") ou um valor cru ("ios_capacitor", "pwa", "web")."""
+    group = PLATFORM_GROUPS.get(value)
+    return column.in_(group) if group else column == value

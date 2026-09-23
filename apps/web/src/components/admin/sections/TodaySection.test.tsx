@@ -69,3 +69,24 @@ describe('TodaySection', () => {
     expect(await screen.findByText(/Nenhum tráfego com UTM no dia/)).toBeTruthy();
   });
 });
+
+describe('BaseStrip', () => {
+  it('mostra a base total e os pets desaparecidos, sem repetir o que já está nas abas', async () => {
+    const { BaseStrip } = await import('./TodaySection');
+    adminGet.mockImplementation((path: string) => path === '/overview'
+      ? Promise.resolve({
+          totals: { users: 120, pets: 150, new_users_7d: 9, new_users_30d: 40 },
+          tutors: { avg_pets_per_tutor: 1.3, without_pet: 7 },
+          engagement: { active_users_24h: 11, wau: 30, mau: 70 },
+        })
+      : Promise.resolve({ active: 2, found_total: 5, found_with_petmol_participation: 3 }));
+    render(<BaseStrip />);
+    expect(await screen.findByText('Tutores')).toBeTruthy();
+    expect(screen.getByText('120')).toBeTruthy();
+    expect(screen.getByText(/\+9 em 7d/)).toBeTruthy();
+    expect(screen.getByText('Tutores sem pet')).toBeTruthy();
+    expect(screen.getByText('Pets desaparecidos')).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('5 no total')).toBeTruthy());
+    expect(adminGet).toHaveBeenCalledWith('/overview');
+  });
+});

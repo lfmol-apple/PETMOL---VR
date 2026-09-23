@@ -11,7 +11,7 @@
  * Dia fechado (ontem, ou uma data escolhida) mostra a variação em %.
  */
 import { useState } from 'react';
-import { adminGet, type BriefResponse, type BriefMetric } from '@/lib/admin/analyticsApi';
+import { adminGet, type BriefResponse, type BriefMetric, type OverviewResponse } from '@/lib/admin/analyticsApi';
 import { StatCard } from '@/components/admin/charts/Charts';
 import { spIsoDate, spYesterdayRange } from '@/lib/analytics/spTime';
 import { useAsync, Panel, Loading, ErrorBox, numberFmt } from './sections';
@@ -167,5 +167,42 @@ export function TodaySection({ onOpenPeople, onOpenLocations, onOpenModeration }
           </>
         )}
     </div>
+  );
+}
+
+
+interface MissingPetsSummary { active: number; found_total: number; found_with_petmol_participation: number }
+
+/** Base total — o que sobrou de útil dos antigos "Indicadores gerais" (o
+ * resto era repetido em Alimentação, Funcionalidades, Qualidade dos dados e
+ * Plataformas): quantos tutores/pets existem, quantos estão parados e quantos
+ * voltam. Muda devagar — atualiza a cada 60s, não a cada 20s. */
+export function BaseStrip({ onOpenPeople, onOpenMissingPets }: {
+  onOpenPeople?: () => void; onOpenMissingPets?: () => void;
+}) {
+  const ov = useAsync<OverviewResponse>(() => adminGet('/overview'), [], { intervalMs: 60000 });
+  const missing = useAsync<MissingPetsSummary>(() => adminGet('/missing-pets-summary'), [], { intervalMs: 60000 });
+  if (ov.loading && !ov.data) return <Loading />;
+  if (ov.error || !ov.data) return <ErrorBox msg={ov.error} />;
+  const d = ov.data;
+
+  return (
+    <Panel title="Base total" right={<span className="text-[11px] text-slate-400">a foto de agora, não do dia</span>}>
+      <div className="grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]">
+        <StatCard label="Tutores" tone="green" value={numberFmt(d.totals.users)}
+          sub={`+${numberFmt(d.totals.new_users_7d)} em 7d · +${numberFmt(d.totals.new_users_30d)} em 30d`} onClick={onOpenPeople} />
+        <StatCard label="Pets" tone="blue" value={numberFmt(d.totals.pets)}
+          sub={`${d.tutors.avg_pets_per_tutor} por tutor`} onClick={onOpenPeople} />
+        <StatCard label="Tutores sem pet" value={numberFmt(d.tutors.without_pet)}
+          tone={d.tutors.without_pet > 0 ? 'warn' : 'default'} onClick={onOpenPeople} />
+        <StatCard label="Ativos 24h" tone="violet" value={numberFmt(d.engagement.active_users_24h)}
+          sub={`semana ${numberFmt(d.engagement.wau)} · mês ${numberFmt(d.engagement.mau)}`} onClick={onOpenPeople} />
+        <StatCard label="Pets desaparecidos" tone="red" value={missing.data ? numberFmt(missing.data.active) : '—'}
+          sub="ativos agora" onClick={onOpenMissingPets} />
+        <StatCard label="Encontrados c/ ajuda" tone="teal"
+          value={missing.data ? numberFmt(missing.data.found_with_petmol_participation) : '—'}
+          sub={missing.data ? `${numberFmt(missing.data.found_total)} no total` : undefined} onClick={onOpenMissingPets} />
+      </div>
+    </Panel>
   );
 }

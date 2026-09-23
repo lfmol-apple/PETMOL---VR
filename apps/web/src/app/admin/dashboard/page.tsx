@@ -9,7 +9,7 @@ import { useAdmin } from '@/hooks/useAdmin';
 import type { GlobalFilter } from '@/lib/admin/analyticsApi';
 import { AccordionPanel } from '@/components/admin/AccordionPanel';
 import {
-  OverviewSection, UsersSection, FeaturesSection, DataQualitySection,
+  UsersSection, FeaturesSection, DataQualitySection,
   RetentionSection, CommerceSection,
 } from '@/components/admin/sections/sections';
 import { PhotoLightboxProvider } from '@/components/admin/PhotoLightbox';
@@ -18,7 +18,7 @@ import { JourneySection } from '@/components/admin/sections/JourneySection';
 import { LocationsSection } from '@/components/admin/sections/LocationsSection';
 import { ModerationSection } from '@/components/admin/sections/ModerationSection';
 import { TacticalSection } from '@/components/admin/sections/TacticalSection';
-import { TodaySection } from '@/components/admin/sections/TodaySection';
+import { TodaySection, BaseStrip } from '@/components/admin/sections/TodaySection';
 import dynamic from 'next/dynamic';
 import { OperationsSection } from '@/components/admin/sections/OperationsSection';
 import { spStartOfToday, spYesterdayRange, fmtSpDate } from '@/lib/analytics/spTime';
@@ -85,9 +85,9 @@ function periodLabel(filter: GlobalFilter, datePreset: DatePresetKey): string {
   return 'Todo o período (desde o início)';
 }
 
-type SectionLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L';
+type SectionLetter = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L';
 const SECTION_IDS: Record<SectionLetter, string> = {
-  A: 'mc-a', B: 'mc-b', C: 'mc-c', D: 'mc-d', E: 'mc-e', F: 'mc-f', G: 'mc-g', H: 'mc-h', I: 'mc-i', J: 'mc-j',
+  B: 'mc-b', C: 'mc-c', D: 'mc-d', E: 'mc-e', F: 'mc-f', G: 'mc-g', H: 'mc-h', I: 'mc-i', J: 'mc-j',
   K: 'mc-k', L: 'mc-l',
 };
 
@@ -104,7 +104,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'pessoas', label: '👥 Pessoas e operação' },
 ];
 const TAB_OF_SECTION: Record<SectionLetter, TabKey> = {
-  A: 'hoje', B: 'ativacao', C: 'ativacao', D: 'ativacao', E: 'ativacao', F: 'loja',
+  B: 'ativacao', C: 'ativacao', D: 'ativacao', E: 'ativacao', F: 'loja',
   G: 'aquisicao', H: 'pessoas', I: 'pessoas', J: 'pessoas', K: 'aquisicao', L: 'pessoas',
 };
 const isTabKey = (v: string): v is TabKey => TABS.some((t) => t.key === v);
@@ -174,7 +174,7 @@ export default function AdminDashboardPage() {
   // exatamente a mesma coisa que abas escondidas). O toggle continua
   // disponível pra quem quiser recolher alguma seção específica depois.
   const [open, setOpen] = useState<Record<SectionLetter, boolean>>({
-    A: false, B: true, C: true, D: true, E: true, F: true, G: true, H: true, I: true, J: true, K: true, L: true,
+    B: true, C: true, D: true, E: true, F: true, G: true, H: true, I: true, J: true, K: true, L: true,
   });
 
   useEffect(() => {
@@ -195,11 +195,6 @@ export default function AdminDashboardPage() {
     }, 80);
   };
 
-  const crossFilterPlatform = (platform: string) => {
-    setFilter((f) => ({ ...f, platform }));
-    openAndScroll('H');
-  };
-  const openFeeding = () => openAndScroll('C');
   /** Todo indicador cujo drill-down natural é "quem são essas pessoas/pets"
    * leva pra Seção H (tabela real, com busca) — nenhum card deve ficar
    * decorativo. */
@@ -251,19 +246,22 @@ export default function AdminDashboardPage() {
             onChange={(e) => { const v = e.target.value; setCustomTo(v); applyCustomRange(customFrom, v); }}
             className={`rounded-md border px-2 py-1 ${datePreset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
         </div>
-        <input placeholder="plataforma" value={filter.platform || ''}
+        <select value={filter.platform || ''} aria-label="Plataforma"
           onChange={(e) => setFilter((f) => ({ ...f, platform: e.target.value || undefined }))}
-          className="w-28 rounded-md border border-slate-200 px-2 py-1" />
-        <input placeholder="versão" value={filter.app_version || ''}
-          onChange={(e) => setFilter((f) => ({ ...f, app_version: e.target.value || undefined }))}
-          className="w-28 rounded-md border border-slate-200 px-2 py-1" />
+          className="rounded-md border border-slate-200 px-2 py-1">
+          <option value="">Todas as plataformas</option>
+          <option value="ios">iOS</option>
+          <option value="android">Android</option>
+          <option value="pwa">App instalado (PWA)</option>
+          <option value="web">Navegador</option>
+        </select>
         <input placeholder="UF" value={filter.state || ''}
           onChange={(e) => setFilter((f) => ({ ...f, state: e.target.value || undefined }))}
           className="w-16 rounded-md border border-slate-200 px-2 py-1" />
         <input placeholder="cidade" value={filter.city || ''}
           onChange={(e) => setFilter((f) => ({ ...f, city: e.target.value || undefined }))}
           className="w-36 rounded-md border border-slate-200 px-2 py-1" />
-        {(filter.platform || filter.app_version || filter.state || filter.city) && (
+        {(filter.platform || filter.state || filter.city) && (
           <button type="button" onClick={() => setFilter((f) => ({ period_days: f.period_days, since: f.since, until: f.until }))}
             className="rounded-md border border-slate-200 bg-white px-2 py-1 font-semibold text-slate-500">limpar</button>
         )}
@@ -330,19 +328,16 @@ export default function AdminDashboardPage() {
                 onOpenLocations={() => openLocations('downloads')}
                 onOpenModeration={() => openAndScroll('L')}
               />
-              <AccordionPanel id={SECTION_IDS.A} letter="A" title="Indicadores gerais (base total)" subtitle="Painel antigo — será absorvido pelas abas" open={open.A} onToggle={() => toggle('A')}>
-                <OverviewSection filter={filter} onCrossFilterPlatform={crossFilterPlatform} onOpenFeeding={openFeeding}
-                  onOpenTutors={openTutors} onOpenMissingPets={openMissingPets} onOpenLocations={openLocations} />
-              </AccordionPanel>
+              <BaseStrip onOpenPeople={openTutors} onOpenMissingPets={openMissingPets} />
             </div>
           )}
 
           {tab === 'aquisicao' && (
             <div className="space-y-4">
-              <AccordionPanel id={SECTION_IDS.K} letter="K" title="Locais" subtitle="De onde vêm os acessos, downloads e cadastros" open={open.K} onToggle={() => toggle('K')}>
+              <AccordionPanel id={SECTION_IDS.K} letter="K" title="Locais" subtitle="segue o período · campanhas, custo e locais" open={open.K} onToggle={() => toggle('K')}>
                 <LocationsSection filter={filter} sortBy={locationsSortBy} onSortByChange={setLocationsSortBy} onFilterByCity={filterByCity} />
               </AccordionPanel>
-              <AccordionPanel id={SECTION_IDS.G} letter="G" title="Mapa dos Tutores" open={open.G} onToggle={() => toggle('G')}>
+              <AccordionPanel id={SECTION_IDS.G} letter="G" title="Mapa dos Tutores" subtitle="segue o período (data de cadastro)" open={open.G} onToggle={() => toggle('G')}>
                 <MapSection filter={filter} onFilterByCity={filterByCity} />
               </AccordionPanel>
             </div>
@@ -351,18 +346,18 @@ export default function AdminDashboardPage() {
           {tab === 'ativacao' && (
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
               <div className="space-y-4">
-                <AccordionPanel id={SECTION_IDS.B} letter="B" title="Jornada e Conversão" open={open.B} onToggle={() => toggle('B')}>
+                <AccordionPanel id={SECTION_IDS.B} letter="B" title="Jornada e Conversão" subtitle="segue o período · cadastrados no período" open={open.B} onToggle={() => toggle('B')}>
                   <JourneySection filter={filter} />
                 </AccordionPanel>
-                <AccordionPanel id={SECTION_IDS.E} letter="E" title="Retenção" open={open.E} onToggle={() => toggle('E')}>
+                <AccordionPanel id={SECTION_IDS.E} letter="E" title="Retenção" subtitle="foto geral — não segue o período" open={open.E} onToggle={() => toggle('E')}>
                   <RetentionSection filter={filter} onOpenTutors={openTutors} />
                 </AccordionPanel>
               </div>
               <div className="space-y-4">
-                <AccordionPanel id={SECTION_IDS.C} letter="C" title="Alimentação e Ração" subtitle="Prioridade comercial" open={open.C} onToggle={() => toggle('C')}>
+                <AccordionPanel id={SECTION_IDS.C} letter="C" title="Alimentação e Ração" subtitle="Prioridade comercial · foto atual, não segue o período" open={open.C} onToggle={() => toggle('C')}>
                   <FeedingSection filter={filter} onOpenTutors={openTutors} />
                 </AccordionPanel>
-                <AccordionPanel id={SECTION_IDS.D} letter="D" title="Utilização das Funcionalidades" open={open.D} onToggle={() => toggle('D')}>
+                <AccordionPanel id={SECTION_IDS.D} letter="D" title="Utilização das Funcionalidades" subtitle="foto atual — não segue o período" open={open.D} onToggle={() => toggle('D')}>
                   <FeaturesSection filter={filter} />
                 </AccordionPanel>
               </div>
@@ -370,7 +365,7 @@ export default function AdminDashboardPage() {
           )}
 
           {tab === 'loja' && (
-            <AccordionPanel id={SECTION_IDS.F} letter="F" title="Loja e Monetização" open={open.F} onToggle={() => toggle('F')}>
+            <AccordionPanel id={SECTION_IDS.F} letter="F" title="Loja e Monetização" subtitle="segue o período · intenção de compra, não venda" open={open.F} onToggle={() => toggle('F')}>
               <CommerceSection filter={filter} onOpenTutors={openTutors} />
             </AccordionPanel>
           )}
@@ -399,7 +394,7 @@ export default function AdminDashboardPage() {
                   <TacticalSection filter={filter} />
                 </AccordionPanel>
               </div>
-              <AccordionPanel id={SECTION_IDS.H} letter="H" title="Tutores e Pets" subtitle="Tabela completa, com busca e filtros" open={open.H} onToggle={() => toggle('H')}>
+              <AccordionPanel id={SECTION_IDS.H} letter="H" title="Tutores e Pets" subtitle="segue o período (data de cadastro) · busca e filtros" open={open.H} onToggle={() => toggle('H')}>
                 <UsersSection filter={filter} />
               </AccordionPanel>
             </div>

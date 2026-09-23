@@ -33,6 +33,7 @@ from ...analytics.install_models import AppInstall, DOWNLOAD_PLATFORMS, install_
 from ...analytics.models import AnalyticsProductEvent
 from ...analytics.spend_models import CampaignSpend
 from ...user_auth.models import User
+from .filters import PLATFORM_GROUPS, platform_clause
 
 _BR = ZoneInfo("America/Sao_Paulo")
 _ANCHORS = ("app_open", "session_start")
@@ -105,7 +106,7 @@ def _signup_origins(
             continue
         tracked = next((e for e in events if e.utm_campaign or e.utm_source), None)
         first = tracked or events[0]
-        if platform and first.platform != platform:
+        if platform and first.platform not in (PLATFORM_GROUPS.get(platform) or (platform,)):
             continue
         origins.append((tracked.utm_campaign or tracked.utm_source, tracked.utm_source, tracked.utm_medium)
                        if tracked else (NO_CAMPAIGN, None, None))
@@ -133,7 +134,7 @@ def campaign_summary(
     if until:
         iq = iq.filter(AppInstall.created_at <= until)
     if platform:
-        iq = iq.filter(AppInstall.platform == platform)
+        iq = iq.filter(platform_clause(AppInstall.platform, platform))
     for r in iq.all():
         slot = _slot(buckets, r.utm_campaign or NO_CAMPAIGN)
         if r.utm_source:
@@ -151,7 +152,7 @@ def campaign_summary(
     if until:
         eq = eq.filter(AnalyticsProductEvent.received_at <= until)
     if platform:
-        eq = eq.filter(AnalyticsProductEvent.platform == platform)
+        eq = eq.filter(platform_clause(AnalyticsProductEvent.platform, platform))
     for e in eq.all():
         slot = _slot(buckets, e.utm_campaign or NO_CAMPAIGN)
         if e.utm_source:

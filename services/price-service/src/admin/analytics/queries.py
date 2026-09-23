@@ -29,7 +29,7 @@ from ...pets.parasite_models import ParasiteControlRecord
 from ...pets.vaccine_models import VaccineRecord
 from ...support.models import SupportFeedback
 from ...user_auth.models import User
-from .filters import AnalyticsFilters
+from .filters import AnalyticsFilters, platform_clause
 from .state import (
     FEATURE_BY_KEY,
     FEATURE_REGISTRY,
@@ -214,7 +214,7 @@ def _downloads_summary(db: Session, f: AnalyticsFilters, now: datetime) -> dict[
     if f.until:
         q = q.filter(AppInstall.created_at <= f.until)
     if f.platform:
-        q = q.filter(AppInstall.platform == f.platform)
+        q = q.filter(platform_clause(AppInstall.platform, f.platform))
     rows = q.all()
     downloads = [r for r in rows if r.platform in DOWNLOAD_PLATFORMS]
     ios = sum(1 for r in downloads if r.platform == "ios")
@@ -226,7 +226,7 @@ def _downloads_summary(db: Session, f: AnalyticsFilters, now: datetime) -> dict[
     if win:
         pq = db.query(AppInstall).filter(AppInstall.created_at >= max(win[0], cutoff), AppInstall.created_at < win[1])
         if f.platform:
-            pq = pq.filter(AppInstall.platform == f.platform)
+            pq = pq.filter(platform_clause(AppInstall.platform, f.platform))
         prev_total = sum(1 for r in pq.all() if r.platform in DOWNLOAD_PLATFORMS)
 
     return {
@@ -259,7 +259,7 @@ def _acessos_summary(db: Session, f: AnalyticsFilters, now: datetime) -> dict[st
     if f.until:
         q = q.filter(AnalyticsProductEvent.received_at <= f.until)
     if f.platform:
-        q = q.filter(AnalyticsProductEvent.platform == f.platform)
+        q = q.filter(platform_clause(AnalyticsProductEvent.platform, f.platform))
     rows = q.all()
     total = len(rows)
     unique_visitors = len({
@@ -282,7 +282,7 @@ def _acessos_summary(db: Session, f: AnalyticsFilters, now: datetime) -> dict[st
             AnalyticsProductEvent.received_at < win[1],
         )
         if f.platform:
-            pq = pq.filter(AnalyticsProductEvent.platform == f.platform)
+            pq = pq.filter(platform_clause(AnalyticsProductEvent.platform, f.platform))
         prev_total = pq.count()
 
     return {
@@ -1022,7 +1022,7 @@ def list_users(
         q = q.filter(
             db.query(AnalyticsProductEvent.id)
             .filter(AnalyticsProductEvent.user_id == User.id,
-                    AnalyticsProductEvent.platform == f.platform)
+                    platform_clause(AnalyticsProductEvent.platform, f.platform))
             .exists()
         )
 
@@ -1547,21 +1547,26 @@ def retention(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
 
 def commerce(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
     now = _utcnow()
-    since = f.since or (now - timedelta(days=30))
+    since, until = f.since, f.until   # sem período = TODO o histórico (antes virava 30d em silêncio)
+
+    def _window(q):
+        if since:
+            q = q.filter(AnalyticsProductEvent.received_at >= since)
+        if until:
+            q = q.filter(AnalyticsProductEvent.received_at <= until)
+        return q
 
     def _count(event_name):
         return int(
-            db.query(func.count(AnalyticsProductEvent.id))
-            .filter(AnalyticsProductEvent.event_name == event_name,
-                    AnalyticsProductEvent.received_at >= since)
+            _window(db.query(func.count(AnalyticsProductEvent.id))
+                    .filter(AnalyticsProductEvent.event_name == event_name))
             .scalar() or 0
         )
 
     def _uniq(event_name):
         return int(
-            db.query(func.count(func.distinct(_identity_expr())))
-            .filter(AnalyticsProductEvent.event_name == event_name,
-                    AnalyticsProductEvent.received_at >= since)
+            _window(db.query(func.count(func.distinct(_identity_expr())))
+                    .filter(AnalyticsProductEvent.event_name == event_name))
             .scalar() or 0
         )
 
@@ -1574,10 +1579,9 @@ def commerce(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
     # per-merchant from properties_json.merchant
     merchants: dict[str, dict[str, int]] = defaultdict(lambda: {"offer_viewed": 0, "commerce_click": 0})
     for name in ("offer_viewed", "commerce_click"):
-        rows = db.query(AnalyticsProductEvent.properties_json).filter(
+        rows = _window(db.query(AnalyticsProductEvent.properties_json).filter(
             AnalyticsProductEvent.event_name == name,
-            AnalyticsProductEvent.received_at >= since,
-        ).all()
+        )).all()
         for (raw,) in rows:
             m = (_safe_json(raw) or {}).get("merchant")
             if m:
@@ -1585,7 +1589,7 @@ def commerce(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
 
     return {
         "generated_at": now.isoformat(),
-        "window_since": since.isoformat(),
+        "window_since": since.isoformat() if since else None,   # None = todo o histórico
         "store_opened_users": store_opened_u,
         "offer_viewed": offer_viewed,
         "offer_viewed_users": offer_viewed_u,

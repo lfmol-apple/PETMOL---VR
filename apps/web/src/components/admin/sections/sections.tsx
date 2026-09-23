@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   adminGet, filterParams, type GlobalFilter,
-  type OverviewResponse, type FeatureMatrixResponse, type FeatureRow,
+  type FeatureMatrixResponse, type FeatureRow,
   type UsersListResponse, type DataQualityResponse,
   type DeviceType, type PetThumbnail, DEVICE_TYPE_LABEL,
 } from '@/lib/admin/analyticsApi';
-import { LineChart, BarRanking, StatCard, PercentBar } from '@/components/admin/charts/Charts';
+import { BarRanking, StatCard, PercentBar } from '@/components/admin/charts/Charts';
 import { DataTable, Pagination, StatePill, fmtDateTime, type Column } from '@/components/admin/DataTable';
 import { PetPhotoThumb } from '@/components/admin/PhotoLightbox';
 import { UserDetailDrawer, PetDetailDrawer, PopulationDrawer } from './detail';
@@ -68,129 +68,6 @@ export function Panel({ title, children, right }: { title: string; children: Rea
         {right}
       </div>
       {children}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  OVERVIEW
-// ═══════════════════════════════════════════════════════════════════════════
-
-interface MissingPetsSummary {
-  active: number; found_total: number; found_with_petmol_participation: number; note: string;
-}
-
-export function OverviewSection({
-  filter, onCrossFilterPlatform, onOpenFeeding, onOpenTutors, onOpenMissingPets, onOpenLocations,
-}: {
-  filter: GlobalFilter;
-  /** Clicar numa barra de plataforma filtra Tutores & Pets por ela (filtro
-   * cruzado real — o backend agora aplica f.platform, antes era ignorado). */
-  onCrossFilterPlatform?: (platform: string) => void;
-  /** Clicar em "Sem alimentação"/"c/ alimentação"/"controle ativo" abre a
-   * Seção C, que já tem o drill-down certo (por estágio do cadastro) —
-   * melhor que replicar em tabela. */
-  onOpenFeeding?: () => void;
-  /** Todo card cujo drill-down natural é "quem são" abre a Seção H (tabela
-   * de Tutores & Pets, com busca) — nenhum indicador deve ficar mudo. */
-  onOpenTutors?: () => void;
-  /** "Pets desaparecidos" / "Encontrados" levam pra tela real do recurso. */
-  onOpenMissingPets?: () => void;
-  /** Downloads/Acessos abrem a Seção Locais já ordenada pela coluna certa
-   * (item 5 do pedido de evolução do dashboard). */
-  onOpenLocations?: (kind: 'downloads' | 'acessos') => void;
-}) {
-  const { data, error, loading } = useAsync<OverviewResponse>(
-    () => adminGet('/overview', filterParams(filter)), [JSON.stringify(filter)],
-  );
-  const missing = useAsync<MissingPetsSummary>(
-    () => adminGet('/missing-pets-summary'), [],
-  );
-  if (loading) return <Loading />;
-  if (error || !data) return <ErrorBox msg={error} />;
-
-  const semAlimentacao = Math.max(0, data.totals.pets - data.tutors.pets_with_feeding_configured);
-  const semAlimentacaoPct = data.totals.pets ? Math.round((semAlimentacao / data.totals.pets) * 1000) / 10 : 0;
-
-  return (
-    <div className="space-y-4">
-      {/* auto-fit: cada card pega no mínimo 170px e a grade decide sozinha
-          quantos cabem por linha — não depende de breakpoint de viewport
-          (o md:/xl:grid-cols-N anterior quebrava sempre que a coluna real
-          ficava mais estreita do que o breakpoint assumia; era o caso aqui,
-          dentro da divisão de 2 colunas da página). */}
-      <div className="grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]">
-        <StatCard label="Tutores" tone="green" value={numberFmt(data.totals.users)}
-          sub={`+${data.totals.new_users_today} hoje · +${data.totals.new_users_7d} 7d · +${data.totals.new_users_30d} 30d`}
-          trend={data.series.new_users} onClick={onOpenTutors} />
-        <StatCard label="Pets" tone="blue" value={numberFmt(data.totals.pets)}
-          sub={`+${data.totals.new_pets_7d} 7d · ${data.tutors.avg_pets_per_tutor} por tutor`}
-          trend={data.series.new_pets} onClick={onOpenTutors} />
-        <StatCard label="Ativos 24h" tone="violet" value={numberFmt(data.engagement.active_users_24h)}
-          sub={`WAU ${numberFmt(data.engagement.wau)} · MAU ${numberFmt(data.engagement.mau)}`}
-          trend={data.series.active_users} onClick={onOpenTutors} />
-        <StatCard label="Downloads" tone="good" value={numberFmt(data.downloads.total)}
-          sub={`iOS ${numberFmt(data.downloads.ios)} · Android ${numberFmt(data.downloads.android)}${data.downloads.pwa ? ` · PWA ${numberFmt(data.downloads.pwa)}` : ''}${data.downloads.delta_pct != null ? ` · ${data.downloads.delta_pct > 0 ? '+' : ''}${data.downloads.delta_pct}% vs período anterior` : ''}`}
-          onClick={onOpenLocations ? () => onOpenLocations('downloads') : undefined} />
-        <StatCard label="Acessos" value={numberFmt(data.acessos.total_sessions)}
-          sub={`${numberFmt(data.acessos.unique_visitors)} visitantes únicos${data.acessos.delta_pct != null ? ` · ${data.acessos.delta_pct > 0 ? '+' : ''}${data.acessos.delta_pct}% vs período anterior` : ''}`}
-          onClick={onOpenLocations ? () => onOpenLocations('acessos') : undefined} />
-        <StatCard label="Sem alimentação" tone="amber" value={numberFmt(semAlimentacao)}
-          sub={`${semAlimentacaoPct}% dos pets · investigar`} onClick={onOpenFeeding} />
-        <StatCard label="Pets desaparecidos" tone="red"
-          value={missing.data ? numberFmt(missing.data.active) : '—'}
-          sub="Ativos agora" onClick={onOpenMissingPets} />
-        <StatCard label="Encontrados c/ ajuda do PETMOL" tone="teal"
-          value={missing.data ? numberFmt(missing.data.found_with_petmol_participation) : '—'}
-          sub={missing.data ? `${numberFmt(missing.data.found_total)} encontrados no total` : undefined}
-          onClick={onOpenMissingPets} />
-        <StatCard label="DAU / MAU" value={data.engagement.dau_mau != null ? `${(data.engagement.dau_mau * 100).toFixed(0)}%` : '—'}
-          sub={`${numberFmt(data.engagement.sessions_7d)} sessões 7d`} onClick={onOpenTutors} />
-        <StatCard label="Tutores sem pet" value={numberFmt(data.tutors.without_pet)} tone={data.tutors.without_pet > 0 ? 'warn' : 'default'}
-          onClick={onOpenTutors} />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]">
-        <StatCard label="Tutores c/ alimentação" value={numberFmt(data.tutors.with_feeding_configured)}
-          sub={`${numberFmt(data.tutors.pets_with_feeding_configured)} pets`} onClick={onOpenFeeding} />
-        <StatCard label="Pets c/ controle ativo" value={numberFmt(data.tutors.pets_with_active_control)} tone="good" onClick={onOpenFeeding} />
-        <StatCard label="Pets com alimentação" value={numberFmt(data.tutors.pets_with_feeding_configured)} onClick={onOpenFeeding} />
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Novos tutores / dia (30d)"><LineChart data={data.series.new_users} color="#0056D2" /></Panel>
-        <Panel title="Usuários ativos / dia (30d)"><LineChart data={data.series.active_users} color="#10b981" /></Panel>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Plataformas (usuários, 30d)" right={onCrossFilterPlatform ? <span className="text-[11px] text-slate-400">clique filtra Tutores & Pets</span> : undefined}>
-          <BarRanking data={data.platforms.map((p) => ({ label: p.platform, value: p.users }))}
-            onBarClick={onCrossFilterPlatform} />
-        </Panel>
-        <Panel title="Versões do app (usuários, 30d)">
-          <BarRanking data={data.app_versions.map((p) => ({ label: p.version, value: p.users }))} color="#8b5cf6" />
-        </Panel>
-      </div>
-
-      <Panel title="Top funcionalidades (adoção por pet)">
-        <BarRanking data={data.top_features.map((f) => ({ label: f.label, value: Math.round(f.adoption_pct * 1000) / 10 }))}
-          formatValue={(v) => `${v}%`} max={100} />
-      </Panel>
-
-      <Panel title="Qualidade dos dados — piores 5">
-        <div className="space-y-1.5">
-          {data.data_quality_headline.issues.map((i) => (
-            <div key={i.key} className="flex items-center gap-3 text-[12px]">
-              <span className="w-56 text-slate-600">{i.label}</span>
-              <PercentBar pct={i.pct} tone={i.pct > 0.5 ? 'rose' : i.pct > 0.2 ? 'amber' : 'blue'} />
-              <span className="text-slate-500">{numberFmt(i.count)} / {numberFmt(i.of)}</span>
-            </div>
-          ))}
-        </div>
-      </Panel>
-
-      <p className="text-[11px] text-slate-400">{data.engagement.note}</p>
-      <p className="text-[11px] text-slate-400">{data.downloads.note}</p>
     </div>
   );
 }
