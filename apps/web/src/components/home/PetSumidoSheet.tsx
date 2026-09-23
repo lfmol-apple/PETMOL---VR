@@ -7,6 +7,7 @@ import type { PetHealthProfile } from '@/lib/petHealth';
 import { getToken } from '@/lib/auth-token';
 import { isNativeApp } from '@/lib/pwaPlatform';
 import { reverseGeocode, formatReverseGeocodeResult } from '@/lib/osm';
+import { classifyPhotoUpload, notAPetPhotoMessage } from '@/lib/photoModerationMessages';
 
 interface PetSumidoSheetProps {
   pet: PetHealthProfile;
@@ -313,8 +314,10 @@ export function PetSumidoSheet({
           resolvedPhotoUrl = upData.photo_url;
         } else if (upRes.ok && upData.status === 'pending') {
           setPhotoModerationNotice(upData.message || 'Esta fotografia precisa de uma verificação adicional. Você pode enviar outra imagem.');
-        } else if (upRes.status === 422) {
-          setPhotoModerationNotice(upData.detail || 'Não foi possível aprovar esta imagem. Envie uma fotografia real do seu pet, sem conteúdo impróprio.');
+        } else if (classifyPhotoUpload(upRes.status, upData) === 'rejected') {
+          // O alerta é urgente e segue sem essa foto; o pedido gentil aparece
+          // na própria tela do alerta.
+          setPhotoModerationNotice(`${notAPetPhotoMessage(pet.pet_name)} Seu alerta foi enviado normalmente, sem essa foto.`);
         }
       } catch { /* silent — alerta vai sem foto nova */ }
     }

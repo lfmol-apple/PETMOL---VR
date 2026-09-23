@@ -12,6 +12,7 @@ import { resolveBackendPetPhoto } from '@/lib/backendPetProfile';
 import { localTodayISO } from '@/lib/localDate';
 import { sanitizePetName } from '@/lib/petName';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
+import { classifyPhotoUpload, notAPetPhotoMessage } from '@/lib/photoModerationMessages';
 
 // ── Breed data (sincronizado com register-pet) ────────────────────────────────
 
@@ -555,6 +556,11 @@ export function EditPetModal({ pet, photoVersion, careSummary, onClose, onSave, 
           method: 'POST', headers, credentials: 'include', body: fd,
         });
         const photoData = await res.json().catch(() => ({})) as { detail?: string; status?: string; message?: string };
+        if (classifyPhotoUpload(res.status, photoData) === 'rejected') {
+          // Nada foi salvo ainda (nem o resto do formulário): a pessoa vê o
+          // pedido gentil, escolhe outra foto e salva de novo.
+          throw new Error(notAPetPhotoMessage(formData.name || pet.pet_name || pet.name));
+        }
         if (!res.ok) {
           throw new Error(photoData.detail || 'Falha no upload da foto');
         }
