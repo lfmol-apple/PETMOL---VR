@@ -118,6 +118,12 @@ class Settings(BaseSettings):
     # even if the server's env file doesn't set it.
     admin_master_email: str = "leonardofmol@gmail.com"
 
+    # Recebem os MESMOS pushes administrativos do admin master (novo
+    # acesso/download) sem ganhar acesso ao painel — NUNCA usado em
+    # `get_current_admin` (isso continua só `admin_master_email`). Lista
+    # separada por vírgula; ver `admin_extra_notify_emails_list`.
+    admin_extra_notify_emails: str = "contato@vepiconsorcios.com.br"
+
     # Contagem de alcance da campanha (push "Novo download" e e-mail diário):
     # total = base (usuários reais que já existiam) + instalações registradas
     # a partir do corte. Tudo antes do corte é conta/aparelho de teste e não
@@ -514,6 +520,15 @@ class Settings(BaseSettings):
                 return False
         return value
     
+    @property
+    def admin_extra_notify_emails_list(self) -> List[str]:
+        """Lista de e-mails extras que recebem os mesmos pushes do admin
+        master, parseada de `admin_extra_notify_emails` (separado por
+        vírgula) — o próprio `admin_master_email` nunca duplica aqui."""
+        emails = [e.strip().lower() for e in self.admin_extra_notify_emails.split(",") if e.strip()]
+        master = self.admin_master_email.strip().lower()
+        return [e for e in emails if e != master]
+
     @property
     def cors_origins_list(self) -> List[str]:
         """Parse CORS origins from comma-separated string."""

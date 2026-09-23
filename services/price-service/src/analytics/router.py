@@ -475,22 +475,32 @@ def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) ->
 
         settings = get_settings()
         admin = db.query(User).filter(func.lower(User.email) == settings.admin_master_email.lower()).first()
-        if admin:
+        # Mesmos destinatários do e-mail diário não entram aqui de
+        # propósito (só o push) — admin master + extras configurados em
+        # `admin_extra_notify_emails` (não ganham acesso ao painel, só o
+        # mesmo aviso).
+        extra_emails = settings.admin_extra_notify_emails_list
+        recipients = list(filter(None, [admin]))
+        if extra_emails:
+            recipients += db.query(User).filter(func.lower(User.email).in_(extra_emails)).all()
+        if recipients:
             where = " · ".join(p for p in (row.city, row.region, row.country) if p) or "local desconhecido"
             from ..analytics.install_models import campaign_total
             acumulado, base, camp = campaign_total(db)
-            try:
-                from ..notifications import push_to_user
-                is_download = _is_real_download(platform)
-                title = "📲 Novo download do PETMOL" if is_download else "🌐 Novo acesso ao PETMOL"
-                push_to_user(str(admin.id), {
-                    "title": title,
-                    "body": f"{where} — {_install_platform_label(platform, row.user_agent)} · {acumulado} no total ({base} base + {camp} campanha)",
-                    "tag": "petmol-install",
-                    "data": {"url": "/admin/dashboard"},
-                })
-            except Exception:
-                pass
+            is_download = _is_real_download(platform)
+            title = "📲 Novo download do PETMOL" if is_download else "🌐 Novo acesso ao PETMOL"
+            body = f"{where} — {_install_platform_label(platform, row.user_agent)} · {acumulado} no total ({base} base + {camp} campanha)"
+            from ..notifications import push_to_user
+            for recipient in recipients:
+                try:
+                    push_to_user(str(recipient.id), {
+                        "title": title,
+                        "body": body,
+                        "tag": "petmol-install",
+                        "data": {"url": "/admin/dashboard"},
+                    })
+                except Exception:
+                    pass
     except Exception:
         db.rollback()
     finally:

@@ -259,3 +259,64 @@ def test_app_install_push_title_distinguishes_acesso_from_download(monkeypatch):
     assert titles["pwa"] == "📲 Novo download do PETMOL"
     assert titles["ios"] == "📲 Novo download do PETMOL"
     assert titles["android"] == "📲 Novo download do PETMOL"
+
+
+def test_app_install_push_also_reaches_extra_notify_recipients(monkeypatch):
+    """`admin_extra_notify_emails` recebe o MESMO push do admin master, sem
+    ganhar acesso ao painel (isso continua só `admin_master_email`) — pedido
+    do dono, 22/09."""
+    from uuid import uuid4
+
+    from src.config import get_settings
+    from src.db import SessionLocal
+    from src.user_auth.models import User
+
+    settings = get_settings()
+    extra_email = "contato@vepiconsorcios.com.br"
+    monkeypatch.setattr(settings, "admin_extra_notify_emails", extra_email, raising=False)
+
+    db = SessionLocal()
+    try:
+        admin_email = settings.admin_master_email.lower()
+        db.add(User(email=admin_email, password_hash="x", name="Admin"))
+        db.add(User(email=extra_email, password_hash="x", name="Henrique"))
+        db.commit()
+    finally:
+        db.close()
+
+    sent_to = []
+    monkeypatch.setattr("src.notifications.push_to_user", lambda uid, payload: sent_to.append(uid))
+
+    from src.analytics.router import _enrich_and_notify_install
+    from src.analytics.install_models import AppInstall
+
+    db = SessionLocal()
+    try:
+        row = AppInstall(platform="ios", ip_hash=f"t{uuid4().hex[:12]}")
+        db.add(row)
+        db.commit()
+        row_id = row.id
+    finally:
+        db.close()
+
+    _enrich_and_notify_install(row_id, None, "ios")
+
+    db = SessionLocal()
+    try:
+        admin_id = str(db.query(User).filter(User.email == admin_email).first().id)
+        extra_id = str(db.query(User).filter(User.email == extra_email).first().id)
+    finally:
+        db.close()
+
+    assert set(sent_to) == {admin_id, extra_id}
+
+
+def test_admin_extra_notify_emails_never_includes_master(monkeypatch):
+    """Reforço da regra: master nunca duplica na lista de extras, mesmo se
+    alguém colocar o próprio e-mail master lá por engano."""
+    from src.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "admin_extra_notify_emails",
+                        f"{settings.admin_master_email}, contato@vepiconsorcios.com.br", raising=False)
+    assert settings.admin_extra_notify_emails_list == ["contato@vepiconsorcios.com.br"]
