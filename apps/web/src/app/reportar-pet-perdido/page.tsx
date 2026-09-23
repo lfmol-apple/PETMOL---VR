@@ -136,7 +136,11 @@ export default function ReportarPetPerdidoPage() {
       }
       setCreated({ token: data.access_token, publicUrl: data.public_url || null });
       setStatusToken(data.access_token);
-      setMessage('Registro criado. Guarde este link para acompanhar possíveis contatos.');
+      setMessage(
+        data.photo_pending_review
+          ? `Registro criado. Guarde este link para acompanhar possíveis contatos. ${data.photo_pending_message || 'A foto está em análise e pode levar um tempo para aparecer.'}`
+          : 'Registro criado. Guarde este link para acompanhar possíveis contatos.'
+      );
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Erro ao registrar');
     } finally {

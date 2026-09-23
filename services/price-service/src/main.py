@@ -55,6 +55,8 @@ from .admin import shopee_coverage_admin_router
 from .admin import admin_debug_router
 from .admin import admin_analytics_router
 from .admin import models as _admin_models
+from .moderation.models import PhotoModerationDecision as _photo_moderation_decision_model  # noqa: F401 — register with Base
+from .moderation.router import router as moderation_admin_router
 from .affiliate_links import ProductAffiliateLink as _product_affiliate_link_model  # noqa: F401 — register with Base
 from .affiliate_links import MarketplaceOffer as _marketplace_offer_model  # noqa: F401 — register with Base
 from .affiliate_feed import AffiliateFeedOffer as _affiliate_feed_offer_model  # noqa: F401 — register with Base
@@ -275,6 +277,7 @@ app.include_router(commerce_identity_admin_router)
 app.include_router(shopee_coverage_admin_router)
 app.include_router(admin_debug_router)
 app.include_router(admin_analytics_router)
+app.include_router(moderation_admin_router)
 # Some deployments forward /api/* without stripping the prefix.
 app.include_router(admin_router, prefix="/api")
 app.include_router(affiliate_links_admin_router, prefix="/api")
@@ -286,6 +289,7 @@ app.include_router(monetization_coverage_admin_router, prefix="/api")
 app.include_router(commerce_identity_admin_router, prefix="/api")
 app.include_router(shopee_coverage_admin_router, prefix="/api")
 app.include_router(admin_analytics_router, prefix="/api")
+app.include_router(moderation_admin_router, prefix="/api")
 
 # Servir arquivos estáticos (fotos de pets) — sempre que storage for local
 # Em prod com R2/S3: as fotos têm URL pública direta, sem precisar deste mount

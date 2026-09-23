@@ -940,6 +940,26 @@ def _broadcast_missing_pet(
     return 0
 
 
+def _photo_url_is_approved(db: Session, photo_url: str) -> bool:
+    """`photo_url` só é aceito como referência de alerta quando corresponde
+    a uma foto que passou pela moderação de verdade e foi aprovada — nunca
+    uma string qualquer que o cliente decidiu mandar (ver create_missing_pet)."""
+    from ..moderation.classifier import APPROVED
+    from ..moderation.models import PhotoModerationDecision
+
+    key = (photo_url or "").lstrip("/")
+    if key.startswith("uploads/"):
+        key = key[len("uploads/"):]
+    if not key:
+        return False
+    return (
+        db.query(PhotoModerationDecision)
+        .filter(PhotoModerationDecision.final_public_key == key, PhotoModerationDecision.status == APPROVED)
+        .first()
+        is not None
+    )
+
+
 def _save_sighting_photo(photo_b64: str) -> str:
     photo_bytes, mime = _decode_finder_photo(photo_b64)
     ext = "jpg"
@@ -1506,13 +1526,26 @@ def create_missing_pet(
     breed = body.breed
     photo_url = body.photo_url
 
+    # Foto vinda pronta no corpo (fluxo normal: o app chama /upload-photo
+    # ANTES, que já modera, e manda o resultado aqui) só é aceita se bater
+    # com uma decisão realmente aprovada — sem isso, um POST direto na API
+    # com uma string qualquer de photo_url contornaria a moderação
+    # inteira. Checa ANTES de aplicar o fallback da foto do pet (essa,
+    # lida direto do cadastro em vez de vinda no corpo da requisição, já é
+    # confiável por definição — foi aprovada quando o pet ganhou a foto).
+    if photo_url and not _photo_url_is_approved(db, photo_url):
+        photo_url = None
+
     if pet_id:
         pet = get_accessible_pet_or_404(db, user_id, pet_id)
         owner_user_id = str(pet.user_id)
         pet_name = pet_name or pet.name
         species = species or pet.species
         breed = breed or pet.breed
-        photo_url = photo_url or pet.photo_url
+        # bug pré-existente: `pet.photo_url` nunca existiu no modelo Pet
+        # (o campo é `pet.photo`) — corrigido de passagem, este trecho já
+        # estava sendo tocado pra guarda de moderação acima.
+        photo_url = photo_url or pet.photo
 
     # Bloqueia se já existe alerta ativo para o mesmo pet — só pode reabrir após confirmar encontrado
     existing_q = db.query(MissingPet).filter(MissingPet.status == "active")
@@ -1573,12 +1606,14 @@ def create_missing_pet(
 
 
 @router.post("/public-report", status_code=201)
-def create_public_missing_pet(
+async def create_public_missing_pet(
     body: PublicMissingPetCreate,
     request: Request,
     db: Session = Depends(get_db),
 ):
     """Registro público de pet perdido por terceiro/instituição, sem login."""
+    from ..moderation import ModerationRejected, PENDING_MESSAGE, REJECTED_MESSAGE, moderate_upload
+
     pet_name = (body.pet_name or "").strip()
     contact = (body.reporter_contact or "").strip()
     if not pet_name:
@@ -1588,6 +1623,8 @@ def create_public_missing_pet(
 
     ip = _enforce_public_report_rate_limit(db, request)
     photo_url = None
+    photo_pending = False
+    mp_id = str(uuid.uuid4())
     if body.photo_base64:
         try:
             decoded = _decode_finder_photo(body.photo_base64)
@@ -1598,13 +1635,30 @@ def create_public_missing_pet(
                     "photo_quality": quality,
                     "message": quality.get("message"),
                 }
-            photo_url = _save_missing_pet_photo_from_base64(body.photo_base64)
+            raw_photo = decoded[0]
         except Exception:
             raise HTTPException(status_code=400, detail="Não foi possível ler a foto enviada")
 
+        try:
+            outcome = await moderate_upload(
+                raw_photo,
+                context="missing_pet_alert",
+                db=db,
+                entity_type="missing_pet",
+                entity_id=mp_id,
+                uploader_ip=ip,
+            )
+        except ModerationRejected as exc:
+            raise HTTPException(status_code=422, detail=REJECTED_MESSAGE) from exc
+
+        if outcome.status == "pending":
+            photo_pending = True
+        else:
+            photo_url = outcome.public_url_path
+
     token = secrets.token_urlsafe(32)
     mp = MissingPet(
-        id=str(uuid.uuid4()),
+        id=mp_id,
         user_id=None,
         pet_id=None,
         pet_name=pet_name,
@@ -1647,6 +1701,8 @@ def create_public_missing_pet(
         "access_token": token,
         "status_url": f"/reportar-pet-perdido?status={token}",
         "public_url": f"/pet-perdido/{mp.public_slug}",
+        "photo_pending_review": photo_pending,
+        "photo_pending_message": PENDING_MESSAGE if photo_pending else None,
     }
 
 
@@ -1793,8 +1849,10 @@ def report_missing_pet(
 
 
 @sighting_router.post("", status_code=201)
-def create_pet_sighting(body: PetSightingCreate, request: Request, db: Session = Depends(get_db)):
+async def create_pet_sighting(body: PetSightingCreate, request: Request, db: Session = Depends(get_db)):
     """Registro público de avistamento livre, sem escolher alerta específico."""
+    from ..moderation import ModerationRejected, PENDING_MESSAGE, REJECTED_MESSAGE, moderate_upload
+
     _enforce_rate_limit(request, "sighting", max_requests=8, window_seconds=3600)
     if not body.finder_photos:
         raise HTTPException(status_code=400, detail="Envie ao menos uma foto")
@@ -1819,21 +1877,43 @@ def create_pet_sighting(body: PetSightingCreate, request: Request, db: Session =
             "message": quality.get("message"),
         }
 
-    photo_urls = []
-    for photo in body.finder_photos[:3]:
+    # Cada foto passa pela moderação individualmente — só as APROVADAS
+    # entram em `photo_urls` (o campo que fica público e é usado pra
+    # cruzar com alertas ativos). Uma foto pendente não é distribuída nem
+    # exibida, mas o avistamento em si é registrado do mesmo jeito — quem
+    # achou o pet não devia perder o registro por causa disso.
+    sighting_id = str(uuid.uuid4())
+    ip = rate_limiter._get_client_ip(request)
+    photo_urls: list[str] = []
+    any_rejected = False
+    any_pending = False
+    for raw_photo, _mime in decoded:
         try:
-            photo_urls.append(_save_sighting_photo(photo))
-        except Exception as exc:
-            logger.warning(f"Sighting photo save failed: {exc}")
-    if not photo_urls:
-        raise HTTPException(status_code=400, detail="Não foi possível salvar a foto enviada")
+            outcome = await moderate_upload(
+                raw_photo,
+                context="pet_sighting",
+                db=db,
+                entity_type="pet_sighting",
+                entity_id=sighting_id,
+                uploader_ip=ip,
+            )
+        except ModerationRejected:
+            any_rejected = True
+            continue
+        if outcome.status == "approved":
+            photo_urls.append(outcome.public_url_path)
+        else:
+            any_pending = True
+
+    if not photo_urls and any_rejected and not any_pending:
+        raise HTTPException(status_code=422, detail=REJECTED_MESSAGE)
 
     location_text = body.location_text
     if not location_text and body.cep:
         location_text = f"CEP {body.cep}"
 
     sighting = PetSighting(
-        id=str(uuid.uuid4()),
+        id=sighting_id,
         photo_urls=json.dumps(photo_urls),
         lat=body.lat,
         lng=body.lng,
@@ -1846,6 +1926,17 @@ def create_pet_sighting(body: PetSightingCreate, request: Request, db: Session =
     db.add(sighting)
     db.commit()
     db.refresh(sighting)
+
+    if not photo_urls:
+        # Só sobrou foto pendente de revisão — nada pra cruzar ainda, mas
+        # o registro existe e reaparece assim que um admin aprovar.
+        return {
+            "id": sighting.id,
+            "status": "pending",
+            "matched": False,
+            "analyzed": 0,
+            "message": PENDING_MESSAGE,
+        }
 
     match = _match_sighting_against_missing_pets(db, sighting)
     return {
@@ -2260,31 +2351,39 @@ def update_missing_pet(
 
 
 @router.post("/upload-photo")
-def upload_missing_pet_photo(body: PhotoUploadBody):
-    """Salva foto do alerta no disco e retorna o caminho relativo."""
-    import base64 as _b64
-    import re
+async def upload_missing_pet_photo(
+    body: PhotoUploadBody,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Modera e salva a foto de referência do alerta — passa pela mesma
+    moderação obrigatória por IA de qualquer outra foto pública do app
+    (ver `moderation/service.py`). Endpoint historicamente sem login
+    (Pet Sumido também é reportado por quem não tem conta); mantido assim
+    — a moderação em si não depende de autenticação."""
+    from ..moderation import ModerationRejected, PENDING_MESSAGE, REJECTED_MESSAGE, moderate_upload
+
     try:
-        data = body.photo_base64
-        mime = "image/jpeg"
-        if data.startswith("data:"):
-            m = re.match(r"data:([^;]+);base64,(.+)", data, re.DOTALL)
-            if m:
-                mime = m.group(1)
-                data = m.group(2)
-        raw = _b64.b64decode(data)
-        ext_map = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
-        ext = ext_map.get(mime, ".jpg")
-        filename = f"{uuid.uuid4().hex}{ext}"
-        upload_dir = os.path.join(os.path.dirname(__file__), "..", "..", "uploads", "pets")
-        os.makedirs(upload_dir, exist_ok=True)
-        filepath = os.path.join(upload_dir, filename)
-        with open(filepath, "wb") as f:
-            f.write(raw)
-        return {"photo_url": f"pets/{filename}"}
-    except Exception as e:
-        logger.error(f"upload_missing_pet_photo error: {e}")
-        raise HTTPException(status_code=500, detail="Erro ao salvar foto")
+        raw = _decode_finder_photo(body.photo_base64)[0]
+    except Exception:
+        raise HTTPException(status_code=400, detail="Não foi possível ler a foto enviada")
+
+    try:
+        outcome = await moderate_upload(
+            raw,
+            context="missing_pet_alert",
+            db=db,
+            uploader_user_id=str(current_user.id) if current_user else None,
+            uploader_ip=rate_limiter._get_client_ip(request),
+        )
+    except ModerationRejected as exc:
+        raise HTTPException(status_code=422, detail=REJECTED_MESSAGE) from exc
+
+    if outcome.status == "pending":
+        return {"status": "pending", "message": PENDING_MESSAGE}
+
+    return {"status": "approved", "photo_url": outcome.public_url_path}
 
 
 @router.post("/match-photo")
@@ -3244,7 +3343,7 @@ def _analyze_and_save(
 
 
 @router.post("/{mp_id}/report-found", status_code=201)
-def report_found(
+async def report_found(
     mp_id: str,
     body: FoundReportCreate,
     request: Request,
@@ -3363,7 +3462,40 @@ def report_found(
 
     # Se o frontend já rodou a pré-análise Gemini, reusar o score — evita duas chamadas
     has_pre_score = body.pre_score is not None and body.pre_score > 0
+    # Fingerprint/risco de fraude olha as fotos RAW como o achador mandou —
+    # isso não muda (é detecção de foto reaproveitada entre golpes, não
+    # tem relação com o conteúdo em si). Roda antes e independente da
+    # moderação.
     risk_flags, photo_hashes = _finder_photo_risk_flags(db, body.finder_photos or [], body.finder_contact.strip())
+
+    # Moderação obrigatória — quem recebe essas fotos é o tutor de verdade,
+    # já fragilizado procurando o pet; só fotos aprovadas chegam até ele.
+    # Não bloqueia o relato inteiro por uma foto ruim (pode ser só a prova
+    # de que encontrou o pet que importa) — só filtra o que é exibido.
+    from ..moderation import ModerationRejected, moderate_upload
+
+    found_report_id = str(uuid.uuid4())
+    moderated_photo_keys: list[str] = []
+    for raw_b64 in (body.finder_photos or [])[:3]:
+        try:
+            raw_bytes, _mime = _decode_finder_photo(raw_b64)
+        except Exception:
+            continue
+        try:
+            outcome = await moderate_upload(
+                raw_bytes,
+                context="pet_sighting",
+                db=db,
+                entity_type="found_report",
+                entity_id=found_report_id,
+                uploader_user_id=finder_user_id,
+                uploader_ip=rate_limiter._get_client_ip(request),
+            )
+        except ModerationRejected:
+            continue
+        if outcome.status == "approved":
+            moderated_photo_keys.append(outcome.public_url_path)
+
     finder_video_url = None
     if body.finder_video:
         finder_video_url = _save_found_report_video(body.finder_video)
@@ -3378,12 +3510,12 @@ def report_found(
     risk_level = _risk_level_from_flags(risk_flags)
 
     report = FoundReport(
-        id=str(uuid.uuid4()),
+        id=found_report_id,
         missing_pet_id=mp_id,
         finder_contact=body.finder_contact.strip(),
         finder_location=body.finder_location,
         notes=body.notes,
-        finder_photos=json.dumps(body.finder_photos) if body.finder_photos else None,
+        finder_photos=json.dumps(moderated_photo_keys) if moderated_photo_keys else None,
         finder_video_url=finder_video_url,
         proof_challenge=(body.proof_challenge or "").strip()[:160] or None,
         proof_challenge_id=body.proof_challenge_id,
