@@ -2,10 +2,11 @@
 
 import { getToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Camera, PawPrint } from 'lucide-react';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { PetPhotoPicker } from './PetPhotoPicker';
+import { classifyPhotoUpload, notAPetPhotoMessage, type PhotoUploadOutcome } from '@/lib/photoModerationMessages';
 import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
 import { localTodayISO } from '@/lib/localDate';
 import { sanitizePetName } from '@/lib/petName';
@@ -429,6 +430,8 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
   // ponto; só a foto que precisa de atenção. Enquanto houver aviso, o
   // modal fica aberto pro tutor ler antes de fechar.
   const [photoNotice,     setPhotoNotice]     = useState('');
+  // Pet já salvo cuja foto foi recusada — habilita "Fotografar" na hora.
+  const [retryPhotoPetId, setRetryPhotoPetId] = useState<string | null>(null);
 
   const speciesSeg = ['dog', 'cat'].includes(species) ? species : 'other';
   const today = localTodayISO();
@@ -437,11 +440,49 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
   const breedRequired = speciesSeg !== 'other';
   const canSubmit = name.trim().length > 0 && (!breedRequired || breed.trim().length > 0);
 
-  const handlePhotoPickerConfirm = useCallback((dataUrl: string) => {
+  // Envia a foto de um pet JÁ salvo (passa pela moderação por IA no servidor).
+  const uploadPetPhoto = async (petId: string, dataUrl: string, token: string): Promise<PhotoUploadOutcome> => {
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      const fd = new FormData();
+      fd.append('file', new File([blob], 'pet-photo.jpg', { type: 'image/jpeg' }));
+      const res = await fetch(`${API_BASE_URL}/pets/${petId}/photo`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` }, credentials: 'include', body: fd,
+      });
+      const data = await res.json().catch(() => ({})) as { status?: string };
+      return classifyPhotoUpload(res.status, data);
+    } catch {
+      return 'error';
+    }
+  };
+
+  const handlePhotoPickerConfirm = (dataUrl: string) => {
     setShowPhotoPicker(false);
+    // Foto recusada depois do pet salvo: quem fotografa de novo reenvia direto
+    // pro pet que já existe (sem recriar nada) e vê o resultado na hora.
+    if (retryPhotoPetId) {
+      const token = getToken();
+      if (!token) return;
+      setLoading(true);
+      setPhotoNotice('');
+      void (async () => {
+        const outcome = await uploadPetPhoto(retryPhotoPetId, dataUrl, token);
+        setLoading(false);
+        if (outcome === 'rejected') {
+          setPhotoNotice(notAPetPhotoMessage(name));
+        } else if (outcome === 'pending') {
+          setRetryPhotoPetId(null);
+          setPhotoNotice('Esta fotografia precisa de uma verificação adicional. Você pode enviar outra imagem depois, no perfil do pet.');
+        } else {
+          onComplete();
+          onClose();
+        }
+      })();
+      return;
+    }
     setPetPhoto(dataUrl);
     setPetPhotoDataUrl(dataUrl);
-  }, []);
+  };
 
   const handleSubmit = async () => {
     setError('');
@@ -492,27 +533,21 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
       // normalmente (onComplete já dispara); só avisamos o tutor sobre a
       // foto em vez de fechar o modal calado.
       if (petPhotoDataUrl) {
-        try {
-          const blob = await (await fetch(petPhotoDataUrl)).blob();
-          const fd = new FormData();
-          fd.append('file', new File([blob], 'pet-photo.jpg', { type: 'image/jpeg' }));
-          const photoRes = await fetch(`${API_BASE_URL}/pets/${savedPet.id}/photo`, {
-            method: 'POST', headers: { Authorization: `Bearer ${token}` }, credentials: 'include', body: fd,
-          });
-          const photoData = await photoRes.json().catch(() => ({})) as { status?: string; detail?: string };
-          if (photoRes.status === 422) {
-            onComplete();
-            setPhotoNotice(photoData.detail || 'Não foi possível aprovar esta imagem. Envie uma fotografia real do seu pet, sem conteúdo impróprio.');
-            setLoading(false);
-            return;
-          }
-          if (photoRes.ok && photoData.status === 'pending') {
-            onComplete();
-            setPhotoNotice('Esta fotografia precisa de uma verificação adicional. Você pode enviar outra imagem depois, no perfil do pet.');
-            setLoading(false);
-            return;
-          }
-        } catch { /* non-fatal — pet já foi criado, foto tenta de novo depois */ }
+        const outcome = await uploadPetPhoto(savedPet.id, petPhotoDataUrl, token);
+        if (outcome === 'rejected') {
+          onComplete();
+          setRetryPhotoPetId(savedPet.id);
+          setPhotoNotice(notAPetPhotoMessage(name));
+          setLoading(false);
+          return;
+        }
+        if (outcome === 'pending') {
+          onComplete();
+          setPhotoNotice('Esta fotografia precisa de uma verificação adicional. Você pode enviar outra imagem depois, no perfil do pet.');
+          setLoading(false);
+          return;
+        }
+        // 'error': não-fatal — o pet já foi criado, a foto pode ser enviada depois
       }
 
       onComplete();
@@ -676,7 +711,18 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
                 sobre a foto: o pet já foi salvo, só falta o tutor ler e
                 fechar (ou tentar outra foto depois, no perfil do pet). */}
             <SheetShell.Footer>
-              {photoNotice ? (
+              {photoNotice && retryPhotoPetId ? (
+                <div className="flex gap-3">
+                  <button type="button" onClick={onClose} disabled={loading}
+                    className="flex-1 py-3.5 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white active:scale-[0.98] transition-all disabled:opacity-40">
+                    Agora não
+                  </button>
+                  <button type="button" onClick={() => setShowPhotoPicker(true)} disabled={loading}
+                    className="flex-1 py-3.5 rounded-2xl bg-[#0056D2] text-white text-sm font-semibold active:scale-[0.98] transition-all disabled:opacity-40 shadow-md shadow-blue-600/20">
+                    {loading ? 'Verificando…' : `Fotografar ${name.trim() || 'o pet'}`}
+                  </button>
+                </div>
+              ) : photoNotice ? (
                 <button type="button" onClick={onClose}
                   className="w-full py-3.5 rounded-2xl bg-[#0056D2] text-white text-sm font-semibold active:scale-[0.98] transition-all shadow-md shadow-blue-600/20">
                   Entendi
@@ -697,7 +743,7 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
       </SheetShell>
 
       {showPhotoPicker && (
-        <PetPhotoPicker initialSrc={petPhoto || null} onConfirm={handlePhotoPickerConfirm} onCancel={() => setShowPhotoPicker(false)} />
+        <PetPhotoPicker initialSrc={retryPhotoPetId ? null : (petPhoto || null)} onConfirm={handlePhotoPickerConfirm} onCancel={() => setShowPhotoPicker(false)} />
       )}
     </>
   );
