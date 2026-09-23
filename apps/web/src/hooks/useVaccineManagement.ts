@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { localTodayISO } from '@/lib/localDate';
 import { dateToLocalISO } from '@/lib/localDate';
+import { nextDoseStatus, resolveQuickAppliedOn } from '@/lib/vaccineQuickDate';
 import {
   requestUserConfirmation,
   showAppToast,
@@ -650,7 +651,7 @@ export function useVaccineManagement({
     name: string;
     icon: string;
     code: string;
-  }, when: 'today' | 'this_month' | 'unknown') => {
+  }, when: 'today' | 'this_month' | 'unknown', appliedOnOverride?: string) => {
     const currentPet = getCurrentPet();
     if (!currentPet) return;
 
@@ -662,9 +663,14 @@ export function useVaccineManagement({
 
     const countryCode = locale.startsWith('pt') ? 'BR' : locale.startsWith('en') ? 'US' : 'BR';
     const today = localTodayISO();
-    const firstDayOfMonth = `${today.slice(0, 8)}01`;
-    const appliedOn = when === 'today' ? today : when === 'this_month' ? firstDayOfMonth : today;
-    const isUnknownDate = when === 'unknown';
+    // A data escolhida pelo tutor (YYYY-MM-DD) vale como veio — nunca é
+    // convertida em `Date` no caminho até o backend (evita erro de fuso).
+    const resolvedDate = resolveQuickAppliedOn(when, appliedOnOverride, today);
+    if (resolvedDate.error) {
+      showBlockingNotice(`❌ ${resolvedDate.error}`);
+      return;
+    }
+    const { appliedOn, isUnknown: isUnknownDate } = resolvedDate;
     const quickNotes = isUnknownDate
       ? 'Data aproximada (date_unknown=true). Vale confirmar com seu veterinário.'
       : t('health.added_via_quick');
@@ -738,14 +744,11 @@ export function useVaccineManagement({
         ),
       );
 
-      const now = new Date();
-      const nextDate = saved.next_due_on ? new Date(saved.next_due_on) : null;
-      const diff = nextDate
-        ? Math.ceil((nextDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-        : null;
-      let statusLabel = 'Em dia';
-      if (diff !== null && diff <= 30 && diff >= 0) statusLabel = 'Pode estar na hora de revisar';
-      if (diff !== null && diff < 0) statusLabel = 'Vale confirmar com seu veterinário';
+      // Situação da próxima dose em dias de CALENDÁRIO: `new Date('YYYY-MM-DD')`
+      // é meia-noite UTC e, no Brasil, deslocava o dia (uma dose "hoje" saía
+      // como atrasada). A data aplicada agora pode ser meses atrás, então a
+      // próxima dose pode legitimamente já estar vencida.
+      const statusLabel = nextDoseStatus(saved.next_due_on, today);
       let msg = `✅ ${selectedVaccine.name} registrada!\nStatus: ${statusLabel}\nLembrete ativo`;
       if (saved.next_due_on) msg += `\nPróxima previsão: ${saved.next_due_on}`;
       showBlockingNotice(msg);

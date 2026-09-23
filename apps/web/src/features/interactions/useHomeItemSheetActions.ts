@@ -96,10 +96,27 @@ export function useHomeItemSheetActions({
     setShowQuickAddVaccine(false);
   }, [setShowQuickAddVaccine]);
 
-  const openFullVaccineFormFromQuickAdd = useCallback(() => {
+  // `prefill` = a vacina que o tutor já tinha escolhido no registro rápido —
+  // não se perde ao pular pro formulário completo. Sem data: o formulário
+  // pede a data; nada é inventado.
+  const openFullVaccineFormFromQuickAdd = useCallback((prefill?: Partial<VaccineFormData>) => {
     setShowQuickAddVaccine(false);
+    if (prefill) {
+      setVaccineFormData({
+        vaccine_type: 'multiple',
+        vaccine_name: '',
+        date_administered: '',
+        next_dose_date: '',
+        frequency_days: 365,
+        veterinarian: '',
+        clinic_name: '',
+        notes: '',
+        record_type: 'confirmed_application',
+        ...prefill,
+      });
+    }
     setShowVaccineForm(true);
-  }, [setShowQuickAddVaccine, setShowVaccineForm]);
+  }, [setShowQuickAddVaccine, setShowVaccineForm, setVaccineFormData]);
 
   const handleVaccineFullForm = useCallback((prefill: Partial<VaccineFormData>) => {
     setShowVaccineSheet(false);
