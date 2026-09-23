@@ -16,7 +16,9 @@ interface MC {
 
 const numberFmt = (n: number | null | undefined) => (typeof n === 'number' ? n.toLocaleString('pt-BR') : '—');
 
-/** Operação — saúde da API + commerce. Atualiza a cada 20s (só esta aba). */
+/** Operação — saúde da API + commerce. Atualiza a cada 20s (fetch próprio,
+ * fora do useAsync compartilhado — mas mesma cadência que todo o resto do
+ * painel adotou depois, ver LIVE_POLL_MS em sections.tsx). */
 export function OperationsSection() {
   const [mc, setMc] = useState<MC | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -62,7 +64,7 @@ export function OperationsSection() {
         <StatCard label="Cobasi" value={mc.commerce.cobasi.availability} />
       </div>
       <p className="text-[11px] text-slate-400">
-        Esta aba atualiza a cada 20s. As demais abas (BI histórico) só recarregam quando você troca o filtro.
+        Atualiza a cada 20s, como o resto do painel.
       </p>
     </div>
   );

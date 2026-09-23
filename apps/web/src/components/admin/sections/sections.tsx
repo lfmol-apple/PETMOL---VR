@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   adminGet, filterParams, type GlobalFilter,
   type OverviewResponse, type FeatureMatrixResponse, type FeatureRow,
@@ -13,19 +13,50 @@ import { UserDetailDrawer, PetDetailDrawer, PopulationDrawer } from './detail';
 
 export const numberFmt = (n: number | null | undefined) => (typeof n === 'number' ? n.toLocaleString('pt-BR') : '—');
 
-export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
+/** Cadência do polling "ao vivo" — mesma que a aba Operação já usava sozinha
+ * (OperationsSection, 20s) antes disto virar o padrão de todo painel. */
+const LIVE_POLL_MS = 20000;
+
+/**
+ * `live` (padrão true) liga o polling silencioso: a cada LIVE_POLL_MS refaz
+ * a busca em segundo plano — sem `loading`/flicker, sem apagar o dado
+ * anterior em caso de falha transitória — e pausa quando a aba não está
+ * visível (não desperdiça request com o painel em background). Passe
+ * `{ live: false }` pra uma seção que não deve se atualizar sozinha (ex.:
+ * algo com estado local incompatível com re-render silencioso).
+ */
+export function useAsync<T>(fn: () => Promise<T>, deps: unknown[], opts?: { live?: boolean; intervalMs?: number }) {
+  const live = opts?.live ?? true;
+  const intervalMs = opts?.intervalMs ?? LIVE_POLL_MS;
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const fnRef = useRef(fn);
+  useEffect(() => { fnRef.current = fn; });
+
   useEffect(() => {
     let alive = true;
-    setLoading(true); setError(null);
-    fn().then((d) => alive && setData(d)).catch((e) => alive && setError(String(e?.message || e)))
-      .finally(() => alive && setLoading(false));
-    return () => { alive = false; };
+    const load = (silent: boolean) => {
+      if (!silent) { setLoading(true); setError(null); }
+      return fnRef.current()
+        .then((d) => { if (!alive) return; setData(d); setUpdatedAt(Date.now()); if (silent) setError(null); })
+        .catch((e) => { if (!alive) return; if (!silent) setError(String(e?.message || e)); })
+        .finally(() => { if (!alive) return; if (!silent) setLoading(false); });
+    };
+    load(false);
+    let id: ReturnType<typeof setInterval> | undefined;
+    if (live) {
+      id = setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+        load(true);
+      }, intervalMs);
+    }
+    return () => { alive = false; if (id) clearInterval(id); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
-  return { data, error, loading };
+
+  return { data, error, loading, updatedAt };
 }
 
 export function Panel({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {

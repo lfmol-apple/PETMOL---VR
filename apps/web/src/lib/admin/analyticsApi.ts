@@ -52,6 +52,11 @@ export const DEVICE_TYPE_LABEL: Record<DeviceType, string> = {
 
 export interface GlobalFilter {
   period_days?: number;
+  /** Recorte exato (ISO) — quando presente, manda no backend por cima de
+   * period_days (ver AnalyticsFilters.build no backend). Usado pelos
+   * presets finos (Hoje/Ontem/Últimas 24h) e pelo range customizado. */
+  since?: string;
+  until?: string;
   platform?: string;
   app_version?: string;
   os?: string;
@@ -63,6 +68,8 @@ export interface GlobalFilter {
 export function filterParams(f: GlobalFilter): Record<string, string | number | undefined> {
   return {
     period_days: f.period_days,
+    since: f.since,
+    until: f.until,
     platform: f.platform,
     app_version: f.app_version,
     os: f.os,
