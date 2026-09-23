@@ -479,18 +479,38 @@ def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) ->
             where = " · ".join(p for p in (row.city, row.region, row.country) if p) or "local desconhecido"
             from ..analytics.install_models import campaign_total
             acumulado, base, camp = campaign_total(db)
+            is_download = _is_real_download(platform)
+            title = "📲 Novo download do PETMOL" if is_download else "🌐 Novo acesso ao PETMOL"
+            body = f"{where} — {_install_platform_label(platform, row.user_agent)} · {acumulado} no total ({base} base + {camp} campanha)"
             try:
                 from ..notifications import push_to_user
-                is_download = _is_real_download(platform)
-                title = "📲 Novo download do PETMOL" if is_download else "🌐 Novo acesso ao PETMOL"
                 push_to_user(str(admin.id), {
                     "title": title,
-                    "body": f"{where} — {_install_platform_label(platform, row.user_agent)} · {acumulado} no total ({base} base + {camp} campanha)",
+                    "body": body,
                     "tag": "petmol-install",
                     "data": {"url": "/admin/dashboard"},
                 })
             except Exception:
                 pass
+
+            # Mesmo push pro segundo destinatário (settings.secondary_install_push_email) —
+            # só recebe a notificação, nunca passa por get_current_admin nem ganha
+            # nenhum acesso de admin. Best-effort e isolado: nunca deve atrapalhar
+            # o push do admin master acima.
+            secondary_email = (settings.secondary_install_push_email or "").strip().lower()
+            if secondary_email:
+                try:
+                    secondary = db.query(User).filter(func.lower(User.email) == secondary_email).first()
+                    if secondary and str(secondary.id) != str(admin.id):
+                        from ..notifications import push_to_user
+                        push_to_user(str(secondary.id), {
+                            "title": title,
+                            "body": body,
+                            "tag": "petmol-install",
+                            "data": {"url": "/home"},
+                        })
+                except Exception:
+                    pass
     except Exception:
         db.rollback()
     finally:
