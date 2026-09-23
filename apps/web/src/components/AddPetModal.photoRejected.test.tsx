@@ -57,6 +57,8 @@ describe('AddPetModal — foto que não é de um pet', () => {
     expect(notice.textContent).toMatch(/fotografar Baby agora/);
     expect(screen.getByText(/Baby foi salvo/)).toBeTruthy();       // o cadastro não se perde
     expect(screen.getByText('Fotografar Baby')).toBeTruthy();
+    // visível sem rolar: o aviso fica no rodapé fixo, não no corpo rolável
+    expect(notice.closest('[role="alert"]')!.closest('.overflow-y-auto')).toBeNull();
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(onClose).not.toHaveBeenCalled();
   });
