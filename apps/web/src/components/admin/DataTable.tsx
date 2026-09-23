@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode } from 'react';
+import { fmtSpDay, fmtSpDateTime } from '@/lib/analytics/spTime';
 
 export interface Column<T> {
   key: string;
@@ -123,38 +124,20 @@ export function StatePill({ state }: { state: string }) {
   );
 }
 
-// Todo horário do painel admin é America/Sao_Paulo, sempre — explícito no
-// timeZone do Intl, nunca um deslocamento fixo somado à mão (o navegador de
-// quem está olhando pode estar em qualquer fuso; o dado em si é UTC no
-// banco). `Intl` resolve DST automaticamente se o Brasil voltar a ter
-// horário de verão — não precisa mexer aqui se isso mudar.
-const ADMIN_TIMEZONE = 'America/Sao_Paulo';
-
+// Todo horário do painel admin é America/Sao_Paulo, sempre (lib/analytics/spTime):
+// explícito no timeZone do Intl, nunca um deslocamento fixo somado à mão, e
+// texto sem fuso vindo da API é tratado como UTC (o navegador de quem olha
+// pode estar em qualquer fuso; o dado em si é UTC no banco).
 export function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', timeZone: ADMIN_TIMEZONE });
+  return fmtSpDay(iso, { shortYear: true });
 }
 
 export function fmtDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString('pt-BR', {
-    day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit',
-    timeZone: ADMIN_TIMEZONE,
-  });
+  return fmtSpDateTime(iso, { shortYear: true });
 }
 
 /** DD/MM/AAAA HH:mm:ss — pra tabelas que precisam do segundo exato (ex.:
  * drill-down de eventos de Locais). */
 export function fmtDateTimeFull(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString('pt-BR', {
-    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit',
-    timeZone: ADMIN_TIMEZONE,
-  });
+  return fmtSpDateTime(iso, { seconds: true });
 }

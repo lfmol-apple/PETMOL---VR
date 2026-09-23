@@ -21,7 +21,7 @@ import { TacticalSection } from '@/components/admin/sections/TacticalSection';
 import { TodaySection, BaseStrip } from '@/components/admin/sections/TodaySection';
 import dynamic from 'next/dynamic';
 import { OperationsSection } from '@/components/admin/sections/OperationsSection';
-import { spStartOfToday, spYesterdayRange, fmtSpDate } from '@/lib/analytics/spTime';
+import { spStartOfToday, spYesterdayRange, fmtSpDate, spDayBounds } from '@/lib/analytics/spTime';
 
 // Leaflet toca em `window`/`document` no import — dinâmico e sem SSR, senão
 // quebra a renderização no servidor.
@@ -153,8 +153,9 @@ export default function AdminDashboardPage() {
     setFilter((f) => ({
       ...f,
       period_days: undefined,
-      since: from ? new Date(`${from}T00:00:00`).toISOString() : undefined,
-      until: to ? new Date(`${to}T23:59:59`).toISOString() : undefined,
+      // dia escolhido = dia de São Paulo (não o fuso do navegador)
+      since: from ? spDayBounds(from)?.start.toISOString() : undefined,
+      until: to ? spDayBounds(to)?.end.toISOString() : undefined,
     }));
   };
   // Aba ativa — vive no hash da URL (/admin/dashboard#aquisicao), então o

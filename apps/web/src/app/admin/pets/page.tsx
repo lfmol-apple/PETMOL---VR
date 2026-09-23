@@ -6,6 +6,7 @@ import { PremiumScreenShell } from '@/components/premium';
 import { requestUserConfirmation } from '@/features/interactions/userPromptChannel';
 import { getToken } from '@/lib/auth-token';
 import { useAdmin } from '@/hooks/useAdmin';
+import { fmtSpDay } from '@/lib/analytics/spTime';
 
 interface Pet {
   id: string;
@@ -29,7 +30,7 @@ type PetResponse = ApiResponse<Pet>;
 
 function formatDate(isoString?: string) {
   if (!isoString) return '-';
-  return new Date(isoString).toLocaleDateString('pt-BR');
+  return fmtSpDay(isoString);
 }
 
 async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

@@ -29,6 +29,15 @@ from .filters import platform_clause
 _BR = ZoneInfo("America/Sao_Paulo")
 
 
+def _fmt_sp(dt: Optional[datetime]) -> str:
+    """DD/MM/AAAA HH:mm no horário de São Paulo (nunca ISO em UTC na tela do painel)."""
+    if dt is None:
+        return "—"
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(_BR).strftime("%d/%m/%Y %H:%M")
+
+
 def _city_centroids(db: Session) -> dict[str, tuple[float, float]]:
     """Coordenada aproximada de cada cidade = média das coordenadas reais
     dos tutores dessa cidade (mesma fonte do Mapa — `User.lat/lng`, nunca
@@ -158,7 +167,7 @@ def locations_summary(
         "unmapped_places": len(places) - mapped_places,
         "sort_by": sort_key,
         "window_label": (
-            f"Período selecionado ({since.isoformat() if since else '—'} até {until.isoformat() if until else 'agora'})"
+            f"Período selecionado ({_fmt_sp(since)} até {_fmt_sp(until) if until else 'agora'}, horário de São Paulo)"
             if custom_window else "Desde o início da campanha (contagem cumulativa, não filtrada por período)"
         ),
         "custom_window": custom_window,
