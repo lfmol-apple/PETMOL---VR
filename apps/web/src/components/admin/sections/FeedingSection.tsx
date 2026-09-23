@@ -15,6 +15,7 @@ import { useState } from 'react';
 import { adminGet, filterParams, type GlobalFilter } from '@/lib/admin/analyticsApi';
 import { Pagination } from '@/components/admin/DataTable';
 import { useAsync, Panel, Loading, ErrorBox, numberFmt } from './sections';
+import { PetPhotoThumb } from '@/components/admin/PhotoLightbox';
 
 interface FeedingStageRow {
   key: string; label: string; pets: number; pets_at_or_beyond: number; pct_of_total: number;
@@ -41,19 +42,6 @@ interface CommerceFunnelResponse {
   sale_confirmed: number | null;
   commission_confirmed: number | null;
   note: string;
-}
-
-function PetPhoto({ src }: { src: string | null }) {
-  return (
-    <div className="flex-shrink-0 overflow-hidden rounded-full bg-slate-100" style={{ width: 36, height: 36 }}>
-      {src ? (
-        // eslint-disable-next-line @next/next/no-img-element -- foto de usuário; sem remotePatterns novo
-        <img src={src} alt="" width={36} height={36} className="h-full w-full object-cover" loading="lazy" />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center text-[15px]" aria-hidden>🐾</div>
-      )}
-    </div>
-  );
 }
 
 /** Drill-down: painel lateral com os pets/tutores por trás de um estágio do funil. */
@@ -83,7 +71,7 @@ function StageDrilldown({ stage, label, filter, onClose }: {
               <div className="space-y-2">
                 {data.items.map((it) => (
                   <div key={it.pet_id} className="flex items-center gap-3 rounded-lg border border-slate-200 p-2.5">
-                    <PetPhoto src={it.photo_url} />
+                    <PetPhotoThumb src={it.photo_url} alt={it.pet_name} size={36} />
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-semibold text-slate-900">{it.pet_name} <span className="font-normal text-slate-400">· {it.species}</span></div>
                       <div className="truncate text-[12px] text-slate-500">{it.tutor_name || '(sem nome)'} · {it.tutor_email}</div>

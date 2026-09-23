@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from ...db import get_db
 from ..deps import get_current_admin, get_current_admin_or_readonly_key
+from . import campaign_bi
 from . import feeding_bi
 from . import journey_bi
 from . import locations_bi
@@ -142,10 +143,62 @@ def get_missing_pets_summary(db: Session = Depends(get_db), _=_Auth):
 
 
 @router.get("/locations")
-def get_locations_summary(db: Session = Depends(get_db), _=_Auth):
-    """Mesmo dado do push/e-mail de acesso e download, agregado por
-    cidade — sem depender do filtro global (ver `locations_bi.py`)."""
-    return locations_bi.locations_summary(db)
+def get_locations_summary(
+    since: Optional[str] = Query(None),
+    until: Optional[str] = Query(None),
+    sort_by: str = Query("total", pattern="^(total|downloads|acessos)$"),
+    db: Session = Depends(get_db),
+    _=_Auth,
+):
+    """Mesmo dado do push/e-mail de acesso e download, agregado por cidade.
+    Sem since/until: cumulativo desde o corte da campanha (comportamento
+    padrão de sempre). Com since/until (o filtro global do Mission
+    Control, quando o dono navega aqui a partir de um card de
+    Downloads/Acessos): a janela vira exatamente o período selecionado —
+    ver `locations_bi.py`."""
+    parsed = AnalyticsFilters.build(since=since, until=until)
+    return locations_bi.locations_summary(db, since=parsed.since, until=parsed.until, sort_by=sort_by)
+
+
+@router.get("/campaigns")
+def get_campaigns_summary(
+    since: Optional[str] = Query(None),
+    until: Optional[str] = Query(None),
+    platform: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    _=_Auth,
+):
+    """Downloads/acessos agrupados por origem (utm_source/medium/campaign) —
+    ver `campaign_bi.py` pra limitações de atribuição."""
+    parsed = AnalyticsFilters.build(since=since, until=until, platform=platform)
+    return campaign_bi.campaign_summary(db, since=parsed.since, until=parsed.until, platform=platform)
+
+
+@router.get("/location-events")
+def get_location_events(
+    since: Optional[str] = Query(None),
+    until: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    city: Optional[str] = Query(None),
+    platform: Optional[str] = Query(None),
+    utm_campaign: Optional[str] = Query(None),
+    event_type: Optional[str] = Query(None, description="download|acesso"),
+    registered_only: Optional[bool] = Query(None, description="true=só cadastrado, false=só visitante"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _=_Auth,
+):
+    """Linha a linha (não agregado): cada download/acesso, mais recente
+    primeiro — o drill-down de Locais. Combina app_installs +
+    analytics_product_events (eventos-âncora de sessão) num único feed
+    ordenado por tempo; ver `location_events_bi.py`."""
+    parsed = AnalyticsFilters.build(since=since, until=until, state=state, city=city, platform=platform)
+    return locations_bi.location_events(
+        db, since=parsed.since, until=parsed.until, state=parsed.state, city=parsed.city,
+        platform=platform, utm_campaign=utm_campaign, event_type=event_type,
+        registered_only=registered_only, page=page, page_size=page_size,
+    )
 
 
 @router.get("/tactical-suggestions")

@@ -56,6 +56,17 @@ class ProductEventRequest(BaseModel):
     locale: Optional[str] = None
     timezone: Optional[str] = None
     properties: Optional[dict[str, Any]] = None
+    # Atribuição de campanha — capturada 1x por sessão (da URL de entrada) e
+    # reenviada em todo evento-âncora daquela sessão (ver
+    # apps/web/src/lib/analytics/campaignAttribution.ts). Nunca a URL
+    # completa do referrer, só o host.
+    utm_source: Optional[str] = None
+    utm_medium: Optional[str] = None
+    utm_campaign: Optional[str] = None
+    utm_content: Optional[str] = None
+    utm_term: Optional[str] = None
+    referrer_host: Optional[str] = None
+    landing_path: Optional[str] = None
 
 
 class ProductEventResponse(BaseModel):
@@ -133,6 +144,10 @@ _SAFE_EVENT_NAMES = {
     "onboarding_completed",
     "onboarding_skipped",
 }
+
+# Eventos-âncora de sessão: só nestes vale a pena gastar um lookup de geo-IP
+# em background (uma vez por sessão, não em todo screen_view/click).
+_SESSION_ANCHOR_EVENTS = {"app_open", "session_start"}
 
 _COMMERCE_CLICK_CTAS = {
     "shop_partner_store_click",
@@ -249,6 +264,13 @@ def _store_product_event(
         locale=_clip(body.locale, 32),
         timezone=_clip(body.timezone, 64),
         properties_json=_properties_json(body.properties),
+        utm_source=_clip(body.utm_source, 120),
+        utm_medium=_clip(body.utm_medium, 120),
+        utm_campaign=_clip(body.utm_campaign, 160),
+        utm_content=_clip(body.utm_content, 160),
+        utm_term=_clip(body.utm_term, 160),
+        referrer_host=_clip(body.referrer_host, 160),
+        landing_path=_clip(body.landing_path, 200),
     )
     db.add(event)
     db.commit()
@@ -355,16 +377,58 @@ def record_product_event(
     try:
         body.event_id = event_id
         stored_id = _store_product_event(db, body, user_id)
+        if body.event_name in _SESSION_ANCHOR_EVENTS:
+            import threading
+            threading.Thread(
+                target=_enrich_product_event_geo,
+                args=(stored_id, _real_client_ip(request)),
+                daemon=True,
+            ).start()
         return ProductEventResponse(accepted=True, event_id=stored_id)
     except Exception:
         db.rollback()
         return ProductEventResponse(accepted=False, event_id=event_id)
 
 
+def _enrich_product_event_geo(event_id: str, ip: Optional[str]) -> None:
+    """Geo-IP best-effort SÓ pra eventos-âncora de sessão (app_open/
+    session_start) — mesma fonte/rótulo do geo-IP de AppInstall ("aproximado
+    por IP"), nunca a localização declarada do tutor. Fora do request."""
+    from ..db import SessionLocal
+    from ..geoip import geoip_lookup
+
+    geo = geoip_lookup(ip or "") or {}
+    if not geo:
+        return
+    db = SessionLocal()
+    try:
+        row = db.query(AnalyticsProductEvent).filter(AnalyticsProductEvent.event_id == event_id).first()
+        if not row:
+            return
+        row.city = geo.get("city") or None
+        row.region = geo.get("region") or None
+        row.country = geo.get("country") or None
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
 # ── App install (proxy de download) ───────────────────────────────────────
 
 class AppInstallRequest(BaseModel):
     platform: str = Field(default="web", max_length=20)  # ios | android | pwa | web
+    # Atribuição de campanha da URL que levou à 1ª abertura (ver
+    # apps/web/src/lib/analytics/campaignAttribution.ts). Nunca a URL
+    # completa do referrer, só o host.
+    utm_source: Optional[str] = None
+    utm_medium: Optional[str] = None
+    utm_campaign: Optional[str] = None
+    utm_content: Optional[str] = None
+    utm_term: Optional[str] = None
+    referrer_host: Optional[str] = None
+    landing_path: Optional[str] = None
 
 
 def _real_client_ip(request: Request) -> Optional[str]:
@@ -404,7 +468,16 @@ def record_app_install(body: AppInstallRequest, request: Request, db: Session = 
         if exists:
             return {"ok": True, "dedup": True}
 
-    row = AppInstall(platform=platform, ip_hash=ip_hash, user_agent=ua)
+    row = AppInstall(
+        platform=platform, ip_hash=ip_hash, user_agent=ua,
+        utm_source=_clip(body.utm_source, 120),
+        utm_medium=_clip(body.utm_medium, 120),
+        utm_campaign=_clip(body.utm_campaign, 160),
+        utm_content=_clip(body.utm_content, 160),
+        utm_term=_clip(body.utm_term, 160),
+        referrer_host=_clip(body.referrer_host, 160),
+        landing_path=_clip(body.landing_path, 200),
+    )
     try:
         db.add(row)
         db.commit()

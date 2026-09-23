@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { adminGet } from '@/lib/admin/analyticsApi';
 import { Drawer, StatePill, fmtDate, fmtDateTime } from '@/components/admin/DataTable';
+import { PetPhotoThumb } from '@/components/admin/PhotoLightbox';
 
 // ── User detail ───────────────────────────────────────────────────────────
 
@@ -29,21 +30,6 @@ const DEVICE_TYPE_LABEL: Record<string, string> = {
   iphone: 'iPhone', ipad: 'iPad', android: 'Android', desktop: 'Desktop', outros: 'Outros',
 };
 
-/** Avatar do pet (40px) — mesma regra em toda a Etapa 4/5: foto real, sem
- * carregar em resolução original (o navegador já baixa no tamanho exibido
- * por ser um <img> com largura/altura fixas), ícone discreto sem foto. */
-function PetAvatar({ src, size = 40 }: { src: string | null; size?: number }) {
-  return (
-    <div className="flex-shrink-0 overflow-hidden rounded-full bg-slate-100" style={{ width: size, height: size }}>
-      {src ? (
-        // eslint-disable-next-line @next/next/no-img-element -- foto de usuário; sem remotePatterns novo
-        <img src={src} alt="" width={size} height={size} className="h-full w-full object-cover" loading="lazy" />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center text-[15px]" aria-hidden>🐾</div>
-      )}
-    </div>
-  );
-}
 
 export function UserDetailDrawer({ userId, onClose, onOpenPet }: {
   userId: string | null; onClose: () => void; onOpenPet: (petId: string) => void;
@@ -113,7 +99,7 @@ export function UserDetailDrawer({ userId, onClose, onOpenPet }: {
                   className="w-full rounded-lg border border-slate-200 p-3 text-left hover:border-blue-300 hover:bg-blue-50/40">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <PetAvatar src={p.photo_url} />
+                      <PetPhotoThumb src={p.photo_url} alt={p.name} size={40} />
                       <span className="font-bold text-slate-900">{p.name}</span>
                     </div>
                     <span className="flex-shrink-0 text-[12px] text-slate-500">
@@ -169,7 +155,7 @@ export function PetDetailDrawer({ petId, onClose }: { petId: string | null; onCl
       {data && (
         <div className="space-y-5">
           <div className="flex items-center gap-3">
-            <PetAvatar src={data.pet.photo_url} size={56} />
+            <PetPhotoThumb src={data.pet.photo_url} alt={String(data.pet.name)} size={56} />
             <div>
               <div className="text-lg font-bold text-slate-900">{String(data.pet.name)}</div>
               <div className="text-[12px] text-slate-500">{String(data.pet.species)} · {String(data.pet.breed || 'sem raça')}</div>

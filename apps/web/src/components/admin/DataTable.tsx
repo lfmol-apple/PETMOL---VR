@@ -123,16 +123,38 @@ export function StatePill({ state }: { state: string }) {
   );
 }
 
+// Todo horário do painel admin é America/Sao_Paulo, sempre — explícito no
+// timeZone do Intl, nunca um deslocamento fixo somado à mão (o navegador de
+// quem está olhando pode estar em qualquer fuso; o dado em si é UTC no
+// banco). `Intl` resolve DST automaticamente se o Brasil voltar a ter
+// horário de verão — não precisa mexer aqui se isso mudar.
+const ADMIN_TIMEZONE = 'America/Sao_Paulo';
+
 export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', timeZone: ADMIN_TIMEZONE });
 }
 
 export function fmtDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString('pt-BR', {
+    day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit',
+    timeZone: ADMIN_TIMEZONE,
+  });
+}
+
+/** DD/MM/AAAA HH:mm:ss — pra tabelas que precisam do segundo exato (ex.:
+ * drill-down de eventos de Locais). */
+export function fmtDateTimeFull(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit',
+    timeZone: ADMIN_TIMEZONE,
+  });
 }

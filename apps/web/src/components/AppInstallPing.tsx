@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { API_BASE_URL } from '@/lib/api';
 import { isNativeApp, isStandalonePwa, isIosDevice } from '@/lib/pwaPlatform';
+import { getCampaignAttribution } from '@/lib/analytics/campaignAttribution';
 
 const KEY = 'petmol_install_reported_v1';
 
@@ -27,7 +28,7 @@ export function AppInstallPing() {
     fetch(`${API_BASE_URL}/analytics/app-install`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ platform }),
+      body: JSON.stringify({ platform, ...getCampaignAttribution() }),
       keepalive: true,
     })
       .then(() => {

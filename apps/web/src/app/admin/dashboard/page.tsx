@@ -12,6 +12,7 @@ import {
   OverviewSection, UsersSection, FeaturesSection, DataQualitySection,
   RetentionSection, CommerceSection, GeoSection,
 } from '@/components/admin/sections/sections';
+import { PhotoLightboxProvider } from '@/components/admin/PhotoLightbox';
 import { FeedingSection } from '@/components/admin/sections/FeedingSection';
 import { JourneySection } from '@/components/admin/sections/JourneySection';
 import { LocationsSection } from '@/components/admin/sections/LocationsSection';
@@ -19,6 +20,7 @@ import { ModerationSection } from '@/components/admin/sections/ModerationSection
 import { TacticalSection } from '@/components/admin/sections/TacticalSection';
 import dynamic from 'next/dynamic';
 import { OperationsSection } from '@/components/admin/sections/OperationsSection';
+import { spStartOfToday, spYesterdayRange, fmtSpDate } from '@/lib/analytics/spTime';
 
 // Leaflet toca em `window`/`document` no import — dinâmico e sem SSR, senão
 // quebra a renderização no servidor.
@@ -42,19 +44,18 @@ const DATE_PRESETS: { key: DatePresetKey; label: string }[] = [
 /** Presets finos calculam since/until (ISO, timestamp exato — o backend já
  * aceita, AnalyticsFilters.build só não tinha como expor via period_days em
  * dias inteiros); 7d/30d/90d/Tudo continuam mandando period_days como
- * sempre mandaram, sem mudar o que já funcionava. */
+ * sempre mandaram, sem mudar o que já funcionava. "Hoje"/"Ontem" usam
+ * fronteira de dia em America/Sao_Paulo (spTime.ts) — nunca meia-noite do
+ * fuso do navegador de quem está olhando o painel. */
 function presetToFilterPatch(key: DatePresetKey): Pick<GlobalFilter, 'period_days' | 'since' | 'until'> {
   const now = new Date();
   switch (key) {
     case '24h':
       return { period_days: undefined, since: new Date(now.getTime() - 24 * 3600 * 1000).toISOString(), until: undefined };
-    case 'today': {
-      const start = new Date(now); start.setHours(0, 0, 0, 0);
-      return { period_days: undefined, since: start.toISOString(), until: undefined };
-    }
+    case 'today':
+      return { period_days: undefined, since: spStartOfToday(now).toISOString(), until: undefined };
     case 'yesterday': {
-      const start = new Date(now); start.setDate(start.getDate() - 1); start.setHours(0, 0, 0, 0);
-      const end = new Date(start); end.setDate(end.getDate() + 1);
+      const { start, end } = spYesterdayRange(now);
       return { period_days: undefined, since: start.toISOString(), until: end.toISOString() };
     }
     case '7d': return { period_days: 7, since: undefined, until: undefined };
@@ -63,6 +64,24 @@ function presetToFilterPatch(key: DatePresetKey): Pick<GlobalFilter, 'period_day
     case 'all': return { period_days: undefined, since: undefined, until: undefined };
     case 'custom': return { period_days: undefined, since: undefined, until: undefined };
   }
+}
+
+/** Rótulo explícito do período em análise (item 1: "exibir claramente o
+ * período que está sendo analisado") — sempre em DD/MM/AAAA, horário de SP. */
+function periodLabel(filter: GlobalFilter, datePreset: DatePresetKey): string {
+  if (datePreset === 'all' || (!filter.since && !filter.until && !filter.period_days)) {
+    return 'Todo o período (desde o início)';
+  }
+  if (filter.since && filter.until) {
+    return `${fmtSpDate(new Date(filter.since))} até ${fmtSpDate(new Date(filter.until))}`;
+  }
+  if (filter.since) {
+    return `Desde ${fmtSpDate(new Date(filter.since))}`;
+  }
+  if (filter.period_days) {
+    return `Últimos ${filter.period_days} dias`;
+  }
+  return 'Todo o período (desde o início)';
 }
 
 type SectionLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L';
@@ -91,14 +110,20 @@ export default function AdminDashboardPage() {
   const router = useRouter();
   const { logout } = useAuth();
   const { isAdmin, adminData, isLoading: adminLoading } = useAdmin();
-  const [filter, setFilter] = useState<GlobalFilter>({ period_days: 30 });
+  // Padrão "Tudo" (item 1 do pedido de evolução do dashboard) — nunca abre
+  // recortado em 7/30 dias. since/until vazios = sem filtro de período
+  // nenhum, o backend já trata isso como "todos os registros".
+  const [filter, setFilter] = useState<GlobalFilter>({});
   // Só pra destacar o botão certo — o filtro de verdade é `filter` acima
   // (since/until/period_days). Precisa separado porque since/until
   // calculado de "Hoje" não dá pra distinguir de um range customizado só
   // olhando os valores.
-  const [datePreset, setDatePreset] = useState<DatePresetKey>('30d');
+  const [datePreset, setDatePreset] = useState<DatePresetKey>('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
+  // Qual coluna vem ordenada primeiro em Locais — muda quando o dono clica
+  // no card Downloads ou Acessos em Indicadores Executivos (item 5).
+  const [locationsSortBy, setLocationsSortBy] = useState<'total' | 'downloads' | 'acessos'>('total');
 
   const applyDatePreset = (key: DatePresetKey) => {
     setDatePreset(key);
@@ -155,6 +180,13 @@ export default function AdminDashboardPage() {
     setFilter((f) => ({ ...f, city }));
     openAndScroll('H');
   };
+  /** Clicar no card Downloads/Acessos em Indicadores Executivos abre Locais
+   * já ordenado pela coluna correspondente, preservando o período
+   * selecionado (item 5 do pedido de evolução do dashboard). */
+  const openLocations = (kind: 'downloads' | 'acessos') => {
+    setLocationsSortBy(kind);
+    openAndScroll('K');
+  };
 
   if (adminLoading || !isAdmin || !adminData) {
     return (
@@ -183,6 +215,7 @@ export default function AdminDashboardPage() {
           w-full aqui é o que efetivamente passa a mandar na largura. As
           grades de card por trás usam auto-fit, então se ajustam sozinhas
           à largura real de cada coluna em vez de depender de breakpoint. */}
+      <PhotoLightboxProvider>
       <div className="w-full px-4 py-4 sm:px-6 lg:px-10">
         {/* atalhos para as telas admin completas (fora do BI) */}
         <div className="mb-4 flex flex-wrap gap-1.5">
@@ -240,12 +273,15 @@ export default function AdminDashboardPage() {
               className="rounded-md border border-slate-200 bg-white px-2 py-1 font-semibold text-slate-500">limpar</button>
           )}
         </div>
-        <p className="mb-4 flex items-center gap-1.5 px-1 text-[11px] text-slate-400">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        <p className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px] text-slate-400">
+          <span className="flex items-center gap-1.5">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            </span>
+            Ao vivo — cada painel se atualiza sozinho a cada 20s, sem precisar recarregar a página.
           </span>
-          Ao vivo — cada painel se atualiza sozinho a cada 20s, sem precisar recarregar a página.
+          <span className="font-semibold text-slate-500">Analisando: {periodLabel(filter, datePreset)}</span>
         </p>
 
         {/* A–J, tudo aberto por padrão, em duas colunas num desktop — usa a
@@ -256,7 +292,7 @@ export default function AdminDashboardPage() {
           <div className="space-y-4">
             <AccordionPanel id={SECTION_IDS.A} letter="A" title="Indicadores Executivos" open={open.A} onToggle={() => toggle('A')}>
               <OverviewSection filter={filter} onCrossFilterPlatform={crossFilterPlatform} onOpenFeeding={openFeeding}
-                onOpenTutors={openTutors} onOpenMissingPets={openMissingPets} />
+                onOpenTutors={openTutors} onOpenMissingPets={openMissingPets} onOpenLocations={openLocations} />
             </AccordionPanel>
 
             <AccordionPanel id={SECTION_IDS.C} letter="C" title="Alimentação e Ração" subtitle="Prioridade comercial" open={open.C} onToggle={() => toggle('C')}>
@@ -275,6 +311,15 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
+        {/* Locais logo abaixo de Indicadores Executivos (item 6 do pedido de
+            evolução do dashboard) — largura cheia porque a tabela de
+            agrupamento/drill-down precisa do espaço. */}
+        <div className="mt-4">
+          <AccordionPanel id={SECTION_IDS.K} letter="K" title="Locais" subtitle="De onde vêm os acessos, downloads e cadastros" open={open.K} onToggle={() => toggle('K')}>
+            <LocationsSection filter={filter} sortBy={locationsSortBy} onSortByChange={setLocationsSortBy} onFilterByCity={filterByCity} />
+          </AccordionPanel>
+        </div>
+
         <div className="mt-4">
           <AccordionPanel id={SECTION_IDS.G} letter="G" title="Mapa dos Tutores" open={open.G} onToggle={() => toggle('G')}>
             <div className="space-y-4">
@@ -284,12 +329,6 @@ export default function AdminDashboardPage() {
                 <GeoSection />
               </div>
             </div>
-          </AccordionPanel>
-        </div>
-
-        <div className="mt-4">
-          <AccordionPanel id={SECTION_IDS.K} letter="K" title="Locais" subtitle="De onde vêm os acessos e downloads" open={open.K} onToggle={() => toggle('K')}>
-            <LocationsSection onFilterByCity={filterByCity} />
           </AccordionPanel>
         </div>
 
@@ -336,6 +375,7 @@ export default function AdminDashboardPage() {
           </AccordionPanel>
         </div>
       </div>
+      </PhotoLightboxProvider>
     </PremiumScreenShell>
   );
 }
