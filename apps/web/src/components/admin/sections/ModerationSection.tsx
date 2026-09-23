@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth-token';
 import { useAsync, Panel, Loading, ErrorBox, numberFmt } from './sections';
+import { fmtSpDateTime } from '@/lib/analytics/spTime';
 
 const BASE = '/api/v1/admin/moderation';
 
@@ -103,7 +104,7 @@ function DecisionCard({ d, onChanged }: { d: Decision; onChanged: () => void }) 
             Confiança: {d.ai_confidence != null ? `${Math.round(d.ai_confidence * 100)}%` : '—'}
             {d.ai_image_type ? ` · tipo: ${d.ai_image_type}` : ''}
           </p>
-          <p className="text-[10px] text-slate-400">{new Date(d.created_at).toLocaleString('pt-BR')}</p>
+          <p className="text-[10px] text-slate-400">{fmtSpDateTime(d.created_at)}</p>
           {d.status === 'pending' && (
             <div className="mt-1.5 flex gap-2">
               <button type="button" disabled={!!busy} onClick={() => act('approve')}

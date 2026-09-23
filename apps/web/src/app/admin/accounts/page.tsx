@@ -6,6 +6,7 @@ import { PremiumScreenShell } from '@/components/premium';
 import { localTodayISO } from '@/lib/localDate';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdmin } from '@/hooks/useAdmin';
+import { fmtSpDateTime } from '@/lib/analytics/spTime';
 
 interface PetOut {
   id: string;
@@ -135,17 +136,7 @@ export default function AdminAccountsPage() {
   }, [accounts, query]);
 
   const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return dateString;
-    }
+    return fmtSpDateTime(dateString);
   };
 
   const exportData = () => {

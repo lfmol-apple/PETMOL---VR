@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { adminGet, filterParams, type GlobalFilter } from '@/lib/admin/analyticsApi';
 import { getToken } from '@/lib/auth-token';
 import { useAsync, Panel, Loading, ErrorBox, numberFmt } from './sections';
+import { fmtSpDateTime } from '@/lib/analytics/spTime';
 
 interface Decision {
   decision: string; decision_label: string; note: string | null;
@@ -79,7 +80,7 @@ function SuggestionCard({ suggestion, onDecided }: { suggestion: Suggestion; onD
       {err && <p className="mt-2 text-[11px] text-rose-600">Erro ao registrar: {err}</p>}
       <p className="mt-2 text-[11px] text-slate-400">
         {suggestion.decision
-          ? `${suggestion.decision.decision_label} por ${suggestion.decision.decided_by || '—'} em ${suggestion.decision.decided_at ? new Date(suggestion.decision.decided_at).toLocaleString('pt-BR') : '—'}. Nenhum push foi enviado por este painel.`
+          ? `${suggestion.decision.decision_label} por ${suggestion.decision.decided_by || '—'} em ${suggestion.decision.decided_at ? fmtSpDateTime(suggestion.decision.decided_at) : '—'}. Nenhum push foi enviado por este painel.`
           : 'Nenhuma decisão registrada ainda. Nenhum push será enviado por este painel.'}
       </p>
     </div>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { PremiumScreenShell } from '@/components/premium';
 import { API_BASE_URL } from '@/lib/api';
 import { requestUserConfirmation, showBlockingNotice } from '@/features/interactions/userPromptChannel';
+import { fmtSpDay } from '@/lib/analytics/spTime';
 
 interface Establishment {
   id: string;
@@ -223,7 +224,7 @@ export default function AdminEstablishmentsPage() {
                       </div>
                       <div>
                         <span className="font-semibold">Cadastrado em:</span>{' '}
-                        {new Date(estab.created_at).toLocaleDateString('pt-BR')}
+                        {fmtSpDay(estab.created_at)}
                       </div>
                     </div>
 

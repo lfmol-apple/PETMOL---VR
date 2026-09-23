@@ -6,6 +6,7 @@ import { PremiumScreenShell } from '@/components/premium';
 import { requestUserConfirmation } from '@/features/interactions/userPromptChannel';
 import { getToken } from '@/lib/auth-token';
 import { useAdmin } from '@/hooks/useAdmin';
+import { fmtSpDateTime } from '@/lib/analytics/spTime';
 
 interface User {
   id: string;
@@ -23,13 +24,7 @@ type UsersResponse = ApiResponse<User[]>;
 type UserResponse = ApiResponse<User>;
 
 function formatDate(isoString: string) {
-  return new Date(isoString).toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return fmtSpDateTime(isoString);
 }
 
 async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
