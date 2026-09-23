@@ -658,6 +658,28 @@ def run_pg_migrations(engine: Engine) -> None:
                 'ALTER TABLE "petz_product_mappings" ALTER COLUMN "variant_label" TYPE TEXT'
             ))
 
+        # Dashboard de inteligência de campanhas (Set/2026): atribuição UTM em
+        # app_installs (downloads) e analytics_product_events (acessos), + geo-IP
+        # nos eventos-âncora de sessão (mesma fonte/rótulo do geo-IP de
+        # app_installs — nunca a localização declarada do tutor).
+        _pg_add_column_if_missing(conn, "app_installs", "utm_source", "TEXT")
+        _pg_add_column_if_missing(conn, "app_installs", "utm_medium", "TEXT")
+        _pg_add_column_if_missing(conn, "app_installs", "utm_campaign", "TEXT")
+        _pg_add_column_if_missing(conn, "app_installs", "utm_content", "TEXT")
+        _pg_add_column_if_missing(conn, "app_installs", "utm_term", "TEXT")
+        _pg_add_column_if_missing(conn, "app_installs", "referrer_host", "TEXT")
+        _pg_add_column_if_missing(conn, "app_installs", "landing_path", "TEXT")
+        _pg_add_column_if_missing(conn, "analytics_product_events", "utm_source", "TEXT")
+        _pg_add_column_if_missing(conn, "analytics_product_events", "utm_medium", "TEXT")
+        _pg_add_column_if_missing(conn, "analytics_product_events", "utm_campaign", "TEXT")
+        _pg_add_column_if_missing(conn, "analytics_product_events", "utm_content", "TEXT")
+        _pg_add_column_if_missing(conn, "analytics_product_events", "utm_term", "TEXT")
+        _pg_add_column_if_missing(conn, "analytics_product_events", "referrer_host", "TEXT")
+        _pg_add_column_if_missing(conn, "analytics_product_events", "landing_path", "TEXT")
+        _pg_add_column_if_missing(conn, "analytics_product_events", "city", "TEXT")
+        _pg_add_column_if_missing(conn, "analytics_product_events", "region", "TEXT")
+        _pg_add_column_if_missing(conn, "analytics_product_events", "country", "TEXT")
+
 
 def _migrate_push_subscriptions_from_json(conn) -> None:
     """One-time import of the legacy push_subscriptions.json (file-based,
@@ -1225,6 +1247,26 @@ def run_sqlite_migrations(engine: Engine) -> None:
         conn.execute(text("DROP TABLE IF EXISTS pet_documents"))
         _wipe_pet_documents_dir()
         conn.execute(text("DROP TABLE IF EXISTS rg_public"))
+
+        # Dashboard de inteligência de campanhas (Set/2026) — ver
+        # run_pg_migrations para o comentário completo.
+        changed |= _sqlite_add_column_if_missing(conn, "app_installs", "utm_source", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "app_installs", "utm_medium", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "app_installs", "utm_campaign", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "app_installs", "utm_content", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "app_installs", "utm_term", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "app_installs", "referrer_host", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "app_installs", "landing_path", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "analytics_product_events", "utm_source", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "analytics_product_events", "utm_medium", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "analytics_product_events", "utm_campaign", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "analytics_product_events", "utm_content", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "analytics_product_events", "utm_term", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "analytics_product_events", "referrer_host", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "analytics_product_events", "landing_path", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "analytics_product_events", "city", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "analytics_product_events", "region", "TEXT")
+        changed |= _sqlite_add_column_if_missing(conn, "analytics_product_events", "country", "TEXT")
 
         # `changed` is intentionally unused; kept for potential logging later.
         _ = changed

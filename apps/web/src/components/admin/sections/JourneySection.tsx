@@ -12,6 +12,7 @@
 import { useState } from 'react';
 import { adminGet, filterParams, type GlobalFilter } from '@/lib/admin/analyticsApi';
 import { Pagination } from '@/components/admin/DataTable';
+import { PetPhotoThumb } from '@/components/admin/PhotoLightbox';
 import { useAsync, Panel, Loading, ErrorBox, numberFmt } from './sections';
 
 interface JourneyStepRow {
@@ -31,19 +32,6 @@ interface JourneyStepPopulationItem {
 interface JourneyStepPopulationResponse {
   step: string; label: string; total: number; page: number; page_size: number;
   items: JourneyStepPopulationItem[];
-}
-
-function PetThumb({ src, name }: { src: string | null; name: string }) {
-  return (
-    <div title={name} className="flex-shrink-0 overflow-hidden rounded-full border-2 border-white bg-slate-100" style={{ width: 24, height: 24 }}>
-      {src ? (
-        // eslint-disable-next-line @next/next/no-img-element -- foto de usuário; sem remotePatterns novo
-        <img src={src} alt="" width={24} height={24} className="h-full w-full object-cover" loading="lazy" />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center text-[11px]" aria-hidden>🐾</div>
-      )}
-    </div>
-  );
 }
 
 function StepDrilldown({ step, label, filter, onClose }: {
@@ -78,7 +66,9 @@ function StepDrilldown({ step, label, filter, onClose }: {
                       <span className="text-[11px] text-slate-400">{[it.city, it.state].filter(Boolean).join('/') || '—'}</span>
                       {it.pet_thumbnails.length > 0 && (
                         <div className="flex items-center -space-x-2">
-                          {it.pet_thumbnails.map((p) => <PetThumb key={p.pet_id} src={p.photo_url} name={p.name} />)}
+                          {it.pet_thumbnails.map((p) => (
+                            <PetPhotoThumb key={p.pet_id} src={p.photo_url} alt={p.name} size={24} className="border-2 border-white" />
+                          ))}
                         </div>
                       )}
                     </div>

@@ -83,9 +83,20 @@ export function filterParams(f: GlobalFilter): Record<string, string | number | 
 
 export interface SeriesPoint { date: string; value: number }
 
+export interface DownloadsSummary {
+  total: number; ios: number; android: number; pwa: number;
+  prev_period_total: number | null; delta_pct: number | null; note: string;
+}
+export interface AcessosSummary {
+  total_sessions: number; unique_visitors: number; web: number; app_opens: number;
+  prev_period_total: number | null; delta_pct: number | null; note: string;
+}
+
 export interface OverviewResponse {
   generated_at: string;
   totals: Record<string, number>;
+  downloads: DownloadsSummary;
+  acessos: AcessosSummary;
   engagement: {
     active_users_24h: number; wau: number; mau: number;
     dau_mau: number | null; sessions_7d: number; note: string;
@@ -100,6 +111,44 @@ export interface OverviewResponse {
   top_features: { key: string; label: string; configured_pets: number; active_pets: number; adoption_pct: number }[];
   series: { new_users: SeriesPoint[]; new_pets: SeriesPoint[]; active_users: SeriesPoint[] };
   data_quality_headline: { issues: DataQualityIssue[] };
+}
+
+// ── Locais / campanhas ───────────────────────────────────────────────────
+
+export interface LocationRow {
+  city: string; region: string; country: string;
+  downloads: number; acessos: number; total: number;
+  cadastros_declared_location: number;
+  lat: number | null; lng: number | null;
+}
+export interface LocationsResponse {
+  downloads_today: number; acessos_today: number;
+  downloads_campaign: number; acessos_campaign: number;
+  total_campaign: number;
+  places: LocationRow[]; places_total: number;
+  mapped_places: number; unmapped_places: number;
+  sort_by: 'total' | 'downloads' | 'acessos';
+  window_label: string; custom_window: boolean;
+  note: string;
+}
+
+export interface CampaignRow {
+  utm_source: string; utm_medium: string; utm_campaign: string;
+  downloads: number; acessos: number; visitantes_unicos: number;
+  sessoes_autenticadas: number; total: number;
+}
+export interface CampaignsResponse {
+  campaigns: CampaignRow[]; campaigns_total: number; has_any_attribution: boolean; note: string;
+}
+
+export interface LocationEventRow {
+  occurred_at: string | null; event: 'download' | 'acesso';
+  user_id: string | null; name: string; identified: boolean;
+  city: string; state: string; platform: string | null;
+  utm_campaign: string; utm_source: string | null;
+}
+export interface LocationEventsResponse {
+  total: number; page: number; page_size: number; items: LocationEventRow[]; note: string;
 }
 
 export interface FeatureRow {

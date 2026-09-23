@@ -9,6 +9,7 @@ import {
 } from '@/lib/admin/analyticsApi';
 import { LineChart, BarRanking, StatCard, PercentBar } from '@/components/admin/charts/Charts';
 import { DataTable, Pagination, StatePill, fmtDateTime, type Column } from '@/components/admin/DataTable';
+import { PetPhotoThumb } from '@/components/admin/PhotoLightbox';
 import { UserDetailDrawer, PetDetailDrawer, PopulationDrawer } from './detail';
 
 export const numberFmt = (n: number | null | undefined) => (typeof n === 'number' ? n.toLocaleString('pt-BR') : '—');
@@ -79,7 +80,9 @@ interface MissingPetsSummary {
   active: number; found_total: number; found_with_petmol_participation: number; note: string;
 }
 
-export function OverviewSection({ filter, onCrossFilterPlatform, onOpenFeeding, onOpenTutors, onOpenMissingPets }: {
+export function OverviewSection({
+  filter, onCrossFilterPlatform, onOpenFeeding, onOpenTutors, onOpenMissingPets, onOpenLocations,
+}: {
   filter: GlobalFilter;
   /** Clicar numa barra de plataforma filtra Tutores & Pets por ela (filtro
    * cruzado real — o backend agora aplica f.platform, antes era ignorado). */
@@ -93,6 +96,9 @@ export function OverviewSection({ filter, onCrossFilterPlatform, onOpenFeeding, 
   onOpenTutors?: () => void;
   /** "Pets desaparecidos" / "Encontrados" levam pra tela real do recurso. */
   onOpenMissingPets?: () => void;
+  /** Downloads/Acessos abrem a Seção Locais já ordenada pela coluna certa
+   * (item 5 do pedido de evolução do dashboard). */
+  onOpenLocations?: (kind: 'downloads' | 'acessos') => void;
 }) {
   const { data, error, loading } = useAsync<OverviewResponse>(
     () => adminGet('/overview', filterParams(filter)), [JSON.stringify(filter)],
@@ -123,6 +129,12 @@ export function OverviewSection({ filter, onCrossFilterPlatform, onOpenFeeding, 
         <StatCard label="Ativos 24h" tone="violet" value={numberFmt(data.engagement.active_users_24h)}
           sub={`WAU ${numberFmt(data.engagement.wau)} · MAU ${numberFmt(data.engagement.mau)}`}
           trend={data.series.active_users} onClick={onOpenTutors} />
+        <StatCard label="Downloads" tone="good" value={numberFmt(data.downloads.total)}
+          sub={`iOS ${numberFmt(data.downloads.ios)} · Android ${numberFmt(data.downloads.android)}${data.downloads.pwa ? ` · PWA ${numberFmt(data.downloads.pwa)}` : ''}${data.downloads.delta_pct != null ? ` · ${data.downloads.delta_pct > 0 ? '+' : ''}${data.downloads.delta_pct}% vs período anterior` : ''}`}
+          onClick={onOpenLocations ? () => onOpenLocations('downloads') : undefined} />
+        <StatCard label="Acessos" value={numberFmt(data.acessos.total_sessions)}
+          sub={`${numberFmt(data.acessos.unique_visitors)} visitantes únicos${data.acessos.delta_pct != null ? ` · ${data.acessos.delta_pct > 0 ? '+' : ''}${data.acessos.delta_pct}% vs período anterior` : ''}`}
+          onClick={onOpenLocations ? () => onOpenLocations('acessos') : undefined} />
         <StatCard label="Sem alimentação" tone="amber" value={numberFmt(semAlimentacao)}
           sub={`${semAlimentacaoPct}% dos pets · investigar`} onClick={onOpenFeeding} />
         <StatCard label="Pets desaparecidos" tone="red"
@@ -178,6 +190,7 @@ export function OverviewSection({ filter, onCrossFilterPlatform, onOpenFeeding, 
       </Panel>
 
       <p className="text-[11px] text-slate-400">{data.engagement.note}</p>
+      <p className="text-[11px] text-slate-400">{data.downloads.note}</p>
     </div>
   );
 }
@@ -193,16 +206,8 @@ export function PetAvatarStack({ pets, size = 32 }: { pets: PetThumbnail[]; size
   return (
     <div className="flex items-center -space-x-2">
       {pets.map((p) => (
-        <div key={p.pet_id} title={p.name}
-          className="overflow-hidden rounded-full border-2 border-white bg-slate-100 shadow-sm"
-          style={{ width: size, height: size, flexShrink: 0 }}>
-          {p.photo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element -- foto de usuário; mesmo padrão de SheetAvatar, sem remotePatterns novo
-            <img src={p.photo_url} alt={p.name} width={size} height={size} className="h-full w-full object-cover" loading="lazy" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-[13px]" aria-hidden>🐾</div>
-          )}
-        </div>
+        <PetPhotoThumb key={p.pet_id} src={p.photo_url} alt={p.name} size={size}
+          className="border-2 border-white shadow-sm" />
       ))}
     </div>
   );

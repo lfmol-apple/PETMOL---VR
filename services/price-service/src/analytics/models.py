@@ -99,9 +99,33 @@ class AnalyticsProductEvent(Base):
     timezone: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     properties_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Atribuição de campanha — capturada pelo cliente na 1ª tela da sessão
+    # (da URL de entrada: ?utm_source=...) e reenviada em todo evento
+    # "âncora de sessão" (session_start/app_open) daquela sessão. Vazio =
+    # acesso direto/orgânico, não "sem dado" (ver campaign_bi.py).
+    utm_source: Mapped[Optional[str]] = mapped_column(String(120), nullable=True, index=True)
+    utm_medium: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    utm_campaign: Mapped[Optional[str]] = mapped_column(String(160), nullable=True, index=True)
+    utm_content: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    utm_term: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    # Só o HOST do referrer (nunca a URL inteira — pode carregar query string
+    # de terceiro com dado que não é nosso pra guardar).
+    referrer_host: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    landing_path: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+
+    # Geo-IP best-effort, só nos eventos-âncora de sessão (ver
+    # _enrich_product_event_geo em analytics/router.py) — mesma fonte/
+    # confiabilidade do geo-IP de AppInstall, NUNCA a localização declarada
+    # do tutor (User.city/state) nem a do pet. "Aproximado por IP", sempre
+    # rotulado assim na UI.
+    city: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    region: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    country: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+
     __table_args__ = (
         Index("idx_ape_event_received", "event_name", "received_at"),
         Index("idx_ape_user_received", "user_id", "received_at"),
         Index("idx_ape_anon_received", "anonymous_id", "received_at"),
         Index("idx_ape_session_received", "session_id", "received_at"),
+        Index("idx_ape_campaign_received", "utm_campaign", "received_at"),
     )

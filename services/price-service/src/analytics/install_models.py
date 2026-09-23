@@ -35,6 +35,17 @@ class AppInstall(Base):
     user_agent: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
+    # Atribuição de campanha (mesma origem/semântica de
+    # AnalyticsProductEvent.utm_*, capturada pelo cliente na URL que levou à
+    # 1ª abertura — ver POST /analytics/app-install). Vazio = orgânico/direto.
+    utm_source: Mapped[Optional[str]] = mapped_column(String(120), nullable=True, index=True)
+    utm_medium: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    utm_campaign: Mapped[Optional[str]] = mapped_column(String(160), nullable=True, index=True)
+    utm_content: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    utm_term: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    referrer_host: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    landing_path: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+
 
 def install_count_cutoff():
     """Corte da campanha como datetime aware (UTC)."""

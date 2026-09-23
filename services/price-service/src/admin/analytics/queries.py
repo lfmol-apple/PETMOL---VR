@@ -131,6 +131,8 @@ def overview(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
     sessions_7d = _distinct_sessions(db, now - timedelta(days=7))
 
     return {
+        "downloads": _downloads_summary(db, f, now),
+        "acessos": _acessos_summary(db, f, now),
         "generated_at": now.isoformat(),
         "totals": {
             "users": total_users,
@@ -172,6 +174,129 @@ def overview(db: Session, f: AnalyticsFilters) -> dict[str, Any]:
 
 def _start_of_day(now: datetime) -> datetime:
     return now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def _prev_window(since: Optional[datetime], until: Optional[datetime], now: datetime) -> Optional[tuple[datetime, datetime]]:
+    """Janela imediatamente anterior, de mesma duração — só existe quando
+    `since` está definido (janela fechada de um lado). Com 'Tudo'
+    selecionado (since=None) não há "período anterior" que faça sentido —
+    devolve None, e o card mostra a evolução como indisponível em vez de
+    inventar uma comparação."""
+    if since is None:
+        return None
+    end = until or now
+    duration = end - since
+    if duration.total_seconds() <= 0:
+        return None
+    return (since - duration, since)
+
+
+def _delta_pct(current: int, previous: Optional[int]) -> Optional[float]:
+    """None quando não dá pra comparar (sem período anterior, ou período
+    anterior zerado — dividir por zero viraria "infinito%", enganoso)."""
+    if previous is None or previous == 0:
+        return None
+    return round((current - previous) / previous * 100, 1)
+
+
+def _downloads_summary(db: Session, f: AnalyticsFilters, now: datetime) -> dict[str, Any]:
+    """Downloads = 1ª abertura confirmada NO DISPOSITIVO (app nativo
+    instalado ou PWA adicionado à tela de início) — nunca um número
+    confirmado pela App Store/Play (essas exigem App Store Connect /
+    Play Console; ver nota em campaign_bi.py e o relatório final do PR)."""
+    from ...analytics.install_models import AppInstall, DOWNLOAD_PLATFORMS
+
+    q = db.query(AppInstall)
+    if f.since:
+        q = q.filter(AppInstall.created_at >= f.since)
+    if f.until:
+        q = q.filter(AppInstall.created_at <= f.until)
+    if f.platform:
+        q = q.filter(AppInstall.platform == f.platform)
+    rows = q.all()
+    downloads = [r for r in rows if r.platform in DOWNLOAD_PLATFORMS]
+    ios = sum(1 for r in downloads if r.platform == "ios")
+    android = sum(1 for r in downloads if r.platform == "android")
+    pwa = sum(1 for r in downloads if r.platform == "pwa")
+
+    prev_total = None
+    win = _prev_window(f.since, f.until, now)
+    if win:
+        pq = db.query(AppInstall).filter(AppInstall.created_at >= win[0], AppInstall.created_at < win[1])
+        if f.platform:
+            pq = pq.filter(AppInstall.platform == f.platform)
+        prev_total = sum(1 for r in pq.all() if r.platform in DOWNLOAD_PLATFORMS)
+
+    return {
+        "total": len(downloads),
+        "ios": ios,
+        "android": android,
+        "pwa": pwa,
+        "prev_period_total": prev_total,
+        "delta_pct": _delta_pct(len(downloads), prev_total),
+        "note": (
+            "1ª abertura confirmada no dispositivo (app nativo ou PWA instalado) — "
+            "não é o número de downloads confirmado pela App Store/Google Play "
+            "(precisa de integração com App Store Connect / Play Console, não "
+            "configurada). 'Cadastro resultante' ainda não tem atribuição "
+            "implementada — precisaria de um identificador compartilhado entre "
+            "o 1º open e o cadastro."
+        ),
+    }
+
+
+def _acessos_summary(db: Session, f: AnalyticsFilters, now: datetime) -> dict[str, Any]:
+    """Acessos = sessões (evento-âncora app_open/session_start), nunca
+    pageview solto. web = acesso ao site pelo navegador; ios/android =
+    abertura do app nativo instalado."""
+    q = db.query(AnalyticsProductEvent).filter(
+        AnalyticsProductEvent.event_name.in_(("app_open", "session_start"))
+    )
+    if f.since:
+        q = q.filter(AnalyticsProductEvent.received_at >= f.since)
+    if f.until:
+        q = q.filter(AnalyticsProductEvent.received_at <= f.until)
+    if f.platform:
+        q = q.filter(AnalyticsProductEvent.platform == f.platform)
+    rows = q.all()
+    total = len(rows)
+    unique_visitors = len({
+        (r.user_id or r.anonymous_id or r.session_id) for r in rows
+        if (r.user_id or r.anonymous_id or r.session_id)
+    })
+    # analytics_product_events.platform vem de session.ts::detectPlatform() —
+    # dentro do app nativo o valor real é "ios_capacitor"/"android_capacitor"
+    # (nunca o "ios"/"android" puro; esses só existem em app_installs, uma
+    # tabela diferente). Ver _NATIVE_PLATFORM_LABEL logo abaixo neste arquivo.
+    web = sum(1 for r in rows if r.platform == "web")
+    app_opens = sum(1 for r in rows if r.platform in ("ios", "ios_capacitor", "android", "android_capacitor"))
+
+    prev_total = None
+    win = _prev_window(f.since, f.until, now)
+    if win:
+        pq = db.query(AnalyticsProductEvent).filter(
+            AnalyticsProductEvent.event_name.in_(("app_open", "session_start")),
+            AnalyticsProductEvent.received_at >= win[0],
+            AnalyticsProductEvent.received_at < win[1],
+        )
+        if f.platform:
+            pq = pq.filter(AnalyticsProductEvent.platform == f.platform)
+        prev_total = pq.count()
+
+    return {
+        "total_sessions": total,
+        "unique_visitors": unique_visitors,
+        "web": web,
+        "app_opens": app_opens,
+        "prev_period_total": prev_total,
+        "delta_pct": _delta_pct(total, prev_total),
+        "note": (
+            "Sessão (app_open/session_start), não pageview solto. Visitante "
+            "único = user_id autenticado, ou identificador anônimo de sessão "
+            "quando não logado — pode contar o mesmo dispositivo mais de uma "
+            "vez se o app foi reinstalado ou o storage local foi limpo."
+        ),
+    }
 
 
 def _active_users(db: Session, since: datetime) -> int:

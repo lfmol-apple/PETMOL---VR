@@ -7,6 +7,9 @@
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/auth-token';
 import { getAnalyticsContext } from '@/lib/analytics/session';
+import { getCampaignAttribution } from '@/lib/analytics/campaignAttribution';
+
+const SESSION_ANCHOR_EVENTS = new Set(['app_open', 'session_start']);
 
 type EventName =
   | 'app_open'
@@ -149,6 +152,11 @@ function sendProductEvent(name: EventName | string, properties: Record<string, u
       locale: context.locale,
       timezone: context.timezone,
       properties: sanitizeAnalyticsProperties(properties),
+      // Atribuição de campanha só nos eventos-âncora de sessão (o backend
+      // só gasta o lookup de geo-IP nesses mesmos dois, ver
+      // analytics/router.py::_SESSION_ANCHOR_EVENTS) — mantém o payload dos
+      // demais eventos do tamanho de sempre.
+      ...(SESSION_ANCHOR_EVENTS.has(name) ? getCampaignAttribution() : {}),
     };
     void fetch(`${API_BASE_URL}/analytics/event`, {
       method: 'POST',
