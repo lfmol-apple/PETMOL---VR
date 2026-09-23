@@ -76,7 +76,7 @@ def locations_summary(
         datetime.now(_BR).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
     )
     custom_window = since is not None or until is not None
-    window_start = since or cutoff
+    window_start = max(since, cutoff) if since else cutoff   # nunca antes do corte (teste)
 
     # Volume é da ordem de centenas/poucos milhares desde o corte da
     # campanha — agregar em Python (como o e-mail diário já faz) evita
@@ -208,9 +208,9 @@ def location_events(
     page = max(1, page)
     page_size = max(1, min(page_size, 200))
 
-    installs_q = db.query(AppInstall)
-    if since:
-        installs_q = installs_q.filter(AppInstall.created_at >= since)
+    # corte da campanha: instalação anterior é aparelho/conta de teste
+    cutoff = install_count_cutoff()
+    installs_q = db.query(AppInstall).filter(AppInstall.created_at >= (max(since, cutoff) if since else cutoff))
     if until:
         installs_q = installs_q.filter(AppInstall.created_at <= until)
     if city:

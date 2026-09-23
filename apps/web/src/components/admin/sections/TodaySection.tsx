@@ -13,17 +13,10 @@
 import { useState } from 'react';
 import { adminGet, type BriefResponse, type BriefMetric } from '@/lib/admin/analyticsApi';
 import { StatCard } from '@/components/admin/charts/Charts';
-import { spYesterdayRange } from '@/lib/analytics/spTime';
+import { spIsoDate, spYesterdayRange } from '@/lib/analytics/spTime';
 import { useAsync, Panel, Loading, ErrorBox, numberFmt } from './sections';
 
 type DayMode = 'today' | 'yesterday' | 'custom';
-
-function spIsoDate(instant: Date): string {
-  // en-CA formata como AAAA-MM-DD — no fuso de SP, nunca no do navegador
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(instant);
-}
 
 const SEVERITY_ICON = { critical: '🔴', attention: '🟠', info: '🔵' } as const;
 

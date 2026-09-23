@@ -204,11 +204,13 @@ def _downloads_summary(db: Session, f: AnalyticsFilters, now: datetime) -> dict[
     instalado ou PWA adicionado à tela de início) — nunca um número
     confirmado pela App Store/Play (essas exigem App Store Connect /
     Play Console; ver nota em campaign_bi.py e o relatório final do PR)."""
-    from ...analytics.install_models import AppInstall, DOWNLOAD_PLATFORMS
+    from ...analytics.install_models import AppInstall, DOWNLOAD_PLATFORMS, install_count_cutoff
 
-    q = db.query(AppInstall)
-    if f.since:
-        q = q.filter(AppInstall.created_at >= f.since)
+    # corte da campanha: o que veio antes é aparelho/conta de teste — a
+    # mesma regra do push, do boletim e de Locais (sem isso "Tudo" somava
+    # instalações de teste e o card divergia do resto do painel)
+    cutoff = install_count_cutoff()
+    q = db.query(AppInstall).filter(AppInstall.created_at >= (max(f.since, cutoff) if f.since else cutoff))
     if f.until:
         q = q.filter(AppInstall.created_at <= f.until)
     if f.platform:
@@ -222,7 +224,7 @@ def _downloads_summary(db: Session, f: AnalyticsFilters, now: datetime) -> dict[
     prev_total = None
     win = _prev_window(f.since, f.until, now)
     if win:
-        pq = db.query(AppInstall).filter(AppInstall.created_at >= win[0], AppInstall.created_at < win[1])
+        pq = db.query(AppInstall).filter(AppInstall.created_at >= max(win[0], cutoff), AppInstall.created_at < win[1])
         if f.platform:
             pq = pq.filter(AppInstall.platform == f.platform)
         prev_total = sum(1 for r in pq.all() if r.platform in DOWNLOAD_PLATFORMS)

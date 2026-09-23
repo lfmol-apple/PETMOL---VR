@@ -82,6 +82,7 @@ from .places import models as _places_models  # noqa: F401
 from .checkin import models as _checkin_models  # noqa: F401
 from .analytics import install_models as _install_models  # noqa: F401
 from .geocoding import GeocodeCache as _geocode_cache_model  # noqa: F401
+from .analytics.spend_models import CampaignSpend as _campaign_spend_model  # noqa: F401 — register with Base
 from .checkin.router import router as checkin_router
 
 # Lightweight cache to avoid repeated paid vision calls for the same image.
