@@ -113,6 +113,24 @@ export interface OverviewResponse {
   data_quality_headline: { issues: DataQualityIssue[] };
 }
 
+// ── Resumo do dia ("Hoje" + boletim por e-mail) ────────────────────────
+
+export interface BriefMetric {
+  label: string; value: number; prev: number; avg7: number;
+  delta_prev_pct: number | null; delta_avg7_pct: number | null;
+}
+export interface BriefResponse {
+  day: string; label: string; is_today: boolean;
+  metrics: Record<string, BriefMetric>;
+  funnel: { label: string; n: number }[];
+  campaigns: { utm_source: string; utm_medium: string; utm_campaign: string; downloads: number; acessos: number }[];
+  has_campaign_attribution: boolean;
+  cities: { city: string; region: string; downloads: number; acessos: number }[];
+  attention: { severity: 'critical' | 'attention' | 'info'; key: string; message: string }[];
+  suggestion: { title: string; body: string } | null;
+  note: string;
+}
+
 // ── Locais / campanhas ───────────────────────────────────────────────────
 
 export interface LocationRow {
