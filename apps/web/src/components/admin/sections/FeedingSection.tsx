@@ -37,13 +37,6 @@ interface FeedingStagePopulationResponse {
   stage: string; label: string; total: number; page: number; page_size: number;
   items: FeedingStagePopulationItem[];
 }
-interface CommerceFunnelResponse {
-  steps: { key: string; label: string; users: number }[];
-  sale_confirmed: number | null;
-  commission_confirmed: number | null;
-  note: string;
-}
-
 /** Drill-down: painel lateral com os pets/tutores por trás de um estágio do funil. */
 function StageDrilldown({ stage, label, filter, onClose }: {
   stage: string; label: string; filter: GlobalFilter; onClose: () => void;
@@ -98,9 +91,6 @@ export function FeedingSection({ filter, onOpenTutors }: { filter: GlobalFilter;
   const [drilldown, setDrilldown] = useState<{ stage: string; label: string } | null>(null);
   const { data, error, loading } = useAsync<FeedingFunnelResponse>(
     () => adminGet('/feeding-funnel', filterParams(filter)), [JSON.stringify(filter)],
-  );
-  const commerce = useAsync<CommerceFunnelResponse>(
-    () => adminGet('/commerce-funnel', filterParams(filter)), [JSON.stringify(filter)],
   );
 
   if (loading) return <Loading />;
@@ -178,26 +168,9 @@ export function FeedingSection({ filter, onOpenTutors }: { filter: GlobalFilter;
         )}
       </Panel>
 
-      <Panel title="Funil comercial — Loja do Pet (eventos reais)">
-        {commerce.loading && !commerce.data ? <Loading /> : commerce.data && (
-          <div className="space-y-2">
-            {commerce.data.steps.map((s) => (
-              <div key={s.key} className="flex items-center gap-3 text-[13px]">
-                <div className="w-56 flex-shrink-0 text-slate-600">{s.label}</div>
-                <div className="h-5 flex-1 rounded bg-slate-100">
-                  <div className="flex h-full items-center rounded bg-amber-500 px-2 text-[11px] font-bold text-white"
-                    style={{ width: `${Math.max(4, (s.users / Math.max(1, commerce.data!.steps[0].users)) * 100)}%` }}>
-                    {numberFmt(s.users)}
-                  </div>
-                </div>
-              </div>
-            ))}
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
-              {commerce.data.note}
-            </div>
-          </div>
-        )}
-      </Panel>
+      <p className="rounded-lg bg-slate-100 px-3 py-2 text-[12px] text-slate-600">
+        O funil da Loja (aberta → oferta vista → clique) mora na aba <b>Loja e receita</b> — estava repetido aqui.
+      </p>
 
       <Panel title="O que este painel NÃO mede hoje">
         <ul className="list-disc space-y-1 pl-5 text-[12px] text-slate-500">

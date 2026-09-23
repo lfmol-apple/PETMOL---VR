@@ -24,6 +24,7 @@ from ...analytics.install_models import AppInstall, DOWNLOAD_PLATFORMS, install_
 from ...analytics.models import AnalyticsProductEvent
 from ...geocoding import get_cached_geocode, queue_geocode
 from ...user_auth.models import User
+from .filters import platform_clause
 
 _BR = ZoneInfo("America/Sao_Paulo")
 
@@ -218,7 +219,7 @@ def location_events(
     if state:
         installs_q = installs_q.filter(func.lower(AppInstall.region) == state.lower())
     if platform:
-        installs_q = installs_q.filter(AppInstall.platform == platform)
+        installs_q = installs_q.filter(platform_clause(AppInstall.platform, platform))
     if utm_campaign:
         installs_q = installs_q.filter(AppInstall.utm_campaign == utm_campaign)
     if event_type == "acesso":
@@ -242,7 +243,7 @@ def location_events(
     if state:
         events_q = events_q.filter(func.lower(AnalyticsProductEvent.region) == state.lower())
     if platform:
-        events_q = events_q.filter(AnalyticsProductEvent.platform == platform)
+        events_q = events_q.filter(platform_clause(AnalyticsProductEvent.platform, platform))
     if utm_campaign:
         events_q = events_q.filter(AnalyticsProductEvent.utm_campaign == utm_campaign)
     if registered_only is True:
