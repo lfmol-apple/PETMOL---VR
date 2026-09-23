@@ -3,7 +3,7 @@
 import { getToken } from '@/lib/auth-token';
 import { API_BASE_URL } from '@/lib/api';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, PawPrint, Plus } from 'lucide-react';
+import { Camera, PawPrint } from 'lucide-react';
 import { trackV1Metric } from '@/lib/v1Metrics';
 import { PetPhotoPicker } from './PetPhotoPicker';
 import { SheetHeader, SheetIcon, SheetShell, SHEET_Z } from '@/components/ui/sheet';
@@ -515,23 +515,46 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
             <SheetShell.Body className="space-y-4">
 
               {/* Foto */}
-              <div className="flex flex-col items-center gap-2">
-                <button type="button" onClick={() => setShowPhotoPicker(true)}
-                  className="relative w-28 h-28 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center active:scale-[0.97] transition-transform">
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPhotoPicker(true)}
+                  className="relative h-[156px] w-full overflow-hidden rounded-[26px] bg-[linear-gradient(135deg,#1d2739,#2b3a52_54%,#40546f)] shadow-[0_16px_30px_rgba(15,23,42,0.14),inset_0_0_0_1px_rgba(255,255,255,0.12)] active:scale-[0.99] transition-transform"
+                  aria-label={petPhoto ? 'Trocar foto do pet' : 'Adicionar foto do pet'}
+                >
                   {petPhoto ? (
-                    <img src={petPhoto} alt="Pet" className="w-full h-full object-cover rounded-full" />
+                    <>
+                      <img src={petPhoto} alt="Pet" className="absolute inset-0 h-full w-full object-cover" />
+                      <span className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/5 to-white/10" />
+                    </>
                   ) : (
-                    <Camera className="w-8 h-8 text-slate-400" />
+                    <>
+                      <span className="absolute inset-0 bg-[radial-gradient(circle_at_74%_18%,rgba(96,165,250,0.28),transparent_20%),radial-gradient(circle_at_18%_82%,rgba(45,212,191,0.20),transparent_24%),linear-gradient(145deg,rgba(255,255,255,0.14),transparent_38%)]" />
+                      <span className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[length:42px_42px]" />
+                      <span className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-white/20 to-transparent" />
+                      {(['top-4 left-4 border-t-2 border-l-2 rounded-tl-lg', 'top-4 right-4 border-t-2 border-r-2 rounded-tr-lg', 'bottom-4 left-4 border-b-2 border-l-2 rounded-bl-lg', 'bottom-4 right-4 border-b-2 border-r-2 rounded-br-lg'] as const).map((pos) => (
+                        <span key={pos} className={`absolute h-6 w-6 border-white/60 ${pos}`} />
+                      ))}
+                      <span className="absolute inset-0 m-auto flex h-[62px] w-[62px] items-center justify-center rounded-[20px] border border-white/30 bg-white/20 text-white shadow-[0_12px_26px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(255,255,255,0.24)] backdrop-blur-md">
+                        <Camera className="h-8 w-8" strokeWidth={2.1} />
+                      </span>
+                    </>
                   )}
-                  <span className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-[#0056D2] border-[3px] border-white flex items-center justify-center shadow-md">
-                    <Plus className="w-4 h-4 text-white" strokeWidth={3} />
+
+                  <span className="absolute bottom-3 left-4 right-4 text-center text-[12px] font-bold text-white/85">
+                    {petPhoto ? 'Trocar foto' : 'Adicionar foto do pet'}
                   </span>
                 </button>
-                <button type="button" onClick={() => setShowPhotoPicker(true)}
-                  className="text-[13px] font-bold text-[#0056D2] active:opacity-70 transition-opacity">
-                  {petPhoto ? 'Trocar foto' : 'Adicionar foto do pet'}
-                </button>
-                <span className="text-[11px] text-slate-400 font-medium -mt-1">Opcional</span>
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPhotoPicker(true)}
+                    className="text-[15px] font-bold text-[#0056D2] active:opacity-70 transition-opacity"
+                  >
+                    {petPhoto ? 'Trocar foto' : 'Adicionar foto'}
+                  </button>
+                  <span className="text-[12px] font-semibold text-slate-400">Opcional</span>
+                </div>
               </div>
 
               {/* Nome */}
