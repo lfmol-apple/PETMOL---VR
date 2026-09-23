@@ -118,6 +118,12 @@ class Settings(BaseSettings):
     # even if the server's env file doesn't set it.
     admin_master_email: str = "leonardofmol@gmail.com"
 
+    # Recebe os MESMOS pushes de "acesso/download" (analytics/router.py) que
+    # o admin master recebe — só isso, nunca passa por get_current_admin nem
+    # ganha nenhuma outra permissão. Vazio desativa. Overridable via env var
+    # SECONDARY_INSTALL_PUSH_EMAIL.
+    secondary_install_push_email: Optional[str] = "contato@vepiconsorcios.com.br"
+
     # Contagem de alcance da campanha (push "Novo download" e e-mail diário):
     # total = base (usuários reais que já existiam) + instalações registradas
     # a partir do corte. Tudo antes do corte é conta/aparelho de teste e não
