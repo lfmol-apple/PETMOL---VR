@@ -833,12 +833,7 @@ export function PetSumidoSheet({
           {step === 'card' && (
             <div className="px-5 py-5 space-y-4 pb-10">
 
-              {cardDataUrl && (
-                <div className="rounded-2xl overflow-hidden shadow-xl border border-gray-100">
-                  <img src={cardDataUrl} alt="Card Pet Sumido" className="w-full block" style={{ aspectRatio: '4/5' }} />
-                </div>
-              )}
-
+              {/* Avisos primeiro: com o card (4:5) acima, ficavam abaixo da dobra e a pessoa nem via. */}
               {alertSent && (
                 <div className="bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 flex items-center gap-3">
                   <span className="text-xl flex-shrink-0">✅</span>
@@ -851,9 +846,15 @@ export function PetSumidoSheet({
               )}
 
               {alertSent && photoModerationNotice && (
-                <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 flex items-center gap-3">
+                <div role="alert" className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 flex items-center gap-3">
                   <span className="text-xl flex-shrink-0">📷</span>
                   <p className="text-[12px] font-semibold text-amber-700">{photoModerationNotice}</p>
+                </div>
+              )}
+
+              {cardDataUrl && (
+                <div className="rounded-2xl overflow-hidden shadow-xl border border-gray-100">
+                  <img src={cardDataUrl} alt="Card Pet Sumido" className="w-full block" style={{ aspectRatio: '4/5' }} />
                 </div>
               )}
 

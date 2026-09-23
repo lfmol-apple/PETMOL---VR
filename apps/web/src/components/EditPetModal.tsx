@@ -731,17 +731,17 @@ export function EditPetModal({ pet, photoVersion, careSummary, onClose, onSave, 
                 <span className={lbl}>Castrado / Esterilizado</span>
                 <Toggle on={formData.is_neutered} />
               </div>
-
-              {error && (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  {error}
-                </div>
-              )}
             </SheetShell.Body>
 
             {/* Footer */}
             <SheetShell.Footer>
               <div className="space-y-2">
+              {/* Erro no rodapé fixo: no corpo rolável ficava abaixo da dobra e a pessoa nem via. */}
+              {error && (
+                <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {error}
+                </div>
+              )}
               {confirmDelete ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 space-y-2">
                   <p className="text-sm font-semibold text-rose-700 text-center">Excluir {formData.name || 'este pet'} permanentemente?</p>

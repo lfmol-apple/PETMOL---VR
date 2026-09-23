@@ -686,9 +686,16 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
                 <span className={label}>Castrado / Esterilizado</span>
                 <Toggle on={neutered} />
               </div>
+            </SheetShell.Body>
 
+            {/* Avisos (erro / foto) ficam AQUI, no rodapé fixo: no corpo rolável a
+                mensagem ficava abaixo da dobra e a pessoa nem via. Footer — vira uma confirmação simples quando há um aviso
+                sobre a foto: o pet já foi salvo, só falta o tutor ler e
+                fechar (ou tentar outra foto depois, no perfil do pet). */}
+            <SheetShell.Footer>
+              <div className="space-y-3">
               {error && (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                   {error}
                 </div>
               )}
@@ -700,17 +707,12 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
               )}
 
               {photoNotice && (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                   <p className="font-semibold">{name || 'Seu pet'} foi salvo — só a foto precisa de atenção.</p>
                   <p className="mt-1">{photoNotice}</p>
                 </div>
               )}
-            </SheetShell.Body>
 
-            {/* Footer — vira uma confirmação simples quando há um aviso
-                sobre a foto: o pet já foi salvo, só falta o tutor ler e
-                fechar (ou tentar outra foto depois, no perfil do pet). */}
-            <SheetShell.Footer>
               {photoNotice && retryPhotoPetId ? (
                 <div className="flex gap-3">
                   <button type="button" onClick={onClose} disabled={loading}
@@ -739,6 +741,7 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
                   </button>
                 </div>
               )}
+              </div>
             </SheetShell.Footer>
       </SheetShell>
 
