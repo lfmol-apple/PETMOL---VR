@@ -456,7 +456,8 @@ def _is_real_download(platform: str) -> bool:
 
 
 def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) -> None:
-    """Geo-IP + push pro admin, fora do request."""
+    """Geo-IP + push pro admin + e-mail pro segundo destinatário (só em
+    download de verdade) — tudo fora do request."""
     from ..db import SessionLocal
     from ..analytics.install_models import AppInstall
     from ..geoip import geoip_lookup
@@ -493,22 +494,22 @@ def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) ->
             except Exception:
                 pass
 
-            # Mesmo push pro segundo destinatário (settings.secondary_install_push_email) —
-            # só recebe a notificação, nunca passa por get_current_admin nem ganha
-            # nenhum acesso de admin. Best-effort e isolado: nunca deve atrapalhar
-            # o push do admin master acima.
-            secondary_email = (settings.secondary_install_push_email or "").strip().lower()
-            if secondary_email:
+            # E-mail (não push) pro segundo destinatário (settings.secondary_download_email)
+            # — só em DOWNLOAD de verdade, nunca em acesso só pelo navegador.
+            # Vai direto pro endereço via SMTP: não depende dessa pessoa ter
+            # conta no PETMOL (diferente do push antigo, que exigia). Nunca
+            # passa por get_current_admin nem ganha nenhum acesso de admin —
+            # só o e-mail. Best-effort e isolado: nunca deve atrapalhar o
+            # push do admin master acima.
+            secondary_email = (settings.secondary_download_email or "").strip()
+            if secondary_email and is_download:
                 try:
-                    secondary = db.query(User).filter(func.lower(User.email) == secondary_email).first()
-                    if secondary and str(secondary.id) != str(admin.id):
-                        from ..notifications import push_to_user
-                        push_to_user(str(secondary.id), {
-                            "title": title,
-                            "body": body,
-                            "tag": "petmol-install",
-                            "data": {"url": "/home"},
-                        })
+                    from ..mailer import send_mail
+                    send_mail(
+                        to=secondary_email,
+                        subject=title,
+                        body_text=f"{body}\n\nCidade/local vem do IP (aproximado), sem rua/bairro.",
+                    )
                 except Exception:
                     pass
     except Exception:
