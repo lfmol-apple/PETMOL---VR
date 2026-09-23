@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { adminGet } from '@/lib/admin/analyticsApi';
+import { getToken } from '@/lib/auth-token';
 import { Drawer, StatePill, fmtDate, fmtDateTime } from '@/components/admin/DataTable';
 import { PetPhotoThumb } from '@/components/admin/PhotoLightbox';
 
@@ -140,12 +141,40 @@ interface PetDetail {
 export function PetDetailDrawer({ petId, onClose }: { petId: string | null; onClose: () => void }) {
   const [data, setData] = useState<PetDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [removeResult, setRemoveResult] = useState<string | null>(null);
 
   useEffect(() => {
     if (!petId) return;
-    setData(null); setErr(null);
+    setData(null); setErr(null); setRemoveResult(null);
     adminGet<PetDetail>(`/pets/${petId}`).then(setData).catch((e) => setErr(String(e.message)));
   }, [petId]);
+
+  /** Foto que não é de pet: apaga de tudo (arquivo + banco) e avisa o tutor
+   * por push + e-mail. Escrita irreversível — sempre pede confirmação com
+   * o nome do tutor à vista. Só JWT de admin (a chave de leitura não vale). */
+  const removePhoto = async () => {
+    if (!petId || !data) return;
+    const who = data.tutor.email || 'o tutor';
+    if (!window.confirm(`Remover a foto de ${String(data.pet.name)} e avisar ${who} por push e e-mail? Isso apaga a imagem de vez.`)) return;
+    setRemoving(true); setRemoveResult(null);
+    try {
+      const token = getToken();
+      const res = await fetch(`/api/v1/admin/moderation/pets/${petId}/remove-photo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({}),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
+      setData((d) => (d ? { ...d, pet: { ...d.pet, photo_url: null } } : d));
+      setRemoveResult(`Foto removida. Push: ${body.push_sent ? 'enviado' : 'não enviado (sem aparelho registrado)'} · E-mail: ${body.email_sent ? 'enviado' : 'não enviado'}.`);
+    } catch (e) {
+      setRemoveResult(`Erro: ${String((e as Error).message)}`);
+    } finally {
+      setRemoving(false);
+    }
+  };
 
   return (
     <Drawer open={!!petId} onClose={onClose} width="max-w-3xl"
@@ -160,7 +189,15 @@ export function PetDetailDrawer({ petId, onClose }: { petId: string | null; onCl
               <div className="text-lg font-bold text-slate-900">{String(data.pet.name)}</div>
               <div className="text-[12px] text-slate-500">{String(data.pet.species)} · {String(data.pet.breed || 'sem raça')}</div>
             </div>
+            {data.pet.photo_url && (
+              <button type="button" onClick={removePhoto} disabled={removing}
+                title="Clique na foto pra ampliar e conferir antes de remover"
+                className="ml-auto rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-[12px] font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50">
+                {removing ? 'Removendo…' : 'Não é foto de pet — remover e avisar tutor'}
+              </button>
+            )}
           </div>
+          {removeResult && <p className="rounded-lg bg-slate-100 px-3 py-2 text-[12px] text-slate-700">{removeResult}</p>}
           <Section title="Cadastro">
             <Grid>
               <KV k="Espécie" v={String(data.pet.species)} />

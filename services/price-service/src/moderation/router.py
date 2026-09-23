@@ -186,6 +186,120 @@ def reject_decision(
     return _decision_out(d)
 
 
+class RemovePetPhotoBody(BaseModel):
+    note: Optional[str] = None
+
+
+@router.post("/pets/{pet_id}/remove-photo")
+def remove_pet_photo_and_notify(
+    pet_id: str,
+    body: RemovePetPhotoBody,
+    db: Session = Depends(get_db),
+    admin=_WriteAuth,
+):
+    """Foto de perfil que não é de um pet e já está publicada (ex.: enviada
+    antes da moderação por IA existir): o admin vê a foto no painel,
+    confirma, e isto (1) apaga o arquivo do armazenamento, (2) limpa toda
+    referência no banco (perfil do pet, alertas de Pet Sumido que herdaram
+    a foto, decisões de moderação) e (3) avisa o tutor com push + e-mail,
+    com gentileza — sem acusar ninguém, é só "esse espaço é pra foto do
+    seu pet". Escrita: só JWT de admin (a chave de leitura nunca chega
+    aqui), e a decisão fica registrada com quem fez."""
+    from ..admin_alerts import first_name
+    from ..mailer import send_mail
+    from ..missing_pets import MissingPet
+    from ..notifications import push_to_user
+    from ..pets.models import Pet
+    from ..pets.upload import delete_pet_photo
+    from ..user_auth.models import User
+
+    pet = db.query(Pet).filter(Pet.id == pet_id).first()
+    if not pet:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pet não encontrado")
+    old_photo = pet.photo
+    if not old_photo:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Este pet não tem foto de perfil")
+    tutor = db.query(User).filter(User.id == pet.user_id).first()
+    pet_name = pet.name or "seu pet"
+    now = datetime.now(timezone.utc)
+    admin_id = str(admin[0].id)
+
+    # 1) referências no banco — alertas de Pet Sumido que copiaram a foto
+    db.query(MissingPet).filter(MissingPet.photo_url == old_photo).update(
+        {"photo_url": None}, synchronize_session=False
+    )
+    # decisões de moderação: registra como rejeitada (só metadados — a
+    # imagem em si é apagada abaixo); sem decisão prévia (foto anterior à
+    # moderação por IA), cria o registro de auditoria.
+    decisions = (
+        db.query(PhotoModerationDecision)
+        .filter(
+            ((PhotoModerationDecision.entity_type == "pet") & (PhotoModerationDecision.entity_id == pet_id))
+            | (PhotoModerationDecision.final_public_key == old_photo)
+        )
+        .all()
+    )
+    if not decisions:
+        decisions = [PhotoModerationDecision(
+            context="pet_profile", entity_type="pet", entity_id=pet_id,
+            uploader_user_id=str(pet.user_id), storage_key="removed", status=REJECTED,
+            ai_reason="Foto anterior à moderação por IA — removida manualmente por admin.",
+        )]
+    for d in decisions:
+        if d.status == PENDING:
+            review_storage.discard_pending(d.storage_key)
+        d.status = REJECTED
+        d.final_public_key = None
+        d.reviewed_by_admin_id = admin_id
+        d.reviewed_at = now
+        d.review_note = body.note or "Não é foto de pet — removida por admin."
+        db.add(d)
+    pet.photo = None
+    db.commit()
+
+    # 2) arquivo (depois do commit: se o storage falhar, o banco já está limpo)
+    delete_pet_photo(old_photo)
+
+    # 3) aviso ao tutor — push e e-mail independentes, best-effort
+    push_sent = 0
+    email_sent = False
+    if tutor:
+        try:
+            push_sent = push_to_user(str(tutor.id), {
+                "title": "Sua foto não foi aprovada",
+                "body": f"Este espaço é reservado para a foto do seu pet 🐾 Que tal enviar uma foto de {pet_name}?",
+                "tag": "petmol-photo-removed",
+                "data": {"url": "/home"},
+            }) or 0
+        except Exception:
+            push_sent = 0
+        try:
+            greeting = first_name(tutor.name)
+            email_sent = bool(send_mail(
+                to=tutor.email,
+                subject="PETMOL — sua foto não foi aprovada",
+                body_text=(
+                    f"Olá{', ' + greeting if greeting else ''}!\n\n"
+                    f"A foto enviada no perfil de {pet_name} não foi aprovada, porque esse espaço é "
+                    "reservado para a foto do seu pet. Já removemos a imagem.\n\n"
+                    f"Quando quiser, é só abrir o PETMOL e enviar uma foto de {pet_name} — "
+                    "vamos adorar ver!\n\n"
+                    "Um abraço,\nEquipe PETMOL"
+                ),
+            ))
+        except Exception:
+            email_sent = False
+
+    return {
+        "ok": True,
+        "pet_id": pet_id,
+        "photo_removed": True,
+        "tutor_email": tutor.email if tutor else None,
+        "push_sent": int(push_sent),
+        "email_sent": email_sent,
+    }
+
+
 def _apply_approved_photo_to_entity(db: Session, d: PhotoModerationDecision) -> None:
     """Depois de um admin aprovar manualmente uma foto que tinha ficado
     pendente, aplica ela na entidade real (pet/alerta/avistamento) — sem
