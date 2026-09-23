@@ -177,6 +177,60 @@ def get_campaigns_summary(
     return campaign_bi.campaign_summary(db, since=parsed.since, until=parsed.until, platform=platform)
 
 
+class CampaignSpendIn(BaseModel):
+    utm_campaign: str = Field(min_length=1, max_length=160)
+    spent_on: Optional[_date] = None        # dia civil de SP; padrão = hoje
+    amount_brl: float = Field(gt=0, le=10_000_000)
+    note: Optional[str] = Field(default=None, max_length=300)
+
+
+@router.get("/campaign-spend")
+def list_campaign_spend(limit: int = Query(100, ge=1, le=500), db: Session = Depends(get_db), _=_Auth):
+    """Gastos lançados à mão, mais recentes primeiro."""
+    from ...analytics.spend_models import CampaignSpend
+
+    rows = db.query(CampaignSpend).order_by(CampaignSpend.spent_on.desc(), CampaignSpend.created_at.desc()).limit(limit).all()
+    return {"items": [
+        {"id": r.id, "utm_campaign": r.utm_campaign, "spent_on": r.spent_on.isoformat(),
+         "amount_brl": round(r.amount_cents / 100, 2), "note": r.note}
+        for r in rows
+    ]}
+
+
+@router.post("/campaign-spend", status_code=201)
+def add_campaign_spend(payload: CampaignSpendIn, db: Session = Depends(get_db), current=Depends(get_current_admin)):
+    """Lança um gasto de campanha. Escrita: só JWT de admin (a chave de
+    leitura nunca chega aqui) e fica registrado quem lançou."""
+    from ...analytics.spend_models import CampaignSpend
+
+    name = payload.utm_campaign.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Informe a campanha (o mesmo utm_campaign da URL).")
+    row = CampaignSpend(
+        utm_campaign=name,
+        spent_on=payload.spent_on or briefing_bi.today_br(),
+        amount_cents=int(round(payload.amount_brl * 100)),
+        note=(payload.note or "").strip() or None,
+        created_by=str(current[0].id),
+    )
+    db.add(row)
+    db.commit()
+    return {"id": row.id, "utm_campaign": row.utm_campaign, "spent_on": row.spent_on.isoformat(),
+            "amount_brl": round(row.amount_cents / 100, 2), "note": row.note}
+
+
+@router.delete("/campaign-spend/{spend_id}")
+def delete_campaign_spend(spend_id: str, db: Session = Depends(get_db), current=Depends(get_current_admin)):
+    from ...analytics.spend_models import CampaignSpend
+
+    row = db.query(CampaignSpend).filter(CampaignSpend.id == spend_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Lançamento não encontrado")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
+
+
 @router.get("/location-events")
 def get_location_events(
     since: Optional[str] = Query(None),

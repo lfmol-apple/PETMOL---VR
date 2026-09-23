@@ -60,3 +60,10 @@ export function spYesterdayRange(now = new Date()): { start: Date; end: Date } {
 export function fmtSpDate(instant: Date): string {
   return instant.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: SP_TZ });
 }
+
+/** AAAA-MM-DD do dia em SP (formato de <input type="date"> e da API). */
+export function spIsoDate(instant: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: SP_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(instant);
+}

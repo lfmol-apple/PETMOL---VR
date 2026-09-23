@@ -17,24 +17,30 @@
  * Nenhuma delas é a localização do PET (essa é outra fonte ainda, usada só
  * no Mapa/Pet Sumido) — ver nota de cada card.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   adminGet, type GlobalFilter,
   type LocationsResponse, type LocationRow,
-  type CampaignsResponse, type LocationEventsResponse,
+  type CampaignsResponse, type CampaignSpendItem, type LocationEventsResponse,
 } from '@/lib/admin/analyticsApi';
+import { getToken } from '@/lib/auth-token';
+import { spIsoDate } from '@/lib/analytics/spTime';
 import { StatCard } from '@/components/admin/charts/Charts';
 import { Pagination, fmtDateTimeFull } from '@/components/admin/DataTable';
-import { useAsync, Panel, Loading, ErrorBox, numberFmt } from './sections';
+import { useAsync, Panel, Loading, ErrorBox, numberFmt, GeoSection } from './sections';
 
-type GroupBy = 'city_state' | 'campaign' | 'platform';
+type GroupBy = 'campaign' | 'city_state' | 'cadastros' | 'platform';
 type SortBy = 'total' | 'downloads' | 'acessos';
 
 const GROUP_BY_OPTIONS: { key: GroupBy; label: string }[] = [
-  { key: 'city_state', label: 'Estado/Cidade' },
   { key: 'campaign', label: 'Campanha' },
+  { key: 'city_state', label: 'Estado/Cidade' },
+  { key: 'cadastros', label: 'Cadastros (declarado)' },
   { key: 'platform', label: 'Plataforma' },
 ];
+
+const brl = (n: number | null | undefined) =>
+  typeof n === 'number' ? n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—';
 
 function placeLabel(p: LocationRow): string {
   return [p.city, p.region].filter(Boolean).join(' · ') || p.city || '—';
@@ -103,18 +109,121 @@ function PlatformGroupTable({ filter }: { filter: GlobalFilter }) {
   );
 }
 
-// ── Agrupamento por campanha ─────────────────────────────────────────────
+// ── Agrupamento por campanha (visão padrão) ────────────────────────────
 
-function CampaignGroupTable({ filter }: { filter: GlobalFilter }) {
-  const { data, error, loading } = useAsync<CampaignsResponse>(
-    () => adminGet('/campaigns', { since: filter.since, until: filter.until, platform: filter.platform }),
-    [filter.since, filter.until, filter.platform],
-  );
-  if (loading) return <Loading />;
-  if (error || !data) return <ErrorBox msg={error} />;
+/** "150,50" ou "150.50" ou "1.500,50" → 150.5 / 1500.5. NaN se não der. */
+export function parseBrlInput(raw: string): number {
+  const v = raw.trim().replace(/[R$\s]/g, '');
+  if (!v) return NaN;
+  const normalized = v.includes(',') ? v.replace(/\./g, '').replace(',', '.') : v;
+  return Number(normalized);
+}
+
+function CampaignSpendPanel({ campaignNames, onChanged }: { campaignNames: string[]; onChanged: () => void }) {
+  const [campaign, setCampaign] = useState('');
+  const [day, setDay] = useState(() => spIsoDate(new Date()));
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [refresh, setRefresh] = useState(0);
+  const list = useAsync<{ items: CampaignSpendItem[] }>(() => adminGet('/campaign-spend', { limit: 8 }), [refresh]);
+
+  const call = async (path: string, init: RequestInit) => {
+    const token = getToken();
+    const res = await fetch(`/api/v1/admin/analytics${path}`, {
+      ...init,
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(typeof body.detail === 'string' ? body.detail : `HTTP ${res.status}`);
+    return body;
+  };
+
+  const submit = async () => {
+    const value = parseBrlInput(amount);
+    if (!campaign.trim()) return setMsg('Informe a campanha (o mesmo utm_campaign da URL).');
+    if (!Number.isFinite(value) || value <= 0) return setMsg('Informe um valor maior que zero, ex.: 150,50.');
+    setBusy(true); setMsg(null);
+    try {
+      await call('/campaign-spend', {
+        method: 'POST',
+        body: JSON.stringify({ utm_campaign: campaign.trim(), spent_on: day, amount_brl: value, note: note.trim() || undefined }),
+      });
+      setAmount(''); setNote(''); setRefresh((k) => k + 1); onChanged();
+      setMsg('Gasto lançado.');
+    } catch (e) {
+      setMsg(`Erro: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (it: CampaignSpendItem) => {
+    if (!window.confirm(`Remover o lançamento de ${brl(it.amount_brl)} em "${it.utm_campaign}"?`)) return;
+    try { await call(`/campaign-spend/${it.id}`, { method: 'DELETE' }); setRefresh((k) => k + 1); onChanged(); }
+    catch (e) { setMsg(`Erro: ${(e as Error).message}`); }
+  };
 
   return (
+    <Panel title="Lançar gasto de campanha" right={<span className="text-[11px] text-slate-400">custo = gasto ÷ downloads/cadastros da mesma campanha</span>}>
+      <div className="flex flex-wrap items-end gap-1.5 text-[12px]">
+        <label className="flex flex-col gap-0.5">Campanha (utm_campaign)
+          <input list="campaign-names" value={campaign} onChange={(e) => setCampaign(e.target.value)}
+            className="w-44 rounded-md border border-slate-200 px-2 py-1" />
+        </label>
+        <datalist id="campaign-names">{campaignNames.map((n) => <option key={n} value={n} />)}</datalist>
+        <label className="flex flex-col gap-0.5">Dia do gasto
+          <input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="rounded-md border border-slate-200 px-2 py-1" />
+        </label>
+        <label className="flex flex-col gap-0.5">Valor (R$)
+          <input inputMode="decimal" placeholder="150,50" value={amount} onChange={(e) => setAmount(e.target.value)}
+            className="w-28 rounded-md border border-slate-200 px-2 py-1" />
+        </label>
+        <label className="flex flex-col gap-0.5">Observação
+          <input value={note} onChange={(e) => setNote(e.target.value)} className="w-40 rounded-md border border-slate-200 px-2 py-1" />
+        </label>
+        <button type="button" disabled={busy} onClick={submit}
+          className="rounded-md bg-[#0056D2] px-3 py-1.5 font-bold text-white disabled:opacity-50">{busy ? 'Lançando…' : 'Lançar'}</button>
+      </div>
+      {msg && <p className="mt-2 text-[12px] text-slate-600">{msg}</p>}
+      {list.data && list.data.items.length > 0 && (
+        <ul className="mt-3 space-y-1 text-[12px] text-slate-600">
+          {list.data.items.map((it) => (
+            <li key={it.id} className="flex items-center gap-2">
+              <span className="tabular-nums text-slate-400">{it.spent_on.split('-').reverse().join('/')}</span>
+              <span className="font-medium">{it.utm_campaign}</span>
+              <span className="tabular-nums">{brl(it.amount_brl)}</span>
+              {it.note && <span className="text-slate-400">· {it.note}</span>}
+              <button type="button" onClick={() => remove(it)} className="ml-auto text-rose-600 hover:underline">remover</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
+function CampaignGroupTable({ filter }: { filter: GlobalFilter }) {
+  const [refresh, setRefresh] = useState(0);
+  const { data, error, loading } = useAsync<CampaignsResponse>(
+    () => adminGet('/campaigns', { since: filter.since, until: filter.until, platform: filter.platform }),
+    [filter.since, filter.until, filter.platform, refresh],
+  );
+  if (loading && !data) return <Loading />;
+  if (error || !data) return <ErrorBox msg={error} />;
+
+  const t = data.totals;
+  return (
     <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]">
+        <StatCard label="Gasto lançado" value={brl(t.gasto_brl)} />
+        <StatCard label="Custo por download" tone="good" value={brl(t.custo_por_download)}
+          sub={t.gasto_brl ? `${numberFmt(t.downloads)} downloads` : 'lance um gasto pra ver'} />
+        <StatCard label="Custo por cadastro" tone="good" value={brl(t.custo_por_cadastro)}
+          sub={t.gasto_brl ? `${numberFmt(t.cadastros)} cadastros` : 'lance um gasto pra ver'} />
+      </div>
+
       {!data.has_any_attribution && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
           Nenhum acesso/download com parâmetros de campanha (utm_source/utm_medium/utm_campaign) neste período —
@@ -125,28 +234,35 @@ function CampaignGroupTable({ filter }: { filter: GlobalFilter }) {
         <table className="w-full text-[13px]">
           <thead><tr className="text-left text-[11px] font-bold uppercase text-slate-500">
             <th className="py-1.5">Campanha</th>
-            <th className="py-1.5">Origem / meio</th>
-            <th className="py-1.5 text-right">Downloads</th>
+            <th className="py-1.5">Origem</th>
             <th className="py-1.5 text-right">Acessos</th>
-            <th className="py-1.5 text-right">Visitantes únicos</th>
-            <th className="py-1.5 text-right">Total</th>
+            <th className="py-1.5 text-right">Downloads</th>
+            <th className="py-1.5 text-right">Cadastros</th>
+            <th className="py-1.5 text-right">Gasto</th>
+            <th className="py-1.5 text-right">Custo/download</th>
+            <th className="py-1.5 text-right">Custo/cadastro</th>
           </tr></thead>
           <tbody>
             {data.campaigns.map((c) => (
-              <tr key={`${c.utm_source}|${c.utm_medium}|${c.utm_campaign}`} className="border-t border-slate-100">
+              <tr key={c.utm_campaign} className="border-t border-slate-100">
                 <td className="py-1.5 font-medium">{c.utm_campaign}</td>
                 <td className="py-1.5 text-slate-500">{c.utm_source}{c.utm_medium !== '—' ? ` · ${c.utm_medium}` : ''}</td>
-                <td className="py-1.5 text-right tabular-nums">{numberFmt(c.downloads)}</td>
                 <td className="py-1.5 text-right tabular-nums">{numberFmt(c.acessos)}</td>
-                <td className="py-1.5 text-right tabular-nums">{numberFmt(c.visitantes_unicos)}</td>
-                <td className="py-1.5 text-right tabular-nums font-semibold">{numberFmt(c.total)}</td>
+                <td className="py-1.5 text-right tabular-nums">{numberFmt(c.downloads)}</td>
+                <td className="py-1.5 text-right tabular-nums font-semibold">{numberFmt(c.cadastros)}</td>
+                <td className="py-1.5 text-right tabular-nums">{c.gasto_brl ? brl(c.gasto_brl) : '—'}</td>
+                <td className="py-1.5 text-right tabular-nums">{brl(c.custo_por_download)}</td>
+                <td className="py-1.5 text-right tabular-nums">{brl(c.custo_por_cadastro)}</td>
               </tr>
             ))}
-            {data.campaigns.length === 0 && <tr><td colSpan={6} className="py-6 text-center text-slate-400">Nada no período.</td></tr>}
+            {data.campaigns.length === 0 && <tr><td colSpan={8} className="py-6 text-center text-slate-400">Nada no período.</td></tr>}
           </tbody>
         </table>
       </div>
       <p className="text-[11px] text-slate-400">{data.note}</p>
+
+      <CampaignSpendPanel campaignNames={data.campaigns.map((c) => c.utm_campaign).filter((n) => !n.startsWith('('))}
+        onChanged={() => setRefresh((k) => k + 1)} />
     </div>
   );
 }
@@ -356,7 +472,15 @@ export function LocationsSection({ filter, sortBy = 'total', onSortByChange, onF
    * nem sempre bate, mas quando bate poupa digitar o filtro à mão. */
   onFilterByCity?: (city: string) => void;
 }) {
-  const [groupBy, setGroupBy] = useState<GroupBy>('city_state');
+  // Padrão = campanha (a pergunta do dono é "qual campanha rende?"). Clicar
+  // no card Downloads/Acessos (que pede uma ordenação por local) troca pra
+  // Estado/Cidade — a tela que responde aquilo.
+  const [groupBy, setGroupBy] = useState<GroupBy>('campaign');
+  const firstSort = useRef(true);
+  useEffect(() => {
+    if (firstSort.current) { firstSort.current = false; return; }
+    if (sortBy !== 'total') setGroupBy('city_state');
+  }, [sortBy]);
 
   return (
     <div className="space-y-4">
@@ -375,6 +499,7 @@ export function LocationsSection({ filter, sortBy = 'total', onSortByChange, onF
         <CityStateGroupTable filter={filter} sortBy={sortBy} onSortByChange={onSortByChange} onFilterByCity={onFilterByCity} />
       )}
       {groupBy === 'campaign' && <CampaignGroupTable filter={filter} />}
+      {groupBy === 'cadastros' && <GeoSection />}
       {groupBy === 'platform' && <PlatformGroupTable filter={filter} />}
 
       <LocationEventsDrilldown filter={filter} />

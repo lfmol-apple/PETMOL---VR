@@ -153,11 +153,16 @@ export interface LocationsResponse {
 export interface CampaignRow {
   utm_source: string; utm_medium: string; utm_campaign: string;
   downloads: number; acessos: number; visitantes_unicos: number;
-  sessoes_autenticadas: number; total: number;
+  cadastros: number; gasto_brl: number;
+  custo_por_download: number | null; custo_por_cadastro: number | null;
+  total: number;
 }
 export interface CampaignsResponse {
-  campaigns: CampaignRow[]; campaigns_total: number; has_any_attribution: boolean; note: string;
+  campaigns: CampaignRow[]; campaigns_total: number; has_any_attribution: boolean;
+  totals: { downloads: number; cadastros: number; gasto_brl: number; custo_por_download: number | null; custo_por_cadastro: number | null };
+  note: string;
 }
+export interface CampaignSpendItem { id: string; utm_campaign: string; spent_on: string; amount_brl: number; note: string | null }
 
 export interface LocationEventRow {
   occurred_at: string | null; event: 'download' | 'acesso';

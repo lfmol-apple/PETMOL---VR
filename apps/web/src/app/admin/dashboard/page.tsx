@@ -10,7 +10,7 @@ import type { GlobalFilter } from '@/lib/admin/analyticsApi';
 import { AccordionPanel } from '@/components/admin/AccordionPanel';
 import {
   OverviewSection, UsersSection, FeaturesSection, DataQualitySection,
-  RetentionSection, CommerceSection, GeoSection,
+  RetentionSection, CommerceSection,
 } from '@/components/admin/sections/sections';
 import { PhotoLightboxProvider } from '@/components/admin/PhotoLightbox';
 import { FeedingSection } from '@/components/admin/sections/FeedingSection';
@@ -343,13 +343,7 @@ export default function AdminDashboardPage() {
                 <LocationsSection filter={filter} sortBy={locationsSortBy} onSortByChange={setLocationsSortBy} onFilterByCity={filterByCity} />
               </AccordionPanel>
               <AccordionPanel id={SECTION_IDS.G} letter="G" title="Mapa dos Tutores" open={open.G} onToggle={() => toggle('G')}>
-                <div className="space-y-4">
-                  <MapSection filter={filter} onFilterByCity={filterByCity} />
-                  <div className="border-t border-slate-100 pt-4">
-                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Agregado por UF/cidade (sem coordenada)</p>
-                    <GeoSection />
-                  </div>
-                </div>
+                <MapSection filter={filter} onFilterByCity={filterByCity} />
               </AccordionPanel>
             </div>
           )}
