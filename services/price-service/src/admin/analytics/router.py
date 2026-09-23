@@ -9,7 +9,9 @@ quem decidiu — nunca dispara push, só registra a decisão do master.
 """
 from __future__ import annotations
 
-from typing import Optional
+import time
+from datetime import date as _date
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -17,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from ...db import get_db
 from ..deps import get_current_admin, get_current_admin_or_readonly_key
+from . import briefing_bi
 from . import campaign_bi
 from . import feeding_bi
 from . import journey_bi
@@ -199,6 +202,35 @@ def get_location_events(
         platform=platform, utm_campaign=utm_campaign, event_type=event_type,
         registered_only=registered_only, page=page, page_size=page_size,
     )
+
+
+_TODAY_CACHE: dict[str, Any] = {"at": 0.0, "day": None, "value": None}
+
+
+@router.get("/today")
+def get_today(db: Session = Depends(get_db), _=_Auth):
+    """"Hoje" do Mission Control — mesmo cálculo do boletim diário por
+    e-mail (`briefing_bi.build_brief`), pro dia corrente de SP até agora.
+    Cache de 30s: a tela repete a chamada a cada 20s (painel ao vivo) e o
+    resumo faz ~80 contagens pequenas."""
+    day = briefing_bi.today_br()
+    now = time.monotonic()
+    if _TODAY_CACHE["day"] == day and now - _TODAY_CACHE["at"] < 30 and _TODAY_CACHE["value"]:
+        return _TODAY_CACHE["value"]
+    value = briefing_bi.build_brief(db, day)
+    _TODAY_CACHE.update(at=now, day=day, value=value)
+    return value
+
+
+@router.get("/brief")
+def get_brief(day: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"), db: Session = Depends(get_db), _=_Auth):
+    """Resumo de um dia qualquer (AAAA-MM-DD, dia civil de SP) — o mesmo
+    conteúdo do boletim diário daquele dia."""
+    try:
+        parsed = _date.fromisoformat(day)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="data inválida")
+    return briefing_bi.build_brief(db, parsed)
 
 
 @router.get("/tactical-suggestions")

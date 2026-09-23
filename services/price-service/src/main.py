@@ -422,11 +422,13 @@ def start_push_scheduler():
         except Exception as exc:
             push_logger.warning("[PETMOL] med-sync não agendado: %s", exc)
         try:
-            from .analytics.install_report import send_daily_install_report
-            scheduler.add_job(send_daily_install_report, "cron", hour=9, minute=0,
-                              timezone="America/Sao_Paulo", id="daily_install_report")
+            # Boletim diário completo (substitui o relatório só de
+            # downloads/acessos das 9h): dia anterior fechado, 8h de Brasília.
+            from .analytics.daily_brief_email import send_daily_brief
+            scheduler.add_job(send_daily_brief, "cron", hour=8, minute=0,
+                              timezone="America/Sao_Paulo", id="daily_brief")
         except Exception as exc:
-            push_logger.warning("[PETMOL] install-report não agendado: %s", exc)
+            push_logger.warning("[PETMOL] boletim diário não agendado: %s", exc)
         try:
             from .missing_pets import expire_stale_missing_pet_alerts
             scheduler.add_job(expire_stale_missing_pet_alerts, "cron", hour=3, minute=30,
