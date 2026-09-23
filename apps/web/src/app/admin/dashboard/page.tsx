@@ -27,9 +27,43 @@ const MapSection = dynamic(
   { ssr: false, loading: () => <p className="py-16 text-center text-[13px] text-slate-400">Carregando mapa…</p> },
 );
 
-const PERIODS = [
-  { label: '7d', v: 7 }, { label: '30d', v: 30 }, { label: '90d', v: 90 }, { label: 'Tudo', v: undefined },
+type DatePresetKey = '24h' | 'today' | 'yesterday' | '7d' | '30d' | '90d' | 'all' | 'custom';
+
+const DATE_PRESETS: { key: DatePresetKey; label: string }[] = [
+  { key: '24h', label: 'Últimas 24h' },
+  { key: 'today', label: 'Hoje' },
+  { key: 'yesterday', label: 'Ontem' },
+  { key: '7d', label: '7d' },
+  { key: '30d', label: '30d' },
+  { key: '90d', label: '90d' },
+  { key: 'all', label: 'Tudo' },
 ];
+
+/** Presets finos calculam since/until (ISO, timestamp exato — o backend já
+ * aceita, AnalyticsFilters.build só não tinha como expor via period_days em
+ * dias inteiros); 7d/30d/90d/Tudo continuam mandando period_days como
+ * sempre mandaram, sem mudar o que já funcionava. */
+function presetToFilterPatch(key: DatePresetKey): Pick<GlobalFilter, 'period_days' | 'since' | 'until'> {
+  const now = new Date();
+  switch (key) {
+    case '24h':
+      return { period_days: undefined, since: new Date(now.getTime() - 24 * 3600 * 1000).toISOString(), until: undefined };
+    case 'today': {
+      const start = new Date(now); start.setHours(0, 0, 0, 0);
+      return { period_days: undefined, since: start.toISOString(), until: undefined };
+    }
+    case 'yesterday': {
+      const start = new Date(now); start.setDate(start.getDate() - 1); start.setHours(0, 0, 0, 0);
+      const end = new Date(start); end.setDate(end.getDate() + 1);
+      return { period_days: undefined, since: start.toISOString(), until: end.toISOString() };
+    }
+    case '7d': return { period_days: 7, since: undefined, until: undefined };
+    case '30d': return { period_days: 30, since: undefined, until: undefined };
+    case '90d': return { period_days: 90, since: undefined, until: undefined };
+    case 'all': return { period_days: undefined, since: undefined, until: undefined };
+    case 'custom': return { period_days: undefined, since: undefined, until: undefined };
+  }
+}
 
 type SectionLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L';
 const SECTION_IDS: Record<SectionLetter, string> = {
@@ -58,6 +92,27 @@ export default function AdminDashboardPage() {
   const { logout } = useAuth();
   const { isAdmin, adminData, isLoading: adminLoading } = useAdmin();
   const [filter, setFilter] = useState<GlobalFilter>({ period_days: 30 });
+  // Só pra destacar o botão certo — o filtro de verdade é `filter` acima
+  // (since/until/period_days). Precisa separado porque since/until
+  // calculado de "Hoje" não dá pra distinguir de um range customizado só
+  // olhando os valores.
+  const [datePreset, setDatePreset] = useState<DatePresetKey>('30d');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+
+  const applyDatePreset = (key: DatePresetKey) => {
+    setDatePreset(key);
+    setFilter((f) => ({ ...f, ...presetToFilterPatch(key) }));
+  };
+  const applyCustomRange = (from: string, to: string) => {
+    setDatePreset('custom');
+    setFilter((f) => ({
+      ...f,
+      period_days: undefined,
+      since: from ? new Date(`${from}T00:00:00`).toISOString() : undefined,
+      until: to ? new Date(`${to}T23:59:59`).toISOString() : undefined,
+    }));
+  };
   // Tudo aberto por padrão — num desktop, o dono quer VER os dados sem
   // precisar clicar em nada primeiro (seção fechada por padrão virava
   // exatamente a mesma coisa que abas escondidas). O toggle continua
@@ -147,17 +202,26 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* filtro global — vale pra todas as seções abaixo (as que não usam,
-            como Qualidade dos Dados e Operação, simplesmente o ignoram) */}
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px]">
+            como Qualidade dos Dados, simplesmente o ignoram) */}
+        <div className="mb-1.5 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px]">
           <span className="font-bold uppercase tracking-wide text-slate-400">Filtro</span>
-          <div className="flex gap-1">
-            {PERIODS.map((p) => (
-              <button key={p.label} type="button" onClick={() => setFilter((f) => ({ ...f, period_days: p.v }))}
+          <div className="flex flex-wrap gap-1">
+            {DATE_PRESETS.map((p) => (
+              <button key={p.key} type="button" onClick={() => applyDatePreset(p.key)}
                 className={`rounded-md px-2.5 py-1 font-semibold ${
-                  filter.period_days === p.v ? 'bg-[#0056D2] text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>
+                  datePreset === p.key ? 'bg-[#0056D2] text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>
                 {p.label}
               </button>
             ))}
+          </div>
+          <div className="flex items-center gap-1">
+            <input type="date" value={customFrom} aria-label="De"
+              onChange={(e) => { const v = e.target.value; setCustomFrom(v); applyCustomRange(v, customTo); }}
+              className={`rounded-md border px-2 py-1 ${datePreset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
+            <span className="text-slate-400">até</span>
+            <input type="date" value={customTo} aria-label="Até"
+              onChange={(e) => { const v = e.target.value; setCustomTo(v); applyCustomRange(customFrom, v); }}
+              className={`rounded-md border px-2 py-1 ${datePreset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
           </div>
           <input placeholder="plataforma" value={filter.platform || ''}
             onChange={(e) => setFilter((f) => ({ ...f, platform: e.target.value || undefined }))}
@@ -172,10 +236,17 @@ export default function AdminDashboardPage() {
             onChange={(e) => setFilter((f) => ({ ...f, city: e.target.value || undefined }))}
             className="w-36 rounded-md border border-slate-200 px-2 py-1" />
           {(filter.platform || filter.app_version || filter.state || filter.city) && (
-            <button type="button" onClick={() => setFilter({ period_days: filter.period_days })}
+            <button type="button" onClick={() => setFilter((f) => ({ period_days: f.period_days, since: f.since, until: f.until }))}
               className="rounded-md border border-slate-200 bg-white px-2 py-1 font-semibold text-slate-500">limpar</button>
           )}
         </div>
+        <p className="mb-4 flex items-center gap-1.5 px-1 text-[11px] text-slate-400">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          </span>
+          Ao vivo — cada painel se atualiza sozinho a cada 20s, sem precisar recarregar a página.
+        </p>
 
         {/* A–J, tudo aberto por padrão, em duas colunas num desktop — usa a
             largura real da tela em vez de empilhar tudo numa coluna só.
