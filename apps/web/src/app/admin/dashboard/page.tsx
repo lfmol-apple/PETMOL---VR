@@ -18,6 +18,7 @@ import { JourneySection } from '@/components/admin/sections/JourneySection';
 import { LocationsSection } from '@/components/admin/sections/LocationsSection';
 import { ModerationSection } from '@/components/admin/sections/ModerationSection';
 import { TacticalSection } from '@/components/admin/sections/TacticalSection';
+import { TodaySection } from '@/components/admin/sections/TodaySection';
 import dynamic from 'next/dynamic';
 import { OperationsSection } from '@/components/admin/sections/OperationsSection';
 import { spStartOfToday, spYesterdayRange, fmtSpDate } from '@/lib/analytics/spTime';
@@ -90,6 +91,24 @@ const SECTION_IDS: Record<SectionLetter, string> = {
   K: 'mc-k', L: 'mc-l',
 };
 
+/** Abas: 12 painéis empilhados viraram 5 telas por PERGUNTA do dono —
+ * "como foi hoje?", "de onde vem gente?", "quem fica e volta?", "a loja
+ * rende?", "quem são / está tudo funcionando?". Nenhuma seção foi perdida;
+ * só mudou onde cada uma mora (a fusão de painéis redundantes vem depois). */
+type TabKey = 'hoje' | 'aquisicao' | 'ativacao' | 'loja' | 'pessoas';
+const TABS: { key: TabKey; label: string }[] = [
+  { key: 'hoje', label: '☀️ Hoje' },
+  { key: 'aquisicao', label: '📣 Aquisição e campanhas' },
+  { key: 'ativacao', label: '🌱 Ativação e retenção' },
+  { key: 'loja', label: '🛒 Loja e receita' },
+  { key: 'pessoas', label: '👥 Pessoas e operação' },
+];
+const TAB_OF_SECTION: Record<SectionLetter, TabKey> = {
+  A: 'hoje', B: 'ativacao', C: 'ativacao', D: 'ativacao', E: 'ativacao', F: 'loja',
+  G: 'aquisicao', H: 'pessoas', I: 'pessoas', J: 'pessoas', K: 'aquisicao', L: 'pessoas',
+};
+const isTabKey = (v: string): v is TabKey => TABS.some((t) => t.key === v);
+
 /** Telas admin completas (fora do BI) — atalhos fixos no topo do painel. */
 const ADMIN_TOOLS: { href: string; label: string; highlight?: boolean }[] = [
   { href: '/admin/establishments', label: '🏪 Estabelecimentos' },
@@ -138,12 +157,24 @@ export default function AdminDashboardPage() {
       until: to ? new Date(`${to}T23:59:59`).toISOString() : undefined,
     }));
   };
+  // Aba ativa — vive no hash da URL (/admin/dashboard#aquisicao), então o
+  // link do boletim por e-mail e o botão "voltar" caem na aba certa.
+  const [tab, setTabState] = useState<TabKey>('hoje');
+  const setTab = (t: TabKey) => {
+    setTabState(t);
+    try { window.history.replaceState(null, '', `#${t}`); } catch { /* noop */ }
+  };
+  useEffect(() => {
+    const fromHash = window.location.hash.replace('#', '');
+    if (isTabKey(fromHash)) setTabState(fromHash);
+  }, []);
+
   // Tudo aberto por padrão — num desktop, o dono quer VER os dados sem
   // precisar clicar em nada primeiro (seção fechada por padrão virava
   // exatamente a mesma coisa que abas escondidas). O toggle continua
   // disponível pra quem quiser recolher alguma seção específica depois.
   const [open, setOpen] = useState<Record<SectionLetter, boolean>>({
-    A: true, B: true, C: true, D: true, E: true, F: true, G: true, H: true, I: true, J: true, K: true, L: true,
+    A: false, B: true, C: true, D: true, E: true, F: true, G: true, H: true, I: true, J: true, K: true, L: true,
   });
 
   useEffect(() => {
@@ -156,10 +187,12 @@ export default function AdminDashboardPage() {
   /** Filtro cruzado: abre a seção e rola até ela — usado quando um card ou
    * gráfico de outra seção aponta pra um recorte de Tutores & Pets. */
   const openAndScroll = (letter: SectionLetter) => {
+    setTab(TAB_OF_SECTION[letter]);   // a seção pode morar em outra aba
     setOpen((o) => ({ ...o, [letter]: true }));
-    requestAnimationFrame(() => {
+    // dá um respiro pra aba nova renderizar antes de rolar até a seção
+    window.setTimeout(() => {
       document.getElementById(SECTION_IDS[letter])?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    }, 80);
   };
 
   const crossFilterPlatform = (platform: string) => {
@@ -196,6 +229,49 @@ export default function AdminDashboardPage() {
     );
   }
 
+  const filterBar = (
+    <>
+      <div className="mb-1.5 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px]">
+        <span className="font-bold uppercase tracking-wide text-slate-400">Filtro</span>
+        <div className="flex flex-wrap gap-1">
+          {DATE_PRESETS.map((p) => (
+            <button key={p.key} type="button" onClick={() => applyDatePreset(p.key)}
+              className={`rounded-md px-2.5 py-1 font-semibold ${
+                datePreset === p.key ? 'bg-[#0056D2] text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1">
+          <input type="date" value={customFrom} aria-label="De"
+            onChange={(e) => { const v = e.target.value; setCustomFrom(v); applyCustomRange(v, customTo); }}
+            className={`rounded-md border px-2 py-1 ${datePreset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
+          <span className="text-slate-400">até</span>
+          <input type="date" value={customTo} aria-label="Até"
+            onChange={(e) => { const v = e.target.value; setCustomTo(v); applyCustomRange(customFrom, v); }}
+            className={`rounded-md border px-2 py-1 ${datePreset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
+        </div>
+        <input placeholder="plataforma" value={filter.platform || ''}
+          onChange={(e) => setFilter((f) => ({ ...f, platform: e.target.value || undefined }))}
+          className="w-28 rounded-md border border-slate-200 px-2 py-1" />
+        <input placeholder="versão" value={filter.app_version || ''}
+          onChange={(e) => setFilter((f) => ({ ...f, app_version: e.target.value || undefined }))}
+          className="w-28 rounded-md border border-slate-200 px-2 py-1" />
+        <input placeholder="UF" value={filter.state || ''}
+          onChange={(e) => setFilter((f) => ({ ...f, state: e.target.value || undefined }))}
+          className="w-16 rounded-md border border-slate-200 px-2 py-1" />
+        <input placeholder="cidade" value={filter.city || ''}
+          onChange={(e) => setFilter((f) => ({ ...f, city: e.target.value || undefined }))}
+          className="w-36 rounded-md border border-slate-200 px-2 py-1" />
+        {(filter.platform || filter.app_version || filter.state || filter.city) && (
+          <button type="button" onClick={() => setFilter((f) => ({ period_days: f.period_days, since: f.since, until: f.until }))}
+            className="rounded-md border border-slate-200 bg-white px-2 py-1 font-semibold text-slate-500">limpar</button>
+        )}
+      </div>
+      <p className="mb-4 px-1 text-[11px] font-semibold text-slate-500">Analisando: {periodLabel(filter, datePreset)}</p>
+    </>
+  );
+
   return (
     <PremiumScreenShell
       title="Mission Control"
@@ -207,174 +283,134 @@ export default function AdminDashboardPage() {
           className="rounded-lg bg-red-100 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-200">Sair</button>
       }
     >
-      {/* Sem teto de largura — um painel BI de desktop usa a tela toda. As
-          tentativas anteriores (1400px, depois 1800px) mexiam só aqui, mas
-          o teto de verdade era o PremiumScreenShell por fora — `max-w-2xl`
-          pensado pra tela secundária de celular, aplicado incondicionalmente
-          no <main>. `wide` (acima) tira esse teto pra esta página; este
-          w-full aqui é o que efetivamente passa a mandar na largura. As
-          grades de card por trás usam auto-fit, então se ajustam sozinhas
-          à largura real de cada coluna em vez de depender de breakpoint. */}
       <PhotoLightboxProvider>
-      <div className="w-full px-4 py-4 sm:px-6 lg:px-10">
-        {/* atalhos para as telas admin completas (fora do BI) */}
-        <div className="mb-4 flex flex-wrap gap-1.5">
-          {ADMIN_TOOLS.map((t) => (
-            <Link
-              key={t.href}
-              href={t.href}
-              className={`rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition-colors ${
-                t.highlight
-                  ? 'border-blue-300 bg-blue-50 text-[#0056D2] hover:border-blue-400'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700'
-              }`}
-            >
-              {t.label}
-            </Link>
-          ))}
-        </div>
+        {/* Sem teto de largura — `wide` tira o max-w-2xl do PremiumScreenShell;
+            este w-full é o que manda na largura. */}
+        <div className="w-full px-4 py-4 sm:px-6 lg:px-10">
+          {/* atalhos para as telas admin completas (fora do BI) */}
+          <div className="mb-4 flex flex-wrap gap-1.5">
+            {ADMIN_TOOLS.map((t) => (
+              <Link key={t.href} href={t.href}
+                className={`rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+                  t.highlight
+                    ? 'border-blue-300 bg-blue-50 text-[#0056D2] hover:border-blue-400'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700'
+                }`}>
+                {t.label}
+              </Link>
+            ))}
+          </div>
 
-        {/* filtro global — vale pra todas as seções abaixo (as que não usam,
-            como Qualidade dos Dados, simplesmente o ignoram) */}
-        <div className="mb-1.5 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px]">
-          <span className="font-bold uppercase tracking-wide text-slate-400">Filtro</span>
-          <div className="flex flex-wrap gap-1">
-            {DATE_PRESETS.map((p) => (
-              <button key={p.key} type="button" onClick={() => applyDatePreset(p.key)}
-                className={`rounded-md px-2.5 py-1 font-semibold ${
-                  datePreset === p.key ? 'bg-[#0056D2] text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>
-                {p.label}
+          {/* abas por pergunta do dono */}
+          <div role="tablist" className="mb-4 flex flex-wrap gap-1.5 border-b border-slate-200 pb-2">
+            {TABS.map((t) => (
+              <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
+                className={`rounded-lg px-3.5 py-2 text-[13px] font-bold transition-colors ${
+                  tab === t.key ? 'bg-[#0056D2] text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300'}`}>
+                {t.label}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1">
-            <input type="date" value={customFrom} aria-label="De"
-              onChange={(e) => { const v = e.target.value; setCustomFrom(v); applyCustomRange(v, customTo); }}
-              className={`rounded-md border px-2 py-1 ${datePreset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
-            <span className="text-slate-400">até</span>
-            <input type="date" value={customTo} aria-label="Até"
-              onChange={(e) => { const v = e.target.value; setCustomTo(v); applyCustomRange(customFrom, v); }}
-              className={`rounded-md border px-2 py-1 ${datePreset === 'custom' ? 'border-[#0056D2]' : 'border-slate-200'}`} />
-          </div>
-          <input placeholder="plataforma" value={filter.platform || ''}
-            onChange={(e) => setFilter((f) => ({ ...f, platform: e.target.value || undefined }))}
-            className="w-28 rounded-md border border-slate-200 px-2 py-1" />
-          <input placeholder="versão" value={filter.app_version || ''}
-            onChange={(e) => setFilter((f) => ({ ...f, app_version: e.target.value || undefined }))}
-            className="w-28 rounded-md border border-slate-200 px-2 py-1" />
-          <input placeholder="UF" value={filter.state || ''}
-            onChange={(e) => setFilter((f) => ({ ...f, state: e.target.value || undefined }))}
-            className="w-16 rounded-md border border-slate-200 px-2 py-1" />
-          <input placeholder="cidade" value={filter.city || ''}
-            onChange={(e) => setFilter((f) => ({ ...f, city: e.target.value || undefined }))}
-            className="w-36 rounded-md border border-slate-200 px-2 py-1" />
-          {(filter.platform || filter.app_version || filter.state || filter.city) && (
-            <button type="button" onClick={() => setFilter((f) => ({ period_days: f.period_days, since: f.since, until: f.until }))}
-              className="rounded-md border border-slate-200 bg-white px-2 py-1 font-semibold text-slate-500">limpar</button>
-          )}
-        </div>
-        <p className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px] text-slate-400">
-          <span className="flex items-center gap-1.5">
+
+          {/* Hoje é sempre "hoje/ontem" — o filtro de período global não faz
+              sentido ali, então só as outras abas mostram a barra. */}
+          {tab !== 'hoje' && filterBar}
+          <p className="mb-4 flex items-center gap-1.5 px-1 text-[11px] text-slate-400">
             <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
             </span>
-            Ao vivo — cada painel se atualiza sozinho a cada 20s, sem precisar recarregar a página.
-          </span>
-          <span className="font-semibold text-slate-500">Analisando: {periodLabel(filter, datePreset)}</span>
-        </p>
+            Ao vivo — atualiza sozinho a cada 20s. Horários em Brasília.
+          </p>
 
-        {/* A–J, tudo aberto por padrão, em duas colunas num desktop — usa a
-            largura real da tela em vez de empilhar tudo numa coluna só.
-            Mapa e Tutores & Pets (tabela larga) ficam em largura cheia,
-            fora da grade de 2 colunas, porque precisam do espaço. */}
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
-          <div className="space-y-4">
-            <AccordionPanel id={SECTION_IDS.A} letter="A" title="Indicadores Executivos" open={open.A} onToggle={() => toggle('A')}>
-              <OverviewSection filter={filter} onCrossFilterPlatform={crossFilterPlatform} onOpenFeeding={openFeeding}
-                onOpenTutors={openTutors} onOpenMissingPets={openMissingPets} onOpenLocations={openLocations} />
-            </AccordionPanel>
-
-            <AccordionPanel id={SECTION_IDS.C} letter="C" title="Alimentação e Ração" subtitle="Prioridade comercial" open={open.C} onToggle={() => toggle('C')}>
-              <FeedingSection filter={filter} onOpenTutors={openTutors} />
-            </AccordionPanel>
-          </div>
-
-          <div className="space-y-4">
-            <AccordionPanel id={SECTION_IDS.B} letter="B" title="Jornada e Conversão" open={open.B} onToggle={() => toggle('B')}>
-              <JourneySection filter={filter} />
-            </AccordionPanel>
-
-            <AccordionPanel id={SECTION_IDS.D} letter="D" title="Utilização das Funcionalidades" open={open.D} onToggle={() => toggle('D')}>
-              <FeaturesSection filter={filter} />
-            </AccordionPanel>
-          </div>
-        </div>
-
-        {/* Locais logo abaixo de Indicadores Executivos (item 6 do pedido de
-            evolução do dashboard) — largura cheia porque a tabela de
-            agrupamento/drill-down precisa do espaço. */}
-        <div className="mt-4">
-          <AccordionPanel id={SECTION_IDS.K} letter="K" title="Locais" subtitle="De onde vêm os acessos, downloads e cadastros" open={open.K} onToggle={() => toggle('K')}>
-            <LocationsSection filter={filter} sortBy={locationsSortBy} onSortByChange={setLocationsSortBy} onFilterByCity={filterByCity} />
-          </AccordionPanel>
-        </div>
-
-        <div className="mt-4">
-          <AccordionPanel id={SECTION_IDS.G} letter="G" title="Mapa dos Tutores" open={open.G} onToggle={() => toggle('G')}>
+          {tab === 'hoje' && (
             <div className="space-y-4">
-              <MapSection filter={filter} onFilterByCity={filterByCity} />
-              <div className="border-t border-slate-100 pt-4">
-                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Agregado por UF/cidade (sem coordenada)</p>
-                <GeoSection />
+              <TodaySection
+                onOpenPeople={openTutors}
+                onOpenLocations={() => openLocations('downloads')}
+                onOpenModeration={() => openAndScroll('L')}
+              />
+              <AccordionPanel id={SECTION_IDS.A} letter="A" title="Indicadores gerais (base total)" subtitle="Painel antigo — será absorvido pelas abas" open={open.A} onToggle={() => toggle('A')}>
+                <OverviewSection filter={filter} onCrossFilterPlatform={crossFilterPlatform} onOpenFeeding={openFeeding}
+                  onOpenTutors={openTutors} onOpenMissingPets={openMissingPets} onOpenLocations={openLocations} />
+              </AccordionPanel>
+            </div>
+          )}
+
+          {tab === 'aquisicao' && (
+            <div className="space-y-4">
+              <AccordionPanel id={SECTION_IDS.K} letter="K" title="Locais" subtitle="De onde vêm os acessos, downloads e cadastros" open={open.K} onToggle={() => toggle('K')}>
+                <LocationsSection filter={filter} sortBy={locationsSortBy} onSortByChange={setLocationsSortBy} onFilterByCity={filterByCity} />
+              </AccordionPanel>
+              <AccordionPanel id={SECTION_IDS.G} letter="G" title="Mapa dos Tutores" open={open.G} onToggle={() => toggle('G')}>
+                <div className="space-y-4">
+                  <MapSection filter={filter} onFilterByCity={filterByCity} />
+                  <div className="border-t border-slate-100 pt-4">
+                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Agregado por UF/cidade (sem coordenada)</p>
+                    <GeoSection />
+                  </div>
+                </div>
+              </AccordionPanel>
+            </div>
+          )}
+
+          {tab === 'ativacao' && (
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
+              <div className="space-y-4">
+                <AccordionPanel id={SECTION_IDS.B} letter="B" title="Jornada e Conversão" open={open.B} onToggle={() => toggle('B')}>
+                  <JourneySection filter={filter} />
+                </AccordionPanel>
+                <AccordionPanel id={SECTION_IDS.E} letter="E" title="Retenção" open={open.E} onToggle={() => toggle('E')}>
+                  <RetentionSection filter={filter} onOpenTutors={openTutors} />
+                </AccordionPanel>
+              </div>
+              <div className="space-y-4">
+                <AccordionPanel id={SECTION_IDS.C} letter="C" title="Alimentação e Ração" subtitle="Prioridade comercial" open={open.C} onToggle={() => toggle('C')}>
+                  <FeedingSection filter={filter} onOpenTutors={openTutors} />
+                </AccordionPanel>
+                <AccordionPanel id={SECTION_IDS.D} letter="D" title="Utilização das Funcionalidades" open={open.D} onToggle={() => toggle('D')}>
+                  <FeaturesSection filter={filter} />
+                </AccordionPanel>
               </div>
             </div>
-          </AccordionPanel>
-        </div>
+          )}
 
-        <div className="mt-4">
-          <AccordionPanel id={SECTION_IDS.L} letter="L" title="Moderação de Fotografias" subtitle="IA + revisão humana" open={open.L} onToggle={() => toggle('L')}>
-            <ModerationSection />
-          </AccordionPanel>
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
-          <div className="space-y-4">
-            <AccordionPanel id={SECTION_IDS.E} letter="E" title="Retenção" open={open.E} onToggle={() => toggle('E')}>
-              <RetentionSection filter={filter} onOpenTutors={openTutors} />
-            </AccordionPanel>
-
+          {tab === 'loja' && (
             <AccordionPanel id={SECTION_IDS.F} letter="F" title="Loja e Monetização" open={open.F} onToggle={() => toggle('F')}>
               <CommerceSection filter={filter} onOpenTutors={openTutors} />
             </AccordionPanel>
-          </div>
+          )}
 
-          <div className="space-y-4">
-            <AccordionPanel id={SECTION_IDS.I} letter="I" title="Indicadores Técnicos Avançados" open={open.I} onToggle={() => toggle('I')}>
-              <div className="space-y-4">
-                <div>
-                  <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Qualidade dos dados</p>
-                  <DataQualitySection />
+          {tab === 'pessoas' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
+                <div className="space-y-4">
+                  <AccordionPanel id={SECTION_IDS.L} letter="L" title="Moderação de Fotografias" subtitle="IA + revisão humana" open={open.L} onToggle={() => toggle('L')}>
+                    <ModerationSection />
+                  </AccordionPanel>
+                  <AccordionPanel id={SECTION_IDS.I} letter="I" title="Indicadores Técnicos Avançados" open={open.I} onToggle={() => toggle('I')}>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Qualidade dos dados</p>
+                        <DataQualitySection />
+                      </div>
+                      <div className="border-t border-slate-100 pt-4">
+                        <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Saúde da operação</p>
+                        <OperationsSection />
+                      </div>
+                    </div>
+                  </AccordionPanel>
                 </div>
-                <div className="border-t border-slate-100 pt-4">
-                  <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Saúde da operação</p>
-                  <OperationsSection />
-                </div>
+                <AccordionPanel id={SECTION_IDS.J} letter="J" title="Inteligência Tática" subtitle="O sistema recomenda; você decide" open={open.J} onToggle={() => toggle('J')}>
+                  <TacticalSection filter={filter} />
+                </AccordionPanel>
               </div>
-            </AccordionPanel>
-
-            <AccordionPanel id={SECTION_IDS.J} letter="J" title="Inteligência Tática" subtitle="O sistema recomenda; você decide" open={open.J} onToggle={() => toggle('J')}>
-              <TacticalSection filter={filter} />
-            </AccordionPanel>
-          </div>
+              <AccordionPanel id={SECTION_IDS.H} letter="H" title="Tutores e Pets" subtitle="Tabela completa, com busca e filtros" open={open.H} onToggle={() => toggle('H')}>
+                <UsersSection filter={filter} />
+              </AccordionPanel>
+            </div>
+          )}
         </div>
-
-        <div className="mt-4">
-          <AccordionPanel id={SECTION_IDS.H} letter="H" title="Tutores e Pets" subtitle="Tabela completa, com busca e filtros" open={open.H} onToggle={() => toggle('H')}>
-            <UsersSection filter={filter} />
-          </AccordionPanel>
-        </div>
-      </div>
       </PhotoLightboxProvider>
     </PremiumScreenShell>
   );
