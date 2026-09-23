@@ -543,6 +543,7 @@ export function EditPetModal({ pet, photoVersion, careSummary, onClose, onSave, 
       };
 
       let photoUpdated = false;
+      let pendingPhotoMessage = '';
       if (photoDataUrl) {
         const token = getToken();
         const blob = await (await fetch(photoDataUrl)).blob();
@@ -553,11 +554,19 @@ export function EditPetModal({ pet, photoVersion, careSummary, onClose, onSave, 
         const res = await fetch(`${API_BASE_URL}/pets/${pet.pet_id}/photo`, {
           method: 'POST', headers, credentials: 'include', body: fd,
         });
+        const photoData = await res.json().catch(() => ({})) as { detail?: string; status?: string; message?: string };
         if (!res.ok) {
-          const data = await res.json().catch(() => ({})) as { detail?: string };
-          throw new Error(data.detail || 'Falha no upload da foto');
+          throw new Error(photoData.detail || 'Falha no upload da foto');
         }
-        photoUpdated = true;
+        if (photoData.status === 'pending') {
+          // Moderação pediu revisão — NÃO interrompe o salvamento do resto
+          // do formulário (nome, raça etc. seguem normalmente abaixo); só
+          // marca pra avisar o tutor depois, em vez de fechar calado como
+          // se a foto tivesse virado pública.
+          pendingPhotoMessage = photoData.message || 'Esta fotografia precisa de uma verificação adicional. Você pode enviar outra imagem.';
+        } else {
+          photoUpdated = true;
+        }
       }
 
       await onSave({ ...updatedPet, _photoUpdated: photoUpdated });
@@ -577,6 +586,15 @@ export function EditPetModal({ pet, photoVersion, careSummary, onClose, onSave, 
           pet_id: pet.pet_id, source: 'edit_pet_modal',
           has_photo: Boolean(photoDataUrl || formData.photo),
         });
+      }
+
+      if (pendingPhotoMessage) {
+        // O resto do cadastro já foi salvo (onSave rodou acima) — só a
+        // foto que ainda não é pública. Mostra o aviso em vez de fechar
+        // como se tivesse dado tudo certo; o tutor fecha manualmente.
+        setError(pendingPhotoMessage);
+        setLoading(false);
+        return;
       }
 
       onClose();

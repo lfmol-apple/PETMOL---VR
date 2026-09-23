@@ -3,7 +3,7 @@ from typing import Optional, List
 import json
 import secrets
 from datetime import date, datetime
-from fastapi import APIRouter, Depends, HTTPException, Response, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -19,7 +19,7 @@ from .access import accessible_pets_query, get_accessible_pet_or_404, get_owned_
 from .models import Pet
 from .caretaker_models import PetCaretaker
 from .schemas import PetCreate, PetOut, PetUpdate
-from .upload import save_pet_photo, delete_pet_photo
+from .upload import delete_pet_photo
 from .vaccine_models import VaccineRecord
 from .vaccine_schemas import VaccineRecordCreate, VaccineRecordOut, VaccineRecordUpdate
 import uuid
@@ -158,25 +158,45 @@ def delete_pet(
 @router.post("/pets/{pet_id}/photo", response_model=dict)
 async def upload_pet_photo(
     pet_id: str,
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Upload de foto do pet."""
+    """Upload de foto do pet — passa por moderação por IA obrigatória
+    (ver `moderation/service.py`) antes de qualquer URL pública existir."""
+    from ..moderation import ModerationRejected, PENDING_MESSAGE, REJECTED_MESSAGE, moderate_upload
+
     pet = _get_pet_or_404(db, user.id, pet_id)
-    
-    # Deletar foto antiga se existir
+    raw = await file.read()
+
+    try:
+        outcome = await moderate_upload(
+            raw,
+            context="pet_profile",
+            db=db,
+            entity_type="pet",
+            entity_id=pet.id,
+            uploader_user_id=str(user.id),
+            uploader_ip=(request.client.host if request.client else None),
+        )
+    except ModerationRejected as exc:
+        raise HTTPException(status_code=422, detail=REJECTED_MESSAGE) from exc
+
+    if outcome.status == "pending":
+        return {"status": "pending", "message": PENDING_MESSAGE}
+
+    # Aprovada — só agora troca a foto antiga (nunca antes de ter uma nova
+    # foto aprovada pra substituir, senão um upload recusado deixaria o
+    # pet sem foto nenhuma).
     if pet.photo:
         delete_pet_photo(pet.photo)
-    
-    # Salvar nova foto
-    photo_path = await save_pet_photo(file)
-    pet.photo = photo_path
-    
+    pet.photo = outcome.public_key
+
     db.commit()
     db.refresh(pet)
-    
-    return {"photo_url": f"/uploads/{photo_path}"}
+
+    return {"status": "approved", "photo_url": f"/uploads/{outcome.public_key}"}
 
 
 # ========================================

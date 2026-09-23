@@ -29,6 +29,10 @@ class VisionService:
         "temperature": 0,
         "response_mime_type": "application/json",
     }
+    MODERATION_GENERATION_CONFIG = {
+        "temperature": 0,
+        "response_mime_type": "application/json",
+    }
     OCR_GENERATION_CONFIG = {
         "temperature": 0,
         "response_mime_type": "application/json",
@@ -1304,5 +1308,108 @@ Responda só com JSON neste formato (os valores abaixo são exemplo):
                 if 2000 <= candidate <= current_year + 5:
                     logger.info(f"Ano ambíguo corrigido: {y} → {candidate} (contexto: {kind})")
                     return candidate
-        
+
         return y
+
+    # ── Moderação de fotografias (perfil do pet / Pet Sumido / avistamento) ────
+
+    MODERATION_PROMPT = """Você modera fotografias enviadas por tutores de pets num
+app de cuidado animal. A imagem já foi validada tecnicamente — sua única
+tarefa é classificar o CONTEÚDO.
+
+O app só aceita fotografias REAIS de animais de estimação. Analise a
+imagem inteira, não só se existe um animal em algum canto dela: uma
+imagem imprópria com um cachorro ao fundo continua sendo imprópria.
+
+Responda APENAS com JSON válido neste formato exato:
+{
+  "animal_present": true/false,
+  "species": "dog" | "cat" | "other" | null,
+  "pet_is_main_subject": true/false,
+  "nudity_or_sexual_content": true/false,
+  "graphic_violence_or_animal_cruelty": true/false,
+  "inappropriate_content_involving_minors": true/false,
+  "image_type": "real_photo" | "drawing" | "meme" | "synthetic" | "collage" | "screenshot" | "other",
+  "confidence": 0.0 a 1.0,
+  "reason": "frase curta e técnica explicando a classificação"
+}
+
+Guia de classificação:
+- "animal_present": há um animal de estimação real e identificável na foto
+  (cão, gato ou outro pet doméstico comum). Pessoa sem nenhum pet visível
+  = false.
+- "pet_is_main_subject": o pet é o assunto principal da foto — mesmo com
+  o tutor, crianças ou outras pessoas no quadro, desde que o pet seja
+  claramente o foco. Uma foto de pessoas onde um pet aparece pequeno ao
+  fundo, incidental, conta como false.
+- Ambientes domésticos comuns, tutores, crianças ao fundo, pets doentes,
+  idosos, com deficiência ou com ferimento leve/não-gráfico são NORMAIS
+  e não devem virar nenhuma das flags de conteúdo impróprio.
+- "nudity_or_sexual_content": nudez humana, conteúdo sexual ou
+  sexualizado, incluindo qualquer sugestão envolvendo menores (nesse
+  caso marque também "inappropriate_content_involving_minors").
+- "graphic_violence_or_animal_cruelty": violência gráfica real ou
+  indícios de maus-tratos/crueldade contra o animal — não confundir com
+  um pet machucado sendo cuidado ou se recuperando.
+- "image_type": "real_photo" só quando for uma fotografia genuína, tirada
+  de verdade. Desenho, ilustração, meme (imagem com texto sobreposto de
+  humor), montagem/colagem óbvia, screenshot de outra tela, ou imagem que
+  pareça gerada/sintética (textura, iluminação ou anatomia
+  artificialmente perfeitas ou inconsistentes) NÃO é "real_photo".
+- "confidence": sua confiança real na classificação como um todo, 0 a 1.
+  Não diga 1.0 a menos que esteja realmente certo; se a foto for ambígua
+  ou o pet estiver pouco visível, use um valor baixo (ex: 0.3-0.5) em vez
+  de forçar certeza que você não tem."""
+
+    async def moderate_pet_photo(self, image_bytes: bytes) -> Dict[str, Any]:
+        """Classifica uma fotografia de pet pros fluxos públicos do app
+        (perfil do pet, Pet Sumido, avistamento). Só classifica — quem
+        decide aprovar/rejeitar/revisar é `moderation/classifier.py`
+        (regra determinística em Python, não confia cegamente no que a IA
+        rotula como "decisão"; aqui só extraímos os fatos estruturados).
+
+        Levanta exceção se a chamada falhar — o chamador trata isso como
+        "IA indisponível" e NUNCA aprova a foto automaticamente nesse caso.
+        """
+        prepared = self._prepare_image_for_vision(image_bytes, max_dim=1024, quality=85)
+        image_part = {
+            "mime_type": self._detect_mime_type(prepared),
+            "data": prepared,
+        }
+        response = await self._generate_content_with_model_fallback(
+            self.MODERATION_PROMPT,
+            image_part,
+            generation_config=self.MODERATION_GENERATION_CONFIG,
+            timeout=25,
+        )
+        response_text = self._strip_json_fences(response.text)
+        result = json.loads(response_text)
+        if not isinstance(result, dict):
+            raise ValueError("Resposta de moderação não é um objeto JSON")
+
+        # Normalização mínima — tipos errados viram os defaults mais seguros
+        # (nunca um default que aprova sozinho).
+        def _bool(key: str) -> bool:
+            return bool(result.get(key)) if isinstance(result.get(key), bool) else False
+
+        confidence = result.get("confidence")
+        try:
+            confidence = max(0.0, min(1.0, float(confidence)))
+        except (TypeError, ValueError):
+            confidence = 0.0
+
+        image_type = str(result.get("image_type") or "other").strip().lower()
+        species = result.get("species")
+        species = str(species).strip().lower() if isinstance(species, str) and species.strip() else None
+
+        return {
+            "animal_present": _bool("animal_present"),
+            "species": species,
+            "pet_is_main_subject": _bool("pet_is_main_subject"),
+            "nudity_or_sexual_content": _bool("nudity_or_sexual_content"),
+            "graphic_violence_or_animal_cruelty": _bool("graphic_violence_or_animal_cruelty"),
+            "inappropriate_content_involving_minors": _bool("inappropriate_content_involving_minors"),
+            "image_type": image_type,
+            "confidence": confidence,
+            "reason": str(result.get("reason") or "").strip()[:500],
+        }

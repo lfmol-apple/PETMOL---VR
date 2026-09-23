@@ -424,6 +424,11 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
   const [loading,         setLoading]         = useState(false);
   const [error,           setError]           = useState('');
+  // Aviso sobre a MODERAÇÃO da foto (rejeitada/pendente) — separado do
+  // `error` de validação porque o pet já foi salvo com sucesso nesse
+  // ponto; só a foto que precisa de atenção. Enquanto houver aviso, o
+  // modal fica aberto pro tutor ler antes de fechar.
+  const [photoNotice,     setPhotoNotice]     = useState('');
 
   const speciesSeg = ['dog', 'cat'].includes(species) ? species : 'other';
   const today = localTodayISO();
@@ -477,21 +482,39 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
 
       const savedPet = await res.json() as { id: string };
 
+      // Marco de ativação (North Star petmol_activated_v1 — lido em PushActionSheet).
+      try { localStorage.setItem('petmol_activation_pet_created_v1', '1'); } catch { /* noop */ }
+      trackV1Metric('pet_created', { pet_id: savedPet.id, species, has_photo: Boolean(petPhotoDataUrl), source: 'add_pet_modal' });
+
+      // O pet já está salvo aqui — o que falta é só a foto, que passa por
+      // moderação por IA obrigatória no servidor antes de virar pública.
+      // Se ela for recusada ou precisar de revisão, o pet continua criado
+      // normalmente (onComplete já dispara); só avisamos o tutor sobre a
+      // foto em vez de fechar o modal calado.
       if (petPhotoDataUrl) {
         try {
           const blob = await (await fetch(petPhotoDataUrl)).blob();
           const fd = new FormData();
           fd.append('file', new File([blob], 'pet-photo.jpg', { type: 'image/jpeg' }));
-          await fetch(`${API_BASE_URL}/pets/${savedPet.id}/photo`, {
+          const photoRes = await fetch(`${API_BASE_URL}/pets/${savedPet.id}/photo`, {
             method: 'POST', headers: { Authorization: `Bearer ${token}` }, credentials: 'include', body: fd,
           });
-        } catch { /* non-fatal */ }
+          const photoData = await photoRes.json().catch(() => ({})) as { status?: string; detail?: string };
+          if (photoRes.status === 422) {
+            onComplete();
+            setPhotoNotice(photoData.detail || 'Não foi possível aprovar esta imagem. Envie uma fotografia real do seu pet, sem conteúdo impróprio.');
+            setLoading(false);
+            return;
+          }
+          if (photoRes.ok && photoData.status === 'pending') {
+            onComplete();
+            setPhotoNotice('Esta fotografia precisa de uma verificação adicional. Você pode enviar outra imagem depois, no perfil do pet.');
+            setLoading(false);
+            return;
+          }
+        } catch { /* non-fatal — pet já foi criado, foto tenta de novo depois */ }
       }
 
-      // Marco de ativação (North Star petmol_activated_v1 — lido em PushActionSheet).
-      try { localStorage.setItem('petmol_activation_pet_created_v1', '1'); } catch { /* noop */ }
-
-      trackV1Metric('pet_created', { pet_id: savedPet.id, species, has_photo: Boolean(petPhotoDataUrl), source: 'add_pet_modal' });
       onComplete();
       onClose();
     } catch (err: unknown) {
@@ -634,20 +657,42 @@ export function AddPetModal({ onClose, onComplete }: AddPetModalProps) {
                   {error}
                 </div>
               )}
+
+              {loading && petPhotoDataUrl && !photoNotice && (
+                <p className="text-center text-[12px] font-semibold text-slate-400">
+                  Estamos verificando a fotografia para manter o PETMOL seguro.
+                </p>
+              )}
+
+              {photoNotice && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <p className="font-semibold">{name || 'Seu pet'} foi salvo — só a foto precisa de atenção.</p>
+                  <p className="mt-1">{photoNotice}</p>
+                </div>
+              )}
             </SheetShell.Body>
 
-            {/* Footer */}
+            {/* Footer — vira uma confirmação simples quando há um aviso
+                sobre a foto: o pet já foi salvo, só falta o tutor ler e
+                fechar (ou tentar outra foto depois, no perfil do pet). */}
             <SheetShell.Footer>
-              <div className="flex gap-3">
+              {photoNotice ? (
                 <button type="button" onClick={onClose}
-                  className="flex-1 py-3.5 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white active:scale-[0.98] transition-all">
-                  Cancelar
+                  className="w-full py-3.5 rounded-2xl bg-[#0056D2] text-white text-sm font-semibold active:scale-[0.98] transition-all shadow-md shadow-blue-600/20">
+                  Entendi
                 </button>
-                <button type="button" onClick={handleSubmit} disabled={loading || !canSubmit}
-                  className="flex-1 py-3.5 rounded-2xl bg-[#0056D2] text-white text-sm font-semibold active:scale-[0.98] transition-all disabled:opacity-40 shadow-md shadow-blue-600/20">
-                  {loading ? 'Salvando…' : 'Adicionar pet'}
-                </button>
-              </div>
+              ) : (
+                <div className="flex gap-3">
+                  <button type="button" onClick={onClose}
+                    className="flex-1 py-3.5 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white active:scale-[0.98] transition-all">
+                    Cancelar
+                  </button>
+                  <button type="button" onClick={handleSubmit} disabled={loading || !canSubmit}
+                    className="flex-1 py-3.5 rounded-2xl bg-[#0056D2] text-white text-sm font-semibold active:scale-[0.98] transition-all disabled:opacity-40 shadow-md shadow-blue-600/20">
+                    {loading ? 'Salvando…' : 'Adicionar pet'}
+                  </button>
+                </div>
+              )}
             </SheetShell.Footer>
       </SheetShell>
 

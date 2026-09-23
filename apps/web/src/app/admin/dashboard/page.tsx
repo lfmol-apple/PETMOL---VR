@@ -15,6 +15,7 @@ import {
 import { FeedingSection } from '@/components/admin/sections/FeedingSection';
 import { JourneySection } from '@/components/admin/sections/JourneySection';
 import { LocationsSection } from '@/components/admin/sections/LocationsSection';
+import { ModerationSection } from '@/components/admin/sections/ModerationSection';
 import { TacticalSection } from '@/components/admin/sections/TacticalSection';
 import dynamic from 'next/dynamic';
 import { OperationsSection } from '@/components/admin/sections/OperationsSection';
@@ -30,10 +31,10 @@ const PERIODS = [
   { label: '7d', v: 7 }, { label: '30d', v: 30 }, { label: '90d', v: 90 }, { label: 'Tudo', v: undefined },
 ];
 
-type SectionLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K';
+type SectionLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L';
 const SECTION_IDS: Record<SectionLetter, string> = {
   A: 'mc-a', B: 'mc-b', C: 'mc-c', D: 'mc-d', E: 'mc-e', F: 'mc-f', G: 'mc-g', H: 'mc-h', I: 'mc-i', J: 'mc-j',
-  K: 'mc-k',
+  K: 'mc-k', L: 'mc-l',
 };
 
 /** Telas admin completas (fora do BI) — atalhos fixos no topo do painel. */
@@ -62,7 +63,7 @@ export default function AdminDashboardPage() {
   // exatamente a mesma coisa que abas escondidas). O toggle continua
   // disponível pra quem quiser recolher alguma seção específica depois.
   const [open, setOpen] = useState<Record<SectionLetter, boolean>>({
-    A: true, B: true, C: true, D: true, E: true, F: true, G: true, H: true, I: true, J: true, K: true,
+    A: true, B: true, C: true, D: true, E: true, F: true, G: true, H: true, I: true, J: true, K: true, L: true,
   });
 
   useEffect(() => {
@@ -218,6 +219,12 @@ export default function AdminDashboardPage() {
         <div className="mt-4">
           <AccordionPanel id={SECTION_IDS.K} letter="K" title="Locais" subtitle="De onde vêm os acessos e downloads" open={open.K} onToggle={() => toggle('K')}>
             <LocationsSection onFilterByCity={filterByCity} />
+          </AccordionPanel>
+        </div>
+
+        <div className="mt-4">
+          <AccordionPanel id={SECTION_IDS.L} letter="L" title="Moderação de Fotografias" subtitle="IA + revisão humana" open={open.L} onToggle={() => toggle('L')}>
+            <ModerationSection />
           </AccordionPanel>
         </div>
 

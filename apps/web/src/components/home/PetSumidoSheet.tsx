@@ -183,6 +183,10 @@ export function PetSumidoSheet({
   const [cepError, setCepError] = useState('');
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState('');
+  // Aviso sobre a MODERAÇÃO da foto (rejeitada/pendente) — o alerta em si
+  // segue sendo criado mesmo assim (Pet Sumido é urgente, não pode travar
+  // por causa da foto); isso só informa o tutor o que aconteceu com ela.
+  const [photoModerationNotice, setPhotoModerationNotice] = useState<string | null>(null);
 
   const handleCepChange = async (raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 8);
@@ -296,6 +300,7 @@ export function PetSumidoSheet({
     const _token = getToken();
 
     let resolvedPhotoUrl: string | null = petPhotoUrl && !petPhotoUrl.startsWith('data:') ? petPhotoUrl : null;
+    setPhotoModerationNotice(null);
     if (photoPreview && photoPreview.startsWith('data:')) {
       try {
         const upRes = await fetch('/api/missing-pets/upload-photo', {
@@ -303,9 +308,13 @@ export function PetSumidoSheet({
           headers: { 'Content-Type': 'application/json', ...(_token ? { Authorization: `Bearer ${_token}` } : {}) },
           body: JSON.stringify({ photo_base64: photoPreview }),
         });
-        if (upRes.ok) {
-          const upData = await upRes.json() as { photo_url?: string };
-          if (upData.photo_url) resolvedPhotoUrl = upData.photo_url;
+        const upData = await upRes.json().catch(() => ({})) as { photo_url?: string; status?: string; message?: string; detail?: string };
+        if (upRes.ok && upData.photo_url) {
+          resolvedPhotoUrl = upData.photo_url;
+        } else if (upRes.ok && upData.status === 'pending') {
+          setPhotoModerationNotice(upData.message || 'Esta fotografia precisa de uma verificação adicional. Você pode enviar outra imagem.');
+        } else if (upRes.status === 422) {
+          setPhotoModerationNotice(upData.detail || 'Não foi possível aprovar esta imagem. Envie uma fotografia real do seu pet, sem conteúdo impróprio.');
         }
       } catch { /* silent — alerta vai sem foto nova */ }
     }
@@ -835,6 +844,13 @@ export function PetSumidoSheet({
                       ? 'Alerta atualizado — a comunidade na região está sendo avisada'
                       : 'Alerta enviado — a comunidade PETMOL na região está sendo avisada'}
                   </p>
+                </div>
+              )}
+
+              {alertSent && photoModerationNotice && (
+                <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 flex items-center gap-3">
+                  <span className="text-xl flex-shrink-0">📷</span>
+                  <p className="text-[12px] font-semibold text-amber-700">{photoModerationNotice}</p>
                 </div>
               )}
 

@@ -47,6 +47,7 @@ Thumbs.db
 # Dados e análises locais
 analysis/
 uploads/
+**/moderation_review/
 *.csv
 *.json
 *.sql
