@@ -311,24 +311,22 @@ export function AppleControlButtons({
             >
               <span
                 className={`flex-shrink-0 text-xl font-black leading-none tabular-nums min-[390px]:text-2xl ${
-                  nearbyMissingCount > 0 ? 'text-white' : 'text-emerald-500'
+                  nearbyMissingCount > 0 ? 'text-white' : 'text-emerald-600'
                 }`}
               >
-                {nearbyMissingCount > 0 ? nearbyMissingCount : '✓'}
+                {nearbyMissingCount}
               </span>
+              {/* Um texto só ("X Pet(s) Sumido(s) Perto de você") em vez do
+                  título + legenda separados de antes — pedido do dono
+                  (22/09): o número já fica na bolinha, a frase completa o
+                  resto. Sempre mostra a contagem, 0 incluso (nada de ✓
+                  escondendo o número). */}
               <div className="min-w-0 flex-1 text-left">
-                <h3 className={`truncate text-[12px] font-black leading-tight min-[390px]:text-[13px] ${
+                <h3 className={`line-clamp-2 text-[12px] font-black leading-tight min-[390px]:text-[13px] ${
                   nearbyMissingCount > 0 ? 'text-white' : 'text-emerald-700'
                 }`}>
-                  Perto de você
+                  {nearbyMissingCount === 1 ? 'Pet Sumido' : 'Pets Sumidos'} Perto de você
                 </h3>
-                <p className={`mt-0.5 truncate text-[9px] font-semibold leading-[1.1] ${
-                  nearbyMissingCount > 0 ? 'text-white/85' : 'text-emerald-600/80'
-                }`}>
-                  {nearbyMissingCount > 0
-                    ? `sumido${nearbyMissingCount > 1 ? 's' : ''} na região`
-                    : 'Tudo tranquilo — toque aqui'}
-                </p>
               </div>
             </button>
           </div>
