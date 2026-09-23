@@ -7,7 +7,7 @@ import type { PetHealthProfile } from '@/lib/petHealth';
 import { getToken } from '@/lib/auth-token';
 import { isNativeApp } from '@/lib/pwaPlatform';
 import { reverseGeocode, formatReverseGeocodeResult } from '@/lib/osm';
-import { classifyPhotoUpload, notAPetPhotoMessage } from '@/lib/photoModerationMessages';
+import { classifyPhotoUpload, notAPetPhotoMessage, type PhotoUploadOutcome } from '@/lib/photoModerationMessages';
 
 interface PetSumidoSheetProps {
   pet: PetHealthProfile;
@@ -188,6 +188,8 @@ export function PetSumidoSheet({
   // segue sendo criado mesmo assim (Pet Sumido é urgente, não pode travar
   // por causa da foto); isso só informa o tutor o que aconteceu com ela.
   const [photoModerationNotice, setPhotoModerationNotice] = useState<string | null>(null);
+  // Foto recusada pela moderação: aviso vermelho NA tela do formulário (onde a foto foi escolhida).
+  const [photoIssue, setPhotoIssue] = useState<string | null>(null);
 
   const handleCepChange = async (raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 8);
@@ -276,14 +278,34 @@ export function PetSumidoSheet({
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => { setPhotoPreview(ev.target?.result as string); setPhotoLoadFailed(false); };
+    reader.onload = (ev) => { setPhotoPreview(ev.target?.result as string); setPhotoLoadFailed(false); setPhotoIssue(null); };
     reader.readAsDataURL(file);
   };
+
+  // Modera a foto ANTES de gerar o cartaz: assim o aviso aparece na tela onde a
+  // foto foi escolhida e a foto recusada nunca vai parar no cartaz.
+  const moderatePhoto = useCallback(async (preview: string): Promise<{ outcome: PhotoUploadOutcome; url: string | null; message?: string }> => {
+    const _token = getToken();
+    try {
+      const upRes = await fetch('/api/missing-pets/upload-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(_token ? { Authorization: `Bearer ${_token}` } : {}) },
+        body: JSON.stringify({ photo_base64: preview }),
+      });
+      const upData = await upRes.json().catch(() => ({})) as { photo_url?: string; status?: string; message?: string };
+      const outcome = classifyPhotoUpload(upRes.status, upData);
+      if (outcome === 'approved') return upData.photo_url ? { outcome, url: upData.photo_url } : { outcome: 'error', url: null };
+      if (outcome === 'pending') return { outcome, url: null, message: upData.message || 'Esta fotografia precisa de uma verificação adicional. Você pode enviar outra imagem.' };
+      return { outcome, url: null };
+    } catch {
+      return { outcome: 'error', url: null };   // sem rede/servidor: o alerta segue, como antes
+    }
+  }, []);
 
   // Cria/atualiza o alerta — roda EM BACKGROUND depois que o cartaz já
   // apareceu na tela. Antes ficava na frente do desenho do cartaz e ainda
   // esperava o backend disparar todos os web-pushes → "cartaz demora demais".
-  const submitAlert = useCallback(async () => {
+  const submitAlert = useCallback(async (photoUrl: string | null, pendingNotice: string | null) => {
     if (submitInFlightRef.current) return;
     submitInFlightRef.current = true;
     let geoLat: number | undefined;
@@ -300,27 +322,9 @@ export function PetSumidoSheet({
 
     const _token = getToken();
 
-    let resolvedPhotoUrl: string | null = petPhotoUrl && !petPhotoUrl.startsWith('data:') ? petPhotoUrl : null;
-    setPhotoModerationNotice(null);
-    if (photoPreview && photoPreview.startsWith('data:')) {
-      try {
-        const upRes = await fetch('/api/missing-pets/upload-photo', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(_token ? { Authorization: `Bearer ${_token}` } : {}) },
-          body: JSON.stringify({ photo_base64: photoPreview }),
-        });
-        const upData = await upRes.json().catch(() => ({})) as { photo_url?: string; status?: string; message?: string; detail?: string };
-        if (upRes.ok && upData.photo_url) {
-          resolvedPhotoUrl = upData.photo_url;
-        } else if (upRes.ok && upData.status === 'pending') {
-          setPhotoModerationNotice(upData.message || 'Esta fotografia precisa de uma verificação adicional. Você pode enviar outra imagem.');
-        } else if (classifyPhotoUpload(upRes.status, upData) === 'rejected') {
-          // O alerta é urgente e segue sem essa foto; o pedido gentil aparece
-          // na própria tela do alerta.
-          setPhotoModerationNotice(`${notAPetPhotoMessage(pet.pet_name)} Seu alerta foi enviado normalmente, sem essa foto.`);
-        }
-      } catch { /* silent — alerta vai sem foto nova */ }
-    }
+    // A foto já foi moderada ANTES de chegar aqui (generateCard) — recebe a URL pronta.
+    setPhotoModerationNotice(pendingNotice);
+    const resolvedPhotoUrl = photoUrl;
 
     try {
       if (isEditMode && editAlertId) {
@@ -370,13 +374,33 @@ export function PetSumidoSheet({
       // Falha de rede: libera a trava para permitir nova tentativa manual.
       submitInFlightRef.current = false;
     }
-  }, [onAlertSaved, pet, petPhotoUrl, photoPreview, contact, lastSeenLocation, characteristics, missingDate, missingTime, liveRadius, isEditMode, editAlertId]);
+  }, [onAlertSaved, pet, contact, lastSeenLocation, characteristics, missingDate, missingTime, liveRadius, isEditMode, editAlertId]);
 
   const generateCard = useCallback(async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     setGenerating(true);
     setAlertBlocked(false);
+    setPhotoIssue(null);
+
+    // 1) Foto nova? Passa pela moderação ANTES do cartaz. Recusada: fica no
+    //    formulário, com o pedido gentil em vermelho, e volta pra foto do perfil
+    //    (ou pra "Falta: foto") — a foto recusada nunca vira cartaz.
+    let photoUrlForAlert: string | null = petPhotoUrl && !petPhotoUrl.startsWith('data:') ? petPhotoUrl : null;
+    let pendingNotice: string | null = null;
+    if (photoPreview && photoPreview.startsWith('data:')) {
+      const moderated = await moderatePhoto(photoPreview);
+      if (moderated.outcome === 'rejected') {
+        const keptProfilePhoto = Boolean(petPhotoUrl && !petPhotoUrl.startsWith('data:'));
+        setPhotoIssue(notAPetPhotoMessage(pet.pet_name) + (keptProfilePhoto ? ` Enquanto isso, mantivemos a foto do perfil de ${pet.pet_name}.` : ''));
+        setPhotoPreview(keptProfilePhoto ? petPhotoUrl! : null);
+        setPhotoLoadFailed(false);
+        setGenerating(false);
+        return;
+      }
+      if (moderated.outcome === 'approved') photoUrlForAlert = moderated.url;
+      if (moderated.outcome === 'pending') pendingNotice = moderated.message ?? null;
+    }
 
     const W = 1080;
     const H = 1350;
@@ -522,8 +546,8 @@ export function PetSumidoSheet({
     setStep('card');
 
     // O cartaz já está na tela — cria/atualiza o alerta em background.
-    void submitAlert();
-  }, [pet, photoPreview, lastSeenLocation, characteristics, missingDate, missingTime, contact, submitAlert]);
+    void submitAlert(photoUrlForAlert, pendingNotice);
+  }, [pet, petPhotoUrl, photoPreview, moderatePhoto, lastSeenLocation, characteristics, missingDate, missingTime, contact, submitAlert]);
 
   const handleShare = useCallback(async (target: 'native' | 'download') => {
     if (!cardDataUrl) return;
@@ -950,6 +974,11 @@ export function PetSumidoSheet({
             className="flex-shrink-0 border-t border-gray-100 bg-white px-5 pt-3"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}
           >
+            {photoIssue && (
+              <div role="alert" className="mb-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] font-semibold leading-snug text-rose-700">
+                📷 {photoIssue}
+              </div>
+            )}
             {missingParts.length > 0 && (
               <p className="text-center text-[12px] text-slate-400 mb-2">
                 Falta: {missingParts.length > 1
