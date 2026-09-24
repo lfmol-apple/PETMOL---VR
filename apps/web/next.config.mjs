@@ -54,23 +54,13 @@ const nextConfig = {
   // Headers para proxy e cache
   async headers() {
     return [
-      // Evita que mobile/browsers cacheiem o HTML das páginas (e sw.js/manifest/version.json,
-      // que precisam sempre revalidar). Imagens/fontes estáticas ficam de fora (regra abaixo).
+      // Evita que mobile/browsers cacheiem o HTML das páginas
       {
-        source: '/((?!_next/static|_next/image|icons|images|favicon)(?!.*\\.(?:webp|png|jpg|jpeg|svg|ico|gif|avif|woff2?)$).*)',
+        source: '/((?!_next/static|_next/image|icons|images|favicon).*)',
         headers: [
           { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
           { key: 'Pragma', value: 'no-cache' },
           { key: 'Expires', value: '0' },
-        ],
-      },
-      // Imagens/ícones/fontes de public/ (sem hash no nome): cache de 1 dia + revalidação em
-      // segundo plano por 7 dias. Antes caíam na regra "no-store" e eram baixados de
-      // novo a cada abertura do app (cards da Home, ícones, logos de parceiros).
-      {
-        source: '/:path*.(webp|png|jpg|jpeg|svg|ico|gif|avif|woff|woff2)',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' },
         ],
       },
       // CORS para proxy do backend local
