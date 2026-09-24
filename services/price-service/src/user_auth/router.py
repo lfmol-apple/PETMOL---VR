@@ -460,8 +460,10 @@ def update_me(
         lat_in = payload.get('lat')
         lng_in = payload.get('lng')
         if lat_in is not None and lng_in is not None:
-            user.lat = float(lat_in)
-            user.lng = float(lng_in)
+            # 3 casas decimais (~110 m): privacidade — só guardamos a última posição,
+            # sem histórico e sem precisão maior do que os alertas (raio ≥ 2 km) usam.
+            user.lat = round(float(lat_in), 3)
+            user.lng = round(float(lng_in), 3)
             user.location_source = 'gps'
             user.location_updated_at = datetime.now(timezone.utc)
     except (TypeError, ValueError):
@@ -524,6 +526,42 @@ def update_me(
 @router.post("/logout")
 def logout(response: Response):
     response.delete_cookie(COOKIE_NAME, path="/")
+    return {"ok": True}
+
+
+@router.delete("/me/location")
+def stop_sharing_location(
+    authorization: Optional[str] = Header(default=None),
+    token: Optional[str] = Cookie(default=None, alias=COOKIE_NAME),
+    db: Session = Depends(get_db),
+):
+    """"Parar de compartilhar": apaga a localização guardada do tutor (usuário + coordenadas das
+    assinaturas de notificação). Sem localização gravada, o app também para de renová-la sozinho
+    (a renovação silenciosa só roda para quem tem `location_source == 'gps'`)."""
+    auth_token = None
+    if authorization and authorization.startswith("Bearer "):
+        auth_token = authorization[7:]
+    elif token:
+        auth_token = token
+    if not auth_token:
+        raise HTTPException(status_code=401, detail="Não autenticado")
+    token_data = decode_token(auth_token)
+    if not token_data or not token_data.user_id:
+        raise HTTPException(status_code=401, detail="Token inválido")
+    user = db.query(User).filter(User.id == token_data.user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuário não encontrado")
+
+    from ..notifications import PushSubscription
+
+    user.lat = None
+    user.lng = None
+    user.location_source = None
+    user.location_updated_at = None
+    db.query(PushSubscription).filter(PushSubscription.user_id == str(user.id)).update(
+        {"lat": None, "lng": None}, synchronize_session=False
+    )
+    db.commit()
     return {"ok": True}
 
 

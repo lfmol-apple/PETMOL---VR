@@ -879,8 +879,8 @@ def subscribe(body: SubscribeRequest, current_user=Depends(get_current_user)):
         if existing:
             existing.p256dh = keys["p256dh"]
             existing.auth = keys["auth"]
-            existing.lat = body.lat
-            existing.lng = body.lng
+            existing.lat = round(body.lat, 3) if body.lat is not None else None
+            existing.lng = round(body.lng, 3) if body.lng is not None else None
             existing.last_seen_at = now
             existing.disabled_at = None
             if device_id:
@@ -889,7 +889,8 @@ def subscribe(body: SubscribeRequest, current_user=Depends(get_current_user)):
             db.add(PushSubscription(
                 user_id=user_id, endpoint=endpoint,
                 p256dh=keys["p256dh"], auth=keys["auth"],
-                lat=body.lat, lng=body.lng, device_id=device_id,
+                lat=round(body.lat, 3) if body.lat is not None else None,
+                lng=round(body.lng, 3) if body.lng is not None else None, device_id=device_id,
                 created_at=now, last_seen_at=now,
             ))
 

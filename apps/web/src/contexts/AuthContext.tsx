@@ -11,6 +11,7 @@ interface Tutor {
   name: string;
   phone?: string;
   email_verified?: boolean;
+  location_source?: 'gps' | 'city' | 'ip' | null;
   created_at: string;
 }
 

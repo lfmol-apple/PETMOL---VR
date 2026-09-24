@@ -48,6 +48,9 @@ export default function PrivacyPage() {
             <li>
               <strong>Localização precisa</strong> (latitude/longitude), apenas quando você autoriza e enquanto o app está em uso — nunca em segundo plano, sem rastreamento contínuo. Usada em: (a) busca de estabelecimentos próximos (petshops, veterinários, emergência); (b) o fluxo &quot;Pet Sumido&quot; / &quot;Achei um pet&quot;, para registrar o último local visto e enviar alertas geolocalizados a quem está por perto; (c) ao ativar notificações, para direcionar alertas de pet perdido à sua região
             </li>
+            <li>
+              <strong>Atualização automática da posição:</strong> se você escolheu compartilhar a localização precisa, ela pode ser atualizada automaticamente quando você abre o app, apenas enquanto ele está em uso e desde que o sistema do seu aparelho mantenha a permissão liberada. Guardamos <strong>somente a última posição</strong> (arredondada a cerca de 100 m), sem histórico de trajetos, e usamos apenas para os alertas de Pet Sumido descritos acima. Você pode parar a qualquer momento em Perfil &gt; &quot;Parar de compartilhar minha localização&quot; (apagamos a posição guardada) ou revogando a permissão nas configurações do aparelho.
+            </li>
             <li>Endereço e/ou CEP informados por você no cadastro ou no perfil</li>
           </ul>
 
