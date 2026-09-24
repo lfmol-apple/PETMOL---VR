@@ -17,3 +17,11 @@ export function classifyPhotoUpload(status: number, data: { status?: string } | 
   if (status >= 200 && status < 300) return data?.status === 'pending' ? 'pending' : 'approved';
   return 'error';
 }
+
+/** Upload que nem chegou à moderação: foto pesada demais (413) ou ilegível (400). Outros erros → null (o fluxo segue como antes). */
+export function unusablePhotoMessage(status: number, petName?: string | null): string | null {
+  const name = (petName || '').trim() || 'seu pet';
+  if (status === 413) return `Essa foto é pesada demais para enviar (máximo 8 MB). Tente outra ou fotografe ${name} de novo.`;
+  if (status === 400) return `Não conseguimos ler essa foto. Tente outra ou fotografe ${name} de novo.`;
+  return null;
+}

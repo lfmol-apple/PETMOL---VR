@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyPhotoUpload, notAPetPhotoMessage } from './photoModerationMessages';
+import { classifyPhotoUpload, notAPetPhotoMessage, unusablePhotoMessage } from './photoModerationMessages';
 
 describe('notAPetPhotoMessage', () => {
   it('cita o pet pelo nome e pede, com gentileza, uma foto dele', () => {
@@ -24,5 +24,14 @@ describe('classifyPhotoUpload', () => {
     expect(classifyPhotoUpload(200, { status: 'pending' })).toBe('pending');
     expect(classifyPhotoUpload(429, {})).toBe('error');
     expect(classifyPhotoUpload(500, null)).toBe('error');
+  });
+});
+
+describe('unusablePhotoMessage', () => {
+  it('foto pesada (413) e ilegível (400) ganham pedido claro; outros erros seguem sem aviso', () => {
+    expect(unusablePhotoMessage(413, 'Baby')).toMatch(/pesada demais.*8 MB.*fotografe Baby/);
+    expect(unusablePhotoMessage(400, 'Baby')).toMatch(/Não conseguimos ler essa foto.*fotografe Baby/);
+    expect(unusablePhotoMessage(500, 'Baby')).toBeNull();
+    expect(unusablePhotoMessage(0, undefined)).toBeNull();
   });
 });
