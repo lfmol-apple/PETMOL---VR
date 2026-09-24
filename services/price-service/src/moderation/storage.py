@@ -58,6 +58,24 @@ def read_pending(key: str) -> Optional[bytes]:
     return path.read_bytes()
 
 
+def read_any(key: str) -> Optional[bytes]:
+    """Bytes da foto em revisão em QUALQUER backend (local: disco; R2: baixa pela URL assinada
+    no servidor). Usado onde o servidor precisa entregar a foto e depois apagá-la."""
+    data = read_pending(key)
+    if data is not None:
+        return data
+    url = signed_review_url(key, expires_in=60)
+    if not url:
+        return None
+    try:
+        import urllib.request
+
+        with urllib.request.urlopen(url, timeout=15) as resp:  # noqa: S310 — URL assinada gerada por nós
+            return resp.read()
+    except Exception:  # noqa: BLE001 — objeto já apagado / indisponível
+        return None
+
+
 def signed_review_url(key: str, expires_in: int = 300) -> Optional[str]:
     """URL assinada e expirável (R2) pra um admin ver a foto pendente/
     rejeitada sem que ela nunca tenha tido uma URL pública permanente."""

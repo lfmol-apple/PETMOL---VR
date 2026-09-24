@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.responses import RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -24,6 +24,7 @@ from ..db import get_db
 from ..admin.deps import get_current_admin, get_current_admin_or_readonly_key
 from . import storage as review_storage
 from .classifier import APPROVED, PENDING, REJECTED, SENSITIVE_FLAGS
+from .service import REJECTED_IMAGE_MAX_VIEWS
 from .models import PhotoModerationDecision
 
 router = APIRouter(prefix="/v1/admin/moderation", tags=["Admin Moderation"])
@@ -36,6 +37,8 @@ def _image_note(d: PhotoModerationDecision) -> Optional[str]:
     """Por que uma decisão não tem imagem pra mostrar (só quando isso precisa de explicação)."""
     if d.status != REJECTED or d.image_retained:
         return None
+    if (d.image_views or 0) >= REJECTED_IMAGE_MAX_VIEWS:
+        return f"Foto apagada automaticamente após {REJECTED_IMAGE_MAX_VIEWS} visualizações."
     try:
         flags = json.loads(d.ai_flags_json or "{}")
     except ValueError:
@@ -68,6 +71,7 @@ def _decision_out(d: PhotoModerationDecision) -> dict:
         "has_image": True if d.status == PENDING else (bool(d.image_retained) if d.status == REJECTED else False),
         "photo_key": d.final_public_key if d.status == APPROVED else None,
         "image_note": _image_note(d),
+        "image_views_left": max(0, REJECTED_IMAGE_MAX_VIEWS - (d.image_views or 0)) if (d.status == REJECTED and d.image_retained) else None,
         "created_at": d.created_at.isoformat() if d.created_at else None,
     }
 
@@ -128,6 +132,25 @@ def view_review_image(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Decisão não encontrada")
     if d.status == APPROVED:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Foto aprovada já tem URL pública — use photo_url normal")
+
+    if d.status == REJECTED:
+        # Recusada: a foto só pode ser aberta REJECTED_IMAGE_MAX_VIEWS vezes; a última abertura
+        # entrega os bytes e apaga o arquivo (não fica ocupando o armazenamento).
+        if not d.image_retained:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Foto não disponível (já apagada ou nunca guardada)")
+        data = review_storage.read_any(d.storage_key)
+        if data is None:
+            d.image_retained = False
+            db.add(d)
+            db.commit()
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Arquivo da foto não encontrado (pode já ter sido limpo)")
+        d.image_views = (d.image_views or 0) + 1
+        if d.image_views >= REJECTED_IMAGE_MAX_VIEWS:
+            review_storage.discard_pending(d.storage_key)
+            d.image_retained = False
+        db.add(d)
+        db.commit()
+        return Response(content=data, media_type=d.content_type or "image/jpeg", headers={"Cache-Control": "no-store"})
 
     signed = review_storage.signed_review_url(d.storage_key)
     if signed:

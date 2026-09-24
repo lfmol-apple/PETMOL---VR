@@ -37,6 +37,8 @@ PUBLIC_PREFIX_BY_CONTEXT = {
 # Foto recusada (não sensível) fica guardada em área PRIVADA só pro admin conferir a
 # decisão da IA, e é apagada depois deste prazo.
 REJECTED_IMAGE_RETENTION_DAYS = 30
+# ...e também é apagada depois de abrir esta quantidade de vezes (o que vier primeiro).
+REJECTED_IMAGE_MAX_VIEWS = 2
 
 
 def purge_expired_rejected_images(db: Session, *, limit: int = 100) -> int:
