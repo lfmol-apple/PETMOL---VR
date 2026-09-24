@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE_URL } from '@/lib/api';
-import { showBlockingNotice } from '@/features/interactions/userPromptChannel';
+import { requestUserConfirmation, showBlockingNotice } from '@/features/interactions/userPromptChannel';
+import { forgetLocationRefresh } from '@/lib/silentLocationRefresh';
+import { invalidateMe } from '@/lib/fetchMe';
 import { useNotificationPermissionController } from '@/features/interactions/useNotificationPermissionController';
 import { isNativePushPlatform, getNativePushDiag, pushDiagBreadcrumb } from '@/features/notifications/nativePushService';
 import { IosSwitch } from '@/components/ui/IosSwitch';
@@ -141,6 +143,24 @@ export default function ProfilePage() {
       result.onchange = () => setGeoStatus(result.state === 'granted' ? 'granted' : result.state === 'denied' ? 'denied' : 'unknown');
     }).catch(() => {});
   }, []);
+
+  const handleStopSharing = async () => {
+    const ok = await requestUserConfirmation(
+      'Parar de compartilhar sua localização?\n\nVocê deixa de receber alertas de pets sumidos perto de você e apagamos a posição que guardamos. Você pode voltar a compartilhar quando quiser.',
+      { title: 'Localização', confirmLabel: 'Parar de compartilhar', cancelLabel: 'Manter' },
+    );
+    if (!ok) return;
+    const token = getToken();
+    try {
+      const r = await fetch(`${apiBase}/auth/me/location`, { method: 'DELETE', headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!r.ok) throw new Error('falha');
+      forgetLocationRefresh();
+      invalidateMe();
+      setTutorData((prev) => (prev ? { ...prev, lat: null, lng: null, location_source: null } : prev));
+    } catch {
+      showBlockingNotice('Não foi possível parar de compartilhar agora. Tente novamente em instantes.');
+    }
+  };
 
   const handleRequestGeo = async () => {
     setGeoLoading(true);
@@ -878,6 +898,20 @@ export default function ProfilePage() {
                                 ? 'Alertas de pets sumidos na sua área ativados (localização precisa).'
                                 : 'Alertas ativados pela sua cidade. Toque acima para usar o GPS e receber alertas mais precisos.'}
                             </p>
+                          )}
+                          {onFile && bySource === 'gps' && (
+                            <>
+                              <p className="mt-1 text-[11px] leading-snug text-slate-400">
+                                Ao abrir o app, a posição é atualizada sozinha (só a última, sem histórico). Você controla isso aqui.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => void handleStopSharing()}
+                                className="mt-2 text-[11px] font-bold text-rose-600 underline underline-offset-2"
+                              >
+                                Parar de compartilhar minha localização
+                              </button>
+                            </>
                           )}
                           {!onFile && !hasPreciseFix && (
                             <p className="mt-2 text-[11px] text-slate-400">

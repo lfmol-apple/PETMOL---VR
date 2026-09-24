@@ -16,6 +16,7 @@ import { AppBootSplash } from '@/components/AppBootSplash';
 import { HomePetHeader } from '@/components/home/HomePetHeader';
 import { HomePetDashboard } from '@/components/home/HomePetDashboard';
 import { PetTabs } from '@/components/PetTabs';
+import { useSilentLocationRefresh } from '@/hooks/useSilentLocationRefresh';
 
 // Modais e sheets — carregados sob demanda (só quando o usuário abre)
 const EditPetModal = dynamic(() => import('@/components/EditPetModal').then(m => ({ default: m.EditPetModal })), { ssr: false });
@@ -476,6 +477,7 @@ function HomePageInner() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { t, locale } = useI18n();
   const { tutor, isLoading, logout } = useAuth();
+  useSilentLocationRefresh(tutor?.location_source === 'gps');
 
   // Ler ?checkin=1 da URL (vindo de notificação push — app estava fechado)
   useEffect(() => {
