@@ -11,6 +11,7 @@ la é `GET /v1/admin/moderation/{id}/image`, autenticado.
 """
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -22,13 +23,26 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..admin.deps import get_current_admin, get_current_admin_or_readonly_key
 from . import storage as review_storage
-from .classifier import APPROVED, PENDING, REJECTED
+from .classifier import APPROVED, PENDING, REJECTED, SENSITIVE_FLAGS
 from .models import PhotoModerationDecision
 
 router = APIRouter(prefix="/v1/admin/moderation", tags=["Admin Moderation"])
 
 _ReadAuth = Depends(get_current_admin_or_readonly_key)
 _WriteAuth = Depends(get_current_admin)
+
+
+def _image_note(d: PhotoModerationDecision) -> Optional[str]:
+    """Por que uma decisão não tem imagem pra mostrar (só quando isso precisa de explicação)."""
+    if d.status != REJECTED or d.image_retained:
+        return None
+    try:
+        flags = json.loads(d.ai_flags_json or "{}")
+    except ValueError:
+        flags = {}
+    if any(flags.get(f) for f in SENSITIVE_FLAGS):
+        return "Conteúdo sensível — a imagem não é guardada, por segurança."
+    return "Imagem não disponível: recusada antes de passarmos a guardar as fotos recusadas, ou já apagada (guardamos por 30 dias)."
 
 
 def _decision_out(d: PhotoModerationDecision) -> dict:
@@ -49,7 +63,11 @@ def _decision_out(d: PhotoModerationDecision) -> dict:
         "reviewed_by_admin_id": d.reviewed_by_admin_id,
         "reviewed_at": d.reviewed_at.isoformat() if d.reviewed_at else None,
         "review_note": d.review_note,
-        "has_image": d.status != APPROVED,  # aprovadas já têm URL pública normal — não precisam desse endpoint
+        # pendente: sempre tem arquivo; recusada: só se foi guardada (não sensível, < 30 dias);
+        # aprovada: já é pública — `photo_key` é a chave pública pra montar a URL normal.
+        "has_image": True if d.status == PENDING else (bool(d.image_retained) if d.status == REJECTED else False),
+        "photo_key": d.final_public_key if d.status == APPROVED else None,
+        "image_note": _image_note(d),
         "created_at": d.created_at.isoformat() if d.created_at else None,
     }
 
@@ -76,6 +94,12 @@ def list_decisions(
     db: Session = Depends(get_db),
     _=_ReadAuth,
 ):
+    from .service import purge_expired_rejected_images
+
+    try:
+        purge_expired_rejected_images(db)
+    except Exception:  # noqa: BLE001 — limpeza é best-effort
+        pass
     q = db.query(PhotoModerationDecision)
     if status_filter:
         if status_filter not in (APPROVED, REJECTED, PENDING):

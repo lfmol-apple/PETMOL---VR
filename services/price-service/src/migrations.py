@@ -67,6 +67,9 @@ def run_pg_migrations(engine: Engine) -> None:
         return
 
     with engine.begin() as conn:
+        # photo_moderation_decisions: foto recusada guardada p/ revisão (Set 2026)
+        _pg_add_column_if_missing(conn, "photo_moderation_decisions", "image_retained", "BOOLEAN DEFAULT FALSE NOT NULL")
+
         # users: email verification (Jul 2026)
         _pg_add_column_if_missing(conn, "users", "email_verified", "BOOLEAN DEFAULT FALSE NOT NULL")
 
@@ -753,6 +756,8 @@ def run_sqlite_migrations(engine: Engine) -> None:
         changed = False
 
         # Users: terms acceptance metadata
+        if conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='photo_moderation_decisions'")).fetchone():
+            changed |= _sqlite_add_column_if_missing(conn, "photo_moderation_decisions", "image_retained", "BOOLEAN DEFAULT 0 NOT NULL")
         changed |= _sqlite_add_column_if_missing(conn, "users", "terms_accepted", "BOOLEAN DEFAULT 0")
         changed |= _sqlite_add_column_if_missing(conn, "users", "terms_version", "TEXT")
         changed |= _sqlite_add_column_if_missing(conn, "users", "terms_accepted_at", "DATETIME")

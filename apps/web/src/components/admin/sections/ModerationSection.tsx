@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { getToken } from '@/lib/auth-token';
 import { useAsync, Panel, Loading, ErrorBox, numberFmt } from './sections';
 import { fmtSpDateTime } from '@/lib/analytics/spTime';
+import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 
 const BASE = '/api/v1/admin/moderation';
 
@@ -21,7 +22,7 @@ interface Decision {
   ai_decision: string | null; ai_reason: string | null; ai_confidence: number | null;
   ai_species: string | null; ai_image_type: string | null; ai_is_main_subject: boolean | null;
   ai_unavailable: boolean; reviewed_by_admin_id: string | null; reviewed_at: string | null;
-  review_note: string | null; has_image: boolean; created_at: string;
+  review_note: string | null; has_image: boolean; photo_key: string | null; image_note: string | null; created_at: string;
 }
 interface Summary { approved: number; rejected: number; pending: number; total: number }
 interface ListResponse { total: number; items: Decision[] }
@@ -90,7 +91,14 @@ function DecisionCard({ d, onChanged }: { d: Decision; onChanged: () => void }) 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3">
       <div className="grid grid-cols-[120px_1fr] gap-3">
-        {d.has_image ? <DecisionImage decisionId={d.id} /> : <div className="h-40 w-full rounded-lg bg-slate-100" />}
+        {d.has_image ? <DecisionImage decisionId={d.id} /> : d.photo_key ? (
+          // eslint-disable-next-line @next/next/no-img-element -- foto pública aprovada (mesma URL do resto do app)
+          <img src={resolvePetPhotoUrl(d.photo_key) || ''} alt="Foto aprovada" className="h-40 w-full rounded-lg object-cover bg-slate-100" />
+        ) : (
+          <div className="flex h-40 w-full items-center justify-center rounded-lg bg-slate-100 p-2 text-center text-[10px] leading-snug text-slate-400">
+            {d.image_note || (d.status === 'approved' ? 'Foto removida (não está mais pública)' : 'Sem imagem')}
+          </div>
+        )}
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-500">
@@ -178,8 +186,9 @@ export function ModerationSection() {
 
       <p className="rounded-lg bg-slate-100 px-3 py-2 text-[12px] text-slate-600">
         Toda fotografia pública do app (perfil do pet, Pet Sumido, avistamento) passa por classificação de IA antes
-        de publicar. Aprovadas na hora não aparecem aqui — só o que a IA marcou pra revisão humana, mais o
-        histórico de rejeitadas. Aprovar/rejeitar exige login de admin de verdade (não a chave de operação).
+        de publicar. Aprovadas mostram a foto publicada; recusadas por &quot;não é um pet&quot; ficam guardadas em
+        área privada por 30 dias, só pra você conferir a decisão da IA (recusadas por conteúdo sensível nunca são
+        guardadas). Aprovar/rejeitar exige login de admin de verdade (não a chave de operação).
       </p>
     </div>
   );
