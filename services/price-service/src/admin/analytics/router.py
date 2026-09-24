@@ -25,6 +25,7 @@ from . import feeding_bi
 from . import journey_bi
 from . import locations_bi
 from . import map_bi
+from . import permission_snapshots
 from . import permissions_bi
 from . import queries as q
 from . import tactical_bi
@@ -426,3 +427,17 @@ def get_geo(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_filter
 @router.get("/permissions/summary")
 def get_permissions_summary(db: Session = Depends(get_db), _=_Auth):
     return permissions_bi.summary(db)
+
+
+@router.get("/permissions/history")
+def get_permissions_history(db: Session = Depends(get_db), _=_Auth):
+    """Fotografias do estado de permissões (1ª = linha de base). Grava a do dia se estiver atrasada."""
+    permission_snapshots.ensure_daily(db)
+    return {"items": permission_snapshots.history(db)}
+
+
+@router.post("/permissions/snapshots")
+def post_permissions_snapshot(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    """"Gravar agora": nova fotografia sob demanda. Escrita → só JWT de admin (a chave de leitura não vale)."""
+    permission_snapshots.take_snapshot(db, "manual")
+    return {"items": permission_snapshots.history(db)}

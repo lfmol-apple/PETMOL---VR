@@ -223,3 +223,9 @@ export interface PopulationResponse {
   page: number; page_size: number;
   items: Array<Record<string, unknown>>;
 }
+
+export interface PermissionSnapshotRow {
+  id: string; kind: 'baseline' | 'daily' | 'manual'; taken_at: string; total_users: number;
+  push_active: number; push_ios: number; push_android: number; push_web: number;
+  gps: number; gps_fresh: number; both: number; only_push: number; only_location: number; neither: number;
+}

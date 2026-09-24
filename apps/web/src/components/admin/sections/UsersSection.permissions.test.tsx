@@ -29,6 +29,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     const u = String(url); calls.push(u);
     if (u.includes('/permissions/summary')) return { ok: true, json: async () => SUMMARY } as Response;
+    if (u.includes('/permissions/history')) return { ok: true, json: async () => ({ items: [] }) } as Response;
     return { ok: true, json: async () => ({ total: 2, page: 1, page_size: 50, sort: 'created_at', direction: 'desc', items: ITEMS }) } as Response;
   }));
 });

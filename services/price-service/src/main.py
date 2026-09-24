@@ -56,6 +56,7 @@ from .admin import admin_debug_router
 from .admin import admin_analytics_router
 from .admin import models as _admin_models
 from .moderation.models import PhotoModerationDecision as _photo_moderation_decision_model  # noqa: F401 — register with Base
+from .admin.analytics.permission_snapshots import PermissionSnapshot as _permission_snapshot_model  # noqa: F401 — register with Base
 from .moderation.router import router as moderation_admin_router
 from .admin.vaccine_date_notice import AdminNoticeLog as _admin_notice_log_model, router as vaccine_date_notice_router  # noqa: F401 — model registers with Base
 from .affiliate_links import ProductAffiliateLink as _product_affiliate_link_model  # noqa: F401 — register with Base
@@ -337,6 +338,18 @@ def init_db():
             _reconcile_db.close()
     except Exception:
         logging.getLogger(__name__).exception("[startup] reconcile_reliable_catalog_keys failed")
+
+    # Linha de base das permissões (notificação/localização): grava UMA fotografia na primeira
+    # subida com esta versão, para acompanhar a evolução depois. Melhor esforço — nunca impede a API de subir.
+    try:
+        from .admin.analytics.permission_snapshots import ensure_baseline
+        _snap_db = SessionLocal()
+        try:
+            ensure_baseline(_snap_db)
+        finally:
+            _snap_db.close()
+    except Exception:
+        logging.getLogger(__name__).exception("[startup] permission baseline snapshot failed")
 
     # ── Auto-backup SQLite a cada startup ────────────────────────────────
     # Garante que nenhum reinício do servidor apague dados dos pets.
