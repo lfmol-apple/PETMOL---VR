@@ -49,22 +49,22 @@ async def test_already_enriched_product_never_touches_enrichment(monkeypatch):
     TODA consulta, pra sempre)."""
     _register_product(GTIN_ENRICHED, enriched=True)
 
-    def _must_not_run(product_id: int) -> None:
-        raise AssertionError("enriquecimento não deveria rodar de novo pra produto já enriquecido")
-
-    monkeypatch.setattr("src.commerce_offers._enrich_catalog_blocking", _must_not_run)
+    enrich_calls: list[int] = []
+    monkeypatch.setattr("src.commerce_offers._enrich_catalog_blocking", enrich_calls.append)
 
     db = SessionLocal()
     try:
-        started = time.monotonic()
         offers, status = await get_commerce_offers_with_status(db, gtin=GTIN_ENRICHED)
-        elapsed = time.monotonic() - started
     finally:
         db.close()
 
+    # Sem cronômetro: "não custa nada" = o enriquecimento nem foi chamado. Se
+    # tivesse sido, a chamada ficaria pendente até o timeout e o status não
+    # seria "ready". (Um teto de segundos aqui dependia da velocidade da
+    # máquina/CI e falhava sem bug nenhum.)
+    assert enrich_calls == [], "enriquecimento não deveria rodar de novo pra produto já enriquecido"
     assert status == "ready"
     assert offers == []  # sem link/feed cadastrado pra este GTIN — só confirma que não travou
-    assert elapsed < 1.0
 
 
 @pytest.mark.asyncio
@@ -80,15 +80,15 @@ async def test_product_with_no_feed_evidence_resolves_fast_as_ready_not_pending(
 
     db = SessionLocal()
     try:
-        started = time.monotonic()
         offers, status = await get_commerce_offers_with_status(db, gtin=GTIN_NO_EVIDENCE)
-        elapsed = time.monotonic() - started
     finally:
         db.close()
 
+    # "Terminou rápido" = "ready": se a checagem tivesse estourado o prazo, o
+    # contrato devolveria "enrichment_pending". Assim o teste não depende de
+    # cronômetro (que oscila com a carga da máquina/CI).
     assert status == "ready", "sem evidência é definitivo, não pode ficar pendente pra sempre"
     assert offers == []
-    assert elapsed < 1.0, "sem evidência a checagem é uma única query — não devia nem chegar perto do timeout"
 
 
 @pytest.mark.asyncio

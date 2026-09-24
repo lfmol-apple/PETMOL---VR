@@ -23,7 +23,7 @@ transitório — a peça que faltava pro frontend saber que deve tentar de novo
 backend respectivamente).
 """
 import asyncio
-import time
+import threading
 
 import pytest
 
@@ -58,23 +58,31 @@ async def test_get_commerce_offers_never_blocks_beyond_enrichment_timeout(monkey
     nunca fingir que já é definitivo."""
     _register_unenriched_product()
 
-    def _slow_enrich(product_id: int) -> None:
-        time.sleep(6)  # bem mais que os 2.5s do wait_for em commerce_offers.py
+    # O enriquecimento "trava" até o teste liberar — nada de cronômetro: o que se
+    # prova é que a chamada VOLTOU enquanto ele ainda estava travado.
+    release = threading.Event()
+    finished = threading.Event()
 
-    monkeypatch.setattr("src.commerce_offers._enrich_catalog_blocking", _slow_enrich)
+    def _stuck_enrich(product_id: int) -> None:
+        release.wait(30)
+        finished.set()
+
+    monkeypatch.setattr("src.commerce_offers._enrich_catalog_blocking", _stuck_enrich)
 
     db = SessionLocal()
     try:
-        started = time.monotonic()
-        offers, status = await asyncio.wait_for(
-            get_commerce_offers_with_status(db, gtin=GTIN),
-            timeout=4.0,  # se o bug voltasse, isso estouraria (a chamada ia querer 6s+)
-        )
-        elapsed = time.monotonic() - started
+        try:
+            offers, status = await asyncio.wait_for(
+                get_commerce_offers_with_status(db, gtin=GTIN),
+                timeout=20.0,  # só trava de segurança: se o bug voltasse, a chamada esperaria o enriquecimento (30s)
+            )
+            returned_while_stuck = not finished.is_set()
+        finally:
+            release.set()    # solta a thread pra ela terminar limpa
     finally:
         db.close()
 
-    assert elapsed < 4.0, f"get_commerce_offers_with_status travou junto com o enriquecimento lento ({elapsed:.1f}s)"
+    assert returned_while_stuck, "get_commerce_offers_with_status esperou o enriquecimento lento terminar"
     assert offers == []
     assert status == "enrichment_pending", (
         "sem esse sinal, o frontend não tem como saber que deve tentar de novo — "
