@@ -22,7 +22,7 @@ interface Decision {
   ai_decision: string | null; ai_reason: string | null; ai_confidence: number | null;
   ai_species: string | null; ai_image_type: string | null; ai_is_main_subject: boolean | null;
   ai_unavailable: boolean; reviewed_by_admin_id: string | null; reviewed_at: string | null;
-  review_note: string | null; has_image: boolean; photo_key: string | null; image_note: string | null; created_at: string;
+  review_note: string | null; has_image: boolean; photo_key: string | null; image_note: string | null; image_views_left: number | null; created_at: string;
 }
 interface Summary { approved: number; rejected: number; pending: number; total: number }
 interface ListResponse { total: number; items: Decision[] }
@@ -75,6 +75,8 @@ function DecisionImage({ decisionId }: { decisionId: string }) {
 function DecisionCard({ d, onChanged }: { d: Decision; onChanged: () => void }) {
   const [busy, setBusy] = useState<'approve' | 'reject' | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Foto recusada só abre 2 vezes (depois o servidor a apaga): só carrega quando você pede.
+  const [revealed, setRevealed] = useState(false);
 
   const act = async (action: 'approve' | 'reject') => {
     setBusy(action); setErr(null);
@@ -91,7 +93,26 @@ function DecisionCard({ d, onChanged }: { d: Decision; onChanged: () => void }) 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3">
       <div className="grid grid-cols-[120px_1fr] gap-3">
-        {d.has_image ? <DecisionImage decisionId={d.id} /> : d.photo_key ? (
+        {d.has_image && d.status === 'rejected' ? (
+          revealed ? (
+            <div>
+              <DecisionImage decisionId={d.id} />
+              <p className="mt-1 text-[10px] leading-snug text-slate-500">
+                {(d.image_views_left ?? 1) <= 1
+                  ? 'Última visualização — a foto foi apagada do servidor.'
+                  : `Você ainda pode abrir mais ${(d.image_views_left ?? 2) - 1} vez.`}
+              </p>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setRevealed(true)}
+              className="flex h-40 w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-rose-300 bg-rose-50 p-2 text-center text-[11px] font-bold text-rose-700 hover:bg-rose-100">
+              <span>👁 Ver foto</span>
+              <span className="text-[10px] font-medium text-rose-600">
+                {d.image_views_left != null ? `restam ${d.image_views_left} visualização(ões); depois é apagada` : 'abre no máximo 2 vezes'}
+              </span>
+            </button>
+          )
+        ) : d.has_image ? <DecisionImage decisionId={d.id} /> : d.photo_key ? (
           // eslint-disable-next-line @next/next/no-img-element -- foto pública aprovada (mesma URL do resto do app)
           <img src={resolvePetPhotoUrl(d.photo_key) || ''} alt="Foto aprovada" className="h-40 w-full rounded-lg object-cover bg-slate-100" />
         ) : (
@@ -187,8 +208,8 @@ export function ModerationSection() {
       <p className="rounded-lg bg-slate-100 px-3 py-2 text-[12px] text-slate-600">
         Toda fotografia pública do app (perfil do pet, Pet Sumido, avistamento) passa por classificação de IA antes
         de publicar. Aprovadas mostram a foto publicada; recusadas por &quot;não é um pet&quot; ficam guardadas em
-        área privada por 30 dias, só pra você conferir a decisão da IA (recusadas por conteúdo sensível nunca são
-        guardadas). Aprovar/rejeitar exige login de admin de verdade (não a chave de operação).
+        área privada, só pra você conferir a decisão da IA: cada foto recusada abre no máximo 2 vezes e é apagada
+        (ou some sozinha em 30 dias); recusadas por conteúdo sensível nunca são guardadas. Aprovar/rejeitar exige login de admin de verdade (não a chave de operação).
       </p>
     </div>
   );

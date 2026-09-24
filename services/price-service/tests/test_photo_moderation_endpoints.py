@@ -407,3 +407,39 @@ def test_fotos_recusadas_ha_mais_de_30_dias_sao_apagadas(client, monkeypatch):
         assert review_storage.read_pending(d.storage_key) is None
     finally:
         db.close()
+
+
+def test_foto_recusada_so_abre_2_vezes_e_depois_e_apagada(client, monkeypatch):
+    from src.moderation import storage as review_storage
+
+    _mock_vision(monkeypatch, REJECTED_CLASSIFICATION)
+    client.post("/missing-pets/upload-photo", json={"photo_base64": _jpeg_b64()})
+    admin_headers = _admin_headers()
+
+    item = client.get("/v1/admin/moderation?status=rejected", headers=admin_headers).json()["items"][0]
+    assert item["image_views_left"] == 2
+    url = f"/v1/admin/moderation/{item['id']}/image"
+
+    first = client.get(url, headers=admin_headers)
+    assert first.status_code == 200 and first.content[:2] == b"\xff\xd8"
+    assert first.headers["cache-control"] == "no-store"
+    assert client.get("/v1/admin/moderation?status=rejected", headers=admin_headers).json()["items"][0]["image_views_left"] == 1
+
+    second = client.get(url, headers=admin_headers)                 # 2ª e última: entrega e apaga
+    assert second.status_code == 200 and second.content == first.content
+    assert review_storage.read_pending(item_storage_key(item["id"])) is None       # arquivo apagado
+
+    third = client.get(url, headers=admin_headers)
+    assert third.status_code == 404
+
+    after = client.get("/v1/admin/moderation?status=rejected", headers=admin_headers).json()["items"][0]
+    assert after["has_image"] is False and after["image_views_left"] is None
+    assert "2 visualizações" in after["image_note"]
+
+
+def item_storage_key(decision_id: str) -> str:
+    db = SessionLocal()
+    try:
+        return db.query(PhotoModerationDecision).filter(PhotoModerationDecision.id == decision_id).one().storage_key
+    finally:
+        db.close()

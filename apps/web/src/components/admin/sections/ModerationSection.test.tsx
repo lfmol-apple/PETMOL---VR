@@ -14,7 +14,7 @@ const base = {
 const ITEMS: Record<string, unknown[]> = {
   approved: [{ ...base, id: 'a1', status: 'approved', ai_reason: 'cão real', photo_key: 'pets/abc.jpg' }],
   rejected: [
-    { ...base, id: 'r1', status: 'rejected', ai_reason: 'nenhum pet identificável na imagem', has_image: true },
+    { ...base, id: 'r1', status: 'rejected', ai_reason: 'nenhum pet identificável na imagem', has_image: true, image_views_left: 2 },
     { ...base, id: 'r2', status: 'rejected', ai_reason: 'nudez', image_note: 'Conteúdo sensível — a imagem não é guardada, por segurança.' },
     { ...base, id: 'r3', status: 'rejected', ai_reason: 'antiga', image_note: 'Imagem não disponível: recusada antes de passarmos a guardar as fotos recusadas, ou já apagada (guardamos por 30 dias).' },
   ],
@@ -48,8 +48,13 @@ describe('Moderação de Fotografias — mostra as fotos', () => {
   it('recusadas guardadas mostram a foto; as sem imagem explicam o porquê', async () => {
     render(<ModerationSection />);
     fireEvent.click(await screen.findByText('Rejeitadas'));
+    // a foto recusada só carrega quando você pede (cada abertura conta: são só 2)
+    expect(await screen.findByText(/restam 2 visualização/)).toBeTruthy();
+    expect(screen.queryByAltText('Foto em revisão')).toBeNull();
+    fireEvent.click(screen.getByText(/Ver foto/));
     const shown = (await screen.findByAltText('Foto em revisão')) as HTMLImageElement;
     expect(shown.src).toBe('blob:foto-recusada');
+    expect(screen.getByText(/Você ainda pode abrir mais 1 vez/)).toBeTruthy();
     expect(screen.getByText(/Conteúdo sensível — a imagem não é guardada/)).toBeTruthy();
     expect(screen.getByText(/recusada antes de passarmos a guardar/)).toBeTruthy();
     await waitFor(() => expect(screen.queryAllByText('Carregando…')).toHaveLength(0));
