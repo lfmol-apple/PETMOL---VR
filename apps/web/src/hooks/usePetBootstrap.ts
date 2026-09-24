@@ -1,4 +1,5 @@
 import { fetchMe } from '@/lib/fetchMe';
+import { fetchPets } from '@/lib/fetchPets';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -186,11 +187,7 @@ export function usePetBootstrap() {
       if (tutor && tutor.email) {
         try {
           const savedToken = getToken();
-          const response = await fetch(`${API_BASE_URL}/pets`, {
-            credentials: 'include',
-            headers: savedToken ? { Authorization: `Bearer ${savedToken}` } : {},
-            signal: AbortSignal.timeout(BOOTSTRAP_FETCH_TIMEOUT_MS),
-          });
+          const response = await fetchPets(API_BASE_URL, savedToken, BOOTSTRAP_FETCH_TIMEOUT_MS);
 
           let meIdForSort = '';
           try {
@@ -257,10 +254,16 @@ export function usePetBootstrap() {
       void syncPushSubscriptionOnce(token);
 
       try {
-        const tutorResponse = await fetchMe(API_BASE_URL, token, BOOTSTRAP_FETCH_TIMEOUT_MS);
+        // /auth/me e /pets em PARALELO (antes /pets só saía depois de /auth/me voltar — uma
+        // ida e volta de rede a mais no caminho crítico da abertura). /auth/me falhar não
+        // impede a lista de pets (só perde a ordenação "meus pets primeiro").
+        const [tutorResponse, response] = await Promise.all([
+          fetchMe(API_BASE_URL, token, BOOTSTRAP_FETCH_TIMEOUT_MS).catch(() => null),
+          fetchPets(API_BASE_URL, token, BOOTSTRAP_FETCH_TIMEOUT_MS),
+        ]);
 
         let meIdForSort = '';
-        if (tutorResponse.ok) {
+        if (tutorResponse?.ok) {
           const tutorData = await tutorResponse.json();
           setTutorName(tutorData.name || '');
           if (tutorData.id) {
@@ -277,12 +280,6 @@ export function usePetBootstrap() {
             setTutorCheckinMinute(tutorData.monthly_checkin_minute);
           }
         }
-
-        const response = await fetch(`${API_BASE_URL}/pets`, {
-          credentials: 'include',
-          ...(token && { headers: { Authorization: `Bearer ${token}` } }),
-          signal: AbortSignal.timeout(BOOTSTRAP_FETCH_TIMEOUT_MS),
-        });
 
         if (!response.ok) {
           if (response.status === 401 || response.status === 403) {
