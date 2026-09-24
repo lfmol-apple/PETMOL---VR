@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Float, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, String, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..db import Base
@@ -52,6 +52,10 @@ class PhotoModerationDecision(Base):
     reviewed_by_admin_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     review_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Foto RECUSADA guardada (privada, só admin, apaga sozinha em ~30 dias) pra revisão
+    # humana. Nunca True para recusas por conteúdo sensível (ver classifier.is_sensitive).
+    image_retained: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)
 
     upload_ip_hash: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)

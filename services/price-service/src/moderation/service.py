@@ -18,7 +18,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from . import storage as review_storage
-from .classifier import APPROVED, PENDING, REJECTED, classify_and_decide, flags_json
+from .classifier import APPROVED, PENDING, REJECTED, classify_and_decide, flags_json, is_sensitive
 from .models import PhotoModerationDecision
 from .sanitize import sanitize_image
 
@@ -32,6 +32,37 @@ PUBLIC_PREFIX_BY_CONTEXT = {
     "missing_pet_alert": "pets",
     "pet_sighting": "pet_sightings",
 }
+
+
+# Foto recusada (não sensível) fica guardada em área PRIVADA só pro admin conferir a
+# decisão da IA, e é apagada depois deste prazo.
+REJECTED_IMAGE_RETENTION_DAYS = 30
+
+
+def purge_expired_rejected_images(db: Session, *, limit: int = 100) -> int:
+    """Apaga o arquivo das recusadas guardadas há mais de REJECTED_IMAGE_RETENTION_DAYS."""
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=REJECTED_IMAGE_RETENTION_DAYS)
+    rows = (
+        db.query(PhotoModerationDecision)
+        .filter(
+            PhotoModerationDecision.status == REJECTED,
+            PhotoModerationDecision.image_retained.is_(True),
+            PhotoModerationDecision.created_at < cutoff,
+        )
+        .limit(limit)
+        .all()
+    )
+    for r in rows:
+        try:
+            review_storage.discard_pending(r.storage_key)
+        finally:
+            r.image_retained = False
+            db.add(r)
+    if rows:
+        db.commit()
+    return len(rows)
 
 
 class ModerationRejected(Exception):
@@ -137,10 +168,22 @@ async def moderate_upload(
     )
 
     if decision.status == REJECTED:
-        # Nada é salvo em lugar nenhum — nem a versão sanitizada.
+        # Nada vira público. Recusa NÃO sensível (ex.: "não é um pet") guarda a versão
+        # sanitizada em área privada por 30 dias, só pro admin conferir a IA; recusa por
+        # conteúdo sensível (nudez, violência, menores) nunca é guardada.
         _register_rejection(abuse_key)
+        if not is_sensitive(classification):
+            try:
+                review_storage.save_pending(key, sanitized.bytes_, content_type=sanitized.content_type)
+                record.image_retained = True
+            except Exception:  # noqa: BLE001 — guardar a foto é best-effort; a recusa não pode falhar por isso
+                logger.warning("Não foi possível guardar a foto recusada pra revisão", exc_info=True)
         db.add(record)
         db.commit()
+        try:
+            purge_expired_rejected_images(db)
+        except Exception:  # noqa: BLE001
+            logger.warning("Falha ao limpar fotos recusadas antigas", exc_info=True)
         logger.info("Moderação REJEITOU foto (context=%s, motivo=%s)", context, decision.reason)
         raise ModerationRejected(decision.reason, record.id)
 

@@ -35,6 +35,20 @@ class Decision:
     ai_decision: str      # o rótulo cru pré-revisão humana — igual a `status` na hora da classificação
 
 
+# Flags de conteúdo sensível: foto recusada por qualquer uma delas NUNCA é guardada
+# (nem em área privada) — minimização e segurança: não retemos nudez, violência
+# nem imagem envolvendo menores.
+SENSITIVE_FLAGS = (
+    "inappropriate_content_involving_minors",
+    "nudity_or_sexual_content",
+    "graphic_violence_or_animal_cruelty",
+)
+
+
+def is_sensitive(classification: Optional[dict[str, Any]]) -> bool:
+    return any(bool((classification or {}).get(f)) for f in SENSITIVE_FLAGS)
+
+
 def decide(classification: dict[str, Any]) -> Decision:
     # Flags de conteúdo impróprio têm prioridade absoluta — mesmo com um
     # pet real e visível na foto, isso nunca aprova (pedido explícito da

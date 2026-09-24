@@ -42,6 +42,16 @@ def _jpeg_bytes() -> bytes:
     return _make_test_photo()
 
 
+@pytest.fixture(autouse=True)
+def _clear_rejection_lockout():
+    """O bloqueio por recusas repetidas (5/hora por IP) é estado de módulo: sem limpar, os
+    testes de recusa deste arquivo se atrapalham entre si."""
+    import src.moderation.service as service_mod
+    service_mod._rejection_events.clear()
+    yield
+    service_mod._rejection_events.clear()
+
+
 def _mock_vision(monkeypatch, classification: dict):
     async def _fake(self, image_bytes):
         return classification
@@ -334,3 +344,66 @@ def test_foto_pendente_ou_rejeitada_nunca_tem_url_publica_sem_admin(client, monk
 
     with_auth = client.get(f"/v1/admin/moderation/{decision_id}/image", headers=admin_headers)
     assert with_auth.status_code == 200
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Painel: fotos recusadas (não sensíveis) ficam guardadas em área privada
+#  por 30 dias pro admin conferir; as sensíveis nunca; aprovadas mostram a foto
+# ═══════════════════════════════════════════════════════════════════════
+
+def test_recusada_nao_sensivel_fica_guardada_privada_e_o_admin_ve(client, monkeypatch):
+    _mock_vision(monkeypatch, REJECTED_CLASSIFICATION)
+    assert client.post("/missing-pets/upload-photo", json={"photo_base64": _jpeg_b64()}).status_code == 422
+    admin_headers = _admin_headers()
+
+    item = client.get("/v1/admin/moderation?status=rejected", headers=admin_headers).json()["items"][0]
+    assert item["has_image"] is True and item["image_note"] is None and item["photo_key"] is None
+
+    img = client.get(f"/v1/admin/moderation/{item['id']}/image", headers=admin_headers)
+    assert img.status_code == 200 and img.content[:2] == b"\xff\xd8"          # JPEG de verdade
+    assert client.get(f"/v1/admin/moderation/{item['id']}/image").status_code in (401, 403)   # sem login: nunca
+
+
+@pytest.mark.parametrize("flag", [
+    "nudity_or_sexual_content", "graphic_violence_or_animal_cruelty", "inappropriate_content_involving_minors",
+])
+def test_recusada_por_conteudo_sensivel_nunca_e_guardada(client, monkeypatch, flag):
+    _mock_vision(monkeypatch, {**REJECTED_CLASSIFICATION, "animal_present": True, flag: True})
+    assert client.post("/missing-pets/upload-photo", json={"photo_base64": _jpeg_b64()}).status_code == 422
+    admin_headers = _admin_headers()
+
+    item = client.get("/v1/admin/moderation?status=rejected", headers=admin_headers).json()["items"][0]
+    assert item["has_image"] is False
+    assert "sensível" in item["image_note"]
+    assert client.get(f"/v1/admin/moderation/{item['id']}/image", headers=admin_headers).status_code == 404
+
+
+def test_aprovada_devolve_a_chave_publica_pra_mostrar_a_foto(client, monkeypatch):
+    _mock_vision(monkeypatch, APPROVED_CLASSIFICATION)
+    r = client.post("/missing-pets/upload-photo", json={"photo_base64": _jpeg_b64()})
+    assert r.json()["status"] == "approved"
+    item = client.get("/v1/admin/moderation?status=approved", headers=_admin_headers()).json()["items"][0]
+    assert item["photo_key"] and item["photo_key"].endswith(".jpg")
+    assert item["has_image"] is False           # a foto é pública: o painel usa a URL normal
+
+
+def test_fotos_recusadas_ha_mais_de_30_dias_sao_apagadas(client, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from src.moderation import storage as review_storage
+    from src.moderation.service import purge_expired_rejected_images
+
+    _mock_vision(monkeypatch, REJECTED_CLASSIFICATION)
+    client.post("/missing-pets/upload-photo", json={"photo_base64": _jpeg_b64()})
+    db = SessionLocal()
+    try:
+        d = db.query(PhotoModerationDecision).filter(PhotoModerationDecision.status == "rejected").first()
+        assert d.image_retained is True and review_storage.read_pending(d.storage_key) is not None
+        d.created_at = datetime.now(timezone.utc) - timedelta(days=31)
+        db.commit()
+
+        assert purge_expired_rejected_images(db) == 1
+        db.refresh(d)
+        assert d.image_retained is False
+        assert review_storage.read_pending(d.storage_key) is None
+    finally:
+        db.close()
