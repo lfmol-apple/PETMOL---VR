@@ -12,6 +12,7 @@ import { BarRanking, StatCard, PercentBar } from '@/components/admin/charts/Char
 import { DataTable, Pagination, StatePill, fmtDateTime, type Column } from '@/components/admin/DataTable';
 import { PetPhotoThumb } from '@/components/admin/PhotoLightbox';
 import { UserDetailDrawer, PetDetailDrawer, PopulationDrawer } from './detail';
+import { PermissionsHistory } from './PermissionsHistory';
 
 export const numberFmt = (n: number | null | undefined) => (typeof n === 'number' ? n.toLocaleString('pt-BR') : '—');
 
@@ -208,6 +209,8 @@ export function UsersSection({ filter }: { filter: GlobalFilter }) {
             sub={`${pctOf(s.combined.neither, s.total_users)} · sem alerta de pet sumido`} onClick={() => preset({ push: 'none', location: 'none' })} />
         </div>
       )}
+
+      <PermissionsHistory />
 
       <div className="rounded-xl border border-slate-200 bg-white p-3">
         <div className="flex flex-wrap items-center gap-2">
