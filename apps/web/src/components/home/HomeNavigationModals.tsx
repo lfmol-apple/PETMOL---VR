@@ -9,6 +9,7 @@ import { PetShopsNearbySheet } from '@/components/home/PetShopsNearbySheet';
 import { resolvePetPhotoUrl } from '@/lib/petPhoto';
 import { MEDICATIONS_ENABLED } from '@/lib/featureFlags';
 import type { PetHealthProfile } from '@/lib/petHealth';
+import { HOME_ART } from '@/lib/homeArt';
 
 type ControlTone = 'neutral' | 'ok' | 'warning' | 'critical';
 
@@ -140,22 +141,22 @@ export function HomeNavigationModals({
                 {[
                   // Cards vivos, na mesma linguagem da Home: borda saturada +
                   // degradê forte + rótulo tingido. A arte .webp continua por cima.
-                  { icon: '🪱', image: '/vermifugo-produto.webp', label: 'Vermífugo', gradient: 'border-amber-400 bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-200 shadow-amber-900/10', text: 'text-amber-950', sub: 'text-amber-900/60', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
-                  { icon: '🛡️', image: '/cuidados-antipulgas.webp', label: 'Antipulgas', gradient: 'border-emerald-400 bg-gradient-to-br from-emerald-100 via-emerald-100 to-teal-200 shadow-emerald-900/10', text: 'text-emerald-950', sub: 'text-emerald-900/60', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
+                  { icon: '🪱', image: HOME_ART.vermifugo, label: 'Vermífugo', gradient: 'border-amber-400 bg-gradient-to-br from-amber-100 via-yellow-100 to-orange-200 shadow-amber-900/10', text: 'text-amber-950', sub: 'text-amber-900/60', tab: 'dewormer', alert: alertParasitesValue, tone: colorVermifugoValue },
+                  { icon: '🛡️', image: HOME_ART.antipulgas, label: 'Antipulgas', gradient: 'border-emerald-400 bg-gradient-to-br from-emerald-100 via-emerald-100 to-teal-200 shadow-emerald-900/10', text: 'text-emerald-950', sub: 'text-emerald-900/60', tab: 'flea_tick', alert: alertParasitesValue, tone: colorAntipulgasValue },
                   // Coleira antiparasitária é uso específico de cães — outras espécies não usam
                   ...(currentPet?.species === 'dog'
-                    ? [{ icon: '📿', image: '/cuidados-coleira.webp', label: 'Coleira', gradient: 'border-orange-400 bg-gradient-to-br from-orange-100 via-orange-200 to-red-200 shadow-orange-900/10', text: 'text-orange-950', sub: 'text-orange-900/60', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
+                    ? [{ icon: '📿', image: HOME_ART.coleira, label: 'Coleira', gradient: 'border-orange-400 bg-gradient-to-br from-orange-100 via-orange-200 to-red-200 shadow-orange-900/10', text: 'text-orange-950', sub: 'text-orange-900/60', tab: 'collar', alert: alertParasitesValue, tone: colorColeiraValue }]
                     : []),
-                  { icon: '🛁', image: '/cuidados-pets-banho.webp', label: 'Banho e Tosa', gradient: 'border-cyan-400 bg-gradient-to-br from-cyan-100 via-sky-100 to-cyan-200 shadow-cyan-900/10', text: 'text-cyan-950', sub: 'text-cyan-900/60', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
+                  { icon: '🛁', image: HOME_ART.banho, label: 'Banho e Tosa', gradient: 'border-cyan-400 bg-gradient-to-br from-cyan-100 via-sky-100 to-cyan-200 shadow-cyan-900/10', text: 'text-cyan-950', sub: 'text-cyan-900/60', tab: 'grooming', alert: alertGroomingValue, tone: colorGroomingValue },
                   // Medicamentos desativados no PETMOL 1.0 (ver
                   // docs/MEDICAMENTOS_DESATIVADOS.md) — mesmo padrão do
                   // filtro de espécie da Coleira acima, condicional na
                   // própria montagem do array.
                   ...(MEDICATIONS_ENABLED
-                    ? [{ icon: '💊', image: '/cuidados-medicacao.webp', label: 'Medicação', gradient: 'border-purple-400 bg-gradient-to-br from-purple-100 via-fuchsia-100 to-purple-200 shadow-purple-900/10', text: 'text-purple-950', sub: 'text-purple-900/60', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue }]
+                    ? [{ icon: '💊', image: HOME_ART.medicacao, label: 'Medicação', gradient: 'border-purple-400 bg-gradient-to-br from-purple-100 via-fuchsia-100 to-purple-200 shadow-purple-900/10', text: 'text-purple-950', sub: 'text-purple-900/60', tab: 'medication', alert: alertMedicationValue, tone: colorMedicationValue }]
                     : []),
                   // Busca de estabelecimento (Maps) — saiu da Home, é mais um card aqui em Cuidados.
-                  { icon: '🏪', image: '/cuidados-petshops.webp', label: 'PetShops', gradient: 'border-blue-400 bg-gradient-to-br from-blue-100 via-sky-100 to-blue-200 shadow-blue-900/10', text: 'text-blue-950', sub: 'text-blue-900/60', tab: 'petshops', alert: false, tone: undefined },
+                  { icon: '🏪', image: HOME_ART.petshops, label: 'PetShops', gradient: 'border-blue-400 bg-gradient-to-br from-blue-100 via-sky-100 to-blue-200 shadow-blue-900/10', text: 'text-blue-950', sub: 'text-blue-900/60', tab: 'petshops', alert: false, tone: undefined },
                 ].map(({ icon, image, label, gradient, text, sub, tab, alert, tone }) => {
                   const isEmergency = tab === 'emergency';
 

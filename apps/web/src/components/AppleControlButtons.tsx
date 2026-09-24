@@ -7,6 +7,7 @@ import { petDo } from '@/lib/petGender';
 import { type HomeInactiveEligibleControlId } from '@/lib/homeControlPreferences';
 import { PetHealthPlanCard } from '@/components/home/PetHealthPlanCard';
 import { HEALTH_PLAN_CARD_ENABLED } from '@/lib/featureFlags';
+import { HOME_ART } from '@/lib/homeArt';
 
 // ── Props H1 logic preserved ──────────────────────────────────────────────────
 interface AppleControlButtonsProps {
@@ -170,7 +171,7 @@ export function AppleControlButtons({
             )}
             <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${foodIconClass}`}>
               <img
-                src="/alimentacao-tigela.webp"
+                src={HOME_ART.alimentacao}
                 alt=""
                 className="h-full w-full object-contain"
               />
@@ -197,7 +198,7 @@ export function AppleControlButtons({
             {shouldShowAlert(colorHealth, alertHealth) && <AlertDot tone={colorHealth} />}
             <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${healthIsDense ? denseReferenceIconClass : referenceIconClass}`}>
               <img
-                src="/cuidados-pets-banho.webp"
+                src={HOME_ART.banho}
                 alt=""
                 className="h-full w-full object-contain"
               />
@@ -220,7 +221,7 @@ export function AppleControlButtons({
             {shouldShowAlert(colorVaccines, alertVaccines) && <AlertDot tone={colorVaccines} />}
             <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${vaccineIsDense ? denseReferenceIconClass : referenceIconClass}`}>
               <img
-                src="/vacina-ampolas-seringa.webp"
+                src={HOME_ART.vacina}
                 alt=""
                 className="h-full w-full object-contain"
               />
@@ -249,7 +250,7 @@ export function AppleControlButtons({
           >
             <span className={`absolute pointer-events-none transition-all group-hover:scale-105 ${shoppingIsDense ? 'right-0.5 top-0.5 h-10 w-10 opacity-80 min-[390px]:right-1 min-[390px]:top-1 min-[390px]:h-12 min-[390px]:w-12' : 'right-1 top-1 h-12 w-12 opacity-95 min-[390px]:right-1.5 min-[390px]:top-1.5 min-[390px]:h-14 min-[390px]:w-14'}`}>
               <img
-                src="/loja-cart-ossos.webp"
+                src={HOME_ART.loja}
                 alt=""
                 className="h-full w-full object-contain"
               />
