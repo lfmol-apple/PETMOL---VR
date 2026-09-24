@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useI18n } from '@/lib/I18nContext';
 import { defaultLocaleForCountry, isValidLocale, localeNames } from '@/lib/i18n';
 import { requestUserConfirmation, showBlockingNotice } from '@/features/interactions/userPromptChannel';
+import { isTravelLanguageDetectionEnabled } from '@/lib/featureFlags';
 
 const STORAGE_KEY_LAST_COUNTRY = 'petmol_last_detected_country';
 const CHECK_INTERVAL = 5 * 60 * 1000; // Verifica a cada 5 minutos
@@ -89,6 +90,8 @@ export function useLocationDetection() {
   const [suggestedLocale, setSuggestedLocale] = useState<string>('');
 
   useEffect(() => {
+    if (!isTravelLanguageDetectionEnabled()) return;
+
     const checkLocation = async () => {
       const lastCountry = localStorage.getItem(STORAGE_KEY_LAST_COUNTRY);
       

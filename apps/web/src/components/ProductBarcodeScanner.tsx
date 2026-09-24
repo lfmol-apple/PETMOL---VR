@@ -1,8 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
+import dynamic from 'next/dynamic';
 import type { ProductCategory, ScannedProduct } from '@/lib/productScanner';
+
+// Carregado só quando o scanner abre: esse arquivo puxa a biblioteca de código de barras (ZXing,
+// ~110 kB gzip) e antes ia junto no carregamento inicial da Home, mesmo pra quem nunca escaneia.
+const ProductDetectionSheetGold = dynamic(
+  () => import('@/components/ProductDetectionSheet').then((m) => ({ default: m.ProductDetectionSheetGold })),
+  { ssr: false },
+);
 
 interface ProductBarcodeScannerProps {
   label?: string;

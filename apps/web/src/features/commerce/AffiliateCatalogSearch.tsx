@@ -2,10 +2,17 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Search } from 'lucide-react';
-import { ProductDetectionSheetGold } from '@/components/ProductDetectionSheet';
+import dynamic from 'next/dynamic';
 import { trackClick } from '@/lib/analytics/click';
 import { identifyProductByBarcode, type ScannedProduct } from '@/lib/productScanner';
 import { formatBRLPrice, fetchCommerceOffers, fetchPetzDirectLink, merchantLabel, offerPriceLabel, searchAwinCatalog, type AwinSearchResult, type CommerceOffer, type PetzDirectLink } from './productPricing';
+
+// Carregado só quando o scanner abre: esse arquivo puxa a biblioteca de código de barras (ZXing,
+// ~110 kB gzip) e antes ia junto no carregamento inicial da Home, mesmo pra quem nunca escaneia.
+const ProductDetectionSheetGold = dynamic(
+  () => import('@/components/ProductDetectionSheet').then((m) => ({ default: m.ProductDetectionSheetGold })),
+  { ssr: false },
+);
 import {
   HOME_SHOPPING_PARTNERS,
   openPetzPartnerStore,

@@ -18,6 +18,14 @@ export function isEventNudgeEnabled(): boolean {
   return process.env.NEXT_PUBLIC_ENABLE_EVENT_NUDGE === '1';
 }
 
+export function isTravelLanguageDetectionEnabled(): boolean {
+  // Desligada por padrão: descobrir o país pelo IP exige chamar serviços de terceiros
+  // (ipapi.co e api.country.is) do aparelho do tutor em TODA página e a cada 5 minutos —
+  // custo de rede, limite de uso gratuito (429) e o IP do tutor indo pra fora — e o
+  // PETMOL hoje é só pt-BR. Para religar o aviso de "viagem/idioma": NEXT_PUBLIC_ENABLE_TRAVEL_DETECTION=1
+  return process.env.NEXT_PUBLIC_ENABLE_TRAVEL_DETECTION === '1';
+}
+
 export function isNotificationPromptEnabled(): boolean {
   // NotificationPrompt removido junto com a infraestrutura antiga de push.
   // Mantemos a função apenas para compatibilidade de import, sempre desativada.
