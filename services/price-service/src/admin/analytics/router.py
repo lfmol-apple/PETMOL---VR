@@ -25,6 +25,7 @@ from . import feeding_bi
 from . import journey_bi
 from . import locations_bi
 from . import map_bi
+from . import permissions_bi
 from . import queries as q
 from . import tactical_bi
 from .filters import AnalyticsFilters
@@ -320,6 +321,13 @@ def get_users(
     search: Optional[str] = Query(None),
     sort: str = Query("created_at"),
     direction: str = Query("desc", pattern="^(asc|desc)$"),
+    push: Optional[str] = Query(None, pattern="^(active|none)$", description="notificação ativa?"),
+    push_platform: Optional[str] = Query(None, pattern="^(ios|android|web)$", description="aparelho com aviso ativo"),
+    location: Optional[str] = Query(None, pattern="^(gps|city|ip|none)$", description="origem da última localização"),
+    has_pet: Optional[str] = Query(None, pattern="^(yes|no)$"),
+    has_feeding: Optional[str] = Query(None, pattern="^(yes|no)$"),
+    activity: Optional[str] = Query(None, pattern="^(active|recent|cooling|dormant|no_analytics)$"),
+    email_verified: Optional[str] = Query(None, pattern="^(yes|no)$"),
     db: Session = Depends(get_db),
     f: AnalyticsFilters = Depends(_filters),
     _=_Auth,
@@ -327,6 +335,8 @@ def get_users(
     return q.list_users(
         db, f, page=page, page_size=page_size, search=search,
         sort=sort, direction=direction,
+        push=push, push_platform=push_platform, location=location, has_pet=has_pet,
+        has_feeding=has_feeding, activity=activity, email_verified=email_verified,
     )
 
 
@@ -409,3 +419,10 @@ def get_geo(db: Session = Depends(get_db), f: AnalyticsFilters = Depends(_filter
         "appstore_downloads": None,
         "appstore_note": "Dados de downloads (App Store Connect / Google Play) ainda não integrados.",
     }
+
+
+# ── Permissões: notificação ativa × localização compartilhada (aba "Permissões") ──
+
+@router.get("/permissions/summary")
+def get_permissions_summary(db: Session = Depends(get_db), _=_Auth):
+    return permissions_bi.summary(db)

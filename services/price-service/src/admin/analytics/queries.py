@@ -29,6 +29,7 @@ from ...pets.parasite_models import ParasiteControlRecord
 from ...pets.vaccine_models import VaccineRecord
 from ...support.models import SupportFeedback
 from ...user_auth.models import User
+from . import permissions_bi
 from .filters import AnalyticsFilters, platform_clause
 from .state import (
     FEATURE_BY_KEY,
@@ -991,6 +992,10 @@ def list_users(
     db: Session, f: AnalyticsFilters, *,
     page: int, page_size: int, search: Optional[str],
     sort: str, direction: str,
+    push: Optional[str] = None, push_platform: Optional[str] = None,
+    location: Optional[str] = None, has_pet: Optional[str] = None,
+    has_feeding: Optional[str] = None, activity: Optional[str] = None,
+    email_verified: Optional[str] = None,
 ) -> dict[str, Any]:
     now = _utcnow()
     page = max(1, page)
@@ -1025,6 +1030,52 @@ def list_users(
                     platform_clause(AnalyticsProductEvent.platform, f.platform))
             .exists()
         )
+
+    # ── Filtros de permissões e de uso (Tutores e Pets) ─────────────────────
+    if push == "active":
+        q = q.filter(permissions_bi.has_any_push(User.id))
+    elif push == "none":
+        q = q.filter(~permissions_bi.has_any_push(User.id))
+    if push_platform in ("ios", "android"):
+        q = q.filter(permissions_bi.has_native(User.id, push_platform))
+    elif push_platform == "web":
+        q = q.filter(permissions_bi.has_web_push(User.id))
+    if location == "gps":
+        q = q.filter(permissions_bi.shares_location())
+    elif location in ("city", "ip"):
+        q = q.filter(User.location_source == location)
+    elif location == "none":
+        q = q.filter(or_(User.location_source.is_(None), User.lat.is_(None)))
+    pet_exists = db.query(Pet.id).filter(Pet.user_id == User.id).exists()
+    if has_pet == "yes":
+        q = q.filter(pet_exists)
+    elif has_pet == "no":
+        q = q.filter(~pet_exists)
+    if has_feeding in ("yes", "no"):
+        feeding_ids = _feeding_configured_pet_ids(db)
+        feeding_exists = db.query(Pet.id).filter(Pet.user_id == User.id, Pet.id.in_(feeding_ids or {"__none__"})).exists()
+        q = q.filter(feeding_exists if has_feeding == "yes" else ~feeding_exists)
+    if email_verified == "yes":
+        q = q.filter(User.email_verified.is_(True))
+    elif email_verified == "no":
+        q = q.filter(User.email_verified.is_(False))
+    if activity:
+        # mesma régua de _activity_status: ≤2 dias ativo · ≤14 recente · ≤45 esfriando · mais que isso adormecido
+        last_ev = (
+            db.query(func.max(AnalyticsProductEvent.received_at))
+            .filter(AnalyticsProductEvent.user_id == User.id).correlate(User).scalar_subquery()
+        )
+        d2, d14, d45 = (now - timedelta(days=n) for n in (2, 14, 45))
+        if activity == "no_analytics":
+            q = q.filter(last_ev.is_(None))
+        elif activity == "active":
+            q = q.filter(last_ev >= d2)
+        elif activity == "recent":
+            q = q.filter(last_ev < d2, last_ev >= d14)
+        elif activity == "cooling":
+            q = q.filter(last_ev < d14, last_ev >= d45)
+        elif activity == "dormant":
+            q = q.filter(last_ev < d45)
 
     total = q.count()
     col = _USER_SORTS.get(sort, User.created_at)
@@ -1063,6 +1114,8 @@ def list_users(
             latest_meta.setdefault(uid, {
                 "platform": plat, "os": os_, "device_class": dclass, "app_version": ver,
             })
+    perm_devices = permissions_bi.devices_by_user(db, uids)
+    fresh_cutoff = now - timedelta(days=permissions_bi.FRESH_LOCATION_DAYS)
     pet_ids_by_user = defaultdict(list)
     for pid, uid in db.query(Pet.id, Pet.user_id).filter(Pet.user_id.in_(uids or {"__none__"})).all():
         pet_ids_by_user[uid].append(pid)
@@ -1105,11 +1158,28 @@ def list_users(
             "city": u.city,
             "state": u.state,
             "email_verified": bool(u.email_verified),
+            **_permission_fields(u, perm_devices.get(u.id, []), fresh_cutoff),
         })
 
     return {
         "total": total, "page": page, "page_size": page_size,
         "sort": sort, "direction": direction, "items": items,
+    }
+
+
+def _permission_fields(u: User, devices: list[dict], fresh_cutoff: datetime) -> dict[str, Any]:
+    """Estado das duas permissões do tutor (notificação e localização) pra tabela."""
+    seen = [d["last_seen_at"] for d in devices if d["last_seen_at"]]
+    loc_at = _aware(u.location_updated_at)
+    shares = u.location_source == "gps" and u.lat is not None and u.lng is not None
+    return {
+        "push_active": bool(devices),
+        "push_platforms": sorted({d["platform"] for d in devices}),
+        "push_last_seen_at": max(seen) if seen else None,
+        "location_source": u.location_source if u.lat is not None else None,
+        "location_shared": shares,
+        "location_updated_at": _iso(u.location_updated_at),
+        "location_fresh": bool(shares and loc_at and loc_at >= fresh_cutoff),
     }
 
 

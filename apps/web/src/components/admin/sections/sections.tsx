@@ -6,6 +6,7 @@ import {
   type FeatureMatrixResponse, type FeatureRow,
   type UsersListResponse, type DataQualityResponse,
   type DeviceType, type PetThumbnail, DEVICE_TYPE_LABEL,
+  type PermissionsSummary, type PushPlatform,
 } from '@/lib/admin/analyticsApi';
 import { BarRanking, StatCard, PercentBar } from '@/components/admin/charts/Charts';
 import { DataTable, Pagination, StatePill, fmtDateTime, type Column } from '@/components/admin/DataTable';
@@ -92,27 +93,55 @@ export function PetAvatarStack({ pets, size = 32 }: { pets: PetThumbnail[]; size
 
 const DEVICE_TYPE_OPTIONS: DeviceType[] = ['iphone', 'ipad', 'android', 'desktop', 'outros'];
 
+const PUSH_PLATFORM_LABEL: Record<PushPlatform, string> = { ios: 'iPhone', android: 'Android', web: 'Navegador' };
+const LOCATION_SOURCE_LABEL: Record<string, string> = { gps: 'GPS', city: 'Só a cidade', ip: 'IP aproximado' };
+
+function PermChip({ tone, children }: { tone: 'good' | 'warn' | 'muted'; children: React.ReactNode }) {
+  const cls = tone === 'good' ? 'bg-emerald-100 text-emerald-800' : tone === 'warn' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500';
+  return <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>{children}</span>;
+}
+
+const pctOf = (n: number, total: number) => (total ? `${Math.round((n / total) * 100)}%` : '—');
+
+type UserFilters = {
+  push: '' | 'active' | 'none'; pushPlatform: '' | PushPlatform; location: '' | 'gps' | 'city' | 'ip' | 'none';
+  activity: '' | 'active' | 'recent' | 'cooling' | 'dormant' | 'no_analytics';
+  hasPet: '' | 'yes' | 'no'; hasFeeding: '' | 'yes' | 'no'; emailVerified: '' | 'yes' | 'no';
+};
+const NO_FILTERS: UserFilters = { push: '', pushPlatform: '', location: '', activity: '', hasPet: '', hasFeeding: '', emailVerified: '' };
+
 export function UsersSection({ filter }: { filter: GlobalFilter }) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
   const [deviceType, setDeviceType] = useState<DeviceType | ''>('');
+  const [uf, setUf] = useState<UserFilters>(NO_FILTERS);
   const [sort, setSort] = useState('created_at');
   const [direction, setDirection] = useState<'asc' | 'desc'>('desc');
   const [openUser, setOpenUser] = useState<string | null>(null);
   const [openPet, setOpenPet] = useState<string | null>(null);
 
   const filterKey = JSON.stringify(filter);
+  const ufKey = JSON.stringify(uf);
   useEffect(() => { const t = setTimeout(() => setDebounced(search), 350); return () => clearTimeout(t); }, [search]);
-  useEffect(() => { setPage(1); }, [debounced, deviceType, sort, direction, filterKey]);
+  useEffect(() => { setPage(1); }, [debounced, deviceType, sort, direction, filterKey, ufKey]);
 
+  const summary = useAsync<PermissionsSummary>(() => adminGet('/permissions/summary'), []);
   const { data, error, loading } = useAsync<UsersListResponse>(
     () => adminGet('/users', {
       ...filterParams(filter), page, page_size: 50,
       search: debounced || undefined, device_type: deviceType || undefined, sort, direction,
+      push: uf.push || undefined, push_platform: uf.pushPlatform || undefined, location: uf.location || undefined,
+      activity: uf.activity || undefined, has_pet: uf.hasPet || undefined, has_feeding: uf.hasFeeding || undefined,
+      email_verified: uf.emailVerified || undefined,
     }),
-    [page, debounced, deviceType, sort, direction, filterKey],
+    [page, debounced, deviceType, sort, direction, filterKey, ufKey],
   );
+
+  const setF = <K extends keyof UserFilters>(k: K, v: UserFilters[K]) => setUf((cur) => ({ ...cur, [k]: v }));
+  const activeFilters = Object.values(uf).filter(Boolean).length + (deviceType ? 1 : 0) + (debounced ? 1 : 0);
+  const clearAll = () => { setUf(NO_FILTERS); setDeviceType(''); setSearch(''); };
+  const preset = (p: Partial<UserFilters>) => setUf({ ...NO_FILTERS, ...p });
 
   const onSort = (key: string) => {
     if (key === sort) setDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -127,6 +156,22 @@ export function UsersSection({ filter }: { filter: GlobalFilter }) {
     { key: 'created_at', header: 'Cadastro', sortable: true, render: (r) => fmtDateTime(r.created_at) },
     { key: 'last_activity', header: 'Última ativ.', render: (r) => (
       <div className="flex items-center gap-2"><span>{fmtDateTime(r.last_activity)}</span><StatePill state={r.activity_status} /></div>
+    ) },
+    { key: 'push', header: 'Notificação', render: (r) => r.push_active ? (
+      <div className="space-y-1">
+        <div className="flex flex-wrap gap-1"><PermChip tone="good">Ativa</PermChip>
+          {r.push_platforms.map((p) => <PermChip key={p} tone="muted">{PUSH_PLATFORM_LABEL[p]}</PermChip>)}</div>
+        <div className="text-[11px] text-slate-400">visto em {fmtDateTime(r.push_last_seen_at)}</div>
+      </div>
+    ) : <PermChip tone="warn">Sem notificação</PermChip> },
+    { key: 'location', header: 'Localização', render: (r) => r.location_shared ? (
+      <div className="space-y-1">
+        <div className="flex flex-wrap gap-1"><PermChip tone="good">Compartilha (GPS)</PermChip>{!r.location_fresh && <PermChip tone="warn">antiga</PermChip>}</div>
+        <div className="text-[11px] text-slate-400">em {fmtDateTime(r.location_updated_at)}</div>
+      </div>
+    ) : (
+      <div className="space-y-1"><PermChip tone="warn">Não compartilha</PermChip>
+        {r.location_source && <div className="text-[11px] text-slate-400">{LOCATION_SOURCE_LABEL[r.location_source] || r.location_source}</div>}</div>
     ) },
     { key: 'pets', header: 'Pets', render: (r) => (
       <div className="flex items-center gap-2">
@@ -145,26 +190,83 @@ export function UsersSection({ filter }: { filter: GlobalFilter }) {
     { key: 'geo', header: 'Local', render: (r) => [r.city, r.state].filter(Boolean).join(' / ') || '—' },
   ];
 
+  const sel = 'rounded-lg border border-slate-300 px-2.5 py-2 text-[13px] text-slate-600 outline-none focus:border-blue-400';
+  const s = summary.data;
+
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome ou e-mail…"
-          className="w-72 rounded-lg border border-slate-300 px-3 py-2 text-[13px] outline-none focus:border-blue-400" />
-        <select value={deviceType} onChange={(e) => setDeviceType(e.target.value as DeviceType | '')}
-          className="rounded-lg border border-slate-300 px-2.5 py-2 text-[13px] text-slate-600 outline-none focus:border-blue-400">
-          <option value="">Todos os dispositivos</option>
-          {DEVICE_TYPE_OPTIONS.map((d) => <option key={d} value={d}>{DEVICE_TYPE_LABEL[d]}</option>)}
-        </select>
-        {data && <span className="text-[12px] text-slate-500">{numberFmt(data.total)} tutores</span>}
+      {s && (
+        <div className="grid grid-cols-2 gap-2 sm:[grid-template-columns:repeat(auto-fit,minmax(160px,1fr))]">
+          <StatCard label="Notificação ativa" tone="good" value={numberFmt(s.push.active)}
+            sub={`${pctOf(s.push.active, s.total_users)} · ${numberFmt(s.push.ios)} iPhone · ${numberFmt(s.push.android)} Android · ${numberFmt(s.push.web)} web`}
+            onClick={() => preset({ push: 'active' })} />
+          <StatCard label="Sem notificação" tone="warn" value={numberFmt(s.push.none)} sub={pctOf(s.push.none, s.total_users)}
+            onClick={() => preset({ push: 'none' })} />
+          <StatCard label="Compartilham localização" tone="good" value={numberFmt(s.location.gps)}
+            sub={`${numberFmt(s.location.gps_fresh)} nos últimos ${s.location.fresh_days} dias`} onClick={() => preset({ location: 'gps' })} />
+          <StatCard label="Nenhum dos dois" tone="bad" value={numberFmt(s.combined.neither)}
+            sub={`${pctOf(s.combined.neither, s.total_users)} · sem alerta de pet sumido`} onClick={() => preset({ push: 'none', location: 'none' })} />
+        </div>
+      )}
+
+      <div className="rounded-xl border border-slate-200 bg-white p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome ou e-mail…"
+            className="w-64 rounded-lg border border-slate-300 px-3 py-2 text-[13px] outline-none focus:border-blue-400" />
+          <select aria-label="Notificação" value={uf.push} onChange={(e) => setF('push', e.target.value as UserFilters['push'])} className={sel}>
+            <option value="">Notificação: todas</option><option value="active">Com notificação</option><option value="none">Sem notificação</option>
+          </select>
+          <select aria-label="Aparelho com aviso" value={uf.pushPlatform} onChange={(e) => setF('pushPlatform', e.target.value as UserFilters['pushPlatform'])} className={sel}>
+            <option value="">Aviso em: qualquer aparelho</option><option value="ios">iPhone</option><option value="android">Android</option><option value="web">Navegador</option>
+          </select>
+          <select aria-label="Localização" value={uf.location} onChange={(e) => setF('location', e.target.value as UserFilters['location'])} className={sel}>
+            <option value="">Localização: todas</option><option value="gps">Compartilha (GPS)</option><option value="none">Não compartilha (nada)</option>
+            <option value="city">Só a cidade</option><option value="ip">IP aproximado</option>
+          </select>
+          <select aria-label="Atividade" value={uf.activity} onChange={(e) => setF('activity', e.target.value as UserFilters['activity'])} className={sel}>
+            <option value="">Atividade: todas</option><option value="active">Ativo (até 2 dias)</option><option value="recent">Recente (até 14 dias)</option>
+            <option value="cooling">Esfriando (até 45 dias)</option><option value="dormant">Adormecido</option><option value="no_analytics">Sem registro de uso</option>
+          </select>
+          <select aria-label="Pets" value={uf.hasPet} onChange={(e) => setF('hasPet', e.target.value as UserFilters['hasPet'])} className={sel}>
+            <option value="">Pets: todos</option><option value="yes">Com pet</option><option value="no">Sem pet</option>
+          </select>
+          <select aria-label="Alimentação" value={uf.hasFeeding} onChange={(e) => setF('hasFeeding', e.target.value as UserFilters['hasFeeding'])} className={sel}>
+            <option value="">Alimentação: todas</option><option value="yes">Com controle de ração</option><option value="no">Sem controle de ração</option>
+          </select>
+          <select aria-label="E-mail" value={uf.emailVerified} onChange={(e) => setF('emailVerified', e.target.value as UserFilters['emailVerified'])} className={sel}>
+            <option value="">E-mail: todos</option><option value="yes">Verificado</option><option value="no">Não verificado</option>
+          </select>
+          <select aria-label="Dispositivo de uso" value={deviceType} onChange={(e) => setDeviceType(e.target.value as DeviceType | '')} className={sel}>
+            <option value="">Todos os dispositivos</option>
+            {DEVICE_TYPE_OPTIONS.map((d) => <option key={d} value={d}>{DEVICE_TYPE_LABEL[d]}</option>)}
+          </select>
+        </div>
+        <div className="mt-2 flex items-center gap-3 text-[12px] text-slate-500">
+          {data && <span><strong className="text-slate-700">{numberFmt(data.total)}</strong> tutores</span>}
+          {activeFilters > 0 && (
+            <>
+              <span>{activeFilters} filtro{activeFilters > 1 ? 's' : ''} ativo{activeFilters > 1 ? 's' : ''}</span>
+              <button type="button" onClick={clearAll} className="font-semibold text-blue-700 underline">limpar filtros</button>
+            </>
+          )}
+        </div>
       </div>
+
       {error && <ErrorBox msg={error} />}
       {loading && !data ? <Loading /> : data && (
         <>
           <DataTable columns={columns} rows={data.items} rowKey={(r) => r.user_id}
-            sort={sort} direction={direction} onSort={onSort} onRowClick={(r) => setOpenUser(r.user_id)} />
+            sort={sort} direction={direction} onSort={onSort} onRowClick={(r) => setOpenUser(r.user_id)}
+            empty="Nenhum tutor com esses filtros." />
           <Pagination page={data.page} pageSize={data.page_size} total={data.total} onPage={setPage} />
         </>
       )}
+      <p className="rounded-lg bg-slate-100 px-3 py-2 text-[12px] leading-relaxed text-slate-600">
+        <strong>Como ler as permissões:</strong> &quot;Sem notificação&quot; junta quem nunca foi perguntado, quem negou e quem desligou depois — o servidor
+        só vê que não há aparelho ativo (ele desativa sozinho o aparelho que rejeita o aviso). &quot;Compartilha&quot; é a última localização por GPS
+        que o tutor enviou; se ele revogou depois, a posição antiga continua gravada (etiqueta &quot;antiga&quot;). Localização de cidade ou IP vem do
+        cadastro/rede e não conta como compartilhada.
+      </p>
       <UserDetailDrawer userId={openUser} onClose={() => setOpenUser(null)}
         onOpenPet={(id) => { setOpenPet(id); }} />
       <PetDetailDrawer petId={openPet} onClose={() => setOpenPet(null)} />
