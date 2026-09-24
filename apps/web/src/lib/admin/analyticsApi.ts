@@ -196,6 +196,17 @@ export interface UserRow {
   last_platform: string | null; device_type: DeviceType | null; app_version_label: string;
   city: string | null; state: string | null;
   email_verified: boolean;
+  // permissões do tutor
+  push_active: boolean; push_platforms: PushPlatform[]; push_last_seen_at: string | null;
+  location_source: 'gps' | 'city' | 'ip' | null; location_shared: boolean;
+  location_updated_at: string | null; location_fresh: boolean;
+}
+export type PushPlatform = 'ios' | 'android' | 'web';
+export interface PermissionsSummary {
+  total_users: number;
+  push: { active: number; none: number; ios: number; android: number; web: number };
+  location: { gps: number; gps_fresh: number; city_only: number; ip_only: number; none: number; fresh_days: number };
+  combined: { both: number; only_push: number; only_location: number; neither: number };
 }
 export interface UsersListResponse {
   total: number; page: number; page_size: number;
