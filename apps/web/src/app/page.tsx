@@ -73,7 +73,7 @@ export default function LandingPage() {
           {copy.subtitle}
         </p>
         <div className="mx-auto mt-5 w-full max-w-xs">
-          <DownloadButton placement="hero" withWebLink />
+          <DownloadButton placement="hero" withWebLink cue />
         </div>
         <p className="mt-2 text-xs text-slate-400 font-semibold">Grátis · leva menos de 1 minuto.</p>
       </section>
@@ -142,7 +142,7 @@ export default function LandingPage() {
       <section className="px-5 pb-12 flex flex-col items-center text-center">
         <h2 className="text-2xl font-black text-slate-900">Baixe o PETMOL e comece agora.</h2>
         <p className="mt-2 text-sm text-slate-500 font-medium">Adicione o seu pet em menos de 1 minuto.</p>
-        <div className="mt-6 w-full max-w-xs"><DownloadButton placement="final" withWebLink /></div>
+        <div className="mt-6 w-full max-w-xs"><DownloadButton placement="final" withWebLink cue /></div>
         <Link href="/login" className="mt-3 text-sm text-slate-400 font-semibold">
           Já tenho conta
         </Link>

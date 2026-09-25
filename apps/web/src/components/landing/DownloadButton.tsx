@@ -53,13 +53,25 @@ function GooglePlayBadge({ placement, heightPx }: { placement: string; heightPx:
   );
 }
 
+/** Convite animado acima dos selos: a seta se move, os selos não (regra de marca da Apple/Google). */
+function DownloadCue() {
+  return (
+    <div className="mb-1 flex flex-col items-center text-[#0056D2]" aria-hidden="true">
+      <span className="text-[13px] font-black uppercase tracking-wider">Baixe grátis</span>
+      <svg className="landing-cue-arrow mt-0.5" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </div>
+  );
+}
+
 /**
  * Os dois selos oficiais — nunca só um. No celular, o da loja do próprio
  * aparelho vem primeiro e um pouco maior; no desktop (SO não identificado),
  * os dois no mesmo tamanho, lado a lado. O clique é sempre do visitante —
  * nenhum link abre sozinho.
  */
-export function DownloadButton({ placement, withWebLink = false }: { placement: string; className?: string; withWebLink?: boolean }) {
+export function DownloadButton({ placement, withWebLink = false, cue = false }: { placement: string; className?: string; withWebLink?: boolean; cue?: boolean }) {
   const platform = usePlatform();
 
   const primary = platform === 'android'
@@ -71,6 +83,7 @@ export function DownloadButton({ placement, withWebLink = false }: { placement: 
 
   return (
     <div className="w-full flex flex-col items-center gap-3">
+      {cue && <DownloadCue />}
       {platform === 'desktop' ? (
         <div className="flex flex-wrap items-center justify-center gap-4">
           <AppStoreBadge placement={placement} heightPx={52} />
@@ -112,7 +125,7 @@ export function StickyDownloadBar() {
     try { sessionStorage.setItem(BAR_DISMISS_KEY, '1'); } catch { /* sem storage */ }
   };
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-100 bg-white/95 px-4 pt-3 backdrop-blur md:hidden"
+    <div className="landing-bar-in fixed inset-x-0 bottom-0 z-40 border-t border-slate-100 bg-white/95 px-4 pt-3 backdrop-blur md:hidden"
       style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
       <button type="button" onClick={dismiss} aria-label="Fechar"
         className="absolute right-2 top-1 flex h-8 w-8 items-center justify-center text-lg leading-none text-slate-400">×</button>

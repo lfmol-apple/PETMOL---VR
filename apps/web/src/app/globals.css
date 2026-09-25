@@ -449,3 +449,15 @@ input[type="range"]::-moz-range-progress {
     min-width: 0;
   }
 }
+
+/* Landing: convite ao download — a animação fica AO REDOR dos selos oficiais, nunca neles. */
+@keyframes landingCueDown {
+  0%, 100% { transform: translateY(0); opacity: 0.55; }
+  50% { transform: translateY(6px); opacity: 1; }
+}
+@keyframes landingBarIn {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.landing-cue-arrow { animation: landingCueDown 1.4s ease-in-out infinite; }
+.landing-bar-in { animation: landingBarIn 0.35s ease-out both; }
