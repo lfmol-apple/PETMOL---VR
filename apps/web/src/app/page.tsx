@@ -63,6 +63,8 @@ export default function LandingPage() {
         <h1 className="hidden text-[26px] font-black text-slate-900 leading-[1.12] tracking-tight text-balance md:block">
           {copy.title.map((line, i) => (<span key={i}>{i > 0 && <br />}{line}</span>))}
         </h1>
+        {/* Só no celular: o que o PETMOL faz, em texto normal acima do telefone */}
+        <p className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-800 md:hidden">Cuidamos do seu pet.</p>
         <div className="md:mt-3"><HeroPhones /></div>
         <div className="mx-auto w-full max-w-sm md:mt-3">
           <DownloadCta placement="hero-botao" targetId="lojas-hero" />

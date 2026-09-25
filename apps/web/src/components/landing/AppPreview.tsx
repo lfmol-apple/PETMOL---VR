@@ -116,7 +116,7 @@ export function HeroPhones() {
   const [zoom, setZoom] = useState(false);
   return (
     <>
-      <div className="relative mx-auto w-[var(--phone-w)] md:w-[200px]" style={{ ['--phone-w' as string]: 'clamp(130px, calc((100svh - 252px) * 0.462), 270px)' }}>
+      <div className="relative mx-auto w-[var(--phone-w)] md:w-[200px]" style={{ ['--phone-w' as string]: 'clamp(130px, calc((100svh - 258px) * 0.462), 270px)' }}>
         <button
           type="button"
           onClick={() => setZoom(true)}
