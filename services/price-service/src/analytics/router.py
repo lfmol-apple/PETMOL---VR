@@ -143,6 +143,11 @@ _SAFE_EVENT_NAMES = {
     "onboarding_started",
     "onboarding_completed",
     "onboarding_skipped",
+    # Teste A/B da landing (ver admin/analytics/landing_ab_bi.py). Sem estar aqui,
+    # "landing_view" seria renomeado para "screen_view" (regra dos "*_view").
+    "landing_view",
+    "landing_download_click",
+    "landing_store_redirect",
 }
 
 # Eventos-âncora de sessão: só nestes vale a pena gastar um lookup de geo-IP

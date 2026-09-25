@@ -15,6 +15,7 @@ import {
 import { PhotoLightboxProvider } from '@/components/admin/PhotoLightbox';
 import { FeedingSection } from '@/components/admin/sections/FeedingSection';
 import { JourneySection } from '@/components/admin/sections/JourneySection';
+import { LandingAbSection } from '@/components/admin/sections/LandingAbSection';
 import { LocationsSection } from '@/components/admin/sections/LocationsSection';
 import { ModerationSection } from '@/components/admin/sections/ModerationSection';
 import { TacticalSection } from '@/components/admin/sections/TacticalSection';
@@ -85,10 +86,10 @@ function periodLabel(filter: GlobalFilter, datePreset: DatePresetKey): string {
   return 'Todo o período (desde o início)';
 }
 
-type SectionLetter = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L';
+type SectionLetter = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M';
 const SECTION_IDS: Record<SectionLetter, string> = {
   B: 'mc-b', C: 'mc-c', D: 'mc-d', E: 'mc-e', F: 'mc-f', G: 'mc-g', H: 'mc-h', I: 'mc-i', J: 'mc-j',
-  K: 'mc-k', L: 'mc-l',
+  K: 'mc-k', L: 'mc-l', M: 'mc-m',
 };
 
 /** Abas: 12 painéis empilhados viraram 5 telas por PERGUNTA do dono —
@@ -105,7 +106,7 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 const TAB_OF_SECTION: Record<SectionLetter, TabKey> = {
   B: 'ativacao', C: 'ativacao', D: 'ativacao', E: 'ativacao', F: 'loja',
-  G: 'aquisicao', H: 'pessoas', I: 'pessoas', J: 'pessoas', K: 'aquisicao', L: 'pessoas',
+  G: 'aquisicao', H: 'pessoas', I: 'pessoas', J: 'pessoas', K: 'aquisicao', L: 'pessoas', M: 'aquisicao',
 };
 const isTabKey = (v: string): v is TabKey => TABS.some((t) => t.key === v);
 
@@ -175,7 +176,7 @@ export default function AdminDashboardPage() {
   // exatamente a mesma coisa que abas escondidas). O toggle continua
   // disponível pra quem quiser recolher alguma seção específica depois.
   const [open, setOpen] = useState<Record<SectionLetter, boolean>>({
-    B: true, C: true, D: true, E: true, F: true, G: true, H: true, I: true, J: true, K: true, L: true,
+    B: true, C: true, D: true, E: true, F: true, G: true, H: true, I: true, J: true, K: true, L: true, M: true,
   });
 
   useEffect(() => {
@@ -335,6 +336,9 @@ export default function AdminDashboardPage() {
 
           {tab === 'aquisicao' && (
             <div className="space-y-4">
+              <AccordionPanel id={SECTION_IDS.M} letter="M" title="Aquisição e Conversão — Landing A/B" subtitle="segue o período · visitas, cliques em baixar e conversão por versão" open={open.M} onToggle={() => toggle('M')}>
+                <LandingAbSection filter={filter} />
+              </AccordionPanel>
               <AccordionPanel id={SECTION_IDS.K} letter="K" title="Locais" subtitle="segue o período · campanhas, custo e locais" open={open.K} onToggle={() => toggle('K')}>
                 <LocationsSection filter={filter} sortBy={locationsSortBy} onSortByChange={setLocationsSortBy} onFilterByCity={filterByCity} />
               </AccordionPanel>

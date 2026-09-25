@@ -111,7 +111,7 @@ export function AppPreview() {
  * por pinça e o botão Baixar sempre visível. A largura acompanha a altura útil da tela (svh) para o botão e
  * os selos das lojas caberem na mesma tela, sem rolagem.
  */
-export function HeroPhones() {
+export function HeroPhones({ reservePx = 294 }: { reservePx?: number } = {}) {
   const home = SCREENS[0];
   const [zoom, setZoom] = useState(false);
   const [openedByPinch, setOpenedByPinch] = useState(false);
@@ -145,7 +145,7 @@ export function HeroPhones() {
 
   return (
     <>
-      <div className="relative mx-auto w-[var(--phone-w)] md:w-[200px]" style={{ ['--phone-w' as string]: 'clamp(130px, calc((100svh - 294px) * 0.46), 270px)' }}>
+      <div className="relative mx-auto w-[var(--phone-w)] md:w-[200px]" style={{ ['--phone-w' as string]: `clamp(130px, calc((100svh - ${reservePx}px) * 0.46), 270px)` }}>
         <button
           type="button"
           onClick={() => { setOpenedByPinch(false); setZoom(true); }}
