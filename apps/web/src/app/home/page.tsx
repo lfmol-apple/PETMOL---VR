@@ -35,9 +35,6 @@ const MedicationItemSheet = dynamic(() => import('@/components/home/MedicationIt
 const FoodItemSheet = dynamic(() => import('@/components/home/FoodItemSheet').then(m => ({ default: m.FoodItemSheet })), { ssr: false });
 const GroomingItemSheet = dynamic(() => import('@/components/home/GroomingItemSheet').then(m => ({ default: m.GroomingItemSheet })), { ssr: false });
 const OnboardingChecklistCard = dynamic(() => import('@/components/home/OnboardingChecklistCard').then(m => ({ default: m.OnboardingChecklistCard })), { ssr: false });
-// TEMPORÁRIO (25/09/2026): escondido a pedido do dono para tirar print da Home para a landing.
-// Para voltar: trocar para true (ou reverter este PR).
-const SHOW_FEEDBACK_FAB = false;
 const HomeFeedbackFab = dynamic(() => import('@/components/home/HomeFeedbackFab').then(m => ({ default: m.HomeFeedbackFab })), { ssr: false });
 const PermissionsNudgeCard = dynamic(() => import('@/components/home/PermissionsNudgeCard').then(m => ({ default: m.PermissionsNudgeCard })), { ssr: false });
 const PetSumidoSheet = dynamic(() => import('@/components/home/PetSumidoSheet').then(m => ({ default: m.PetSumidoSheet })), { ssr: false });
@@ -2948,7 +2945,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
         );
       })()}
 
-      {SHOW_FEEDBACK_FAB && <HomeFeedbackFab />}
+      <HomeFeedbackFab />
 
       <HomeEmergencySheet
         open={showEmergencySheet}

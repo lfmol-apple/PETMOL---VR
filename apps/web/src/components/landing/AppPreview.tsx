@@ -15,7 +15,7 @@ export const SCREENS = [
 ] as const;
 
 const W = 480;
-const H = Math.round((W * 2778) / 1284);
+const H = Math.round((W * 2622) / 1206);
 
 /** "Veja por dentro": o visitante que veio do anúncio vê o app antes de decidir baixar. */
 export function AppPreview() {
@@ -116,13 +116,13 @@ export function HeroPhones() {
   const [zoom, setZoom] = useState(false);
   return (
     <>
-      <div className="relative mx-auto w-[var(--phone-w)] md:w-[200px]" style={{ ['--phone-w' as string]: 'clamp(130px, calc((100svh - 258px) * 0.462), 270px)' }}>
+      <div className="relative mx-auto w-[var(--phone-w)] md:w-[200px]" style={{ ['--phone-w' as string]: 'clamp(130px, calc((100svh - 294px) * 0.46), 270px)' }}>
         <button
           type="button"
           onClick={() => setZoom(true)}
           aria-label="Ampliar a tela do app"
           className="relative block w-full overflow-hidden rounded-[1.9rem] border-[5px] border-slate-900 bg-slate-900 shadow-xl shadow-blue-900/25 active:scale-[0.99] md:pointer-events-none"
-          style={{ aspectRatio: '1284 / 2778' }}
+          style={{ aspectRatio: '1206 / 2622' }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={home.src} alt={home.alt} width={W} height={H} fetchPriority="high" decoding="async" className="block h-full w-full rounded-[1.5rem] object-cover" />
