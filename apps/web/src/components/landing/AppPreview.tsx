@@ -120,7 +120,7 @@ export function HeroPhones() {
     <div className="mx-auto flex flex-col items-center">
       <div
         className="relative overflow-hidden rounded-[1.9rem] border-[5px] border-slate-900 bg-slate-900 shadow-xl shadow-blue-900/20"
-        style={{ width: 'clamp(118px, calc((100svh - 292px) * 0.462), 190px)', aspectRatio: '1284 / 2778' }}
+        style={{ width: 'clamp(118px, calc((100svh - 330px) * 0.462), 190px)', aspectRatio: '1284 / 2778' }}
       >
         {SCREENS.map((s, k) => (
           // eslint-disable-next-line @next/next/no-img-element
@@ -138,7 +138,7 @@ export function HeroPhones() {
         ))}
       </div>
       <p className="mt-2 h-5 text-[14px] font-black leading-5 text-slate-900" aria-live="off">{cur.title}</p>
-      <div className="mt-1.5 flex justify-center gap-1.5" aria-hidden="true">
+      <div className="mt-1 flex justify-center gap-1.5" aria-hidden="true">
         {SCREENS.map((s, k) => (
           <span key={s.src} className={`h-1.5 rounded-full transition-all ${k === i ? 'w-5 bg-[#0056D2]' : 'w-1.5 bg-slate-300'}`} />
         ))}

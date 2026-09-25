@@ -461,3 +461,27 @@ input[type="range"]::-moz-range-progress {
 }
 .landing-cue-arrow { animation: landingCueDown 1.4s ease-in-out infinite; }
 .landing-bar-in { animation: landingBarIn 0.35s ease-out both; }
+
+/* Landing: botão "Baixar grátis" — pulso + brilho que atravessa. É um botão NOSSO (não é o selo oficial). */
+@keyframes landingCtaPulse {
+  0% { box-shadow: 0 8px 22px rgba(0, 86, 210, 0.35), 0 0 0 0 rgba(0, 86, 210, 0.55); }
+  70% { box-shadow: 0 8px 22px rgba(0, 86, 210, 0.35), 0 0 0 16px rgba(0, 86, 210, 0); }
+  100% { box-shadow: 0 8px 22px rgba(0, 86, 210, 0.35), 0 0 0 0 rgba(0, 86, 210, 0); }
+}
+@keyframes landingCtaShine {
+  0% { left: -55%; }
+  55%, 100% { left: 125%; }
+}
+.landing-cta { position: relative; overflow: hidden; animation: landingCtaPulse 2s ease-out infinite; }
+.landing-cta::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -55%;
+  width: 38%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  transform: skewX(-20deg);
+  animation: landingCtaShine 2.8s ease-in-out infinite;
+  pointer-events: none;
+}

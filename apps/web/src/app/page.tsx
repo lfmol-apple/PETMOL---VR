@@ -7,7 +7,7 @@ import { getToken } from '@/lib/auth-token';
 import { PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { AppBootSplash } from '@/components/AppBootSplash';
 import { isNativeAppClient } from '@/lib/nativeApp';
-import { DownloadButton, StickyDownloadBar } from '@/components/landing/DownloadButton';
+import { DownloadButton, DownloadCta, StickyDownloadBar } from '@/components/landing/DownloadButton';
 import { AppPreview, HeroPhones } from '@/components/landing/AppPreview';
 import { useLandingContext } from '@/hooks/useLandingContext';
 import { LANDING_COPY } from '@/lib/landingContext';
@@ -46,28 +46,26 @@ export default function LandingPage() {
   return (
     <div className="min-h-dvh bg-white flex flex-col">
 
-      {/* Nav */}
+      {/* Cabeçalho mínimo: não é fixo e ocupa pouco — o botão Baixar é o protagonista */}
       <header
-        className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-5 py-3 flex items-center justify-between"
-        style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
+        className="flex items-center justify-between bg-blue-50 px-5 pb-1"
+        style={{ paddingTop: 'calc(0.5rem + env(safe-area-inset-top))' }}
       >
-        <PetmolTextLogo className="text-3xl" color="#0056D2" />
-        <div className="flex items-center gap-2">
-          <Link href="/login"
-            className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-bold text-[#0056D2] border border-[#0056D2]/30 active:bg-blue-50">
-            Entrar
-          </Link>
-        </div>
+        <PetmolTextLogo className="text-2xl" color="#0056D2" />
+        <Link href="/login" className="px-2 py-1.5 text-[13px] font-bold text-[#0056D2]/80 active:opacity-60">
+          Já tenho conta
+        </Link>
       </header>
 
       {/* Hero — título, telas passando e selos das lojas na MESMA dobra (sem depender de rolagem) */}
-      <section className="px-5 pt-4 pb-3 text-center bg-gradient-to-b from-blue-50 to-white">
+      <section className="px-5 pt-1 pb-3 text-center bg-gradient-to-b from-blue-50 to-white">
         <h1 className="text-[26px] font-black text-slate-900 leading-[1.12] tracking-tight text-balance">
           {copy.title.map((line, i) => (<span key={i}>{i > 0 && <br />}{line}</span>))}
         </h1>
         <div className="mt-3"><HeroPhones /></div>
         <div className="mx-auto mt-3 w-full max-w-sm">
-          <DownloadButton placement="hero" withWebLink compact />
+          <DownloadCta placement="hero-botao" targetId="lojas-hero" />
+          <div className="mt-2.5"><DownloadButton placement="hero" compact /></div>
         </div>
         <p className="mt-1.5 text-xs text-slate-400 font-semibold">Grátis · sem anúncios · leva menos de 1 minuto</p>
       </section>
@@ -140,7 +138,7 @@ export default function LandingPage() {
       <section className="px-5 pb-12 flex flex-col items-center text-center">
         <h2 className="text-2xl font-black text-slate-900">Baixe o PETMOL e comece agora.</h2>
         <p className="mt-2 text-sm text-slate-500 font-medium">Adicione o seu pet em menos de 1 minuto.</p>
-        <div className="mt-6 w-full max-w-xs"><DownloadButton placement="final" withWebLink cue /></div>
+        <div className="mt-6 w-full max-w-xs"><div className="space-y-3"><DownloadCta placement="final-botao" targetId="lojas-final" /><DownloadButton placement="final" withWebLink /></div></div>
         <Link href="/login" className="mt-3 text-sm text-slate-400 font-semibold">
           Já tenho conta
         </Link>
