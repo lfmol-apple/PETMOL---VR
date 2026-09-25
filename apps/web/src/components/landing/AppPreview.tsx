@@ -23,7 +23,8 @@ export function AppPreview() {
   // Passa as telas sozinho enquanto o visitante não encosta no carrossel (e só com ele à vista).
   useEffect(() => {
     const list = listRef.current;
-    if (!list || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    // No desktop as telas ficam todas visíveis lado a lado — sem carrossel automático.
+    if (!list || window.matchMedia('(prefers-reduced-motion: reduce)').matches || window.matchMedia('(min-width: 768px)').matches) return;
     let timer: ReturnType<typeof setInterval> | undefined;
     let stopped = false;
     const items = Array.from(list.children) as HTMLElement[];
@@ -61,12 +62,12 @@ export function AppPreview() {
   return (
     <section aria-labelledby="app-preview-title" className="pb-10 bg-white pt-2">
       <h2 id="app-preview-title" className="sr-only">É assim que o PETMOL cuida do seu pet</h2>
-      <p className="px-5 text-center text-xs font-bold uppercase tracking-wider text-slate-400">Telas reais do app · deslize</p>
+      <p className="px-5 text-center text-xs font-bold uppercase tracking-wider text-slate-400">Telas reais do app<span className="md:hidden"> · deslize</span></p>
 
       <ul
         ref={listRef}
         onScroll={onScroll}
-        className="mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto px-[max(1.25rem,calc(50vw-118px))] pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto px-[max(1.25rem,calc(50vw-118px))] pb-2 md:flex-wrap md:justify-center md:overflow-visible md:px-5 md:snap-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         aria-label="Telas do aplicativo"
       >
         {SCREENS.map((s, i) => (
@@ -89,7 +90,7 @@ export function AppPreview() {
         ))}
       </ul>
 
-      <div className="mt-2 flex justify-center gap-1.5" aria-hidden="true">
+      <div className="mt-2 flex justify-center gap-1.5 md:hidden" aria-hidden="true">
         {SCREENS.map((s, i) => (
           <span key={s.src} className={`h-1.5 rounded-full transition-all ${i === active ? 'w-5 bg-[#0056D2]' : 'w-1.5 bg-slate-300'}`} />
         ))}
