@@ -2,7 +2,7 @@
 
 import { useBackHandler } from '@/lib/backStack';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { ChevronRight, Search } from 'lucide-react';
+import { ChevronRight, ScanBarcode, Search } from 'lucide-react';
 import { useKeyboardSheetViewport } from '@/hooks/useKeyboardSheetViewport';
 import { petDo, petO } from '@/lib/petGender';
 import { SheetAvatar, SheetHeader } from '@/components/ui/sheet';
@@ -63,6 +63,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
   useBackHandler(open, onClose);
   const [quickBuyFor, setQuickBuyFor] = useState<string | null>(null);
   const [view, setView] = useState<ShoppingView>('store');
+  const [openScannerOnSearch, setOpenScannerOnSearch] = useState(false);
   // Mantém a sheet colada ao viewport visível quando o teclado abre (busca) —
   // sem isso o campo de busca fica atrás do teclado no iOS.
   const kbViewportRef = useKeyboardSheetViewport(open);
@@ -231,6 +232,14 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
 
   function handleSearchEntry() {
     void trackClick({ source: 'home', cta_type: 'shop_search_entry_click', pet_id: currentPet.pet_id });
+    setOpenScannerOnSearch(false);
+    setView('search');
+  }
+
+  // Atalho do leitor de código de barras na tela principal da Loja (quem está numa loja física).
+  function handleScanEntry() {
+    void trackClick({ source: 'home', cta_type: 'shop_barcode_scan_open', pet_id: currentPet.pet_id, metadata: { surface: 'store_view' } });
+    setOpenScannerOnSearch(true);
     setView('search');
   }
 
@@ -379,7 +388,7 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
         {/* Scrollable content */}
         <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
           {view === 'search' ? (
-            <AffiliateCatalogSearch petId={currentPet.pet_id} autoFocus />
+            <AffiliateCatalogSearch petId={currentPet.pet_id} autoFocus={!openScannerOnSearch} autoOpenScanner={openScannerOnSearch} />
           ) : (
             <>
               {/* Campo de busca — 1º item da tela (o dono preferiu a busca
@@ -393,6 +402,16 @@ export function HomeShoppingSheet({ open, onClose, currentPet, buyableReminders 
               >
                 <Search className="h-[18px] w-[18px] flex-shrink-0 text-slate-400" strokeWidth={2.2} />
                 <span className="text-[15px] font-medium text-slate-400">Buscar produto...</span>
+              </button>
+
+              {/* Leitor de código de barras — logo abaixo do campo: em loja física, ler é mais rápido que digitar */}
+              <button
+                type="button"
+                onClick={handleScanEntry}
+                className="-mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[15px] font-black text-emerald-800 transition-all active:scale-[0.98]"
+              >
+                <ScanBarcode className="h-5 w-5" strokeWidth={2.4} />
+                Ler código de barras
               </button>
 
               {/* Produtos do pet — LISTA ÚNICA, ordenada por prazo (mais
