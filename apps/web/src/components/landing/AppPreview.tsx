@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DownloadButton } from '@/components/landing/DownloadButton';
 
 /** Capturas oficiais da App Store (as mesmas da ficha do app), em WebP leve. */
-const SCREENS = [
+export const SCREENS = [
   { src: '/landing/app-home.webp', alt: 'Tela inicial do PETMOL com os cuidados do pet', title: 'Tudo do seu pet numa tela', body: 'Alimentação, cuidados, vacinas e loja a um toque.' },
   { src: '/landing/app-alimentacao.webp', alt: 'Tela de alimentação mostrando quantos dias de ração restam', title: 'Quantos dias de ração ainda faltam', body: 'O PETMOL avisa antes de acabar.' },
   { src: '/landing/app-vacinas.webp', alt: 'Tela de vacinas com as próximas doses', title: 'Vacinas com data e lembrete', body: 'Você não precisa lembrar — ele avisa antes do prazo.' },
@@ -101,5 +101,48 @@ export function AppPreview() {
         <p className="mt-2 text-center text-xs font-semibold text-slate-400">Grátis · sem anúncios</p>
       </div>
     </section>
+  );
+}
+
+/**
+ * Celular do topo da landing: as telas se trocam sozinhas (crossfade) na mesma tela dos selos das lojas,
+ * sem depender de rolagem. A largura acompanha a altura útil da tela para os selos sempre caberem embaixo.
+ */
+export function HeroPhones() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const t = setInterval(() => setI((n) => (n + 1) % SCREENS.length), 2800);
+    return () => clearInterval(t);
+  }, []);
+  const cur = SCREENS[i];
+  return (
+    <div className="mx-auto flex flex-col items-center">
+      <div
+        className="relative overflow-hidden rounded-[1.9rem] border-[5px] border-slate-900 bg-slate-900 shadow-xl shadow-blue-900/20"
+        style={{ width: 'clamp(118px, calc((100svh - 292px) * 0.462), 190px)', aspectRatio: '1284 / 2778' }}
+      >
+        {SCREENS.map((s, k) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={s.src}
+            src={s.src}
+            alt={k === i ? s.alt : ''}
+            aria-hidden={k !== i}
+            width={W}
+            height={H}
+            fetchPriority={k === 0 ? 'high' : 'low'}
+            decoding="async"
+            className={`absolute inset-0 h-full w-full rounded-[1.5rem] object-cover transition-opacity duration-500 ${k === i ? 'opacity-100' : 'opacity-0'}`}
+          />
+        ))}
+      </div>
+      <p className="mt-2 h-5 text-[14px] font-black leading-5 text-slate-900" aria-live="off">{cur.title}</p>
+      <div className="mt-1.5 flex justify-center gap-1.5" aria-hidden="true">
+        {SCREENS.map((s, k) => (
+          <span key={s.src} className={`h-1.5 rounded-full transition-all ${k === i ? 'w-5 bg-[#0056D2]' : 'w-1.5 bg-slate-300'}`} />
+        ))}
+      </div>
+    </div>
   );
 }
