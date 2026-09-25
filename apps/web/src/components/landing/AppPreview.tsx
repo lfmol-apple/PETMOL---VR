@@ -105,44 +105,18 @@ export function AppPreview() {
 }
 
 /**
- * Celular do topo da landing: as telas se trocam sozinhas (crossfade) na mesma tela dos selos das lojas,
- * sem depender de rolagem. A largura acompanha a altura útil da tela para os selos sempre caberem embaixo.
+ * Celular do topo da landing: mostra só a Home do app, parada (sem troca de telas). A largura acompanha a
+ * altura útil da tela (svh) para o botão e os selos das lojas sempre caberem na mesma tela, sem rolagem.
  */
 export function HeroPhones() {
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const t = setInterval(() => setI((n) => (n + 1) % SCREENS.length), 2800);
-    return () => clearInterval(t);
-  }, []);
-  const cur = SCREENS[i];
+  const home = SCREENS[0];
   return (
-    <div className="mx-auto flex flex-col items-center">
-      <div
-        className="relative overflow-hidden rounded-[1.9rem] border-[5px] border-slate-900 bg-slate-900 shadow-xl shadow-blue-900/20"
-        style={{ width: 'clamp(118px, calc((100svh - 330px) * 0.462), 190px)', aspectRatio: '1284 / 2778' }}
-      >
-        {SCREENS.map((s, k) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={s.src}
-            src={s.src}
-            alt={k === i ? s.alt : ''}
-            aria-hidden={k !== i}
-            width={W}
-            height={H}
-            fetchPriority={k === 0 ? 'high' : 'low'}
-            decoding="async"
-            className={`absolute inset-0 h-full w-full rounded-[1.5rem] object-cover transition-opacity duration-500 ${k === i ? 'opacity-100' : 'opacity-0'}`}
-          />
-        ))}
-      </div>
-      <p className="mt-2 h-5 text-[14px] font-black leading-5 text-slate-900" aria-live="off">{cur.title}</p>
-      <div className="mt-1 flex justify-center gap-1.5" aria-hidden="true">
-        {SCREENS.map((s, k) => (
-          <span key={s.src} className={`h-1.5 rounded-full transition-all ${k === i ? 'w-5 bg-[#0056D2]' : 'w-1.5 bg-slate-300'}`} />
-        ))}
-      </div>
+    <div
+      className="mx-auto w-[var(--phone-w)] md:w-[200px] overflow-hidden rounded-[1.9rem] border-[5px] border-slate-900 bg-slate-900 shadow-xl shadow-blue-900/20"
+      style={{ ['--phone-w' as string]: 'clamp(120px, calc((100svh - 262px) * 0.462), 250px)', aspectRatio: '1284 / 2778' }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={home.src} alt={home.alt} width={W} height={H} fetchPriority="high" decoding="async" className="block h-full w-full rounded-[1.5rem] object-cover" />
     </div>
   );
 }

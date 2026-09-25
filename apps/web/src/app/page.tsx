@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getToken } from '@/lib/auth-token';
-import { PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { AppBootSplash } from '@/components/AppBootSplash';
 import { isNativeAppClient } from '@/lib/nativeApp';
 import { DownloadButton, DownloadCta, StickyDownloadBar } from '@/components/landing/DownloadButton';
@@ -44,37 +43,44 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-white flex flex-col">
+    <div className="h-svh overflow-hidden overscroll-none bg-white flex flex-col md:h-auto md:min-h-dvh md:overflow-visible">
 
-      {/* Cabeçalho mínimo: não é fixo e ocupa pouco — o botão Baixar é o protagonista */}
+      {/* Cabeçalho: a marca "Petmol 🐾" (mesma identidade do app) bem visível; sem nada que roube espaço */}
       <header
-        className="flex items-center justify-between bg-blue-50 px-5 pb-1"
-        style={{ paddingTop: 'calc(0.5rem + env(safe-area-inset-top))' }}
+        className="flex shrink-0 items-center justify-between bg-blue-50 px-5 pb-1"
+        style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
       >
-        <PetmolTextLogo className="text-2xl" color="#0056D2" />
+        <span className="flex items-center text-[38px] font-black leading-none tracking-tight text-[#0056D2]" aria-label="Petmol">
+          Petmol<span className="ml-1.5 text-[34px]" aria-hidden="true">🐾</span>
+        </span>
         <Link href="/login" className="px-2 py-1.5 text-[13px] font-bold text-[#0056D2]/80 active:opacity-60">
           Já tenho conta
         </Link>
       </header>
 
-      {/* Hero — título, telas passando e selos das lojas na MESMA dobra (sem depender de rolagem) */}
-      <section className="px-5 pt-1 pb-3 text-center bg-gradient-to-b from-blue-50 to-white">
-        <h1 className="text-[26px] font-black text-slate-900 leading-[1.12] tracking-tight text-balance">
+      {/* Hero — no celular é a página inteira, parada: Home do app + botão + selos, sem rolagem */}
+      <section className="flex flex-1 flex-col items-center justify-evenly bg-gradient-to-b from-blue-50 to-white px-5 pb-2 text-center md:flex-none md:justify-start md:pb-3 md:pt-1">
+        <h1 className="hidden text-[26px] font-black text-slate-900 leading-[1.12] tracking-tight text-balance md:block">
           {copy.title.map((line, i) => (<span key={i}>{i > 0 && <br />}{line}</span>))}
         </h1>
-        <div className="mt-3"><HeroPhones /></div>
-        <div className="mx-auto mt-3 w-full max-w-sm">
+        <div className="md:mt-3"><HeroPhones /></div>
+        <div className="mx-auto w-full max-w-sm md:mt-3">
           <DownloadCta placement="hero-botao" targetId="lojas-hero" />
           <div className="mt-2.5"><DownloadButton placement="hero" compact /></div>
+          <p className="mt-2 text-xs text-slate-400 font-semibold">Grátis · sem anúncios · leva menos de 1 minuto</p>
         </div>
-        <p className="mt-1.5 text-xs text-slate-400 font-semibold">Grátis · sem anúncios · leva menos de 1 minuto</p>
+        <p className="text-[11px] text-slate-400 md:hidden">
+          <Link href="/legal/privacy">Privacidade</Link> · <Link href="/legal/terms">Termos de Uso</Link>
+        </p>
       </section>
 
+      {/* Do subtítulo ao rodapé: só no desktop/tablet. No celular a página é uma tela única e fixa. */}
+      <div className="hidden md:flex md:flex-1 md:flex-col">
       <p className="px-6 pt-4 pb-6 text-center text-base text-slate-500 leading-relaxed font-medium max-w-sm mx-auto">
         {copy.subtitle}
       </p>
 
-      {/* O app por dentro — quem veio do anúncio vê antes de decidir */}
+      {/* O app por dentro */}
       <AppPreview />
 
       {/* Como o PETMOL acompanha — benefício → como funciona */}
@@ -161,6 +167,7 @@ export default function LandingPage() {
         <p className="mt-2 text-xs text-slate-400">© 2026 PETMOL</p>
       </footer>
 
+      </div>
     </div>
   );
 }
