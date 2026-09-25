@@ -11,7 +11,7 @@ import { useLandingContext } from '@/hooks/useLandingContext';
 const BAR_DISMISS_KEY = 'petmol_landing_bar_dismissed';
 
 /** Mede o clique no selo (sem dados pessoais) — nunca atrasa nem bloqueia a abertura da loja. */
-function useStoreClick(placement: string, store: 'apple' | 'google') {
+function useStoreClick(placement: string, store: 'apple' | 'google' | 'auto') {
   const ctx = useLandingContext();
   return () => {
     void trackClick({
@@ -53,6 +53,35 @@ function GooglePlayBadge({ placement, heightPx }: { placement: string; heightPx:
   );
 }
 
+/**
+ * Botão "Baixar grátis": a chamada principal para a ação. Abre a loja do aparelho (App Store no iPhone,
+ * Google Play no Android); no computador leva aos selos. Tem pulso e brilho — efeito que os selos oficiais
+ * NÃO podem ter, por isso o botão é separado deles.
+ */
+export function DownloadCta({ placement, targetId }: { placement: string; targetId?: string }) {
+  const platform = usePlatform();
+  const ctx = useLandingContext();
+  const track = useStoreClick(placement, platform === 'android' ? 'google' : platform === 'ios' ? 'apple' : 'auto');
+  const cls = 'landing-cta flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-b from-[#1a73ff] to-[#0056D2] px-6 py-3.5 text-[19px] font-black tracking-tight text-white active:scale-[0.98]';
+  const label = (
+    <>
+      <svg className="landing-cue-arrow" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 4v11M6.5 10.5L12 16l5.5-5.5M5 20h14" />
+      </svg>
+      Baixar grátis
+    </>
+  );
+  if (platform === 'desktop') {
+    return (
+      <a href={targetId ? `#${targetId}` : '#'} onClick={() => track()} className={cls} data-placement={placement} data-store="auto">{label}</a>
+    );
+  }
+  const href = platform === 'android' ? googlePlayUrl(placement, ctx.campaign) : appStoreUrl(placement, ctx.campaign);
+  return (
+    <a href={href} onClick={track} target="_blank" rel="noopener noreferrer" className={cls} data-placement={placement} data-store="auto">{label}</a>
+  );
+}
+
 /** Convite animado acima dos selos: a seta se move, os selos não (regra de marca da Apple/Google). */
 function DownloadCue() {
   return (
@@ -82,7 +111,7 @@ export function DownloadButton({ placement, withWebLink = false, cue = false, co
     : <GooglePlayBadge placement={placement} heightPx={40} />;
 
   return (
-    <div className="w-full flex flex-col items-center gap-3">
+    <div id={placement === 'hero' || placement === 'final' ? `lojas-${placement}` : undefined} className="w-full flex flex-col items-center gap-3">
       {cue && <DownloadCue />}
       {compact ? (
         <div className="flex items-center justify-center gap-3">
