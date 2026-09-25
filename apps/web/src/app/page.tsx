@@ -43,7 +43,7 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="h-svh overflow-hidden overscroll-none bg-white flex flex-col md:h-auto md:min-h-dvh md:overflow-visible">
+    <div className="h-svh overflow-hidden overscroll-none touch-pan-x touch-pan-y bg-white flex flex-col md:h-auto md:min-h-dvh md:overflow-visible md:touch-auto">
 
       {/* Cabeçalho: a marca "Petmol 🐾" (mesma identidade do app) bem visível; sem nada que roube espaço */}
       <header

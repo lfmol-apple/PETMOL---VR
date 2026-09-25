@@ -114,12 +114,41 @@ export function AppPreview() {
 export function HeroPhones() {
   const home = SCREENS[0];
   const [zoom, setZoom] = useState(false);
+  const [openedByPinch, setOpenedByPinch] = useState(false);
+
+  // Zoom direto: abrir a tela ampliada com a pinça em QUALQUER ponto da landing (sem precisar tocar no
+  // telefone). Só no celular; o navegador não amplia a página (touch-action) — o zoom é o do visualizador,
+  // que mantém o botão Baixar fixo.
+  useEffect(() => {
+    if (!window.matchMedia('(max-width: 767px)').matches) return;
+    let startDist = 0;
+    const dist = (e: TouchEvent) => Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    const onStart = (e: TouchEvent) => { startDist = e.touches.length === 2 ? dist(e) : 0; };
+    const onMove = (e: TouchEvent) => {
+      if (!startDist || e.touches.length !== 2) return;
+      if (dist(e) > startDist * 1.18) {
+        startDist = 0;
+        setOpenedByPinch(true);
+        setZoom(true);
+      }
+    };
+    const onEnd = () => { startDist = 0; };
+    document.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchmove', onMove, { passive: true });
+    document.addEventListener('touchend', onEnd, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', onStart);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+    };
+  }, []);
+
   return (
     <>
       <div className="relative mx-auto w-[var(--phone-w)] md:w-[200px]" style={{ ['--phone-w' as string]: 'clamp(130px, calc((100svh - 294px) * 0.46), 270px)' }}>
         <button
           type="button"
-          onClick={() => setZoom(true)}
+          onClick={() => { setOpenedByPinch(false); setZoom(true); }}
           aria-label="Ampliar a tela do app"
           className="relative block w-full overflow-hidden rounded-[1.9rem] border-[5px] border-slate-900 bg-slate-900 shadow-xl shadow-blue-900/25 active:scale-[0.99] md:pointer-events-none"
           style={{ aspectRatio: '1206 / 2622' }}
@@ -132,7 +161,7 @@ export function HeroPhones() {
           <ZoomIn className="h-4 w-4" strokeWidth={2.6} />
         </span>
       </div>
-      {zoom && <PhoneZoomViewer src="/landing/app-home-zoom.webp" alt={home.alt} onClose={() => setZoom(false)} />}
+      {zoom && <PhoneZoomViewer src="/landing/app-home-zoom.webp" alt={home.alt} initialScale={openedByPinch ? 2 : 1} onClose={() => setZoom(false)} />}
     </>
   );
 }
