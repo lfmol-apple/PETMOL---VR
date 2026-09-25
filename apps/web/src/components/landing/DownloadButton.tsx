@@ -5,23 +5,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { detectStorePlatform, type StorePlatform } from '@/lib/appStores';
 import { appStoreUrl, googlePlayUrl } from '@/lib/landingLinks';
-import { trackClick } from '@/lib/analytics/click';
+import { trackDownloadClick } from '@/lib/landingEvents';
 import { useLandingContext } from '@/hooks/useLandingContext';
 
 const BAR_DISMISS_KEY = 'petmol_landing_bar_dismissed';
-
-/** Mede o clique no selo (sem dados pessoais) — nunca atrasa nem bloqueia a abertura da loja. */
-function useStoreClick(placement: string, store: 'apple' | 'google' | 'auto') {
-  const ctx = useLandingContext();
-  return () => {
-    void trackClick({
-      source: 'landing',
-      cta_type: 'store_download_click',
-      target: store,
-      metadata: { placement, variant: ctx.variant, iab: ctx.iab, fbclid: ctx.hasFbclid, ...ctx.campaign },
-    });
-  };
-}
 
 function usePlatform(): StorePlatform {
   const [p, setP] = useState<StorePlatform>('desktop');
@@ -33,7 +20,7 @@ function usePlatform(): StorePlatform {
 
 function AppStoreBadge({ placement, heightPx }: { placement: string; heightPx: number }) {
   const ctx = useLandingContext();
-  const onClick = useStoreClick(placement, 'apple');
+  const onClick = () => trackDownloadClick({ button: 'badge', placement, store: 'apple' });
   return (
     <a href={appStoreUrl(placement, ctx.campaign)} onClick={onClick} target="_blank" rel="noopener noreferrer" aria-label="Baixar na App Store"
       className="inline-block active:scale-[0.97] transition-transform" data-placement={placement} data-store="apple">
@@ -44,7 +31,7 @@ function AppStoreBadge({ placement, heightPx }: { placement: string; heightPx: n
 
 function GooglePlayBadge({ placement, heightPx }: { placement: string; heightPx: number }) {
   const ctx = useLandingContext();
-  const onClick = useStoreClick(placement, 'google');
+  const onClick = () => trackDownloadClick({ button: 'badge', placement, store: 'google' });
   return (
     <a href={googlePlayUrl(placement, ctx.campaign)} onClick={onClick} target="_blank" rel="noopener noreferrer" aria-label="Disponível no Google Play"
       className="inline-block active:scale-[0.97] transition-transform" data-placement={placement} data-store="google">
@@ -61,7 +48,7 @@ function GooglePlayBadge({ placement, heightPx }: { placement: string; heightPx:
 export function DownloadCta({ placement, targetId }: { placement: string; targetId?: string }) {
   const platform = usePlatform();
   const ctx = useLandingContext();
-  const track = useStoreClick(placement, platform === 'android' ? 'google' : platform === 'ios' ? 'apple' : 'auto');
+  const track = () => trackDownloadClick({ button: 'cta', placement, store: platform === 'android' ? 'google' : platform === 'ios' ? 'apple' : 'auto' });
   const cls = 'landing-cta flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-b from-[#1a73ff] to-[#0056D2] px-6 py-3.5 text-[19px] font-black tracking-tight text-white active:scale-[0.98]';
   const label = (
     <>

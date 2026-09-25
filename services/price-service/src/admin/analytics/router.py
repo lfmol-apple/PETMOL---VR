@@ -23,6 +23,7 @@ from . import briefing_bi
 from . import campaign_bi
 from . import feeding_bi
 from . import journey_bi
+from . import landing_ab_bi
 from . import locations_bi
 from . import map_bi
 from . import permission_snapshots
@@ -177,6 +178,26 @@ def get_campaigns_summary(
     ver `campaign_bi.py` pra limitações de atribuição."""
     parsed = AnalyticsFilters.build(since=since, until=until, platform=platform)
     return campaign_bi.campaign_summary(db, since=parsed.since, until=parsed.until, platform=platform)
+
+
+@router.get("/landing-ab")
+def get_landing_ab(
+    period_days: Optional[int] = Query(None, ge=1, le=400),
+    since: Optional[str] = Query(None),
+    until: Optional[str] = Query(None),
+    campaign: Optional[str] = Query(None),
+    source: Optional[str] = Query(None),
+    os: Optional[str] = Query(None),
+    instagram: bool = Query(False, description="só tráfego vindo do Instagram/Meta"),
+    db: Session = Depends(get_db),
+    _=_Auth,
+):
+    """Teste A/B da landing: visitas, visitantes únicos estimados, cliques de download e conversão por
+    variante — ver `landing_ab_bi.py` para as definições e o que NÃO é atribuível (instalações)."""
+    parsed = AnalyticsFilters.build(period_days=period_days, since=since, until=until)
+    return landing_ab_bi.landing_ab_summary(
+        db, since=parsed.since, until=parsed.until, campaign=campaign, source=source, os=os, instagram_only=instagram,
+    )
 
 
 class CampaignSpendIn(BaseModel):

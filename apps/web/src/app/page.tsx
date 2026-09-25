@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getToken } from '@/lib/auth-token';
@@ -9,7 +9,9 @@ import { isNativeAppClient } from '@/lib/nativeApp';
 import { DownloadButton, DownloadCta, StickyDownloadBar } from '@/components/landing/DownloadButton';
 import { AppPreview, HeroPhones } from '@/components/landing/AppPreview';
 import { useLandingContext } from '@/hooks/useLandingContext';
-import { LANDING_COPY } from '@/lib/landingContext';
+import { LANDING_COPY, readLandingContext } from '@/lib/landingContext';
+import { getLandingVariant, VARIANT_COPY, type VariantInfo } from '@/lib/landingExperiment';
+import { trackLandingEvent } from '@/lib/landingEvents';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -21,6 +23,10 @@ export default function LandingPage() {
   const [phase, setPhase] = useState<'boot' | 'guest'>('boot');
   const { variant } = useLandingContext();
   const copy = LANDING_COPY[variant];
+  // Teste A/B: a variante é definida ANTES da 1ª renderização da landing (no mesmo efeito que tira o splash),
+  // então nunca aparece uma versão e troca para outra.
+  const [exp, setExp] = useState<VariantInfo | null>(null);
+  const viewSent = useRef(false);
 
   useEffect(() => {
     if (isNativeAppClient()) {
@@ -30,7 +36,15 @@ export default function LandingPage() {
     if (getToken()) {
       router.replace('/home');
     } else {
+      const ctx = readLandingContext(window.location.search, navigator.userAgent || '');
+      // Mensagem por anúncio (?c=) é uma 3ª versão: fica fora da estatística do A/B.
+      const info = getLandingVariant({ search: window.location.search, forcePreview: ctx.variant !== 'default' });
+      setExp(info);
       setPhase('guest');
+      if (!viewSent.current) {
+        viewSent.current = true;
+        trackLandingEvent('landing_view', {}, info);
+      }
     }
   }, [router]);
 
@@ -38,9 +52,10 @@ export default function LandingPage() {
     setHideAmazonPicks(isNativeAppClient());
   }, []);
 
-  if (phase === 'boot') {
+  if (phase === 'boot' || !exp) {
     return <AppBootSplash />;
   }
+  const b = exp.variant === 'B' ? VARIANT_COPY.B : null;
 
   return (
     <div className="h-svh overflow-hidden overscroll-none touch-pan-x touch-pan-y bg-white flex flex-col md:h-auto md:min-h-dvh md:overflow-visible md:touch-auto">
@@ -61,11 +76,18 @@ export default function LandingPage() {
       {/* Hero — no celular é a página inteira, parada: Home do app + botão + selos, sem rolagem */}
       <section className="flex flex-1 flex-col items-center justify-evenly bg-gradient-to-b from-blue-50 to-white px-5 pb-2 text-center md:flex-none md:justify-start md:pb-3 md:pt-1">
         <h1 className="hidden text-[26px] font-black text-slate-900 leading-[1.12] tracking-tight text-balance md:block">
-          {copy.title.map((line, i) => (<span key={i}>{i > 0 && <br />}{line}</span>))}
+          {(b ? [b.title] : copy.title).map((line, i) => (<span key={i}>{i > 0 && <br />}{line}</span>))}
         </h1>
         {/* Só no celular: o que o PETMOL faz, em texto normal acima do telefone */}
-        <p className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-800 md:hidden">Cuidamos do seu pet.</p>
-        <div className="md:mt-3"><HeroPhones /></div>
+        {b ? (
+          <div className="md:hidden">
+            <p className="text-[clamp(15px,4.6vw,19px)] font-extrabold leading-tight tracking-tight text-slate-800">{b.title}</p>
+            <p className="mx-auto mt-0.5 max-w-[19rem] text-[12px] font-medium leading-snug text-slate-600">{b.subtitle}</p>
+          </div>
+        ) : (
+          <p className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-800 md:hidden">Cuidamos do seu pet.</p>
+        )}
+        <div className="md:mt-3"><HeroPhones reservePx={b ? 322 : 294} /></div>
         <div className="mx-auto w-full max-w-sm pt-6 md:mt-3 md:pt-0">
           <DownloadCta placement="hero-botao" targetId="lojas-hero" />
           <div className="mt-2.5"><DownloadButton placement="hero" compact /></div>
@@ -82,7 +104,7 @@ export default function LandingPage() {
       {/* Do subtítulo ao rodapé: só no desktop/tablet. No celular a página é uma tela única e fixa. */}
       <div className="hidden md:flex md:flex-1 md:flex-col">
       <p className="px-6 pt-4 pb-6 text-center text-base text-slate-500 leading-relaxed font-medium max-w-sm mx-auto">
-        {copy.subtitle}
+        {b ? b.subtitle : copy.subtitle}
       </p>
 
       {/* O app por dentro */}

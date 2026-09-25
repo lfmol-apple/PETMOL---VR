@@ -229,3 +229,25 @@ export interface PermissionSnapshotRow {
   push_active: number; push_ios: number; push_android: number; push_web: number;
   gps: number; gps_fresh: number; both: number; only_push: number; only_location: number; neither: number;
 }
+
+// ── Landing A/B ────────────────────────────────────────────────────────────
+export interface LandingAbCounts {
+  views: number; visitors: number; clicks: number; clickers: number; conversion: number | null;
+  apple_clicks: number; google_clicks: number; apple_clickers: number; google_clickers: number;
+}
+export interface LandingAbRow extends LandingAbCounts { name: string }
+export interface LandingAbDay extends LandingAbCounts { date: string }
+export interface LandingAbVariant extends LandingAbCounts {
+  by_campaign: LandingAbRow[]; by_device: LandingAbRow[]; daily: LandingAbDay[]; signups_attributed: number;
+}
+export interface LandingAbResponse {
+  experiment_id: string;
+  period: { since: string | null; until: string | null };
+  filters: { campaign: string | null; source: string | null; os: string | null; instagram_only: boolean };
+  options: { campaigns: string[]; sources: string[]; os: string[] };
+  variants: { A: LandingAbVariant; B: LandingAbVariant };
+  verdict: { status: 'insufficient' | 'no_difference' | 'significant'; leader: 'A' | 'B' | null; p_value: number | null; min_sample: number };
+  quality: { cross_variant_visitors: number; note: string };
+  installs: { total: number; by_campaign: { name: string; installs: number }[]; attributable_to_variant: boolean; reason: string };
+  signups_note: string;
+}
