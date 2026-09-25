@@ -71,7 +71,7 @@ function DownloadCue() {
  * os dois no mesmo tamanho, lado a lado. O clique é sempre do visitante —
  * nenhum link abre sozinho.
  */
-export function DownloadButton({ placement, withWebLink = false, cue = false }: { placement: string; className?: string; withWebLink?: boolean; cue?: boolean }) {
+export function DownloadButton({ placement, withWebLink = false, cue = false, compact = false }: { placement: string; className?: string; withWebLink?: boolean; cue?: boolean; compact?: boolean }) {
   const platform = usePlatform();
 
   const primary = platform === 'android'
@@ -84,7 +84,13 @@ export function DownloadButton({ placement, withWebLink = false, cue = false }: 
   return (
     <div className="w-full flex flex-col items-center gap-3">
       {cue && <DownloadCue />}
-      {platform === 'desktop' ? (
+      {compact ? (
+        <div className="flex items-center justify-center gap-3">
+          {platform === 'android'
+            ? <><GooglePlayBadge placement={placement} heightPx={46} /><AppStoreBadge placement={placement} heightPx={46} /></>
+            : <><AppStoreBadge placement={placement} heightPx={46} /><GooglePlayBadge placement={placement} heightPx={46} /></>}
+        </div>
+      ) : platform === 'desktop' ? (
         <div className="flex flex-wrap items-center justify-center gap-4">
           <AppStoreBadge placement={placement} heightPx={52} />
           <GooglePlayBadge placement={placement} heightPx={52} />
@@ -96,7 +102,7 @@ export function DownloadButton({ placement, withWebLink = false, cue = false }: 
         </div>
       )}
       {withWebLink && (
-        <Link href="/register" className="text-sm font-bold text-[#0056D2]">
+        <Link href="/register" className={`${compact ? 'text-xs' : 'text-sm'} font-bold text-[#0056D2]`}>
           {platform === 'ios' ? 'Usar agora no navegador' : 'ou crie a conta e use no navegador'}
         </Link>
       )}

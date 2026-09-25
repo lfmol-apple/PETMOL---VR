@@ -8,7 +8,7 @@ import { PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { AppBootSplash } from '@/components/AppBootSplash';
 import { isNativeAppClient } from '@/lib/nativeApp';
 import { DownloadButton, StickyDownloadBar } from '@/components/landing/DownloadButton';
-import { AppPreview } from '@/components/landing/AppPreview';
+import { AppPreview, HeroPhones } from '@/components/landing/AppPreview';
 import { useLandingContext } from '@/hooks/useLandingContext';
 import { LANDING_COPY } from '@/lib/landingContext';
 
@@ -60,23 +60,21 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="px-5 pt-8 pb-6 text-center bg-gradient-to-b from-blue-50 to-white">
-        <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wider mb-4">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          Sem anúncios
-        </div>
-        <h1 className="text-[32px] font-black text-slate-900 leading-[1.15] tracking-tight text-balance">
+      {/* Hero — título, telas passando e selos das lojas na MESMA dobra (sem depender de rolagem) */}
+      <section className="px-5 pt-4 pb-3 text-center bg-gradient-to-b from-blue-50 to-white">
+        <h1 className="text-[26px] font-black text-slate-900 leading-[1.12] tracking-tight text-balance">
           {copy.title.map((line, i) => (<span key={i}>{i > 0 && <br />}{line}</span>))}
         </h1>
-        <p className="mt-4 text-base text-slate-500 leading-relaxed font-medium max-w-xs mx-auto">
-          {copy.subtitle}
-        </p>
-        <div className="mx-auto mt-5 w-full max-w-xs">
-          <DownloadButton placement="hero" withWebLink cue />
+        <div className="mt-3"><HeroPhones /></div>
+        <div className="mx-auto mt-3 w-full max-w-sm">
+          <DownloadButton placement="hero" withWebLink compact />
         </div>
-        <p className="mt-2 text-xs text-slate-400 font-semibold">Grátis · leva menos de 1 minuto.</p>
+        <p className="mt-1.5 text-xs text-slate-400 font-semibold">Grátis · sem anúncios · leva menos de 1 minuto</p>
       </section>
+
+      <p className="px-6 pt-4 pb-6 text-center text-base text-slate-500 leading-relaxed font-medium max-w-sm mx-auto">
+        {copy.subtitle}
+      </p>
 
       {/* O app por dentro — quem veio do anúncio vê antes de decidir */}
       <AppPreview />

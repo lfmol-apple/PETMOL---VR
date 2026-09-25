@@ -40,7 +40,7 @@ export interface LandingCopy { title: string[]; subtitle: string }
 /** Só promessas que o app cumpre hoje (alertas de vacina/ração/higiene e Pet Sumido). */
 export const LANDING_COPY: Record<LandingVariant, LandingCopy> = {
   default: {
-    title: ['O PETMOL', 'conhece', 'o seu pet.'],
+    title: ['O PETMOL conhece', 'o seu pet.'],
     subtitle: 'Acompanha a alimentação, as vacinas, os remédios e a proteção — e mostra o que vem a seguir, na hora certa.',
   },
   vacina: {
