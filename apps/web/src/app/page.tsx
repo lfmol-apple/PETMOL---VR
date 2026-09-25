@@ -67,10 +67,13 @@ export default function LandingPage() {
         <div className="mx-auto w-full max-w-sm md:mt-3">
           <DownloadCta placement="hero-botao" targetId="lojas-hero" />
           <div className="mt-2.5"><DownloadButton placement="hero" compact /></div>
-          <p className="mt-2 text-xs text-slate-400 font-semibold">Grátis · sem anúncios · leva menos de 1 minuto</p>
+          <p className="mt-2 text-[13px] font-semibold text-slate-700 md:text-xs md:text-slate-400">
+            <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[12px] font-black uppercase tracking-wide text-emerald-800 md:bg-transparent md:p-0 md:text-xs md:font-semibold md:normal-case md:tracking-normal md:text-slate-400">Grátis</span>
+            {' '}· sem anúncios · leva menos de 1 minuto
+          </p>
         </div>
-        <p className="text-[11px] text-slate-400 md:hidden">
-          <Link href="/legal/privacy">Privacidade</Link> · <Link href="/legal/terms">Termos de Uso</Link>
+        <p className="text-[12px] font-medium text-slate-600 md:hidden">
+          <Link href="/legal/privacy" className="underline underline-offset-2">Privacidade</Link> · <Link href="/legal/terms" className="underline underline-offset-2">Termos de Uso</Link>
         </p>
       </section>
 
