@@ -8,6 +8,9 @@ import { PetmolTextLogo } from '@/components/ui/BrandBackground';
 import { AppBootSplash } from '@/components/AppBootSplash';
 import { isNativeAppClient } from '@/lib/nativeApp';
 import { DownloadButton, StickyDownloadBar } from '@/components/landing/DownloadButton';
+import { AppPreview } from '@/components/landing/AppPreview';
+import { useLandingContext } from '@/hooks/useLandingContext';
+import { LANDING_COPY } from '@/lib/landingContext';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -17,6 +20,8 @@ export default function LandingPage() {
   // 'boot' = ainda não sei se está logado → mostra o splash (nunca a landing).
   // Usuário logado abrindo o app cai direto no /home sem piscar esta tela.
   const [phase, setPhase] = useState<'boot' | 'guest'>('boot');
+  const { variant } = useLandingContext();
+  const copy = LANDING_COPY[variant];
 
   useEffect(() => {
     if (isNativeAppClient()) {
@@ -52,30 +57,29 @@ export default function LandingPage() {
             className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-bold text-[#0056D2] border border-[#0056D2]/30 active:bg-blue-50">
             Entrar
           </Link>
-          <Link href="/register"
-            className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-black text-white bg-[#0056D2] shadow-sm active:scale-[0.97]">
-            Criar conta
-          </Link>
         </div>
       </header>
 
       {/* Hero */}
-      <section className="px-5 pt-14 pb-12 text-center bg-gradient-to-b from-blue-50 to-white">
-        <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wider mb-6">
+      <section className="px-5 pt-8 pb-6 text-center bg-gradient-to-b from-blue-50 to-white">
+        <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wider mb-4">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           Sem anúncios
         </div>
         <h1 className="text-[32px] font-black text-slate-900 leading-[1.15] tracking-tight text-balance">
-          O PETMOL <br className="sm:hidden" />conhece<br />o seu pet.
+          {copy.title.map((line, i) => (<span key={i}>{i > 0 && <br />}{line}</span>))}
         </h1>
         <p className="mt-4 text-base text-slate-500 leading-relaxed font-medium max-w-xs mx-auto">
-          Acompanha a alimentação, as vacinas, os remédios e a proteção — e mostra o que vem a seguir, na hora certa.
+          {copy.subtitle}
         </p>
-        <div className="mx-auto mt-8 w-full max-w-xs">
-          <DownloadButton placement="hero" withWebLink />
+        <div className="mx-auto mt-5 w-full max-w-xs">
+          <DownloadButton placement="hero" withWebLink cue />
         </div>
         <p className="mt-2 text-xs text-slate-400 font-semibold">Grátis · leva menos de 1 minuto.</p>
       </section>
+
+      {/* O app por dentro — quem veio do anúncio vê antes de decidir */}
+      <AppPreview />
 
       {/* Como o PETMOL acompanha — benefício → como funciona */}
       <section className="px-5 pb-8 space-y-4">
@@ -138,7 +142,7 @@ export default function LandingPage() {
       <section className="px-5 pb-12 flex flex-col items-center text-center">
         <h2 className="text-2xl font-black text-slate-900">Baixe o PETMOL e comece agora.</h2>
         <p className="mt-2 text-sm text-slate-500 font-medium">Adicione o seu pet em menos de 1 minuto.</p>
-        <div className="mt-6 w-full max-w-xs"><DownloadButton placement="final" withWebLink /></div>
+        <div className="mt-6 w-full max-w-xs"><DownloadButton placement="final" withWebLink cue /></div>
         <Link href="/login" className="mt-3 text-sm text-slate-400 font-semibold">
           Já tenho conta
         </Link>
