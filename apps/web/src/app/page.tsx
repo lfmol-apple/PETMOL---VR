@@ -66,7 +66,7 @@ export default function LandingPage() {
         {/* Só no celular: o que o PETMOL faz, em texto normal acima do telefone */}
         <p className="text-[22px] font-extrabold leading-tight tracking-tight text-slate-800 md:hidden">Cuidamos do seu pet.</p>
         <div className="md:mt-3"><HeroPhones /></div>
-        <div className="mx-auto w-full max-w-sm md:mt-3">
+        <div className="mx-auto w-full max-w-sm pt-6 md:mt-3 md:pt-0">
           <DownloadCta placement="hero-botao" targetId="lojas-hero" />
           <div className="mt-2.5"><DownloadButton placement="hero" compact /></div>
           <p className="mt-2 text-[13px] font-semibold text-slate-700 md:text-xs md:text-slate-400">
