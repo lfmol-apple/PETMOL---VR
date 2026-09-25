@@ -4,10 +4,24 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { detectStorePlatform, type StorePlatform } from '@/lib/appStores';
+import { appStoreUrl, googlePlayUrl } from '@/lib/landingLinks';
+import { trackClick } from '@/lib/analytics/click';
+import { useLandingContext } from '@/hooks/useLandingContext';
 
-// Links oficiais informados — usados literalmente, sem parâmetro adicional.
-const APP_STORE_URL = 'https://apps.apple.com/app/id6809570555';
-const GOOGLE_PLAY_URL = 'https://play.google.com/store/apps/details?id=br.com.petmol.app&pcampaignid=web_share';
+const BAR_DISMISS_KEY = 'petmol_landing_bar_dismissed';
+
+/** Mede o clique no selo (sem dados pessoais) — nunca atrasa nem bloqueia a abertura da loja. */
+function useStoreClick(placement: string, store: 'apple' | 'google') {
+  const ctx = useLandingContext();
+  return () => {
+    void trackClick({
+      source: 'landing',
+      cta_type: 'store_download_click',
+      target: store,
+      metadata: { placement, variant: ctx.variant, iab: ctx.iab, fbclid: ctx.hasFbclid, ...ctx.campaign },
+    });
+  };
+}
 
 function usePlatform(): StorePlatform {
   const [p, setP] = useState<StorePlatform>('desktop');
@@ -18,8 +32,10 @@ function usePlatform(): StorePlatform {
 }
 
 function AppStoreBadge({ placement, heightPx }: { placement: string; heightPx: number }) {
+  const ctx = useLandingContext();
+  const onClick = useStoreClick(placement, 'apple');
   return (
-    <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" aria-label="Baixar na App Store"
+    <a href={appStoreUrl(placement, ctx.campaign)} onClick={onClick} target="_blank" rel="noopener noreferrer" aria-label="Baixar na App Store"
       className="inline-block active:scale-[0.97] transition-transform" data-placement={placement} data-store="apple">
       <Image src="/landing/apple-badge-ptbr.svg" alt="Baixar na App Store" width={Math.round(heightPx * 2.99)} height={heightPx} style={{ height: heightPx, width: 'auto' }} />
     </a>
@@ -27,8 +43,10 @@ function AppStoreBadge({ placement, heightPx }: { placement: string; heightPx: n
 }
 
 function GooglePlayBadge({ placement, heightPx }: { placement: string; heightPx: number }) {
+  const ctx = useLandingContext();
+  const onClick = useStoreClick(placement, 'google');
   return (
-    <a href={GOOGLE_PLAY_URL} target="_blank" rel="noopener noreferrer" aria-label="Disponível no Google Play"
+    <a href={googlePlayUrl(placement, ctx.campaign)} onClick={onClick} target="_blank" rel="noopener noreferrer" aria-label="Disponível no Google Play"
       className="inline-block active:scale-[0.97] transition-transform" data-placement={placement} data-store="google">
       <Image src="/landing/google-play-badge-ptbr.png" alt="Disponível no Google Play" width={Math.round(heightPx * 2.584)} height={heightPx} style={{ height: heightPx, width: 'auto' }} />
     </a>
@@ -73,21 +91,37 @@ export function DownloadButton({ placement, withWebLink = false }: { placement: 
   );
 }
 
-/** Barra fixa no celular: aparece depois de rolar, com o selo da loja do aparelho. */
+/**
+ * Barra fixa no celular: aparece depois de rolar um pouco, com o benefício e o selo da loja do
+ * aparelho. O visitante pode dispensar (lembrado nesta sessão). Sobe junto do rodapé, sem cobrir o selo.
+ */
 export function StickyDownloadBar() {
   const platform = usePlatform();
   const [show, setShow] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   useEffect(() => {
-    const onScroll = () => setShow(window.scrollY > 500);
+    try { setDismissed(sessionStorage.getItem(BAR_DISMISS_KEY) === '1'); } catch { /* sem storage */ }
+    const onScroll = () => setShow(window.scrollY > Math.max(400, window.innerHeight * 0.6));
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
-  if (!show || platform === 'desktop') return null;
+  if (!show || dismissed || platform === 'desktop') return null;
+  const dismiss = () => {
+    setDismissed(true);
+    try { sessionStorage.setItem(BAR_DISMISS_KEY, '1'); } catch { /* sem storage */ }
+  };
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-100 bg-white/95 px-4 pt-3 flex justify-center backdrop-blur md:hidden"
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-100 bg-white/95 px-4 pt-3 backdrop-blur md:hidden"
       style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
-      {platform === 'android' ? <GooglePlayBadge placement="barra" heightPx={44} /> : <AppStoreBadge placement="barra" heightPx={44} />}
+      <button type="button" onClick={dismiss} aria-label="Fechar"
+        className="absolute right-2 top-1 flex h-8 w-8 items-center justify-center text-lg leading-none text-slate-400">×</button>
+      <div className="flex items-center justify-center gap-4">
+        <p className="text-[13px] font-black leading-tight text-slate-800">
+          Grátis<br /><span className="font-semibold text-slate-500">sem anúncios</span>
+        </p>
+        {platform === 'android' ? <GooglePlayBadge placement="barra" heightPx={44} /> : <AppStoreBadge placement="barra" heightPx={44} />}
+      </div>
     </div>
   );
 }
