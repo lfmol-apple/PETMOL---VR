@@ -1,16 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Search } from 'lucide-react';
+import { ScanBarcode, Search } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { trackClick } from '@/lib/analytics/click';
 import { identifyProductByBarcode, type ScannedProduct } from '@/lib/productScanner';
 import { formatBRLPrice, fetchCommerceOffers, fetchPetzDirectLink, merchantLabel, offerPriceLabel, searchAwinCatalog, type AwinSearchResult, type CommerceOffer, type PetzDirectLink } from './productPricing';
 
-// Carregado só quando o scanner abre: esse arquivo puxa a biblioteca de código de barras (ZXing,
-// ~110 kB gzip) e antes ia junto no carregamento inicial da Home, mesmo pra quem nunca escaneia.
-const ProductDetectionSheetGold = dynamic(
-  () => import('@/components/ProductDetectionSheet').then((m) => ({ default: m.ProductDetectionSheetGold })),
+// Carregado só quando o leitor abre (ZXing é pesado e a maioria das buscas é por texto).
+const StoreBarcodeScanner = dynamic(
+  () => import('./StoreBarcodeScanner').then((m) => ({ default: m.StoreBarcodeScanner })),
   { ssr: false },
 );
 import {
@@ -36,6 +35,8 @@ function MerchantLogo({ merchant }: { merchant: string }) {
 }
 
 interface AffiliateCatalogSearchProps {
+  /** Abre o leitor de código de barras assim que a busca aparece (atalho vindo da Loja). */
+  autoOpenScanner?: boolean;
   petId: string;
   initialQuery?: string;
   merchantFilter?: HomeShoppingPartnerId;
@@ -71,7 +72,7 @@ type BarcodeLookupState = 'idle' | 'loading' | 'done' | 'not_found' | 'error';
 // URL web final do produto com `awc`; isso evita o OneLink abrir a home/app
 // da Cobasi em vez do produto.
 
-export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilter, autoFocus = false }: AffiliateCatalogSearchProps) {
+export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilter, autoFocus = false, autoOpenScanner = false }: AffiliateCatalogSearchProps) {
   const [query, setQuery] = useState(initialQuery);
   // Escanear/código de barras: ocultos por enquanto (feedback do tutor —
   // deixar só a busca por texto, maior e mais direta). Estado e handlers
@@ -80,7 +81,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
   const [barcodeState, setBarcodeState] = useState<BarcodeLookupState>('idle');
   const [barcodeProduct, setBarcodeProduct] = useState<ScannedProduct | null>(null);
   const [barcodeOffers, setBarcodeOffers] = useState<ResolvedOffers | null>(null);
-  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(autoOpenScanner);
   const [results, setResults] = useState<AwinSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [failedImageGtins, setFailedImageGtins] = useState<Set<string>>(new Set());
@@ -217,7 +218,8 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
       setBarcodeProduct(product.found ? product : { ...product, barcode: gtin });
       setBarcodeOffers(offers);
       setBarcodeState(product.found || offers.length > 0 ? 'done' : 'not_found');
-      if (product.found && product.name) {
+      // Com oferta o card do código já é o resultado; sem oferta, preenche o nome pra busca por texto tentar.
+      if (product.found && product.name && offers.length === 0) {
         setQuery(product.name);
       }
       void trackClick({
@@ -253,7 +255,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
         {barcodeState === 'loading' && <p className="mt-3 text-[12px] text-gray-400">Buscando produto e ofertas...</p>}
         {barcodeState === 'error' && <p className="mt-3 text-[12px] text-amber-700">Não foi possível consultar esse código agora.</p>}
         {barcodeState === 'not_found' && (
-          <p className="mt-3 text-[12px] text-gray-500">Ainda não encontramos esse código nas bases disponíveis.</p>
+          <p className="mt-3 text-[13px] text-gray-500">Ainda não encontramos esse código nas lojas. Tente buscar pelo nome do produto.</p>
         )}
 
         {offers.length > 0 && (
@@ -266,13 +268,13 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
                   target="_blank"
                   rel="noopener"
                   onClick={() => trackBuyClick(barcode, offer)}
-                  className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 transition-all active:scale-[0.98]"
+                  className="flex w-full items-center justify-between gap-3 rounded-xl bg-emerald-600 px-4 py-3 text-white shadow-sm transition-all active:scale-[0.98]"
                 >
-                  <span className="flex items-center gap-1.5 min-w-0">
-                    <MerchantLogo merchant={offer.merchant} />
-                    <span className="text-[12px] font-bold text-gray-800 truncate">{merchantLabel(offer.merchant)}</span>
+                  <span className="flex min-w-0 flex-col">
+                    <span className="text-[15px] font-black">Comprar na {merchantLabel(offer.merchant)}</span>
+                    <span className="text-[13px] font-semibold text-emerald-50">{offerPriceLabel(offer)}</span>
                   </span>
-                  <span className="text-[12px] font-bold text-emerald-700 flex-shrink-0">{offerPriceLabel(offer)}</span>
+                  <span className="text-lg font-black" aria-hidden="true">›</span>
                 </a>
               ) : null
             ))}
@@ -284,8 +286,6 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
 
   return (
     <div>
-      {/* Escanear código / código de barras manual: ocultos por enquanto
-          (feedback do tutor) — só a busca por texto, maior e direta. */}
       {/* Campo de busca — fica SEMPRE no topo (sticky) e por cima dos
           resultados enquanto o tutor digita: -mx-5/px-5 sangra até as bordas
           da sheet, blur + hairline dão a separação premium. */}
@@ -298,7 +298,7 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
             ref={searchInputRef}
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); if (barcodeState !== 'idle') setBarcodeState('idle'); }}
             enterKeyHint="search"
             autoFocus={autoFocus}
             onFocus={(e) => {
@@ -335,29 +335,37 @@ export function AffiliateCatalogSearch({ petId, initialQuery = '', merchantFilte
             style={{ WebkitTapHighlightColor: 'transparent', outline: 'none' }}
           />
         </label>
+        {/* Leitor de código de barras: para quem está numa loja e não acha o produto digitando */}
+        <button
+          type="button"
+          onClick={() => {
+            void trackClick({ source: 'home', cta_type: 'shop_barcode_scan_open', pet_id: petId });
+            setScannerOpen(true);
+          }}
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[15px] font-black text-emerald-800 transition-all active:scale-[0.98]"
+        >
+          <ScanBarcode className="h-5 w-5" strokeWidth={2.4} />
+          Ler código de barras
+        </button>
       </div>
 
       {scannerOpen && (
-        <ProductDetectionSheetGold
-          petId={petId}
-          defaultMode="scan"
+        <StoreBarcodeScanner
           onClose={() => setScannerOpen(false)}
-          onProductConfirmed={(product) => {
+          onDetected={(code) => {
             setScannerOpen(false);
-            if (product.barcode) {
-              void resolveBarcode(product.barcode);
-            } else if (product.name) {
-              setQuery(product.name);
-            }
+            void resolveBarcode(code);
           }}
         />
       )}
+
+      {renderOffersForBarcode()}
 
       {loading && (
         <p className="text-[12px] text-gray-400 mt-2 px-1">Buscando...</p>
       )}
 
-      {!loading && trimmedQuery.length >= 2 && results.length === 0 && (
+      {!loading && trimmedQuery.length >= 2 && results.length === 0 && barcodeState === 'idle' && (
         <p className="text-[12px] text-gray-400 mt-2 px-1">Nenhum produto encontrado para &quot;{query.trim()}&quot;.</p>
       )}
 
