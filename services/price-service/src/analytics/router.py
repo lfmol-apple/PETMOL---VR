@@ -544,6 +544,11 @@ def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) ->
         row.city = (geo.get("city") or None)
         row.region = (geo.get("region") or None)
         row.country = (geo.get("country") or None)
+        # Mountain View = robôs do Google (revisão da Play): não é download.
+        from ..analytics.install_models import is_non_download_location
+        if is_non_download_location(row.city, row.region, row.country):
+            row.platform = "web"
+            platform = "web"
         db.commit()
 
         settings = get_settings()

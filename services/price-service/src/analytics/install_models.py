@@ -16,6 +16,18 @@ from ..db import Base
 DOWNLOAD_PLATFORMS = ("ios", "android", "pwa")
 
 
+def is_non_download_location(city, region=None, country=None) -> bool:
+    """Mountain View (Califórnia) é a sede do Google: as aberturas dali são
+    robôs/aparelhos de teste da revisão da Play Store, não pessoas baixando o
+    app. Reclassificadas como acesso (`web`) — nunca contam como download."""
+    if (city or "").strip().lower() != "mountain view":
+        return False
+    place = f"{region or ''} {country or ''}".strip().lower()
+    if not place:
+        return True
+    return any(k in place for k in ("calif", "estados unidos", "united states", "usa"))
+
+
 class AppInstall(Base):
     """Uma linha por 1ª abertura do PETMOL num dispositivo.
 

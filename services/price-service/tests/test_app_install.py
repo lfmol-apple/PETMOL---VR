@@ -355,3 +355,31 @@ def test_app_install_push_secondary_recipient_without_account_is_noop(monkeypatc
 
     _enrich_and_notify_install(row_id, None, "android")
     assert len(sent) == 1
+
+
+def test_mountain_view_is_never_a_download():
+    from src.analytics.install_models import is_non_download_location
+
+    assert is_non_download_location("Mountain View", "Califórnia", "Estados Unidos")
+    assert is_non_download_location("mountain view", "California", "United States")
+    assert not is_non_download_location("São Paulo", "São Paulo", "Brasil")
+    assert not is_non_download_location("Mountain View", "Arkansas", "Brasil")
+    assert not is_non_download_location(None)
+
+
+def test_enrichment_reclassifies_mountain_view_as_web(monkeypatch):
+    from src.analytics import router as r
+    from src.analytics.install_models import AppInstall
+    from src.db import SessionLocal
+    import src.geoip as geoip
+
+    monkeypatch.setattr(geoip, "geoip_lookup", lambda ip: {
+        "city": "Mountain View", "region": "Califórnia", "country": "Estados Unidos"})
+    with SessionLocal() as db:
+        row = AppInstall(platform="android", ip_hash="mvtest")
+        db.add(row)
+        db.commit()
+        rid = row.id
+    r._enrich_and_notify_install(rid, "8.8.4.4", "android")
+    with SessionLocal() as db:
+        assert db.query(AppInstall).get(rid).platform == "web"
