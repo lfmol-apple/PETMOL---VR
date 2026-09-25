@@ -379,6 +379,16 @@ def run_pg_migrations(engine: Engine) -> None:
 
         _migrate_push_subscriptions_from_json(conn)
 
+        # Mountain View (sede do Google) = robôs da revisão da Play, não é
+        # download: reclassifica os já registrados como acesso. Idempotente.
+        conn.execute(text(
+            "UPDATE app_installs SET platform = 'web' "
+            "WHERE platform IN ('ios', 'android', 'pwa') "
+            "AND LOWER(city) = 'mountain view' "
+            "AND (region ILIKE 'calif%' OR country ILIKE 'estados unidos' "
+            "     OR country ILIKE 'united states' OR region IS NULL)"
+        ))
+
         # analytics_events: distinguish monetized vs unmonetized clicks (Aug 2026)
         _pg_add_column_if_missing(conn, "analytics_events", "link_type", "VARCHAR(32)")
 
