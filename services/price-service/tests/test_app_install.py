@@ -261,10 +261,10 @@ def test_app_install_push_title_distinguishes_acesso_from_download(monkeypatch):
     assert titles["android"] == "📲 Novo download do PETMOL"
 
 
-def test_app_install_push_also_reaches_secondary_recipient_when_account_exists(monkeypatch):
-    """settings.secondary_install_push_email recebe o MESMO push do admin
-    (mesmo título/corpo) — mas com deep link pra /home, nunca /admin/dashboard,
-    já que essa conta não é admin."""
+def test_app_install_download_also_emails_secondary_recipient(monkeypatch):
+    """settings.secondary_download_email recebe um E-MAIL (não push, não
+    exige conta no PETMOL) em todo DOWNLOAD de verdade — mesmo
+    título/corpo do push que o admin recebe."""
     from uuid import uuid4
 
     from src.config import get_settings
@@ -273,23 +273,23 @@ def test_app_install_push_also_reaches_secondary_recipient_when_account_exists(m
 
     settings = get_settings()
     admin_email = settings.admin_master_email.lower()
-    secondary_email = "contato+teste-push@vepiconsorcios.com.br"
-    monkeypatch.setattr(settings, "secondary_install_push_email", secondary_email, raising=False)
+    secondary_email = "contato+teste@vepiconsorcios.com.br"
+    monkeypatch.setattr(settings, "secondary_download_email", secondary_email, raising=False)
 
     db = SessionLocal()
     try:
         if not db.query(User).filter(User.email == admin_email).first():
             db.add(User(email=admin_email, password_hash="x", name="Admin"))
-        if not db.query(User).filter(User.email == secondary_email).first():
-            db.add(User(email=secondary_email, password_hash="x", name="Vepi Consorcios"))
-        db.commit()
+            db.commit()
     finally:
         db.close()
 
-    sent_by_recipient = []
+    pushes = []
+    monkeypatch.setattr("src.notifications.push_to_user", lambda uid, payload: pushes.append(payload))
+    emails = []
     monkeypatch.setattr(
-        "src.notifications.push_to_user",
-        lambda uid, payload: sent_by_recipient.append((uid, payload)),
+        "src.mailer.send_mail",
+        lambda *, to, subject, body_text, **kw: emails.append({"to": to, "subject": subject, "body": body_text}) or True,
     )
 
     from src.analytics.router import _enrich_and_notify_install
@@ -306,18 +306,19 @@ def test_app_install_push_also_reaches_secondary_recipient_when_account_exists(m
 
     _enrich_and_notify_install(row_id, None, "ios")
 
-    assert len(sent_by_recipient) == 2
-    (admin_uid, admin_payload), (secondary_uid, secondary_payload) = sent_by_recipient
-    assert admin_uid != secondary_uid
-    assert admin_payload["title"] == secondary_payload["title"] == "📲 Novo download do PETMOL"
-    assert admin_payload["body"] == secondary_payload["body"]
-    assert admin_payload["data"]["url"] == "/admin/dashboard"
-    assert secondary_payload["data"]["url"] == "/home"
+    # Só o admin recebe push (o segundo destinatário NÃO recebe mais push).
+    assert len(pushes) == 1
+    assert pushes[0]["title"] == "📲 Novo download do PETMOL"
+
+    assert len(emails) == 1
+    assert emails[0]["to"] == secondary_email
+    assert emails[0]["subject"] == "📲 Novo download do PETMOL"
+    assert emails[0]["body"] == pushes[0]["body"] + "\n\nCidade/local vem do IP (aproximado), sem rua/bairro."
 
 
-def test_app_install_push_secondary_recipient_without_account_is_noop(monkeypatch):
-    """E-mail configurado mas sem conta cadastrada ainda: só o push do admin
-    sai, sem erro nenhum (best-effort, nunca derruba o fluxo)."""
+def test_app_install_web_access_never_emails_secondary_recipient(monkeypatch):
+    """web = só abriu o site, não é download — o segundo destinatário só
+    quer saber de download de verdade, não de todo acesso."""
     from uuid import uuid4
 
     from src.config import get_settings
@@ -326,9 +327,7 @@ def test_app_install_push_secondary_recipient_without_account_is_noop(monkeypatc
 
     settings = get_settings()
     admin_email = settings.admin_master_email.lower()
-    monkeypatch.setattr(
-        settings, "secondary_install_push_email", "ninguem-com-essa-conta@example.com", raising=False
-    )
+    monkeypatch.setattr(settings, "secondary_download_email", "contato@vepiconsorcios.com.br", raising=False)
 
     db = SessionLocal()
     try:
@@ -338,8 +337,49 @@ def test_app_install_push_secondary_recipient_without_account_is_noop(monkeypatc
     finally:
         db.close()
 
-    sent = []
-    monkeypatch.setattr("src.notifications.push_to_user", lambda uid, payload: sent.append(payload))
+    monkeypatch.setattr("src.notifications.push_to_user", lambda uid, payload: 1)
+    emails = []
+    monkeypatch.setattr("src.mailer.send_mail", lambda **kw: emails.append(kw) or True)
+
+    from src.analytics.router import _enrich_and_notify_install
+    from src.analytics.install_models import AppInstall
+
+    db = SessionLocal()
+    try:
+        row = AppInstall(platform="web", ip_hash=f"t{uuid4().hex[:12]}")
+        db.add(row)
+        db.commit()
+        row_id = row.id
+    finally:
+        db.close()
+
+    _enrich_and_notify_install(row_id, None, "web")
+    assert emails == []
+
+
+def test_app_install_secondary_email_disabled_when_setting_empty(monkeypatch):
+    """Vazio desativa de vez — nenhum e-mail sai, sem erro."""
+    from uuid import uuid4
+
+    from src.config import get_settings
+    from src.db import SessionLocal
+    from src.user_auth.models import User
+
+    settings = get_settings()
+    admin_email = settings.admin_master_email.lower()
+    monkeypatch.setattr(settings, "secondary_download_email", "", raising=False)
+
+    db = SessionLocal()
+    try:
+        if not db.query(User).filter(User.email == admin_email).first():
+            db.add(User(email=admin_email, password_hash="x", name="Admin"))
+            db.commit()
+    finally:
+        db.close()
+
+    monkeypatch.setattr("src.notifications.push_to_user", lambda uid, payload: 1)
+    emails = []
+    monkeypatch.setattr("src.mailer.send_mail", lambda **kw: emails.append(kw) or True)
 
     from src.analytics.router import _enrich_and_notify_install
     from src.analytics.install_models import AppInstall
@@ -354,4 +394,4 @@ def test_app_install_push_secondary_recipient_without_account_is_noop(monkeypatc
         db.close()
 
     _enrich_and_notify_install(row_id, None, "android")
-    assert len(sent) == 1
+    assert emails == []
