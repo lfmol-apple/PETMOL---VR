@@ -107,10 +107,9 @@ export function AppPreview() {
 }
 
 /**
- * Celular do topo da landing: só a Home do app, parada. No celular, a faixa "Cuidamos do seu pet." fica por
- * cima dele (cobrindo a barra de status e o cabeçalho da captura, que só repetiriam a marca) e um toque abre
- * a tela ampliada, com zoom por pinça e o botão Baixar sempre visível. A largura acompanha a altura útil da
- * tela (svh) para o botão e os selos das lojas caberem na mesma tela, sem rolagem.
+ * Celular do topo da landing: só a Home do app, parada. No celular, um toque abre a tela ampliada, com zoom
+ * por pinça e o botão Baixar sempre visível. A largura acompanha a altura útil da tela (svh) para o botão e
+ * os selos das lojas caberem na mesma tela, sem rolagem.
  */
 export function HeroPhones() {
   const home = SCREENS[0];
@@ -128,13 +127,6 @@ export function HeroPhones() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={home.src} alt={home.alt} width={W} height={H} fetchPriority="high" decoding="async" className="block h-full w-full rounded-[1.5rem] object-cover" />
         </button>
-
-        {/* Só no celular: a frase que diz o que o PETMOL faz, por cima do telefone */}
-        <div className="pointer-events-none absolute inset-x-[-10px] top-[3.5%] rounded-2xl bg-gradient-to-b from-[#1a73ff] to-[#0056D2] px-2 py-2 text-center shadow-lg shadow-blue-900/40 ring-2 ring-white md:hidden">
-          <p className="text-[clamp(16px,5.4vw,24px)] font-black leading-[1.05] tracking-tight text-white">
-            Cuidamos<br />do seu pet.
-          </p>
-        </div>
 
         <span className="pointer-events-none absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-[#0056D2] shadow-md md:hidden" aria-hidden="true">
           <ZoomIn className="h-4 w-4" strokeWidth={2.6} />
