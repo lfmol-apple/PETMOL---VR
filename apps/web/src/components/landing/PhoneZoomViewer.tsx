@@ -13,8 +13,8 @@ const MAX = 4;
  * O zoom é feito aqui dentro (não no navegador), então o botão "Baixar grátis" fica FIXO embaixo o tempo
  * todo — nunca sai da tela, não importa o quanto a pessoa amplie.
  */
-export function PhoneZoomViewer({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
-  const [t, setT] = useState({ s: 1, x: 0, y: 0 });
+export function PhoneZoomViewer({ src, alt, onClose, initialScale = 1 }: { src: string; alt: string; onClose: () => void; initialScale?: number }) {
+  const [t, setT] = useState({ s: initialScale, x: 0, y: 0 });
   const tRef = useRef(t);
   tRef.current = t;
   const areaRef = useRef<HTMLDivElement>(null);
