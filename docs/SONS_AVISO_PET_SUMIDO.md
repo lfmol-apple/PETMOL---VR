@@ -22,3 +22,8 @@ Dois sons de escolha do dono. **O som do PETMOL está LIGADO por padrão no serv
 - **Latido (`latido`)**: recorte de "Ladrido perro.ogg", Wikimedia Commons, licença **CC0** (domínio público, sem exigir atribuição).
 - Os sons **não** copiam os avisos do Mercado Livre nem da Shopee (marcas registradas).
 - Todos normalizados em ≈ -14 LUFS, pico ≤ -1,5 dB, mono 44,1 kHz, 16 bits.
+
+## Aviso de download/acesso (só o dono e 2 contas) — som próprio
+Quem recebe o push "📲 Novo download do PETMOL" / "🌐 Novo acesso ao PETMOL" (o admin, `contato@vepiconsorcios.com.br` e `gerenciamento@petmol.com.br`) ouve um som **diferente de todas as outras notificações**: `download.caf` (iOS) / canal `petmol_som_download` (Android). Estilo videogame antigo ("bandeirada"), 1,25 s, criado do zero (original, sem samples; não copia nenhum jogo).
+- Servidor (PR #563): `INSTALL_PUSH_SOUND=download` (padrão) usa esse som só nos pushes com tag `petmol-install`; `INSTALL_PUSH_SOUND=same` faz esses pushes tocarem o mesmo som das demais notificações. Só chega em quem tem a versão do app que traz o arquivo.
+- Os demais tutores nunca recebem esse push.
