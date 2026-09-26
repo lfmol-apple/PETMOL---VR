@@ -9,7 +9,6 @@ type PublicMissingPet = {
   pet_name: string;
   species: string | null;
   breed: string | null;
-  characteristics: string | null;
   region: string | null;
   missing_date: string | null;
   missing_time: string | null;
@@ -121,12 +120,6 @@ export default async function PetPerdidoPage({ params }: PetPerdidoPageProps) {
                 <dt className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Desapareceu em</dt>
                 <dd className="mt-1 text-lg font-bold">{formatDate(pet.missing_date)}{pet.missing_time ? ` às ${pet.missing_time}` : ''}</dd>
               </div>
-              {pet.characteristics && (
-                <div>
-                  <dt className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Características</dt>
-                  <dd className="mt-1 leading-7 text-slate-700">{pet.characteristics}</dd>
-                </div>
-              )}
             </dl>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
