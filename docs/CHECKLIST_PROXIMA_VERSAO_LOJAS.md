@@ -82,7 +82,7 @@ Atualizado em 26/09/2026. Legenda: ✅ pronto · 🟡 em andamento · ⬜ a faze
 
 ## I. Produto
 - **Expansão para os EUA**: 3 idiomas decididos (pt-BR, en, es); falta a análise avançada e a auditoria de código morto.
-- **Adiados de propósito (não cobrar):** afiliados (aguardam o CNPJ), redesenho da Caderneta, selo de compra no sininho, Plano de Saúde (Petlove desativado; PR #173 aberto).
+- **Adiados de propósito (não cobrar):** afiliados (aguardam o CNPJ), redesenho da Caderneta, selo de compra no sininho, **Plano de Saúde — guardado, desativado, para ativar quando quisermos** (decisão do dono, 26/09/2026). Já está no código (PR #173 mergeado): na Home aparece o bloco neutro "Plano de saúde para o {pet} — Em breve", sem marca, sem link e sem cupom. Para ativar (depois da aprovação da Petlove): `NEXT_PUBLIC_PETLOVE_SAUDE_ENABLED=true` + `..._AFFILIATE_URL` (+ cupom, se houver) no momento do `next build`, e criar a rota `/go/petlove-saude` — passo a passo em `docs/HEALTH_PLAN_PETLOVE.md`. Fora dos screenshots.
 
 ## J. Cuidados
 - O app carrega o site de produção ao vivo: **todo deploy vale na hora também para quem está na versão antiga**. O site checa se o recurso nativo existe e, se não, segue como hoje.
