@@ -541,6 +541,18 @@ def _is_real_download(platform: str) -> bool:
     return platform in DOWNLOAD_PLATFORMS
 
 
+def _extra_push_recipients(settings, admin_email: str) -> list:
+    """E-mails (minúsculos, sem repetir, sem o admin) que recebem o mesmo push de acesso/download."""
+    raw = ",".join(x for x in (settings.secondary_install_push_email, settings.extra_install_push_emails) if x)
+    out, seen = [], {(admin_email or "").strip().lower()}
+    for e in raw.split(","):
+        e = e.strip().lower()
+        if e and e not in seen:
+            seen.add(e)
+            out.append(e)
+    return out
+
+
 def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) -> None:
     """Geo-IP + push pro admin, fora do request."""
     from ..db import SessionLocal
@@ -584,17 +596,17 @@ def _enrich_and_notify_install(row_id: str, ip: Optional[str], platform: str) ->
             except Exception:
                 pass
 
-            # Mesmo push pro segundo destinatário (settings.secondary_install_push_email) —
-            # só recebe a notificação, nunca passa por get_current_admin nem ganha
-            # nenhum acesso de admin. Best-effort e isolado: nunca deve atrapalhar
-            # o push do admin master acima.
-            secondary_email = (settings.secondary_install_push_email or "").strip().lower()
-            if secondary_email:
+            # Mesmo push pros demais destinatários (secondary_install_push_email +
+            # extra_install_push_emails) — só recebem a notificação, nunca passam
+            # por get_current_admin nem ganham nenhum acesso de admin. Best-effort
+            # e isolado por destinatário: um falhar nunca atrapalha o push do
+            # admin master acima nem os outros.
+            for extra_email in _extra_push_recipients(settings, admin.email):
                 try:
-                    secondary = db.query(User).filter(func.lower(User.email) == secondary_email).first()
-                    if secondary and str(secondary.id) != str(admin.id):
+                    extra = db.query(User).filter(func.lower(User.email) == extra_email).first()
+                    if extra and str(extra.id) != str(admin.id):
                         from ..notifications import push_to_user
-                        push_to_user(str(secondary.id), {
+                        push_to_user(str(extra.id), {
                             "title": title,
                             "body": body,
                             "tag": "petmol-install",
