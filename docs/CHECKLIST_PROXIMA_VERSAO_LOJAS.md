@@ -33,3 +33,36 @@ Legenda: ✅ pronto · 🟡 em andamento · ⬜ a fazer · ❓ decisão do dono
 - Itens 4, 5 e 7 só devem ir ao ar **junto** com a versão da loja que os ativa (exceto o aviso animado, que é seguro).
 - Se a Apple ou o Google reprovar, a versão atual segue no ar.
 - Teste real necessário no iPhone e no Android: 2 e 3 (mover-se ≥ 500 m com o app fechado; ouvir cada som; modo silencioso).
+
+---
+
+# Outras pendências do projeto (levantadas em 26/09/2026)
+Vêm da memória de trabalho e do GitHub. Os marcados ⚠️ podem estar **desatualizados** — conferir antes de agir.
+
+## Ações suas (só você consegue)
+| Item | Detalhe |
+|---|---|
+| **Cadastrar `gerenciamento@petmol.com.br` no app** | Sem conta e sem notificações ativas nesse e-mail, o push de acesso/download do #560 não chega |
+| **Conta de revisor (Apple e Google)** | A senha usada na 1.0 foi um chute — trocar por uma dedicada |
+| **Testar Pet Sumido ponta a ponta (#557)** | Criar alerta de teste com foto, buscar em outro celular com foto diferente, enviar, encerrar o alerta |
+| **Decidir quando parar o teste A/B** | Depois, ler o resultado com o filtro "Introdução" do painel N |
+| **Testar no iPhone real o SDK da Meta (#561)** | IDFA + "Testar eventos" no Gerenciador de Eventos |
+| **Merge de #561 e #562** | Depois disso eu acompanho |
+
+## Infra e segurança
+- **Backup off-site**: `BACKUP_OFFSITE_CMD` existe, mas nenhum destino real está configurado.
+- **Push Android (FCM)**: servidor pronto, falta confirmar a entrega ponta a ponta. **Push iOS (APNs)**: falta confirmar num iPhone.
+- ⚠️ **Postgres** e ⚠️ **rotação de segredos** (`docs/SECURITY_ROTATION_REQUIRED.md`): estavam como pendência do dono no congelamento de 20/09.
+- **28 PRs antigos abertos** (#4 a #205, em maioria atualizações de dependência e correções velhas): revisar e fechar o que não vale mais. **#520** (push do vepiconsorcios → e-mail) está aberto e pode **conflitar com o #560** — decidir antes de mergear.
+
+## Landing e comercial
+- Painel N ("Comercial na entrada") mostra zero até entrarem visitantes reais; conferir em alguns dias.
+- Vídeo tem dois cabeçalhos de cache que se contradizem (`immutable` + `no-cache`); investigar de onde vem o segundo (baixa prioridade).
+- ⚠️ Comercial "Operação Fuga" (Pet Sumido): estado desconhecido (havia teto de 250 créditos e banco isolado).
+
+## Produto e catálogo
+- ⚠️ **Remover Shopee** (plano de 6 estágios) e ⚠️ **Petz** (lista dos 300 + reordenar painel): conferir o que já foi feito.
+- **Expansão para os EUA**: 3 idiomas decididos (pt-BR, en, es); falta a análise avançada e a auditoria de código morto.
+
+## Adiados de propósito (não cobrar)
+- Afiliados (aguarda ajuste do CNPJ), Redesenho da Caderneta, selo de compra no sininho, Plano de Saúde (Petlove desativado; PR #173 aberto).
