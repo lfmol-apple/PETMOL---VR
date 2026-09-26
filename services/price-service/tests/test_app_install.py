@@ -434,3 +434,13 @@ def test_app_install_push_reaches_every_configured_recipient(monkeypatch):
     assert len({p["title"] + p["body"] for _, p in sent}) == 1  # mesmo push para todos
     assert dict(sent)[uids[admin_email]]["data"]["url"] == "/admin/dashboard"
     assert dict(sent)[uids[mgmt]]["data"]["url"] == "/home"
+
+
+def test_gerenciamento_nao_recebe_os_avisos_de_download_por_padrao():
+    """gerenciamento@ é a conta de teste/revisão da Apple: fora da lista de quem recebe o push de acesso/download."""
+    from src.analytics.router import _extra_push_recipients
+    from src.config import Settings
+
+    s = Settings()
+    assert (s.extra_install_push_emails or "") == ""
+    assert "gerenciamento@petmol.com.br" not in _extra_push_recipients(s, s.admin_master_email)

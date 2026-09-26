@@ -22,7 +22,7 @@ Atualizado em 26/09/2026. Legenda: ✅ pronto · 🟡 em andamento · ⬜ a faze
 
 ## B. Já pronto
 - ✅ **SDK da Meta + ATT (PR #561)**: Facebook SDK 18.1.1, Info.plist, privacidade, versão 1.1 build 8. **Compilado e rodado no simulador (iPad Pro 13")**: o aviso de rastreamento aparece com o texto em pt-BR e a ativação vai ao App ID `976747438068822`. Achado e corrigido no teste: o app usa cenas e o pedido não rodava.
-- ✅ Comercial na landing em toda visita ao celular (#559), push de acesso/download também para `gerenciamento@petmol.com.br` (#560), Pet Sumido com semelhança baixa (#557) — todos no ar.
+- ✅ Comercial na landing em toda visita ao celular (#559), push de acesso/download também para uma conta extra (a `gerenciamento@` foi **retirada** em 26/09: é a conta de teste/revisão da Apple) (#560), Pet Sumido com semelhança baixa (#557) — todos no ar.
 - ✅ Dossiê de justificativa do segundo plano (PR #562).
 - ✅ Simulador do iPad pronto para os screenshots.
 
@@ -64,7 +64,7 @@ Atualizado em 26/09/2026. Legenda: ✅ pronto · 🟡 em andamento · ⬜ a faze
 - **Sons:** com o servidor ligado num valor de teste, ouvir cada opção; conferir modo silencioso e que o app antigo toca o som padrão.
 
 ## F. Ações suas fora da versão
-- **Cadastrar `gerenciamento@petmol.com.br` no app** e ativar notificações (sem isso o push do #560 não chega).
+- ~~Cadastrar `gerenciamento@` para receber os avisos de download~~ — **cancelado**: `gerenciamento@petmol.com.br` é a conta de teste e de revisão da Apple e não recebe esses avisos.
 - **Testar Pet Sumido ponta a ponta (#557)**: alerta de teste com foto; outro celular busca com foto diferente e envia; encerrar o alerta.
 - **Decidir quando parar o teste A/B** e ler o resultado com o filtro "Introdução" do painel N.
 - **Mergear #561 e #562** (eu acompanho o que for ao ar).

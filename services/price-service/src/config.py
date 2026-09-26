@@ -127,7 +127,9 @@ class Settings(BaseSettings):
     # limite acima. Separado do campo acima de propósito: se o servidor já define
     # SECONDARY_INSTALL_PUSH_EMAIL no env, este continua valendo. Env var:
     # EXTRA_INSTALL_PUSH_EMAILS.
-    extra_install_push_emails: Optional[str] = "gerenciamento@petmol.com.br"
+    # Vazio de propósito (decisão do dono, 26/09/2026): gerenciamento@petmol.com.br é a conta de TESTE e de
+    # REVISÃO da Apple e NÃO recebe estes avisos. O mecanismo continua: liste e-mails separados por vírgula.
+    extra_install_push_emails: Optional[str] = ""
 
     # Contagem de alcance da campanha (push "Novo download" e e-mail diário):
     # total = base (usuários reais que já existiam) + instalações registradas
