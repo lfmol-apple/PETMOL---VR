@@ -12,12 +12,22 @@ import { getAnalyticsContext } from '@/lib/analytics/session';
 import { getCampaignAttribution } from '@/lib/analytics/campaignAttribution';
 import { detectInAppBrowser, readLandingContext } from '@/lib/landingContext';
 import { EXPERIMENT_ID, getLandingVariant, type VariantInfo } from '@/lib/landingExperiment';
+import { getIntroMode, saoPauloTime } from '@/lib/landingIntro';
 
-export type LandingEventName = 'landing_view' | 'landing_download_click' | 'landing_store_redirect';
+export type LandingEventName =
+  | 'landing_view' | 'landing_download_click' | 'landing_store_redirect'
+  // Introdução em vídeo (mobile): funil próprio, nunca misturado com o teste A/B da landing.
+  | 'landing_intro_poster_view' | 'landing_intro_watch_click' | 'landing_intro_video_start'
+  | 'landing_intro_video_complete' | 'landing_intro_skip' | 'landing_intro_video_error';
 export interface LandingEventExtra {
   button?: 'cta' | 'badge';
   placement?: string;
   store?: 'apple' | 'google' | 'auto';
+  /** Introdução em vídeo: segundos assistidos, duração, som ligado e motivo de falha/saída. */
+  watched_s?: number;
+  duration_s?: number;
+  muted?: boolean;
+  reason?: string;
 }
 
 export function buildLandingEvent(name: LandingEventName, info: VariantInfo, extra: LandingEventExtra = {}) {
@@ -55,6 +65,12 @@ export function buildLandingEvent(name: LandingEventName, info: VariantInfo, ext
       ...(extra.button ? { button: extra.button } : {}),
       ...(extra.placement ? { placement: extra.placement } : {}),
       ...(extra.store ? { store: extra.store } : {}),
+      ...(typeof extra.watched_s === 'number' ? { watched_s: Math.round(extra.watched_s * 10) / 10 } : {}),
+      ...(typeof extra.duration_s === 'number' ? { duration_s: Math.round(extra.duration_s * 10) / 10 } : {}),
+      ...(typeof extra.muted === 'boolean' ? { muted: extra.muted } : {}),
+      ...(extra.reason ? { reason: extra.reason } : {}),
+      intro: getIntroMode(),
+      sp_time: saoPauloTime(),
       iab: detectInAppBrowser(navigator.userAgent || ''),
       fbclid: url.hasFbclid,
     },

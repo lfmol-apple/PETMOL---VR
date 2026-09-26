@@ -46,3 +46,15 @@ describe('middleware — isPublic não deve liberar rotas autenticadas por acide
     expect(isPublic('/rgpf')).toBe(false);
   });
 });
+
+describe('middleware — comercial da landing (mp4) para visitante sem login', () => {
+  it('o vídeo e o pôster passam direto, sem redirecionar para /login', async () => {
+    const { middleware } = await import('./middleware');
+    const { NextRequest } = await import('next/server');
+    for (const path of ['/landing/comercial/petmol-comercial-v1.mp4', '/landing/comercial/petmol-comercial-poster-v1.webp']) {
+      const res = middleware(new NextRequest(`https://www.petmol.com.br${path}`));
+      expect(res.headers.get('location'), path).toBeNull();
+      expect(res.status, path).toBe(200);
+    }
+  });
+});

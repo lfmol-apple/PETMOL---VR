@@ -150,6 +150,7 @@ def landing_ab_summary(
     source: Optional[str] = None,
     os: Optional[str] = None,
     instagram_only: bool = False,
+    intro: Optional[str] = None,
     experiment_id: str = EXPERIMENT_ID,
 ) -> dict[str, Any]:
     q = db.query(AnalyticsProductEvent).filter(AnalyticsProductEvent.event_name.in_(_EVENTS))
@@ -181,6 +182,9 @@ def landing_ab_summary(
         if os and (r.os or "unknown").lower() != os.lower():
             return False
         if instagram_only and not is_instagram(r, p):
+            return False
+        # Introdução em vídeo (mobile): eventos anteriores a ela não têm a propriedade → contam como "none".
+        if intro in ("shown", "none") and (p.get("intro") or "none") != intro:
             return False
         return True
 
@@ -272,7 +276,7 @@ def landing_ab_summary(
     return {
         "experiment_id": experiment_id,
         "period": {"since": since.isoformat() if since else None, "until": until.isoformat() if until else None},
-        "filters": {"campaign": campaign, "source": source, "os": os, "instagram_only": instagram_only},
+        "filters": {"campaign": campaign, "source": source, "os": os, "instagram_only": instagram_only, "intro": intro},
         "options": options,
         "variants": variants,
         "verdict": {"status": verdict, "leader": leader, "p_value": round(p_value, 4) if p_value is not None else None,

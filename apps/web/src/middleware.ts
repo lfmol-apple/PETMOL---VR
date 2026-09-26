@@ -73,7 +73,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/brand') ||
     pathname.startsWith('/uploads') ||
     pathname === '/sw.js' ||
-    pathname.match(/\.(ico|svg|png|jpg|jpeg|webp|webmanifest|json|txt|xml)$/)
+    // mp4: o comercial da landing (visitante sem login) — sem isto o vídeo redirecionava para /login
+    pathname.match(/\.(ico|svg|png|jpg|jpeg|webp|webmanifest|json|txt|xml|mp4)$/)
   ) {
     return NextResponse.next();
   }
