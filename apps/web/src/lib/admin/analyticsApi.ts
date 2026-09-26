@@ -257,6 +257,8 @@ export interface LandingIntroDl { clicks: number; clickers: number; apple: numbe
 export interface LandingIntroResponse {
   period: { since: string | null; until: string | null };
   filters: { campaign: string | null; source: string | null; os: string | null; instagram_only: boolean };
+  /** Um funil por comercial (Pet Sumido / ração); evento sem o campo conta como ração. */
+  by_commercial: { id: string; label: string; poster_visitors: number; watch_visitors: number; start_visitors: number; complete_visitors: number; skip_visitors: number; clickers: number; watch_rate: number | null; complete_rate: number | null; conversion: number | null }[];
   funnel: {
     poster_visitors: number; watch_visitors: number; start_visitors: number; complete_visitors: number; skip_visitors: number;
     watch_rate: number | null; start_rate: number | null; complete_rate: number | null; skip_rate: number | null; started_with_sound: number;

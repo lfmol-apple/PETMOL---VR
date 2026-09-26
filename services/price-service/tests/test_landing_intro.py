@@ -127,3 +127,27 @@ def test_ab_panel_can_split_by_intro_and_old_events_count_as_without_intro(clien
 
 def test_auth_required(client):
     assert client.get("/v1/admin/analytics/landing-intro").status_code in (401, 403)
+
+
+def test_by_commercial_separa_os_dois_filmes_e_conta_evento_antigo_como_racao(client):
+    """Revezamento por dia: cada comercial tem o próprio funil; sem `commercial` (antes do revezamento) = ração."""
+    for n in ("landing_intro_poster_view", "landing_intro_watch_click", "landing_intro_video_start", "landing_intro_video_complete"):
+        _ev(client, n, "ps1", props={"commercial": "pet-sumido"})
+    _ev(client, "landing_download_click", "ps1", props={"commercial": "pet-sumido", "placement": "hero-botao", "store": "apple"})
+    _ev(client, "landing_intro_poster_view", "ps2", props={"commercial": "pet-sumido"})
+    _ev(client, "landing_intro_skip", "ps2", props={"commercial": "pet-sumido", "reason": "poster"})
+    _ev(client, "landing_intro_poster_view", "rc1", props={"commercial": "racao"})
+    _ev(client, "landing_intro_poster_view", "old1")                       # antigo: sem o campo
+    _ev(client, "landing_intro_poster_view", "prev", props={"commercial": "pet-sumido", "preview": True})  # teste: ignorado
+
+    d = _s(client)
+    m = {c["id"]: c for c in d["by_commercial"]}
+    assert [c["id"] for c in d["by_commercial"]] == ["pet-sumido", "racao"]
+    ps = m["pet-sumido"]
+    assert (ps["poster_visitors"], ps["watch_visitors"], ps["start_visitors"], ps["complete_visitors"]) == (2, 1, 1, 1)
+    assert ps["skip_visitors"] == 1 and ps["clickers"] == 1
+    assert ps["watch_rate"] == 0.5 and ps["complete_rate"] == 1.0 and ps["conversion"] == 0.5
+    rc = m["racao"]
+    assert rc["poster_visitors"] == 2 and rc["watch_visitors"] == 0 and rc["clickers"] == 0   # rc1 + old1 (legado)
+    assert rc["watch_rate"] == 0.0 and rc["complete_rate"] is None
+    assert d["funnel"]["poster_visitors"] == ps["poster_visitors"] + rc["poster_visitors"]      # os dois somam o total

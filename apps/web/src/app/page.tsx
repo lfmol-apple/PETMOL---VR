@@ -13,7 +13,7 @@ import { LANDING_COPY, readLandingContext } from '@/lib/landingContext';
 import { getLandingVariant, VARIANT_HAS_IMAGE, type VariantInfo } from '@/lib/landingExperiment';
 import { trackLandingEvent } from '@/lib/landingEvents';
 import { LandingIntro } from '@/components/landing/LandingIntro';
-import { decideIntro, isMobileVisitor, setIntroMode, wasIntroSeen } from '@/lib/landingIntro';
+import { decideIntro, isMobileVisitor, pickCommercial, setIntroMode, wasIntroSeen, type Commercial } from '@/lib/landingIntro';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -31,7 +31,7 @@ export default function LandingPage() {
   const viewSent = useRef(false);
   // Introdução em vídeo (só celular): decidida no mesmo instante em que a landing é liberada, então nunca
   // aparece a landing e depois a introdução por cima.
-  const [intro, setIntro] = useState<{ show: boolean; preview: boolean }>({ show: false, preview: false });
+  const [intro, setIntro] = useState<{ show: boolean; preview: boolean; commercial: Commercial | null }>({ show: false, preview: false, commercial: null });
   const [introDone, setIntroDone] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -45,8 +45,9 @@ export default function LandingPage() {
     } else {
       const ctx = readLandingContext(window.location.search, navigator.userAgent || '');
       const decision = decideIntro({ search: window.location.search, isMobile: isMobileVisitor(), isNative: false, seen: wasIntroSeen() });
-      setIntroMode(decision.show ? 'shown' : 'none');
-      setIntro({ show: decision.show, preview: decision.preview });
+      const commercial = decision.show ? pickCommercial(window.location.search, decision.preview) : null;
+      setIntroMode(decision.show ? 'shown' : 'none', commercial?.id ?? null);
+      setIntro({ show: decision.show, preview: decision.preview, commercial });
       // Mensagem por anúncio (?c=) é uma 3ª versão e a introdução em modo de teste também: ficam fora da estatística do A/B.
       const info = getLandingVariant({ search: window.location.search, forcePreview: ctx.variant !== 'default' || decision.preview });
       setExp(info);
@@ -62,7 +63,7 @@ export default function LandingPage() {
     setHideAmazonPicks(isNativeAppClient());
   }, []);
 
-  const introOpen = intro.show && !introDone;
+  const introOpen = intro.show && !!intro.commercial && !introDone;
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
@@ -226,7 +227,7 @@ export default function LandingPage() {
       </footer>
 
       </div>
-      {introOpen && <LandingIntro preview={intro.preview} onDone={() => setIntroDone(true)} />}
+      {introOpen && intro.commercial && <LandingIntro commercial={intro.commercial} preview={intro.preview} onDone={() => setIntroDone(true)} />}
     </div>
   );
 }

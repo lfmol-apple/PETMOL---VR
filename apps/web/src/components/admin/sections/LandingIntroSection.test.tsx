@@ -7,6 +7,10 @@ import { LandingIntroSection } from './LandingIntroSection';
 const dl = (o = {}) => ({ clicks: 0, clickers: 0, apple: 0, google: 0, auto: 0, ...o });
 const payload = (over = {}) => ({
   period: { since: null, until: null }, filters: { campaign: null, source: null, os: null, instagram_only: false },
+  by_commercial: [
+    { id: 'pet-sumido', label: 'Operação Fuga (Pet Sumido)', poster_visitors: 25, watch_visitors: 20, start_visitors: 19, complete_visitors: 10, skip_visitors: 5, clickers: 4, watch_rate: 0.8, complete_rate: 0.5263, conversion: 0.16 },
+    { id: 'racao', label: 'A última porção de ração', poster_visitors: 15, watch_visitors: 10, start_visitors: 9, complete_visitors: 4, skip_visitors: 5, clickers: 2, watch_rate: 0.6667, complete_rate: 0.4444, conversion: 0.1333 },
+  ],
   funnel: { poster_visitors: 40, watch_visitors: 30, start_visitors: 28, complete_visitors: 14, skip_visitors: 10, watch_rate: 0.75, start_rate: 0.9333, complete_rate: 0.5, skip_rate: 0.25, started_with_sound: 27 },
   skips: { at_poster: 8, during_video: 2, median_watched_s: 6.2 },
   errors: { total: 1, visitors: 1, by_reason: [{ reason: 'play_rejected', count: 1 }] },
@@ -29,13 +33,15 @@ describe('Comercial na entrada (mobile)', () => {
     expect(screen.getByText('Depois (na landing)')).toBeTruthy();
     expect(screen.getByText('play_rejected:')).toBeTruthy();
     expect(screen.getByText(/não um teste controlado/)).toBeTruthy();
+    expect(screen.getByText('Operação Fuga (Pet Sumido)')).toBeTruthy();
+    expect(screen.getByText('A última porção de ração')).toBeTruthy();
     expect(screen.getByText(/não é instalação/)).toBeTruthy();
   });
 
   it('sem dados: zeros e traços, nada inventado', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => payload({
       funnel: { poster_visitors: 0, watch_visitors: 0, start_visitors: 0, complete_visitors: 0, skip_visitors: 0, watch_rate: null, start_rate: null, complete_rate: null, skip_rate: null, started_with_sound: 0 },
-      errors: { total: 0, visitors: 0, by_reason: [] }, daily: [], without_intro: { visitors: 0, clickers: 0, conversion: null, note: 'x' },
+      by_commercial: [], errors: { total: 0, visitors: 0, by_reason: [] }, daily: [], without_intro: { visitors: 0, clickers: 0, conversion: null, note: 'x' },
       downloads: { during_video: dl(), after_video: dl(), clickers_total: 0, conversion_of_poster_viewers: null },
     }) } as Response)));
     render(<LandingIntroSection filter={{}} />);

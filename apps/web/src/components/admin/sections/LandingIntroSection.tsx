@@ -74,6 +74,23 @@ export function LandingIntroSection({ filter }: { filter: GlobalFilter }) {
             “Sem loja identificada” (clique no computador) não entra nas colunas App Store/Play.
           </p>
         </Panel>
+        <Panel title="Por comercial (um por dia, revezando)">
+          <table className="w-full text-[12px]">
+            <thead><tr className="border-b border-slate-200 text-left text-[11px] font-bold uppercase tracking-wide text-slate-400">
+              <th className="py-1.5">Comercial</th><th>Pôster</th><th>Assistiu</th><th>Concluiu</th><th>Baixar</th><th>Conversão</th></tr></thead>
+            <tbody>
+              {data.by_commercial.map((c) => (
+                <tr key={c.id} className="border-b border-slate-100 last:border-0">
+                  <td className="py-1.5 font-semibold text-slate-700">{c.label}</td>
+                  <td className="tabular-nums">{numberFmt(c.poster_visitors)}</td><td className="tabular-nums">{numberFmt(c.watch_visitors)}</td>
+                  <td className="tabular-nums">{numberFmt(c.complete_visitors)}</td><td className="tabular-nums">{numberFmt(c.clickers)}</td>
+                  <td className="tabular-nums">{pct(c.conversion)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-2 text-[11px] text-slate-500">Visitantes distintos que fizeram cada etapa. Dias diferentes têm públicos diferentes: use como referência, sem tirar conclusões definitivas.</p>
+        </Panel>
         <Panel title="Quem não viu a introdução (referência)">
           <div className="text-2xl font-black tabular-nums text-slate-800">{pct(data.without_intro.conversion)}</div>
           <p className="text-[12px] text-slate-500">{numberFmt(data.without_intro.clickers)} de {numberFmt(data.without_intro.visitors)} visitantes clicaram em baixar.</p>

@@ -7,7 +7,7 @@ import { appStoreUrl, googlePlayUrl } from '@/lib/landingLinks';
 import { readLandingContext } from '@/lib/landingContext';
 import { trackDownloadClick, trackLandingEvent } from '@/lib/landingEvents';
 import { getLandingVariant } from '@/lib/landingExperiment';
-import { INTRO_POSTER_SRC, INTRO_VIDEO_SRC, markIntroSeen } from '@/lib/landingIntro';
+import { markIntroSeen, type Commercial } from '@/lib/landingIntro';
 
 type Phase = 'poster' | 'loading' | 'playing' | 'leaving';
 
@@ -20,7 +20,7 @@ const FADE_MS = 320;
  * O som só começa com o toque (sem autoplay com áudio). Qualquer falha revela a landing na hora.
  * A landing já está montada por baixo — revelar não recarrega nada nem deixa tela preta.
  */
-export function LandingIntro({ preview, onDone }: { preview: boolean; onDone: () => void }) {
+export function LandingIntro({ commercial, preview, onDone }: { commercial: Commercial; preview: boolean; onDone: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [phase, setPhase] = useState<Phase>('poster');
   const [muted, setMuted] = useState(false);
@@ -153,8 +153,8 @@ export function LandingIntro({ preview, onDone }: { preview: boolean; onDone: ()
       {/* Vídeo: object-contain = nunca corta o rosto do cão, o pote nem as telas do app */}
       <video
         ref={videoRef}
-        src={INTRO_VIDEO_SRC}
-        poster={INTRO_POSTER_SRC}
+        src={commercial.videoSrc}
+        poster={commercial.posterSrc}
         preload="none"
         playsInline
         className="absolute inset-0 h-full w-full bg-black object-contain"
@@ -163,7 +163,7 @@ export function LandingIntro({ preview, onDone }: { preview: boolean; onDone: ()
       {/* Pôster (até o vídeo começar de fato) */}
       <div className={`absolute inset-0 ${fade} ${phase === 'playing' || phase === 'leaving' ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={INTRO_POSTER_SRC} alt="" width={720} height={1280} fetchPriority="high" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+        <img src={commercial.posterSrc} alt="" width={720} height={1280} fetchPriority="high" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-black/35" />
 
         <div className="absolute inset-x-0 top-0 px-5" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 14px)' }}>
@@ -174,10 +174,13 @@ export function LandingIntro({ preview, onDone }: { preview: boolean; onDone: ()
 
         {phase === 'poster' && (
           <div className="absolute inset-x-0 bottom-0 flex flex-col items-center px-6 text-center" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}>
-            <p className="text-[13px] font-semibold uppercase tracking-[0.18em] text-white/75">Um filme de 27 segundos</p>
+            <p className="text-[13px] font-semibold uppercase tracking-[0.18em] text-white/75">Um filme de {commercial.seconds} segundos</p>
             <h1 className="mt-1 text-[34px] font-black leading-[1.05] tracking-tight text-white" style={{ textShadow: '0 2px 18px rgba(0,0,0,.55)' }}>
-              A última porção<br />de ração.
+              {commercial.headline[0]}<br />{commercial.headline[1]}
             </h1>
+            {commercial.tagline && (
+              <p className="mt-1.5 text-[16px] font-semibold text-white/90" style={{ textShadow: '0 1px 12px rgba(0,0,0,.6)' }}>{commercial.tagline}</p>
+            )}
             <button
               type="button"
               onClick={watch}
