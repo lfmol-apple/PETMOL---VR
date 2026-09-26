@@ -9,12 +9,19 @@ from typing import Optional
 from ..config import get_settings
 
 STYLES = {"default", "petmol", "latido"}
-_IOS_FILES = {"petmol": "petmol.caf", "latido": "latido.caf"}
-_ANDROID_CHANNELS = {"petmol": "petmol_som_petmol", "latido": "petmol_som_latido"}
+_IOS_FILES = {"petmol": "petmol.caf", "latido": "latido.caf", "download": "download.caf"}
+_ANDROID_CHANNELS = {"petmol": "petmol_som_petmol", "latido": "petmol_som_latido", "download": "petmol_som_download"}
+_INSTALL_TAG = "petmol-install"
 
 
 def push_sound_style(payload: dict) -> str:
-    """'default' | 'petmol' | 'latido'. Valor inválido ou vazio no env vira 'default'."""
+    """'default' | 'petmol' | 'latido' | 'download'. Valor inválido ou vazio no env vira 'default'.
+
+    O aviso de novo download/acesso (tag petmol-install; só o dono e 2 contas recebem) tem som próprio
+    ('download'), a menos que INSTALL_PUSH_SOUND=same.
+    """
+    if str(payload.get("tag") or "") == _INSTALL_TAG and str(get_settings().install_push_sound or "download").strip().lower() != "same":
+        return "download"
     style = str(get_settings().push_sound_style or "default").strip().lower()
     return style if style in STYLES else "default"
 

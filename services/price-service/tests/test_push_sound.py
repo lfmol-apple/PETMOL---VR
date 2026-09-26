@@ -7,7 +7,8 @@ from src.notifications.push_sound import apns_sound, fcm_channel_id, push_sound_
 NEARBY = {"title": "t", "body": "b", "tag": "missing-pet-123"}
 RADIUS = {"title": "t", "body": "b", "tag": "missing-pet-radius-123"}
 EXPIRED = {"title": "t", "body": "b", "tag": "missing-pet-expired-123"}
-OTHER = {"title": "t", "body": "b", "tag": "petmol-install"}
+OTHER = {"title": "t", "body": "b", "tag": "petmol-reminder"}
+INSTALL = {"title": "t", "body": "b", "tag": "petmol-install"}
 
 
 def test_ligado_por_padrao_em_todas_as_notificacoes():
@@ -81,3 +82,21 @@ def test_payload_real_do_apns_e_do_fcm(monkeypatch):
     monkeypatch.setattr(get_settings(), "push_sound_style", "latido", raising=False)
     assert apns_sound_sent() == "latido.caf"
     assert fcm_android_sent() == {"notification": {"channel_id": "petmol_som_latido"}}
+
+
+def test_aviso_de_download_tem_som_proprio_so_para_ele(monkeypatch):
+    """O push de novo download/acesso (só o dono e 2 contas) toca o som de videogame; nada mais toca."""
+    assert apns_sound(INSTALL) == "download.caf" and fcm_channel_id(INSTALL) == "petmol_som_download"
+    for p in (NEARBY, RADIUS, EXPIRED, OTHER):
+        assert apns_sound(p) != "download.caf" and fcm_channel_id(p) != "petmol_som_download"
+    # independe do estilo geral: mesmo com o som geral no padrão do sistema, o de download continua próprio
+    monkeypatch.setattr(get_settings(), "push_sound_style", "default", raising=False)
+    assert apns_sound(INSTALL) == "download.caf" and apns_sound(OTHER) == "default"
+
+
+def test_voltar_o_aviso_de_download_ao_som_geral(monkeypatch):
+    """INSTALL_PUSH_SOUND=same: o push de download toca o mesmo som das demais notificações."""
+    monkeypatch.setattr(get_settings(), "install_push_sound", "same", raising=False)
+    assert apns_sound(INSTALL) == apns_sound(OTHER) == "petmol.caf"
+    monkeypatch.setattr(get_settings(), "push_sound_style", "default", raising=False)
+    assert apns_sound(INSTALL) == "default" and fcm_channel_id(INSTALL) is None

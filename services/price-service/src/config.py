@@ -196,6 +196,10 @@ class Settings(BaseSettings):
     # petmol_som_latido no Android); em versão antiga do app, cai sozinho no som padrão.
     # Ver notifications/push_sound.py e docs/SONS_AVISO_PET_SUMIDO.md.
     push_sound_style: str = "petmol"
+    # Som do aviso de "novo download/acesso" (push com tag petmol-install, que só o admin e 2 contas recebem):
+    # "download" (padrão) = som próprio, diferente de todos os outros; "same" = toca o mesmo som das demais
+    # notificações (PUSH_SOUND_STYLE). Env: INSTALL_PUSH_SOUND. Só toca no app que traz o arquivo download.caf.
+    install_push_sound: str = "download"
     apns_use_sandbox: bool = False  # True → api.sandbox.push.apple.com (builds dev)
 
     # ── Push nativo Android (FCM) ─────────────────────────────────────────
