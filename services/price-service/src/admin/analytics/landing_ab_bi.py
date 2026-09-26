@@ -1,4 +1,4 @@
-"""Teste A/B da landing — resultado por variante, lido do que o cliente enviou de verdade.
+"""Teste A/B da landing (COM imagem × SEM imagem) — resultado por variante, lido do que o cliente enviou de verdade.
 
 Fonte ÚNICA: `analytics_product_events` (mesma tabela do resto do Mission Control), eventos
 `landing_view`, `landing_download_click` e `landing_store_redirect`, com `experiment_id`, `variant`
@@ -33,7 +33,7 @@ from ...analytics.install_models import AppInstall, DOWNLOAD_PLATFORMS, install_
 from ...analytics.models import AnalyticsProductEvent
 from ...user_auth.models import User
 
-EXPERIMENT_ID = "landing_headline_2026_09"
+EXPERIMENT_ID = "landing_imagem_2026_09"  # A = com imagem do app (atual) × B = sem imagem
 VIEW, CLICK, REDIRECT = "landing_view", "landing_download_click", "landing_store_redirect"
 _EVENTS = (VIEW, CLICK, REDIRECT)
 VARIANTS = ("A", "B")

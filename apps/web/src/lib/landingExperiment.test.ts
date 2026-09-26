@@ -3,7 +3,7 @@ import { __resetLandingVariantMemo, EXPERIMENT_ID, getLandingVariant, secureRand
 
 beforeEach(() => {
   localStorage.clear();
-  document.cookie = 'petmol_lp_variant=; max-age=0; path=/';
+  document.cookie = 'petmol_lp_variant_img=; max-age=0; path=/';
   __resetLandingVariantMemo();
 });
 afterEach(() => vi.restoreAllMocks());
@@ -23,7 +23,7 @@ describe('atribuição da variante A/B', () => {
     const first = getLandingVariant({ random: () => 'B' });
     expect(first).toMatchObject({ variant: 'B', preview: false, persisted: true });
     expect(JSON.parse(localStorage.getItem('petmol_exp_landing_v1')!)).toMatchObject({ experiment_id: EXPERIMENT_ID, variant: 'B' });
-    expect(document.cookie).toContain('petmol_lp_variant=B');
+    expect(document.cookie).toContain('petmol_lp_variant_img=B');
 
     __resetLandingVariantMemo(); // "atualizou a página": memória zerada, armazenamento permanece
     const again = getLandingVariant({ random: () => 'A' }); // mesmo que o sorteio desse A, mantém B
@@ -31,7 +31,7 @@ describe('atribuição da variante A/B', () => {
   });
 
   it('se só o cookie sobreviveu, mantém a variante e regrava o localStorage', () => {
-    document.cookie = 'petmol_lp_variant=A; path=/';
+    document.cookie = 'petmol_lp_variant_img=A; path=/';
     const v = getLandingVariant({ random: () => 'B' });
     expect(v.variant).toBe('A');
     expect(JSON.parse(localStorage.getItem('petmol_exp_landing_v1')!).variant).toBe('A');
@@ -42,11 +42,18 @@ describe('atribuição da variante A/B', () => {
     expect(getLandingVariant({ random: () => 'A' }).variant).toBe('A');
   });
 
+  it('cookie/armazenamento do experimento ANTERIOR (texto A×B) não vazam: quem já tinha versão sorteia de novo', () => {
+    document.cookie = 'petmol_lp_variant=B; path=/';
+    localStorage.setItem('petmol_exp_landing_v1', JSON.stringify({ experiment_id: 'landing_headline_2026_09', variant: 'B' }));
+    expect(getLandingVariant({ random: () => 'A' }).variant).toBe('A');
+    document.cookie = 'petmol_lp_variant=; max-age=0; path=/';
+  });
+
   it('pré-visualização (?ab=B) mostra a versão pedida SEM gravar nada e marca preview', () => {
     const v = getLandingVariant({ search: '?ab=b' });
     expect(v).toEqual({ variant: 'B', preview: true, persisted: false });
     expect(localStorage.getItem('petmol_exp_landing_v1')).toBeNull();
-    expect(document.cookie).not.toContain('petmol_lp_variant');
+    expect(document.cookie).not.toContain('petmol_lp_variant_img');
   });
 
   it('mensagem por anúncio (forcePreview) não entra na estatística e não sorteia', () => {

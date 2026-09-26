@@ -1,5 +1,5 @@
 /**
- * Teste A/B da landing — atribuição da variante.
+ * Teste A/B da landing — atribuição da variante. Experimento atual: COM imagem (A) × SEM imagem (B).
  *
  * - 50/50, aleatória (crypto.getRandomValues) e PERSISTENTE: gravada em localStorage e num cookie de 90 dias;
  *   o mesmo navegador continua vendo a mesma versão ao atualizar/voltar. Nada alterna sozinho.
@@ -9,11 +9,11 @@
  *   nada e marca os eventos como `preview` — o Mission Control ignora esses eventos.
  * - Nenhum fingerprinting: só um bit sorteado e o id anônimo que o PETMOL já usa.
  */
-export const EXPERIMENT_ID = 'landing_headline_2026_09';
+export const EXPERIMENT_ID = 'landing_imagem_2026_09';
 export type LandingVariant = 'A' | 'B';
 
 const STORAGE_KEY = 'petmol_exp_landing_v1';
-const COOKIE_KEY = 'petmol_lp_variant';
+const COOKIE_KEY = 'petmol_lp_variant_img';
 const COOKIE_DAYS = 90;
 
 export interface VariantInfo {
@@ -24,13 +24,8 @@ export interface VariantInfo {
   persisted: boolean;
 }
 
-export const VARIANT_COPY: Record<LandingVariant, { title: string; subtitle: string } | null> = {
-  A: null, // versão atual publicada
-  B: {
-    title: 'Tudo para cuidar melhor do seu pet.',
-    subtitle: 'Alimentação, vacinas, cuidados e ofertas de ração em um só lugar.',
-  },
-};
+/** A = com a imagem do app (atual). B = SEM imagem: mesmo texto, título maior e 3 benefícios curtos. */
+export const VARIANT_HAS_IMAGE: Record<LandingVariant, boolean> = { A: true, B: false };
 
 export function secureRandomVariant(): LandingVariant {
   try {

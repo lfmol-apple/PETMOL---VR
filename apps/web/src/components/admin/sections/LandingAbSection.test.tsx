@@ -33,8 +33,8 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 describe('Aquisição e Conversão — Landing A/B', () => {
   it('mostra as duas versões lado a lado com conversão, visitantes, cliques e lojas', async () => {
     render(<LandingAbSection filter={{ period_days: 7 }} />);
-    expect((await screen.findAllByText('Versão A')).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Versão B').length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Versão A · com imagem')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Versão B · sem imagem').length).toBeGreaterThan(0);
     expect(screen.getByText('10,0%')).toBeTruthy();           // conversão A
     expect(screen.getByText('20,8%')).toBeTruthy();           // conversão B
     expect(screen.getByText('5 de 50 visitantes clicaram')).toBeTruthy();
@@ -50,7 +50,7 @@ describe('Aquisição e Conversão — Landing A/B', () => {
 
   it('filtro "Só Instagram" e o período global vão na consulta ao servidor', async () => {
     render(<LandingAbSection filter={{ period_days: 30 }} />);
-    await screen.findAllByText('Versão A');
+    await screen.findAllByText('Versão A · com imagem');
     expect(urls[0]).toContain('period_days=30');
     fireEvent.click(screen.getByText(/Só Instagram/));
     await waitFor(() => expect(urls.some((u) => u.includes('instagram=true'))).toBe(true));
@@ -59,7 +59,7 @@ describe('Aquisição e Conversão — Landing A/B', () => {
   it('sem dados: mostra zeros e "—", nunca números inventados', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => payload({ variants: { A: variant({}), B: variant({}) } }) } as Response)));
     render(<LandingAbSection filter={{}} />);
-    await screen.findAllByText('Versão A');
+    await screen.findAllByText('Versão A · com imagem');
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText('Sem eventos no período.').length).toBe(2);
   });
