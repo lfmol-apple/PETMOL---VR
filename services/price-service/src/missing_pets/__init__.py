@@ -2452,8 +2452,11 @@ def match_missing_pets_by_photo(body: PhotoMatchBody, request: Request, db: Sess
             continue
         analyzed += 1
         score, analysis = _analyze_photo_compatibility(mp.photo_url, body.finder_photos[:2], mp.characteristics)
-        if score < 50:
-            continue
+        # Decisão do dono (26/09/2026): o achador pode enviar o aviso ao tutor MESMO com
+        # semelhança baixa — antes, score < 50 descartava o candidato e quem estava com o
+        # pet não tinha para quem enviar ("o envio só funcionava se fosse parecido"). O
+        # índice continua sendo mostrado (confidence_level/label) e ordena a lista; quem
+        # decide é o tutor, que confirma sempre (requires_human_confirmation).
         item = _mp_to_public_dict(mp)
         item["_internal_score"] = score
         item.update(_compatibility_payload(score, analysis))
@@ -2522,7 +2525,8 @@ def analyze_photo(mp_id: str, body: PhotoAnalysisBody, request: Request, db: Ses
     return {
         "analysis": analysis if analysis else None,
         "photo_quality": quality,
-        **_compatibility_payload(score if score >= 50 else None, analysis),
+        # Score baixo também é informado (rótulo "Pouca semelhança"): não bloqueia o envio.
+        **_compatibility_payload(score, analysis),
     }
 
 
