@@ -31,12 +31,14 @@ Confirmado via schema do banco (`petmol_prod_mirror`) e leitura do código nesta
 | Identifiers (ID de conta) | Sim | Sim | Não | App Functionality |
 | Usage Data (cliques em ofertas/CTAs, eventos de app) | Sim | Sim (via `lead_id`, não anônimo) | Não | Analytics (primeira parte), App Functionality |
 | User Content (mensagens de "Fale com o PETMOL") | Sim | Opcional (vinculado à conta se logado) | Não | App Functionality, Customer Support |
+| **Identifiers (Device ID — identificador de publicidade/IDFA)** — *a partir da 1.1 (SDK da Meta)* | Sim, só se o usuário permitir o rastreamento (ATT) | Sim | **Sim** | Third-Party Advertising, Analytics |
+| **Usage Data (Product Interaction: instalação/abertura do app enviados à Meta)** — *a partir da 1.1* | Sim | Sim (ligado ao ID do aparelho) | **Sim** | Third-Party Advertising, Analytics |
 | Identifiers (token de push nativo do dispositivo) | Sim | Sim | Não | App Functionality (notificações) |
 | Diagnostics (crash/performance) | Não coletado por SDK próprio — não declarar coleta do desenvolvedor | — | — | — |
 | Contacts | Não | — | — | — |
 | Financial Info | Não (nenhum dado de pagamento processado pelo PETMOL — compra acontece no site do parceiro) | — | — | — |
 
-**"Usado para rastreamento" (tracking, no sentido da Apple/ATT) = Não** em toda a tabela — não há compartilhamento de identificadores com terceiros para publicidade entre apps/sites. O único compartilhamento com terceiro é o envio pontual de uma foto ao Gemini (Google) para extração de texto, que é processamento a serviço do PETMOL, não rastreamento publicitário — mas revisar a definição exata da Apple antes de confirmar essa classificação no formulário.
+**"Usado para rastreamento" (tracking, no sentido da Apple/ATT):** Não até a 1.0. **A partir da 1.1 (iOS) = SIM** para Device ID e Product Interaction, por causa do SDK da Meta (campanhas de instalação), com o aviso de rastreamento (ATT) na 1ª abertura. O resto da tabela continua "Não". Ver `docs/PRIVACIDADE_LOJAS_V1_1.md`. O único outro compartilhamento com terceiro é o envio pontual de uma foto ao Gemini (Google) para extração de texto, que é processamento a serviço do PETMOL, não rastreamento publicitário — mas revisar a definição exata da Apple antes de confirmar essa classificação no formulário.
 
 ## Google Play Data Safety
 
