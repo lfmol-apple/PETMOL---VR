@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideIntro, saoPauloTime } from './landingIntro';
+import { __resetIntroSeen, decideIntro, markIntroSeen, saoPauloTime, wasIntroSeen } from './landingIntro';
 
 const base = { search: '', isMobile: true, isNative: false, seen: false };
 
@@ -10,8 +10,13 @@ describe('decisão da introdução em vídeo', () => {
   it('desktop: nunca (landing normal, sem introdução)', () => {
     expect(decideIntro({ ...base, isMobile: false })).toMatchObject({ show: false, reason: 'not_mobile' });
   });
-  it('não repete na mesma sessão', () => {
-    expect(decideIntro({ ...base, seen: true })).toMatchObject({ show: false, reason: 'seen_this_session' });
+  it('não repete ao navegar dentro da mesma página (mas volta em toda nova visita/atualização)', () => {
+    expect(decideIntro({ ...base, seen: true })).toMatchObject({ show: false, reason: 'seen_this_load' });
+    __resetIntroSeen();
+    expect(wasIntroSeen()).toBe(false);
+    markIntroSeen();
+    expect(wasIntroSeen()).toBe(true);
+    __resetIntroSeen();
   });
   it('interruptor desligado apaga tudo, até o modo de teste', () => {
     expect(decideIntro({ ...base, enabled: false }).show).toBe(false);

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { __resetLandingVariantMemo } from '@/lib/landingExperiment';
 import { LandingIntro } from './LandingIntro';
+import { __resetIntroSeen, wasIntroSeen } from '@/lib/landingIntro';
 
 const fetchMock = vi.fn();
 const sent = () => fetchMock.mock.calls.filter((c) => String(c[0]).includes('/analytics/event')).map((c) => JSON.parse(c[1].body));
@@ -10,7 +11,7 @@ let playImpl: () => Promise<void>;
 
 beforeEach(() => {
   vi.useFakeTimers();
-  localStorage.clear(); sessionStorage.clear(); __resetLandingVariantMemo();
+  localStorage.clear(); sessionStorage.clear(); __resetLandingVariantMemo(); __resetIntroSeen();
   fetchMock.mockReset().mockResolvedValue({ ok: true });
   vi.stubGlobal('fetch', fetchMock);
   window.history.replaceState({}, '', '/?utm_source=instagram&utm_campaign=set26');
@@ -29,7 +30,7 @@ describe('introdução em vídeo (celular)', () => {
     expect(screen.getByText('Pular e conhecer o PETMOL')).toBeTruthy();
     expect(names()).toEqual(['landing_intro_poster_view']);
     expect(video().getAttribute('preload')).toBe('none');
-    expect(sessionStorage.getItem('petmol_landing_intro_seen')).toBe('1'); // não repete na sessão
+    expect(wasIntroSeen()).toBe(true); // não repete ao navegar dentro da mesma página
   });
 
   it('tocar em "Assistir com som" toca COM áudio (dentro do gesto) e registra o clique', () => {

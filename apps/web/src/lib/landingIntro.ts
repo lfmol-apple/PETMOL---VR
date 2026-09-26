@@ -12,8 +12,6 @@ export const LANDING_INTRO_ENABLED = true;
 export const INTRO_VIDEO_SRC = '/landing/comercial/petmol-comercial-v1.mp4';
 export const INTRO_POSTER_SRC = '/landing/comercial/petmol-comercial-poster-v1.webp';
 
-const SEEN_KEY = 'petmol_landing_intro_seen';
-
 export type IntroMode = 'shown' | 'none';
 
 export interface IntroDecision {
@@ -33,7 +31,7 @@ export function decideIntro(input: { enabled?: boolean; search: string; isMobile
   if (flag === '0' || flag === 'off') return { show: false, preview: false, reason: 'opt_out' };
   if (q.has('ab')) return { show: false, preview: false, reason: 'ab_preview' }; // links de conferência do teste A/B vão direto à landing
   if (!input.isMobile) return { show: false, preview: false, reason: 'not_mobile' };
-  if (input.seen) return { show: false, preview: false, reason: 'seen_this_session' };
+  if (input.seen) return { show: false, preview: false, reason: 'seen_this_load' };
   return { show: true, preview: false, reason: 'ok' };
 }
 
@@ -47,13 +45,14 @@ export function isMobileVisitor(): boolean {
   }
 }
 
-export function wasIntroSeen(): boolean {
-  try { return sessionStorage.getItem(SEEN_KEY) === '1'; } catch { return false; }
-}
-
-export function markIntroSeen(): void {
-  try { sessionStorage.setItem(SEEN_KEY, '1'); } catch { /* sem storage: pode repetir, nunca trava */ }
-}
+// Decisão do dono (26/09/2026): o comercial aparece em TODA visita ao celular (a cada carga da página, inclusive ao
+// atualizar). Só não repete ao navegar dentro da mesma página (ex.: voltar do /login), por isso a marca fica em
+// memória e não em sessionStorage.
+let shownThisLoad = false;
+export function wasIntroSeen(): boolean { return shownThisLoad; }
+export function markIntroSeen(): void { shownThisLoad = true; }
+/** Só para testes. */
+export function __resetIntroSeen(): void { shownThisLoad = false; }
 
 // Estado desta visita, lido pelos eventos (landingEvents) para separar "com introdução" de "sem".
 let mode: IntroMode = 'none';
