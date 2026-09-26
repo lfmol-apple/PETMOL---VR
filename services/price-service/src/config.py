@@ -123,6 +123,11 @@ class Settings(BaseSettings):
     # ganha nenhuma outra permissão. Vazio desativa. Overridable via env var
     # SECONDARY_INSTALL_PUSH_EMAIL.
     secondary_install_push_email: Optional[str] = "contato@vepiconsorcios.com.br"
+    # Outros destinatários do mesmo push (lista separada por vírgula), com o mesmo
+    # limite acima. Separado do campo acima de propósito: se o servidor já define
+    # SECONDARY_INSTALL_PUSH_EMAIL no env, este continua valendo. Env var:
+    # EXTRA_INSTALL_PUSH_EMAILS.
+    extra_install_push_emails: Optional[str] = "gerenciamento@petmol.com.br"
 
     # Contagem de alcance da campanha (push "Novo download" e e-mail diário):
     # total = base (usuários reais que já existiam) + instalações registradas

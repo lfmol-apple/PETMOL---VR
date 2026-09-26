@@ -383,3 +383,54 @@ def test_enrichment_reclassifies_mountain_view_as_web(monkeypatch):
     r._enrich_and_notify_install(rid, "8.8.4.4", "android")
     with SessionLocal() as db:
         assert db.query(AppInstall).get(rid).platform == "web"
+
+
+def test_app_install_push_reaches_every_configured_recipient(monkeypatch):
+    """gerenciamento@ (extra) e o secundário recebem o MESMO push do admin; e-mail repetido
+    ou igual ao do admin não duplica; conta inexistente é ignorada sem derrubar os outros."""
+    from uuid import uuid4
+
+    from src.config import get_settings
+    from src.db import SessionLocal
+    from src.user_auth.models import User
+
+    settings = get_settings()
+    admin_email = settings.admin_master_email.lower()
+    tag = uuid4().hex[:6]
+    second, mgmt = f"segundo-{tag}@example.com", f"gerenciamento-{tag}@petmol.com.br"
+    monkeypatch.setattr(settings, "secondary_install_push_email", second, raising=False)
+    monkeypatch.setattr(
+        settings, "extra_install_push_emails", f" {mgmt.upper()} ,{second},{admin_email},sem-conta-{tag}@example.com", raising=False
+    )
+
+    db = SessionLocal()
+    try:
+        for email in (admin_email, second, mgmt):
+            if not db.query(User).filter(User.email == email).first():
+                db.add(User(email=email, password_hash="x", name="T"))
+        db.commit()
+        uids = {e: str(db.query(User).filter(User.email == e).first().id) for e in (admin_email, second, mgmt)}
+    finally:
+        db.close()
+
+    sent = []
+    monkeypatch.setattr("src.notifications.push_to_user", lambda uid, payload: sent.append((uid, payload)))
+
+    from src.analytics.router import _enrich_and_notify_install
+    from src.analytics.install_models import AppInstall
+
+    db = SessionLocal()
+    try:
+        row = AppInstall(platform="ios", ip_hash=f"t{uuid4().hex[:12]}")
+        db.add(row)
+        db.commit()
+        row_id = row.id
+    finally:
+        db.close()
+
+    _enrich_and_notify_install(row_id, None, "ios")
+
+    assert sorted(u for u, _ in sent) == sorted(uids.values())  # 3 destinatários, cada um 1 vez
+    assert len({p["title"] + p["body"] for _, p in sent}) == 1  # mesmo push para todos
+    assert dict(sent)[uids[admin_email]]["data"]["url"] == "/admin/dashboard"
+    assert dict(sent)[uids[mgmt]]["data"]["url"] == "/home"
