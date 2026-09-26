@@ -10,7 +10,9 @@ export type NearbyAlert = {
   last_seen_location: string | null; missing_date: string | null;
   missing_time: string | null; created_at: string | null; user_id: string;
   photo_url: string | null; breed: string | null;
-  characteristics: string | null; public_slug: string | null;
+  // Sem `characteristics`: é "só você sabe" do tutor — o backend não manda
+  // para quem está no raio.
+  public_slug: string | null;
 };
 
 interface MissingPetAlertCardProps {
@@ -38,7 +40,7 @@ export function MissingPetAlertCard({
   const missingInfo = alert.missing_date
     ? `Desaparecido em ${formatLocalDateOnly(alert.missing_date, 'pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}${alert.missing_time ? ' às ' + alert.missing_time : ''}`
     : 'Desaparecido recentemente';
-  const descricao = [alert.breed, alert.characteristics].filter(Boolean).join(' · ');
+  const descricao = alert.breed ?? '';
 
   // ESTADO COMPACTO — o desaparecimento continua ativo; o card só ocupa
   // menos espaço. Tocar reabre. "Recolher" NUNCA dispensa.

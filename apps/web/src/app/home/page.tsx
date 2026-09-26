@@ -3089,7 +3089,7 @@ const [showVaccineSheet, setShowVaccineSheet] = useState(false);
           dados que já vieram no /my-alerts. "Voltar" fecha e volta pra home. */}
       {alertCard && (() => {
         const cardPhoto = getPhotoUrl(alertCard.photo_url);
-        const desc = [alertCard.breed, alertCard.characteristics].filter(Boolean).join(' · ');
+        const desc = alertCard.breed ?? '';
         const missing = alertCard.missing_date
           ? `Desaparecido em ${formatLocalDateOnly(alertCard.missing_date, 'pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}${alertCard.missing_time ? ' às ' + alertCard.missing_time : ''}`
           : 'Desaparecido recentemente';
